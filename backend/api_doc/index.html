@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RedCode IM - API 文档</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-comments"></i>
+                    <h1>RedCode IM API</h1>
+                </div>
+                <div class="header-info">
+                    <span class="version">v1.0.0</span>
+                    <span class="status">
+                        <i class="fas fa-circle text-success"></i>
+                        服务器运行中
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区 -->
+        <div class="main-content">
+            <!-- 侧边栏 -->
+            <aside class="sidebar">
+                <div class="sidebar-content">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="搜索API...">
+                    </div>
+
+                    <nav class="nav-menu">
+                        <div class="nav-group">
+                            <h3>基础信息</h3>
+                            <a href="#overview" class="nav-link active">
+                                <i class="fas fa-home"></i>
+                                概览
+                            </a>
+                        </div>
+
+                        <div class="nav-group">
+                            <h3>认证模块</h3>
+                            <a href="#auth" class="nav-link">
+                                <i class="fas fa-shield-alt"></i>
+                                用户认证
+                            </a>
+                        </div>
+
+                        <div class="nav-group">
+                            <h3>系统模块</h3>
+                            <a href="#system" class="nav-link">
+                                <i class="fas fa-cogs"></i>
+                                系统接口
+                            </a>
+                        </div>
+
+                        <div class="nav-group">
+                            <h3>WebSocket</h3>
+                            <a href="#websocket" class="nav-link">
+                                <i class="fas fa-plug"></i>
+                                实时通信
+                            </a>
+                        </div>
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- 内容区 -->
+            <main class="content">
+                <section id="overview" class="section active">
+                    <div class="section-header">
+                        <h2><i class="fas fa-home"></i> API 概览</h2>
+                        <p>RedCode IM 后端API文档，包含完整的用户认证、消息传递和实时通信功能。</p>
+                    </div>
+
+                    <div class="info-cards">
+                        <div class="info-card">
+                            <h3><i class="fas fa-server"></i> 服务器信息</h3>
+                            <ul>
+                                <li><strong>基础URL:</strong> <code>http://localhost:8080</code></li>
+                                <li><strong>API版本:</strong> v1.0.0</li>
+                                <li><strong>数据格式:</strong> JSON</li>
+                                <li><strong>字符编码:</strong> UTF-8</li>
+                            </ul>
+                        </div>
+
+                        <div class="info-card">
+                            <h3><i class="fas fa-key"></i> 认证方式</h3>
+                            <ul>
+                                <li><strong>类型:</strong> Bearer Token (JWT)</li>
+                                <li><strong>头部:</strong> <code>Authorization: Bearer &lt;token&gt;</code></li>
+                                <li><strong>有效期:</strong> 24小时</li>
+                            </ul>
+                        </div>
+
+                        <div class="info-card">
+                            <h3><i class="fas fa-exchange-alt"></i> 响应格式</h3>
+                            <ul>
+                                <li><strong>成功:</strong> HTTP 200 + 数据</li>
+                                <li><strong>错误:</strong> HTTP 4xx/5xx + 错误信息</li>
+                                <li><strong>内容类型:</strong> <code>application/json</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="auth" class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-shield-alt"></i> 用户认证</h2>
+                        <p>用户注册、登录和身份验证相关接口。</p>
+                    </div>
+
+                    <div id="auth-apis" class="api-list">
+                        <!-- API内容将通过JavaScript动态生成 -->
+                    </div>
+                </section>
+
+                <section id="system" class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-cogs"></i> 系统接口</h2>
+                        <p>系统状态和基础功能接口。</p>
+                    </div>
+
+                    <div id="system-apis" class="api-list">
+                        <!-- API内容将通过JavaScript动态生成 -->
+                    </div>
+                </section>
+
+                <section id="websocket" class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-plug"></i> WebSocket 实时通信</h2>
+                        <p>实时消息传递和通信功能。</p>
+                    </div>
+
+                    <div id="websocket-apis" class="api-list">
+                        <!-- API内容将通过JavaScript动态生成 -->
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="api-data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

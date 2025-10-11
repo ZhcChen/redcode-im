@@ -1,0 +1,141 @@
+services:
+
+  # Session专用Redis - 持久化模式
+  redis-session:
+    image: redis:8.2.2-alpine
+    container_name: redcode-redis-session
+    ports:
+      - "6381:6381"
+    volumes:
+      - redis_session_data:/data
+    command: |
+      redis-server
+      --port 6381
+      --appendonly yes
+      --aof-use-rdb-preamble yes
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 128mb
+      --maxmemory-policy volatile-lru
+      --timeout 300
+      --tcp-keepalive 60
+    networks:
+      - redcode-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6381", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    environment:
+      TZ: Asia/Shanghai
+    labels:
+      - "com.redcode.service=redis-session"
+      - "com.redcode.description=Session专用Redis-持久化模式"
+      - "com.redcode.priority=2"
+
+  # Streams专用Redis - 持久化流模式
+  redis-streams:
+    image: redis:8.2.2-alpine
+    container_name: redcode-redis-streams
+    ports:
+      - "6382:6382"
+    volumes:
+      - redis_streams_data:/data
+    command: |
+      redis-server
+      --port 6382
+      --appendonly yes
+      --aof-use-rdb-preamble yes
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy volatile-lru
+      --timeout 300
+      --tcp-keepalive 60
+      --slowlog-log-slower-than 10000
+      --slowlog-max-len 128
+    networks:
+      - redcode-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6382", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    environment:
+      TZ: Asia/Shanghai
+    labels:
+      - "com.redcode.service=redis-streams"
+      - "com.redcode.description=Streams专用Redis-持久化流模式"
+      - "com.redcode.priority=2"
+
+  # Cache专用Redis - 纯缓存模式
+  redis-cache:
+    image: redis:8.2.2-alpine
+    container_name: redcode-redis-cache
+    ports:
+      - "6383:6383"
+    command: |
+      redis-server
+      --port 6383
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --timeout 300
+      --tcp-keepalive 60
+      --rdbcompression yes
+      --active-defrag-threshold-lower 10
+      --active-defrag-threshold-upper 100
+      --active-defrag-cycle-min 25
+      --active-defrag-cycle-max 75
+    networks:
+      - redcode-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6383", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    environment:
+      TZ: Asia/Shanghai
+    labels:
+      - "com.redcode.service=redis-cache"
+      - "com.redcode.description=Cache专用Redis-纯缓存模式"
+      - "com.redcode.priority=3"
+
+  # Redis命令行管理工具 (可选)
+  redis-cli:
+    image: redis:8.2.2-alpine
+    container_name: redcode-redis-cli
+    profiles:
+      - tools
+    command: sleep infinity
+    networks:
+      - redcode-redis
+    environment:
+      TZ: Asia/Shanghai
+    labels:
+      - "com.redcode.service=redis-cli"
+      - "com.redcode.description=Redis命令行管理工具"
+
+volumes:
+  redis_main_data:
+    driver: local
+    name: redcode_redis_main_data
+  redis_session_data:
+    driver: local
+    name: redcode_redis_session_data
+  redis_streams_data:
+    driver: local
+    name: redcode_redis_streams_data
+
+networks:
+  redcode-redis:
+    driver: bridge
+    name: redcode_redis_network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
