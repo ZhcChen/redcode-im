@@ -1,12 +1,11 @@
-use redis::{Client, Connection, ConnectionManager};
+use redis::Client;
 use std::env;
 use tracing::{info, error};
 
-pub mod pubsub;
-pub mod streams;
 pub mod cache;
 pub mod session;
 pub mod models;
+pub mod streams;
 
 /// Redis 连接管理器
 ///

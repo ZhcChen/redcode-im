@@ -132,12 +132,15 @@ services:
       dockerfile: Dockerfile
     container_name: redcode-backend
     ports:
-      - "8080:8080"
+      - "8010:8010"
+      - "8011:8011"
     volumes:
       - ./.env:/app/.env:ro  # 挂载 .env 文件（只读）
       - ./src:/app/src        # 开发时挂载源码（可选）
+      - ./api_doc:/app/api_doc:ro
     environment:
       - TZ=Asia/Shanghai
+      - API_DOC_PORT=8011
     depends_on:
       postgres:
         condition: service_healthy
@@ -151,7 +154,7 @@ services:
       - backend-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

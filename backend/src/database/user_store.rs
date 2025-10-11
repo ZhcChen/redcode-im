@@ -24,20 +24,19 @@ impl UserStore {
         let user_id = Uuid::new_v4();
         let now = Utc::now();
 
-        let user = sqlx::query_as!(
-            User,
+        let user = sqlx::query_as::<_, User>(
             r#"
             INSERT INTO users (id, username, email, password_hash, nickname, status, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, 'active', $6, $6)
-            RETURNING id, username, email, password_hash, nickname, avatar_url, status as "status: _", created_at, updated_at
+            RETURNING id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
             "#,
-            user_id,
-            request.username,
-            request.email,
-            password_hash,
-            request.nickname,
-            now
         )
+        .bind(user_id)
+        .bind(&request.username)
+        .bind(&request.email)
+        .bind(&password_hash)
+        .bind(&request.nickname)
+        .bind(now)
         .fetch_one(&self.database.pool)
         .await?;
 
@@ -46,15 +45,14 @@ impl UserStore {
 
     /// 根据用户名查找用户
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>, Error> {
-        let user = sqlx::query_as!(
-            User,
+        let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, status as "status: _", created_at, updated_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
             FROM users
             WHERE username = $1 AND status = 'active'
             "#,
-            username
         )
+        .bind(username)
         .fetch_optional(&self.database.pool)
         .await?;
 
@@ -63,15 +61,14 @@ impl UserStore {
 
     /// 根据用户ID查找用户
     pub async fn find_by_id(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
-        let user = sqlx::query_as!(
-            User,
+        let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, status as "status: _", created_at, updated_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
             FROM users
             WHERE id = $1 AND status = 'active'
             "#,
-            user_id
         )
+        .bind(user_id)
         .fetch_optional(&self.database.pool)
         .await?;
 
@@ -80,15 +77,14 @@ impl UserStore {
 
     /// 根据邮箱查找用户
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, Error> {
-        let user = sqlx::query_as!(
-            User,
+        let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, status as "status: _", created_at, updated_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
             FROM users
             WHERE email = $1 AND status = 'active'
             "#,
-            email
         )
+        .bind(email)
         .fetch_optional(&self.database.pool)
         .await?;
 
@@ -147,10 +143,10 @@ impl UserStore {
 
     /// 删除用户（软删除）
     pub async fn delete_user(&self, user_id: &Uuid) -> Result<bool, Error> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             "UPDATE users SET status = 'inactive', updated_at = NOW() WHERE id = $1",
-            user_id
         )
+        .bind(user_id)
         .execute(&self.database.pool)
         .await?;
 
@@ -159,36 +155,39 @@ impl UserStore {
 
     /// 检查用户名是否已存在
     pub async fn username_exists(&self, username: &str) -> Result<bool, Error> {
-        let exists = sqlx::query_scalar!(
+        let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND status = 'active')",
-            username
         )
+        .bind(username)
         .fetch_one(&self.database.pool)
-        .await?;
+        .await
+        .unwrap_or(false);
 
-        Ok(exists.unwrap_or(false))
+        Ok(exists)
     }
 
     /// 检查邮箱是否已存在
     pub async fn email_exists(&self, email: &str) -> Result<bool, Error> {
-        let exists = sqlx::query_scalar!(
+        let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND status = 'active')",
-            email
         )
+        .bind(email)
         .fetch_one(&self.database.pool)
-        .await?;
+        .await
+        .unwrap_or(false);
 
-        Ok(exists.unwrap_or(false))
+        Ok(exists)
     }
 
     /// 获取用户总数
     pub async fn count_users(&self) -> Result<i64, Error> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM users WHERE status = 'active'"
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users WHERE status = 'active'",
         )
         .fetch_one(&self.database.pool)
-        .await?;
+        .await
+        .unwrap_or(0);
 
-        Ok(count.unwrap_or(0) as i64)
+        Ok(count)
     }
 }

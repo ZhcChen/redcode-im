@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{root, healthz, ws, auth};
+use crate::handlers::{root, healthz, ws, auth, message};
 use crate::auth::auth_middleware;
 use crate::{AppState};
 
@@ -20,6 +20,7 @@ pub fn create_routes() -> Router<AppState> {
     // 需要认证的路由
     let protected_routes = Router::new()
         .route("/auth/me", get(auth::get_current_user))
+        .route("/rooms/:room_id/messages", post(message::send_message).get(message::list_messages))
         .layer(middleware::from_fn(auth_middleware));
 
     // 合并所有路由

@@ -55,10 +55,26 @@
                         </div>
 
                         <div class="nav-group">
+                            <h3>接口列表</h3>
+                            <a href="#catalog" class="nav-link">
+                                <i class="fas fa-list"></i>
+                                接口总览
+                            </a>
+                        </div>
+
+                        <div class="nav-group">
                             <h3>系统模块</h3>
                             <a href="#system" class="nav-link">
                                 <i class="fas fa-cogs"></i>
                                 系统接口
+                            </a>
+                        </div>
+
+                        <div class="nav-group">
+                            <h3>消息模块</h3>
+                            <a href="#messages" class="nav-link">
+                                <i class="fas fa-envelope"></i>
+                                消息接口
                             </a>
                         </div>
 
@@ -131,6 +147,28 @@
 
                     <div id="system-apis" class="api-list">
                         <!-- API内容将通过JavaScript动态生成 -->
+                    </div>
+                </section>
+
+                <section id="messages" class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-envelope"></i> 消息接口</h2>
+                        <p>房间消息发送与查询接口（需携带 Bearer Token）。</p>
+                    </div>
+
+                    <div id="messages-apis" class="api-list">
+                        <!-- API内容将通过JavaScript动态生成 -->
+                    </div>
+                </section>
+
+                <section id="catalog" class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-list"></i> 接口总览</h2>
+                        <p>按模块分组的接口快速索引，点击可跳转到对应接口详情。</p>
+                    </div>
+
+                    <div id="catalog-list" class="api-list">
+                        <!-- 通过 JavaScript 动态生成接口目录 -->
                     </div>
                 </section>
 

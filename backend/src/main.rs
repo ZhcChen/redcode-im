@@ -10,9 +10,11 @@ mod redis;
 use std::{env, net::SocketAddr};
 
 use tokio::net::TcpListener;
+use axum::Router;
 use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
+    services::ServeDir,
 };
 use tracing::{info, error};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -43,7 +45,7 @@ async fn main() {
     info!("Redis 连接初始化完成!");
 
     // 启动后台任务
-    let _node_id = start_background_tasks(redis_manager.clone()).await;
+    let node_id = start_background_tasks(redis_manager.clone()).await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -56,17 +58,46 @@ async fn main() {
         .with_state(AppState {
             database,
             redis: redis_manager,
+            node_id,
         });
 
     let port: u16 = env::var("PORT")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(8080);
+        .unwrap_or(8010);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
     info!("服务器启动在 {}", addr);
     info!("PostgreSQL + Redis 多节点架构已就绪!");
+
+    // 启动 API 文档静态服务 (端口 8011 默认)
+    let api_doc_port: u16 = env::var("API_DOC_PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8011);
+    let api_doc_dir = env::var("API_DOC_DIR").unwrap_or_else(|_| "api_doc".to_string());
+
+    let docs_router = Router::new()
+        .nest_service("/", ServeDir::new(api_doc_dir).append_index_html_on_directories(true));
+
+    tokio::spawn(async move {
+        let docs_addr = SocketAddr::from(([0, 0, 0, 0], api_doc_port));
+        match TcpListener::bind(docs_addr).await {
+            Ok(listener_docs) => {
+                info!("API 文档服务启动在 http://{}", docs_addr);
+                info!("API Doc Banner: 服务已启动");
+                if let Err(e) = axum::serve(listener_docs, docs_router).await {
+                    tracing::error!("API 文档服务异常: {:?}", e);
+                }
+            }
+            Err(e) => {
+                tracing::error!("API 文档服务端口绑定失败: {:?}", e);
+            }
+        }
+    });
+
     let listener = TcpListener::bind(addr).await.expect("bind");
+    info!("服务已启动");
     axum::serve(listener, app).await.expect("server");
 }
 
@@ -75,6 +106,7 @@ async fn main() {
 pub struct AppState {
     pub database: database::Database,
     pub redis: redis::RedisManager,
+    pub node_id: String,
 }
 
 /// 启动后台任务
@@ -130,7 +162,7 @@ async fn register_node_heartbeat(
 
     session_manager
         .register_node_heartbeat(
-            format!("localhost:{}", env::var("PORT").unwrap_or_else(|_| "8080".to_string())),
+            format!("localhost:{}", env::var("PORT").unwrap_or_else(|_| "8010".to_string())),
             connected_users,
             active_rooms,
         )

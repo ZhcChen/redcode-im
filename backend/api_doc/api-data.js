@@ -5,7 +5,7 @@ const API_DATA = {
     // 基础信息
     baseUrl: "http://localhost:8080",
     version: "1.0.0",
-    lastUpdated: "2024-10-09",
+    lastUpdated: "2025-10-11",
 
     // 认证模块 APIs
     auth: [
@@ -242,6 +242,86 @@ const API_DATA = {
                     description: "心跳检测",
                     example: "WebSocket ping/pong"
                 }
+            ]
+        }
+    ],
+
+    // 消息模块 APIs
+    messages: [
+        {
+            id: "sendMessage",
+            method: "POST",
+            path: "/rooms/:room_id/messages",
+            title: "发送消息",
+            description: "向指定房间发送消息。需要认证。可选 message_type: text/image/file/system（默认 text）。",
+            authentication: true,
+            requestBody: {
+                contentType: "application/json",
+                schema: {
+                    type: "object",
+                    required: ["content"],
+                    properties: {
+                        content: {
+                            type: "string",
+                            description: "消息内容",
+                            example: "大家好"
+                        },
+                        message_type: {
+                            type: "string",
+                            description: "消息类型，可选 text/image/file/system",
+                            example: "text"
+                        }
+                    }
+                },
+                example: {
+                    content: "大家好",
+                    message_type: "text"
+                }
+            },
+            responses: [
+                {
+                    status: 200,
+                    description: "发送成功，返回消息对象",
+                    example: {
+                        id: "550e8400-e29b-41d4-a716-446655440000",
+                        room_id: "11111111-2222-3333-4444-555555555555",
+                        sender_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                        content: "大家好",
+                        message_type: "text",
+                        created_at: "2024-10-10T10:00:00Z",
+                        updated_at: "2024-10-10T10:00:00Z"
+                    }
+                },
+                { status: 401, description: "未授权", example: { error: "Unauthorized" } },
+                { status: 403, description: "非房间成员禁止发送", example: { error: "Not a room member" } }
+            ]
+        },
+        {
+            id: "listMessages",
+            method: "GET",
+            path: "/rooms/:room_id/messages?limit=50",
+            title: "获取消息列表",
+            description: "按时间倒序获取房间最近消息。支持查询参数 limit(1-200)，默认50。需要认证。",
+            authentication: true,
+            requestBody: null,
+            responses: [
+                {
+                    status: 200,
+                    description: "获取成功，返回消息数组（倒序）",
+                    example: [
+                        {
+                            id: "550e8400-e29b-41d4-a716-446655440000",
+                            room_id: "11111111-2222-3333-4444-555555555555",
+                            sender_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                            content: "大家好",
+                            message_type: "text",
+                            created_at: "2024-10-10T10:00:00Z",
+                            updated_at: "2024-10-10T10:00:00Z"
+                        }
+                    ]
+                },
+                { status: 401, description: "未授权", example: { error: "Unauthorized" } },
+                { status: 403, description: "非房间成员禁止访问", example: { error: "Not a room member" } }
             ]
         }
     ]

@@ -3,6 +3,7 @@ use std::env;
 
 pub mod models;
 pub mod user_store;
+pub mod message_store;
 
 /// 数据库连接池
 #[derive(Clone)]

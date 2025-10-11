@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod message;
 
 use axum::{
     extract::ws::WebSocketUpgrade,

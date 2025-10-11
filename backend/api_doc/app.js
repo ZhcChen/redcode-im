@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     // 渲染API内容
     renderAPIs();
+    renderCatalog();
 
     // 初始化导航
     initializeNavigation();
@@ -23,6 +24,7 @@ function initializeApp() {
 function renderAPIs() {
     renderAuthAPIs();
     renderSystemAPIs();
+    renderMessagesAPIs();
     renderWebSocketAPIs();
 }
 
@@ -48,6 +50,65 @@ function renderWebSocketAPIs() {
     if (!container) return;
 
     container.innerHTML = API_DATA.websocket.map(api => createAPICard(api)).join('');
+}
+
+// 渲染消息API
+function renderMessagesAPIs() {
+    const container = document.getElementById('messages-apis');
+    if (!container || !API_DATA.messages) return;
+
+    container.innerHTML = API_DATA.messages.map(api => createAPICard(api)).join('');
+}
+
+// 渲染接口总览（目录）
+function renderCatalog() {
+    const container = document.getElementById('catalog-list');
+    if (!container) return;
+
+    const groups = [
+        { key: 'system', title: '系统接口', items: API_DATA.system || [] },
+        { key: 'auth', title: '用户认证', items: API_DATA.auth || [] },
+        { key: 'messages', title: '消息接口', items: API_DATA.messages || [] },
+        { key: 'websocket', title: 'WebSocket 实时通信', items: API_DATA.websocket || [] },
+    ];
+
+    let html = '';
+    groups.forEach(g => {
+        if (!g.items.length) return;
+        html += `
+            <div class="api-section">
+                <h4><i class="fas fa-folder"></i> ${g.title}</h4>
+                <ul class="catalog-list">
+                    ${g.items.map(api => `
+                        <li class="catalog-item" data-module="${g.key}" data-api-id="${api.id}">
+                            <span class="api-method method-${api.method.toLowerCase()}">${api.method}</span>
+                            <code class="api-path">${API_DATA.baseUrl}${api.path}</code>
+                            <span class="api-title">${api.title}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    setupCatalogNavigation();
+}
+
+function setupCatalogNavigation() {
+    const list = document.getElementById('catalog-list');
+    if (!list) return;
+    list.addEventListener('click', function(e) {
+        const item = e.target.closest('.catalog-item');
+        if (!item) return;
+        const module = item.getAttribute('data-module');
+        const apiId = item.getAttribute('data-api-id');
+        showSection(module);
+        setTimeout(() => {
+            const targetCard = document.querySelector(`#${module} .api-card[data-api-id="${apiId}"]`);
+            if (targetCard) targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 0);
+    });
 }
 
 // 创建API卡片HTML
