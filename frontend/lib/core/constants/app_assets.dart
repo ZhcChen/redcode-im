@@ -24,6 +24,9 @@ class AppAssets {
   static const String contactsNewFriend =
       '$images/contacts/icon_new_friend.svg';
   static const String contactsGroup = '$images/contacts/icon_chat_group.svg';
+  static const String chatMenu = '$images/chat/icon_menu.svg';
+  static const String chatAdd = '$images/chat/icon_add.svg';
+  static const String chatCreate = '$images/chat/icon_chat.svg';
   static const String settingsEdit = '$images/settings/icon_pen.svg';
   static const String settingsEditOutline =
       '$images/settings/icon_pen_outline.svg';

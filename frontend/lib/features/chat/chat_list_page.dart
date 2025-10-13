@@ -29,80 +29,95 @@ class _ChatListPageState extends State<ChatListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('在线'),
-        leadingWidth: 72,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Image.asset(AppAssets.loginLogo, fit: BoxFit.contain),
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.add_circle_outline),
+      body: Column(
+        children: [
+          _ChatListHeader(
+            onSearchTap: _handleSearchTap,
+            onMenuSelected: _handleMenuSelected,
           ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await Future<void>.delayed(const Duration(milliseconds: 600));
-          if (!mounted) return;
-          setState(() {
-            _conversations = _mockConversations();
-            _sortConversations();
-          });
-        },
-        child: ListView.separated(
-          padding: const EdgeInsets.only(bottom: 24),
-          itemCount: _conversations.length,
-          separatorBuilder: (_, __) => const Divider(height: 1, indent: 92),
-          itemBuilder: (context, index) {
-            final conversation = _conversations[index];
-            return Slidable(
-              key: ValueKey(conversation.id),
-              endActionPane: ActionPane(
-                motion: const DrawerMotion(),
-                extentRatio: 0.4,
-                children: [
-                  SlidableAction(
-                    onPressed: (_) => _togglePinned(conversation),
-                    foregroundColor: Colors.white,
-                    backgroundColor: AppColors.primary,
-                    label: conversation.isPinned ? '取消置顶' : '置顶',
-                  ),
-                  SlidableAction(
-                    onPressed: (_) => _deleteConversation(conversation),
-                    foregroundColor: Colors.white,
-                    backgroundColor: AppColors.danger,
-                    label: '删除',
-                  ),
-                ],
-              ),
-              child: ChatListItem(
-                conversation: conversation,
-                avatarBuilder: (avatar) {
-                  if (avatar == null || avatar.isEmpty) {
-                    return SvgPicture.asset(AppAssets.defaultAvatar);
-                  }
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(48),
-                    child: Image.network(avatar, fit: BoxFit.cover),
-                  );
-                },
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ChatDetailPage(conversation: conversation),
+          const SizedBox(height: 8),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await Future<void>.delayed(const Duration(milliseconds: 600));
+                if (!mounted) return;
+                setState(() {
+                  _conversations = _mockConversations();
+                  _sortConversations();
+                });
+              },
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 24),
+                itemCount: _conversations.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 92),
+                itemBuilder: (context, index) {
+                  final conversation = _conversations[index];
+                  return Slidable(
+                    key: ValueKey(conversation.id),
+                    endActionPane: ActionPane(
+                      motion: const DrawerMotion(),
+                      extentRatio: 0.4,
+                      children: [
+                        SlidableAction(
+                          onPressed: (_) => _togglePinned(conversation),
+                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.primary,
+                          label: conversation.isPinned ? '取消置顶' : '置顶',
+                        ),
+                        SlidableAction(
+                          onPressed: (_) => _deleteConversation(conversation),
+                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.danger,
+                          label: '删除',
+                        ),
+                      ],
+                    ),
+                    child: ChatListItem(
+                      conversation: conversation,
+                      avatarBuilder: (avatar) {
+                        if (avatar == null || avatar.isEmpty) {
+                          return SvgPicture.asset(AppAssets.defaultAvatar);
+                        }
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(48),
+                          child: Image.network(avatar, fit: BoxFit.cover),
+                        );
+                      },
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ChatDetailPage(conversation: conversation),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _handleSearchTap() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('搜索功能暂未接入（mock）')));
+  }
+
+  void _handleMenuSelected(_ChatMenuAction action) {
+    final message = switch (action) {
+      _ChatMenuAction.addFriend => '添加好友入口（mock）',
+      _ChatMenuAction.createGroup => '创建群聊入口（mock）',
+    };
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _togglePinned(ChatConversation conversation) {
@@ -176,3 +191,136 @@ class _ChatListPageState extends State<ChatListPage> {
     ];
   }
 }
+
+class _ChatListHeader extends StatelessWidget {
+  const _ChatListHeader({
+    required this.onSearchTap,
+    required this.onMenuSelected,
+  });
+
+  final VoidCallback onSearchTap;
+  final ValueChanged<_ChatMenuAction> onMenuSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              _ChatMenuButton(onSelected: onMenuSelected),
+              const SizedBox(width: 16),
+              Expanded(
+                child: GestureDetector(
+                  onTap: onSearchTap,
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.search,
+                          size: 20,
+                          color: AppColors.textTertiary,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '搜索',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.tune,
+                          size: 20,
+                          color: AppColors.textTertiary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatMenuButton extends StatelessWidget {
+  const _ChatMenuButton({required this.onSelected});
+
+  final ValueChanged<_ChatMenuAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_ChatMenuAction>(
+      onSelected: onSelected,
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 8),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _ChatMenuAction.addFriend,
+          child: _ChatMenuItem(icon: AppAssets.chatAdd, label: '添加好友'),
+        ),
+        PopupMenuItem(
+          value: _ChatMenuAction.createGroup,
+          child: _ChatMenuItem(icon: AppAssets.chatCreate, label: '创建群聊'),
+        ),
+      ],
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(AppAssets.chatMenu, width: 22, height: 22),
+      ),
+    );
+  }
+}
+
+class _ChatMenuItem extends StatelessWidget {
+  const _ChatMenuItem({required this.icon, required this.label});
+
+  final String icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SvgPicture.asset(icon, width: 20, height: 20),
+        const SizedBox(width: 12),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+enum _ChatMenuAction { addFriend, createGroup }
