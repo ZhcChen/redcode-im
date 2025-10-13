@@ -267,39 +267,18 @@ class _ChatListHeader extends StatelessWidget {
   }
 }
 
-class _ChatMenuButton extends StatelessWidget {
+class _ChatMenuButton extends StatefulWidget {
   const _ChatMenuButton({required this.onSelected});
 
   final ValueChanged<_ChatMenuAction> onSelected;
 
   @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_ChatMenuAction>(
-      onSelected: onSelected,
-      position: PopupMenuPosition.under,
-      offset: const Offset(0, 8),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: _ChatMenuAction.addFriend,
-          child: _ChatMenuItem(icon: AppAssets.chatAdd, label: '添加好友'),
-        ),
-        PopupMenuItem(
-          value: _ChatMenuAction.createGroup,
-          child: _ChatMenuItem(icon: AppAssets.chatCreate, label: '创建群聊'),
-        ),
-      ],
-      child: Container(
-        width: _menuButtonSize(context),
-        height: _menuButtonSize(context),
-        alignment: Alignment.center,
-        child: SvgPicture.asset(
-          AppAssets.chatMenu,
-          width: _menuIconSize(context),
-          height: _menuIconSize(context),
-        ),
-      ),
-    );
-  }
+  State<_ChatMenuButton> createState() => _ChatMenuButtonState();
+}
+
+class _ChatMenuButtonState extends State<_ChatMenuButton> {
+  final GlobalKey _buttonKey = GlobalKey();
+  OverlayEntry? _entry;
 
   double _menuButtonSize(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -307,29 +286,150 @@ class _ChatMenuButton extends StatelessWidget {
     return (40 * scale).clamp(36, 48);
   }
 
-  double _menuIconSize(BuildContext context) {
-    final button = _menuButtonSize(context);
-    return (button * 0.55).clamp(20, 26);
+  void _showMenu() {
+    final renderBox =
+        _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (renderBox == null || overlay == null) return;
+
+    final buttonSize = renderBox.size;
+    final offset = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
+
+    _entry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _hideMenu,
+              child: Container(color: Colors.black.withValues(alpha: 0.3)),
+            ),
+          ),
+          Positioned(
+            left: offset.dx,
+            top: offset.dy + buttonSize.height + 8,
+            child: _DropdownMenu(
+              onSelected: (action) {
+                widget.onSelected(action);
+                _hideMenu();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(_entry!);
   }
-}
 
-class _ChatMenuItem extends StatelessWidget {
-  const _ChatMenuItem({required this.icon, required this.label});
+  void _hideMenu() {
+    _entry?.remove();
+    _entry = null;
+  }
 
-  final String icon;
-  final String label;
+  @override
+  void dispose() {
+    _hideMenu();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SvgPicture.asset(icon, width: 20, height: 20),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+    final size = _menuButtonSize(context);
+    return GestureDetector(
+      key: _buttonKey,
+      onTap: _showMenu,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Center(
+          child: SvgPicture.asset(
+            AppAssets.chatMenu,
+            width: size,
+            height: size,
+          ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _DropdownMenu extends StatelessWidget {
+  const _DropdownMenu({required this.onSelected});
+
+  final ValueChanged<_ChatMenuAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 12,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DropdownItem(
+              icon: AppAssets.chatAdd,
+              label: '添加好友',
+              onTap: () => onSelected(_ChatMenuAction.addFriend),
+            ),
+            const Divider(height: 1, color: Color(0xFFE5E8EC)),
+            _DropdownItem(
+              icon: AppAssets.chatCreate,
+              label: '创建群聊',
+              onTap: () => onSelected(_ChatMenuAction.createGroup),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DropdownItem extends StatelessWidget {
+  const _DropdownItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(icon, width: 20, height: 20),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
