@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../home/home_shell_page.dart';
 
 enum LoginType { password, sms, register }
 
@@ -17,10 +18,12 @@ class _LoginPageState extends State<LoginPage> {
   LoginType _type = LoginType.password;
   bool _agreed = false;
 
-  final TextEditingController _mobileCtrl =
-      TextEditingController(text: '13800138000');
-  final TextEditingController _passwordCtrl =
-      TextEditingController(text: 'mock-pass');
+  final TextEditingController _mobileCtrl = TextEditingController(
+    text: '13800138000',
+  );
+  final TextEditingController _passwordCtrl = TextEditingController(
+    text: 'mock-pass',
+  );
   final TextEditingController _smsCtrl = TextEditingController();
 
   @override
@@ -31,8 +34,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  String get _submitText =>
-      _type == LoginType.register ? '注册账号' : '登录账号';
+  String get _submitText => _type == LoginType.register ? '注册账号' : '登录账号';
 
   @override
   Widget build(BuildContext context) {
@@ -75,10 +77,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: AppColors.textBlack,
                         ),
                       ),
-                      SvgPicture.asset(
-                        AppAssets.loginTitle,
-                        height: 24,
-                      ),
+                      SvgPicture.asset(AppAssets.loginTitle, height: 24),
                     ],
                   ),
                 ),
@@ -99,7 +98,7 @@ class _LoginPageState extends State<LoginPage> {
     final borderRadius = BorderRadius.circular(28);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: borderRadius,
         boxShadow: const [
           BoxShadow(
@@ -162,10 +161,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ],
                 const SizedBox(height: 40),
-                ElevatedButton(
-                  onPressed: _submit,
-                  child: Text(_submitText),
-                ),
+                ElevatedButton(onPressed: _submit, child: Text(_submitText)),
                 const SizedBox(height: 24),
                 _buildAgreeRow(),
                 const SizedBox(height: 48),
@@ -200,9 +196,7 @@ class _LoginPageState extends State<LoginPage> {
         color: const Color(0xFFF3F7F8),
         child: Row(
           children: _type == LoginType.register
-              ? [
-                  _buildTypeButton(LoginType.register, '注册'),
-                ]
+              ? [_buildTypeButton(LoginType.register, '注册')]
               : [
                   _buildTypeButton(LoginType.password, '密码登录'),
                   _buildTypeButton(LoginType.sms, '验证码登录'),
@@ -228,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
           decoration: BoxDecoration(
             color: isActive
                 ? Colors.white
-                : Colors.white.withOpacity(0.4),
+                : Colors.white.withValues(alpha: 0.4),
             borderRadius: radius,
           ),
           alignment: Alignment.center,
@@ -274,10 +268,7 @@ class _LoginPageState extends State<LoginPage> {
       decoration: InputDecoration(
         hintText: hint,
         suffixIcon: suffix != null
-            ? Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: suffix,
-              )
+            ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
             : null,
         suffixIconConstraints: const BoxConstraints(maxHeight: 48),
       ),
@@ -287,9 +278,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildSmsAction() {
     return TextButton(
       onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已发送验证码（mock）')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已发送验证码（mock）')));
       },
       style: TextButton.styleFrom(
         backgroundColor: const Color(0xFFDDDDDD),
@@ -361,10 +352,7 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         Text(
           isRegister ? '已有账号' : '新用户',
-          style: const TextStyle(
-            fontSize: 15,
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
         ),
         const SizedBox(width: 4),
         GestureDetector(
@@ -404,9 +392,8 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final scaffold = ScaffoldMessenger.of(context);
-    scaffold.showSnackBar(
-      SnackBar(content: Text('${_submitText}（mock）')), 
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShellPage()));
   }
 }

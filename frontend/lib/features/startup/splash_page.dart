@@ -24,9 +24,9 @@ class _SplashPageState extends State<SplashPage> {
 
   void _goNext() {
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
   }
 
   @override
@@ -47,10 +47,7 @@ class _SplashPageState extends State<SplashPage> {
             alignment: Alignment.center,
             child: SizedBox(
               width: size.width * 0.6,
-              child: Image.asset(
-                AppAssets.loginLogo,
-                fit: BoxFit.contain,
-              ),
+              child: Image.asset(AppAssets.loginLogo, fit: BoxFit.contain),
             ),
           ),
           const Positioned(
