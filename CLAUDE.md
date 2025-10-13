@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 redcode-im 是一个多模块聊天应用，包含三个主要模块：
 - `backend` - Rust + Axum 后端服务
-- `frontend` - uni-app 前端移动应用
+- `frontend` - Flutter 移动应用
 - `admin` - Arco Design Pro Vue 管理后台
 
 ## 常用开发命令
@@ -28,8 +28,12 @@ cargo test
 
 ### 前端开发 (frontend/)
 ```bash
-# 使用 HBuilderX 或其他支持 uni-app 的开发工具
-# 目前没有配置 npm 脚本，需要使用 IDE 运行
+# 使用 Flutter 工具链进行开发与构建
+flutter pub get
+flutter run
+
+# 构建正式包（示例）
+flutter build apk
 ```
 
 ### 管理后台开发 (admin/)
@@ -65,10 +69,10 @@ pnpm lint-staged
   - `GET /ws` - WebSocket 连接（回声模式）
 
 ### 前端架构
-- **框架**: uni-app (Vue 3/2 兼容)
-- **目标平台**: 跨平台移动应用
-- **构建工具**: uni-app 编译器
-- **结构**: 标准的 uni-app 项目结构
+- **框架**: Flutter
+- **目标平台**: 跨平台移动应用（Android / iOS / Web）
+- **构建工具**: Flutter SDK
+- **结构**: 标准 Flutter 工程目录
 
 ### 管理后台架构
 - **框架**: Vue 3 + TypeScript
@@ -88,13 +92,14 @@ pnpm lint-staged
 - Rust 1.70+ (后端)
 - Node.js 14+ (管理后台)
 - pnpm (管理后台包管理器)
+- Flutter SDK 3.24+（前端）
 
 ### 项目结构说明
 - 后端采用单一文件结构 (`src/main.rs`)，便于快速开发
-- 前端使用 uni-app 标准结构，支持多端发布
+- 前端使用 Flutter 工程结构，支持多端发布
 - 管理后台采用企业级 Vue 3 架构，功能完整
 
 ### 扩展建议
 - 后端可考虑模块化重构，分离路由、服务和数据层
-- 前端可添加 WebSocket 连接逻辑，与后端通信
+- 前端需通过 Flutter 集成 HTTP 与 WebSocket，与后端通信
 - 管理后台已具备完整的企业级功能，可直接扩展业务逻辑
