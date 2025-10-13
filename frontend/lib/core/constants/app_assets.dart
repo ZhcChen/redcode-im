@@ -21,4 +21,7 @@ class AppAssets {
       '$images/tabbar/setting_selected.png';
 
   static const String defaultAvatar = '$images/common/default_avatar.svg';
+  static const String contactsNewFriend =
+      '$images/contacts/icon_new_friend.svg';
+  static const String contactsGroup = '$images/contacts/icon_chat_group.svg';
 }
