@@ -7,11 +7,13 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:frontend/app.dart';
+import 'package:flutter/material.dart';
+import 'package:frontend/features/auth/login_page.dart';
 
 void main() {
   testWidgets('Login page renders welcome text', (tester) async {
-    await tester.pumpWidget(const RedcodeApp());
+    await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+    await tester.pump();
 
     expect(find.text('Hello!'), findsOneWidget);
     expect(find.text('登录账号'), findsOneWidget);

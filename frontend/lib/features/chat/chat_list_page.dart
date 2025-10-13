@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import 'chat_detail_page.dart';
 import 'models/chat_conversation.dart';
 import 'widgets/chat_list_item.dart';
 
@@ -89,8 +90,11 @@ class _ChatListPageState extends State<ChatListPage> {
                   );
                 },
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('进入 ${conversation.name} 对话（mock）')),
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ChatDetailPage(conversation: conversation),
+                    ),
                   );
                 },
               ),
