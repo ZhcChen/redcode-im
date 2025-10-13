@@ -304,12 +304,12 @@ class _ChatMenuButton extends StatelessWidget {
   double _menuButtonSize(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final scale = screenWidth / 375;
-    return (40 * scale).clamp(36, 48);
+    return (24 * scale).clamp(22, 32);
   }
 
   double _menuIconSize(BuildContext context) {
     final button = _menuButtonSize(context);
-    return (button * 0.55).clamp(18, 26);
+    return (button * 0.7).clamp(16, 24);
   }
 }
 
