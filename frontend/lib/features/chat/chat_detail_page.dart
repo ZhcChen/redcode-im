@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
@@ -70,57 +71,88 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          InkWell(
-            onTap: () => Navigator.of(context).pop(),
-            borderRadius: BorderRadius.circular(24),
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-            ),
-          ),
-          const SizedBox(width: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Image.asset(
-              AppAssets.loginLogo,
-              height: 40,
-              width: 40,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.conversation.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: SvgPicture.asset(
+                    AppAssets.loginLeft,
+                    width: 22,
+                    height: 22,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.textPrimary,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.conversation.unreadCount > 0
-                      ? '未读 ${widget.conversation.unreadCount} 条'
-                      : '群聊 · mock 成员 128',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
-                  ),
+              ),
+              const SizedBox(width: 8),
+              _ConversationAvatar(avatar: widget.conversation.avatar),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.conversation.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      '人数 128 · 仅演示用 mock 数据',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert_rounded),
+                color: AppColors.textPrimary,
+                onPressed: () {},
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.more_horiz_rounded),
-            onPressed: () {},
+          const SizedBox(height: 8),
+          Container(
+            height: 1,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0x00E5E8EC),
+                  Color(0xFFE5E8EC),
+                  Color(0x00E5E8EC),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -433,6 +465,60 @@ class _NoticeBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ConversationAvatar extends StatelessWidget {
+  const _ConversationAvatar({this.avatar});
+
+  final String? avatar;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 44.0;
+    final borderRadius = BorderRadius.circular(size / 2);
+
+    if (avatar != null && avatar!.isNotEmpty) {
+      final value = avatar!;
+      if (value.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: borderRadius,
+          child: Image.network(
+            value,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        );
+      }
+      if (value.endsWith('.svg')) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceMuted,
+            borderRadius: borderRadius,
+          ),
+          padding: const EdgeInsets.all(6),
+          child: SvgPicture.asset(value, fit: BoxFit.contain),
+        );
+      }
+      return ClipRRect(
+        borderRadius: borderRadius,
+        child: Image.asset(value, width: size, height: size, fit: BoxFit.cover),
+      );
+    }
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: borderRadius,
+      ),
+      padding: const EdgeInsets.all(6),
+      child: SvgPicture.asset(AppAssets.defaultAvatar),
     );
   }
 }
