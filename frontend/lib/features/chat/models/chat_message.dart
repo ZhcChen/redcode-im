@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum ChatMessageType { text, system }
+enum ChatMessageType { text, system, image }
 
 @immutable
 class ChatMessage {
@@ -8,10 +8,12 @@ class ChatMessage {
     required this.id,
     required this.senderId,
     required this.senderName,
-    required this.content,
     required this.timestamp,
+    this.content = '',
     this.type = ChatMessageType.text,
     this.isSelf = false,
+    this.imageAsset,
+    this.imageUrl,
   });
 
   final String id;
@@ -21,4 +23,6 @@ class ChatMessage {
   final DateTime timestamp;
   final ChatMessageType type;
   final bool isSelf;
+  final String? imageAsset;
+  final String? imageUrl;
 }

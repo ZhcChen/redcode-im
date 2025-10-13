@@ -21,6 +21,9 @@ class ChatMessageBubble extends StatelessWidget {
       );
     }
 
+    final isImageMessage =
+        message.type == ChatMessageType.image &&
+        (message.imageAsset != null || message.imageUrl != null);
     final bubbleColor = message.isSelf ? AppColors.primary : AppColors.surface;
     final textColor = message.isSelf ? Colors.white : AppColors.textPrimary;
     final alignment = message.isSelf
@@ -29,6 +32,12 @@ class ChatMessageBubble extends StatelessWidget {
     final margin = EdgeInsets.only(
       left: message.isSelf ? 80 : 0,
       right: message.isSelf ? 0 : 80,
+    );
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(20),
+      topRight: const Radius.circular(20),
+      bottomLeft: Radius.circular(message.isSelf ? 20 : 6),
+      bottomRight: Radius.circular(message.isSelf ? 6 : 20),
     );
 
     return Container(
@@ -48,20 +57,35 @@ class ChatMessageBubble extends StatelessWidget {
               ),
             ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: bubbleColor,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(20),
-                topRight: const Radius.circular(20),
-                bottomLeft: Radius.circular(message.isSelf ? 20 : 6),
-                bottomRight: Radius.circular(message.isSelf ? 6 : 20),
-              ),
-            ),
-            child: Text(
-              message.content,
-              style: TextStyle(fontSize: 15, color: textColor, height: 1.4),
-            ),
+            decoration: isImageMessage
+                ? null
+                : BoxDecoration(color: bubbleColor, borderRadius: borderRadius),
+            padding: isImageMessage
+                ? EdgeInsets.zero
+                : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: isImageMessage
+                ? ClipRRect(
+                    borderRadius: borderRadius,
+                    child: message.imageAsset != null
+                        ? Image.asset(
+                            message.imageAsset!,
+                            width: 200,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.network(
+                            message.imageUrl!,
+                            width: 200,
+                            fit: BoxFit.cover,
+                          ),
+                  )
+                : Text(
+                    message.content,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: textColor,
+                      height: 1.4,
+                    ),
+                  ),
           ),
         ],
       ),

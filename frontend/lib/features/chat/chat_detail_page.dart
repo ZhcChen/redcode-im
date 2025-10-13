@@ -19,18 +19,30 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   late List<ChatMessage> _messages;
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  final FocusNode _inputFocusNode = FocusNode();
+  bool _showEmojiPanel = false;
+  bool _showMorePanel = false;
 
   @override
   void initState() {
     super.initState();
     _messages = _mockMessages();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _inputFocusNode.addListener(() {
+      if (_inputFocusNode.hasFocus && (_showEmojiPanel || _showMorePanel)) {
+        setState(() {
+          _showEmojiPanel = false;
+          _showMorePanel = false;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
   }
 
@@ -47,6 +59,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             const SizedBox(height: 8),
             Expanded(child: _buildMessageList()),
             _buildInputArea(),
+            if (_showEmojiPanel)
+              _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
+            if (_showMorePanel)
+              _MoreActionsPanel(onActionSelected: _handleMoreAction),
           ],
         ),
       ),
@@ -112,35 +128,39 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   }
 
   Widget _buildMessageList() {
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) {
-        final message = _messages[index];
-        final previous = index > 0 ? _messages[index - 1] : null;
-        final showTimestamp =
-            previous == null ||
-            message.timestamp.difference(previous.timestamp).inMinutes >= 10;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (showTimestamp)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  _formatTime(message.timestamp),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
+    return GestureDetector(
+      onTap: _handleBackgroundTap,
+      behavior: HitTestBehavior.translucent,
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        itemCount: _messages.length,
+        itemBuilder: (context, index) {
+          final message = _messages[index];
+          final previous = index > 0 ? _messages[index - 1] : null;
+          final showTimestamp =
+              previous == null ||
+              message.timestamp.difference(previous.timestamp).inMinutes >= 10;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (showTimestamp)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    _formatTime(message.timestamp),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-              ),
-            ChatMessageBubble(message: message),
-          ],
-        );
-      },
+              ChatMessageBubble(message: message),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -154,9 +174,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.add_circle_outline),
-              color: AppColors.textQuaternary,
+              onPressed: _toggleMorePanel,
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: _showMorePanel
+                    ? AppColors.primary
+                    : AppColors.textQuaternary,
+              ),
             ),
             Expanded(
               child: Container(
@@ -167,6 +191,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 ),
                 child: TextField(
                   controller: _textController,
+                  focusNode: _inputFocusNode,
                   minLines: 1,
                   maxLines: 4,
                   decoration: const InputDecoration(
@@ -178,9 +203,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             ),
             const SizedBox(width: 8),
             IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.emoji_emotions_outlined),
-              color: AppColors.textQuaternary,
+              onPressed: _toggleEmojiPanel,
+              icon: Icon(
+                _showEmojiPanel
+                    ? Icons.keyboard_rounded
+                    : Icons.emoji_emotions_outlined,
+                color: _showEmojiPanel
+                    ? AppColors.primary
+                    : AppColors.textQuaternary,
+              ),
             ),
             const SizedBox(width: 4),
             ElevatedButton(
@@ -216,6 +247,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       );
     });
     _textController.clear();
+    _hidePanels();
     _scrollToBottom();
   }
 
@@ -228,6 +260,71 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  void _toggleEmojiPanel() {
+    if (_showEmojiPanel) {
+      setState(() => _showEmojiPanel = false);
+      _inputFocusNode.requestFocus();
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _showEmojiPanel = true;
+      _showMorePanel = false;
+    });
+    _scrollToBottom();
+  }
+
+  void _toggleMorePanel() {
+    if (_showMorePanel) {
+      setState(() => _showMorePanel = false);
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _showMorePanel = true;
+      _showEmojiPanel = false;
+    });
+    _scrollToBottom();
+  }
+
+  void _handleEmojiSelected(String emoji) {
+    final text = _textController.text;
+    final selection = _textController.selection;
+    if (!selection.isValid) {
+      _textController.text += emoji;
+      _textController.selection = TextSelection.collapsed(
+        offset: _textController.text.length,
+      );
+    } else {
+      final newText = text.replaceRange(selection.start, selection.end, emoji);
+      final cursorPosition = selection.start + emoji.length;
+      _textController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: cursorPosition),
+      );
+    }
+  }
+
+  void _handleMoreAction(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _hidePanels() {
+    if (_showEmojiPanel || _showMorePanel) {
+      setState(() {
+        _showEmojiPanel = false;
+        _showMorePanel = false;
+      });
+    }
+  }
+
+  void _handleBackgroundTap() {
+    FocusScope.of(context).unfocus();
+    _hidePanels();
   }
 
   List<ChatMessage> _mockMessages() {
@@ -268,6 +365,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         senderName: '后端-阿锋',
         content: '有问题随时 @ 我。',
         timestamp: now.subtract(const Duration(minutes: 25)),
+      ),
+      ChatMessage(
+        id: 'm5-img',
+        senderId: 'u2',
+        senderName: '设计-Joy',
+        type: ChatMessageType.image,
+        imageAsset: AppAssets.loginLogo,
+        timestamp: now.subtract(const Duration(minutes: 12)),
       ),
       ChatMessage(
         id: 'm6',
@@ -330,4 +435,165 @@ class _NoticeBar extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EmojiPanel extends StatelessWidget {
+  const _EmojiPanel({required this.onEmojiSelected});
+
+  final ValueChanged<String> onEmojiSelected;
+
+  static const List<String> _emojis = [
+    '😀',
+    '😁',
+    '😂',
+    '🥲',
+    '😍',
+    '😘',
+    '🤔',
+    '😎',
+    '😢',
+    '😭',
+    '👍',
+    '👋',
+    '🙏',
+    '🔥',
+    '🌟',
+    '❤️',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 200,
+      color: AppColors.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: SafeArea(
+        top: false,
+        child: Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: _emojis
+              .map(
+                (emoji) => GestureDetector(
+                  onTap: () => onEmojiSelected(emoji),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 20)),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoreActionsPanel extends StatelessWidget {
+  const _MoreActionsPanel({required this.onActionSelected});
+
+  final ValueChanged<String> onActionSelected;
+
+  static final List<_MoreAction> _actions = [
+    _MoreAction(
+      icon: Icons.photo_outlined,
+      label: '相册',
+      message: '打开相册选择图片（mock）',
+    ),
+    _MoreAction(
+      icon: Icons.camera_alt_outlined,
+      label: '拍摄',
+      message: '启动相机（mock）',
+    ),
+    _MoreAction(
+      icon: Icons.insert_drive_file_outlined,
+      label: '文件',
+      message: '选择文件发送（mock）',
+    ),
+    _MoreAction(
+      icon: Icons.location_on_outlined,
+      label: '位置',
+      message: '共享位置（mock）',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+      child: SafeArea(
+        top: false,
+        child: Wrap(
+          spacing: 28,
+          runSpacing: 16,
+          children: _actions
+              .map(
+                (action) => _MoreActionTile(
+                  action: action,
+                  onTap: () => onActionSelected(action.message),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoreActionTile extends StatelessWidget {
+  const _MoreActionTile({required this.action, required this.onTap});
+
+  final _MoreAction action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(action.icon, color: AppColors.primary, size: 28),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              action.label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MoreAction {
+  const _MoreAction({
+    required this.icon,
+    required this.label,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String label;
+  final String message;
 }
