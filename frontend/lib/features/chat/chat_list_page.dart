@@ -289,12 +289,27 @@ class _ChatMenuButton extends StatelessWidget {
         ),
       ],
       child: Container(
-        width: 40,
-        height: 40,
+        width: _menuButtonSize(context),
+        height: _menuButtonSize(context),
         alignment: Alignment.center,
-        child: SvgPicture.asset(AppAssets.chatMenu, width: 22, height: 22),
+        child: SvgPicture.asset(
+          AppAssets.chatMenu,
+          width: _menuIconSize(context),
+          height: _menuIconSize(context),
+        ),
       ),
     );
+  }
+
+  double _menuButtonSize(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final scale = screenWidth / 375;
+    return (40 * scale).clamp(36, 48);
+  }
+
+  double _menuIconSize(BuildContext context) {
+    final button = _menuButtonSize(context);
+    return (button * 0.55).clamp(18, 26);
   }
 }
 
