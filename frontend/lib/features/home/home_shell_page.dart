@@ -61,16 +61,17 @@ class _HomeShellPageState extends State<HomeShellPage> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(_items.length, (i) {
               final item = _items[i];
               final selected = _index == i;
-              return _NavButton(
-                item: item,
-                selected: selected,
-                onTap: () => setState(() => _index = i),
+              return Expanded(
+                child: _NavButton(
+                  item: item,
+                  selected: selected,
+                  onTap: () => setState(() => _index = i),
+                ),
               );
             }),
           ),
@@ -111,6 +112,7 @@ class _NavButton extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
             height: 28,
@@ -120,6 +122,7 @@ class _NavButton extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             item.label,
+            textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               color: selected ? AppColors.primary : AppColors.textTertiary,
             ),
