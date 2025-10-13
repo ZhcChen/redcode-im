@@ -24,4 +24,12 @@ class AppAssets {
   static const String contactsNewFriend =
       '$images/contacts/icon_new_friend.svg';
   static const String contactsGroup = '$images/contacts/icon_chat_group.svg';
+  static const String settingsEdit = '$images/settings/icon_pen.svg';
+  static const String settingsEditOutline =
+      '$images/settings/icon_pen_outline.svg';
+  static const String settingsAccountSafe =
+      '$images/settings/icon_account_safe.png';
+  static const String settingsPrivacy = '$images/settings/icon_privacy.png';
+  static const String settingsFeedback = '$images/settings/icon_feedback.png';
+  static const String settingsLogout = '$images/settings/icon_logout.svg';
 }
