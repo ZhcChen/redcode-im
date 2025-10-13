@@ -1,6 +1,5 @@
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use crate::database::models::{Message, MessageType};
 
 pub struct MessageStore<'a> {
@@ -20,7 +19,7 @@ impl<'a> MessageStore<'a> {
         let rec = sqlx::query_as::<_, Message>(
             "INSERT INTO messages (room_id, sender_id, content, message_type)
              VALUES ($1, $2, $3, $4)
-             RETURNING id, room_id, sender_id, content, message_type, created_at, updated_at",
+             RETURNING id, room_id, sender_id, content, message_type, created_at, updated_at, deleted_at",
         )
         .bind(room_id)
         .bind(sender_id)
@@ -37,8 +36,8 @@ impl<'a> MessageStore<'a> {
         limit: i64,
     ) -> Result<Vec<Message>, sqlx::Error> {
         let rows = sqlx::query_as::<_, Message>(
-            "SELECT id, room_id, sender_id, content, message_type, created_at, updated_at
-             FROM messages WHERE room_id = $1
+            "SELECT id, room_id, sender_id, content, message_type, created_at, updated_at, deleted_at
+             FROM messages WHERE room_id = $1 AND deleted_at IS NULL
              ORDER BY created_at DESC
              LIMIT $2",
         )
@@ -51,7 +50,9 @@ impl<'a> MessageStore<'a> {
 
     pub async fn user_in_room(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT user_id FROM room_members WHERE room_id = $1 AND user_id = $2 LIMIT 1",
+            "SELECT user_id FROM room_members
+             WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+             LIMIT 1",
         )
         .bind(room_id)
         .bind(user_id)

@@ -15,6 +15,7 @@ pub struct User {
     pub status: UserStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 用户状态枚举
@@ -86,6 +87,7 @@ pub struct Room {
     pub owner_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 房间类型枚举
@@ -107,6 +109,7 @@ pub struct Message {
     pub message_type: MessageType,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 消息类型枚举
@@ -133,6 +136,7 @@ pub struct RoomMember {
     pub user_id: Uuid,
     pub role: MemberRole,
     pub joined_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 成员角色枚举

@@ -28,7 +28,7 @@ impl UserStore {
             r#"
             INSERT INTO users (id, username, email, password_hash, nickname, status, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, 'active', $6, $6)
-            RETURNING id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
+            RETURNING id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at, deleted_at
             "#,
         )
         .bind(user_id)
@@ -47,9 +47,9 @@ impl UserStore {
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at, deleted_at
             FROM users
-            WHERE username = $1 AND status = 'active'
+            WHERE username = $1 AND status = 'active' AND deleted_at IS NULL
             "#,
         )
         .bind(username)
@@ -63,9 +63,9 @@ impl UserStore {
     pub async fn find_by_id(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at, deleted_at
             FROM users
-            WHERE id = $1 AND status = 'active'
+            WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
             "#,
         )
         .bind(user_id)
@@ -79,9 +79,9 @@ impl UserStore {
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, status, created_at, updated_at, deleted_at
             FROM users
-            WHERE email = $1 AND status = 'active'
+            WHERE email = $1 AND status = 'active' AND deleted_at IS NULL
             "#,
         )
         .bind(email)
@@ -130,8 +130,8 @@ impl UserStore {
 
         query.push(" WHERE id = ");
         query.push_bind(user_id);
-        query.push(" AND status = 'active'");
-        query.push(" RETURNING id, username, email, password_hash, nickname, avatar_url, status as \"status: _\", created_at, updated_at");
+        query.push(" AND status = 'active' AND deleted_at IS NULL");
+        query.push(" RETURNING id, username, email, password_hash, nickname, avatar_url, status as \"status: _\", created_at, updated_at, deleted_at");
 
         let user = query
             .build_query_as::<User>()
@@ -144,7 +144,8 @@ impl UserStore {
     /// 删除用户（软删除）
     pub async fn delete_user(&self, user_id: &Uuid) -> Result<bool, Error> {
         let result = sqlx::query(
-            "UPDATE users SET status = 'inactive', updated_at = NOW() WHERE id = $1",
+            "UPDATE users SET status = 'inactive', deleted_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(user_id)
         .execute(&self.database.pool)
@@ -156,7 +157,7 @@ impl UserStore {
     /// 检查用户名是否已存在
     pub async fn username_exists(&self, username: &str) -> Result<bool, Error> {
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND status = 'active')",
+            "SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND status = 'active' AND deleted_at IS NULL)",
         )
         .bind(username)
         .fetch_one(&self.database.pool)
@@ -169,7 +170,7 @@ impl UserStore {
     /// 检查邮箱是否已存在
     pub async fn email_exists(&self, email: &str) -> Result<bool, Error> {
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND status = 'active')",
+            "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND status = 'active' AND deleted_at IS NULL)",
         )
         .bind(email)
         .fetch_one(&self.database.pool)
@@ -182,7 +183,7 @@ impl UserStore {
     /// 获取用户总数
     pub async fn count_users(&self) -> Result<i64, Error> {
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM users WHERE status = 'active'",
+            "SELECT COUNT(*) FROM users WHERE status = 'active' AND deleted_at IS NULL",
         )
         .fetch_one(&self.database.pool)
         .await

@@ -2,15 +2,15 @@
 
 Global memory for Droid CLI.
 
-## 项目模块
-- backend：Rust + Axum API 服务（默认端口 8010，可通过 `PORT` 覆盖；API 文档静态服务端口 8011）
-- frontend：Flutter 跨平台客户端（`frontend/`；尚未初始化 Flutter 工程，计划对接认证与消息 API）
-- admin：Vue 3 + Arco Design Pro 管理后台（使用 pnpm，核心脚本：`pnpm dev`、`pnpm build`、`pnpm type:check`）
+## 模块概览
+- backend：Rust + Axum API（端口 8010，占用 8011 服务静态 API 文档）
+- frontend：Flutter 客户端（`frontend/` 空目录待初始化 Flutter 工程）
+- admin：Vue 3 + Arco Design Pro 后台（pnpm 管理）
 
 ## 基础设施
-- Docker Compose 提供 PostgreSQL 17 (`postgres:5432`) 与三实例 Redis 8：session(6381)、streams(6382)、cache(6383)
-- 后端使用 SQLx + PostgreSQL、RedisManager 管理多实例连接；JWT/Redis 等环境变量定义在 `backend/.env`
+- Docker Compose：PostgreSQL 17 (5432) + Redis 8（三实例：session 6381 / streams 6382 / cache 6383）
+- 后端使用 SQLx、RedisManager、JWT；关键环境变量在 `backend/.env`
 
-## 近期决策
-- 2025-10-13：弃用 uni-app，前端全面迁移至 Flutter，并清理旧前端文件
-- 全局记忆统一维护在本文件；其他 context 记忆文件已删除
+## 客户端迁移记忆（2025-10-13）
+- 原移动端在 `/Users/chen/code/bear-chat-uniapp`（uni-app/Vue3），现要求仅迁移 UI 至 Flutter 前端，业务逻辑暂不保留
+- 迁移时可自建 mock 数据、拷贝所需图片资源；在 `frontend/` 下维护迁移任务文件，持续更新进度
