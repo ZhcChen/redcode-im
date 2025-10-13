@@ -5,7 +5,7 @@ const API_DATA = {
     // 基础信息
     baseUrl: "http://localhost:8080",
     version: "1.0.0",
-    lastUpdated: "2025-10-11",
+    lastUpdated: "2025-10-13",
 
     // 认证模块 APIs
     auth: [
