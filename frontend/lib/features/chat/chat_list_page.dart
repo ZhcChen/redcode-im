@@ -289,12 +289,8 @@ class _ChatMenuButton extends StatelessWidget {
         ),
       ],
       child: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(18),
-        ),
+        width: 40,
+        height: 40,
         alignment: Alignment.center,
         child: SvgPicture.asset(AppAssets.chatMenu, width: 22, height: 22),
       ),
