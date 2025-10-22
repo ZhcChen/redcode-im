@@ -5,49 +5,230 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/friend_service.dart';
+import '../../core/services/friend_store.dart';
+import '../../core/widgets/app_badge.dart';
+import '../../core/services/websocket_service.dart';
+import 'add_friend_page.dart';
+import 'contact_detail_page.dart';
+import 'models/friend_models.dart';
 
 class ContactsPage extends StatefulWidget {
   const ContactsPage({super.key});
 
   @override
-  State<ContactsPage> createState() => _ContactsPageState();
+  State<ContactsPage> createState() => ContactsPageState();
 }
 
-class _ContactsPageState extends State<ContactsPage> {
+class ContactsPageState extends State<ContactsPage> {
   final ScrollController _scrollController = ScrollController();
   final _listViewKey = GlobalKey();
-  late final List<ContactSection> _sections;
+  List<ContactSection> _sections = const [];
   final Map<String, GlobalKey> _sectionKeys = {};
   final Map<String, double> _sectionOffsets = {};
+  final Map<String, FriendInfo> _friendMap = {};
+  List<FriendInfo> _friends = [];
+  final FriendService _friendService = FriendService();
+  late final WebSocketService _webSocketService;
+  late final FriendStore _friendStore;
 
   int _activeIndex = 0;
-  final int _newFriendBadge = 3;
+  int _pendingRequests = 0;
+  bool _isLoading = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
     super.initState();
-    _sections = _buildMockSections();
-    for (final section in _sections) {
-      _sectionKeys[section.tag] = GlobalKey();
-    }
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _updateSectionOffsets(),
-    );
+    _webSocketService = WebSocketService.instance;
+    _friendStore = FriendStore.instance;
+    _webSocketService.addListener(_onWebSocketEvent);
+    _friendStore.addListener(_onFriendStoreChanged);
+    _pendingRequests = _friendStore.pendingIncoming;
+    _updateSections();
     _scrollController.addListener(_handleScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadContacts();
+    });
+  }
+
+  Future<void> refreshContacts({bool force = false}) async {
+    if (_isLoading && !force) return;
+    await _loadContacts();
   }
 
   @override
   void dispose() {
+    _webSocketService.removeListener(_onWebSocketEvent);
+    _friendStore.removeListener(_onFriendStoreChanged);
     _scrollController.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _loadContacts() async {
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
+
+    try {
+      final friends = await _friendService.fetchFriends();
+      final pending = await _friendService.fetchFriendRequests(
+        direction: 'incoming',
+        status: 'pending',
+      );
+
+      if (!mounted) return;
+
+      _friendMap
+        ..clear()
+        ..addEntries(friends.map((friend) => MapEntry(friend.user.id, friend)));
+
+      setState(() {
+        _friends = friends;
+        _pendingRequests = pending.length;
+        _isLoading = false;
+        _loadFailed = false;
+        _updateSections();
+      });
+      // 同步到全局 Store，后续增量由 WS 维护
+      _friendStore.setFriends(friends);
+      _friendStore.setPendingIncoming(pending.length);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _friends = [];
+        _pendingRequests = 0;
+        _isLoading = false;
+        _loadFailed = true;
+        _friendMap.clear();
+        _updateSections();
+      });
+      _friendStore.setPendingIncoming(0);
+      _showSnack('加载联系人失败');
+    }
+  }
+
+  void _onFriendStoreChanged() {
+    if (!mounted) return;
+    setState(() {
+      _friends = _friendStore.friends;
+      _pendingRequests = _friendStore.pendingIncoming;
+      _friendMap
+        ..clear()
+        ..addEntries(_friends.map((f) => MapEntry(f.user.id, f)));
+      _updateSections();
+    });
+  }
+
+  void _updateSections() {
+    final sections = _buildSections();
+    _sections = sections;
+    _sectionKeys
+      ..clear()
+      ..addEntries(
+        sections.map((section) => MapEntry(section.tag, GlobalKey())),
+      );
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _updateSectionOffsets(),
     );
+  }
 
+  List<ContactSection> _buildSections() {
+    final sections = <ContactSection>[
+      ContactSection(
+        tag: '🔍',
+        showHeader: false,
+        entries: [
+          ContactEntry.special(
+            id: 'new_friends',
+            name: '新的朋友',
+            assetIcon: AppAssets.contactsNewFriend,
+            badgeCount: _pendingRequests > 0 ? _pendingRequests : null,
+          ),
+          ContactEntry.special(
+            id: 'groups',
+            name: '群聊',
+            assetIcon: AppAssets.contactsGroup,
+          ),
+        ],
+      ),
+    ];
+
+    if (_friends.isEmpty) {
+      return sections;
+    }
+
+    final Map<String, List<ContactEntry>> grouped = {};
+    for (final friend in _friends) {
+      final displayName = friend.user.nickname?.isNotEmpty == true
+          ? friend.user.nickname!
+          : friend.user.username;
+      final tag = _letterTag(displayName);
+      grouped.putIfAbsent(tag, () => []);
+      grouped[tag]!.add(
+        ContactEntry.friend(
+          id: friend.user.id,
+          name: displayName,
+          detail: friend.user.email?.isNotEmpty == true
+              ? friend.user.email
+              : '账号：${friend.user.username}',
+          avatarUrl: friend.user.avatarUrl,
+        ),
+      );
+    }
+
+    final sortedTags = grouped.keys.toList()..sort();
+    for (final tag in sortedTags) {
+      final entries = grouped[tag]!..sort((a, b) => a.name.compareTo(b.name));
+      sections.add(ContactSection(tag: tag, entries: entries));
+    }
+
+    return sections;
+  }
+
+  String _letterTag(String name) {
+    if (name.trim().isEmpty) {
+      return '#';
+    }
+    final firstChar = name.trim()[0].toUpperCase();
+    final isLetter = RegExp(r'[A-Z]').hasMatch(firstChar);
+    return isLetter ? firstChar : '#';
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openAddFriend({bool showRequestsFirst = false}) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddFriendPage(
+          existingFriendIds: _friendMap.keys.toSet(),
+          showRequestsFirst: showRequestsFirst,
+        ),
+      ),
+    );
+
+    if (changed == true && mounted) {
+      await _loadContacts();
+    }
+  }
+
+  void _onWebSocketEvent() {
+    if (!mounted) return;
+    // WebSocketService 仍可能更新 pending 计数，这里保持兼容
+    final count = _webSocketService.pendingFriendRequestCount;
+    if (count != _pendingRequests) {
+      _friendStore.setPendingIncoming(count);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -58,36 +239,42 @@ class _ContactsPageState extends State<ContactsPage> {
             _buildSearchBar(context),
             const SizedBox(height: 8),
             Expanded(
-              child: Stack(
-                children: [
-                  NotificationListener<SizeChangedLayoutNotification>(
-                    onNotification: (_) {
-                      WidgetsBinding.instance.addPostFrameCallback(
-                        (_) => _updateSectionOffsets(),
-                      );
-                      return true;
-                    },
-                    child: SizeChangedLayoutNotifier(
-                      child: ListView.builder(
-                        key: _listViewKey,
-                        controller: _scrollController,
-                        padding: const EdgeInsets.only(bottom: 32),
-                        itemCount: _sections.length,
-                        itemBuilder: (context, index) {
-                          final section = _sections[index];
-                          return _ContactSectionWidget(
-                            key: _sectionKeys[section.tag],
-                            section: section,
-                            newFriendBadge: index == 0 ? _newFriendBadge : 0,
-                            onTapEntry: _handleEntryTap,
-                          );
-                        },
-                      ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _sections.isEmpty
+                  ? _loadFailed
+                        ? _ErrorPlaceholder(onRetry: _loadContacts)
+                        : const _EmptyContactsPlaceholder()
+                  : Stack(
+                      children: [
+                        NotificationListener<SizeChangedLayoutNotification>(
+                          onNotification: (_) {
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => _updateSectionOffsets(),
+                            );
+                            return true;
+                          },
+                          child: SizeChangedLayoutNotifier(
+                            child: ListView.builder(
+                              key: _listViewKey,
+                              controller: _scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 32),
+                              itemCount: _sections.length,
+                              itemBuilder: (context, index) {
+                                final section = _sections[index];
+                                return _ContactSectionWidget(
+                                  key: _sectionKeys[section.tag],
+                                  section: section,
+                                  onTapEntry: _handleEntryTap,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        _buildIndexBar(),
+                      ],
                     ),
-                  ),
-                  _buildIndexBar(),
-                ],
-              ),
             ),
           ],
         ),
@@ -121,11 +308,7 @@ class _ContactsPageState extends State<ContactsPage> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('添加联系人功能（mock）')));
-            },
+            onPressed: _openAddFriend,
             icon: const Icon(Icons.add_circle_outline),
             color: AppColors.primary,
           ),
@@ -137,36 +320,40 @@ class _ContactsPageState extends State<ContactsPage> {
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
-            const SizedBox(width: 10),
-            const Text(
-              '搜索',
-              style: TextStyle(fontSize: 15, color: AppColors.textTertiary),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('搜索功能暂未接入（mock）')));
-              },
-              child: const Text('前往'),
-            ),
-          ],
+      child: GestureDetector(
+        onTap: _openAddFriend,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.search,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  '搜索手机号 / 用户名 / 邮箱添加好友',
+                  style: TextStyle(fontSize: 15, color: AppColors.textTertiary),
+                ),
+              ),
+              TextButton(onPressed: _openAddFriend, child: const Text('去添加')),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildIndexBar() {
+    if (_sections.length <= 1) {
+      return const SizedBox.shrink();
+    }
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
@@ -207,13 +394,24 @@ class _ContactsPageState extends State<ContactsPage> {
   }
 
   void _handleEntryTap(ContactEntry entry) {
-    final message = switch (entry.type) {
-      ContactEntryType.special => '打开 ${entry.name} 功能（mock）',
-      ContactEntryType.friend => '查看 ${entry.name} 的个人资料（mock）',
-    };
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    if (entry.id == 'new_friends') {
+      _openAddFriend(showRequestsFirst: true);
+      return;
+    }
+
+    if (entry.type == ContactEntryType.special) {
+      _showSnack('功能即将上线，敬请期待');
+      return;
+    }
+
+    final friend = _friendMap[entry.id];
+    if (friend != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ContactDetailPage(friend: friend)),
+      );
+    } else {
+      _showSnack('未找到联系人详情，请稍后重试');
+    }
   }
 
   void _handleScroll() {
@@ -268,92 +466,16 @@ class _ContactsPageState extends State<ContactsPage> {
           offset - listTop + scrollOffset - (section.showHeader ? 12 : 0);
     }
   }
-
-  List<ContactSection> _buildMockSections() {
-    return [
-      ContactSection(
-        tag: '🔍',
-        showHeader: false,
-        entries: [
-          ContactEntry.special(
-            id: 'new_friends',
-            name: '新的朋友',
-            assetIcon: AppAssets.contactsNewFriend,
-          ),
-          ContactEntry.special(
-            id: 'groups',
-            name: '群聊',
-            assetIcon: AppAssets.contactsGroup,
-          ),
-        ],
-      ),
-      ContactSection(
-        tag: 'A',
-        entries: [
-          ContactEntry.friend(
-            id: 'alice-chen',
-            name: 'Alice Chen',
-            detail: '最后在线：15:21',
-            avatarAsset: AppAssets.defaultAvatar,
-          ),
-          ContactEntry.friend(
-            id: 'andrew-song',
-            name: '安德鲁',
-            detail: '最后在线：昨天',
-          ),
-        ],
-      ),
-      ContactSection(
-        tag: 'C',
-        entries: [
-          ContactEntry.friend(
-            id: 'cici-lin',
-            name: 'Cici Lin',
-            detail: '最后在线：10:05',
-          ),
-          ContactEntry.friend(
-            id: 'cloud-lab',
-            name: 'Cloud Lab 团队',
-            detail: '最后在线：周二',
-          ),
-        ],
-      ),
-      ContactSection(
-        tag: 'J',
-        entries: [
-          ContactEntry.friend(
-            id: 'joy-design',
-            name: 'Joy（设计）',
-            detail: '最后在线：刚刚',
-          ),
-        ],
-      ),
-      ContactSection(
-        tag: 'L',
-        entries: [
-          ContactEntry.friend(id: 'linus', name: '林森', detail: '最后在线：1 天前'),
-        ],
-      ),
-      ContactSection(
-        tag: 'Z',
-        entries: [
-          ContactEntry.friend(id: 'zhc-chen', name: '陈晨', detail: '最后在线：09:12'),
-        ],
-      ),
-    ];
-  }
 }
 
 class _ContactSectionWidget extends StatelessWidget {
   const _ContactSectionWidget({
     super.key,
     required this.section,
-    required this.newFriendBadge,
     required this.onTapEntry,
   });
 
   final ContactSection section;
-  final int newFriendBadge;
   final ValueChanged<ContactEntry> onTapEntry;
 
   @override
@@ -377,9 +499,7 @@ class _ContactSectionWidget extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           ...section.entries.map((entry) {
-            final badge = entry.id == 'new_friends'
-                ? newFriendBadge
-                : entry.badgeCount;
+            final badge = entry.badgeCount;
             return _ContactListTile(
               entry: entry,
               badge: badge,
@@ -441,20 +561,11 @@ class _ContactListTile extends StatelessWidget {
               ),
             ),
             if (badge != null && badge! > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.danger,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  badge! > 99 ? '99+' : badge.toString(),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+              AppBadge(
+                count: badge!,
+                size: 18,
+                fontSize: 11,
+                backgroundColor: AppColors.primary,
               ),
             if (isSpecial)
               const Padding(
@@ -608,4 +719,67 @@ class ContactEntry {
   final String? avatarAsset;
   final String? avatarUrl;
   final int? badgeCount;
+}
+
+class _EmptyContactsPlaceholder extends StatelessWidget {
+  const _EmptyContactsPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.group_outlined, size: 72, color: AppColors.textTertiary),
+          SizedBox(height: 16),
+          Text(
+            '还没有好友',
+            style: TextStyle(
+              fontSize: 16,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            '点击右上角添加好友，开始聊天吧',
+            style: TextStyle(fontSize: 14, color: AppColors.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorPlaceholder extends StatelessWidget {
+  const _ErrorPlaceholder({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.wifi_tethering_error_rounded,
+            size: 72,
+            color: AppColors.danger,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '联系人加载失败',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(onPressed: () => onRetry(), child: const Text('重新加载')),
+        ],
+      ),
+    );
+  }
 }

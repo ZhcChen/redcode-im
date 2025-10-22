@@ -1,6 +1,7 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use chrono::{DateTime, Utc};
+use std::fmt;
 use uuid::Uuid;
 
 /// 用户表模型
@@ -19,27 +20,29 @@ pub struct User {
 }
 
 /// 用户状态枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "user_status", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i16)]
+#[sqlx(type_name = "int2")]
 pub enum UserStatus {
-    Active,
-    Inactive,
-    Banned,
-}
-
-impl ToString for UserStatus {
-    fn to_string(&self) -> String {
-        match self {
-            UserStatus::Active => "active".to_string(),
-            UserStatus::Inactive => "inactive".to_string(),
-            UserStatus::Banned => "banned".to_string(),
-        }
-    }
+    Active = 0,
+    Inactive = 1,
+    Banned = 2,
 }
 
 impl Default for UserStatus {
     fn default() -> Self {
         UserStatus::Active
+    }
+}
+
+impl fmt::Display for UserStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            UserStatus::Active => "active",
+            UserStatus::Inactive => "inactive",
+            UserStatus::Banned => "banned",
+        };
+        f.write_str(text)
     }
 }
 
@@ -72,8 +75,8 @@ pub struct UpdateUserRequest {
 pub struct Claims {
     pub sub: String, // 用户ID
     pub username: String,
-    pub exp: usize,  // 过期时间
-    pub iat: usize,  // 签发时间
+    pub exp: usize, // 过期时间
+    pub iat: usize, // 签发时间
 }
 
 /// 房间表模型
@@ -91,12 +94,25 @@ pub struct Room {
 }
 
 /// 房间类型枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "room_type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i16)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "int2")]
 pub enum RoomType {
-    Private,    // 私聊
-    Group,      // 群聊
-    Public,     // 公共聊天室
+    Private = 0, // 私聊
+    Group = 1,   // 群聊
+    Public = 2,  // 公共聊天室
+}
+
+impl fmt::Display for RoomType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            RoomType::Private => "private",
+            RoomType::Group => "group",
+            RoomType::Public => "public",
+        };
+        f.write_str(text)
+    }
 }
 
 /// 消息表模型
@@ -112,19 +128,49 @@ pub struct Message {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+/// 携带发送者信息的消息记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MessageWithSender {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub sender_id: Uuid,
+    pub content: String,
+    pub message_type: MessageType,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub sender_username: String,
+    pub sender_nickname: Option<String>,
+    pub sender_avatar_url: Option<String>,
+}
+
 /// 消息类型枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "message_type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i16)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "int2")]
 pub enum MessageType {
-    Text,       // 文本消息
-    Image,      // 图片消息
-    File,       // 文件消息
-    System,     // 系统消息
+    Text = 0,   // 文本消息
+    Image = 1,  // 图片消息
+    File = 2,   // 文件消息
+    System = 3, // 系统消息
 }
 
 impl Default for MessageType {
     fn default() -> Self {
         MessageType::Text
+    }
+}
+
+impl fmt::Display for MessageType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            MessageType::Text => "text",
+            MessageType::Image => "image",
+            MessageType::File => "file",
+            MessageType::System => "system",
+        };
+        f.write_str(text)
     }
 }
 
@@ -137,19 +183,133 @@ pub struct RoomMember {
     pub role: MemberRole,
     pub joined_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub last_read_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub last_read_message_id: Option<Uuid>,
 }
 
 /// 成员角色枚举
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "member_role", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i16)]
+#[sqlx(type_name = "int2")]
 pub enum MemberRole {
-    Owner,      // 房主
-    Admin,      // 管理员
-    Member,     // 普通成员
+    Owner = 0,  // 房主
+    Admin = 1,  // 管理员
+    Member = 2, // 普通成员
 }
 
 impl Default for MemberRole {
     fn default() -> Self {
         MemberRole::Member
     }
+}
+
+impl fmt::Display for MemberRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            MemberRole::Owner => "owner",
+            MemberRole::Admin => "admin",
+            MemberRole::Member => "member",
+        };
+        f.write_str(text)
+    }
+}
+
+/// 消息已读记录模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MessageRead {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub user_id: Uuid,
+    pub room_id: Uuid,
+    pub read_at: DateTime<Utc>,
+}
+
+/// 会话概要信息（用于列表展示）
+#[derive(Debug, Clone, FromRow)]
+pub struct ChatSummaryRow {
+    pub room_id: Uuid,
+    pub room_name: String,
+    pub room_type: RoomType,
+    pub room_description: Option<String>,
+    pub room_avatar_url: Option<String>,
+    pub last_message_id: Option<Uuid>,
+    pub last_message_content: Option<String>,
+    pub last_message_type: Option<MessageType>,
+    pub last_message_created_at: Option<DateTime<Utc>>,
+    pub last_message_sender_id: Option<Uuid>,
+    pub last_message_sender_username: Option<String>,
+    pub last_message_sender_nickname: Option<String>,
+    pub unread_count: i64,
+    pub last_read_message_id: Option<Uuid>,
+    pub last_read_at: Option<DateTime<Utc>>,
+}
+
+/// 好友请求状态
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i16)]
+#[sqlx(type_name = "int2")]
+pub enum FriendRequestStatus {
+    Pending = 0,
+    Accepted = 1,
+    Declined = 2,
+}
+
+impl fmt::Display for FriendRequestStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            FriendRequestStatus::Pending => "pending",
+            FriendRequestStatus::Accepted => "accepted",
+            FriendRequestStatus::Declined => "declined",
+        };
+        f.write_str(text)
+    }
+}
+
+/// 好友请求记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AppDocument {
+    pub key: String,
+    pub title: String,
+    pub content: String,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DocumentUpdate {
+    pub title: Option<String>,
+    pub content: String,
+    pub updated_by: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct CaptchaSettingRecord {
+    pub key: String,
+    pub enabled: bool,
+    pub captcha_code: String,
+    pub description: String,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FriendRequest {
+    pub id: Uuid,
+    pub requester_id: Uuid,
+    pub addressee_id: Uuid,
+    pub status: FriendRequestStatus,
+    pub message: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub responded_at: Option<DateTime<Utc>>,
+}
+
+/// 好友关系记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Friendship {
+    pub id: Uuid,
+    pub user_a_id: Uuid,
+    pub user_b_id: Uuid,
+    pub created_at: DateTime<Utc>,
 }

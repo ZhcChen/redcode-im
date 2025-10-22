@@ -1,49 +1,60 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../models/chat_conversation.dart';
+import '../../../core/widgets/app_badge.dart';
+import '../models/chat_model.dart';
 
 typedef AvatarBuilder = Widget Function(String? avatar);
 
 class ChatListItem extends StatelessWidget {
   const ChatListItem({
     super.key,
-    required this.conversation,
+    required this.chat,
     required this.avatarBuilder,
     required this.onTap,
+    this.showBottomDivider = false,
   });
 
-  final ChatConversation conversation;
+  final Chat chat;
   final AvatarBuilder avatarBuilder;
   final VoidCallback onTap;
+  final bool showBottomDivider;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: conversation.isPinned ? AppColors.surfaceMuted : AppColors.surface,
+      color: chat.isPinned ? AppColors.surfaceMuted : AppColors.surface,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _buildAvatar(),
-              const SizedBox(width: 16),
-              Expanded(child: _buildContent(context)),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _buildAvatar(),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildContent(context)),
+                ],
+              ),
+            ),
+            if (showBottomDivider)
+              const Divider(
+                height: 1,
+                thickness: 0.5,
+                color: Color(0xFFE9EBEF),
+                indent: 88, // 16 padding + 56 avatar + 16 gap
+              ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildAvatar() {
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: avatarBuilder(conversation.avatar),
-    );
+    return SizedBox(width: 56, height: 56, child: avatarBuilder(chat.avatar));
   }
 
   Widget _buildContent(BuildContext context) {
@@ -55,7 +66,7 @@ class ChatListItem extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                conversation.name,
+                _displayTitle(chat),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -66,7 +77,7 @@ class ChatListItem extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              conversation.timeLabel,
+              chat.displayTime,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: AppColors.textQuaternary,
               ),
@@ -79,7 +90,7 @@ class ChatListItem extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                conversation.lastMessage,
+                chat.lastMessage,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -87,25 +98,42 @@ class ChatListItem extends StatelessWidget {
                 ),
               ),
             ),
-            if (conversation.unreadCount > 0)
-              Container(
-                margin: const EdgeInsets.only(left: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: const BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                ),
-                child: Text(
-                  conversation.unreadCount.toString(),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+            if (chat.unreadCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: AppBadge(
+                  count: chat.unreadCount,
+                  size: 18,
+                  fontSize: 11,
+                  backgroundColor: AppColors.primary,
                 ),
               ),
           ],
         ),
       ],
     );
+  }
+
+  /// 标题显示规则：
+  /// - 单聊：优先显示备注/好友昵称/好友用户名
+  /// - 群聊：显示房间名
+  String _displayTitle(Chat chat) {
+    if (chat.type == ChatType.group) return chat.name;
+    final extra = chat.extra ?? const <String, dynamic>{};
+    final candidates = <String?>[
+      extra['remark'] as String?,
+      extra['friend_remark'] as String?,
+      extra['friendRemark'] as String?,
+      extra['friend_nickname'] as String?,
+      extra['friendNickname'] as String?,
+      extra['friend_name'] as String?,
+      extra['friendName'] as String?,
+      extra['friend_username'] as String?,
+      extra['friendUsername'] as String?,
+    ];
+    for (final v in candidates) {
+      if (v != null && v.trim().isNotEmpty) return v.trim();
+    }
+    return chat.name;
   }
 }

@@ -1,30 +1,38 @@
-mod routes;
-mod handlers;
-mod websocket;
-mod models;
 mod auth;
-mod storage;
 mod database;
+mod error;
+mod handlers;
+mod models;
 mod redis;
+mod routes;
+mod storage;
+mod websocket;
 
-use std::{env, net::SocketAddr};
+use std::{
+    env,
+    fs::{self, OpenOptions},
+    net::SocketAddr,
+    path::Path,
+    sync::OnceLock,
+};
 
-use tokio::net::TcpListener;
 use axum::Router;
+use tokio::net::TcpListener;
 use tower_http::{
     cors::{Any, CorsLayer},
-    trace::TraceLayer,
     services::ServeDir,
+    trace::TraceLayer,
 };
-use tracing::{info, error};
+use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+use tracing_appender::non_blocking::WorkerGuard;
+
+static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    init_tracing();
 
     // 初始化数据库连接
     info!("正在初始化数据库连接...");
@@ -41,7 +49,10 @@ async fn main() {
     let redis_manager = redis::RedisManager::new().await.expect("Redis 连接失败");
 
     // 测试 Redis 连接
-    redis_manager.test_connections().await.expect("Redis 连接测试失败");
+    redis_manager
+        .test_connections()
+        .await
+        .expect("Redis 连接测试失败");
     info!("Redis 连接初始化完成!");
 
     // 启动后台任务
@@ -59,6 +70,7 @@ async fn main() {
             database,
             redis: redis_manager,
             node_id,
+            connection_manager: std::sync::Arc::new(websocket::ConnectionManager::new()),
         });
 
     let port: u16 = env::var("PORT")
@@ -77,8 +89,10 @@ async fn main() {
         .unwrap_or(8011);
     let api_doc_dir = env::var("API_DOC_DIR").unwrap_or_else(|_| "api_doc".to_string());
 
-    let docs_router = Router::new()
-        .nest_service("/", ServeDir::new(api_doc_dir).append_index_html_on_directories(true));
+    let docs_router = Router::new().nest_service(
+        "/",
+        ServeDir::new(api_doc_dir).append_index_html_on_directories(true),
+    );
 
     tokio::spawn(async move {
         let docs_addr = SocketAddr::from(([0, 0, 0, 0], api_doc_port));
@@ -101,12 +115,69 @@ async fn main() {
     axum::serve(listener, app).await.expect("server");
 }
 
+fn init_tracing() {
+    let log_dir = Path::new("log");
+    let mut file_layer = None;
+
+    if let Err(e) = fs::create_dir_all(log_dir) {
+        eprintln!("创建日志目录 {:?} 失败: {}", log_dir, e);
+    } else {
+        let log_file_path = log_dir.join("app.log");
+        if log_file_path.exists() {
+            let archived_name = format!("app-{}.log", chrono::Local::now().format("%Y%m%d%H%M%S"));
+            let archive_path = log_dir.join(archived_name);
+            if let Err(e) = fs::rename(&log_file_path, &archive_path) {
+                eprintln!(
+                    "归档日志文件 {:?} -> {:?} 失败: {}",
+                    log_file_path, archive_path, e
+                );
+            }
+        }
+
+        match OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(&log_file_path)
+        {
+            Ok(file) => {
+                let (non_blocking, guard) = tracing_appender::non_blocking(file);
+                let layer = tracing_subscriber::fmt::layer()
+                    .with_writer(non_blocking)
+                    .with_ansi(false);
+                let _ = FILE_GUARD.set(guard);
+                file_layer = Some(layer);
+            }
+            Err(e) => {
+                eprintln!("创建日志文件 {:?} 失败: {}", log_file_path, e);
+            }
+        }
+    }
+
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
+
+    if let Some(layer) = file_layer {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .with(layer)
+            .init();
+        return;
+    }
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+}
+
 /// 应用状态
 #[derive(Clone)]
 pub struct AppState {
     pub database: database::Database,
     pub redis: redis::RedisManager,
     pub node_id: String,
+    pub connection_manager: std::sync::Arc<websocket::ConnectionManager>,
 }
 
 /// 启动后台任务
@@ -162,7 +233,10 @@ async fn register_node_heartbeat(
 
     session_manager
         .register_node_heartbeat(
-            format!("localhost:{}", env::var("PORT").unwrap_or_else(|_| "8010".to_string())),
+            format!(
+                "localhost:{}",
+                env::var("PORT").unwrap_or_else(|_| "8010".to_string())
+            ),
             connected_users,
             active_rooms,
         )

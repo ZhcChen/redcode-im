@@ -20,10 +20,33 @@
   import { ref } from 'vue';
   import { graphic } from 'echarts';
   import useLoading from '@/hooks/loading';
-  import { queryContentData, ContentDataRecord } from '@/api/dashboard';
   import useChartOption from '@/hooks/chart-option';
   import { ToolTipFormatterParams } from '@/types/echarts';
   import { AnyObject } from '@/types/global';
+
+  interface ContentDataRecord {
+    x: string;
+    y: number;
+  }
+
+  // 模拟数据
+  const queryContentData = () => {
+    const data: ContentDataRecord[] = [
+      { x: '1月', y: 100 },
+      { x: '2月', y: 120 },
+      { x: '3月', y: 140 },
+      { x: '4月', y: 110 },
+      { x: '5月', y: 160 },
+      { x: '6月', y: 130 },
+      { x: '7月', y: 150 },
+      { x: '8月', y: 170 },
+      { x: '9月', y: 140 },
+      { x: '10月', y: 160 },
+      { x: '11月', y: 180 },
+      { x: '12月', y: 150 },
+    ];
+    return Promise.resolve({ data });
+  };
 
   function graphicFactory(side: AnyObject) {
     return {

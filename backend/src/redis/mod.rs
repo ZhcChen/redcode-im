@@ -1,10 +1,10 @@
 use redis::Client;
 use std::env;
-use tracing::{info, error};
+use tracing::info;
 
 pub mod cache;
-pub mod session;
 pub mod models;
+pub mod session;
 pub mod streams;
 
 /// Redis 连接管理器
@@ -27,26 +27,26 @@ impl RedisManager {
         dotenvy::dotenv().ok();
 
         // Pub/Sub 专用连接 (使用Session Redis)
-        let pubsub_url = env::var("REDIS_SESSION_URL")
-            .unwrap_or_else(|_| "redis://localhost:6381".to_string());
+        let pubsub_url =
+            env::var("REDIS_SESSION_URL").unwrap_or_else(|_| "redis://localhost:6381".to_string());
         let pubsub_client = Client::open(pubsub_url)?;
         info!("Redis Pub/Sub 连接建立成功");
 
         // Streams 专用连接
-        let streams_url = env::var("REDIS_STREAM_URL")
-            .unwrap_or_else(|_| "redis://localhost:6382".to_string());
+        let streams_url =
+            env::var("REDIS_STREAM_URL").unwrap_or_else(|_| "redis://localhost:6382".to_string());
         let streams_client = Client::open(streams_url)?;
         info!("Redis Streams 连接建立成功");
 
         // Cache 专用连接
-        let cache_url = env::var("REDIS_CACHE_URL")
-            .unwrap_or_else(|_| "redis://localhost:6383".to_string());
+        let cache_url =
+            env::var("REDIS_CACHE_URL").unwrap_or_else(|_| "redis://localhost:6383".to_string());
         let cache_client = Client::open(cache_url)?;
         info!("Redis Cache 连接建立成功");
 
         // Session 专用连接
-        let session_url = env::var("REDIS_SESSION_URL")
-            .unwrap_or_else(|_| "redis://localhost:6381".to_string());
+        let session_url =
+            env::var("REDIS_SESSION_URL").unwrap_or_else(|_| "redis://localhost:6381".to_string());
         let session_client = Client::open(session_url)?;
         info!("Redis Session 连接建立成功");
 

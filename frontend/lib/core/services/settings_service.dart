@@ -1,0 +1,71 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../constants/app_config.dart';
+
+class SettingsServiceException implements Exception {
+  SettingsServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'SettingsServiceException: $message';
+}
+
+class DocumentContent {
+  const DocumentContent({
+    required this.title,
+    required this.content,
+    this.updatedAt,
+  });
+
+  final String title;
+  final String content;
+  final DateTime? updatedAt;
+
+  factory DocumentContent.fromJson(Map<String, dynamic> json) {
+    return DocumentContent(
+      title: (json['title'] as String?) ?? '',
+      content: (json['content'] as String?) ?? '',
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'] as String)
+          : null,
+    );
+  }
+}
+
+class SettingsService {
+  SettingsService({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
+  Future<DocumentContent> fetchPrivacyPolicy() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/privacy-policy');
+    final response = await _client.get(uri);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return DocumentContent.fromJson(data);
+      }
+      throw SettingsServiceException('隐私政策数据格式异常');
+    }
+
+    throw SettingsServiceException(
+      _extractMessage(response.body) ?? '隐私政策加载失败',
+    );
+  }
+
+  String? _extractMessage(String raw) {
+    try {
+      final data = jsonDecode(raw);
+      if (data is Map<String, dynamic>) {
+        final message = data['message'];
+        if (message is String && message.isNotEmpty) {
+          return message;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+}

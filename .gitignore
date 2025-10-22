@@ -31,3 +31,8 @@ target/
 # Misc
 .tmp/
 logs/
+
+bear-chat-uniapp
+.dartServer
+.dart-tool
+log

@@ -80,10 +80,11 @@
   const { loading, setLoading } = useLoading();
   const userStore = useUserStore();
 
+  const hasStoredConfig = Boolean(localStorage.getItem('login-config'));
   const loginConfig = useStorage('login-config', {
     rememberPassword: true,
-    username: 'admin', // 演示默认值
-    password: 'admin', // demo default value
+    username: hasStoredConfig ? '' : 'alice',
+    password: hasStoredConfig ? '' : 'password123',
   });
   const userInfo = reactive({
     username: loginConfig.value.username,
@@ -112,10 +113,10 @@
         Message.success(t('login.form.login.success'));
         const { rememberPassword } = loginConfig.value;
         const { username, password } = values;
-        // 实际生产环境需要进行加密存储。
-        // The actual production environment requires encrypted storage.
-        loginConfig.value.username = rememberPassword ? username : '';
-        loginConfig.value.password = rememberPassword ? password : '';
+        if (rememberPassword) {
+          loginConfig.value.username = username;
+          loginConfig.value.password = password;
+        }
       } catch (err) {
         errorMessage.value = (err as Error).message;
       } finally {

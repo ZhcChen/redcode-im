@@ -1,6 +1,6 @@
-use redis::{Client, RedisResult, AsyncCommands};
+use crate::redis::models::{CacheKeys, CrossNodeMessage, MessagePriority};
+use redis::{AsyncCommands, Client, RedisResult};
 use tracing::info;
-use crate::redis::models::{CrossNodeMessage, MessagePriority, CacheKeys};
 
 /// Redis Streams 管理器
 pub struct StreamManager {
@@ -30,17 +30,31 @@ impl StreamManager {
         match message.priority {
             MessagePriority::Critical | MessagePriority::High => {
                 // 重要消息发送到 Stream
-                let message_json = serde_json::to_string(message)
-                    .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+                let message_json = serde_json::to_string(message).map_err(|e| {
+                    redis::RedisError::from((
+                        redis::ErrorKind::TypeError,
+                        "JSON序列化失败",
+                        e.to_string(),
+                    ))
+                })?;
 
-                let message_id: String = conn.xadd(&stream_key, "*", &[
-                    ("data", &message_json),
-                    ("priority", &format!("{:?}", message.priority)),
-                    ("source_node", &message.source_node),
-                    ("timestamp", &message.timestamp.timestamp().to_string()),
-                ]).await?;
+                let message_id: String = conn
+                    .xadd(
+                        &stream_key,
+                        "*",
+                        &[
+                            ("data", &message_json),
+                            ("priority", &format!("{:?}", message.priority)),
+                            ("source_node", &message.source_node),
+                            ("timestamp", &message.timestamp.timestamp().to_string()),
+                        ],
+                    )
+                    .await?;
 
-                info!("消息发送到 Stream {}: {} (优先级: {:?})", stream_key, message_id, message.priority);
+                info!(
+                    "消息发送到 Stream {}: {} (优先级: {:?})",
+                    stream_key, message_id, message.priority
+                );
                 Ok(message_id)
             }
             MessagePriority::Normal | MessagePriority::Low => {
@@ -50,5 +64,4 @@ impl StreamManager {
             }
         }
     }
-
 }

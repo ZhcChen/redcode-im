@@ -37,54 +37,8 @@
                         <input type="text" id="searchInput" placeholder="搜索API...">
                     </div>
 
-                    <nav class="nav-menu">
-                        <div class="nav-group">
-                            <h3>基础信息</h3>
-                            <a href="#overview" class="nav-link active">
-                                <i class="fas fa-home"></i>
-                                概览
-                            </a>
-                        </div>
-
-                        <div class="nav-group">
-                            <h3>认证模块</h3>
-                            <a href="#auth" class="nav-link">
-                                <i class="fas fa-shield-alt"></i>
-                                用户认证
-                            </a>
-                        </div>
-
-                        <div class="nav-group">
-                            <h3>接口列表</h3>
-                            <a href="#catalog" class="nav-link">
-                                <i class="fas fa-list"></i>
-                                接口总览
-                            </a>
-                        </div>
-
-                        <div class="nav-group">
-                            <h3>系统模块</h3>
-                            <a href="#system" class="nav-link">
-                                <i class="fas fa-cogs"></i>
-                                系统接口
-                            </a>
-                        </div>
-
-                        <div class="nav-group">
-                            <h3>消息模块</h3>
-                            <a href="#messages" class="nav-link">
-                                <i class="fas fa-envelope"></i>
-                                消息接口
-                            </a>
-                        </div>
-
-                        <div class="nav-group">
-                            <h3>WebSocket</h3>
-                            <a href="#websocket" class="nav-link">
-                                <i class="fas fa-plug"></i>
-                                实时通信
-                            </a>
-                        </div>
+                    <nav class="tree-nav">
+                        <div id="apiTree" class="tree-container"></div>
                     </nav>
                 </div>
             </aside>
@@ -128,39 +82,6 @@
                     </div>
                 </section>
 
-                <section id="auth" class="section">
-                    <div class="section-header">
-                        <h2><i class="fas fa-shield-alt"></i> 用户认证</h2>
-                        <p>用户注册、登录和身份验证相关接口。</p>
-                    </div>
-
-                    <div id="auth-apis" class="api-list">
-                        <!-- API内容将通过JavaScript动态生成 -->
-                    </div>
-                </section>
-
-                <section id="system" class="section">
-                    <div class="section-header">
-                        <h2><i class="fas fa-cogs"></i> 系统接口</h2>
-                        <p>系统状态和基础功能接口。</p>
-                    </div>
-
-                    <div id="system-apis" class="api-list">
-                        <!-- API内容将通过JavaScript动态生成 -->
-                    </div>
-                </section>
-
-                <section id="messages" class="section">
-                    <div class="section-header">
-                        <h2><i class="fas fa-envelope"></i> 消息接口</h2>
-                        <p>房间消息发送与查询接口（需携带 Bearer Token）。</p>
-                    </div>
-
-                    <div id="messages-apis" class="api-list">
-                        <!-- API内容将通过JavaScript动态生成 -->
-                    </div>
-                </section>
-
                 <section id="catalog" class="section">
                     <div class="section-header">
                         <h2><i class="fas fa-list"></i> 接口总览</h2>
@@ -172,14 +93,10 @@
                     </div>
                 </section>
 
-                <section id="websocket" class="section">
-                    <div class="section-header">
-                        <h2><i class="fas fa-plug"></i> WebSocket 实时通信</h2>
-                        <p>实时消息传递和通信功能。</p>
-                    </div>
-
-                    <div id="websocket-apis" class="api-list">
-                        <!-- API内容将通过JavaScript动态生成 -->
+                <section id="api-detail" class="section">
+                    <div class="empty-state">
+                        <i class="fas fa-code"></i>
+                        <p>从左侧选择一个接口以查看详情</p>
                     </div>
                 </section>
             </main>

@@ -1,15 +1,15 @@
-use serde::{Deserialize, Serialize};
+use crate::database::models::{MemberRole, MessageType, UserStatus};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::database::models::{UserStatus, RoomType, MessageType, MemberRole};
 
 /// Redis 消息优先级
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MessagePriority {
-    Critical,    // 系统消息、私信 - 必须持久化
-    High,        // 重要群消息 - 双重保证
-    Normal,      // 普通群聊 - 实时分发
-    Low,         // 状态更新 - 实时分发
+    Critical, // 系统消息、私信 - 必须持久化
+    High,     // 重要群消息 - 双重保证
+    Normal,   // 普通群聊 - 实时分发
+    Low,      // 状态更新 - 实时分发
 }
 
 impl Default for MessagePriority {
@@ -41,6 +41,12 @@ pub struct CrossNodeMessage {
     pub timestamp: DateTime<Utc>,
     pub source_node: String,
     pub target_nodes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_nickname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_avatar_url: Option<String>,
 }
 
 /// 节点心跳信息
@@ -100,6 +106,30 @@ pub struct MessageDeliveryResult {
     pub successful_nodes: Vec<String>,
     pub failed_nodes: Vec<String>,
     pub delivery_time: DateTime<Utc>,
+}
+
+/// 已读回执事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadReceiptEvent {
+    pub room_id: Uuid,
+    pub reader_id: Uuid,
+    pub message_id: Uuid,
+    pub read_at: DateTime<Utc>,
+    pub source_node: String,
+}
+
+/// Pub/Sub 统一事件载荷
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "event_type", rename_all = "snake_case")]
+pub enum PubSubPayload {
+    Message {
+        #[serde(flatten)]
+        data: CrossNodeMessage,
+    },
+    ReadReceipt {
+        #[serde(flatten)]
+        data: ReadReceiptEvent,
+    },
 }
 
 /// 缓存键生成器

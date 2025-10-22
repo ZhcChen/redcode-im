@@ -27,8 +27,8 @@ export default defineConfig({
         replacement: 'vue-i18n/dist/vue-i18n.cjs.js', // Resolve the i18n warning issue
       },
       {
-        find: 'vue',
-        replacement: 'vue/dist/vue.esm-bundler.js', // compile template
+        find: /^vue$/,
+        replacement: resolve(__dirname, '../src/shims/vue-with-default'),
       },
     ],
     extensions: ['.ts', '.js'],

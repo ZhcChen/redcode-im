@@ -1,194 +1,184 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
-import 'chat_detail_page.dart';
-import 'models/chat_conversation.dart';
+import '../contacts/add_friend_page.dart';
+import 'chat_detail_page_v2.dart';
+import 'create_group_page.dart';
+import 'models/chat_model.dart';
+import 'providers/chat_provider.dart';
 import 'widgets/chat_list_item.dart';
 
-class ChatListPage extends StatefulWidget {
+class ChatListPage extends StatelessWidget {
   const ChatListPage({super.key});
 
   @override
-  State<ChatListPage> createState() => _ChatListPageState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => ChatProvider(),
+      child: const _ChatListView(),
+    );
+  }
 }
 
-class _ChatListPageState extends State<ChatListPage> {
-  late List<ChatConversation> _conversations;
-
-  @override
-  void initState() {
-    super.initState();
-    _conversations = _mockConversations();
-    _sortConversations();
-  }
+class _ChatListView extends StatelessWidget {
+  const _ChatListView();
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<ChatProvider>();
+    final List<Chat> chats = provider.chats;
+    final isLoading = provider.isChatsLoading && chats.isEmpty;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
         children: [
           _ChatListHeader(
-            onSearchTap: _handleSearchTap,
-            onMenuSelected: _handleMenuSelected,
+            onSearchTap: () => _showSnackBar(context, '搜索功能暂未接入'),
+            onMenuSelected: (action) => _handleMenuSelected(context, action),
           ),
-          const SizedBox(height: 8),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await Future<void>.delayed(const Duration(milliseconds: 600));
-                if (!mounted) return;
-                setState(() {
-                  _conversations = _mockConversations();
-                  _sortConversations();
-                });
-              },
-              child: ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 24),
-                itemCount: _conversations.length,
-                separatorBuilder: (_, __) =>
-                    const Divider(height: 1, indent: 92),
-                itemBuilder: (context, index) {
-                  final conversation = _conversations[index];
-                  return Slidable(
-                    key: ValueKey(conversation.id),
-                    endActionPane: ActionPane(
-                      motion: const DrawerMotion(),
-                      extentRatio: 0.4,
-                      children: [
-                        SlidableAction(
-                          onPressed: (_) => _togglePinned(conversation),
-                          foregroundColor: Colors.white,
-                          backgroundColor: AppColors.primary,
-                          label: conversation.isPinned ? '取消置顶' : '置顶',
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : chats.isEmpty
+                ? const _EmptyPlaceholder()
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 0),
+                    itemCount: chats.length,
+                    itemBuilder: (context, index) {
+                      final chat = chats[index];
+                      return Slidable(
+                        key: ValueKey(chat.id),
+                        endActionPane: ActionPane(
+                          motion: const DrawerMotion(),
+                          extentRatio: 0.4,
+                          children: [
+                            SlidableAction(
+                              onPressed: (_) =>
+                                  provider.pinChat(chat.id, !chat.isPinned),
+                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.primary,
+                              label: chat.isPinned ? '取消置顶' : '置顶',
+                            ),
+                            SlidableAction(
+                              onPressed: (_) => provider.deleteChat(chat.id),
+                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.danger,
+                              label: '删除',
+                            ),
+                          ],
                         ),
-                        SlidableAction(
-                          onPressed: (_) => _deleteConversation(conversation),
-                          foregroundColor: Colors.white,
-                          backgroundColor: AppColors.danger,
-                          label: '删除',
+                        child: ChatListItem(
+                          chat: chat,
+                          avatarBuilder: (avatar) {
+                            if (avatar == null || avatar.isEmpty) {
+                              return SvgPicture.asset(AppAssets.defaultAvatar);
+                            }
+                            if (avatar.endsWith('.svg')) {
+                              return SvgPicture.asset(avatar);
+                            }
+                            if (avatar.startsWith('http://') ||
+                                avatar.startsWith('https://')) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(48),
+                                child: Image.network(avatar, fit: BoxFit.cover),
+                              );
+                            }
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(48),
+                              child: Image.asset(avatar, fit: BoxFit.cover),
+                            );
+                          },
+                          showBottomDivider: index != chats.length - 1,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChatDetailPageV2(
+                                  roomId: chat.roomId,
+                                  chatName: chat.name,
+                                  chatAvatar: chat.avatar,
+                                  chatType: chat.type,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      ],
-                    ),
-                    child: ChatListItem(
-                      conversation: conversation,
-                      avatarBuilder: (avatar) {
-                        if (avatar == null || avatar.isEmpty) {
-                          return SvgPicture.asset(AppAssets.defaultAvatar);
-                        }
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(48),
-                          child: Image.network(avatar, fit: BoxFit.cover),
-                        );
-                      },
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ChatDetailPage(conversation: conversation),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
-  void _handleSearchTap() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('搜索功能暂未接入（mock）')));
-  }
-
-  void _handleMenuSelected(_ChatMenuAction action) {
-    final message = switch (action) {
-      _ChatMenuAction.addFriend => '添加好友入口（mock）',
-      _ChatMenuAction.createGroup => '创建群聊入口（mock）',
-    };
+  static void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _togglePinned(ChatConversation conversation) {
-    setState(() {
-      final index = _conversations.indexWhere((e) => e.id == conversation.id);
-      if (index == -1) return;
-      _conversations[index] = conversation.copyWith(
-        isPinned: !conversation.isPinned,
-      );
-      _sortConversations();
-    });
+  void _handleMenuSelected(BuildContext context, _ChatMenuAction action) {
+    switch (action) {
+      case _ChatMenuAction.addFriend:
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AddFriendPage()));
+        break;
+      case _ChatMenuAction.createGroup:
+        _handleCreateGroup(context);
+        break;
+    }
   }
 
-  void _deleteConversation(ChatConversation conversation) {
-    setState(() {
-      _conversations.removeWhere((e) => e.id == conversation.id);
-    });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('已删除 ${conversation.name}（mock）')));
-  }
+  void _handleCreateGroup(BuildContext context) {
+    final provider = context.read<ChatProvider>();
+    final navigator = Navigator.of(context);
 
-  void _sortConversations() {
-    _conversations.sort((a, b) {
-      if (a.isPinned != b.isPinned) {
-        return a.isPinned ? -1 : 1;
-      }
-      return b.lastMessageTime.compareTo(a.lastMessageTime);
-    });
-  }
+    navigator
+        .push<String>(
+          MaterialPageRoute(builder: (_) => const CreateGroupPage()),
+        )
+        .then((roomId) async {
+          if (roomId == null || roomId.isEmpty) {
+            return;
+          }
 
-  List<ChatConversation> _mockConversations() {
-    final now = DateTime.now();
-    return [
-      ChatConversation(
-        id: '1',
-        name: '熊视界官方群',
-        lastMessage: '欢迎体验新版聊天体验，点击查看更新内容。',
-        lastMessageTime: now.subtract(const Duration(minutes: 3)),
-        unreadCount: 3,
-        isPinned: true,
-      ),
-      ChatConversation(
-        id: '2',
-        name: '产品研发部',
-        lastMessage: '陈晨：今天的需求评审资料请查收～',
-        lastMessageTime: now.subtract(const Duration(hours: 1, minutes: 12)),
-        unreadCount: 0,
-      ),
-      ChatConversation(
-        id: '3',
-        name: '设计资源共享',
-        lastMessage: 'Alice 邀请你查看最新的设计稿。',
-        lastMessageTime: now.subtract(const Duration(hours: 5)),
-        unreadCount: 2,
-      ),
-      ChatConversation(
-        id: '4',
-        name: '星火计划',
-        lastMessage: '计划书已经上传，大家看看。',
-        lastMessageTime: now.subtract(const Duration(days: 1, hours: 2)),
-        unreadCount: 0,
-      ),
-      ChatConversation(
-        id: '5',
-        name: 'AI 研究组',
-        lastMessage: '最新模型迭代日志分享在 wiki 啦！',
-        lastMessageTime: now.subtract(const Duration(days: 2, hours: 3)),
-        unreadCount: 5,
-      ),
-    ];
+          await provider.loadChats(refresh: true);
+
+          Chat? matched;
+          try {
+            matched = provider.chats.firstWhere(
+              (chat) => chat.roomId == roomId,
+            );
+          } catch (_) {
+            matched = null;
+          }
+
+          if (matched == null || !navigator.mounted) {
+            return;
+          }
+
+          final chat = matched;
+
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => ChatDetailPageV2(
+                roomId: chat.roomId,
+                chatName: chat.name,
+                chatAvatar: chat.avatar,
+                chatType: chat.type,
+              ),
+            ),
+          );
+        });
   }
 }
 
@@ -249,11 +239,6 @@ class _ChatListHeader extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Icon(
-                          Icons.tune,
-                          size: 20,
-                          color: AppColors.textTertiary,
-                        ),
                       ],
                     ),
                   ),
@@ -276,9 +261,30 @@ class _ChatMenuButton extends StatefulWidget {
   State<_ChatMenuButton> createState() => _ChatMenuButtonState();
 }
 
-class _ChatMenuButtonState extends State<_ChatMenuButton> {
+class _ChatMenuButtonState extends State<_ChatMenuButton>
+    with SingleTickerProviderStateMixin {
   final GlobalKey _buttonKey = GlobalKey();
   OverlayEntry? _entry;
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      reverseDuration: const Duration(milliseconds: 140),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _fade = curved;
+    _scale = Tween<double>(begin: 0.95, end: 1.0).animate(curved);
+  }
 
   double _menuButtonSize(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -296,40 +302,78 @@ class _ChatMenuButtonState extends State<_ChatMenuButton> {
     final buttonSize = renderBox.size;
     final offset = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
 
+    if (_entry != null) return;
+    _controller.reset();
+
     _entry = OverlayEntry(
-      builder: (context) => Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _hideMenu,
-              child: Container(color: Colors.black.withValues(alpha: 0.3)),
+      builder: (context) => AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _hideMenu,
+                child: Container(
+                  color: Colors.black.withValues(
+                    alpha: 0.3 * (_fade.value.clamp(0.0, 1.0)),
+                  ),
+                ),
+              ),
             ),
-          ),
-          Positioned(
-            left: offset.dx,
-            top: offset.dy + buttonSize.height + 8,
-            child: _DropdownMenu(
-              onSelected: (action) {
-                widget.onSelected(action);
-                _hideMenu();
-              },
+            Positioned(
+              left: offset.dx + buttonSize.width / 2 - 6,
+              top: offset.dy + buttonSize.height + 8 - 6,
+              child: FadeTransition(
+                opacity: _fade,
+                child: ScaleTransition(
+                  scale: _scale,
+                  alignment: Alignment.topCenter,
+                  child: const _MenuArrow(),
+                ),
+              ),
             ),
-          ),
-        ],
+            Positioned(
+              left: offset.dx,
+              top: offset.dy + buttonSize.height + 8,
+              child: FadeTransition(
+                opacity: _fade,
+                child: ScaleTransition(
+                  scale: _scale,
+                  alignment: Alignment.topLeft,
+                  child: _DropdownMenu(
+                    onSelected: (action) {
+                      widget.onSelected(action);
+                      _hideMenu();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
     Overlay.of(context).insert(_entry!);
+    _controller.forward();
   }
 
-  void _hideMenu() {
-    _entry?.remove();
+  Future<void> _hideMenu() async {
+    final entry = _entry;
     _entry = null;
+    if (entry != null) {
+      try {
+        await _controller.reverse();
+      } catch (_) {}
+      entry.remove();
+    }
   }
 
   @override
   void dispose() {
-    _hideMenu();
+    _entry?.remove();
+    _entry = null;
+    _controller.dispose();
     super.dispose();
   }
 
@@ -435,3 +479,60 @@ class _DropdownItem extends StatelessWidget {
 }
 
 enum _ChatMenuAction { addFriend, createGroup }
+
+class _MenuArrow extends StatelessWidget {
+  const _MenuArrow();
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 12.0;
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPlaceholder extends StatelessWidget {
+  const _EmptyPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(
+            Icons.mark_chat_unread_outlined,
+            size: 56,
+            color: AppColors.textTertiary,
+          ),
+          SizedBox(height: 16),
+          Text(
+            '暂无会话',
+            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+          ),
+          SizedBox(height: 6),
+          Text(
+            '开始一段新的聊天吧',
+            style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+}

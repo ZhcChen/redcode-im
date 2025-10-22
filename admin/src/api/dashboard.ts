@@ -1,22 +1,30 @@
 import axios from 'axios';
-import type { TableData } from '@arco-design/web-vue/es/table/interface';
 
-export interface ContentDataRecord {
-  x: string;
-  y: number;
+export interface SystemStats {
+  totalUsers: number;
+  onlineUsers: number;
+  totalRooms: number;
+  activeRooms: number;
+  totalMessages: number;
+  todayMessages: number;
+  systemLoad: number;
+  memoryUsage: number;
+  storageUsage: number;
 }
 
-export function queryContentData() {
-  return axios.get<ContentDataRecord[]>('/api/content-data');
+export function getSystemStats() {
+  return axios.get<SystemStats>('/api/dashboard/stats');
 }
 
-export interface PopularRecord {
-  key: number;
-  clickNumber: string;
-  title: string;
-  increases: number;
+export interface SystemMonitor {
+  cpu: number;
+  memory: number;
+  disk: number;
+  network_in: number;
+  network_out: number;
+  connections: number;
 }
 
-export function queryPopularList(params: { type: string }) {
-  return axios.get<TableData[]>('/api/popular/list', { params });
+export function getSystemMonitor() {
+  return axios.get<SystemMonitor>('/api/dashboard/monitor');
 }

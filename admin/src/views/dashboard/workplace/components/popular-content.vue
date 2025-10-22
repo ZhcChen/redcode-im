@@ -75,17 +75,47 @@
 <script lang="ts" setup>
   import { ref } from 'vue';
   import useLoading from '@/hooks/loading';
-  import { queryPopularList } from '@/api/dashboard';
-  import type { TableData } from '@arco-design/web-vue/es/table/interface';
+
+  interface PopularRecord {
+    key: number;
+    clickNumber: string;
+    title: string;
+    increases: number;
+  }
+
+  // 模拟数据
+  const queryPopularList = () => {
+    const data: PopularRecord[] = [
+      {
+        key: 1,
+        clickNumber: '1234',
+        title: '热门内容1',
+        increases: 12,
+      },
+      {
+        key: 2,
+        clickNumber: '567',
+        title: '热门内容2',
+        increases: -5,
+      },
+      {
+        key: 3,
+        clickNumber: '890',
+        title: '热门内容3',
+        increases: 8,
+      },
+    ];
+    return Promise.resolve({ data });
+  };
 
   const type = ref('text');
   const { loading, setLoading } = useLoading();
-  const renderList = ref<TableData[]>();
-  const fetchData = async (contentType: string) => {
+  const renderList = ref<PopularRecord[]>();
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const { data } = await queryPopularList({ type: contentType });
-      renderList.value = data;
+      const { data } = await queryPopularList();
+      renderList.value = data as any;
     } catch (err) {
       // you can report use errorHandler or other
     } finally {

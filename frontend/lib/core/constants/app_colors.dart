@@ -14,4 +14,7 @@ class AppColors {
   static const Color textBlack = Color(0xFF000000);
   static const Color accent = Color(0xFF00C2B3);
   static const Color danger = Color(0xFFFF4E4E);
+  static const Color divider = Color(0xFFE5E8EC);
+  static const Color iconPrimary = Color(0xFF2C2D3A);
+  static const Color iconSecondary = Color(0xFF9CA0B4);
 }

@@ -36,6 +36,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.0.10+1
   flutter_slidable: ^3.1.0
+  http: ^1.2.1
+  shared_preferences: ^2.3.2
+  web_socket_channel: ^2.4.0
+  provider: ^6.1.1
+  uuid: ^4.2.1
+  connectivity_plus: ^5.0.2
+  flutter_html: ^3.0.0-beta.2
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +71,7 @@ flutter:
     - assets/images/tabbar/
     - assets/images/common/
     - assets/images/contacts/
+    - assets/images/discover/
     - assets/images/settings/
     - assets/images/chat/
 

@@ -4,11 +4,23 @@ import {
   logout as userLogout,
   getUserInfo,
   LoginData,
+  BackendUserInfo,
 } from '@/api/user';
 import { setToken, clearToken } from '@/utils/auth';
 import { removeRouteListener } from '@/utils/route-listener';
 import { UserState } from './types';
 import useAppStore from '../app';
+
+function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
+  return {
+    name: user.nickname || user.username,
+    avatar: user.avatar_url || undefined,
+    email: user.email,
+    introduction: undefined,
+    accountId: user.id,
+    role: 'admin',
+  };
+}
 
 const useUserStore = defineStore('user', {
   state: (): UserState => ({
@@ -56,15 +68,16 @@ const useUserStore = defineStore('user', {
     // Get user's information
     async info() {
       const res = await getUserInfo();
-
-      this.setInfo(res.data);
+      this.setInfo(mapBackendUser(res.data));
     },
 
     // Login
     async login(loginForm: LoginData) {
       try {
         const res = await userLogin(loginForm);
-        setToken(res.data.token);
+        const { token, user } = res.data;
+        setToken(token);
+        this.setInfo(mapBackendUser(user));
       } catch (err) {
         clearToken();
         throw err;

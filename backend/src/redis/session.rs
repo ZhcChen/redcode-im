@@ -1,13 +1,11 @@
-use redis::{Client, AsyncCommands, RedisResult};
+use chrono::Utc;
+use redis::{AsyncCommands, Client, RedisResult};
 use serde_json;
-use uuid::Uuid;
-use chrono::{Utc, DateTime};
-use tracing::{info, error, warn};
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
-use crate::redis::models::{SessionInfo, NodeHeartbeat, CacheKeys};
+use crate::redis::models::{CacheKeys, NodeHeartbeat, SessionInfo};
 
 /// Redis 会话管理器
 pub struct SessionManager {
@@ -32,7 +30,12 @@ impl SessionManager {
     }
 
     /// 创建用户会话
-    pub async fn create_session(&self, user_id: Uuid, socket_id: String, rooms: Vec<Uuid>) -> RedisResult<()> {
+    pub async fn create_session(
+        &self,
+        user_id: Uuid,
+        socket_id: String,
+        rooms: Vec<Uuid>,
+    ) -> RedisResult<()> {
         let mut conn = self.client.get_async_connection().await?;
 
         let session_info = SessionInfo {
@@ -46,17 +49,24 @@ impl SessionManager {
 
         // 缓存用户会话信息
         let session_key = CacheKeys::user_session(&user_id);
-        let session_json = serde_json::to_string(&session_info)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let session_json = serde_json::to_string(&session_info).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
-        conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl).await?;
+        conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
+            .await?;
 
         // 添加到节点会话列表
         let node_sessions_key = CacheKeys::node_sessions(&self.node_id);
-        conn.sadd::<_, _, ()>(&node_sessions_key, &user_id.to_string()).await?;
-        conn.expire::<_, ()>(&node_sessions_key, self.session_ttl.try_into().unwrap()).await?;
+        conn.sadd::<_, _, ()>(&node_sessions_key, &user_id.to_string())
+            .await?;
+        conn.expire::<_, ()>(&node_sessions_key, self.session_ttl.try_into().unwrap())
+            .await?;
 
-        info!("创建用户会话: {} -> {}@{}", user_id, self.node_id, socket_id);
+        info!(
+            "创建用户会话: {} -> {}@{}",
+            user_id, self.node_id, socket_id
+        );
         Ok(())
     }
 
@@ -68,18 +78,19 @@ impl SessionManager {
         let session_json: Option<String> = conn.get(&session_key).await?;
 
         match session_json {
-            Some(json) => {
-                match serde_json::from_str::<SessionInfo>(&json) {
-                    Ok(session) => {
-                        info!("获取用户会话: {} -> {}@{}", user_id, session.node_id, session.socket_id);
-                        Ok(Some(session))
-                    }
-                    Err(e) => {
-                        error!("解析用户会话失败: {:?}", e);
-                        Ok(None)
-                    }
+            Some(json) => match serde_json::from_str::<SessionInfo>(&json) {
+                Ok(session) => {
+                    info!(
+                        "获取用户会话: {} -> {}@{}",
+                        user_id, session.node_id, session.socket_id
+                    );
+                    Ok(Some(session))
                 }
-            }
+                Err(e) => {
+                    error!("解析用户会话失败: {:?}", e);
+                    Ok(None)
+                }
+            },
             None => {
                 info!("用户会话不存在: {}", user_id);
                 Ok(None)
@@ -96,10 +107,16 @@ impl SessionManager {
         if let Some(mut session) = self.get_user_session(user_id).await? {
             session.last_heartbeat = Utc::now();
 
-            let session_json = serde_json::to_string(&session)
-                .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+            let session_json = serde_json::to_string(&session).map_err(|e| {
+                redis::RedisError::from((
+                    redis::ErrorKind::TypeError,
+                    "JSON序列化失败",
+                    e.to_string(),
+                ))
+            })?;
 
-            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl).await?;
+            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
+                .await?;
             info!("更新会话心跳: {}", user_id);
             Ok(true)
         } else {
@@ -117,10 +134,16 @@ impl SessionManager {
         if let Some(mut session) = self.get_user_session(user_id).await? {
             session.rooms = rooms;
 
-            let session_json = serde_json::to_string(&session)
-                .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+            let session_json = serde_json::to_string(&session).map_err(|e| {
+                redis::RedisError::from((
+                    redis::ErrorKind::TypeError,
+                    "JSON序列化失败",
+                    e.to_string(),
+                ))
+            })?;
 
-            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl).await?;
+            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
+                .await?;
             info!("更新用户房间列表: {}", user_id);
             Ok(true)
         } else {
@@ -144,7 +167,8 @@ impl SessionManager {
             // 从原节点会话列表中移除
             if let Some(session) = session_info {
                 let node_sessions_key = CacheKeys::node_sessions(&session.node_id);
-                conn.srem::<_, _, ()>(&node_sessions_key, &user_id.to_string()).await?;
+                conn.srem::<_, _, ()>(&node_sessions_key, &user_id.to_string())
+                    .await?;
             }
 
             info!("删除用户会话: {}", user_id);
@@ -184,7 +208,11 @@ impl SessionManager {
             }
         }
 
-        info!("获取当前节点会话: {} -> {} 个会话", self.node_id, sessions.len());
+        info!(
+            "获取当前节点会话: {} -> {} 个会话",
+            self.node_id,
+            sessions.len()
+        );
         Ok(sessions)
     }
 
@@ -199,8 +227,10 @@ impl SessionManager {
 
             // 如果超过5分钟没有心跳，删除会话
             if heartbeat_age.num_minutes() > 5 {
-                warn!("清理过期会话: {} (最后心跳: {:?})",
-                      session.user_id, session.last_heartbeat);
+                warn!(
+                    "清理过期会话: {} (最后心跳: {:?})",
+                    session.user_id, session.last_heartbeat
+                );
                 self.delete_user_session(&session.user_id).await?;
                 cleaned_count += 1;
             }
@@ -214,7 +244,12 @@ impl SessionManager {
     }
 
     /// 注册节点心跳
-    pub async fn register_node_heartbeat(&self, address: String, connected_users: usize, active_rooms: usize) -> RedisResult<()> {
+    pub async fn register_node_heartbeat(
+        &self,
+        address: String,
+        connected_users: usize,
+        active_rooms: usize,
+    ) -> RedisResult<()> {
         let mut conn = self.client.get_async_connection().await?;
 
         let heartbeat = NodeHeartbeat {
@@ -228,18 +263,23 @@ impl SessionManager {
         };
 
         let heartbeat_key = CacheKeys::node_heartbeat(&self.node_id);
-        let heartbeat_json = serde_json::to_string(&heartbeat)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let heartbeat_json = serde_json::to_string(&heartbeat).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
-        conn.set_ex::<_, _, ()>(&heartbeat_key, &heartbeat_json, 300).await?; // 5分钟过期
+        conn.set_ex::<_, _, ()>(&heartbeat_key, &heartbeat_json, 300)
+            .await?; // 5分钟过期
 
         // 添加到活跃节点列表
         let active_nodes_key = CacheKeys::active_nodes();
-        conn.sadd::<_, _, ()>(&active_nodes_key, &self.node_id).await?;
+        conn.sadd::<_, _, ()>(&active_nodes_key, &self.node_id)
+            .await?;
         conn.expire::<_, ()>(&active_nodes_key, 300).await?;
 
-        info!("注册节点心跳: {} (用户: {}, 房间: {})",
-              self.node_id, connected_users, active_rooms);
+        info!(
+            "注册节点心跳: {} (用户: {}, 房间: {})",
+            self.node_id, connected_users, active_rooms
+        );
         Ok(())
     }
 
@@ -273,7 +313,12 @@ impl SessionManager {
     }
 
     /// 迁移用户会话到新节点
-    pub async fn migrate_user_session(&self, user_id: &Uuid, new_node_id: &str, new_socket_id: String) -> RedisResult<bool> {
+    pub async fn migrate_user_session(
+        &self,
+        user_id: &Uuid,
+        new_node_id: &str,
+        new_socket_id: String,
+    ) -> RedisResult<bool> {
         if let Some(mut session) = self.get_user_session(user_id).await? {
             // 更新节点信息
             session.node_id = new_node_id.to_string();
@@ -283,21 +328,33 @@ impl SessionManager {
             // 保存更新的会话信息
             let mut conn = self.client.get_async_connection().await?;
             let session_key = CacheKeys::user_session(user_id);
-            let session_json = serde_json::to_string(&session)
-                .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+            let session_json = serde_json::to_string(&session).map_err(|e| {
+                redis::RedisError::from((
+                    redis::ErrorKind::TypeError,
+                    "JSON序列化失败",
+                    e.to_string(),
+                ))
+            })?;
 
-            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl).await?;
+            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
+                .await?;
 
             // 从旧节点会话列表移除
             let old_node_sessions_key = CacheKeys::node_sessions(&self.node_id);
-            conn.srem::<_, _, ()>(&old_node_sessions_key, &user_id.to_string()).await?;
+            conn.srem::<_, _, ()>(&old_node_sessions_key, &user_id.to_string())
+                .await?;
 
             // 添加到新节点会话列表
             let new_node_sessions_key = CacheKeys::node_sessions(new_node_id);
-            conn.sadd::<_, _, ()>(&new_node_sessions_key, &user_id.to_string()).await?;
-            conn.expire::<_, ()>(&new_node_sessions_key, self.session_ttl.try_into().unwrap()).await?;
+            conn.sadd::<_, _, ()>(&new_node_sessions_key, &user_id.to_string())
+                .await?;
+            conn.expire::<_, ()>(&new_node_sessions_key, self.session_ttl.try_into().unwrap())
+                .await?;
 
-            info!("迁移用户会话: {} -> {}@{}", user_id, new_node_id, session.socket_id);
+            info!(
+                "迁移用户会话: {} -> {}@{}",
+                user_id, new_node_id, session.socket_id
+            );
             Ok(true)
         } else {
             warn!("尝试迁移不存在的会话: {}", user_id);

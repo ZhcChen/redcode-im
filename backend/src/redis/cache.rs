@@ -1,11 +1,10 @@
-use redis::{Client, AsyncCommands, RedisResult, FromRedisValue};
+use redis::{AsyncCommands, Client, RedisResult};
 use serde_json;
+use tracing::{error, info, warn};
 use uuid::Uuid;
-use tracing::{info, error, warn};
-use std::time::Duration;
 
-use crate::redis::models::{UserOnlineStatus, RoomMemberCache, CacheKeys};
-use crate::database::models::{User, Room};
+use crate::database::models::{Room, User};
+use crate::redis::models::{CacheKeys, RoomMemberCache, UserOnlineStatus};
 
 /// Redis 缓存管理器
 pub struct CacheManager {
@@ -32,10 +31,12 @@ impl CacheManager {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::user_cache(&user.id);
 
-        let user_json = serde_json::to_string(user)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let user_json = serde_json::to_string(user).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
-        conn.set_ex::<_, _, ()>(&key, &user_json, self.default_ttl).await?;
+        conn.set_ex::<_, _, ()>(&key, &user_json, self.default_ttl)
+            .await?;
 
         info!("缓存用户信息: {}", user.username);
         Ok(())
@@ -49,18 +50,16 @@ impl CacheManager {
         let user_json: Option<String> = conn.get(&key).await?;
 
         match user_json {
-            Some(json) => {
-                match serde_json::from_str::<User>(&json) {
-                    Ok(user) => {
-                        info!("命中用户缓存: {}", user.username);
-                        Ok(Some(user))
-                    }
-                    Err(e) => {
-                        error!("解析缓存用户数据失败: {:?}", e);
-                        Ok(None)
-                    }
+            Some(json) => match serde_json::from_str::<User>(&json) {
+                Ok(user) => {
+                    info!("命中用户缓存: {}", user.username);
+                    Ok(Some(user))
                 }
-            }
+                Err(e) => {
+                    error!("解析缓存用户数据失败: {:?}", e);
+                    Ok(None)
+                }
+            },
             None => {
                 info!("用户缓存未命中: {}", user_id);
                 Ok(None)
@@ -88,10 +87,12 @@ impl CacheManager {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::room_cache(&room.id);
 
-        let room_json = serde_json::to_string(room)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let room_json = serde_json::to_string(room).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
-        conn.set_ex::<_, _, ()>(&key, &room_json, self.default_ttl).await?;
+        conn.set_ex::<_, _, ()>(&key, &room_json, self.default_ttl)
+            .await?;
 
         info!("缓存房间信息: {}", room.name);
         Ok(())
@@ -105,18 +106,16 @@ impl CacheManager {
         let room_json: Option<String> = conn.get(&key).await?;
 
         match room_json {
-            Some(json) => {
-                match serde_json::from_str::<Room>(&json) {
-                    Ok(room) => {
-                        info!("命中房间缓存: {}", room.name);
-                        Ok(Some(room))
-                    }
-                    Err(e) => {
-                        error!("解析缓存房间数据失败: {:?}", e);
-                        Ok(None)
-                    }
+            Some(json) => match serde_json::from_str::<Room>(&json) {
+                Ok(room) => {
+                    info!("命中房间缓存: {}", room.name);
+                    Ok(Some(room))
                 }
-            }
+                Err(e) => {
+                    error!("解析缓存房间数据失败: {:?}", e);
+                    Ok(None)
+                }
+            },
             None => {
                 info!("房间缓存未命中: {}", room_id);
                 Ok(None)
@@ -125,7 +124,11 @@ impl CacheManager {
     }
 
     /// 缓存房间成员列表
-    pub async fn cache_room_members(&self, room_id: &Uuid, members: &[RoomMemberCache]) -> RedisResult<()> {
+    pub async fn cache_room_members(
+        &self,
+        room_id: &Uuid,
+        members: &[RoomMemberCache],
+    ) -> RedisResult<()> {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
@@ -134,21 +137,30 @@ impl CacheManager {
 
         // 批量添加成员信息
         for member in members {
-            let member_json = serde_json::to_string(member)
-                .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+            let member_json = serde_json::to_string(member).map_err(|e| {
+                redis::RedisError::from((
+                    redis::ErrorKind::TypeError,
+                    "JSON序列化失败",
+                    e.to_string(),
+                ))
+            })?;
 
             conn.sadd::<_, _, ()>(&key, &member_json).await?;
         }
 
         // 设置过期时间
-        conn.expire::<_, ()>(&key, self.default_ttl.try_into().unwrap()).await?;
+        conn.expire::<_, ()>(&key, self.default_ttl.try_into().unwrap())
+            .await?;
 
         info!("缓存房间成员列表: {} -> {} 个成员", room_id, members.len());
         Ok(())
     }
 
     /// 获取缓存的房间成员列表
-    pub async fn get_cached_room_members(&self, room_id: &Uuid) -> RedisResult<Vec<RoomMemberCache>> {
+    pub async fn get_cached_room_members(
+        &self,
+        room_id: &Uuid,
+    ) -> RedisResult<Vec<RoomMemberCache>> {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
@@ -166,22 +178,32 @@ impl CacheManager {
     }
 
     /// 添加房间成员到缓存
-    pub async fn add_room_member_to_cache(&self, room_id: &Uuid, member: &RoomMemberCache) -> RedisResult<()> {
+    pub async fn add_room_member_to_cache(
+        &self,
+        room_id: &Uuid,
+        member: &RoomMemberCache,
+    ) -> RedisResult<()> {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
-        let member_json = serde_json::to_string(member)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let member_json = serde_json::to_string(member).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
         conn.sadd::<_, _, ()>(&key, &member_json).await?;
-        conn.expire::<_, ()>(&key, self.default_ttl.try_into().unwrap()).await?;
+        conn.expire::<_, ()>(&key, self.default_ttl.try_into().unwrap())
+            .await?;
 
         info!("添加房间成员到缓存: {} -> {}", room_id, member.username);
         Ok(())
     }
 
     /// 从缓存中移除房间成员
-    pub async fn remove_room_member_from_cache(&self, room_id: &Uuid, user_id: &Uuid) -> RedisResult<bool> {
+    pub async fn remove_room_member_from_cache(
+        &self,
+        room_id: &Uuid,
+        user_id: &Uuid,
+    ) -> RedisResult<bool> {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
@@ -206,35 +228,44 @@ impl CacheManager {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::user_online_status(&status.user_id);
 
-        let status_json = serde_json::to_string(status)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let status_json = serde_json::to_string(status).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
-        conn.set_ex::<_, _, ()>(&key, &status_json, self.default_ttl).await?;
+        conn.set_ex::<_, _, ()>(&key, &status_json, self.default_ttl)
+            .await?;
 
-        info!("缓存用户在线状态: {} -> {}", status.username, status.is_online);
+        info!(
+            "缓存用户在线状态: {} -> {}",
+            status.username, status.is_online
+        );
         Ok(())
     }
 
     /// 获取用户在线状态
-    pub async fn get_user_online_status(&self, user_id: &Uuid) -> RedisResult<Option<UserOnlineStatus>> {
+    pub async fn get_user_online_status(
+        &self,
+        user_id: &Uuid,
+    ) -> RedisResult<Option<UserOnlineStatus>> {
         let mut conn = self.client.get_async_connection().await?;
         let key = CacheKeys::user_online_status(user_id);
 
         let status_json: Option<String> = conn.get(&key).await?;
 
         match status_json {
-            Some(json) => {
-                match serde_json::from_str::<UserOnlineStatus>(&json) {
-                    Ok(status) => {
-                        info!("命中用户在线状态缓存: {} -> {}", status.username, status.is_online);
-                        Ok(Some(status))
-                    }
-                    Err(e) => {
-                        error!("解析用户在线状态缓存失败: {:?}", e);
-                        Ok(None)
-                    }
+            Some(json) => match serde_json::from_str::<UserOnlineStatus>(&json) {
+                Ok(status) => {
+                    info!(
+                        "命中用户在线状态缓存: {} -> {}",
+                        status.username, status.is_online
+                    );
+                    Ok(Some(status))
                 }
-            }
+                Err(e) => {
+                    error!("解析用户在线状态缓存失败: {:?}", e);
+                    Ok(None)
+                }
+            },
             None => {
                 info!("用户在线状态缓存未命中: {}", user_id);
                 Ok(None)
@@ -254,11 +285,17 @@ impl CacheManager {
     }
 
     /// 通用缓存设置
-    pub async fn set<T: serde::Serialize>(&self, key: &str, value: &T, ttl_seconds: Option<u64>) -> RedisResult<()> {
+    pub async fn set<T: serde::Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl_seconds: Option<u64>,
+    ) -> RedisResult<()> {
         let mut conn = self.client.get_async_connection().await?;
 
-        let value_json = serde_json::to_string(value)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let value_json = serde_json::to_string(value).map_err(|e| {
+            redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
+        })?;
 
         let ttl = ttl_seconds.unwrap_or(self.default_ttl);
         conn.set_ex::<_, _, ()>(key, &value_json, ttl).await?;
@@ -273,16 +310,14 @@ impl CacheManager {
         let value_json: Option<String> = conn.get(key).await?;
 
         match value_json {
-            Some(json) => {
-                match serde_json::from_str::<T>(&json) {
-                    Ok(value) => Ok(Some(value)),
-                    Err(e) => {
-                        error!("解析缓存数据失败 [{}]: {:?}", key, e);
-                        Ok(None)
-                    }
+            Some(json) => match serde_json::from_str::<T>(&json) {
+                Ok(value) => Ok(Some(value)),
+                Err(e) => {
+                    error!("解析缓存数据失败 [{}]: {:?}", key, e);
+                    Ok(None)
                 }
-            }
-            None => Ok(None)
+            },
+            None => Ok(None),
         }
     }
 

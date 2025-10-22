@@ -1,13 +1,12 @@
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
-use chrono::{Duration, Utc};
-use bcrypt::{hash, verify, DEFAULT_COST};
-use crate::models::{Claims, User};
+use crate::models::Claims;
 use axum::{
     extract::Request,
     http::{header, StatusCode},
     middleware::Next,
     response::Response,
 };
+use bcrypt::{hash, verify, DEFAULT_COST};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use std::env;
 
 // JWT 密钥，在生产环境中应该从环境变量获取
@@ -25,20 +24,8 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, bcrypt::Bcryp
     verify(password, hash)
 }
 
-// 生成 JWT Token
-pub fn generate_token(user: &User) -> Result<String, jsonwebtoken::errors::Error> {
-    let expiration = Utc::now()
-        .checked_add_signed(Duration::hours(24))
-        .expect("valid timestamp")
-        .timestamp() as usize;
-
-    let claims = Claims {
-        sub: user.id.clone(),
-        username: user.username.clone(),
-        exp: expiration,
-        iat: Utc::now().timestamp() as usize,
-    };
-
+// 生成 JWT Token（直接使用 Claims）
+pub fn generate_token(claims: &Claims) -> Result<String, jsonwebtoken::errors::Error> {
     encode(
         &Header::default(),
         &claims,
@@ -57,10 +44,7 @@ pub fn verify_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> 
 }
 
 // 认证中间件
-pub async fn auth_middleware(
-    mut request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Response, StatusCode> {
     let auth_header = request
         .headers()
         .get(header::AUTHORIZATION)

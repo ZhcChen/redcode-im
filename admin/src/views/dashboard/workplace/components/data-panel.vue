@@ -6,22 +6,16 @@
     >
       <a-space>
         <a-avatar :size="54" class="col-avatar">
-          <img
-            alt="avatar"
-            src="//p3-armor.byteimg.com/tos-cn-i-49unhts6dw/288b89194e657603ff40db39e8072640.svg~tplv-49unhts6dw-image.image"
-          />
+          <icon-user />
         </a-avatar>
         <a-statistic
-          :title="$t('workplace.onlineContent')"
-          :value="373.5"
-          :precision="1"
+          title="用户总数"
+          :value="systemStats?.totalUsers || 0"
           :value-from="0"
           animation
           show-group-separator
         >
-          <template #suffix>
-            W+ <span class="unit">{{ $t('workplace.pecs') }}</span>
-          </template>
+          <template #suffix>人</template>
         </a-statistic>
       </a-space>
     </a-grid-item>
@@ -30,22 +24,21 @@
       :span="{ xs: 12, sm: 12, md: 12, lg: 12, xl: 12, xxl: 6 }"
     >
       <a-space>
-        <a-avatar :size="54" class="col-avatar">
-          <img
-            alt="avatar"
-            src="//p3-armor.byteimg.com/tos-cn-i-49unhts6dw/fdc66b07224cdf18843c6076c2587eb5.svg~tplv-49unhts6dw-image.image"
-          />
+        <a-avatar
+          :size="54"
+          class="col-avatar"
+          style="background-color: #2db7f5"
+        >
+          <icon-contacts />
         </a-avatar>
         <a-statistic
-          :title="$t('workplace.putIn')"
-          :value="368"
+          title="在线用户"
+          :value="systemStats?.onlineUsers || 0"
           :value-from="0"
           animation
           show-group-separator
         >
-          <template #suffix>
-            <span class="unit">{{ $t('workplace.pecs') }}</span>
-          </template>
+          <template #suffix>人</template>
         </a-statistic>
       </a-space>
     </a-grid-item>
@@ -54,22 +47,21 @@
       :span="{ xs: 12, sm: 12, md: 12, lg: 12, xl: 12, xxl: 6 }"
     >
       <a-space>
-        <a-avatar :size="54" class="col-avatar">
-          <img
-            alt="avatar"
-            src="//p3-armor.byteimg.com/tos-cn-i-49unhts6dw/77d74c9a245adeae1ec7fb5d4539738d.svg~tplv-49unhts6dw-image.image"
-          />
+        <a-avatar
+          :size="54"
+          class="col-avatar"
+          style="background-color: #52c41a"
+        >
+          <icon-message />
         </a-avatar>
         <a-statistic
-          :title="$t('workplace.newDay')"
-          :value="8874"
+          title="今日消息"
+          :value="systemStats?.todayMessages || 0"
           :value-from="0"
           animation
           show-group-separator
         >
-          <template #suffix>
-            <span class="unit">{{ $t('workplace.pecs') }}</span>
-          </template>
+          <template #suffix>条</template>
         </a-statistic>
       </a-space>
     </a-grid-item>
@@ -79,20 +71,21 @@
       style="border-right: none"
     >
       <a-space>
-        <a-avatar :size="54" class="col-avatar">
-          <img
-            alt="avatar"
-            src="//p3-armor.byteimg.com/tos-cn-i-49unhts6dw/c8b36e26d2b9bb5dbf9b74dd6d7345af.svg~tplv-49unhts6dw-image.image"
-          />
+        <a-avatar
+          :size="54"
+          class="col-avatar"
+          style="background-color: #faad14"
+        >
+          <icon-home />
         </a-avatar>
         <a-statistic
-          :title="$t('workplace.newFromYesterday')"
-          :value="2.8"
-          :precision="1"
+          title="活跃房间"
+          :value="systemStats?.activeRooms || 0"
           :value-from="0"
           animation
+          show-group-separator
         >
-          <template #suffix> % <icon-caret-up class="up-icon" /> </template>
+          <template #suffix>个</template>
         </a-statistic>
       </a-space>
     </a-grid-item>
@@ -102,7 +95,30 @@
   </a-grid>
 </template>
 
-<script lang="ts" setup></script>
+<script lang="ts" setup>
+  import { ref, onMounted } from 'vue';
+  import useLoading from '@/hooks/loading';
+  import { getSystemStats, type SystemStats } from '@/api/dashboard';
+
+  const { setLoading } = useLoading(true);
+  const systemStats = ref<SystemStats>();
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const { data } = await getSystemStats();
+      systemStats.value = data;
+    } catch (error) {
+      // Error handling
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  onMounted(() => {
+    fetchData();
+  });
+</script>
 
 <style lang="less" scoped>
   .arco-grid.panel {

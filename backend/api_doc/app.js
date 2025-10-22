@@ -1,88 +1,191 @@
-// RedCode IM API 文档应用主脚本
+let API_MODULES = {};
 
-// 初始化应用
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
+document.addEventListener('DOMContentLoaded', () => {
+    buildModuleIndex();
+    renderNavigationTree();
+    renderCatalog();
+    initializeNavigation();
+    initializeSearch();
+    showSection('overview');
 });
 
-function initializeApp() {
-    // 渲染API内容
-    renderAPIs();
-    renderCatalog();
-
-    // 初始化导航
-    initializeNavigation();
-
-    // 初始化搜索功能
-    initializeSearch();
-
-    // 显示默认页面
-    showSection('overview');
+function buildModuleIndex() {
+    API_MODULES = {
+        auth: API_DATA.auth || [],
+        system: API_DATA.system || [],
+        messages: API_DATA.messages || [],
+        chats: API_DATA.chats || [],
+        friends: API_DATA.friends || [],
+        websocket: API_DATA.websocket || [],
+        models: API_DATA.models || [],
+    };
 }
 
-// 渲染API内容
-function renderAPIs() {
-    renderAuthAPIs();
-    renderSystemAPIs();
-    renderMessagesAPIs();
-    renderWebSocketAPIs();
-}
-
-// 渲染认证API
-function renderAuthAPIs() {
-    const container = document.getElementById('auth-apis');
+// 渲染导航树
+function renderNavigationTree() {
+    const container = document.getElementById('apiTree');
     if (!container) return;
 
-    container.innerHTML = API_DATA.auth.map(api => createAPICard(api)).join('');
+    const groups = [
+        {
+            key: 'overview',
+            title: '文档概览',
+            icon: 'fas fa-home',
+            items: [
+                {
+                    id: 'overview',
+                    title: 'API 概览',
+                    method: 'INFO',
+                    path: '/',
+                    description: '文档简介'
+                }
+            ],
+        },
+        {
+            key: 'models',
+            title: '模型定义',
+            icon: 'fas fa-database',
+            items: API_MODULES.models,
+        },
+        {
+            key: 'catalog',
+            title: '接口索引',
+            icon: 'fas fa-list',
+            items: [
+                {
+                    id: 'catalog',
+                    title: '接口目录',
+                    method: 'INFO',
+                    path: '/',
+                    description: '所有接口的快速入口'
+                }
+            ],
+        },
+        {
+            key: 'auth',
+            title: '用户认证',
+            icon: 'fas fa-shield-alt',
+            items: API_MODULES.auth,
+        },
+        {
+            key: 'system',
+            title: '系统接口',
+            icon: 'fas fa-cogs',
+            items: API_MODULES.system,
+        },
+        {
+            key: 'messages',
+            title: '消息接口',
+            icon: 'fas fa-envelope',
+            items: API_MODULES.messages,
+        },
+        {
+            key: 'chats',
+            title: '会话接口',
+            icon: 'fas fa-comments',
+            items: API_MODULES.chats,
+        },
+        {
+            key: 'friends',
+            title: '好友接口',
+            icon: 'fas fa-user-friends',
+            items: API_MODULES.friends,
+        },
+        {
+            key: 'websocket',
+            title: '实时通信',
+            icon: 'fas fa-plug',
+            items: API_MODULES.websocket,
+        },
+    ];
+
+    let html = '<ul class="tree-list">';
+    groups.forEach(group => {
+        const hasChildren = Array.isArray(group.items) && group.items.length > 0;
+        const classes = ['tree-group'];
+        if (hasChildren) {
+            classes.push('open');
+        }
+
+        html += `
+            <li class="${classes.join(' ')}" data-module="${group.key}">
+                <div class="tree-item" data-target="${group.key}">
+                    <span class="tree-icon"><i class="${group.icon}"></i></span>
+                    <span class="tree-title">${group.title}</span>
+                    ${hasChildren ? '<span class="tree-toggle"><i class="fas fa-chevron-down"></i></span>' : ''}
+                </div>
+                ${hasChildren ? `
+                    <ul class="tree-children">
+                        ${group.items.map(api => createTreeLeaf(group.key, api)).join('')}
+                    </ul>
+                ` : ''}
+            </li>
+        `;
+    });
+    html += '</ul>';
+
+    container.innerHTML = html;
 }
 
-// 渲染系统API
-function renderSystemAPIs() {
-    const container = document.getElementById('system-apis');
-    if (!container) return;
+function createTreeLeaf(module, api) {
+    const method = (api.method || 'GET').toUpperCase();
+    const searchText = [
+        api.title || '',
+        api.path || '',
+        method,
+        api.description || ''
+    ].join(' ').toLowerCase();
 
-    container.innerHTML = API_DATA.system.map(api => createAPICard(api)).join('');
+    const badgeClass = methodBadgeClass(method);
+    return `
+        <li class="tree-leaf" data-module="${module}" data-api-id="${api.id}" data-search="${escapeHtml(searchText)}">
+            <span class="method-badge ${badgeClass}">${method}</span>
+            <span class="leaf-title">${api.title || api.id}</span>
+        </li>
+    `;
 }
 
-// 渲染WebSocket API
-function renderWebSocketAPIs() {
-    const container = document.getElementById('websocket-apis');
-    if (!container) return;
-
-    container.innerHTML = API_DATA.websocket.map(api => createAPICard(api)).join('');
+function methodBadgeClass(method) {
+    switch (method) {
+        case 'GET':
+            return 'method-get';
+        case 'POST':
+            return 'method-post';
+        case 'PUT':
+        case 'PATCH':
+            return 'method-put';
+        case 'DELETE':
+            return 'method-delete';
+        default:
+            return 'method-info';
+    }
 }
 
-// 渲染消息API
-function renderMessagesAPIs() {
-    const container = document.getElementById('messages-apis');
-    if (!container || !API_DATA.messages) return;
-
-    container.innerHTML = API_DATA.messages.map(api => createAPICard(api)).join('');
-}
-
-// 渲染接口总览（目录）
 function renderCatalog() {
     const container = document.getElementById('catalog-list');
     if (!container) return;
 
-    const groups = [
-        { key: 'system', title: '系统接口', items: API_DATA.system || [] },
-        { key: 'auth', title: '用户认证', items: API_DATA.auth || [] },
-        { key: 'messages', title: '消息接口', items: API_DATA.messages || [] },
-        { key: 'websocket', title: 'WebSocket 实时通信', items: API_DATA.websocket || [] },
+    const catalogGroups = [
+        { key: 'system', title: '系统接口', items: API_MODULES.system },
+        { key: 'auth', title: '用户认证', items: API_MODULES.auth },
+        { key: 'models', title: '模型定义', items: API_MODULES.models },
+        { key: 'messages', title: '消息接口', items: API_MODULES.messages },
+        { key: 'chats', title: '会话接口', items: API_MODULES.chats },
+        { key: 'friends', title: '好友接口', items: API_MODULES.friends },
+        { key: 'websocket', title: '实时通信', items: API_MODULES.websocket },
     ];
 
     let html = '';
-    groups.forEach(g => {
-        if (!g.items.length) return;
+    catalogGroups.forEach(group => {
+        if (!group.items || !group.items.length) return;
         html += `
             <div class="api-section">
-                <h4><i class="fas fa-folder"></i> ${g.title}</h4>
+                <h4><i class="fas fa-folder"></i> ${group.title}</h4>
                 <ul class="catalog-list">
-                    ${g.items.map(api => `
-                        <li class="catalog-item" data-module="${g.key}" data-api-id="${api.id}">
-                            <span class="api-method method-${api.method.toLowerCase()}">${api.method}</span>
-                            <code class="api-path">${API_DATA.baseUrl}${api.path}</code>
+                    ${group.items.map(api => `
+                        <li class="catalog-item" data-module="${group.key}" data-api-id="${api.id}">
+                            <span class="api-method method-${(api.method || 'GET').toLowerCase()}">${api.method || 'GET'}</span>
+                            <code class="api-path">${API_DATA.baseUrl}${api.path || ''}</code>
                             <span class="api-title">${api.title}</span>
                         </li>
                     `).join('')}
@@ -92,36 +195,178 @@ function renderCatalog() {
     });
 
     container.innerHTML = html;
-    setupCatalogNavigation();
-}
 
-function setupCatalogNavigation() {
-    const list = document.getElementById('catalog-list');
-    if (!list) return;
-    list.addEventListener('click', function(e) {
+    container.addEventListener('click', function(e) {
         const item = e.target.closest('.catalog-item');
         if (!item) return;
         const module = item.getAttribute('data-module');
         const apiId = item.getAttribute('data-api-id');
-        showSection(module);
+        showSection('api-detail', module, apiId);
         setTimeout(() => {
-            const targetCard = document.querySelector(`#${module} .api-card[data-api-id="${apiId}"]`);
-            if (targetCard) targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const card = document.querySelector(`#api-detail .api-card[data-api-id="${apiId}"]`);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }, 0);
     });
 }
 
-// 创建API卡片HTML
+function initializeNavigation() {
+    const treeContainer = document.getElementById('apiTree');
+    if (!treeContainer) return;
+
+    treeContainer.addEventListener('click', function(event) {
+        const toggle = event.target.closest('.tree-toggle');
+        if (toggle) {
+            const group = toggle.closest('.tree-group');
+            if (group) {
+                group.classList.toggle('collapsed');
+                group.classList.toggle('open');
+            }
+            return;
+        }
+
+        const item = event.target.closest('.tree-item');
+        if (item) {
+            const group = item.closest('.tree-group');
+            if (group) {
+                group.classList.toggle('collapsed');
+                group.classList.toggle('open');
+            }
+            return;
+        }
+
+        const leaf = event.target.closest('.tree-leaf');
+        if (!leaf) return;
+
+        const module = leaf.getAttribute('data-module');
+        const apiId = leaf.getAttribute('data-api-id');
+
+        if (module === 'overview' || module === 'catalog') {
+            showSection(module);
+        } else {
+            showSection('api-detail', module, apiId);
+        }
+    });
+}
+
+function showSection(sectionId, moduleKey, apiId) {
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(section => section.classList.remove('active'));
+
+    const targetSection = document.getElementById(sectionId);
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+
+    if (sectionId === 'api-detail' && moduleKey && apiId) {
+        renderApiDetail(moduleKey, apiId);
+    }
+
+    setActiveTree(sectionId === 'api-detail' ? moduleKey : sectionId, apiId);
+}
+
+function setActiveTree(sectionId, apiId) {
+    const treeContainer = document.getElementById('apiTree');
+    if (!treeContainer) return;
+
+    const groups = treeContainer.querySelectorAll('.tree-group');
+    groups.forEach(group => {
+        const module = group.getAttribute('data-module');
+        const item = group.querySelector('.tree-item');
+        if (module === sectionId) {
+            if (item) item.classList.add('active');
+            group.classList.remove('collapsed');
+            group.classList.add('open');
+        } else {
+            if (item) item.classList.remove('active');
+        }
+    });
+
+    const leaves = treeContainer.querySelectorAll('.tree-leaf');
+    leaves.forEach(leaf => leaf.classList.remove('active'));
+
+    if (sectionId && apiId) {
+        const target = treeContainer.querySelector(`.tree-leaf[data-module="${sectionId}"][data-api-id="${apiId}"]`);
+        if (target) {
+            target.classList.add('active');
+            const group = target.closest('.tree-group');
+            if (group) {
+                group.classList.remove('collapsed');
+                group.classList.add('open');
+                const item = group.querySelector('.tree-item');
+                if (item) item.classList.add('active');
+            }
+        }
+    }
+}
+
+function renderApiDetail(moduleKey, apiId) {
+    const container = document.getElementById('api-detail');
+    if (!container) return;
+
+    const moduleApis = API_MODULES[moduleKey] || [];
+    const api = moduleApis.find(item => item.id === apiId);
+
+    if (!api) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-info-circle"></i>
+                <p>未找到接口详情，请重新选择。</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="section-header">
+            <h2><i class="fas fa-code"></i> ${api.title}</h2>
+            <p>${api.description || ''}</p>
+        </div>
+        ${createAPICard(api)}
+    `;
+}
+
+function initializeSearch() {
+    const searchInput = document.getElementById('searchInput');
+    const treeContainer = document.getElementById('apiTree');
+    if (!searchInput || !treeContainer) return;
+
+    searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        const groups = treeContainer.querySelectorAll('.tree-group');
+
+        groups.forEach(group => {
+            const leaves = group.querySelectorAll('.tree-leaf');
+            let visibleLeaves = 0;
+
+            leaves.forEach(leaf => {
+                const haystack = leaf.getAttribute('data-search') || '';
+                const match = !query || haystack.includes(query);
+                leaf.style.display = match ? 'flex' : 'none';
+                if (match) visibleLeaves += 1;
+            });
+
+            group.style.display = visibleLeaves > 0 || !leaves.length ? '' : 'none';
+            if (query && visibleLeaves > 0) {
+                group.classList.remove('collapsed');
+                group.classList.add('open');
+            }
+        });
+    });
+}
+
+// --- 生成接口卡片和辅助函数 ---
 function createAPICard(api) {
     return `
         <div class="api-card" data-api-id="${api.id}">
             <div class="api-header">
                 <div class="api-title">
                     <h3>${api.title}</h3>
-                    <span class="api-method method-${api.method.toLowerCase()}">${api.method}</span>
+                    <span class="api-method method-${(api.method || 'GET').toLowerCase()}">${api.method || 'GET'}</span>
                 </div>
-                <div class="api-path"><code>${API_DATA.baseUrl}${api.path}</code></div>
-                <div class="api-description">${api.description}</div>
+                <div class="api-path"><code>${API_DATA.baseUrl}${api.path || ''}</code></div>
+                <div class="api-description">${api.description || ''}</div>
             </div>
             <div class="api-body">
                 ${api.authentication ?
@@ -139,7 +384,6 @@ function createAPICard(api) {
     `;
 }
 
-// 创建请求体部分
 function createRequestBodySection(requestBody) {
     if (!requestBody) return '';
 
@@ -167,7 +411,43 @@ function createRequestBodySection(requestBody) {
     `;
 }
 
-// 创建参数表格
+function createResponsesSection(responses) {
+    if (!responses || !responses.length) return '';
+
+    return `
+        <div class="api-section">
+            <h4><i class="fas fa-arrow-down"></i> 响应示例</h4>
+            ${responses.map(response => `
+                <div class="response-item">
+                    <div class="response-meta">
+                        <span class="status-badge status-${Math.floor(response.status / 100)}xx">${response.status}</span>
+                        <span>${response.description || '响应'}</span>
+                    </div>
+                    <div class="response-example">
+                        <pre>${JSON.stringify(response.example ?? response.body, null, 2)}</pre>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function createMessageTypesSection(messageTypes) {
+    if (!messageTypes || !messageTypes.length) return '';
+
+    return `
+        <div class="api-section">
+            <h4><i class="fas fa-exchange-alt"></i> 消息类型</h4>
+            ${messageTypes.map(type => `
+                <div style="margin-bottom: 0.75rem;">
+                    <div><strong>${type.type}:</strong> ${type.description}</div>
+                    ${type.example ? `<div style="margin-left: 1rem; font-family: monospace; color: #6b7280;">示例: ${type.example}</div>` : ''}
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
 function createParameterTable(schema) {
     if (!schema.properties) return '';
 
@@ -200,129 +480,25 @@ function createParameterTable(schema) {
         `;
     });
 
-    tableHTML += `
-            </tbody>
-        </table>
-    `;
-
+    tableHTML += '</tbody></table>';
     return tableHTML;
 }
 
-// 创建响应部分
-function createResponsesSection(responses) {
-    return `
-        <div class="api-section">
-            <h4><i class="fas fa-arrow-down"></i> 响应</h4>
-            ${responses.map(response => `
-                <div style="margin-bottom: 1rem;">
-                    <div style="margin-bottom: 0.5rem;">
-                        <strong>HTTP ${response.status}:</strong> ${response.description}
-                    </div>
-                    ${response.example ? `
-                        <div class="response-example">
-                            <pre>${typeof response.example === 'string' ?
-                                response.example :
-                                JSON.stringify(response.example, null, 2)
-                            }</pre>
-                        </div>
-                    ` : ''}
-                </div>
-            `).join('')}
-        </div>
-    `;
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
-// 创建消息类型部分（WebSocket专用）
-function createMessageTypesSection(messageTypes) {
-    if (!messageTypes || messageTypes.length === 0) return '';
-
-    return `
-        <div class="api-section">
-            <h4><i class="fas fa-exchange-alt"></i> 消息类型</h4>
-            ${messageTypes.map(type => `
-                <div style="margin-bottom: 0.75rem;">
-                    <div><strong>${type.type}:</strong> ${type.description}</div>
-                    ${type.example ? `<div style="margin-left: 1rem; font-family: monospace; color: #6b7280;">示例: ${type.example}</div>` : ''}
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-// 初始化导航
-function initializeNavigation() {
-    const navLinks = document.querySelectorAll('.nav-link');
-
-    navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-
-            const targetId = this.getAttribute('href').substring(1);
-            showSection(targetId);
-
-            // 更新导航状态
-            navLinks.forEach(l => l.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-}
-
-// 显示指定部分
-function showSection(sectionId) {
-    const sections = document.querySelectorAll('.section');
-
-    sections.forEach(section => {
-        section.classList.remove('active');
-    });
-
-    const targetSection = document.getElementById(sectionId);
-    if (targetSection) {
-        targetSection.classList.add('active');
-    }
-}
-
-// 初始化搜索功能
-function initializeSearch() {
-    const searchInput = document.getElementById('searchInput');
-    if (!searchInput) return;
-
-    searchInput.addEventListener('input', function() {
-        const query = this.value.toLowerCase().trim();
-
-        if (query === '') {
-            // 显示所有API
-            document.querySelectorAll('.api-card').forEach(card => {
-                card.style.display = 'block';
-            });
-        } else {
-            // 搜索过滤
-            document.querySelectorAll('.api-card').forEach(card => {
-                const title = card.querySelector('h3').textContent.toLowerCase();
-                const description = card.querySelector('.api-description').textContent.toLowerCase();
-                const path = card.querySelector('.api-path').textContent.toLowerCase();
-
-                if (title.includes(query) || description.includes(query) || path.includes(query)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        }
-    });
-}
-
-// 工具函数：格式化JSON
-function formatJSON(obj) {
-    return JSON.stringify(obj, null, 2);
-}
-
-// 工具函数：复制到剪贴板
+// 复制工具
 function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         return navigator.clipboard.writeText(text);
     }
 
-    // 降级方案
     const textArea = document.createElement('textarea');
     textArea.value = text;
     textArea.style.position = 'fixed';
@@ -342,55 +518,3 @@ function copyToClipboard(text) {
         return Promise.reject(err);
     }
 }
-
-// 添加键盘快捷键
-document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + K 聚焦搜索框
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.focus();
-            searchInput.select();
-        }
-    }
-
-    // ESC 清空搜索
-    if (e.key === 'Escape') {
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput && document.activeElement === searchInput) {
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            searchInput.blur();
-        }
-    }
-});
-
-// 添加复制代码功能
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.response-example')) {
-        const example = e.target.closest('.response-example');
-        const code = example.querySelector('pre').textContent;
-
-        copyToClipboard(code).then(() => {
-            // 显示复制成功的视觉反馈
-            const originalBg = example.style.backgroundColor;
-            example.style.backgroundColor = '#10b981';
-            example.style.color = 'white';
-
-            setTimeout(() => {
-                example.style.backgroundColor = originalBg;
-                example.style.color = '';
-            }, 300);
-        }).catch(err => {
-            console.error('复制失败:', err);
-        });
-    }
-});
-
-// 导出函数供其他脚本使用
-window.APIViewer = {
-    showSection,
-    copyToClipboard,
-    formatJSON
-};

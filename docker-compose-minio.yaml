@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # MinIO 对象存储服务
+  minio:
+    image: minio/minio:latest
+    container_name: redcode-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"     # API端口
+      - "9001:9001"     # 控制台端口
+    environment:
+      # 管理员账号密码（生产环境请修改）
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123456
+      # 设置区域
+      MINIO_REGION_NAME: us-east-1
+      # 浏览器访问地址
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
+    volumes:
+      # 数据持久化
+      - minio_data:/data
+      # 配置持久化
+      - minio_config:/root/.minio
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - redcode-network
+
+  # MinIO Client (用于初始化bucket)
+  minio-client:
+    image: minio/mc:latest
+    container_name: redcode-minio-client
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      # 等待MinIO启动
+      sleep 5;
+      
+      # 配置MinIO客户端
+      mc alias set myminio http://minio:9000 admin admin123456;
+      
+      # 创建存储桶
+      mc mb myminio/avatars --ignore-existing;
+      mc mb myminio/chat-files --ignore-existing;
+      mc mb myminio/chat-images --ignore-existing;
+      mc mb myminio/chat-videos --ignore-existing;
+      mc mb myminio/chat-voices --ignore-existing;
+      
+      # 设置存储桶策略（公开读取）
+      mc anonymous set download myminio/avatars;
+      mc anonymous set download myminio/chat-images;
+      
+      # 设置存储桶生命周期（可选：临时文件7天后删除）
+      echo '{
+        \"Rules\": [{
+          \"ID\": \"delete-temp-files\",
+          \"Status\": \"Enabled\",
+          \"Expiration\": {
+            \"Days\": 7
+          },
+          \"Filter\": {
+            \"Prefix\": \"temp/\"
+          }
+        }]
+      }' > /tmp/lifecycle.json;
+      
+      mc ilm import myminio/chat-files < /tmp/lifecycle.json;
+      
+      echo 'MinIO buckets created successfully!';
+      
+      # 显示创建的存储桶
+      mc ls myminio/;
+      
+      exit 0;
+      "
+    networks:
+      - redcode-network
+
+  # Nginx 反向代理（可选，用于生产环境）
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: redcode-minio-nginx
+  #   ports:
+  #     - "9090:80"
+  #   volumes:
+  #     - ./nginx-minio.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - minio
+  #   networks:
+  #     - redcode-network
+
+volumes:
+  # MinIO数据卷
+  minio_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/minio/data
+  
+  # MinIO配置卷
+  minio_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/minio/config
+
+networks:
+  redcode-network:
+    external: true

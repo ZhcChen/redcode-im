@@ -3,30 +3,235 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../auth/data/auth_repository.dart';
+import '../auth/login_page.dart';
+import '../auth/models/auth_user.dart';
+import 'account_security_page.dart';
+import 'feedback_page.dart';
+import 'privacy_policy_page.dart';
+import 'widgets/confirm_action_dialog.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final AuthRepository _authRepository = AuthRepository();
+  AuthUser? _user;
+  bool _loading = true;
+  bool _deactivating = false;
+  bool _updatingNickname = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _editNickname() async {
+    if (_user == null || _updatingNickname) {
+      return;
+    }
+
+    final initialName = _user!.displayName;
+    final controller = TextEditingController(text: initialName);
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('修改昵称'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 20,
+              decoration: const InputDecoration(
+                hintText: '请输入新的昵称',
+                counterText: '',
+              ),
+              validator: (value) {
+                final trimmed = value?.trim() ?? '';
+                if (trimmed.isEmpty) {
+                  return '昵称不能为空';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() != true) {
+                  return;
+                }
+                Navigator.of(context).pop(controller.text.trim());
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (result == null) {
+      return;
+    }
+    final newName = result.trim();
+    if (newName.isEmpty || newName == initialName) {
+      return;
+    }
+
+    setState(() => _updatingNickname = true);
+    try {
+      final updated = await _authRepository.updateProfile(nickname: newName);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _user = updated);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('昵称已更新')));
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('昵称更新失败，请稍后重试')));
+    } finally {
+      if (mounted) {
+        setState(() => _updatingNickname = false);
+      }
+    }
+  }
+
+  Future<void> _loadUser() async {
+    final cached = await _authRepository.loadSession();
+    if (mounted) {
+      setState(() {
+        _user = cached?.user;
+        _loading = false;
+      });
+    }
+
+    try {
+      final refreshed = await _authRepository.refreshCurrentUser();
+      if (!mounted || refreshed == null) {
+        return;
+      }
+      setState(() => _user = refreshed);
+    } catch (_) {}
+  }
+
+  Future<void> _logout() async {
+    await _authRepository.logout();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _handleDeactivate() async {
+    if (_deactivating) return;
+
+    final firstConfirm = await showConfirmActionDialog(
+      context,
+      title: '确认注销账号',
+      message: '账号注销后将无法恢复，好友与聊天数据将被清空，确定继续吗？',
+      confirmLabel: '继续',
+    );
+    if (firstConfirm != true) return;
+
+    final secondConfirm = await showConfirmActionDialog(
+      context,
+      title: '最终确认',
+      message: '请输入 “注销” 以确认注销账号。',
+      confirmLabel: '确认注销',
+      confirmationKeyword: '注销',
+    );
+    if (secondConfirm != true) return;
+
+    setState(() => _deactivating = true);
+    try {
+      await _authRepository.deactivateAccount();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('账号已注销')));
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) {
+        setState(() => _deactivating = false);
+      }
+    }
+  }
+
+  void _openAccountSecurity() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => AccountSecurityPage(user: _user)));
+  }
+
+  void _openPrivacyPolicy() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyPage()));
+  }
+
+  Future<void> _openFeedback() async {
+    final submitted = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const FeedbackPage()));
+    if (submitted == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('反馈已提交，我们会尽快处理')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final items = <_SettingItemData>[
       _SettingItemData(
         title: '账号与安全',
-        subtitle: '手机号、密码、设备管理',
         asset: AppAssets.settingsAccountSafe,
-        onTapMessage: '打开账号与安全（mock）',
+        onTap: _openAccountSecurity,
       ),
       _SettingItemData(
         title: '隐私政策',
-        subtitle: '查看条款与隐私保护',
         asset: AppAssets.settingsPrivacy,
-        onTapMessage: '查看隐私政策（mock）',
+        onTap: _openPrivacyPolicy,
       ),
       _SettingItemData(
         title: '意见反馈',
-        subtitle: '向团队提交建议',
         asset: AppAssets.settingsFeedback,
-        onTapMessage: '进入意见反馈（mock）',
+        onTap: _openFeedback,
       ),
     ];
 
@@ -47,7 +252,16 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              const _UserCard(),
+              if (_loading)
+                const Center(child: CircularProgressIndicator())
+              else
+                _UserCard(
+                  user: _user,
+                  onEditNickname: (_user != null && !_updatingNickname)
+                      ? _editNickname
+                      : null,
+                  updatingNickname: _updatingNickname,
+                ),
               const SizedBox(height: 24),
               Container(
                 decoration: BoxDecoration(
@@ -65,7 +279,11 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              const _DangerZone(),
+              _DangerZone(
+                onDeactivate: _deactivating ? null : _handleDeactivate,
+                onLogout: _logout,
+                deactivating: _deactivating,
+              ),
             ],
           ),
         ),
@@ -75,10 +293,25 @@ class SettingsPage extends StatelessWidget {
 }
 
 class _UserCard extends StatelessWidget {
-  const _UserCard();
+  const _UserCard({
+    this.user,
+    this.onEditNickname,
+    this.updatingNickname = false,
+  });
+
+  final AuthUser? user;
+  final VoidCallback? onEditNickname;
+  final bool updatingNickname;
 
   @override
   Widget build(BuildContext context) {
+    final displayName = user?.displayName ?? '未命名用户';
+    final username = user?.username ?? '';
+    final account = username.isNotEmpty ? username : '未绑定';
+    final emailText = user?.email != null && user!.email!.isNotEmpty
+        ? '邮箱：${user!.email}'
+        : '邮箱：未绑定';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       decoration: BoxDecoration(
@@ -128,24 +361,45 @@ class _UserCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      '熊小熊',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                GestureDetector(
+                  onTap: updatingNickname ? null : onEditNickname,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    SvgPicture.asset(AppAssets.settingsEditOutline, width: 16),
-                  ],
+                      const SizedBox(width: 8),
+                      if (updatingNickname)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      else if (onEditNickname != null)
+                        SvgPicture.asset(
+                          AppAssets.settingsEditOutline,
+                          width: 16,
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  '熊讯号：BEAR-2025',
-                  style: TextStyle(
+                Text(
+                  '账号：$account',
+                  style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
@@ -160,9 +414,9 @@ class _UserCard extends StatelessWidget {
                     color: AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Text(
-                    '手机号：(+86) 188****0000',
-                    style: TextStyle(
+                  child: Text(
+                    emailText,
+                    style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
@@ -186,11 +440,7 @@ class _SettingListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(data.onTapMessage)));
-      },
+      onTap: data.onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Column(
@@ -211,14 +461,17 @@ class _SettingListTile extends StatelessWidget {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        data.subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textTertiary,
+                      if (data.subtitle != null && data.subtitle!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            data.subtitle!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -241,55 +494,91 @@ class _SettingListTile extends StatelessWidget {
 }
 
 class _DangerZone extends StatelessWidget {
-  const _DangerZone();
+  const _DangerZone({
+    required this.onDeactivate,
+    required this.onLogout,
+    required this.deactivating,
+  });
+
+  final Future<void> Function()? onDeactivate;
+  final VoidCallback onLogout;
+  final bool deactivating;
 
   @override
   Widget build(BuildContext context) {
-    final actions = <_DangerAction>[
-      _DangerAction(label: '注销账号', onPressedMessage: '提交账号注销申请（mock）'),
-      _DangerAction(label: '退出登录', onPressedMessage: '退出登录操作（mock）'),
+    final actions = <Widget>[
+      OutlinedButton.icon(
+        onPressed: onDeactivate == null
+            ? null
+            : () async => await onDeactivate!(),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.danger,
+          side: const BorderSide(color: AppColors.danger),
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          backgroundColor: Colors.white,
+        ),
+        icon: SvgPicture.asset(
+          AppAssets.settingsLogout,
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(
+            AppColors.danger,
+            BlendMode.srcIn,
+          ),
+        ),
+        label: deactivating
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.danger,
+                ),
+              )
+            : const Text(
+                '注销账号',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+      ),
+      OutlinedButton.icon(
+        onPressed: onLogout,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.danger,
+          side: const BorderSide(color: AppColors.danger),
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          backgroundColor: Colors.white,
+        ),
+        icon: SvgPicture.asset(
+          AppAssets.settingsLogout,
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(
+            AppColors.danger,
+            BlendMode.srcIn,
+          ),
+        ),
+        label: const Text(
+          '退出登录',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
     ];
 
     return Column(
-      children: actions
-          .map(
-            (action) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(action.onPressedMessage)),
-                  );
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.danger,
-                  side: const BorderSide(color: AppColors.danger),
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  backgroundColor: Colors.white,
-                ),
-                icon: SvgPicture.asset(
-                  AppAssets.settingsLogout,
-                  width: 20,
-                  height: 20,
-                  colorFilter: const ColorFilter.mode(
-                    AppColors.danger,
-                    BlendMode.srcIn,
-                  ),
-                ),
-                label: Text(
-                  action.label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          )
-          .toList(),
+      children: List.generate(actions.length, (index) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: index == actions.length - 1 ? 0 : 12,
+          ),
+          child: actions[index],
+        );
+      }),
     );
   }
 }
@@ -297,20 +586,13 @@ class _DangerZone extends StatelessWidget {
 class _SettingItemData {
   const _SettingItemData({
     required this.title,
-    required this.subtitle,
     required this.asset,
-    required this.onTapMessage,
+    this.subtitle,
+    this.onTap,
   });
 
   final String title;
-  final String subtitle;
   final String asset;
-  final String onTapMessage;
-}
-
-class _DangerAction {
-  const _DangerAction({required this.label, required this.onPressedMessage});
-
-  final String label;
-  final String onPressedMessage;
+  final String? subtitle;
+  final VoidCallback? onTap;
 }

@@ -1,4 +1,4 @@
-use redis::{Client, PubSub, AsyncCommands, RedisResult};
+use redis::{Client, AsyncCommands, RedisResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use serde_json;
@@ -6,19 +6,19 @@ use tracing::{info, error, warn};
 use std::sync::Arc;
 use std::collections::HashSet;
 
-use crate::redis::models::{CrossNodeMessage, CacheKeys};
+use crate::redis::models::{CacheKeys, PubSubPayload};
 
 /// Redis Pub/Sub 管理器
 pub struct PubSubManager {
     client: Client,
     node_id: String,
     subscribed_rooms: Arc<tokio::sync::RwLock<HashSet<Uuid>>>,
-    message_sender: mpsc::UnboundedSender<CrossNodeMessage>,
+    message_sender: mpsc::UnboundedSender<PubSubPayload>,
 }
 
 impl PubSubManager {
     /// 创建新的 Pub/Sub 管理器
-    pub fn new(client: Client, node_id: String) -> (Self, mpsc::UnboundedReceiver<CrossNodeMessage>) {
+    pub fn new(client: Client, node_id: String) -> (Self, mpsc::UnboundedReceiver<PubSubPayload>) {
         let (message_sender, message_receiver) = mpsc::unbounded_channel();
 
         let manager = Self {
@@ -62,11 +62,11 @@ impl PubSubManager {
     }
 
     /// 发布消息到房间频道
-    pub async fn publish_to_room(&self, room_id: &Uuid, message: &CrossNodeMessage) -> RedisResult<()> {
+    pub async fn publish_to_room(&self, room_id: &Uuid, payload: &PubSubPayload) -> RedisResult<()> {
         let mut conn = self.client.get_async_connection().await?;
         let channel = CacheKeys::pubsub_channel(room_id);
 
-        let message_json = serde_json::to_string(message)
+        let message_json = serde_json::to_string(payload)
             .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
 
         let subscriber_count: i32 = conn.publish(&channel, &message_json).await?;
@@ -104,7 +104,7 @@ impl PubSubManager {
     async fn create_and_listen(
         client: Client,
         node_id: String,
-        message_sender: mpsc::UnboundedSender<CrossNodeMessage>,
+        message_sender: mpsc::UnboundedSender<PubSubPayload>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut conn = client.get_async_connection().await?;
         let mut pubsub = conn.into_pubsub();
@@ -158,16 +158,32 @@ impl PubSubManager {
     async fn handle_room_message(
         payload: &str,
         node_id: &str,
-        message_sender: &mpsc::UnboundedSender<CrossNodeMessage>,
+        message_sender: &mpsc::UnboundedSender<PubSubPayload>,
     ) {
-        match serde_json::from_str::<CrossNodeMessage>(payload) {
-            Ok(message) => {
-                // 过滤掉自己发送的消息
-                if message.source_node != node_id {
-                    info!("收到跨节点消息 [{}]: 房间={}, 发送者={}",
-                          node_id, message.room_id, message.sender_id);
+        match serde_json::from_str::<PubSubPayload>(payload) {
+            Ok(event) => {
+                let should_forward = match &event {
+                    PubSubPayload::Message { data } => data.source_node != node_id,
+                    PubSubPayload::ReadReceipt { data } => data.source_node != node_id,
+                };
 
-                    if let Err(e) = message_sender.send(message) {
+                if should_forward {
+                    match &event {
+                        PubSubPayload::Message { data } => {
+                            info!(
+                                "收到跨节点消息 [{}]: 房间={}, 发送者={}",
+                                node_id, data.room_id, data.sender_id
+                            );
+                        }
+                        PubSubPayload::ReadReceipt { data } => {
+                            info!(
+                                "收到跨节点已读回执 [{}]: 房间={}, 读者={}, 消息={}",
+                                node_id, data.room_id, data.reader_id, data.message_id
+                            );
+                        }
+                    }
+
+                    if let Err(e) = message_sender.send(event) {
                         error!("发送消息到处理器失败: {:?}", e);
                     }
                 }

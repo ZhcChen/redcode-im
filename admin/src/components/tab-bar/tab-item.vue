@@ -77,7 +77,11 @@
     itemData: {
       type: Object as PropType<TagProps>,
       default() {
-        return [];
+        return {
+          title: '',
+          name: '',
+          fullPath: '',
+        } as TagProps;
       },
     },
     index: {

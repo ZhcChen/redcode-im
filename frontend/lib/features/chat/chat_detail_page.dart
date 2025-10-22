@@ -55,9 +55,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         child: Column(
           children: [
             _buildHeader(context),
-            if (widget.conversation.isPinned)
-              const _NoticeBar(message: '已置顶会话，仅展示最近消息（mock）'),
-            const SizedBox(height: 8),
             Expanded(child: _buildMessageList()),
             _buildInputArea(),
             if (_showEmojiPanel)
@@ -89,20 +86,18 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         children: [
           Row(
             children: [
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  child: SvgPicture.asset(
-                    AppAssets.loginLeft,
-                    width: 22,
-                    height: 22,
-                    colorFilter: const ColorFilter.mode(
-                      AppColors.textPrimary,
-                      BlendMode.srcIn,
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => Navigator.of(context).pop(),
+                  child: const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -141,19 +136,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Container(
-            height: 1,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0x00E5E8EC),
-                  Color(0xFFE5E8EC),
-                  Color(0x00E5E8EC),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -165,7 +147,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       behavior: HitTestBehavior.translucent,
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         itemCount: _messages.length,
         itemBuilder: (context, index) {
           final message = _messages[index];
@@ -203,7 +185,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       child: SafeArea(
         top: false,
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             IconButton(
               onPressed: _toggleMorePanel,
@@ -216,19 +198,23 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             ),
             Expanded(
               child: Container(
+                height: 56,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                alignment: Alignment.center,
                 child: TextField(
                   controller: _textController,
                   focusNode: _inputFocusNode,
-                  minLines: 1,
-                  maxLines: 4,
+                  maxLines: 1,
+                  textAlignVertical: TextAlignVertical.center,
                   decoration: const InputDecoration(
                     hintText: '输入消息...',
                     border: InputBorder.none,
+                    isCollapsed: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
@@ -249,11 +235,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             ElevatedButton(
               onPressed: _handleSend,
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(64, 40),
+                minimumSize: const Size(64, 44),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: const Text('发送'),
             ),
@@ -429,43 +416,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
-  }
-}
-
-class _NoticeBar extends StatelessWidget {
-  const _NoticeBar({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.campaign_outlined,
-            color: AppColors.primary,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

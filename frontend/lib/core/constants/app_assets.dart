@@ -16,6 +16,8 @@ class AppAssets {
   static const String contactTab = '$images/tabbar/contact.png';
   static const String contactTabSelected =
       '$images/tabbar/contact_selected.png';
+  static const String discoverTab = '$images/tabbar/find.png';
+  static const String discoverTabSelected = '$images/tabbar/find_selected.png';
   static const String settingsTab = '$images/tabbar/setting.png';
   static const String settingsTabSelected =
       '$images/tabbar/setting_selected.png';
@@ -27,6 +29,10 @@ class AppAssets {
   static const String chatMenu = '$images/chat/icon_menu.svg';
   static const String chatAdd = '$images/chat/icon_add.svg';
   static const String chatCreate = '$images/chat/icon_chat.svg';
+  static const String iconVoice = '$images/chat/icon_voice.svg';
+  static const String iconEmoji = '$images/chat/icon_emoji.svg';
+  static const String iconAdd = '$images/chat/icon_add.svg';
+  static const String chatRead = '$images/chat/icon_read.svg';
   static const String settingsEdit = '$images/settings/icon_pen.svg';
   static const String settingsEditOutline =
       '$images/settings/icon_pen_outline.svg';
@@ -35,4 +41,16 @@ class AppAssets {
   static const String settingsPrivacy = '$images/settings/icon_privacy.png';
   static const String settingsFeedback = '$images/settings/icon_feedback.png';
   static const String settingsLogout = '$images/settings/icon_logout.svg';
+
+  static const String discoverMoments = '$images/discover/01.png';
+  static const String discoverChannels = '$images/discover/02.png';
+  static const String discoverLive = '$images/discover/03.png';
+  static const String discoverScan = '$images/discover/04.png';
+  static const String discoverShake = '$images/discover/05.png';
+  static const String discoverLook = '$images/discover/06.png';
+  static const String discoverSearch = '$images/discover/07.png';
+  static const String discoverNearby = '$images/discover/08.png';
+  static const String discoverShopping = '$images/discover/09.png';
+  static const String discoverGames = '$images/discover/10.png';
+  static const String discoverMiniApps = '$images/discover/11.png';
 }
