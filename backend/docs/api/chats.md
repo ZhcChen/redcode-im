@@ -1,0 +1,48 @@
+# 会话接口
+
+## GET /chats — 获取会话列表
+
+返回当前用户的会话概要列表（含未读数和最后一条消息预览）。
+
+- 需要认证：是
+- 标识：listChats
+
+### 请求体
+无
+
+### 响应
+#### HTTP 200
+成功，返回 ChatSummary 数组
+示例：
+```json
+[
+  {
+    "room_id": "8b2d5f33-1a6a-4c8a-9c2e-1c7b7fc6e5a1",
+    "name": "Alice · Bob",
+    "room_type": "private",
+    "avatar_url": null,
+    "description": null,
+    "unread_count": 3,
+    "last_read_message_id": "1f9d2a9e-9b82-4c3f-9b60-f0c4a7f7b1c2",
+    "last_read_at": "2025-10-20T10:15:20Z",
+    "last_message": {
+      "id": "a3f9a9f1-2d34-45e2-9a3b-9c7e2f1d2a3b",
+      "content": "你好",
+      "message_type": "text",
+      "created_at": "2025-10-20T10:10:00Z",
+      "sender_id": "e1b2c3d4-5f67-8901-2345-67890abcde01",
+      "sender_username": "alice",
+      "sender_nickname": "Alice 昵称"
+    }
+  }
+]
+```
+
+#### HTTP 401
+未授权
+示例：
+```json
+{
+  "error": "Unauthorized"
+}
+```

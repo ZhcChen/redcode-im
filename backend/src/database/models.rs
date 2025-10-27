@@ -99,9 +99,10 @@ pub struct Room {
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "int2")]
 pub enum RoomType {
-    Private = 0, // 私聊
-    Group = 1,   // 群聊
-    Public = 2,  // 公共聊天室
+    Private = 0,  // 私聊
+    Group = 1,    // 群聊
+    Public = 2,   // 公共聊天室
+    Favorite = 3, // 收藏夹（仅自己可见）
 }
 
 impl fmt::Display for RoomType {
@@ -110,6 +111,7 @@ impl fmt::Display for RoomType {
             RoomType::Private => "private",
             RoomType::Group => "group",
             RoomType::Public => "public",
+            RoomType::Favorite => "favorite",
         };
         f.write_str(text)
     }
@@ -123,6 +125,7 @@ pub struct Message {
     pub sender_id: Uuid,
     pub content: String,
     pub message_type: MessageType,
+    pub quoted_message_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -142,6 +145,16 @@ pub struct MessageWithSender {
     pub sender_username: String,
     pub sender_nickname: Option<String>,
     pub sender_avatar_url: Option<String>,
+    pub quoted_message_id: Option<Uuid>,
+    pub quoted_message_room_id: Option<Uuid>,
+    pub quoted_message_sender_id: Option<Uuid>,
+    pub quoted_message_sender_username: Option<String>,
+    pub quoted_message_sender_nickname: Option<String>,
+    pub quoted_message_sender_avatar_url: Option<String>,
+    pub quoted_message_content: Option<String>,
+    pub quoted_message_type: Option<MessageType>,
+    pub quoted_message_created_at: Option<DateTime<Utc>>,
+    pub quoted_message_deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 消息类型枚举

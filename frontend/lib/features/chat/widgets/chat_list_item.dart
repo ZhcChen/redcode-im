@@ -90,7 +90,10 @@ class ChatListItem extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                chat.lastMessage,
+                chat.type == ChatType.favorite &&
+                        chat.lastMessage.trim().isEmpty
+                    ? '将消息转发到这里即可保存'
+                    : chat.lastMessage,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -98,7 +101,7 @@ class ChatListItem extends StatelessWidget {
                 ),
               ),
             ),
-            if (chat.unreadCount > 0)
+            if (chat.unreadCount > 0 && chat.type != ChatType.favorite)
               Padding(
                 padding: const EdgeInsets.only(left: 12),
                 child: AppBadge(
@@ -118,7 +121,9 @@ class ChatListItem extends StatelessWidget {
   /// - 单聊：优先显示备注/好友昵称/好友用户名
   /// - 群聊：显示房间名
   String _displayTitle(Chat chat) {
-    if (chat.type == ChatType.group) return chat.name;
+    if (chat.type == ChatType.group || chat.type == ChatType.favorite) {
+      return chat.name;
+    }
     final extra = chat.extra ?? const <String, dynamic>{};
     final candidates = <String?>[
       extra['remark'] as String?,

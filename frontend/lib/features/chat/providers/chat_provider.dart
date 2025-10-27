@@ -239,7 +239,16 @@ class ChatProvider with ChangeNotifier {
 
   /// 删除聊天
   Future<void> deleteChat(String chatId) async {
-    _chats.removeWhere((chat) => chat.id == chatId);
+    final index = _chats.indexWhere((chat) => chat.id == chatId);
+    if (index < 0) return;
+
+    final chat = _chats[index];
+    if (chat.type == ChatType.favorite) {
+      debugPrint('收藏夹会话不可删除');
+      return;
+    }
+
+    _chats.removeAt(index);
     notifyListeners();
 
     // TODO: 调用API删除
@@ -249,7 +258,15 @@ class ChatProvider with ChangeNotifier {
   Future<void> pinChat(String chatId, bool isPinned) async {
     final index = _chats.indexWhere((chat) => chat.id == chatId);
     if (index >= 0) {
-      _chats[index] = _chats[index].copyWith(isPinned: isPinned);
+      final chat = _chats[index];
+      if (chat.type == ChatType.favorite) {
+        if (!chat.isPinned) {
+          _chats[index] = chat.copyWith(isPinned: true);
+          notifyListeners();
+        }
+        return;
+      }
+      _chats[index] = chat.copyWith(isPinned: isPinned);
       _sortChats();
       notifyListeners();
     }

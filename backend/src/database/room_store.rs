@@ -34,14 +34,16 @@ impl<'a> RoomStore<'a> {
     ) -> Result<Room, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
         let rt = room_type.unwrap_or(RoomType::Group);
+        let room_id = crate::id::generate();
 
         let rec = sqlx::query_as::<_, Room>(
             r#"
-            INSERT INTO rooms (name, description, room_type, owner_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO rooms (id, name, description, room_type, owner_id)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
             "#,
         )
+        .bind(room_id)
         .bind(name)
         .bind(description)
         .bind(rt.clone())
@@ -204,6 +206,69 @@ impl<'a> RoomStore<'a> {
         Ok(rows)
     }
 
+    pub async fn ensure_favorite_room(&self, user_id: Uuid) -> Result<Room, sqlx::Error> {
+        loop {
+            let mut tx = self.pool.begin().await?;
+
+            if let Some(room) = sqlx::query_as::<_, Room>(
+                r#"
+                SELECT id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+                FROM rooms
+                WHERE owner_id = $1
+                  AND room_type = $2
+                  AND deleted_at IS NULL
+                LIMIT 1
+                "#,
+            )
+            .bind(user_id)
+            .bind(RoomType::Favorite)
+            .fetch_optional(&mut *tx)
+            .await?
+            {
+                let _ =
+                    upsert_member_conn(tx.as_mut(), room.id, user_id, MemberRole::Owner).await?;
+                tx.commit().await?;
+                return Ok(room);
+            }
+
+            let insert_result = sqlx::query_as::<_, Room>(
+                r#"
+                INSERT INTO rooms (id, name, description, room_type, owner_id)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+                "#,
+            )
+            .bind(crate::id::generate())
+            .bind("收藏夹")
+            .bind(Some("保存重要消息、文件与提醒的私人收藏夹".to_string()))
+            .bind(RoomType::Favorite)
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await;
+
+            match insert_result {
+                Ok(room) => {
+                    let _ = upsert_member_conn(tx.as_mut(), room.id, user_id, MemberRole::Owner)
+                        .await?;
+                    tx.commit().await?;
+                    return Ok(room);
+                }
+                Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+                    tx.rollback().await?;
+                    continue;
+                }
+                Err(sqlx::Error::Database(db_err)) => {
+                    tx.rollback().await?;
+                    return Err(sqlx::Error::Database(db_err));
+                }
+                Err(other) => {
+                    tx.rollback().await?;
+                    return Err(other);
+                }
+            }
+        }
+    }
+
     pub async fn list_chat_summaries(
         &self,
         user_id: Uuid,
@@ -255,10 +320,13 @@ impl<'a> RoomStore<'a> {
             WHERE rm.user_id = $1
               AND rm.deleted_at IS NULL
               AND r.deleted_at IS NULL
-            ORDER BY COALESCE(lm.created_at, r.updated_at, r.created_at) DESC
+            ORDER BY
+                CASE WHEN r.room_type = $2 THEN 0 ELSE 1 END,
+                COALESCE(lm.created_at, r.updated_at, r.created_at) DESC
             "#,
         )
         .bind(user_id)
+        .bind(RoomType::Favorite)
         .fetch_all(self.pool)
         .await?;
 
@@ -303,8 +371,8 @@ async fn upsert_member_conn(
 
     let inserted = sqlx::query_as::<_, RoomMember>(
         r#"
-        INSERT INTO room_members (room_id, user_id, role, joined_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO room_members (id, room_id, user_id, role, joined_at)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id,
                   room_id,
                   user_id,
@@ -315,6 +383,7 @@ async fn upsert_member_conn(
                   last_read_message_id
         "#,
     )
+    .bind(crate::id::generate())
     .bind(room_id)
     .bind(user_id)
     .bind(role)

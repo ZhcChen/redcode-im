@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart' as uuid_pkg;
 
+import '../constants/app_assets.dart';
 import '../constants/app_config.dart';
 import '../storage/token_storage.dart';
 import '../../features/chat/models/message_model.dart';
@@ -634,36 +635,48 @@ class MessageService with ChangeNotifier {
         if (value == 'private' || value == 'single') {
           return ChatType.single;
         }
+        if (value == 'favorite') {
+          return ChatType.favorite;
+        }
         return ChatType.group;
       }();
 
-      final chatName = inferredType == ChatType.single
-          ? (_readString(message.extra, const [
-                  'sender_nickname',
-                  'senderNickname',
-                ]) ??
-                _readString(message.extra, const [
-                  'sender_username',
-                  'senderUsername',
-                ]) ??
-                message.senderName)
-          : (_readString(message.extra, const [
-                  'room_name',
-                  'roomName',
-                  'chat_name',
-                  'chatName',
-                ]) ??
-                message.senderName);
+      final chatName = () {
+        if (inferredType == ChatType.favorite) {
+          return '收藏夹';
+        }
+        if (inferredType == ChatType.single) {
+          return (_readString(message.extra, const [
+                'sender_nickname',
+                'senderNickname',
+              ]) ??
+              _readString(message.extra, const [
+                'sender_username',
+                'senderUsername',
+              ]) ??
+              message.senderName);
+        }
+        return (_readString(message.extra, const [
+              'room_name',
+              'roomName',
+              'chat_name',
+              'chatName',
+            ]) ??
+            message.senderName);
+      }();
 
       final placeholder = Chat(
         id: roomId,
         roomId: roomId,
         name: chatName,
-        avatar: message.senderAvatar,
+        avatar: inferredType == ChatType.favorite
+            ? AppAssets.chatFavorite
+            : message.senderAvatar,
         type: inferredType,
         lastMessage: message.content,
         lastMessageTime: message.timestamp,
-        unreadCount: 1,
+        unreadCount: inferredType == ChatType.favorite ? 0 : 1,
+        isPinned: inferredType == ChatType.favorite,
         extra: {
           if (message.extra != null) ...message.extra!,
           'placeholder': true,
@@ -849,20 +862,33 @@ class MessageService with ChangeNotifier {
       ]),
     }..removeWhere((_, value) => value == null);
 
-    final lastMessageText =
+    final chatType = _mapRoomType(
+      _readString(json, const ['room_type', 'roomType', 'type']),
+    );
+
+    var lastMessageText =
         _readString(lastMessage, const ['content', 'text', 'message']) ?? '';
+    if (chatType == ChatType.favorite && lastMessageText.trim().isEmpty) {
+      lastMessageText = '将消息转发到这里即可保存';
+    }
+
+    var effectiveAvatar = avatar;
+    if (chatType == ChatType.favorite) {
+      effectiveAvatar = AppAssets.chatFavorite;
+    }
+
+    final effectiveUnread = chatType == ChatType.favorite ? 0 : unread;
 
     return Chat(
       id: roomId,
       roomId: roomId,
       name: name,
-      avatar: avatar,
-      type: _mapRoomType(
-        _readString(json, const ['room_type', 'roomType', 'type']),
-      ),
+      avatar: effectiveAvatar,
+      type: chatType,
       lastMessage: lastMessageText,
       lastMessageTime: lastMessageTime,
-      unreadCount: unread,
+      unreadCount: effectiveUnread,
+      isPinned: chatType == ChatType.favorite,
       extra: extra.isEmpty ? null : extra,
     );
   }
@@ -881,6 +907,8 @@ class MessageService with ChangeNotifier {
     switch (rawType?.toLowerCase()) {
       case 'private':
         return ChatType.single;
+      case 'favorite':
+        return ChatType.favorite;
       case 'group':
       case 'public':
       default:

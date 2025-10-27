@@ -39,8 +39,8 @@ impl Database {
     ///
     /// 规则：
     /// - 若检测到基础表不存在（空库），自动执行全量初始化脚本 `backend/sql/all.sql`；
-    /// - 否则，仅在缺失列或索引时应用幂等补丁脚本；
-    /// - 两类脚本都使用同一数据库连接顺序执行，兼容 DO $$ 与 BEGIN/COMMIT；
+    /// - 否则认为结构已由应用层维护，仅做存在性校验后退出；
+    /// - 所有脚本均使用同一数据库连接顺序执行，兼容 DO $$ 与 BEGIN/COMMIT；
     pub async fn migrate(&self) -> Result<(), sqlx::Error> {
         use sqlx::Row;
 
@@ -72,58 +72,7 @@ impl Database {
             return Ok(());
         }
 
-        // 2) 仅应用必要的补丁
-        let room_type_exists: bool = sqlx::query(
-            "SELECT EXISTS (
-                 SELECT 1
-                 FROM information_schema.columns
-                 WHERE table_schema = 'public'
-                   AND table_name = 'rooms'
-                   AND column_name = 'room_type'
-             ) AS exists;",
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .get::<bool, _>("exists");
-
-        let mr_unique_exists: bool = sqlx::query(
-            "SELECT EXISTS (
-                 SELECT 1 FROM pg_indexes
-                 WHERE schemaname = 'public'
-                   AND tablename  = 'message_reads'
-                   AND indexname  = 'idx_message_reads_unique_message_user'
-             ) AS exists;",
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .get::<bool, _>("exists");
-
-        if room_type_exists && mr_unique_exists {
-            tracing::info!("数据库结构校验通过：无需变更");
-            return Ok(());
-        }
-
-        tracing::warn!(
-            "检测到数据库结构缺失：room_type={} unique_idx={}; 即将应用修复SQL",
-            room_type_exists,
-            mr_unique_exists
-        );
-
-        const PATCH_SQL: &str = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/sql/20251020103045_fix_room_schema_and_message_reads.sql"
-        ));
-
-        // 使用同一连接，保证脚本中的 BEGIN/COMMIT 生效
-        let mut conn = self.pool.acquire().await?;
-        for stmt in split_sql_statements(PATCH_SQL) {
-            if stmt.trim().is_empty() {
-                continue;
-            }
-            sqlx::query(&stmt).execute(&mut *conn).await?;
-        }
-
-        tracing::info!("数据库结构修复完成");
+        tracing::info!("数据库结构校验通过：无需变更");
         Ok(())
     }
 

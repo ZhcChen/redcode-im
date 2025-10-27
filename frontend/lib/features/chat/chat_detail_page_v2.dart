@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
@@ -29,10 +32,14 @@ class ChatDetailPageV2 extends StatefulWidget {
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
 }
 
+enum _MessageAction { copy, quote, forward, pin, delete }
+
 class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
+  final GlobalKey _inputAreaKey = GlobalKey();
+  double _lastKeyboardInset = 0.0;
 
   late ChatProvider _chatProvider;
   bool _isAtBottom = true;
@@ -99,6 +106,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
     _chatProvider.sendTextMessage(text);
     _textController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(_inputFocusNode);
+    });
     _scrollToBottom();
   }
 
@@ -324,9 +335,20 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           );
         }
 
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        if (bottomInset != _lastKeyboardInset) {
+          if (bottomInset > _lastKeyboardInset && _isAtBottom) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _scrollToBottom();
+            });
+          }
+          _lastKeyboardInset = bottomInset;
+        }
+
         return ListView.builder(
           controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 24 + bottomInset),
           itemCount: provider.messages.length,
           itemBuilder: (context, index) {
             final message = provider.messages[index];
@@ -359,6 +381,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
                   onShowReadReceipts: canShowReadReceipts
                       ? () => _showMessageReaders(message)
                       : null,
+                  onBubbleTap: _showMessageActions,
                 ),
               ],
             );
@@ -370,6 +393,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
   Widget _buildInputArea() {
     return Container(
+      key: _inputAreaKey,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -389,7 +413,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
               child: Container(
                 constraints: const BoxConstraints(
                   minHeight: 36,
-                  maxHeight: 120,
+                  maxHeight: 112,
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -402,9 +426,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
                 child: TextField(
                   controller: _textController,
                   focusNode: _inputFocusNode,
-                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.send,
+                  minLines: 1,
+                  maxLines: 4,
                   onSubmitted: (_) => _sendMessage(),
+                  onEditingComplete: () {},
                   style: const TextStyle(
                     fontSize: 15,
                     color: AppColors.textPrimary,
@@ -538,6 +565,261 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     setState(() {
       _showMorePanel = false;
     });
+  }
+
+  Future<void> _showMessageActions(
+    Offset tapPosition,
+    Message message,
+    bool isSelf,
+  ) async {
+    if (mounted && (_showEmojiPanel || _showMorePanel)) {
+      setState(() {
+        _showEmojiPanel = false;
+        _showMorePanel = false;
+      });
+    }
+    final overlay =
+        Overlay.of(context)?.context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    const menuWidth = 176.0;
+    const menuPadding = 12.0;
+    const actionHeight = 36.0;
+    const itemSpacing = 4.0;
+    const verticalOffset = 32.0;
+    final menuHeight = menuPadding * 2 + actionHeight * 5 + itemSpacing * 4;
+
+    final media = MediaQuery.of(context);
+    final padding = media.padding;
+    final availableWidth = overlay.size.width - padding.left - padding.right;
+    final availableHeight = overlay.size.height - padding.top - padding.bottom;
+
+    double left = isSelf
+        ? tapPosition.dx - padding.left - menuWidth + menuPadding
+        : tapPosition.dx - padding.left - menuPadding;
+    double maxLeft = availableWidth - menuWidth - 12.0;
+    if (maxLeft < 12.0) {
+      maxLeft = 12.0;
+    }
+    left = left.clamp(12.0, maxLeft);
+
+    double effectiveBottom = availableHeight - 12.0;
+    if (_inputAreaKey.currentContext != null) {
+      final inputBox =
+          _inputAreaKey.currentContext!.findRenderObject() as RenderBox?;
+      if (inputBox != null && inputBox.hasSize) {
+        final inputTopGlobal = inputBox.localToGlobal(Offset.zero).dy;
+        final inputTopLocal = inputTopGlobal - padding.top;
+        effectiveBottom = math.min(effectiveBottom, inputTopLocal - 12.0);
+      }
+    }
+    if (effectiveBottom < menuHeight + 24.0) {
+      effectiveBottom = menuHeight + 24.0;
+    }
+
+    double maxTop = effectiveBottom - menuHeight;
+    if (maxTop < 12.0) {
+      maxTop = 12.0;
+    }
+
+    double top = tapPosition.dy - padding.top - verticalOffset;
+    if (top > maxTop) {
+      top = tapPosition.dy - padding.top - menuHeight - verticalOffset;
+    }
+    top = top.clamp(12.0, maxTop);
+
+    if (top + menuHeight > effectiveBottom) {
+      top = effectiveBottom - menuHeight;
+      if (top < 12.0) {
+        top = 12.0;
+      }
+    }
+
+    Widget buildActionButton(
+      BuildContext dialogContext,
+      String label,
+      _MessageAction value, {
+      bool danger = false,
+      IconData? icon,
+    }) {
+      final textStyle = TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: danger ? AppColors.danger : AppColors.textPrimary,
+      );
+
+      return InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: () => Navigator.of(dialogContext).pop(value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Row(
+            children: [
+              Icon(
+                icon ?? Icons.more_horiz,
+                size: 20,
+                color: danger ? AppColors.danger : AppColors.iconSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(label, style: textStyle)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final action = await showGeneralDialog<_MessageAction>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'message-actions',
+      barrierColor: Colors.black.withOpacity(0.03),
+      transitionDuration: const Duration(milliseconds: 120),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final fadeAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        );
+        final scaleAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInBack,
+        );
+
+        return FadeTransition(
+          opacity: fadeAnimation,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(dialogContext).pop(),
+                    child: Container(color: Colors.transparent),
+                  ),
+                ),
+                Positioned(
+                  left: left + padding.left,
+                  top: top + padding.top,
+                  child: ScaleTransition(
+                    scale: Tween<double>(
+                      begin: 0.85,
+                      end: 1.0,
+                    ).animate(scaleAnimation),
+                    alignment: isSelf ? Alignment.topRight : Alignment.topLeft,
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      elevation: 4,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minWidth: menuWidth,
+                          maxWidth: menuWidth,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(menuPadding),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              buildActionButton(
+                                dialogContext,
+                                '复制文本',
+                                _MessageAction.copy,
+                                icon: Icons.copy_rounded,
+                              ),
+                              const SizedBox(height: itemSpacing),
+                              buildActionButton(
+                                dialogContext,
+                                '引用',
+                                _MessageAction.quote,
+                                icon: Icons.format_quote_rounded,
+                              ),
+                              const SizedBox(height: itemSpacing),
+                              buildActionButton(
+                                dialogContext,
+                                '转发',
+                                _MessageAction.forward,
+                                icon: Icons.reply_rounded,
+                              ),
+                              const SizedBox(height: itemSpacing),
+                              buildActionButton(
+                                dialogContext,
+                                '置顶',
+                                _MessageAction.pin,
+                                icon: Icons.push_pin_outlined,
+                              ),
+                              const SizedBox(height: itemSpacing),
+                              buildActionButton(
+                                dialogContext,
+                                '删除',
+                                _MessageAction.delete,
+                                danger: true,
+                                icon: Icons.delete_outline,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (action == null || !mounted) return;
+    await _handleMessageAction(action, message);
+  }
+
+  Future<void> _handleMessageAction(
+    _MessageAction action,
+    Message message,
+  ) async {
+    switch (action) {
+      case _MessageAction.copy:
+        await Clipboard.setData(ClipboardData(text: message.content));
+        break;
+      case _MessageAction.quote:
+        final quoted = message.content.trim();
+        final current = _textController.text;
+        final buffer = StringBuffer();
+        if (current.trim().isNotEmpty) {
+          buffer.write(current);
+          if (!current.endsWith('\n')) {
+            buffer.write('\n');
+          }
+        }
+        buffer.write('> $quoted\n');
+        final nextText = buffer.toString();
+        _textController
+          ..text = nextText
+          ..selection = TextSelection.fromPosition(
+            TextPosition(offset: nextText.length),
+          );
+        FocusScope.of(context).requestFocus(_inputFocusNode);
+        break;
+      case _MessageAction.forward:
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('转发功能尚未实现')));
+        break;
+      case _MessageAction.pin:
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('置顶功能尚未实现')));
+        break;
+      case _MessageAction.delete:
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('删除功能尚未实现')));
+        break;
+    }
   }
 
   Future<void> _showMessageReaders(Message message) async {
@@ -1139,12 +1421,15 @@ class _MessageBubble extends StatelessWidget {
     required this.onResend,
     this.canShowReadReceipts = false,
     this.onShowReadReceipts,
+    this.onBubbleTap,
   });
 
   final Message message;
   final VoidCallback onResend;
   final bool canShowReadReceipts;
   final VoidCallback? onShowReadReceipts;
+  final void Function(Offset tapPosition, Message message, bool isSelf)?
+  onBubbleTap;
 
   static const double _avatarRadius = 18;
   static const double _avatarSpacing = 8;
@@ -1281,25 +1566,30 @@ class _MessageBubble extends StatelessWidget {
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.7,
       ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelf ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(isSelf ? 16 : 4),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isSelf ? 16 : 16),
-            bottomRight: Radius.circular(isSelf ? 4 : 16),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapUp: (details) =>
+            onBubbleTap?.call(details.globalPosition, message, isSelf),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelf ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(isSelf ? 16 : 4),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isSelf ? 16 : 16),
+              bottomRight: Radius.circular(isSelf ? 4 : 16),
             ),
-          ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: child,
         ),
-        child: child,
       ),
     );
   }
@@ -1629,11 +1919,13 @@ class _IconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.isActive = false,
+    this.useMonochrome = true,
   });
 
   final String icon;
   final VoidCallback onTap;
   final bool isActive;
+  final bool useMonochrome;
 
   @override
   Widget build(BuildContext context) {
@@ -1642,18 +1934,27 @@ class _IconButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
           width: 36,
           height: 36,
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.primary.withOpacity(0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
           alignment: Alignment.center,
           child: SvgPicture.asset(
             icon,
             width: 24,
             height: 24,
-            colorFilter: ColorFilter.mode(
-              isActive ? AppColors.primary : AppColors.iconSecondary,
-              BlendMode.srcIn,
-            ),
+            colorFilter: useMonochrome
+                ? ColorFilter.mode(
+                    isActive ? AppColors.primary : AppColors.iconSecondary,
+                    BlendMode.srcIn,
+                  )
+                : null,
           ),
         ),
       ),

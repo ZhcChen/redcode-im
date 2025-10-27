@@ -96,8 +96,8 @@ impl FriendStore {
 
         let inserted = query_as::<_, FriendRequest>(
             r#"
-            INSERT INTO friend_requests (requester_id, addressee_id, message, status)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO friend_requests (id, requester_id, addressee_id, message, status)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (requester_id, addressee_id)
             DO UPDATE SET
                 status = EXCLUDED.status,
@@ -107,6 +107,7 @@ impl FriendStore {
             RETURNING id, requester_id, addressee_id, status, message, created_at, responded_at
             "#,
         )
+        .bind(crate::id::generate())
         .bind(requester_id)
         .bind(addressee_id)
         .bind(message)
@@ -223,11 +224,12 @@ impl FriendStore {
             let (user_a, user_b) = sort_user_pair(request.requester_id, request.addressee_id);
             sqlx::query(
                 r#"
-                INSERT INTO friendships (user_a_id, user_b_id)
-                VALUES ($1, $2)
+                INSERT INTO friendships (id, user_a_id, user_b_id)
+                VALUES ($1, $2, $3)
                 ON CONFLICT (user_a_id, user_b_id) DO NOTHING
                 "#,
             )
+            .bind(crate::id::generate())
             .bind(user_a)
             .bind(user_b)
             .execute(pool)

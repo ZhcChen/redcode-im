@@ -29,6 +29,7 @@ class AppAssets {
   static const String chatMenu = '$images/chat/icon_menu.svg';
   static const String chatAdd = '$images/chat/icon_add.svg';
   static const String chatCreate = '$images/chat/icon_chat.svg';
+  static const String chatFavorite = '$images/chat/icon_favorite.svg';
   static const String iconVoice = '$images/chat/icon_voice.svg';
   static const String iconEmoji = '$images/chat/icon_emoji.svg';
   static const String iconAdd = '$images/chat/icon_add.svg';

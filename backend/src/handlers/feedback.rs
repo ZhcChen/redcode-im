@@ -33,7 +33,10 @@ pub async fn submit_feedback(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user id".to_string()))?;
 
-    sqlx::query("INSERT INTO feedbacks (user_id, contact, content) VALUES ($1, $2, $3)")
+    let feedback_id = crate::id::generate();
+
+    sqlx::query("INSERT INTO feedbacks (id, user_id, contact, content) VALUES ($1, $2, $3, $4)")
+        .bind(feedback_id)
         .bind(user_id)
         .bind(payload.contact.as_deref())
         .bind(content)

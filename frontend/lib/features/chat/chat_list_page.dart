@@ -54,6 +54,53 @@ class _ChatListView extends StatelessWidget {
                     itemCount: chats.length,
                     itemBuilder: (context, index) {
                       final chat = chats[index];
+                      final isFavorite = chat.type == ChatType.favorite;
+
+                      Widget buildAvatar(String? avatar) {
+                        if (isFavorite) {
+                          return _FavoriteAvatar();
+                        }
+                        if (avatar == null || avatar.isEmpty) {
+                          return SvgPicture.asset(AppAssets.defaultAvatar);
+                        }
+                        if (avatar.endsWith('.svg')) {
+                          return SvgPicture.asset(avatar);
+                        }
+                        if (avatar.startsWith('http://') ||
+                            avatar.startsWith('https://')) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(48),
+                            child: Image.network(avatar, fit: BoxFit.cover),
+                          );
+                        }
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(48),
+                          child: Image.asset(avatar, fit: BoxFit.cover),
+                        );
+                      }
+
+                      final item = ChatListItem(
+                        chat: chat,
+                        avatarBuilder: buildAvatar,
+                        showBottomDivider: index != chats.length - 1,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatDetailPageV2(
+                                roomId: chat.roomId,
+                                chatName: chat.name,
+                                chatAvatar: chat.avatar,
+                                chatType: chat.type,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+
+                      if (isFavorite) {
+                        return item;
+                      }
+
                       return Slidable(
                         key: ValueKey(chat.id),
                         endActionPane: ActionPane(
@@ -75,41 +122,7 @@ class _ChatListView extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: ChatListItem(
-                          chat: chat,
-                          avatarBuilder: (avatar) {
-                            if (avatar == null || avatar.isEmpty) {
-                              return SvgPicture.asset(AppAssets.defaultAvatar);
-                            }
-                            if (avatar.endsWith('.svg')) {
-                              return SvgPicture.asset(avatar);
-                            }
-                            if (avatar.startsWith('http://') ||
-                                avatar.startsWith('https://')) {
-                              return ClipRRect(
-                                borderRadius: BorderRadius.circular(48),
-                                child: Image.network(avatar, fit: BoxFit.cover),
-                              );
-                            }
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(48),
-                              child: Image.asset(avatar, fit: BoxFit.cover),
-                            );
-                          },
-                          showBottomDivider: index != chats.length - 1,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ChatDetailPageV2(
-                                  roomId: chat.roomId,
-                                  chatName: chat.name,
-                                  chatAvatar: chat.avatar,
-                                  chatType: chat.type,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                        child: item,
                       );
                     },
                   ),
@@ -179,6 +192,25 @@ class _ChatListView extends StatelessWidget {
             ),
           );
         });
+  }
+}
+
+class _FavoriteAvatar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEEF2FF), Color(0xFFD6E4FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: SvgPicture.asset(AppAssets.chatFavorite, width: 28, height: 28),
+      ),
+    );
   }
 }
 

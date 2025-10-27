@@ -416,6 +416,7 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
                                         "sender_avatar_url": redis_msg.sender_avatar_url,
                                         "content": redis_msg.content,
                                         "message_type": redis_msg.message_type,
+                                        "quoted_message": redis_msg.quoted_message,
                                         "timestamp": redis_msg.timestamp
                                     });
                                     let _ = out_tx_clone.send(response.to_string());

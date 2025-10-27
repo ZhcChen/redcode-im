@@ -17,16 +17,20 @@ impl<'a> MessageStore<'a> {
         sender_id: Uuid,
         content: String,
         message_type: MessageType,
+        quoted_message_id: Option<Uuid>,
     ) -> Result<Message, sqlx::Error> {
+        let message_id = crate::id::generate();
         let rec = sqlx::query_as::<_, Message>(
-            "INSERT INTO messages (room_id, sender_id, content, message_type)
-             VALUES ($1, $2, $3, $4)
-             RETURNING id, room_id, sender_id, content, message_type, created_at, updated_at, deleted_at",
+            "INSERT INTO messages (id, room_id, sender_id, content, message_type, quoted_message_id)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id, created_at, updated_at, deleted_at",
         )
+        .bind(message_id)
         .bind(room_id)
         .bind(sender_id)
         .bind(content)
         .bind(message_type)
+        .bind(quoted_message_id)
         .fetch_one(self.pool)
         .await?;
         Ok(rec)
@@ -45,14 +49,26 @@ impl<'a> MessageStore<'a> {
                  m.sender_id,
                  m.content,
                  m.message_type,
+                 m.quoted_message_id,
                  m.created_at,
                  m.updated_at,
                  m.deleted_at,
                  u.username AS sender_username,
                  u.nickname AS sender_nickname,
-                 u.avatar_url AS sender_avatar_url
+                 u.avatar_url AS sender_avatar_url,
+                 qm.room_id AS quoted_message_room_id,
+                 qm.sender_id AS quoted_message_sender_id,
+                 qu.username AS quoted_message_sender_username,
+                 qu.nickname AS quoted_message_sender_nickname,
+                 qu.avatar_url AS quoted_message_sender_avatar_url,
+                 qm.content AS quoted_message_content,
+                 qm.message_type AS quoted_message_type,
+                 qm.created_at AS quoted_message_created_at,
+                 qm.deleted_at AS quoted_message_deleted_at
              FROM messages m
              JOIN users u ON u.id = m.sender_id
+             LEFT JOIN messages qm ON qm.id = m.quoted_message_id
+             LEFT JOIN users qu ON qu.id = qm.sender_id
              WHERE m.room_id = $1
                AND m.deleted_at IS NULL
              ORDER BY m.created_at DESC
@@ -68,7 +84,7 @@ impl<'a> MessageStore<'a> {
 
     pub async fn get_message(&self, message_id: Uuid) -> Result<Option<Message>, sqlx::Error> {
         let row = sqlx::query_as::<_, Message>(
-            "SELECT id, room_id, sender_id, content, message_type, created_at, updated_at, deleted_at
+            "SELECT id, room_id, sender_id, content, message_type, quoted_message_id, created_at, updated_at, deleted_at
              FROM messages WHERE id = $1",
         )
         .bind(message_id)
@@ -94,14 +110,26 @@ impl<'a> MessageStore<'a> {
                          m.sender_id,
                          m.content,
                          m.message_type,
+                         m.quoted_message_id,
                          m.created_at,
                          m.updated_at,
                          m.deleted_at,
                          u.username AS sender_username,
                          u.nickname AS sender_nickname,
-                         u.avatar_url AS sender_avatar_url
+                         u.avatar_url AS sender_avatar_url,
+                         qm.room_id AS quoted_message_room_id,
+                         qm.sender_id AS quoted_message_sender_id,
+                         qu.username AS quoted_message_sender_username,
+                         qu.nickname AS quoted_message_sender_nickname,
+                         qu.avatar_url AS quoted_message_sender_avatar_url,
+                         qm.content AS quoted_message_content,
+                         qm.message_type AS quoted_message_type,
+                         qm.created_at AS quoted_message_created_at,
+                         qm.deleted_at AS quoted_message_deleted_at
                      FROM messages m
                      JOIN users u ON u.id = m.sender_id
+                     LEFT JOIN messages qm ON qm.id = m.quoted_message_id
+                     LEFT JOIN users qu ON qu.id = qm.sender_id
                      WHERE m.room_id = $1
                        AND m.deleted_at IS NULL
                        AND m.created_at < $2
@@ -127,14 +155,26 @@ impl<'a> MessageStore<'a> {
                          m.sender_id,
                          m.content,
                          m.message_type,
+                         m.quoted_message_id,
                          m.created_at,
                          m.updated_at,
                          m.deleted_at,
                          u.username AS sender_username,
                          u.nickname AS sender_nickname,
-                         u.avatar_url AS sender_avatar_url
+                         u.avatar_url AS sender_avatar_url,
+                         qm.room_id AS quoted_message_room_id,
+                         qm.sender_id AS quoted_message_sender_id,
+                         qu.username AS quoted_message_sender_username,
+                         qu.nickname AS quoted_message_sender_nickname,
+                         qu.avatar_url AS quoted_message_sender_avatar_url,
+                         qm.content AS quoted_message_content,
+                         qm.message_type AS quoted_message_type,
+                         qm.created_at AS quoted_message_created_at,
+                         qm.deleted_at AS quoted_message_deleted_at
                      FROM messages m
                      JOIN users u ON u.id = m.sender_id
+                     LEFT JOIN messages qm ON qm.id = m.quoted_message_id
+                     LEFT JOIN users qu ON qu.id = qm.sender_id
                      WHERE m.room_id = $1
                        AND m.deleted_at IS NULL
                        AND m.created_at > $2
@@ -167,14 +207,26 @@ impl<'a> MessageStore<'a> {
                  m.sender_id,
                  m.content,
                  m.message_type,
+                 m.quoted_message_id,
                  m.created_at,
                  m.updated_at,
                  m.deleted_at,
                  u.username AS sender_username,
                  u.nickname AS sender_nickname,
-                 u.avatar_url AS sender_avatar_url
+                 u.avatar_url AS sender_avatar_url,
+                 qm.room_id AS quoted_message_room_id,
+                 qm.sender_id AS quoted_message_sender_id,
+                 qu.username AS quoted_message_sender_username,
+                 qu.nickname AS quoted_message_sender_nickname,
+                 qu.avatar_url AS quoted_message_sender_avatar_url,
+                 qm.content AS quoted_message_content,
+                 qm.message_type AS quoted_message_type,
+                 qm.created_at AS quoted_message_created_at,
+                 qm.deleted_at AS quoted_message_deleted_at
              FROM messages m
              JOIN users u ON u.id = m.sender_id
+             LEFT JOIN messages qm ON qm.id = m.quoted_message_id
+             LEFT JOIN users qu ON qu.id = qm.sender_id
              WHERE m.id = $1
             "#,
         )

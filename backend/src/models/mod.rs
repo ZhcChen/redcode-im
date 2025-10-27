@@ -90,9 +90,10 @@ pub struct Claims {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum RoomType {
-    Private, // 私聊
-    Group,   // 群聊
-    Public,  // 公开聊天室
+    Private,  // 私聊
+    Group,    // 群聊
+    Public,   // 公开聊天室
+    Favorite, // 收藏夹
 }
 
 /// 房间信息（API 响应）
@@ -156,6 +157,8 @@ pub struct MessageInfo {
     pub content: String,
     pub message_type: MessageType,
     pub created_at: String, // ISO 8601 格式
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quoted_message: Option<QuotedMessageInfo>,
 }
 
 /// 发送消息请求
@@ -164,6 +167,25 @@ pub struct SendMessageRequest {
     pub content: String,
     #[serde(default)]
     pub message_type: Option<MessageType>,
+    #[serde(default)]
+    pub quoted_message_id: Option<String>,
+}
+
+/// 引用的消息信息（API 响应）
+#[derive(Debug, Clone, Serialize)]
+pub struct QuotedMessageInfo {
+    pub id: String,
+    pub room_id: String,
+    pub sender_id: String,
+    pub sender_username: String,
+    pub sender_nickname: Option<String>,
+    pub sender_avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    pub message_type: MessageType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    pub is_deleted: bool,
 }
 
 /// 消息列表查询参数

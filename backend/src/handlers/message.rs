@@ -13,7 +13,7 @@ use crate::database::{
 use crate::error::AppError;
 use crate::models::{convert::db_message_to_api_message_info, MessageInfo};
 use crate::redis::{
-    models::{CacheKeys, CrossNodeMessage, MessagePriority, PubSubPayload},
+    models::{CacheKeys, CrossNodeMessage, MessagePriority, PubSubPayload, QuotedMessagePayload},
     streams::StreamManager,
 };
 use crate::AppState;
@@ -24,6 +24,8 @@ pub struct SendMessagePayload {
     pub content: String,
     #[serde(default)]
     pub message_type: Option<MessageType>,
+    #[serde(default)]
+    pub quoted_message_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -93,12 +95,34 @@ pub async fn send_message(
     let SendMessagePayload {
         content,
         message_type,
+        quoted_message_id,
     } = payload;
 
     let content = content.trim();
     if content.is_empty() {
         return Err(AppError::ValidationError("消息内容不能为空".to_string()));
     }
+
+    let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
+        let quoted = store
+            .get_message(quoted_id)
+            .await?
+            .ok_or_else(|| AppError::ValidationError("引用的消息不存在".to_string()))?;
+
+        if quoted.room_id != room_id {
+            return Err(AppError::ValidationError(
+                "引用消息不属于当前房间".to_string(),
+            ));
+        }
+
+        if quoted.deleted_at.is_some() {
+            return Err(AppError::ValidationError("引用的消息已被删除".to_string()));
+        }
+
+        Some(quoted_id)
+    } else {
+        None
+    };
 
     let message_type = message_type.unwrap_or(MessageType::Text);
     let created = store
@@ -107,6 +131,7 @@ pub async fn send_message(
             sender_id,
             content.to_string(),
             message_type.clone(),
+            quoted_message_id,
         )
         .await?;
 
@@ -139,6 +164,7 @@ pub async fn send_message(
         sender_username: Some(enriched.sender_username.clone()),
         sender_nickname: enriched.sender_nickname.clone(),
         sender_avatar_url: enriched.sender_avatar_url.clone(),
+        quoted_message: build_quoted_payload(&enriched),
     })
     .await;
 
@@ -206,6 +232,7 @@ pub async fn broadcast_message_to_room(
         sender_username: Some(message.sender_username.clone()),
         sender_nickname: message.sender_nickname.clone(),
         sender_avatar_url: message.sender_avatar_url.clone(),
+        quoted_message: build_quoted_payload(message),
     };
 
     let payload = serde_json::to_string(&PubSubPayload::Message {
@@ -227,4 +254,33 @@ pub async fn broadcast_message_to_room(
     );
 
     Ok(())
+}
+
+fn build_quoted_payload(message: &MessageWithSender) -> Option<QuotedMessagePayload> {
+    let quoted_id = message.quoted_message_id?;
+    let quoted_room_id = message.quoted_message_room_id.unwrap_or(message.room_id);
+    let quoted_sender_id = message
+        .quoted_message_sender_id
+        .unwrap_or(message.sender_id);
+
+    let message_type = message.quoted_message_type.unwrap_or(MessageType::Text);
+    let is_deleted = message.quoted_message_deleted_at.is_some();
+    let content = if is_deleted {
+        None
+    } else {
+        message.quoted_message_content.clone()
+    };
+
+    Some(QuotedMessagePayload {
+        id: quoted_id,
+        room_id: quoted_room_id,
+        sender_id: quoted_sender_id,
+        sender_username: message.quoted_message_sender_username.clone(),
+        sender_nickname: message.quoted_message_sender_nickname.clone(),
+        sender_avatar_url: message.quoted_message_sender_avatar_url.clone(),
+        content,
+        message_type,
+        created_at: message.quoted_message_created_at.clone(),
+        is_deleted,
+    })
 }

@@ -50,9 +50,9 @@ pub async fn create_room(
     }
 
     let requested_type = room_type.unwrap_or(RoomType::Group);
-    if requested_type == RoomType::Private {
+    if matches!(requested_type, RoomType::Private | RoomType::Favorite) {
         return Err(AppError::ValidationError(
-            "Cannot create private room via this endpoint".to_string(),
+            "Cannot create room of this type via this endpoint".to_string(),
         ));
     }
 
@@ -234,6 +234,7 @@ pub async fn list_chat_summaries(
         .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
 
     let store = RoomStore::new(state.database.pool());
+    store.ensure_favorite_room(user_id).await?;
     let rows = store.list_chat_summaries(user_id).await?;
 
     let summaries = rows

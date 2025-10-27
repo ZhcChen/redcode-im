@@ -217,7 +217,7 @@ pub async fn respond_friend_request(
 
         let message_store = MessageStore::new(state.database.pool());
         let created_message = message_store
-            .create_message(room.id, sender_id, content, message_type.clone())
+            .create_message(room.id, sender_id, content, message_type.clone(), None)
             .await?;
 
         match message_store

@@ -47,6 +47,8 @@ pub struct CrossNodeMessage {
     pub sender_nickname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sender_avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quoted_message: Option<QuotedMessagePayload>,
 }
 
 /// 节点心跳信息
@@ -116,6 +118,26 @@ pub struct ReadReceiptEvent {
     pub message_id: Uuid,
     pub read_at: DateTime<Utc>,
     pub source_node: String,
+}
+
+/// 被引用的消息载荷
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuotedMessagePayload {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub sender_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_nickname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    pub message_type: MessageType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
+    pub is_deleted: bool,
 }
 
 /// Pub/Sub 统一事件载荷

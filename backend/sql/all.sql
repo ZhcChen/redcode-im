@@ -1,25 +1,14 @@
 -- 全量结构与基础数据初始化脚本
--- 生成时间：2025-10-21 00:00:00（UTC）
 -- 说明：
 --  1. 使用整数字段表示业务状态，具体取值由应用代码维护并校验。
 --  2. 本脚本可在空库上直接执行，初始化当前功能所需的全部表结构和基础数据。
+--  3. 各表的 updated_at 字段由应用层负责赋值，数据库不再通过触发器自动维护。
 
 BEGIN;
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- 公共更新时间触发器
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 -- 用户表
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -30,15 +19,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_users_updated_at') THEN
-        CREATE TRIGGER update_users_updated_at
-            BEFORE UPDATE ON users
-            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    END IF;
-END $$;
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -51,25 +31,16 @@ CREATE INDEX IF NOT EXISTS idx_users_nickname_lower ON users ((LOWER(COALESCE(ni
 
 -- 房间表
 CREATE TABLE IF NOT EXISTS rooms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
     avatar_url TEXT,
-    room_type SMALLINT NOT NULL DEFAULT 1,         -- 0=private,1=group,2=public
+    room_type SMALLINT NOT NULL DEFAULT 1,         -- 0=private,1=group,2=public,3=favorite
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_rooms_updated_at') THEN
-        CREATE TRIGGER update_rooms_updated_at
-            BEFORE UPDATE ON rooms
-            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    END IF;
-END $$;
 
 CREATE INDEX IF NOT EXISTS idx_rooms_owner_id ON rooms(owner_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_type ON rooms(room_type);
@@ -77,24 +48,16 @@ CREATE INDEX IF NOT EXISTS idx_rooms_deleted_at ON rooms(deleted_at);
 
 -- 消息表
 CREATE TABLE IF NOT EXISTS messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     message_type SMALLINT NOT NULL DEFAULT 0,      -- 0=text,1=image,2=file,3=system
+    quoted_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_messages_updated_at') THEN
-        CREATE TRIGGER update_messages_updated_at
-            BEFORE UPDATE ON messages
-            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    END IF;
-END $$;
 
 CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
@@ -103,10 +66,11 @@ CREATE INDEX IF NOT EXISTS idx_messages_deleted_at ON messages(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_messages_room_created_at
     ON messages(room_id, created_at)
     WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_quoted_message_id ON messages(quoted_message_id);
 
 -- 房间成员表
 CREATE TABLE IF NOT EXISTS room_members (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role SMALLINT NOT NULL DEFAULT 2,              -- 0=owner,1=admin,2=member
@@ -131,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_room_members_user_active
 
 -- 消息已读表
 CREATE TABLE IF NOT EXISTS message_reads (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
@@ -153,7 +117,7 @@ CREATE INDEX IF NOT EXISTS idx_message_reads_message_read_at
 
 -- 好友请求表
 CREATE TABLE IF NOT EXISTS friend_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     requester_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     addressee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     status SMALLINT NOT NULL DEFAULT 0,            -- 0=pending,1=accepted,2=declined
@@ -175,7 +139,7 @@ CREATE INDEX IF NOT EXISTS idx_friend_requests_add_status_created
 
 -- 好友关系表
 CREATE TABLE IF NOT EXISTS friendships (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     user_a_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     user_b_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -200,7 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_app_documents_updated_at
 
 -- 用户反馈表
 CREATE TABLE IF NOT EXISTS feedbacks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     contact TEXT,
     content TEXT NOT NULL,
@@ -224,7 +188,7 @@ CREATE TABLE IF NOT EXISTS captcha_settings (
 -- 基础数据
 INSERT INTO users (id, username, email, password_hash, nickname, status)
 VALUES (
-    gen_random_uuid(),
+    '0192c3a0-0000-7000-8000-000000000000',
     'system',
     'system@redcode-im.local',
     '$2a$12$system_user_placeholder',
@@ -235,7 +199,7 @@ ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO users (id, username, email, password_hash, nickname, status)
 VALUES (
-    gen_random_uuid(),
+    '0192c3a0-0000-7000-8000-000000000001',
     'alice',
     'alice@redcode-im.local',
     '$2b$12$T4mF9KMrEeRJB7bGupbfses73VrjBkLLa0YMffgOf2VLwqWAcY9Ti',

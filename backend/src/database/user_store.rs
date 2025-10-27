@@ -23,7 +23,7 @@ impl UserStore {
         let password_hash = hash(&request.password, DEFAULT_COST)
             .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
 
-        let user_id = Uuid::new_v4();
+        let user_id = crate::id::generate();
         let now = Utc::now();
 
         let user = sqlx::query_as::<_, User>(

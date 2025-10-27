@@ -2,6 +2,7 @@
 enum ChatType {
   single, // 单聊
   group, // 群聊
+  favorite, // 收藏夹
 }
 
 /// 聊天模型
@@ -63,6 +64,9 @@ class Chat {
 
   /// 获取显示的最后消息时间
   String get displayTime {
+    if (type == ChatType.favorite) {
+      return '随时可用';
+    }
     final now = DateTime.now().toLocal();
     final localTime = lastMessageTime.toLocal();
 

@@ -18,12 +18,14 @@ impl<'a> MessageReadStore<'a> {
         user_id: Uuid,
         room_id: Uuid,
     ) -> Result<MessageRead, sqlx::Error> {
+        let record_id = crate::id::generate();
         let rec = sqlx::query_as::<_, MessageRead>(
-            "INSERT INTO message_reads (message_id, user_id, room_id)
-             VALUES ($1, $2, $3)
+            "INSERT INTO message_reads (id, message_id, user_id, room_id)
+             VALUES ($1, $2, $3, $4)
              ON CONFLICT (message_id, user_id) DO UPDATE SET read_at = NOW()
              RETURNING id, message_id, user_id, room_id, read_at",
         )
+        .bind(record_id)
         .bind(message_id)
         .bind(user_id)
         .bind(room_id)
@@ -57,24 +59,41 @@ impl<'a> MessageReadStore<'a> {
                 .await?;
 
         if let Some((created_at,)) = message_time {
-            let result = sqlx::query(
-                "INSERT INTO message_reads (message_id, user_id, room_id)
-                 SELECT m.id, $1, $2
+            let mut tx = self.pool.begin().await?;
+
+            let message_ids: Vec<Uuid> = sqlx::query_scalar(
+                "SELECT m.id
                  FROM messages m
-                 WHERE m.room_id = $2
-                   AND m.created_at <= $3
+                 WHERE m.room_id = $1
+                   AND m.created_at <= $2
                    AND m.deleted_at IS NULL
                    AND NOT EXISTS (
-                     SELECT 1 FROM message_reads mr
-                     WHERE mr.message_id = m.id AND mr.user_id = $1
-                   )
-                 ON CONFLICT (message_id, user_id) DO NOTHING",
+                       SELECT 1 FROM message_reads mr
+                       WHERE mr.message_id = m.id AND mr.user_id = $3
+                   )",
             )
-            .bind(user_id)
             .bind(room_id)
             .bind(created_at)
-            .execute(self.pool)
+            .bind(user_id)
+            .fetch_all(&mut *tx)
             .await?;
+
+            let mut inserted: u64 = 0;
+            for mid in message_ids {
+                let result = sqlx::query(
+                    "INSERT INTO message_reads (id, message_id, user_id, room_id)
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT (message_id, user_id) DO NOTHING",
+                )
+                .bind(crate::id::generate())
+                .bind(mid)
+                .bind(user_id)
+                .bind(room_id)
+                .execute(&mut *tx)
+                .await?;
+
+                inserted += result.rows_affected();
+            }
 
             sqlx::query(
                 "UPDATE room_members
@@ -84,10 +103,12 @@ impl<'a> MessageReadStore<'a> {
             .bind(until_message_id)
             .bind(room_id)
             .bind(user_id)
-            .execute(self.pool)
+            .execute(&mut *tx)
             .await?;
 
-            Ok(result.rows_affected() as i64)
+            tx.commit().await?;
+
+            Ok(inserted as i64)
         } else {
             Ok(0)
         }

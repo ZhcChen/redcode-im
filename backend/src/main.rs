@@ -7,6 +7,7 @@ mod redis;
 mod routes;
 mod storage;
 mod websocket;
+mod id;
 
 use std::{
     env,
@@ -16,11 +17,9 @@ use std::{
     sync::OnceLock,
 };
 
-use axum::Router;
 use tokio::net::TcpListener;
 use tower_http::{
     cors::{Any, CorsLayer},
-    services::ServeDir,
     trace::TraceLayer,
 };
 use tracing::{error, info};
@@ -81,34 +80,6 @@ async fn main() {
 
     info!("服务器启动在 {}", addr);
     info!("PostgreSQL + Redis 多节点架构已就绪!");
-
-    // 启动 API 文档静态服务 (端口 8011 默认)
-    let api_doc_port: u16 = env::var("API_DOC_PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(8011);
-    let api_doc_dir = env::var("API_DOC_DIR").unwrap_or_else(|_| "api_doc".to_string());
-
-    let docs_router = Router::new().nest_service(
-        "/",
-        ServeDir::new(api_doc_dir).append_index_html_on_directories(true),
-    );
-
-    tokio::spawn(async move {
-        let docs_addr = SocketAddr::from(([0, 0, 0, 0], api_doc_port));
-        match TcpListener::bind(docs_addr).await {
-            Ok(listener_docs) => {
-                info!("API 文档服务启动在 http://{}", docs_addr);
-                info!("API Doc Banner: 服务已启动");
-                if let Err(e) = axum::serve(listener_docs, docs_router).await {
-                    tracing::error!("API 文档服务异常: {:?}", e);
-                }
-            }
-            Err(e) => {
-                tracing::error!("API 文档服务端口绑定失败: {:?}", e);
-            }
-        }
-    });
 
     let listener = TcpListener::bind(addr).await.expect("bind");
     info!("服务已启动");

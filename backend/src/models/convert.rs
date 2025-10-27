@@ -86,6 +86,7 @@ pub fn db_room_type_to_api(db_type: &crate::database::models::RoomType) -> crate
         crate::database::models::RoomType::Private => crate::models::RoomType::Private,
         crate::database::models::RoomType::Group => crate::models::RoomType::Group,
         crate::database::models::RoomType::Public => crate::models::RoomType::Public,
+        crate::database::models::RoomType::Favorite => crate::models::RoomType::Favorite,
     }
 }
 
@@ -97,6 +98,7 @@ pub fn api_room_type_to_db(
         crate::models::RoomType::Private => crate::database::models::RoomType::Private,
         crate::models::RoomType::Group => crate::database::models::RoomType::Group,
         crate::models::RoomType::Public => crate::database::models::RoomType::Public,
+        crate::models::RoomType::Favorite => crate::database::models::RoomType::Favorite,
     }
 }
 
@@ -149,6 +151,7 @@ pub fn db_message_to_api_message_info(
         content: db_msg.content.clone(),
         message_type: db_message_type_to_api(&db_msg.message_type),
         created_at: db_msg.created_at.to_rfc3339(),
+        quoted_message: db_message_to_api_quoted_message(db_msg),
     }
 }
 
@@ -215,6 +218,45 @@ pub fn db_chat_summary_to_api(
         last_read_at: row.last_read_at.map(|dt| dt.to_rfc3339()),
         last_message,
     }
+}
+
+fn db_message_to_api_quoted_message(
+    db_msg: &crate::database::models::MessageWithSender,
+) -> Option<crate::models::QuotedMessageInfo> {
+    let quoted_id = db_msg.quoted_message_id?;
+    let quoted_room_id = db_msg.quoted_message_room_id.unwrap_or(db_msg.room_id);
+    let quoted_sender_id = db_msg.quoted_message_sender_id?;
+
+    let username = db_msg
+        .quoted_message_sender_username
+        .clone()
+        .unwrap_or_default();
+    let message_type = db_msg
+        .quoted_message_type
+        .as_ref()
+        .map(db_message_type_to_api)
+        .unwrap_or(crate::models::MessageType::Text);
+    let is_deleted = db_msg.quoted_message_deleted_at.is_some();
+    let content = if is_deleted {
+        None
+    } else {
+        db_msg.quoted_message_content.clone()
+    };
+
+    let created_at = db_msg.quoted_message_created_at.map(|dt| dt.to_rfc3339());
+
+    Some(crate::models::QuotedMessageInfo {
+        id: quoted_id.to_string(),
+        room_id: quoted_room_id.to_string(),
+        sender_id: quoted_sender_id.to_string(),
+        sender_username: username,
+        sender_nickname: db_msg.quoted_message_sender_nickname.clone(),
+        sender_avatar_url: db_msg.quoted_message_sender_avatar_url.clone(),
+        content,
+        message_type,
+        created_at,
+        is_deleted,
+    })
 }
 
 // ==================== 文档模型转换 ====================
