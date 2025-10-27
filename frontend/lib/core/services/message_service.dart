@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart' as uuid_pkg;
 import '../constants/app_assets.dart';
 import '../constants/app_config.dart';
 import '../storage/token_storage.dart';
+import '../storage/message_storage.dart';
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
@@ -23,10 +24,12 @@ enum MessageStatus {
 
 /// 消息服务 - 管理消息的发送、接收和存储
 class MessageService with ChangeNotifier {
-  MessageService({TokenStorage? tokenStorage})
-    : _tokenStorage = tokenStorage ?? const TokenStorage();
+  MessageService({TokenStorage? tokenStorage, MessageStorage? messageStorage})
+    : _tokenStorage = tokenStorage ?? const TokenStorage(),
+      _messageStorage = messageStorage ?? const MessageStorage();
 
   final TokenStorage _tokenStorage;
+  final MessageStorage _messageStorage;
 
   // 消息存储 (roomId -> messages)
   final Map<String, List<Message>> _messagesByRoom = {};
@@ -49,6 +52,21 @@ class MessageService with ChangeNotifier {
   /// 获取房间的消息列表
   List<Message> getMessages(String roomId) {
     return List.from(_messagesByRoom[roomId] ?? []);
+  }
+
+  Future<List<Message>> loadCachedMessages(String roomId) async {
+    if (roomId.isEmpty) {
+      return const [];
+    }
+    try {
+      final cached = await _messageStorage.loadMessages(roomId);
+      _messagesByRoom[roomId] = List<Message>.from(cached);
+      notifyListeners();
+      return cached;
+    } catch (e) {
+      debugPrint('Failed to load cached messages: $e');
+      return const [];
+    }
   }
 
   /// 获取聊天列表
@@ -417,6 +435,7 @@ class MessageService with ChangeNotifier {
         }
 
         notifyListeners();
+        await _persistMessages(roomId);
         return newMessages;
       }
     } catch (e) {
@@ -466,6 +485,7 @@ class MessageService with ChangeNotifier {
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     _updateChatLastMessage(message.roomId, message);
     notifyListeners();
+    unawaited(_persistMessages(message.roomId));
   }
 
   /// 处理已读回执事件
@@ -501,6 +521,17 @@ class MessageService with ChangeNotifier {
     if (updated) {
       _invalidateMessageReaders(roomId, messageId);
       notifyListeners();
+      unawaited(_persistMessages(roomId));
+    }
+  }
+
+  Future<void> _persistMessages(String roomId) async {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null) return;
+    try {
+      await _messageStorage.saveMessages(roomId, messages);
+    } catch (e) {
+      debugPrint('Failed to persist messages for $roomId: $e');
     }
   }
 
@@ -518,6 +549,7 @@ class MessageService with ChangeNotifier {
     }
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     notifyListeners();
+    unawaited(_persistMessages(message.roomId));
   }
 
   /// 用新消息替换旧消息（用于发送成功后更新临时消息）
@@ -534,6 +566,7 @@ class MessageService with ChangeNotifier {
 
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     notifyListeners();
+    unawaited(_persistMessages(newMessage.roomId));
   }
 
   /// 合并消息，保留最新状态和显示信息
@@ -594,6 +627,7 @@ class MessageService with ChangeNotifier {
         }
         messages[index] = updated;
         notifyListeners();
+        unawaited(_persistMessages(updated.roomId));
         break;
       }
     }
@@ -726,11 +760,16 @@ class MessageService with ChangeNotifier {
       // 更新本地消息状态
       final messages = _messagesByRoom[roomId];
       if (messages != null) {
+        var changed = false;
         for (final msg in messages) {
           if (!msg.isSelf && msg.status != MessageStatus.read) {
             final index = messages.indexOf(msg);
             messages[index] = msg.copyWith(status: MessageStatus.read);
+            changed = true;
           }
+        }
+        if (changed) {
+          unawaited(_persistMessages(roomId));
         }
       }
 
@@ -744,11 +783,13 @@ class MessageService with ChangeNotifier {
   void clearRoomMessages(String roomId) {
     _messagesByRoom.remove(roomId);
     _clearMessageReadersForRoom(roomId);
+    unawaited(_messageStorage.clear(roomId));
     notifyListeners();
   }
 
   /// 清除所有数据
   void clearAll() {
+    final rooms = List<String>.from(_messagesByRoom.keys);
     _messagesByRoom.clear();
     _pendingMessages.clear();
     _chats.clear();
@@ -761,6 +802,9 @@ class MessageService with ChangeNotifier {
       );
     } catch (_) {
       // 忽略清理期间的异常
+    }
+    for (final roomId in rooms) {
+      unawaited(_messageStorage.clear(roomId));
     }
     notifyListeners();
   }

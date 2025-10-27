@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -302,10 +301,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           _processMessages(provider.messages);
         });
 
-        if (provider.isLoading && provider.messages.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
         if (provider.messages.isEmpty) {
           return Center(
             child: Column(
@@ -536,12 +531,20 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   void _handleEmojiSelected(String emoji) {
     final selection = _textController.selection;
     final text = _textController.text;
-    final newText = text.replaceRange(selection.start, selection.end, emoji);
+
+    int start = selection.start;
+    int end = selection.end;
+    if (!selection.isValid || start < 0 || end < 0) {
+      start = text.length;
+      end = text.length;
+    }
+
+    final newText = text.replaceRange(start, end, emoji);
 
     _textController.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(
-        offset: selection.start + emoji.length,
+        offset: start + emoji.length,
       ),
     );
   }

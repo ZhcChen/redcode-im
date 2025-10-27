@@ -72,11 +72,13 @@ class ChatProvider with ChangeNotifier {
     _isMarkingRead = false;
     notifyListeners();
 
+    await _messageService.loadCachedMessages(roomId);
+
     // 加入WebSocket房间
     await _webSocketService.joinRoom(roomId);
 
     // 加载历史消息
-    await loadMessages();
+    await loadMessages(showLoading: false);
 
     if (chat.type == ChatType.group) {
       unawaited(_ensureMemberCount(roomId));
@@ -101,11 +103,13 @@ class ChatProvider with ChangeNotifier {
   }
 
   /// 加载消息
-  Future<void> loadMessages({int limit = 50}) async {
+  Future<void> loadMessages({int limit = 50, bool showLoading = true}) async {
     if (_currentRoomId == null || _isLoading) return;
 
     _isLoading = true;
-    notifyListeners();
+    if (showLoading) {
+      notifyListeners();
+    }
 
     try {
       await _messageService.loadMessages(_currentRoomId!, limit: limit);

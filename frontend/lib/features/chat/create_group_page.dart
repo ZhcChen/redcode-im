@@ -248,9 +248,6 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('群聊 "${createdRoom.name}" 创建成功')));
       Navigator.of(context).pop(createdRoom.id);
     } on RoomServiceException catch (e) {
       if (!mounted) return;

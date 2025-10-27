@@ -132,6 +132,54 @@ class Message {
     return senderId;
   }
 
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'roomId': roomId,
+      'senderId': senderId,
+      'senderUsername': senderUsername,
+      'senderName': senderName,
+      'senderAvatar': senderAvatar,
+      'content': content,
+      'type': type.name,
+      'status': status.name,
+      'timestamp': timestamp.toIso8601String(),
+      'isSelf': isSelf,
+      'extra': extra,
+    };
+  }
+
+  factory Message.fromCacheJson(Map<String, dynamic> json) {
+    final typeString = json['type'] as String?;
+    final statusString = json['status'] as String?;
+    final timestampString = json['timestamp'] as String?;
+    final extraRaw = json['extra'];
+    Map<String, dynamic>? extra;
+    if (extraRaw is Map) {
+      final map = <String, dynamic>{};
+      extraRaw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      extra = map;
+    }
+
+    return Message(
+      id: json['id'] as String? ?? '',
+      roomId: json['roomId'] as String? ?? '',
+      senderId: json['senderId'] as String? ?? '',
+      senderUsername: json['senderUsername'] as String? ?? '',
+      senderName: json['senderName'] as String? ?? '',
+      senderAvatar: json['senderAvatar'] as String?,
+      content: json['content'] as String? ?? '',
+      type: _parseMessageType(typeString),
+      status: _parseMessageStatus(statusString),
+      timestamp:
+          DateTime.tryParse(timestampString ?? '') ?? DateTime.now(),
+      isSelf: json['isSelf'] as bool? ?? false,
+      extra: extra,
+    );
+  }
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
@@ -158,5 +206,21 @@ class Message {
       }
     }
     return null;
+  }
+
+  static MessageType _parseMessageType(String? value) {
+    if (value == null) return MessageType.text;
+    return MessageType.values.firstWhere(
+      (type) => type.name == value,
+      orElse: () => MessageType.text,
+    );
+  }
+
+  static MessageStatus _parseMessageStatus(String? value) {
+    if (value == null) return MessageStatus.sent;
+    return MessageStatus.values.firstWhere(
+      (status) => status.name == value,
+      orElse: () => MessageStatus.sent,
+    );
   }
 }
