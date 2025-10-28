@@ -46,6 +46,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
   bool _isAtBottom = true;
+  bool _skipNextScrollAnimation = true;
   String? _lastMessageId;
   int _lastMessageCount = 0;
   Message? _quotedMessage;
@@ -124,32 +125,42 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     _scrollToBottom();
   }
 
-  void _scrollToBottom({int retry = 0}) {
+  void _scrollToBottom({int retry = 0, bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!_scrollController.hasClients) {
         if (retry < 5) {
-          _scrollToBottom(retry: retry + 1);
+          _scrollToBottom(retry: retry + 1, animated: animated);
         }
         return;
       }
 
+      final shouldAnimate = animated && !_skipNextScrollAnimation;
       final messages = _chatProvider.messages;
       if (messages.isNotEmpty) {
         final lastKey = _messageItemKeys[messages.last.id];
         final targetContext = lastKey?.currentContext;
         if (targetContext != null) {
+          final duration = shouldAnimate
+              ? const Duration(milliseconds: 250)
+              : Duration.zero;
           Scrollable.ensureVisible(
             targetContext,
             alignment: 1,
-            duration: const Duration(milliseconds: 250),
+            duration: duration,
             curve: Curves.easeOut,
           ).whenComplete(_settleToBottom);
+          _skipNextScrollAnimation = false;
           return;
         }
       }
 
-      _animateToBottom(retry: retry);
+      if (shouldAnimate) {
+        _animateToBottom(retry: retry);
+      } else {
+        _jumpToBottom();
+      }
+      _skipNextScrollAnimation = false;
     });
   }
 
@@ -175,6 +186,13 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         _scrollToBottom(retry: retry + 1);
       }
     }
+  }
+
+  void _jumpToBottom() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    _scrollController.jumpTo(position.maxScrollExtent);
+    _settleToBottom();
   }
 
   void _settleToBottom({int attempt = 0}) {
