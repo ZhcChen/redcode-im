@@ -150,7 +150,8 @@
             :size="32"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
           >
-            <img alt="avatar" :src="avatar" />
+            <img v-if="avatar" alt="avatar" :src="avatar" />
+            <icon-user v-else class="nav-avatar-icon" />
           </a-avatar>
           <template #content>
             <a-doption>
@@ -310,6 +311,10 @@
     }
     .trigger-btn {
       margin-left: 14px;
+    }
+    :deep(.nav-avatar-icon) {
+      font-size: 18px;
+      color: var(--color-text-1);
     }
   }
 </style>
