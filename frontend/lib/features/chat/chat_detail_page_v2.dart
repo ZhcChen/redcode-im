@@ -21,12 +21,14 @@ class ChatDetailPageV2 extends StatefulWidget {
     required this.chatName,
     this.chatAvatar,
     this.chatType = ChatType.single,
+    this.chatProvider,
   });
 
   final String roomId;
   final String chatName;
   final String? chatAvatar;
   final ChatType chatType;
+  final ChatProvider? chatProvider;
 
   @override
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
@@ -42,6 +44,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   double _lastKeyboardInset = 0.0;
 
   late ChatProvider _chatProvider;
+  late final bool _ownsProvider;
   bool _isAtBottom = true;
   String? _lastMessageId;
   int _lastMessageCount = 0;
@@ -56,7 +59,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   @override
   void initState() {
     super.initState();
-    _chatProvider = ChatProvider();
+    _ownsProvider = widget.chatProvider == null;
+    _chatProvider = widget.chatProvider ?? ChatProvider();
     _initChat();
     _scrollController.addListener(_onScroll);
 
@@ -95,7 +99,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _chatProvider.leaveChatRoom();
-    _chatProvider.dispose();
+    if (_ownsProvider) {
+      _chatProvider.dispose();
+    }
     _textController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
@@ -118,15 +124,73 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     _scrollToBottom();
   }
 
-  void _scrollToBottom() {
-    if (!_scrollController.hasClients) return;
+  void _scrollToBottom({int retry = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+      if (!mounted) return;
+      if (!_scrollController.hasClients) {
+        if (retry < 5) {
+          _scrollToBottom(retry: retry + 1);
+        }
+        return;
+      }
+
+      final messages = _chatProvider.messages;
+      if (messages.isNotEmpty) {
+        final lastKey = _messageItemKeys[messages.last.id];
+        final targetContext = lastKey?.currentContext;
+        if (targetContext != null) {
+          Scrollable.ensureVisible(
+            targetContext,
+            alignment: 1,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          ).whenComplete(_settleToBottom);
+          return;
+        }
+      }
+
+      _animateToBottom(retry: retry);
+    });
+  }
+
+  void _animateToBottom({int retry = 0}) {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final target = position.maxScrollExtent;
+    if ((position.pixels - target).abs() <= 0.5) {
+      _settleToBottom();
+      return;
+    }
+
+    try {
+      _scrollController
+          .animateTo(
+            target,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          )
+          .whenComplete(_settleToBottom);
+    } catch (_) {
+      if (retry < 5) {
+        _scrollToBottom(retry: retry + 1);
+      }
+    }
+  }
+
+  void _settleToBottom({int attempt = 0}) {
+    if (!mounted || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final remaining = position.maxScrollExtent - position.pixels;
+    if (remaining > 0.5) {
+      _scrollController.jumpTo(position.maxScrollExtent);
+    }
+
+    if (attempt >= 3) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _settleToBottom(attempt: attempt + 1);
     });
   }
 
@@ -339,7 +403,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           );
         }
 
-        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        final mediaQuery = MediaQuery.of(context);
+        final bottomInset = mediaQuery.viewInsets.bottom;
         if (bottomInset != _lastKeyboardInset) {
           if (bottomInset > _lastKeyboardInset && _isAtBottom) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -350,9 +415,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           _lastKeyboardInset = bottomInset;
         }
 
+        // 输入区域内部已经处理 SafeArea 底部间距，这里只保留列表尾部的视觉留白即可。
+        final bottomPadding = 24.0;
+
         return ListView.builder(
           controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 24 + bottomInset),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
           itemCount: provider.messages.length,
           itemBuilder: (context, index) {
             final message = provider.messages[index];
