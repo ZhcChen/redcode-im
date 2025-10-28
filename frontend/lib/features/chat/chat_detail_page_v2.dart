@@ -38,7 +38,10 @@ enum _MessageAction { copy, quote, forward, pin, delete }
 
 class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   final _textController = TextEditingController();
-  final _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController(
+    initialScrollOffset: 1000000,
+    keepScrollOffset: false,
+  );
   final FocusNode _inputFocusNode = FocusNode();
   final GlobalKey _inputAreaKey = GlobalKey();
   double _lastKeyboardInset = 0.0;
@@ -199,13 +202,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     if (!mounted || !_scrollController.hasClients) return;
     final position = _scrollController.position;
     final remaining = position.maxScrollExtent - position.pixels;
-    if (remaining > 0.5) {
-      _scrollController.jumpTo(position.maxScrollExtent);
-    }
-
-    if (attempt >= 3) {
+    if (remaining <= 0.5 || attempt >= 3) {
       return;
     }
+
+    _scrollController.jumpTo(position.maxScrollExtent);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _settleToBottom(attempt: attempt + 1);
