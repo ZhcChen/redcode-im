@@ -83,27 +83,23 @@
         </a-tooltip>
       </li>
       <li>
-        <a-tooltip :content="$t('settings.navbar.alerts')">
-          <div class="message-box-trigger">
-            <a-badge :count="9" dot>
-              <a-button
-                class="nav-btn"
-                type="outline"
-                :shape="'circle'"
-                @click="setPopoverVisible"
-              >
-                <icon-notification />
-              </a-button>
-            </a-badge>
-          </div>
-        </a-tooltip>
         <a-popover
           trigger="click"
           :arrow-style="{ display: 'none' }"
           :content-style="{ padding: 0, minWidth: '400px' }"
           content-class="message-popover"
         >
-          <div ref="refBtn" class="ref-btn"></div>
+          <template #default>
+            <a-tooltip :content="$t('settings.navbar.alerts')">
+              <div class="message-box-trigger">
+                <a-badge :count="9" dot>
+                  <a-button class="nav-btn" type="outline" :shape="'circle'">
+                    <icon-notification />
+                  </a-button>
+                </a-badge>
+              </div>
+            </a-tooltip>
+          </template>
           <template #content>
             <message-box />
           </template>
@@ -235,16 +231,7 @@
   const setVisible = () => {
     appStore.updateSettings({ globalSettings: true });
   };
-  const refBtn = ref();
   const triggerBtn = ref();
-  const setPopoverVisible = () => {
-    const event = new MouseEvent('click', {
-      view: window,
-      bubbles: true,
-      cancelable: true,
-    });
-    refBtn.value.dispatchEvent(event);
-  };
   const handleLogout = () => {
     logout();
   };
@@ -304,12 +291,9 @@
       color: rgb(var(--gray-8));
       font-size: 16px;
     }
-    .trigger-btn,
-    .ref-btn {
+    .trigger-btn {
       position: absolute;
       bottom: 14px;
-    }
-    .trigger-btn {
       margin-left: 14px;
     }
     :deep(.nav-avatar-icon) {
