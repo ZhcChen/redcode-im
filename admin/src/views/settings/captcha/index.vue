@@ -1,5 +1,6 @@
 <template>
   <div class="captcha-settings-container">
+    <Breadcrumb :items="['menu.settings', 'menu.settings.captcha']" />
     <a-card class="general-card" title="验证码设置" :bordered="false">
       <div class="warning-alert">
         <a-alert type="warning" show-icon>

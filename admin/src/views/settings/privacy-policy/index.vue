@@ -1,5 +1,6 @@
 <template>
   <div class="privacy-policy-container">
+    <Breadcrumb :items="['menu.settings', 'menu.settings.privacyPolicy']" />
     <a-card class="general-card" title="隐私政策" :bordered="false">
       <a-spin :loading="loading" tip="加载中...">
         <div v-if="!loading" class="policy-editor">

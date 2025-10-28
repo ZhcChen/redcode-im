@@ -1,5 +1,6 @@
 <template>
   <div class="user-list-container">
+    <Breadcrumb :items="['menu.userManagement', 'menu.userManagement.list']" />
     <a-card class="general-card" title="用户管理" :bordered="false">
       <div class="header-actions">
         <a-space>
