@@ -92,11 +92,9 @@
           <template #default>
             <a-tooltip :content="$t('settings.navbar.alerts')">
               <div class="message-box-trigger">
-                <a-badge :count="9" dot>
-                  <a-button class="nav-btn" type="outline" :shape="'circle'">
-                    <icon-notification />
-                  </a-button>
-                </a-badge>
+                <a-button class="nav-btn" type="outline" :shape="'circle'">
+                  <icon-notification />
+                </a-button>
               </div>
             </a-tooltip>
           </template>
