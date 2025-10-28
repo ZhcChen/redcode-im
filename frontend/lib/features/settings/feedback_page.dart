@@ -55,6 +55,8 @@ class _FeedbackPageState extends State<FeedbackPage> {
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
+      } else {
+        _submitting = false;
       }
     }
   }

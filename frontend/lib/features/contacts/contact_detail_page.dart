@@ -62,6 +62,8 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
     } finally {
       if (mounted) {
         setState(() => _creatingChat = false);
+      } else {
+        _creatingChat = false;
       }
     }
   }

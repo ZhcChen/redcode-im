@@ -164,6 +164,8 @@ class _AddFriendPageState extends State<AddFriendPage> {
         setState(() {
           _searching = false;
         });
+      } else {
+        _searching = false;
       }
     }
   }
@@ -327,7 +329,8 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 senderId: counterpartyId,
                 senderUsername: updated.counterparty.username,
                 senderNickname: updated.counterparty.nickname,
-                senderAvatarUrl: updated.counterparty.avatarUrl ?? ensure.friendAvatar,
+                senderAvatarUrl:
+                    updated.counterparty.avatarUrl ?? ensure.friendAvatar,
                 content: updated.message!.trim(),
                 messageType: 'text',
                 timestamp: DateTime.now(),
@@ -337,6 +340,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                   'sender_nickname': updated.counterparty.nickname,
                   'sender_username': updated.counterparty.username,
                 },
+                quotedMessage: null,
               ),
             );
           }

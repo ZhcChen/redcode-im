@@ -210,10 +210,13 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('获取好友列表失败：$e')));
     } finally {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _isLoadingFriends = false;
+        });
+      } else {
         _isLoadingFriends = false;
-      });
+      }
     }
   }
 
@@ -260,10 +263,13 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('创建群聊失败：$e')));
     } finally {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      } else {
         _isSubmitting = false;
-      });
+      }
     }
   }
 

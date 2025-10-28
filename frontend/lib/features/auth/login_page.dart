@@ -363,6 +363,8 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) {
         setState(() => _sendingCode = false);
+      } else {
+        _sendingCode = false;
       }
     }
   }
@@ -507,6 +509,8 @@ class _LoginPageState extends State<LoginPage> {
       } finally {
         if (mounted) {
           setState(() => _loading = false);
+        } else {
+          _loading = false;
         }
       }
     }
@@ -583,6 +587,8 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      } else {
+        _loading = false;
       }
     }
   }
@@ -616,6 +622,8 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      } else {
+        _loading = false;
       }
     }
   }
@@ -734,6 +742,8 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      } else {
+        _loading = false;
       }
     }
   }

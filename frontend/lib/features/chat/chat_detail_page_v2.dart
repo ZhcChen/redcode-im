@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -44,6 +45,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   bool _isAtBottom = true;
   String? _lastMessageId;
   int _lastMessageCount = 0;
+  Message? _quotedMessage;
+  final Map<String, GlobalKey> _messageItemKeys = {};
 
   bool _showEmojiPanel = false;
   bool _showMorePanel = false;
@@ -103,7 +106,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
-    _chatProvider.sendTextMessage(text);
+    _chatProvider.sendTextMessage(text, quotedMessage: _quotedMessage);
+    if (_quotedMessage != null) {
+      setState(() => _quotedMessage = null);
+    }
     _textController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -150,17 +156,20 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       final messenger = ScaffoldMessenger.maybeOf(context);
       messenger?.showSnackBar(SnackBar(content: Text('加载群成员失败：$e')));
     } finally {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) {
+        setState(() {
+          _memberCountLoading = false;
+        });
+      } else {
         _memberCountLoading = false;
-      });
+      }
     }
   }
 
   String _groupMemberSubtitle(ChatProvider provider) {
     final cachedCount = provider.cachedMemberCount(widget.roomId);
     if (cachedCount != null) {
-      return '共${cachedCount}人';
+      return '共$cachedCount人';
     }
     if (_memberCountLoadFailed) {
       return '成员加载失败，点击重试';
@@ -350,6 +359,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             final previousMessage = index > 0
                 ? provider.messages[index - 1]
                 : null;
+            final itemKey = _messageItemKeys.putIfAbsent(
+              message.id,
+              () => GlobalKey(),
+            );
 
             final showTimestamp = message.shouldShowTimestamp(previousMessage);
             final dayLabel = message.displayTime;
@@ -358,6 +371,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             );
 
             return Column(
+              key: itemKey,
               children: [
                 if (showTimestamp && dayLabel.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -377,6 +391,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
                       ? () => _showMessageReaders(message)
                       : null,
                   onBubbleTap: _showMessageActions,
+                  onQuoteTap: _scrollToMessage,
                 ),
               ],
             );
@@ -396,104 +411,128 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // 语音按钮
-            _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
-            const SizedBox(width: 8),
-
-            // 输入框
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(
-                  minHeight: 36,
-                  maxHeight: 112,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: TextField(
-                  controller: _textController,
-                  focusNode: _inputFocusNode,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: TextInputAction.send,
-                  minLines: 1,
-                  maxLines: 4,
-                  onSubmitted: (_) => _sendMessage(),
-                  onEditingComplete: () {},
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: AppColors.textPrimary,
-                  ),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    hintText: '发送消息...',
-                    hintStyle: TextStyle(color: AppColors.textTertiary),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // 表情按钮
-            _IconButton(
-              icon: AppAssets.iconEmoji,
-              isActive: _showEmojiPanel,
-              onTap: _toggleEmoji,
-            ),
-            const SizedBox(width: 4),
-
-            // 发送/更多按钮
-            Consumer<ChatProvider>(
-              builder: (context, provider, child) {
-                final hasText = _textController.text.trim().isNotEmpty;
-
-                if (hasText) {
-                  return Material(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: provider.isSending ? null : _sendMessage,
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        alignment: Alignment.center,
-                        child: provider.isSending
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Icon(
-                                Icons.send_rounded,
-                                size: 20,
-                                color: Colors.white,
-                              ),
-                      ),
+            ClipRect(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(
+                      sizeFactor: animation,
+                      axisAlignment: -1.0,
+                      child: child,
                     ),
                   );
-                } else {
-                  return _IconButton(
-                    icon: AppAssets.iconAdd,
-                    isActive: _showMorePanel,
-                    onTap: _toggleMore,
-                  );
-                }
-              },
+                },
+                child: _quotedMessage == null
+                    ? const SizedBox.shrink()
+                    : _QuotePreviewBar(
+                        key: ValueKey(_quotedMessage!.id),
+                        message: _quotedMessage!,
+                        onClose: _clearQuotedMessage,
+                        onTap: () => _scrollToMessage(_quotedMessage!.id),
+                      ),
+              ),
+            ),
+            if (_quotedMessage != null) const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minHeight: 36,
+                      maxHeight: 112,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _inputFocusNode,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.send,
+                      minLines: 1,
+                      maxLines: 4,
+                      onSubmitted: (_) => _sendMessage(),
+                      onEditingComplete: () {},
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                        hintText: '发送消息...',
+                        hintStyle: TextStyle(color: AppColors.textTertiary),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _IconButton(
+                  icon: AppAssets.iconEmoji,
+                  isActive: _showEmojiPanel,
+                  onTap: _toggleEmoji,
+                ),
+                const SizedBox(width: 4),
+                Consumer<ChatProvider>(
+                  builder: (context, provider, child) {
+                    final hasText = _textController.text.trim().isNotEmpty;
+
+                    if (hasText) {
+                      return Material(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: provider.isSending ? null : _sendMessage,
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            child: provider.isSending
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send_rounded,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return _IconButton(
+                      icon: AppAssets.iconAdd,
+                      isActive: _showMorePanel,
+                      onTap: _toggleMore,
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -528,6 +567,37 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     }
   }
 
+  void _clearQuotedMessage() {
+    if (_quotedMessage == null) return;
+    setState(() => _quotedMessage = null);
+  }
+
+  void _scrollToMessage(String messageId) {
+    final key = _messageItemKeys[messageId];
+    final targetContext = key?.currentContext;
+    if (targetContext == null) {
+      _handleQuotedMessageNotFound();
+      return;
+    }
+
+    Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOut,
+      alignment: 0.1,
+    );
+  }
+
+  void _handleQuotedMessageNotFound() {
+    if (!_chatProvider.isLoading) {
+      unawaited(_chatProvider.loadMoreMessages(limit: 50));
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('暂未找到被引用的消息，已尝试加载更多历史记录')),
+    );
+  }
+
   void _handleEmojiSelected(String emoji) {
     final selection = _textController.selection;
     final text = _textController.text;
@@ -543,9 +613,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
     _textController.value = TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(
-        offset: start + emoji.length,
-      ),
+      selection: TextSelection.collapsed(offset: start + emoji.length),
     );
   }
 
@@ -582,7 +650,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       });
     }
     final overlay =
-        Overlay.of(context)?.context.findRenderObject() as RenderBox?;
+        Overlay.maybeOf(context)?.context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
     const menuWidth = 176.0;
@@ -675,7 +743,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'message-actions',
-      barrierColor: Colors.black.withOpacity(0.03),
+      barrierColor: Colors.black.withValues(alpha: 0.03),
       transitionDuration: const Duration(milliseconds: 120),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         final fadeAnimation = CurvedAnimation(
@@ -786,22 +854,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         await Clipboard.setData(ClipboardData(text: message.content));
         break;
       case _MessageAction.quote:
-        final quoted = message.content.trim();
-        final current = _textController.text;
-        final buffer = StringBuffer();
-        if (current.trim().isNotEmpty) {
-          buffer.write(current);
-          if (!current.endsWith('\n')) {
-            buffer.write('\n');
-          }
-        }
-        buffer.write('> $quoted\n');
-        final nextText = buffer.toString();
-        _textController
-          ..text = nextText
-          ..selection = TextSelection.fromPosition(
-            TextPosition(offset: nextText.length),
-          );
+        setState(() => _quotedMessage = message);
         FocusScope.of(context).requestFocus(_inputFocusNode);
         break;
       case _MessageAction.forward:
@@ -1344,14 +1397,12 @@ class _DrawerActionTile extends StatelessWidget {
     required this.icon,
     required this.label,
     this.onTap,
-    this.trailing,
     this.danger = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-  final Widget? trailing;
   final bool danger;
 
   @override
@@ -1382,12 +1433,11 @@ class _DrawerActionTile extends StatelessWidget {
                   ),
                 ),
               ),
-              trailing ??
-                  const Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: AppColors.textTertiary,
-                  ),
+              const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.textTertiary,
+              ),
             ],
           ),
         ),
@@ -1425,6 +1475,7 @@ class _MessageBubble extends StatelessWidget {
     this.canShowReadReceipts = false,
     this.onShowReadReceipts,
     this.onBubbleTap,
+    this.onQuoteTap,
   });
 
   final Message message;
@@ -1433,6 +1484,7 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onShowReadReceipts;
   final void Function(Offset tapPosition, Message message, bool isSelf)?
   onBubbleTap;
+  final void Function(String messageId)? onQuoteTap;
 
   static const double _avatarRadius = 18;
   static const double _avatarSpacing = 8;
@@ -1515,6 +1567,32 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildMessageBody(BuildContext context) {
+    final quoted = message.quotedMessage;
+    final children = <Widget>[];
+
+    if (quoted != null) {
+      children.add(
+        _QuotedMessagePreview(
+          quoted: quoted,
+          isSelf: message.isSelf,
+          onTap: onQuoteTap == null ? null : () => onQuoteTap!(quoted.id),
+        ),
+      );
+      children.add(const SizedBox(height: 6));
+    }
+
+    children.add(_buildPrimaryContent(context));
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: message.isSelf
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  Widget _buildPrimaryContent(BuildContext context) {
     switch (message.type) {
       case MessageType.text:
         return Text(
@@ -1701,6 +1779,143 @@ class _MessageBubble extends StatelessWidget {
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
+  }
+}
+
+class _QuotedMessagePreview extends StatelessWidget {
+  const _QuotedMessagePreview({
+    required this.quoted,
+    required this.isSelf,
+    this.onTap,
+  });
+
+  final QuotedMessage quoted;
+  final bool isSelf;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = isSelf
+        ? Colors.white.withValues(alpha: 0.18)
+        : AppColors.surfaceMuted;
+    final borderColor = isSelf
+        ? Colors.white.withValues(alpha: 0.24)
+        : AppColors.divider;
+    final titleColor = isSelf
+        ? Colors.white.withValues(alpha: 0.85)
+        : AppColors.textSecondary;
+    final bodyColor = isSelf ? Colors.white : AppColors.textPrimary;
+
+    final content = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 0.6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            quoted.displaySenderName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: titleColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            quoted.previewText,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13, height: 1.2, color: bodyColor),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return content;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: content,
+    );
+  }
+}
+
+class _QuotePreviewBar extends StatelessWidget {
+  const _QuotePreviewBar({
+    super.key,
+    required this.message,
+    required this.onClose,
+    this.onTap,
+  });
+
+  final Message message;
+  final VoidCallback onClose;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final quoted = QuotedMessage.fromMessage(message);
+    final previewText = '${quoted.displaySenderName}: ${quoted.previewText}';
+    final textWidget = Text(
+      previewText,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+    );
+
+    final content = onTap == null
+        ? textWidget
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: textWidget,
+          );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider, width: 0.8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.format_quote_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: content),
+          GestureDetector(
+            onTap: onClose,
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox(
+              width: 28,
+              height: 28,
+              child: Center(
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1922,13 +2137,11 @@ class _IconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.isActive = false,
-    this.useMonochrome = true,
   });
 
   final String icon;
   final VoidCallback onTap;
   final bool isActive;
-  final bool useMonochrome;
 
   @override
   Widget build(BuildContext context) {
@@ -1943,7 +2156,7 @@ class _IconButton extends StatelessWidget {
           height: 36,
           decoration: BoxDecoration(
             color: isActive
-                ? AppColors.primary.withOpacity(0.12)
+                ? AppColors.primary.withValues(alpha: 0.12)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(18),
           ),
@@ -1952,12 +2165,10 @@ class _IconButton extends StatelessWidget {
             icon,
             width: 24,
             height: 24,
-            colorFilter: useMonochrome
-                ? ColorFilter.mode(
-                    isActive ? AppColors.primary : AppColors.iconSecondary,
-                    BlendMode.srcIn,
-                  )
-                : null,
+            colorFilter: ColorFilter.mode(
+              isActive ? AppColors.primary : AppColors.iconSecondary,
+              BlendMode.srcIn,
+            ),
           ),
         ),
       ),

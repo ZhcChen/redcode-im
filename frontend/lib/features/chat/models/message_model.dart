@@ -3,6 +3,114 @@ import '../../../core/services/message_service.dart';
 /// 消息类型
 enum MessageType { text, image, voice, video, file, system }
 
+/// 引用消息模型
+class QuotedMessage {
+  QuotedMessage({
+    required this.id,
+    required this.roomId,
+    required this.senderId,
+    required this.senderUsername,
+    required this.senderName,
+    this.senderAvatar,
+    this.content,
+    required this.type,
+    this.createdAt,
+    required this.isDeleted,
+  });
+
+  final String id;
+  final String roomId;
+  final String senderId;
+  final String senderUsername;
+  final String senderName;
+  final String? senderAvatar;
+  final String? content;
+  final MessageType type;
+  final DateTime? createdAt;
+  final bool isDeleted;
+
+  factory QuotedMessage.fromCacheJson(Map<String, dynamic> json) {
+    return QuotedMessage(
+      id: json['id'] as String? ?? '',
+      roomId: json['roomId'] as String? ?? '',
+      senderId: json['senderId'] as String? ?? '',
+      senderUsername: json['senderUsername'] as String? ?? '',
+      senderName: json['senderName'] as String? ?? '',
+      senderAvatar: json['senderAvatar'] as String?,
+      content: json['content'] as String?,
+      type: Message._parseMessageType(json['type'] as String?),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+      isDeleted: json['isDeleted'] as bool? ?? false,
+    );
+  }
+
+  factory QuotedMessage.fromMessage(Message message) {
+    return QuotedMessage(
+      id: message.id,
+      roomId: message.roomId,
+      senderId: message.senderId,
+      senderUsername: message.senderUsername,
+      senderName: message.displaySenderName,
+      senderAvatar: message.senderAvatar,
+      content: message.type == MessageType.text ? message.content : null,
+      type: message.type,
+      createdAt: message.timestamp,
+      isDeleted: false,
+    );
+  }
+
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'roomId': roomId,
+      'senderId': senderId,
+      'senderUsername': senderUsername,
+      'senderName': senderName,
+      'senderAvatar': senderAvatar,
+      'content': content,
+      'type': type.name,
+      'createdAt': createdAt?.toIso8601String(),
+      'isDeleted': isDeleted,
+    };
+  }
+
+  String get displaySenderName {
+    if (senderName.trim().isNotEmpty) {
+      return senderName.trim();
+    }
+    if (senderUsername.trim().isNotEmpty) {
+      return senderUsername.trim();
+    }
+    return senderId;
+  }
+
+  String get previewText {
+    if (isDeleted) {
+      return '引用的消息已删除';
+    }
+
+    final normalized = content?.trim();
+    if (normalized != null && normalized.isNotEmpty) {
+      return normalized.replaceAll(RegExp(r'\s+'), ' ');
+    }
+
+    switch (type) {
+      case MessageType.image:
+        return '[图片]';
+      case MessageType.voice:
+        return '[语音]';
+      case MessageType.video:
+        return '[视频]';
+      case MessageType.file:
+        return '[文件]';
+      case MessageType.system:
+        return '[系统消息]';
+      case MessageType.text:
+        return '[消息]';
+    }
+  }
+}
+
 /// 消息模型
 class Message {
   final String id;
@@ -17,6 +125,7 @@ class Message {
   final DateTime timestamp;
   final bool isSelf;
   final Map<String, dynamic>? extra;
+  final QuotedMessage? quotedMessage;
 
   Message({
     required this.id,
@@ -31,6 +140,7 @@ class Message {
     required this.timestamp,
     required this.isSelf,
     this.extra,
+    this.quotedMessage,
   });
 
   /// 复制并修改部分字段
@@ -47,6 +157,7 @@ class Message {
     DateTime? timestamp,
     bool? isSelf,
     Map<String, dynamic>? extra,
+    QuotedMessage? quotedMessage,
   }) {
     return Message(
       id: id ?? this.id,
@@ -61,6 +172,7 @@ class Message {
       timestamp: timestamp ?? this.timestamp,
       isSelf: isSelf ?? this.isSelf,
       extra: extra ?? this.extra,
+      quotedMessage: quotedMessage ?? this.quotedMessage,
     );
   }
 
@@ -83,10 +195,6 @@ class Message {
     }
 
     return '${local.year}年${local.month}月${local.day}日';
-  }
-
-  String _formatTime(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
   /// 是否显示时间戳
@@ -146,6 +254,7 @@ class Message {
       'timestamp': timestamp.toIso8601String(),
       'isSelf': isSelf,
       'extra': extra,
+      'quoted': quotedMessage?.toCacheJson(),
     };
   }
 
@@ -173,10 +282,10 @@ class Message {
       content: json['content'] as String? ?? '',
       type: _parseMessageType(typeString),
       status: _parseMessageStatus(statusString),
-      timestamp:
-          DateTime.tryParse(timestampString ?? '') ?? DateTime.now(),
+      timestamp: DateTime.tryParse(timestampString ?? '') ?? DateTime.now(),
       isSelf: json['isSelf'] as bool? ?? false,
       extra: extra,
+      quotedMessage: _parseQuotedFromCache(json['quoted']),
     );
   }
 
@@ -222,5 +331,21 @@ class Message {
       (status) => status.name == value,
       orElse: () => MessageStatus.sent,
     );
+  }
+
+  static QuotedMessage? _parseQuotedFromCache(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is QuotedMessage) return raw;
+    if (raw is Map<String, dynamic>) {
+      return QuotedMessage.fromCacheJson(raw);
+    }
+    if (raw is Map) {
+      final map = <String, dynamic>{};
+      raw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      return QuotedMessage.fromCacheJson(map);
+    }
+    return null;
   }
 }

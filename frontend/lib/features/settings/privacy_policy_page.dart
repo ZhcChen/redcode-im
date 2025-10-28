@@ -43,6 +43,8 @@ class _PrivacyPolicyPageState extends State<PrivacyPolicyPage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+      } else {
+        _loading = false;
       }
     }
   }

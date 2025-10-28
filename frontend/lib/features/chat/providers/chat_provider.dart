@@ -150,14 +150,18 @@ class ChatProvider with ChangeNotifier {
   }
 
   /// 发送文本消息
-  Future<void> sendTextMessage(String content) async {
+  Future<void> sendTextMessage(String content, {Message? quotedMessage}) async {
     if (_currentRoomId == null || content.trim().isEmpty || _isSending) return;
 
     _isSending = true;
     notifyListeners();
 
     try {
-      await _messageService.sendTextMessage(_currentRoomId!, content);
+      await _messageService.sendTextMessage(
+        _currentRoomId!,
+        content,
+        quotedMessage: quotedMessage,
+      );
     } catch (e) {
       debugPrint('Failed to send message: $e');
       // 可以显示错误提示

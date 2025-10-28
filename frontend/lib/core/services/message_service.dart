@@ -224,7 +224,11 @@ class MessageService with ChangeNotifier {
   }
 
   /// 发送文本消息
-  Future<void> sendTextMessage(String roomId, String content) async {
+  Future<void> sendTextMessage(
+    String roomId,
+    String content, {
+    Message? quotedMessage,
+  }) async {
     final trimmed = content.trim();
     if (roomId.isEmpty || trimmed.isEmpty) return;
 
@@ -249,6 +253,9 @@ class MessageService with ChangeNotifier {
       status: MessageStatus.sending,
       timestamp: DateTime.now(),
       isSelf: true,
+      quotedMessage: quotedMessage != null
+          ? QuotedMessage.fromMessage(quotedMessage)
+          : null,
     );
 
     // 添加到消息列表
@@ -259,7 +266,12 @@ class MessageService with ChangeNotifier {
 
     try {
       // 调用API发送消息
-      final response = await _sendMessageAPI(roomId, trimmed, 'text');
+      final response = await _sendMessageAPI(
+        roomId,
+        trimmed,
+        'text',
+        quotedMessageId: quotedMessage?.id,
+      );
       final updated = _messageFromResponse(
         response,
         session.user.id,
@@ -311,6 +323,7 @@ class MessageService with ChangeNotifier {
         message.roomId,
         message.content,
         message.type == MessageType.text ? 'text' : 'image',
+        quotedMessageId: message.quotedMessage?.id,
       );
 
       final updated = _messageFromResponse(
@@ -330,8 +343,9 @@ class MessageService with ChangeNotifier {
   Future<MessageResponse> _sendMessageAPI(
     String roomId,
     String content,
-    String messageType,
-  ) async {
+    String messageType, {
+    String? quotedMessageId,
+  }) async {
     final session = await _tokenStorage.readSession();
     if (session == null) {
       throw Exception('User not authenticated');
@@ -344,7 +358,12 @@ class MessageService with ChangeNotifier {
         'Authorization': 'Bearer ${session.token}',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'content': content, 'message_type': messageType}),
+      body: jsonEncode({
+        'content': content,
+        'message_type': messageType,
+        if (quotedMessageId != null && quotedMessageId.isNotEmpty)
+          'quoted_message_id': quotedMessageId,
+      }),
     );
 
     if (response.statusCode == 200) {
@@ -594,6 +613,7 @@ class MessageService with ChangeNotifier {
       timestamp: latestTimestamp,
       isSelf: newMessage.isSelf,
       extra: newMessage.extra ?? oldMessage.extra,
+      quotedMessage: newMessage.quotedMessage ?? oldMessage.quotedMessage,
     );
   }
 
@@ -1166,6 +1186,9 @@ class MessageService with ChangeNotifier {
   }) {
     final type = _mapMessageType(response.messageType);
     final isSelf = response.senderId == currentUserId;
+    final quoted = response.quotedMessage == null
+        ? null
+        : _quotedMessageFromResponse(response.quotedMessage!);
 
     return Message(
       id: response.id,
@@ -1184,6 +1207,7 @@ class MessageService with ChangeNotifier {
       extra: response.senderNickname == null
           ? null
           : {'sender_nickname': response.senderNickname},
+      quotedMessage: quoted,
     );
   }
 
@@ -1194,6 +1218,9 @@ class MessageService with ChangeNotifier {
     final type = _mapMessageType(wsMessage.messageType);
     final isSelf = wsMessage.senderId == currentUserId;
     final status = isSelf ? MessageStatus.sent : MessageStatus.delivered;
+    final quoted = wsMessage.quotedMessage == null
+        ? null
+        : _quotedMessageFromWebSocket(wsMessage.quotedMessage!);
 
     return Message(
       id: wsMessage.id,
@@ -1208,6 +1235,7 @@ class MessageService with ChangeNotifier {
       timestamp: wsMessage.timestamp,
       isSelf: isSelf,
       extra: wsMessage.extra,
+      quotedMessage: quoted,
     );
   }
 
@@ -1228,6 +1256,47 @@ class MessageService with ChangeNotifier {
         return MessageType.text;
     }
   }
+
+  QuotedMessage _quotedMessageFromResponse(QuotedMessageResponse response) {
+    final displayName = response.senderNickname?.isNotEmpty == true
+        ? response.senderNickname!
+        : response.senderUsername;
+
+    return QuotedMessage(
+      id: response.id,
+      roomId: response.roomId,
+      senderId: response.senderId,
+      senderUsername: response.senderUsername,
+      senderName: displayName,
+      senderAvatar: response.senderAvatarUrl,
+      content: response.content,
+      type: _mapMessageType(response.messageType),
+      createdAt: response.createdAt,
+      isDeleted: response.isDeleted,
+    );
+  }
+
+  QuotedMessage _quotedMessageFromWebSocket(WebSocketQuotedMessage quoted) {
+    final username = quoted.senderUsername?.isNotEmpty == true
+        ? quoted.senderUsername!
+        : quoted.senderId;
+    final displayName = quoted.senderNickname?.isNotEmpty == true
+        ? quoted.senderNickname!
+        : username;
+
+    return QuotedMessage(
+      id: quoted.id,
+      roomId: quoted.roomId,
+      senderId: quoted.senderId,
+      senderUsername: username,
+      senderName: displayName,
+      senderAvatar: quoted.senderAvatarUrl,
+      content: quoted.content,
+      type: _mapMessageType(quoted.messageType),
+      createdAt: quoted.createdAt,
+      isDeleted: quoted.isDeleted,
+    );
+  }
 }
 
 /// 消息响应模型
@@ -1241,6 +1310,7 @@ class MessageResponse {
   final String content;
   final String messageType;
   final DateTime createdAt;
+  final QuotedMessageResponse? quotedMessage;
 
   MessageResponse({
     required this.id,
@@ -1252,9 +1322,22 @@ class MessageResponse {
     required this.content,
     required this.messageType,
     required this.createdAt,
+    required this.quotedMessage,
   });
 
   factory MessageResponse.fromJson(Map<String, dynamic> json) {
+    QuotedMessageResponse? quoted;
+    final quotedRaw = json['quoted_message'];
+    if (quotedRaw is Map<String, dynamic>) {
+      quoted = QuotedMessageResponse.fromJson(quotedRaw);
+    } else if (quotedRaw is Map) {
+      final map = <String, dynamic>{};
+      quotedRaw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      quoted = QuotedMessageResponse.fromJson(map);
+    }
+
     return MessageResponse(
       id: json['id'] ?? '',
       roomId: json['room_id'] ?? '',
@@ -1267,6 +1350,7 @@ class MessageResponse {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
+      quotedMessage: quoted,
     );
   }
 
@@ -1275,5 +1359,58 @@ class MessageResponse {
       return senderNickname!;
     }
     return senderUsername;
+  }
+}
+
+class QuotedMessageResponse {
+  QuotedMessageResponse({
+    required this.id,
+    required this.roomId,
+    required this.senderId,
+    required this.senderUsername,
+    this.senderNickname,
+    this.senderAvatarUrl,
+    this.content,
+    required this.messageType,
+    this.createdAt,
+    required this.isDeleted,
+  });
+
+  final String id;
+  final String roomId;
+  final String senderId;
+  final String senderUsername;
+  final String? senderNickname;
+  final String? senderAvatarUrl;
+  final String? content;
+  final String messageType;
+  final DateTime? createdAt;
+  final bool isDeleted;
+
+  factory QuotedMessageResponse.fromJson(Map<String, dynamic> json) {
+    bool parseDeleted(dynamic value) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final lowered = value.toLowerCase();
+        return lowered == 'true' || lowered == '1';
+      }
+      return false;
+    }
+
+    return QuotedMessageResponse(
+      id: json['id']?.toString() ?? '',
+      roomId: json['room_id']?.toString() ?? '',
+      senderId: json['sender_id']?.toString() ?? '',
+      senderUsername: json['sender_username']?.toString() ?? '',
+      senderNickname: json['sender_nickname'] as String?,
+      senderAvatarUrl: json['sender_avatar_url'] as String?,
+      content: json['content'] as String?,
+      messageType: json['message_type']?.toString() ?? 'text',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
+      isDeleted: parseDeleted(json['is_deleted']),
+    );
   }
 }

@@ -98,6 +98,8 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
     } finally {
       if (mounted) {
         setState(() => _sendingCode = false);
+      } else {
+        _sendingCode = false;
       }
     }
   }
@@ -138,6 +140,8 @@ class _AccountSecurityPageState extends State<AccountSecurityPage> {
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
+      } else {
+        _submitting = false;
       }
     }
   }

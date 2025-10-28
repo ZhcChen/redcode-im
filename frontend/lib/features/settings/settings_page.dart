@@ -116,6 +116,8 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _updatingNickname = false);
+      } else {
+        _updatingNickname = false;
       }
     }
   }
@@ -158,6 +160,7 @@ class _SettingsPageState extends State<SettingsPage> {
       message: '账号注销后将无法恢复，好友与聊天数据将被清空，确定继续吗？',
       confirmLabel: '继续',
     );
+    if (!mounted) return;
     if (firstConfirm != true) return;
 
     final secondConfirm = await showConfirmActionDialog(
@@ -167,6 +170,7 @@ class _SettingsPageState extends State<SettingsPage> {
       confirmLabel: '确认注销',
       confirmationKeyword: '注销',
     );
+    if (!mounted) return;
     if (secondConfirm != true) return;
 
     setState(() => _deactivating = true);
@@ -188,6 +192,8 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _deactivating = false);
+      } else {
+        _deactivating = false;
       }
     }
   }
@@ -461,17 +467,6 @@ class _SettingListTile extends StatelessWidget {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      if (data.subtitle != null && data.subtitle!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            data.subtitle!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -587,12 +582,10 @@ class _SettingItemData {
   const _SettingItemData({
     required this.title,
     required this.asset,
-    this.subtitle,
     this.onTap,
   });
 
   final String title;
   final String asset;
-  final String? subtitle;
   final VoidCallback? onTap;
 }

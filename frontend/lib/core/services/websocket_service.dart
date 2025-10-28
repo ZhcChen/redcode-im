@@ -642,6 +642,7 @@ class WebSocketMessage {
   final String messageType;
   final DateTime timestamp;
   final Map<String, dynamic>? extra;
+  final WebSocketQuotedMessage? quotedMessage;
 
   WebSocketMessage({
     required this.id,
@@ -654,6 +655,7 @@ class WebSocketMessage {
     required this.messageType,
     required this.timestamp,
     required this.extra,
+    required this.quotedMessage,
   });
 
   factory WebSocketMessage.fromJson(Map<String, dynamic> json) {
@@ -674,6 +676,18 @@ class WebSocketMessage {
       extra = Map<String, dynamic>.from(rawExtra.cast<String, dynamic>());
     }
 
+    WebSocketQuotedMessage? quotedMessage;
+    final quotedRaw = json['quoted_message'];
+    if (quotedRaw is Map<String, dynamic>) {
+      quotedMessage = WebSocketQuotedMessage.fromJson(quotedRaw);
+    } else if (quotedRaw is Map) {
+      final map = <String, dynamic>{};
+      quotedRaw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      quotedMessage = WebSocketQuotedMessage.fromJson(map);
+    }
+
     return WebSocketMessage(
       id: messageId,
       roomId: json['room_id'] ?? '',
@@ -687,6 +701,7 @@ class WebSocketMessage {
           ? DateTime.parse(json['timestamp'])
           : DateTime.now(),
       extra: extra,
+      quotedMessage: quotedMessage,
     );
   }
 
@@ -698,5 +713,58 @@ class WebSocketMessage {
       return senderUsername!;
     }
     return senderId;
+  }
+}
+
+class WebSocketQuotedMessage {
+  WebSocketQuotedMessage({
+    required this.id,
+    required this.roomId,
+    required this.senderId,
+    this.senderUsername,
+    this.senderNickname,
+    this.senderAvatarUrl,
+    this.content,
+    required this.messageType,
+    this.createdAt,
+    required this.isDeleted,
+  });
+
+  final String id;
+  final String roomId;
+  final String senderId;
+  final String? senderUsername;
+  final String? senderNickname;
+  final String? senderAvatarUrl;
+  final String? content;
+  final String messageType;
+  final DateTime? createdAt;
+  final bool isDeleted;
+
+  factory WebSocketQuotedMessage.fromJson(Map<String, dynamic> json) {
+    bool parseDeleted(dynamic value) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final lowered = value.toLowerCase();
+        return lowered == 'true' || lowered == '1';
+      }
+      return false;
+    }
+
+    return WebSocketQuotedMessage(
+      id: json['id']?.toString() ?? '',
+      roomId: json['room_id']?.toString() ?? '',
+      senderId: json['sender_id']?.toString() ?? '',
+      senderUsername: json['sender_username']?.toString(),
+      senderNickname: json['sender_nickname']?.toString(),
+      senderAvatarUrl: json['sender_avatar_url']?.toString(),
+      content: json['content']?.toString(),
+      messageType: json['message_type']?.toString() ?? 'text',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
+      isDeleted: parseDeleted(json['is_deleted']),
+    );
   }
 }
