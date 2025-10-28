@@ -1486,7 +1486,7 @@ class _MessageBubble extends StatelessWidget {
   onBubbleTap;
   final void Function(String messageId)? onQuoteTap;
 
-  static const double _avatarRadius = 18;
+  static const double _avatarRadius = 12;
   static const double _avatarSpacing = 8;
 
   @override
@@ -1811,22 +1811,31 @@ class _QuotedMessagePreview extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor, width: 0.6),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            quoted.displaySenderName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: titleColor,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildAvatar(),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  quoted.displaySenderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
@@ -1845,6 +1854,42 @@ class _QuotedMessagePreview extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: content,
+    );
+  }
+
+  Widget _buildAvatar() {
+    const double size = 24;
+    final avatar = quoted.senderAvatar;
+    if (avatar != null && avatar.isNotEmpty) {
+      if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundImage: NetworkImage(avatar),
+          backgroundColor: AppColors.surface,
+        );
+      }
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundImage: AssetImage(avatar),
+        backgroundColor: AppColors.surface,
+      );
+    }
+
+    final name = quoted.displaySenderName.trim();
+    final initial = name.isNotEmpty ? name[0] : '?';
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: isSelf
+          ? AppColors.primary.withValues(alpha: 0.85)
+          : AppColors.primary.withValues(alpha: 0.12),
+      child: Text(
+        initial,
+        style: TextStyle(
+          fontSize: 12,
+          color: isSelf ? Colors.white : AppColors.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

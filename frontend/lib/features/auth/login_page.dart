@@ -55,10 +55,11 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7FFFE),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: SingleChildScrollView(
+      body: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,15 +100,15 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
-          ),
-          if (_loading)
-            Positioned.fill(
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.12),
-                child: const Center(child: CircularProgressIndicator()),
+            if (_loading)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
