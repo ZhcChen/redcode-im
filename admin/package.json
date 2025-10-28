@@ -46,7 +46,7 @@
     "vue-i18n": "^9.2.2",
     "vue-router": "^4.0.14",
     "@wangeditor/editor": "^5.1.23",
-    "@wangeditor/editor-for-vue": "^1.0.2"
+    "@wangeditor/editor-for-vue": "^5.1.12"
   },
   "devDependencies": {
     "@arco-plugins/vite-vue": "^1.4.5",
