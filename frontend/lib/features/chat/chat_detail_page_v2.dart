@@ -426,9 +426,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         if (!hasMessages) {
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
-          // 为空消息状态也添加底部内边距，避免被键盘遮挡
-          const extraBottomSpacing = 24.0;
-          final bottomPadding = bottomInset + extraBottomSpacing;
+          // 空消息状态也采用相同的策略：键盘弹起时减小底部 padding
+          final bottomPadding = bottomInset > 0 ? 12.0 : 24.0;
 
           content = Center(
             child: Padding(
@@ -474,11 +473,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             _lastKeyboardInset = bottomInset;
           }
 
-          // 动态计算底部内边距：键盘高度 + 额外留白
-          // 当键盘弹起时，bottomInset > 0，需要为键盘留出空间
-          // 当键盘收起时，bottomInset = 0，只保留视觉留白
-          const extraBottomSpacing = 24.0;
-          final bottomPadding = bottomInset + extraBottomSpacing;
+          // 键盘弹起时最小化底部内边距，让 ListView 能充分向上"顶"
+          // 键盘弹起时使用小值（12px），没弹起时使用正常值（24px）
+          final bottomPadding = bottomInset > 0 ? 12.0 : 24.0;
 
           content = AnimatedOpacity(
             opacity: _messageListOpacity,
