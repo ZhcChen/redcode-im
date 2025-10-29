@@ -171,6 +171,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         if ((position.pixels - target).abs() > 0.5) {
           _scrollController.jumpTo(target);
         }
+        _settleToBottom();
       }
     });
   }
