@@ -135,10 +135,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       if (!mounted) return;
       FocusScope.of(context).requestFocus(_inputFocusNode);
     });
-    _scrollToBottom();
+    _scrollToBottom(animated: false);
   }
 
-  void _scrollToBottom({int retry = 0, bool animated = true}) {
+  void _scrollToBottom({int retry = 0, bool animated = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!_scrollController.hasClients) {
@@ -148,64 +148,31 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         return;
       }
 
+      final position = _scrollController.position;
+      final target = position.maxScrollExtent;
       final shouldAnimate = animated && !_skipNextScrollAnimation;
-      final messages = _chatProvider.messages;
-      if (messages.isNotEmpty) {
-        final lastKey = _messageItemKeys[messages.last.id];
-        final targetContext = lastKey?.currentContext;
-        if (targetContext != null) {
-          final duration = shouldAnimate
-              ? const Duration(milliseconds: 250)
-              : Duration.zero;
-          Scrollable.ensureVisible(
-            targetContext,
-            alignment: 1,
-            duration: duration,
-            curve: Curves.easeOut,
-          ).whenComplete(_settleToBottom);
-          _skipNextScrollAnimation = false;
-          return;
-        }
-      }
+      _skipNextScrollAnimation = false;
 
       if (shouldAnimate) {
-        _animateToBottom(retry: retry);
+        try {
+          _scrollController
+              .animateTo(
+                target,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+              )
+              .whenComplete(_settleToBottom);
+        } catch (_) {
+          if (retry < 5) {
+            _scrollToBottom(retry: retry + 1, animated: animated);
+          }
+        }
       } else {
-        _jumpToBottom();
+        if ((position.pixels - target).abs() > 0.5) {
+          _scrollController.jumpTo(target);
+        }
       }
-      _skipNextScrollAnimation = false;
     });
-  }
-
-  void _animateToBottom({int retry = 0}) {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
-    final target = position.maxScrollExtent;
-    if ((position.pixels - target).abs() <= 0.5) {
-      _settleToBottom();
-      return;
-    }
-
-    try {
-      _scrollController
-          .animateTo(
-            target,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-          )
-          .whenComplete(_settleToBottom);
-    } catch (_) {
-      if (retry < 5) {
-        _scrollToBottom(retry: retry + 1);
-      }
-    }
-  }
-
-  void _jumpToBottom() {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
-    _scrollController.jumpTo(position.maxScrollExtent);
-    _settleToBottom();
   }
 
   void _settleToBottom({int attempt = 0}) {
@@ -484,7 +451,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             if (bottomInset > _lastKeyboardInset && _isAtBottom) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
-                _scrollToBottom();
+                _scrollToBottom(animated: false);
               });
             }
             _lastKeyboardInset = bottomInset;
@@ -1165,7 +1132,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         wasAtBottom || previousCount == 0 || (!_hasScrollableContent());
 
     if (shouldAutoScroll) {
-      _scrollToBottom();
+      _scrollToBottom(animated: false);
     }
   }
 
@@ -1621,7 +1588,8 @@ class _SubtitleRow extends StatelessWidget {
 }
 
 /// 消息气泡
-class _MessageBubble extends StatelessWidget {
+
+class _MessageBubble extends StatefulWidget {
   const _MessageBubble({
     required this.message,
     required this.onResend,
@@ -1643,10 +1611,56 @@ class _MessageBubble extends StatelessWidget {
   static const double _avatarSpacing = 8;
 
   @override
+  State<_MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<_MessageBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _appearController;
+  late final Animation<double> _sizeAnimation;
+
+  Message get _message => widget.message;
+  bool get _isSelf => _message.isSelf;
+
+  @override
+  void initState() {
+    super.initState();
+    _appearController = AnimationController(
+      duration: const Duration(milliseconds: 220),
+      vsync: this,
+    );
+    _sizeAnimation = CurvedAnimation(
+      parent: _appearController,
+      curve: Curves.easeOutCubic,
+    );
+    _appearController.forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MessageBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.message.id != widget.message.id) {
+      _appearController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _appearController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return message.isSelf
+    final bubble = _isSelf
         ? _buildSelfBubble(context)
         : _buildPeerBubble(context);
+
+    return SizeTransition(
+      sizeFactor: _sizeAnimation,
+      axisAlignment: -1,
+      child: FadeTransition(opacity: _sizeAnimation, child: bubble),
+    );
   }
 
   Widget _buildSelfBubble(BuildContext context) {
@@ -1670,14 +1684,14 @@ class _MessageBubble extends StatelessWidget {
 
   Widget _buildPeerBubble(BuildContext context) {
     final theme = Theme.of(context);
-    final displayName = message.displaySenderName;
+    final displayName = _message.displaySenderName;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildAvatar(false),
-          const SizedBox(width: _avatarSpacing),
+          const SizedBox(width: _MessageBubble._avatarSpacing),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1712,7 +1726,7 @@ class _MessageBubble extends StatelessWidget {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: message.isSelf
+      crossAxisAlignment: _isSelf
           ? CrossAxisAlignment.end
           : CrossAxisAlignment.start,
       children: [body, const SizedBox(height: 6), timeRow],
@@ -1720,15 +1734,17 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildMessageBody(BuildContext context) {
-    final quoted = message.quotedMessage;
+    final quoted = _message.quotedMessage;
     final children = <Widget>[];
 
     if (quoted != null) {
       children.add(
         _QuotedMessagePreview(
           quoted: quoted,
-          isSelf: message.isSelf,
-          onTap: onQuoteTap == null ? null : () => onQuoteTap!(quoted.id),
+          isSelf: _isSelf,
+          onTap: widget.onQuoteTap == null
+              ? null
+              : () => widget.onQuoteTap!(quoted.id),
         ),
       );
       children.add(const SizedBox(height: 6));
@@ -1738,7 +1754,7 @@ class _MessageBubble extends StatelessWidget {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: message.isSelf
+      crossAxisAlignment: _isSelf
           ? CrossAxisAlignment.end
           : CrossAxisAlignment.start,
       children: children,
@@ -1746,13 +1762,13 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildPrimaryContent(BuildContext context) {
-    switch (message.type) {
+    switch (_message.type) {
       case MessageType.text:
         return Text(
-          message.content,
+          _message.content,
           style: TextStyle(
             fontSize: 15,
-            color: message.isSelf ? Colors.white : AppColors.textPrimary,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
           ),
         );
       case MessageType.image:
@@ -1763,18 +1779,18 @@ class _MessageBubble extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
-                message.content, // TODO: 使用网络图片
+                _message.content, // TODO: 使用网络图片
                 width: 200,
                 fit: BoxFit.cover,
               ),
             ),
-            if (message.extra?['caption'] != null) ...[
+            if (_message.extra?['caption'] != null) ...[
               const SizedBox(height: 4),
               Text(
-                message.extra!['caption'],
+                _message.extra!['caption'],
                 style: TextStyle(
                   fontSize: 14,
-                  color: message.isSelf ? Colors.white : AppColors.textPrimary,
+                  color: _isSelf ? Colors.white : AppColors.textPrimary,
                 ),
               ),
             ],
@@ -1785,7 +1801,7 @@ class _MessageBubble extends StatelessWidget {
           '[不支持的消息类型]',
           style: TextStyle(
             fontSize: 14,
-            color: message.isSelf ? Colors.white70 : AppColors.textSecondary,
+            color: _isSelf ? Colors.white70 : AppColors.textSecondary,
           ),
         );
     }
@@ -1796,34 +1812,29 @@ class _MessageBubble extends StatelessWidget {
     required Widget child,
     required bool isSelf,
   }) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.7,
-      ),
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTapUp: (details) =>
-            onBubbleTap?.call(details.globalPosition, message, isSelf),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelf ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(isSelf ? 16 : 4),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isSelf ? 16 : 16),
-              bottomRight: Radius.circular(isSelf ? 4 : 16),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapUp: (details) =>
+          widget.onBubbleTap?.call(details.globalPosition, _message, isSelf),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelf ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isSelf ? 16 : 4),
+            bottomRight: Radius.circular(isSelf ? 4 : 16),
           ),
-          child: child,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
+        child: child,
       ),
     );
   }
@@ -1832,19 +1843,19 @@ class _MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final timeStyle = theme.textTheme.bodySmall?.copyWith(
       fontSize: 11,
-      color: message.isSelf
+      color: _isSelf
           ? Colors.white.withValues(alpha: 0.8)
           : AppColors.textQuaternary,
     );
 
     final timeText = Text(_formatBubbleTime(), style: timeStyle);
     Widget? status;
-    if (message.isSelf) {
+    if (_message.isSelf) {
       final readTap =
-          (canShowReadReceipts &&
-              message.status == MessageStatus.read &&
-              onShowReadReceipts != null)
-          ? onShowReadReceipts
+          (widget.canShowReadReceipts &&
+              _message.status == MessageStatus.read &&
+              widget.onShowReadReceipts != null)
+          ? widget.onShowReadReceipts
           : null;
       status = _buildStatusIndicator(onReadTap: readTap);
     }
@@ -1854,7 +1865,7 @@ class _MessageBubble extends StatelessWidget {
       height: statusRowHeight,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: message.isSelf
+        mainAxisAlignment: _isSelf
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1867,27 +1878,27 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildAvatar(bool isSelf) {
-    final avatar = message.senderAvatar;
+    final avatar = _message.senderAvatar;
     if (avatar != null && avatar.isNotEmpty) {
       if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
         return CircleAvatar(
-          radius: _avatarRadius,
+          radius: _MessageBubble._avatarRadius,
           backgroundImage: NetworkImage(avatar),
           backgroundColor: AppColors.surface,
         );
       }
       return CircleAvatar(
-        radius: _avatarRadius,
+        radius: _MessageBubble._avatarRadius,
         backgroundImage: AssetImage(avatar),
         backgroundColor: AppColors.surface,
       );
     }
 
-    final name = message.displaySenderName.trim();
+    final name = _message.displaySenderName.trim();
     final initial = name.isNotEmpty ? name[0] : '?';
 
     return CircleAvatar(
-      radius: _avatarRadius,
+      radius: _MessageBubble._avatarRadius,
       backgroundColor: isSelf
           ? AppColors.primary.withValues(alpha: 0.85)
           : AppColors.primary.withValues(alpha: 0.12),
@@ -1916,9 +1927,18 @@ class _MessageBubble extends StatelessWidget {
       return boxed;
     }
 
-    switch (message.status) {
+    switch (_message.status) {
       case MessageStatus.sending:
-        return null;
+        return wrap(
+          const SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+        );
       case MessageStatus.sent:
         return wrap(const Icon(Icons.done, size: 12, color: Colors.white));
       case MessageStatus.delivered:
@@ -1931,13 +1951,13 @@ class _MessageBubble extends StatelessWidget {
       case MessageStatus.failed:
         return wrap(
           const Icon(Icons.priority_high, size: 14, color: Colors.red),
-          onTap: onResend,
+          onTap: widget.onResend,
         );
     }
   }
 
   String _formatBubbleTime() {
-    final local = message.timestamp.toLocal();
+    final local = _message.timestamp.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
