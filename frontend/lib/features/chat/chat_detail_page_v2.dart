@@ -1903,26 +1903,37 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget? _buildStatusIndicator() {
+    const double statusBoxSize = 16;
+    Widget wrap(Widget child, {VoidCallback? onTap}) {
+      final boxed = SizedBox(
+        width: statusBoxSize,
+        height: statusBoxSize,
+        child: Center(child: child),
+      );
+      if (onTap != null) {
+        return GestureDetector(onTap: onTap, child: boxed);
+      }
+      return boxed;
+    }
+
     switch (message.status) {
       case MessageStatus.sending:
-        return SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(
+        return wrap(
+          const CircularProgressIndicator(
             strokeWidth: 2,
             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
           ),
         );
       case MessageStatus.sent:
-        return const Icon(Icons.done, size: 14, color: Colors.white);
+        return wrap(const Icon(Icons.done, size: 12, color: Colors.white));
       case MessageStatus.delivered:
         return null;
       case MessageStatus.read:
-        return const Icon(Icons.done_all, size: 14, color: Colors.white);
+        return wrap(const Icon(Icons.done_all, size: 13, color: Colors.white));
       case MessageStatus.failed:
-        return GestureDetector(
+        return wrap(
+          const Icon(Icons.priority_high, size: 14, color: Colors.red),
           onTap: onResend,
-          child: const Icon(Icons.priority_high, size: 16, color: Colors.red),
         );
     }
   }
