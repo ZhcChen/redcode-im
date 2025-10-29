@@ -497,8 +497,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         if (!hasMessages) {
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
+          final bottomSpacing = bottomInset > 0 ? 32.0 : 24.0;
           // 空消息状态也采用相同的策略：键盘弹起时减小底部 padding
-          final bottomPadding = overlayHeight + (bottomInset > 0 ? 12.0 : 24.0);
+          final bottomPadding = overlayHeight + bottomSpacing;
 
           content = Center(
             child: Padding(
@@ -532,6 +533,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         } else {
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
+          final bottomSpacing = bottomInset > 0 ? 32.0 : 24.0;
           if (bottomInset != _lastKeyboardInset) {
             // 键盘弹起时，自动滚动到底部
             // 无论用户是否在底部，都应该滚动到底部以确保输入框和消息可见
@@ -545,8 +547,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           }
 
           // 键盘弹起时最小化底部内边距，让 ListView 能充分向上"顶"
-          // 键盘弹起时使用小值（12px），没弹起时使用正常值（24px）
-          final bottomPadding = overlayHeight + (bottomInset > 0 ? 12.0 : 24.0);
+          // 键盘弹起时使用小值（32px），没弹起时使用正常值（24px）
+          final bottomPadding = overlayHeight + bottomSpacing;
 
           content = AnimatedOpacity(
             opacity: _messageListOpacity,
