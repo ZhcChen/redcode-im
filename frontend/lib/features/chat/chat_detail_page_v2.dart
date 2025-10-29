@@ -1840,29 +1840,29 @@ class _MessageBubble extends StatelessWidget {
     final timeText = Text(_formatBubbleTime(), style: timeStyle);
     Widget? status;
     if (message.isSelf) {
-      status = _buildStatusIndicator();
-      if (status != null &&
-          canShowReadReceipts &&
-          message.status == MessageStatus.read &&
-          onShowReadReceipts != null) {
-        status = GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onShowReadReceipts,
-          child: Padding(padding: const EdgeInsets.all(4), child: status),
-        );
-      }
+      final readTap =
+          (canShowReadReceipts &&
+              message.status == MessageStatus.read &&
+              onShowReadReceipts != null)
+          ? onShowReadReceipts
+          : null;
+      status = _buildStatusIndicator(onReadTap: readTap);
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: message.isSelf
-          ? MainAxisAlignment.end
-          : MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        timeText,
-        if (status != null) ...[const SizedBox(width: 8), status],
-      ],
+    const double statusRowHeight = 16;
+    return SizedBox(
+      height: statusRowHeight,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: message.isSelf
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Align(alignment: Alignment.centerLeft, child: timeText),
+          if (status != null) ...[const SizedBox(width: 8), status],
+        ],
+      ),
     );
   }
 
@@ -1902,7 +1902,7 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget? _buildStatusIndicator() {
+  Widget? _buildStatusIndicator({VoidCallback? onReadTap}) {
     const double statusBoxSize = 16;
     Widget wrap(Widget child, {VoidCallback? onTap}) {
       final boxed = SizedBox(
@@ -1919,9 +1919,13 @@ class _MessageBubble extends StatelessWidget {
     switch (message.status) {
       case MessageStatus.sending:
         return wrap(
-          const CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          const SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
           ),
         );
       case MessageStatus.sent:
@@ -1929,7 +1933,10 @@ class _MessageBubble extends StatelessWidget {
       case MessageStatus.delivered:
         return null;
       case MessageStatus.read:
-        return wrap(const Icon(Icons.done_all, size: 13, color: Colors.white));
+        return wrap(
+          const Icon(Icons.done_all, size: 13, color: Colors.white),
+          onTap: onReadTap,
+        );
       case MessageStatus.failed:
         return wrap(
           const Icon(Icons.priority_high, size: 14, color: Colors.red),
