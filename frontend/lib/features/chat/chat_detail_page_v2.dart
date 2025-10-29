@@ -104,6 +104,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       _messageListOpacity = hasCachedMessages ? 1.0 : 0.0;
     });
 
+    // 页面进入后自动滚动到底部（无动画）
+    if (hasCachedMessages) {
+      _scrollToBottom(animated: false);
+    }
+
     if (widget.chatType == ChatType.group) {
       await _loadMemberCount();
     }
