@@ -37,8 +37,10 @@ class AuthRepository {
       final session = AuthSession(token: 'mock-token', user: user);
       await _storage.saveSession(session);
       // 切换账号/新登录时重置本地缓存与连接状态
-      try { await WebSocketService.instance.disconnect(); } catch (_) {}
-      MessageService.instance.clearAll();
+      try {
+        await WebSocketService.instance.disconnect();
+      } catch (_) {}
+      await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
       _authStateController.add(AuthState.authenticated);
       return session;
@@ -63,8 +65,10 @@ class AuthRepository {
       final user = AuthUser.fromJson(userJson);
       final session = AuthSession(token: token, user: user);
       await _storage.saveSession(session);
-      try { await WebSocketService.instance.disconnect(); } catch (_) {}
-      MessageService.instance.clearAll();
+      try {
+        await WebSocketService.instance.disconnect();
+      } catch (_) {}
+      await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
       _authStateController.add(AuthState.authenticated);
       return session;
@@ -164,8 +168,10 @@ class AuthRepository {
       );
       final session = AuthSession(token: 'mock-token', user: user);
       await _storage.saveSession(session);
-      try { await WebSocketService.instance.disconnect(); } catch (_) {}
-      MessageService.instance.clearAll();
+      try {
+        await WebSocketService.instance.disconnect();
+      } catch (_) {}
+      await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
       _authStateController.add(AuthState.authenticated);
       return session;
@@ -189,8 +195,10 @@ class AuthRepository {
       final user = AuthUser.fromJson(userJson);
       final session = AuthSession(token: token, user: user);
       await _storage.saveSession(session);
-      try { await WebSocketService.instance.disconnect(); } catch (_) {}
-      MessageService.instance.clearAll();
+      try {
+        await WebSocketService.instance.disconnect();
+      } catch (_) {}
+      await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
       _authStateController.add(AuthState.authenticated);
       return session;
@@ -394,7 +402,7 @@ class AuthRepository {
       // 断开 WS、清空本地消息/会话与好友状态，避免切换账号出现脏数据
       await WebSocketService.instance.disconnect();
     } catch (_) {}
-    MessageService.instance.clearAll();
+    await MessageService.instance.clearAll();
     FriendStore.instance.clearAll();
 
     await _storage.clear();

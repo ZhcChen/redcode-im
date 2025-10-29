@@ -808,8 +808,7 @@ class MessageService with ChangeNotifier {
   }
 
   /// 清除所有数据
-  void clearAll() {
-    final rooms = List<String>.from(_messagesByRoom.keys);
+  Future<void> clearAll() async {
     _messagesByRoom.clear();
     _pendingMessages.clear();
     _chats.clear();
@@ -823,10 +822,13 @@ class MessageService with ChangeNotifier {
     } catch (_) {
       // 忽略清理期间的异常
     }
-    for (final roomId in rooms) {
-      unawaited(_messageStorage.clear(roomId));
-    }
     notifyListeners();
+
+    try {
+      await _messageStorage.clearAll();
+    } catch (e) {
+      debugPrint('Failed to clear persisted messages: $e');
+    }
   }
 
   /// 将会话标记为已读

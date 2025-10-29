@@ -295,69 +295,75 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: _handleBackNavigation,
-              child: const SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 20,
-                  color: AppColors.textPrimary,
-                ),
+    return Consumer<ChatProvider>(
+      builder: (context, provider, _) {
+        final showUpdating = provider.isLoading && provider.messages.isEmpty;
+        final statusStyle = theme.textTheme.bodySmall?.copyWith(
+          color: AppColors.textSecondary,
+        );
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-
-          // 头像
-          if (widget.chatAvatar != null) ...[
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: AssetImage(widget.chatAvatar!),
-            ),
-            const SizedBox(width: 12),
-          ],
-
-          // 标题
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.chatName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
+          child: Row(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: _handleBackNavigation,
+                  child: const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-                if (widget.chatType == ChatType.group) ...[
-                  const SizedBox(height: 2),
-                  Consumer<ChatProvider>(
-                    builder: (context, provider, _) {
-                      final subtitle = _groupMemberSubtitle(provider);
-                      return GestureDetector(
+              ),
+              const SizedBox(width: 8),
+
+              // 头像
+              if (widget.chatAvatar != null) ...[
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage: AssetImage(widget.chatAvatar!),
+                ),
+                const SizedBox(width: 12),
+              ],
+
+              // 标题
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.chatName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (widget.chatType == ChatType.group) ...[
+                      const SizedBox(height: 2),
+                      GestureDetector(
                         onTap: _memberCountLoadFailed
                             ? () => _loadMemberCount(forceRefresh: true)
                             : null,
                         child: Text(
-                          subtitle,
+                          _groupMemberSubtitle(provider),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: AppColors.textSecondary,
                             decoration: _memberCountLoadFailed
@@ -365,33 +371,56 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
                                 : TextDecoration.none,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // 更多按钮
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: _showChatInfo,
-              child: const SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.more_horiz,
-                  size: 24,
-                  color: AppColors.textPrimary,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ),
+
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(
+                      sizeFactor: animation,
+                      axis: Axis.horizontal,
+                      child: child,
+                    ),
+                  );
+                },
+                child: showUpdating
+                    ? Padding(
+                        key: const ValueKey('header-updating'),
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Text('(更新中...)', style: statusStyle),
+                      )
+                    : const SizedBox.shrink(
+                        key: ValueKey('header-updating-off'),
+                      ),
+              ),
+
+              // 更多按钮
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: _showChatInfo,
+                  child: const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.more_horiz,
+                      size: 24,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -410,7 +439,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         });
 
         final hasMessages = provider.messages.isNotEmpty;
-        final showInitialLoader = provider.isLoading && !hasMessages;
 
         if (hasMessages && _messageListOpacity < 1.0) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -521,30 +549,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           );
         }
 
-        return Stack(
-          children: [
-            Positioned.fill(child: content),
-            Positioned.fill(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: showInitialLoader
-                    ? Container(
-                        key: const ValueKey('initial-loader'),
-                        color: AppColors.background.withValues(alpha: 0.12),
-                        alignment: Alignment.center,
-                        child: const SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: CircularProgressIndicator(strokeWidth: 2.4),
-                        ),
-                      )
-                    : const SizedBox.shrink(
-                        key: ValueKey('initial-loader-off'),
-                      ),
-              ),
-            ),
-          ],
-        );
+        return content;
       },
     );
   }

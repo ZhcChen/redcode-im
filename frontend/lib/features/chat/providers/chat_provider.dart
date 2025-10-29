@@ -117,7 +117,7 @@ class ChatProvider with ChangeNotifier {
     if (_currentRoomId == null || _isLoading) return;
 
     _isLoading = true;
-    if (showLoading) {
+    if (showLoading || _messages.isEmpty) {
       notifyListeners();
     }
 

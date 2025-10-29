@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/message_service.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/login_page.dart';
 import '../auth/models/auth_user.dart';
@@ -24,6 +25,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _loading = true;
   bool _deactivating = false;
   bool _updatingNickname = false;
+  bool _clearingCache = false;
 
   @override
   void initState() {
@@ -221,23 +223,94 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _clearLocalCache() async {
+    if (_clearingCache) return;
+
+    final confirm = await showConfirmActionDialog(
+      context,
+      title: '清除缓存',
+      message: '将删除本地聊天记录缓存数据，确认继续？',
+      confirmLabel: '清除',
+    );
+    if (!mounted || confirm != true) {
+      return;
+    }
+
+    setState(() => _clearingCache = true);
+    try {
+      await MessageService.instance.clearAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('缓存已清除')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('清除缓存失败：$error')));
+    } finally {
+      if (mounted) {
+        setState(() => _clearingCache = false);
+      } else {
+        _clearingCache = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = <_SettingItemData>[
       _SettingItemData(
         title: '账号与安全',
-        asset: AppAssets.settingsAccountSafe,
-        onTap: _openAccountSecurity,
+        leading: Image.asset(
+          AppAssets.settingsAccountSafe,
+          width: 24,
+          height: 24,
+        ),
+        onTap: () async => _openAccountSecurity(),
       ),
       _SettingItemData(
         title: '隐私政策',
-        asset: AppAssets.settingsPrivacy,
-        onTap: _openPrivacyPolicy,
+        leading: Image.asset(AppAssets.settingsPrivacy, width: 24, height: 24),
+        onTap: () async => _openPrivacyPolicy(),
       ),
       _SettingItemData(
         title: '意见反馈',
-        asset: AppAssets.settingsFeedback,
+        leading: Image.asset(AppAssets.settingsFeedback, width: 24, height: 24),
         onTap: _openFeedback,
+      ),
+      _SettingItemData(
+        title: '清除聊天缓存',
+        leading: const Icon(
+          Icons.cleaning_services_outlined,
+          size: 24,
+          color: AppColors.textPrimary,
+        ),
+        onTap: _clearingCache ? null : _clearLocalCache,
+        trailingBuilder: (_) => AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            );
+          },
+          child: _clearingCache
+              ? SizedBox(
+                  key: const ValueKey('clearing-cache'),
+                  width: 18,
+                  height: 18,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                )
+              : const Icon(
+                  Icons.chevron_right,
+                  key: ValueKey('cache-chevron'),
+                  color: AppColors.textQuaternary,
+                ),
+        ),
       ),
     ];
 
@@ -445,35 +518,31 @@ class _SettingListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trailing =
+        data.trailingBuilder?.call(context) ??
+        const Icon(Icons.chevron_right, color: AppColors.textQuaternary);
+
     return InkWell(
-      onTap: data.onTap,
+      onTap: data.onTap == null ? null : () async => await data.onTap!.call(),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Column(
           children: [
             Row(
               children: [
-                Image.asset(data.asset, width: 24, height: 24),
+                SizedBox(width: 24, height: 24, child: data.leading),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        data.title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    data.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textQuaternary,
-                ),
+                trailing,
               ],
             ),
             if (showDivider)
@@ -581,11 +650,13 @@ class _DangerZone extends StatelessWidget {
 class _SettingItemData {
   const _SettingItemData({
     required this.title,
-    required this.asset,
+    required this.leading,
     this.onTap,
+    this.trailingBuilder,
   });
 
   final String title;
-  final String asset;
-  final VoidCallback? onTap;
+  final Widget leading;
+  final Future<void> Function()? onTap;
+  final Widget Function(BuildContext context)? trailingBuilder;
 }

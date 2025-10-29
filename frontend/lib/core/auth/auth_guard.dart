@@ -72,9 +72,15 @@ class _AuthGuardState extends State<AuthGuard> {
   }
 
   void _cleanupSessionSideEffects() {
-    try { WebSocketService.instance.disconnect(); } catch (_) {}
-    try { MessageService.instance.clearAll(); } catch (_) {}
-    try { FriendStore.instance.clearAll(); } catch (_) {}
+    try {
+      WebSocketService.instance.disconnect();
+    } catch (_) {}
+    try {
+      unawaited(MessageService.instance.clearAll());
+    } catch (_) {}
+    try {
+      FriendStore.instance.clearAll();
+    } catch (_) {}
   }
 
   @override
