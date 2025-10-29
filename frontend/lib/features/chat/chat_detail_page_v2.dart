@@ -161,7 +161,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!_scrollController.hasClients) {
-        if (retry < 5) {
+        if (retry < 10) {
           _scrollToBottom(retry: retry + 1, animated: animated);
         }
         return;
@@ -199,7 +199,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     if (!mounted || !_scrollController.hasClients) return;
     final position = _scrollController.position;
     final remaining = position.maxScrollExtent - position.pixels;
-    if (remaining <= 0.5 || attempt >= 3) {
+    if (remaining <= 0.5 || attempt >= 8) {
       return;
     }
 
