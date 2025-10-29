@@ -199,7 +199,23 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     if (!mounted || !_scrollController.hasClients) return;
     final position = _scrollController.position;
     final remaining = position.maxScrollExtent - position.pixels;
-    if (remaining <= 0.5 || attempt >= 8) {
+    if (remaining <= 0.5) {
+      return;
+    }
+
+    if (attempt >= 8) {
+      final lastId = _lastMessageId;
+      if (lastId != null) {
+        final key = _messageItemKeys[lastId];
+        final targetContext = key?.currentContext;
+        if (targetContext != null) {
+          Scrollable.ensureVisible(
+            targetContext,
+            duration: Duration.zero,
+            alignment: 1.0,
+          );
+        }
+      }
       return;
     }
 
