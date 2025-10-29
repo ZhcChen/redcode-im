@@ -463,7 +463,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
           if (bottomInset != _lastKeyboardInset) {
-            if (bottomInset > _lastKeyboardInset && _isAtBottom) {
+            // 键盘弹起时，自动滚动到底部
+            // 无论用户是否在底部，都应该滚动到底部以确保输入框和消息可见
+            if (bottomInset > _lastKeyboardInset) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _scrollToBottom(animated: false);
