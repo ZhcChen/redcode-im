@@ -245,21 +245,32 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+
     return ChangeNotifierProvider.value(
       value: _chatProvider,
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(context),
-              Expanded(child: _buildMessageList()),
-              _buildInputArea(),
-              if (_showEmojiPanel)
-                _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
-              if (_showMorePanel)
-                _MoreActionsPanel(onActionSelected: _handleMoreAction),
-            ],
+        resizeToAvoidBottomInset: false,
+        body: AnimatedPadding(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: keyboardInset),
+          child: SafeArea(
+            top: true,
+            bottom: false,
+            child: Column(
+              children: [
+                _buildHeader(context),
+                Expanded(child: _buildMessageList()),
+                _buildInputArea(),
+                if (_showEmojiPanel)
+                  _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
+                if (_showMorePanel)
+                  _MoreActionsPanel(onActionSelected: _handleMoreAction),
+              ],
+            ),
           ),
         ),
       ),
@@ -1637,9 +1648,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    return _isSelf
-        ? _buildSelfBubble(context)
-        : _buildPeerBubble(context);
+    return _isSelf ? _buildSelfBubble(context) : _buildPeerBubble(context);
   }
 
   Widget _buildSelfBubble(BuildContext context) {
