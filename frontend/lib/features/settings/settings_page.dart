@@ -239,6 +239,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _clearingCache = true);
     try {
       await MessageService.instance.clearAll();
+      await MessageService.instance.fetchChats();
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
