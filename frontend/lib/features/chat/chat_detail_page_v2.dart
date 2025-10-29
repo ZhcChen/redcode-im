@@ -60,6 +60,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   bool _showMorePanel = false;
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
+  double _inputAreaHeight = 0.0;
+  bool _inputHeightMeasureScheduled = false;
+
+  static const double _emojiPanelHeight = 200.0;
+  static const double _morePanelHeight = 120.0;
   @override
   void initState() {
     super.initState();
@@ -76,6 +81,28 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         });
       }
     });
+  }
+
+  void _scheduleMeasureInputArea() {
+    if (_inputHeightMeasureScheduled) return;
+    _inputHeightMeasureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _inputHeightMeasureScheduled = false;
+      if (!mounted) return;
+      _measureInputAreaHeight();
+    });
+  }
+
+  void _measureInputAreaHeight() {
+    final context = _inputAreaKey.currentContext;
+    if (context == null) return;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+
+    final newHeight = renderBox.size.height;
+    if ((newHeight - _inputAreaHeight).abs() > 0.5) {
+      setState(() => _inputAreaHeight = newHeight);
+    }
   }
 
   Future<void> _initChat() async {
@@ -244,36 +271,31 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final keyboardInset = mediaQuery.viewInsets.bottom;
+    _scheduleMeasureInputArea();
+
+    final double inputHeight = _inputAreaHeight > 0.0 ? _inputAreaHeight : 72.0;
+    final double panelHeight = _showEmojiPanel
+        ? _emojiPanelHeight
+        : (_showMorePanel ? _morePanelHeight : 0.0);
+    final double listBottomPadding = inputHeight + panelHeight + 16.0;
 
     return ChangeNotifierProvider.value(
       value: _chatProvider,
       child: Scaffold(
         backgroundColor: AppColors.background,
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: true,
         body: SafeArea(
           top: true,
           bottom: false,
           child: Column(
             children: [
               _buildHeader(context),
-              Expanded(child: _buildMessageList()),
-              AnimatedPadding(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                padding: EdgeInsets.only(bottom: keyboardInset),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildInputArea(),
-                    if (_showEmojiPanel)
-                      _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
-                    if (_showMorePanel)
-                      _MoreActionsPanel(onActionSelected: _handleMoreAction),
-                  ],
-                ),
-              ),
+              Expanded(child: _buildMessageList(listBottomPadding)),
+              _buildInputArea(),
+              if (_showEmojiPanel)
+                _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
+              if (_showMorePanel)
+                _MoreActionsPanel(onActionSelected: _handleMoreAction),
             ],
           ),
         ),
@@ -418,7 +440,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     }
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(double bottomPadding) {
     return Consumer<ChatProvider>(
       builder: (context, provider, child) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -439,11 +461,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
         Widget content;
         if (!hasMessages) {
-          // 空消息状态也采用相同的策略：键盘弹起时减小底部 padding
-          final mediaQuery = MediaQuery.of(context);
-          final bottomInset = mediaQuery.viewInsets.bottom;
-          final bottomPadding = bottomInset > 0 ? 12.0 : 24.0;
-
           content = Center(
             child: Padding(
               padding: EdgeInsets.only(bottom: bottomPadding),
@@ -487,10 +504,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             }
             _lastKeyboardInset = bottomInset;
           }
-
-          // 键盘弹起时最小化底部内边距，让 ListView 能充分向上"顶"
-          // 键盘弹起时使用小值（12px），没弹起时使用正常值（24px）
-          final bottomPadding = bottomInset > 0 ? 12.0 : 24.0;
 
           content = AnimatedOpacity(
             opacity: _messageListOpacity,
