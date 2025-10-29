@@ -287,50 +287,25 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         ? _emojiPanelHeight
         : (_showMorePanel ? _morePanelHeight : 0.0);
     final double overlayHeight = inputAreaHeight + additionalPanelHeight;
+    final double bottomSpacing = keyboardInset > 0 ? 32.0 : 24.0;
 
     return ChangeNotifierProvider.value(
       value: _chatProvider,
       child: Scaffold(
         backgroundColor: AppColors.background,
-        resizeToAvoidBottomInset: false,
-        body: AnimatedPadding(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(bottom: keyboardInset),
-          child: SafeArea(
-            top: true,
-            bottom: false,
-            child: Column(
-              children: [
-                _buildHeader(context),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(child: _buildMessageList(overlayHeight)),
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildInputArea(),
-                            if (_showEmojiPanel)
-                              _EmojiPanel(
-                                key: const ValueKey('emoji-panel'),
-                                onEmojiSelected: _handleEmojiSelected,
-                              ),
-                            if (_showMorePanel)
-                              _MoreActionsPanel(
-                                key: const ValueKey('more-panel'),
-                                onActionSelected: _handleMoreAction,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(child: _buildMessageList(overlayHeight, bottomSpacing)),
+              _buildInputArea(),
+              if (_showEmojiPanel)
+                _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
+              if (_showMorePanel)
+                _MoreActionsPanel(onActionSelected: _handleMoreAction),
+            ],
           ),
         ),
       ),
@@ -474,7 +449,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     }
   }
 
-  Widget _buildMessageList(double overlayHeight) {
+  Widget _buildMessageList(double overlayHeight, double bottomSpacing) {
     return Consumer<ChatProvider>(
       builder: (context, provider, child) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -495,9 +470,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
         Widget content;
         if (!hasMessages) {
-          final mediaQuery = MediaQuery.of(context);
-          final bottomInset = mediaQuery.viewInsets.bottom;
-          final bottomSpacing = bottomInset > 0 ? 32.0 : 24.0;
           // 空消息状态也采用相同的策略：键盘弹起时减小底部 padding
           final bottomPadding = overlayHeight + bottomSpacing;
 
@@ -533,7 +505,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         } else {
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
-          final bottomSpacing = bottomInset > 0 ? 32.0 : 24.0;
           if (bottomInset != _lastKeyboardInset) {
             // 键盘弹起时，自动滚动到底部
             // 无论用户是否在底部，都应该滚动到底部以确保输入框和消息可见
