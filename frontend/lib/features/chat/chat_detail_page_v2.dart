@@ -424,30 +424,39 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
         Widget content;
         if (!hasMessages) {
+          final mediaQuery = MediaQuery.of(context);
+          final bottomInset = mediaQuery.viewInsets.bottom;
+          // 为空消息状态也添加底部内边距，避免被键盘遮挡
+          const extraBottomSpacing = 24.0;
+          final bottomPadding = bottomInset + extraBottomSpacing;
+
           content = Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  size: 64,
-                  color: AppColors.textTertiary.withValues(alpha: 0.5),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '暂无消息',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textSecondary,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: bottomPadding),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    size: 64,
+                    color: AppColors.textTertiary.withValues(alpha: 0.5),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '开始聊天吧',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textTertiary,
+                  const SizedBox(height: 16),
+                  Text(
+                    '暂无消息',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    '开始聊天吧',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         } else {
@@ -463,8 +472,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             _lastKeyboardInset = bottomInset;
           }
 
-          // 输入区域内部已经处理 SafeArea 底部间距，这里只保留列表尾部的视觉留白即可。
-          const bottomPadding = 24.0;
+          // 动态计算底部内边距：键盘高度 + 额外留白
+          // 当键盘弹起时，bottomInset > 0，需要为键盘留出空间
+          // 当键盘收起时，bottomInset = 0，只保留视觉留白
+          const extraBottomSpacing = 24.0;
+          final bottomPadding = bottomInset + extraBottomSpacing;
 
           content = AnimatedOpacity(
             opacity: _messageListOpacity,
@@ -472,7 +484,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             curve: Curves.easeOut,
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
               itemCount: provider.messages.length,
               itemBuilder: (context, index) {
                 final message = provider.messages[index];
@@ -1620,53 +1632,15 @@ class _MessageBubble extends StatefulWidget {
   State<_MessageBubble> createState() => _MessageBubbleState();
 }
 
-class _MessageBubbleState extends State<_MessageBubble>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _appearController;
-  late final Animation<double> _sizeAnimation;
-
+class _MessageBubbleState extends State<_MessageBubble> {
   Message get _message => widget.message;
   bool get _isSelf => _message.isSelf;
 
   @override
-  void initState() {
-    super.initState();
-    _appearController = AnimationController(
-      duration: const Duration(milliseconds: 220),
-      vsync: this,
-    );
-    _sizeAnimation = CurvedAnimation(
-      parent: _appearController,
-      curve: Curves.easeOutCubic,
-    );
-    _appearController.forward();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MessageBubble oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.message.id != widget.message.id) {
-      _appearController.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _appearController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final bubble = _isSelf
+    return _isSelf
         ? _buildSelfBubble(context)
         : _buildPeerBubble(context);
-
-    return SizeTransition(
-      sizeFactor: _sizeAnimation,
-      axisAlignment: -1,
-      child: FadeTransition(opacity: _sizeAnimation, child: bubble),
-    );
   }
 
   Widget _buildSelfBubble(BuildContext context) {
