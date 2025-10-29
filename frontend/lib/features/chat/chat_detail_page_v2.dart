@@ -60,6 +60,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   bool _showMorePanel = false;
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
+  bool _wasKeyboardVisible = false;
   @override
   void initState() {
     super.initState();
@@ -244,8 +245,20 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final keyboardVisible = keyboardInset > 0.0;
+
+    if (keyboardVisible && !_wasKeyboardVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToBottom(animated: false);
+      });
+    }
+    _wasKeyboardVisible = keyboardVisible;
+
     final double listBottomPadding = (_showEmojiPanel || _showMorePanel)
-        ? 20.0
+        ? (_showEmojiPanel ? 200.0 : 120.0) + 16.0
         : 12.0;
 
     return ChangeNotifierProvider.value(
