@@ -1918,16 +1918,7 @@ class _MessageBubble extends StatelessWidget {
 
     switch (message.status) {
       case MessageStatus.sending:
-        return wrap(
-          const SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-        );
+        return null;
       case MessageStatus.sent:
         return wrap(const Icon(Icons.done, size: 12, color: Colors.white));
       case MessageStatus.delivered:
