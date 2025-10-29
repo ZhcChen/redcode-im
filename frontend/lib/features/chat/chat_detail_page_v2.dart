@@ -61,7 +61,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
   bool _wasKeyboardVisible = false;
-  Timer? _keyboardScrollTimer;
   @override
   void initState() {
     super.initState();
@@ -125,7 +124,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     _textController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
-    _keyboardScrollTimer?.cancel();
     super.dispose();
   }
 
@@ -252,13 +250,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     final keyboardVisible = keyboardInset > 0.0;
 
     if (keyboardVisible && !_wasKeyboardVisible) {
-      _keyboardScrollTimer?.cancel();
-      _keyboardScrollTimer = Timer(const Duration(seconds: 3), () {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _scrollToBottom(animated: false);
       });
-    } else if (!keyboardVisible && _wasKeyboardVisible) {
-      _keyboardScrollTimer?.cancel();
     }
     _wasKeyboardVisible = keyboardVisible;
 
