@@ -60,6 +60,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   bool _showMorePanel = false;
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
+  double _inputAreaHeight = 0.0;
+  bool _inputHeightMeasureScheduled = false;
+
+  static const double _emojiPanelHeight = 200.0;
+  static const double _morePanelHeight = 120.0;
 
   @override
   void initState() {
@@ -77,6 +82,32 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         });
       }
     });
+  }
+
+  void _scheduleMeasureInputArea() {
+    if (_inputHeightMeasureScheduled) return;
+    _inputHeightMeasureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _inputHeightMeasureScheduled = false;
+      if (!mounted) return;
+      _measureInputAreaHeight();
+    });
+  }
+
+  void _measureInputAreaHeight() {
+    final context = _inputAreaKey.currentContext;
+    if (context == null) return;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+
+    final newHeight = renderBox.size.height;
+    if ((newHeight - _inputAreaHeight).abs() > 0.5) {
+      setState(() => _inputAreaHeight = newHeight);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToBottom(animated: false);
+      });
+    }
   }
 
   Future<void> _initChat() async {
@@ -247,6 +278,15 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
+    _scheduleMeasureInputArea();
+
+    final double inputAreaHeight = _inputAreaHeight > 0.0
+        ? _inputAreaHeight
+        : 72.0;
+    final double additionalPanelHeight = _showEmojiPanel
+        ? _emojiPanelHeight
+        : (_showMorePanel ? _morePanelHeight : 0.0);
+    final double overlayHeight = inputAreaHeight + additionalPanelHeight;
 
     return ChangeNotifierProvider.value(
       value: _chatProvider,
@@ -263,12 +303,32 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             child: Column(
               children: [
                 _buildHeader(context),
-                Expanded(child: _buildMessageList()),
-                _buildInputArea(),
-                if (_showEmojiPanel)
-                  _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
-                if (_showMorePanel)
-                  _MoreActionsPanel(onActionSelected: _handleMoreAction),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: _buildMessageList(overlayHeight)),
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildInputArea(),
+                            if (_showEmojiPanel)
+                              _EmojiPanel(
+                                key: const ValueKey('emoji-panel'),
+                                onEmojiSelected: _handleEmojiSelected,
+                              ),
+                            if (_showMorePanel)
+                              _MoreActionsPanel(
+                                key: const ValueKey('more-panel'),
+                                onActionSelected: _handleMoreAction,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -414,7 +474,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     }
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(double overlayHeight) {
     return Consumer<ChatProvider>(
       builder: (context, provider, child) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -438,7 +498,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
           // 空消息状态也采用相同的策略：键盘弹起时减小底部 padding
-          final bottomPadding = bottomInset > 0 ? 12.0 : 24.0;
+          final bottomPadding = overlayHeight + (bottomInset > 0 ? 12.0 : 24.0);
 
           content = Center(
             child: Padding(
@@ -486,7 +546,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
           // 键盘弹起时最小化底部内边距，让 ListView 能充分向上"顶"
           // 键盘弹起时使用小值（12px），没弹起时使用正常值（24px）
-          final bottomPadding = bottomInset > 0 ? 12.0 : 24.0;
+          final bottomPadding = overlayHeight + (bottomInset > 0 ? 12.0 : 24.0);
 
           content = AnimatedOpacity(
             opacity: _messageListOpacity,
@@ -702,6 +762,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     if (_showEmojiPanel) {
       FocusScope.of(context).unfocus();
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToBottom(animated: false);
+    });
   }
 
   void _toggleMore() {
@@ -713,6 +778,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     if (_showMorePanel) {
       FocusScope.of(context).unfocus();
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToBottom(animated: false);
+    });
   }
 
   void _clearQuotedMessage() {
@@ -2393,7 +2463,7 @@ class _IconButton extends StatelessWidget {
 
 /// 表情面板
 class _EmojiPanel extends StatelessWidget {
-  const _EmojiPanel({required this.onEmojiSelected});
+  const _EmojiPanel({super.key, required this.onEmojiSelected});
 
   final Function(String) onEmojiSelected;
 
@@ -2494,7 +2564,7 @@ class _EmojiPanel extends StatelessWidget {
 
 /// 更多操作面板
 class _MoreActionsPanel extends StatelessWidget {
-  const _MoreActionsPanel({required this.onActionSelected});
+  const _MoreActionsPanel({super.key, required this.onActionSelected});
 
   final Function(String) onActionSelected;
 
