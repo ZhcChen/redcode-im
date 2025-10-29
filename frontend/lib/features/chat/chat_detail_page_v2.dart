@@ -60,11 +60,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   bool _showMorePanel = false;
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
-  double _inputAreaHeight = 0.0;
-  bool _inputHeightMeasureScheduled = false;
-
-  static const double _emojiPanelHeight = 200.0;
-  static const double _morePanelHeight = 120.0;
   @override
   void initState() {
     super.initState();
@@ -81,28 +76,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         });
       }
     });
-  }
-
-  void _scheduleMeasureInputArea() {
-    if (_inputHeightMeasureScheduled) return;
-    _inputHeightMeasureScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _inputHeightMeasureScheduled = false;
-      if (!mounted) return;
-      _measureInputAreaHeight();
-    });
-  }
-
-  void _measureInputAreaHeight() {
-    final context = _inputAreaKey.currentContext;
-    if (context == null) return;
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-
-    final newHeight = renderBox.size.height;
-    if ((newHeight - _inputAreaHeight).abs() > 0.5) {
-      setState(() => _inputAreaHeight = newHeight);
-    }
   }
 
   Future<void> _initChat() async {
@@ -271,13 +244,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
 
   @override
   Widget build(BuildContext context) {
-    _scheduleMeasureInputArea();
-
-    final double inputHeight = _inputAreaHeight > 0.0 ? _inputAreaHeight : 72.0;
-    final double panelHeight = _showEmojiPanel
-        ? _emojiPanelHeight
-        : (_showMorePanel ? _morePanelHeight : 0.0);
-    final double listBottomPadding = inputHeight + panelHeight + 16.0;
+    final double listBottomPadding = (_showEmojiPanel || _showMorePanel)
+        ? 20.0
+        : 12.0;
 
     return ChangeNotifierProvider.value(
       value: _chatProvider,
@@ -286,7 +255,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
         resizeToAvoidBottomInset: true,
         body: SafeArea(
           top: true,
-          bottom: false,
           child: Column(
             children: [
               _buildHeader(context),
