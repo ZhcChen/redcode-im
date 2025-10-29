@@ -36,12 +36,10 @@ class ChatDetailPageV2 extends StatefulWidget {
 
 enum _MessageAction { copy, quote, forward, pin, delete }
 
-class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
+class _ChatDetailPageV2State extends State<ChatDetailPageV2>
+    with WidgetsBindingObserver {
   final _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController(
-    initialScrollOffset: 1000000,
-    keepScrollOffset: false,
-  );
+  final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   final GlobalKey _inputAreaKey = GlobalKey();
   double _lastKeyboardInset = 0.0;
@@ -64,6 +62,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
     _initChat();
@@ -121,10 +120,25 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     if (_ownsProvider) {
       _chatProvider.dispose();
     }
+    WidgetsBinding.instance.removeObserver(this);
     _textController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final viewInset = view.viewInsets.bottom / view.devicePixelRatio;
+    if (viewInset > _lastKeyboardInset) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToBottom(animated: false);
+      });
+    }
+    _lastKeyboardInset = viewInset;
   }
 
   void _sendMessage() {
@@ -258,7 +272,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     _wasKeyboardVisible = keyboardVisible;
 
     final double listBottomPadding = (_showEmojiPanel || _showMorePanel)
-        ? (_showEmojiPanel ? 200.0 : 120.0) + 16.0
+        ? 16.0
         : 12.0;
 
     return ChangeNotifierProvider.value(
