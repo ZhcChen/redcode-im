@@ -85,14 +85,7 @@ class _ChatListView extends StatelessWidget {
                         showBottomDivider: index != chats.length - 1,
                         onTap: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatDetailPageV2(
-                                roomId: chat.roomId,
-                                chatName: chat.name,
-                                chatAvatar: chat.avatar,
-                                chatType: chat.type,
-                              ),
-                            ),
+                            _buildChatDetailRoute(chat: chat),
                           );
                         },
                       );
@@ -181,18 +174,63 @@ class _ChatListView extends StatelessWidget {
 
           final chat = matched;
 
-          navigator.push(
-            MaterialPageRoute(
-              builder: (_) => ChatDetailPageV2(
-                roomId: chat.roomId,
-                chatName: chat.name,
-                chatAvatar: chat.avatar,
-                chatType: chat.type,
-              ),
-            ),
-          );
+          navigator.push(_buildChatDetailRoute(chat: chat));
         });
   }
+}
+
+PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
+  return PageRouteBuilder<void>(
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (routeContext, animation, secondaryAnimation) {
+      return ChatDetailPageV2(
+        roomId: chat.roomId,
+        chatName: chat.name,
+        chatAvatar: chat.avatar,
+        chatType: chat.type,
+      );
+    },
+    transitionsBuilder: (routeContext, animation, secondaryAnimation, child) {
+      final enterCurve = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final fadeCurve = CurvedAnimation(
+        parent: animation,
+        curve: const Interval(0.05, 0.9, curve: Curves.easeIn),
+        reverseCurve: Curves.easeOutQuad,
+      );
+
+      final incoming = Tween<Offset>(
+        begin: const Offset(1.0, 0),
+        end: Offset.zero,
+      ).animate(enterCurve);
+
+      final outgoing = Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-0.12, 0),
+      ).animate(
+        CurvedAnimation(
+          parent: secondaryAnimation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        ),
+      );
+
+      return SlideTransition(
+        position: outgoing,
+        child: SlideTransition(
+          position: incoming,
+          child: FadeTransition(
+            opacity: fadeCurve,
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _FavoriteAvatar extends StatelessWidget {

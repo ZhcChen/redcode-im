@@ -50,6 +50,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
   late final bool _ownsProvider;
   bool _isAtBottom = true;
   bool _skipNextScrollAnimation = true;
+  double _messageListOpacity = 0.0;
   String? _lastMessageId;
   int _lastMessageCount = 0;
   Message? _quotedMessage;
@@ -90,10 +91,19 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
       lastMessageTime: DateTime.now(),
     );
 
-    // 进入聊天室
-    await _chatProvider.enterChatRoom(widget.roomId, chat);
+    // 进入聊天室（首次渲染完成后再加载历史，减少闪动）
+    await _chatProvider.enterChatRoom(
+      widget.roomId,
+      chat,
+      delayHistoryLoad: true,
+    );
 
     if (!mounted) return;
+    final hasCachedMessages = _chatProvider.messages.isNotEmpty;
+    setState(() {
+      _messageListOpacity = hasCachedMessages ? 1.0 : 0.0;
+    });
+
     if (widget.chatType == ChatType.group) {
       await _loadMemberCount();
     }
@@ -303,7 +313,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () => Navigator.of(context).pop(),
+              onTap: _handleBackNavigation,
               child: const SizedBox(
                 width: 40,
                 height: 40,
@@ -385,6 +395,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
     );
   }
 
+  void _handleBackNavigation() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Widget _buildMessageList() {
     return Consumer<ChatProvider>(
       builder: (context, provider, child) {
@@ -393,8 +409,21 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
           _processMessages(provider.messages);
         });
 
-        if (provider.messages.isEmpty) {
-          return Center(
+        final hasMessages = provider.messages.isNotEmpty;
+        final showInitialLoader = provider.isLoading && !hasMessages;
+
+        if (hasMessages && _messageListOpacity < 1.0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _messageListOpacity = 1.0;
+            });
+          });
+        }
+
+        Widget content;
+        if (!hasMessages) {
+          content = Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -420,69 +449,101 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2> {
               ],
             ),
           );
-        }
-
-        final mediaQuery = MediaQuery.of(context);
-        final bottomInset = mediaQuery.viewInsets.bottom;
-        if (bottomInset != _lastKeyboardInset) {
-          if (bottomInset > _lastKeyboardInset && _isAtBottom) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              _scrollToBottom();
-            });
+        } else {
+          final mediaQuery = MediaQuery.of(context);
+          final bottomInset = mediaQuery.viewInsets.bottom;
+          if (bottomInset != _lastKeyboardInset) {
+            if (bottomInset > _lastKeyboardInset && _isAtBottom) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _scrollToBottom();
+              });
+            }
+            _lastKeyboardInset = bottomInset;
           }
-          _lastKeyboardInset = bottomInset;
+
+          // 输入区域内部已经处理 SafeArea 底部间距，这里只保留列表尾部的视觉留白即可。
+          const bottomPadding = 24.0;
+
+          content = AnimatedOpacity(
+            opacity: _messageListOpacity,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+              itemCount: provider.messages.length,
+              itemBuilder: (context, index) {
+                final message = provider.messages[index];
+                final previousMessage = index > 0
+                    ? provider.messages[index - 1]
+                    : null;
+                final itemKey = _messageItemKeys.putIfAbsent(
+                  message.id,
+                  () => GlobalKey(),
+                );
+
+                final showTimestamp = message.shouldShowTimestamp(
+                  previousMessage,
+                );
+                final dayLabel = message.displayTime;
+                final canShowReadReceipts = provider.shouldShowReadReceipts(
+                  message,
+                );
+
+                return Column(
+                  key: itemKey,
+                  children: [
+                    if (showTimestamp && dayLabel.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        dayLabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    _MessageBubble(
+                      message: message,
+                      onResend: () => provider.resendMessage(message.id),
+                      canShowReadReceipts: canShowReadReceipts,
+                      onShowReadReceipts: canShowReadReceipts
+                          ? () => _showMessageReaders(message)
+                          : null,
+                      onBubbleTap: _showMessageActions,
+                      onQuoteTap: _scrollToMessage,
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
         }
 
-        // 输入区域内部已经处理 SafeArea 底部间距，这里只保留列表尾部的视觉留白即可。
-        final bottomPadding = 24.0;
-
-        return ListView.builder(
-          controller: _scrollController,
-          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-          itemCount: provider.messages.length,
-          itemBuilder: (context, index) {
-            final message = provider.messages[index];
-            final previousMessage = index > 0
-                ? provider.messages[index - 1]
-                : null;
-            final itemKey = _messageItemKeys.putIfAbsent(
-              message.id,
-              () => GlobalKey(),
-            );
-
-            final showTimestamp = message.shouldShowTimestamp(previousMessage);
-            final dayLabel = message.displayTime;
-            final canShowReadReceipts = provider.shouldShowReadReceipts(
-              message,
-            );
-
-            return Column(
-              key: itemKey,
-              children: [
-                if (showTimestamp && dayLabel.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    dayLabel,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                _MessageBubble(
-                  message: message,
-                  onResend: () => provider.resendMessage(message.id),
-                  canShowReadReceipts: canShowReadReceipts,
-                  onShowReadReceipts: canShowReadReceipts
-                      ? () => _showMessageReaders(message)
-                      : null,
-                  onBubbleTap: _showMessageActions,
-                  onQuoteTap: _scrollToMessage,
-                ),
-              ],
-            );
-          },
+        return Stack(
+          children: [
+            Positioned.fill(child: content),
+            Positioned.fill(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: showInitialLoader
+                    ? Container(
+                        key: const ValueKey('initial-loader'),
+                        color: AppColors.background.withValues(alpha: 0.12),
+                        alignment: Alignment.center,
+                        child: const SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        ),
+                      )
+                    : const SizedBox.shrink(
+                        key: ValueKey('initial-loader-off'),
+                      ),
+              ),
+            ),
+          ],
         );
       },
     );

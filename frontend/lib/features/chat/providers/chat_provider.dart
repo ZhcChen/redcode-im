@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../../../core/services/message_service.dart';
 import '../../../core/services/websocket_service.dart';
 import '../models/message_model.dart';
@@ -62,30 +62,40 @@ class ChatProvider with ChangeNotifier {
   }
 
   /// 进入聊天室
-  Future<void> enterChatRoom(String roomId, Chat chat) async {
+  Future<void> enterChatRoom(
+    String roomId,
+    Chat chat, {
+    bool delayHistoryLoad = false,
+  }) async {
     if (_currentRoomId == roomId) return;
 
     _currentRoomId = roomId;
     _currentChat = chat;
-    _messages = [];
     _lastReadMessageId = null;
     _isMarkingRead = false;
+
+    _messages = _messageService.getMessages(roomId);
+    _isLoading = true;
     notifyListeners();
 
     await _messageService.loadCachedMessages(roomId);
 
+    _messages = _messageService.getMessages(roomId);
+    _isLoading = false;
+    notifyListeners();
+
     // 加入WebSocket房间
     await _webSocketService.joinRoom(roomId);
 
-    // 加载历史消息
-    await loadMessages(showLoading: false);
+    if (delayHistoryLoad) {
+      _scheduleInitialHistoryLoad();
+    } else {
+      await _loadInitialHistory();
+    }
 
     if (chat.type == ChatType.group) {
       unawaited(_ensureMemberCount(roomId));
     }
-
-    _primeReadReceiptStateIfNeeded();
-    await _syncReadState();
   }
 
   /// 离开聊天室
@@ -302,6 +312,19 @@ class ChatProvider with ChangeNotifier {
     _messageService.clearRoomMessages(roomId);
 
     // TODO: 调用API清空
+  }
+
+  Future<void> _loadInitialHistory() async {
+    await loadMessages(showLoading: false);
+    _primeReadReceiptStateIfNeeded();
+    await _syncReadState();
+  }
+
+  void _scheduleInitialHistoryLoad() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_currentRoomId == null) return;
+      await _loadInitialHistory();
+    });
   }
 
   /// 消息服务变化回调
