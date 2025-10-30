@@ -132,3 +132,60 @@ message ServerRoomCreated {
   string avatar_url = 7;
   string created_at = 8;
 }
+
+enum PubSubPriority {
+  PUBSUB_PRIORITY_UNKNOWN = 0;
+  PUBSUB_PRIORITY_CRITICAL = 1;
+  PUBSUB_PRIORITY_HIGH = 2;
+  PUBSUB_PRIORITY_NORMAL = 3;
+  PUBSUB_PRIORITY_LOW = 4;
+}
+
+message PubSubMessage {
+  string id = 1;
+  string room_id = 2;
+  string sender_id = 3;
+  string content = 4;
+  string message_type = 5;
+  PubSubPriority priority = 6;
+  string timestamp = 7;
+  string source_node = 8;
+  repeated string target_nodes = 9;
+  string sender_username = 10;
+  string sender_nickname = 11;
+  string sender_avatar_url = 12;
+  QuotedMessage quoted_message = 13;
+  ForwardMessage forward_message = 14;
+}
+
+message PubSubReadReceipt {
+  string room_id = 1;
+  string reader_id = 2;
+  string message_id = 3;
+  string read_at = 4;
+  string source_node = 5;
+}
+
+message PubSubMessageUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  bool is_deleted = 3;
+  string deleted_at = 4;
+}
+
+message PubSubPinUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  bool is_pinned = 3;
+  string pinned_at = 4;
+  string pinned_by = 5;
+}
+
+message PubSubEvent {
+  oneof payload {
+    PubSubMessage message = 1;
+    PubSubReadReceipt read_receipt = 2;
+    PubSubMessageUpdate message_update = 3;
+    PubSubPinUpdate pin_update = 4;
+  }
+}

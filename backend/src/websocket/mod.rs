@@ -514,7 +514,7 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
                     on_msg.next().await
                 } => {
                     if let Some(msg) = msg {
-                        let payload: String = match msg.get_payload() {
+                        let payload: Vec<u8> = match msg.get_payload() {
                             Ok(p) => p,
                             Err(err) => {
                                 error!("读取Redis消息负载失败: {}", err);
@@ -522,30 +522,46 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
                             }
                         };
 
-                        match serde_json::from_str::<crate::redis::models::PubSubPayload>(&payload) {
-                            Ok(event) => {
-                                let push = match event {
-                                    crate::redis::models::PubSubPayload::Message { data } => {
-                                        ServerPush::Message { data }
+                        let parsed = ws::PubSubEvent::decode(payload.as_ref())
+                            .ok()
+                            .and_then(|event| crate::redis::models::PubSubPayload::try_from(event).ok())
+                            .or_else(|| {
+                                match std::str::from_utf8(&payload) {
+                                    Ok(text) => match serde_json::from_str::<crate::redis::models::PubSubPayload>(text) {
+                                        Ok(event) => Some(event),
+                                        Err(err) => {
+                                            error!("解析Redis消息失败: {}", err);
+                                            None
+                                        }
+                                    },
+                                    Err(err) => {
+                                        error!("Redis 消息不是有效的 UTF-8: {}", err);
+                                        None
                                     }
-                                    crate::redis::models::PubSubPayload::ReadReceipt { data } => {
-                                        ServerPush::MessageRead { data }
-                                    }
-                                    crate::redis::models::PubSubPayload::MessageUpdate { data } => {
-                                        ServerPush::MessageUpdate { data }
-                                    }
-                                    crate::redis::models::PubSubPayload::PinUpdate { data } => {
-                                        ServerPush::PinUpdate { data }
-                                    }
-                                };
+                                }
+                            });
 
-                                let frame = push.encode(format_for_pubsub);
-                                let _ = out_tx_clone.send(frame);
+                        let Some(event) = parsed else {
+                            continue;
+                        };
+
+                        let push = match event {
+                            crate::redis::models::PubSubPayload::Message { data } => {
+                                ServerPush::Message { data }
                             }
-                            Err(err) => {
-                                error!("解析Redis消息失败: {}", err);
+                            crate::redis::models::PubSubPayload::ReadReceipt { data } => {
+                                ServerPush::MessageRead { data }
                             }
-                        }
+                            crate::redis::models::PubSubPayload::MessageUpdate { data } => {
+                                ServerPush::MessageUpdate { data }
+                            }
+                            crate::redis::models::PubSubPayload::PinUpdate { data } => {
+                                ServerPush::PinUpdate { data }
+                            }
+                        };
+
+                        let frame = push.encode(format_for_pubsub);
+                        let _ = out_tx_clone.send(frame);
                     }
                 }
             }

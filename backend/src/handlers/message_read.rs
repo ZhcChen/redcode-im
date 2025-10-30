@@ -189,7 +189,7 @@ async fn publish_read_receipt(
         },
     };
 
-    let serialized = serde_json::to_string(&payload)?;
+    let serialized = payload.encode_protobuf();
     let channel = CacheKeys::pubsub_channel(&room_id);
 
     let mut conn = state
@@ -197,7 +197,7 @@ async fn publish_read_receipt(
         .get_pubsub_client()
         .get_async_connection()
         .await?;
-    let _: i64 = conn.publish(&channel, &serialized).await?;
+    let _: i64 = conn.publish(&channel, serialized).await?;
 
     Ok(())
 }

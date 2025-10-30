@@ -1,11 +1,15 @@
-use redis::{Client, AsyncCommands, RedisResult};
+use redis::{AsyncCommands, Client, RedisResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use serde_json;
-use tracing::{info, error, warn};
-use std::sync::Arc;
+use tracing::{error, info, warn};
 use std::collections::HashSet;
+use std::str;
+use std::sync::Arc;
 
+use prost::Message as _;
+
+use crate::proto::ws;
 use crate::redis::models::{CacheKeys, PubSubPayload};
 
 /// Redis Pub/Sub 管理器
@@ -66,10 +70,9 @@ impl PubSubManager {
         let mut conn = self.client.get_async_connection().await?;
         let channel = CacheKeys::pubsub_channel(room_id);
 
-        let message_json = serde_json::to_string(payload)
-            .map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string())))?;
+        let encoded = payload.encode_protobuf();
 
-        let subscriber_count: i32 = conn.publish(&channel, &message_json).await?;
+        let subscriber_count: i32 = conn.publish(&channel, encoded).await?;
 
         info!("消息发布到房间 {}: {} 个订阅者收到", room_id, subscriber_count);
         Ok(())
@@ -118,12 +121,16 @@ impl PubSubManager {
         let mut stream = pubsub.on_message();
         while let Some(msg) = stream.next().await {
             let channel = msg.get_channel_name();
-            let payload: String = msg.get_payload()?;
+            let payload_bytes: Vec<u8> = msg.get_payload()?;
 
             if channel == "system:control" {
-                Self::handle_system_control(&payload, &node_id).await;
+                if let Ok(text) = str::from_utf8(&payload_bytes) {
+                    Self::handle_system_control(text, &node_id).await;
+                } else {
+                    warn!("系统控制消息不是有效的 UTF-8 文本");
+                }
             } else if channel.starts_with("room:") {
-                Self::handle_room_message(&payload, &node_id, &message_sender).await;
+                Self::handle_room_message(&payload_bytes, &node_id, &message_sender).await;
             }
         }
 
@@ -156,41 +163,79 @@ impl PubSubManager {
 
     /// 处理房间消息
     async fn handle_room_message(
-        payload: &str,
+        payload: &[u8],
         node_id: &str,
         message_sender: &mpsc::UnboundedSender<PubSubPayload>,
     ) {
-        match serde_json::from_str::<PubSubPayload>(payload) {
-            Ok(event) => {
-                let should_forward = match &event {
-                    PubSubPayload::Message { data } => data.source_node != node_id,
-                    PubSubPayload::ReadReceipt { data } => data.source_node != node_id,
-                };
-
-                if should_forward {
-                    match &event {
-                        PubSubPayload::Message { data } => {
-                            info!(
-                                "收到跨节点消息 [{}]: 房间={}, 发送者={}",
-                                node_id, data.room_id, data.sender_id
-                            );
+        let parsed = ws::PubSubEvent::decode(payload)
+            .ok()
+            .and_then(|event| PubSubPayload::try_from(event).ok())
+            .or_else(|| {
+                match str::from_utf8(payload) {
+                    Ok(text) => match serde_json::from_str::<PubSubPayload>(text) {
+                        Ok(event) => Some(event),
+                        Err(err) => {
+                            error!("解析房间消息失败 [{}]: {:?}", node_id, err);
+                            None
                         }
-                        PubSubPayload::ReadReceipt { data } => {
-                            info!(
-                                "收到跨节点已读回执 [{}]: 房间={}, 读者={}, 消息={}",
-                                node_id, data.room_id, data.reader_id, data.message_id
-                            );
-                        }
-                    }
-
-                    if let Err(e) = message_sender.send(event) {
-                        error!("发送消息到处理器失败: {:?}", e);
+                    },
+                    Err(err) => {
+                        error!("房间消息不是有效的 UTF-8 [{}]: {:?}", node_id, err);
+                        None
                     }
                 }
+            });
+
+        let Some(event) = parsed else {
+            return;
+        };
+
+        let should_forward = match &event {
+            PubSubPayload::Message { data } => data.source_node != node_id,
+            PubSubPayload::ReadReceipt { data } => data.source_node != node_id,
+            PubSubPayload::MessageUpdate { .. } => true,
+            PubSubPayload::PinUpdate { .. } => true,
+        };
+
+        if !should_forward {
+            return;
+        }
+
+        match &event {
+            PubSubPayload::Message { data } => {
+                info!(
+                    "收到跨节点消息 [{}]: 房间={}, 发送者={}",
+                    node_id, data.room_id, data.sender_id
+                );
             }
-            Err(e) => {
-                error!("解析房间消息失败 [{}]: {:?}", node_id, e);
+            PubSubPayload::ReadReceipt { data } => {
+                info!(
+                    "收到跨节点已读回执 [{}]: 房间={}, 读者={}, 消息={}",
+                    node_id, data.room_id, data.reader_id, data.message_id
+                );
             }
+            PubSubPayload::MessageUpdate { data } => {
+                info!(
+                    "收到跨节点消息更新 [{}]: 房间={}, 消息={}, 删除状态={}",
+                    node_id, data.room_id, data.message_id, data.is_deleted
+                );
+            }
+            PubSubPayload::PinUpdate { data } => {
+                info!(
+                    "收到跨节点置顶更新 [{}]: 房间={}, 消息={}, 是否置顶={}",
+                    node_id,
+                    data.room_id,
+                    data
+                        .message_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "<none>".to_string()),
+                    data.is_pinned
+                );
+            }
+        }
+
+        if let Err(e) = message_sender.send(event) {
+            error!("发送消息到处理器失败: {:?}", e);
         }
     }
 

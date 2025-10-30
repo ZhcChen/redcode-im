@@ -547,9 +547,10 @@ pub async fn broadcast_message_to_room(
         forward_message: build_forward_payload(message),
     };
 
-    let payload = serde_json::to_string(&PubSubPayload::Message {
+    let payload = PubSubPayload::Message {
         data: redis_message,
-    })?;
+    };
+    let encoded = payload.encode_protobuf();
     let channel = CacheKeys::pubsub_channel(&message.room_id);
 
     // 发布到Redis
@@ -558,7 +559,7 @@ pub async fn broadcast_message_to_room(
         .get_pubsub_client()
         .get_async_connection()
         .await?;
-    let subscriber_count: i64 = conn.publish(&channel, &payload).await?;
+    let subscriber_count: i64 = conn.publish(&channel, encoded).await?;
 
     info!(
         "消息 {} 已广播到房间 {} ({} 个订阅者)",
@@ -573,7 +574,7 @@ pub async fn broadcast_message_update(
     payload: MessageUpdatePayload,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let channel = CacheKeys::pubsub_channel(&payload.room_id);
-    let encoded = serde_json::to_string(&PubSubPayload::MessageUpdate { data: payload })?;
+    let encoded = PubSubPayload::MessageUpdate { data: payload }.encode_protobuf();
 
     let mut conn = state
         .redis
@@ -595,7 +596,7 @@ pub async fn broadcast_pin_update(
     payload: PinUpdatePayload,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let channel = CacheKeys::pubsub_channel(&payload.room_id);
-    let encoded = serde_json::to_string(&PubSubPayload::PinUpdate { data: payload })?;
+    let encoded = PubSubPayload::PinUpdate { data: payload }.encode_protobuf();
 
     let mut conn = state
         .redis
