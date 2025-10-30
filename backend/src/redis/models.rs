@@ -49,6 +49,8 @@ pub struct CrossNodeMessage {
     pub sender_avatar_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quoted_message: Option<QuotedMessagePayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forward_message: Option<ForwardMessagePayload>,
 }
 
 /// 节点心跳信息
@@ -140,6 +142,41 @@ pub struct QuotedMessagePayload {
     pub is_deleted: bool,
 }
 
+/// 被转发的消息载荷
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForwardMessagePayload {
+    pub message_id: Uuid,
+    pub room_id: Uuid,
+    pub sender_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_nickname: Option<String>,
+}
+
+/// 消息更新事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageUpdatePayload {
+    pub room_id: Uuid,
+    pub message_id: Uuid,
+    pub is_deleted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+/// 置顶消息事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PinUpdatePayload {
+    pub room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_by: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_at: Option<DateTime<Utc>>,
+    pub is_pinned: bool,
+}
+
 /// Pub/Sub 统一事件载荷
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event_type", rename_all = "snake_case")]
@@ -151,6 +188,14 @@ pub enum PubSubPayload {
     ReadReceipt {
         #[serde(flatten)]
         data: ReadReceiptEvent,
+    },
+    MessageUpdate {
+        #[serde(flatten)]
+        data: MessageUpdatePayload,
+    },
+    PinUpdate {
+        #[serde(flatten)]
+        data: PinUpdatePayload,
     },
 }
 

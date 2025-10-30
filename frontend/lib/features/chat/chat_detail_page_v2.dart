@@ -36,6 +36,20 @@ class ChatDetailPageV2 extends StatefulWidget {
 
 enum _MessageAction { copy, quote, forward, pin, delete }
 
+class _MessageActionEntry {
+  const _MessageActionEntry({
+    required this.action,
+    required this.label,
+    required this.icon,
+    this.danger = false,
+  });
+
+  final _MessageAction action;
+  final String label;
+  final IconData icon;
+  final bool danger;
+}
+
 class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     with WidgetsBindingObserver {
   final _textController = TextEditingController();
@@ -502,6 +516,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             ),
           );
         } else {
+          final messages = provider.messages;
+          final pinnedMessage = provider.pinnedMessage;
+          final hasPinnedBanner =
+              pinnedMessage != null && messages.contains(pinnedMessage);
           final mediaQuery = MediaQuery.of(context);
           final bottomInset = mediaQuery.viewInsets.bottom;
           if (bottomInset != _lastKeyboardInset) {
@@ -523,11 +541,22 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             child: ListView.builder(
               controller: _scrollController,
               padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-              itemCount: provider.messages.length,
+              itemCount: messages.length + (hasPinnedBanner ? 1 : 0),
               itemBuilder: (context, index) {
-                final message = provider.messages[index];
-                final previousMessage = index > 0
-                    ? provider.messages[index - 1]
+                if (hasPinnedBanner && index == 0) {
+                  // ignore: unnecessary_non_null_assertion
+                  final pinned = pinnedMessage!;
+                  return _PinnedMessageBanner(
+                    message: pinned,
+                    onTap: () => _scrollToMessage(pinned.id),
+                    onUnpin: () => unawaited(_togglePinMessage(pinned)),
+                  );
+                }
+
+                final effectiveIndex = hasPinnedBanner ? index - 1 : index;
+                final message = messages[effectiveIndex];
+                final previousMessage = effectiveIndex > 0
+                    ? messages[effectiveIndex - 1]
                     : null;
                 final itemKey = _messageItemKeys.putIfAbsent(
                   message.id,
@@ -844,7 +873,68 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     const actionHeight = 36.0;
     const itemSpacing = 4.0;
     const verticalOffset = 32.0;
-    final menuHeight = menuPadding * 2 + actionHeight * 5 + itemSpacing * 4;
+
+    final isTextMessage = message.type == MessageType.text;
+    final isPinned = _chatProvider.isMessagePinned(message);
+    final actionEntries = <_MessageActionEntry>[];
+
+    if (isTextMessage && !message.isDeleted) {
+      actionEntries.add(
+        const _MessageActionEntry(
+          action: _MessageAction.copy,
+          label: '复制文本',
+          icon: Icons.copy_rounded,
+        ),
+      );
+    }
+
+    if (!message.isDeleted) {
+      actionEntries.add(
+        const _MessageActionEntry(
+          action: _MessageAction.quote,
+          label: '引用',
+          icon: Icons.format_quote_rounded,
+        ),
+      );
+    }
+
+    if (isTextMessage && !message.isDeleted) {
+      actionEntries.add(
+        const _MessageActionEntry(
+          action: _MessageAction.forward,
+          label: '转发',
+          icon: Icons.reply_rounded,
+        ),
+      );
+    }
+
+    if (!message.isDeleted) {
+      actionEntries.add(
+        _MessageActionEntry(
+          action: _MessageAction.pin,
+          label: isPinned ? '取消置顶' : '置顶',
+          icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+        ),
+      );
+    }
+
+    actionEntries.add(
+      const _MessageActionEntry(
+        action: _MessageAction.delete,
+        label: '删除',
+        icon: Icons.delete_outline,
+        danger: true,
+      ),
+    );
+
+    if (actionEntries.isEmpty) {
+      return;
+    }
+
+    final menuHeight =
+        menuPadding * 2 +
+        actionHeight * actionEntries.length +
+        itemSpacing * math.max(0, actionEntries.length - 1);
 
     final media = MediaQuery.of(context);
     final padding = media.padding;
@@ -978,41 +1068,20 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              buildActionButton(
-                                dialogContext,
-                                '复制文本',
-                                _MessageAction.copy,
-                                icon: Icons.copy_rounded,
-                              ),
-                              const SizedBox(height: itemSpacing),
-                              buildActionButton(
-                                dialogContext,
-                                '引用',
-                                _MessageAction.quote,
-                                icon: Icons.format_quote_rounded,
-                              ),
-                              const SizedBox(height: itemSpacing),
-                              buildActionButton(
-                                dialogContext,
-                                '转发',
-                                _MessageAction.forward,
-                                icon: Icons.reply_rounded,
-                              ),
-                              const SizedBox(height: itemSpacing),
-                              buildActionButton(
-                                dialogContext,
-                                '置顶',
-                                _MessageAction.pin,
-                                icon: Icons.push_pin_outlined,
-                              ),
-                              const SizedBox(height: itemSpacing),
-                              buildActionButton(
-                                dialogContext,
-                                '删除',
-                                _MessageAction.delete,
-                                danger: true,
-                                icon: Icons.delete_outline,
-                              ),
+                              for (
+                                var i = 0;
+                                i < actionEntries.length;
+                                i++
+                              ) ...[
+                                if (i > 0) const SizedBox(height: itemSpacing),
+                                buildActionButton(
+                                  dialogContext,
+                                  actionEntries[i].label,
+                                  actionEntries[i].action,
+                                  danger: actionEntries[i].danger,
+                                  icon: actionEntries[i].icon,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -1037,30 +1106,147 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   ) async {
     switch (action) {
       case _MessageAction.copy:
-        await Clipboard.setData(ClipboardData(text: message.content));
+        if (message.type == MessageType.text && !message.isDeleted) {
+          await Clipboard.setData(ClipboardData(text: message.content));
+        }
         break;
       case _MessageAction.quote:
+        if (message.isDeleted) {
+          return;
+        }
         setState(() => _quotedMessage = message);
         FocusScope.of(context).requestFocus(_inputFocusNode);
         break;
       case _MessageAction.forward:
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('转发功能尚未实现')));
+        await _forwardMessage(message);
         break;
       case _MessageAction.pin:
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('置顶功能尚未实现')));
+        await _togglePinMessage(message);
         break;
       case _MessageAction.delete:
         if (!mounted) return;
+        await _confirmDeleteMessage(message);
+        break;
+    }
+  }
+
+  Future<void> _forwardMessage(Message message) async {
+    if (message.type != MessageType.text) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('当前版本仅支持转发文本消息')));
+      return;
+    }
+
+    final chats = List<Chat>.from(_chatProvider.chats);
+    if (chats.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('暂无可转发的会话')));
+      return;
+    }
+
+    final selectedChat = await showModalBottomSheet<Chat>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final height = MediaQuery.of(sheetContext).size.height * 0.72;
+        return SizedBox(
+          height: height,
+          child: _ForwardTargetSheet(chats: chats, message: message),
+        );
+      },
+    );
+
+    if (!mounted || selectedChat == null) return;
+
+    try {
+      await _chatProvider.forwardMessage(message, selectedChat);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已转发到${selectedChat.name}')));
+    } on UnsupportedError {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('当前仅支持转发文本消息')));
+    } catch (e) {
+      debugPrint('Forward message failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('转发失败，请稍后重试')));
+    }
+  }
+
+  Future<void> _togglePinMessage(Message message) async {
+    final isPinned = _chatProvider.isMessagePinned(message);
+    try {
+      if (isPinned) {
+        await _chatProvider.unpinMessage(message);
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('删除功能尚未实现')));
-        break;
+        ).showSnackBar(const SnackBar(content: Text('已取消置顶')));
+      } else {
+        await _chatProvider.pinMessage(message);
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('消息已置顶')));
+      }
+    } catch (e) {
+      debugPrint('Pin message failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作失败，请稍后重试')));
+    }
+  }
+
+  Future<void> _confirmDeleteMessage(Message message) async {
+    final title = message.isDeleted ? '移除消息记录' : '删除消息';
+    final contentText = message.isDeleted
+        ? '从本地聊天记录中移除这条已删除的消息？'
+        : '删除后将在本地隐藏该消息，其他设备暂不会同步，确认删除？';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(contentText),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _chatProvider.deleteMessage(message);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('消息已删除')));
+    } catch (e) {
+      debugPrint('Delete message failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('删除失败，请稍后重试')));
     }
   }
 
@@ -1788,17 +1974,23 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildPrimaryContent(BuildContext context) {
+    if (_message.isDeleted) {
+      return _buildDeletedContent(context);
+    }
+
+    Widget content;
     switch (_message.type) {
       case MessageType.text:
-        return Text(
+        content = Text(
           _message.content,
           style: TextStyle(
             fontSize: 15,
             color: _isSelf ? Colors.white : AppColors.textPrimary,
           ),
         );
+        break;
       case MessageType.image:
-        return Column(
+        content = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1822,8 +2014,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
             ],
           ],
         );
+        break;
       default:
-        return Text(
+        content = Text(
           '[不支持的消息类型]',
           style: TextStyle(
             fontSize: 14,
@@ -1831,6 +2024,35 @@ class _MessageBubbleState extends State<_MessageBubble> {
           ),
         );
     }
+
+    final forwardInfo = _message.forwardInfo;
+    if (forwardInfo != null) {
+      return _ForwardedMessageContent(
+        forwardInfo: forwardInfo,
+        isSelf: _isSelf,
+        child: content,
+      );
+    }
+
+    return content;
+  }
+
+  Widget _buildDeletedContent(BuildContext context) {
+    final color = _isSelf ? Colors.white70 : AppColors.textSecondary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(Icons.info_outline, size: 16, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            _message.isSelf ? '你已删除这条消息' : '消息已删除',
+            style: TextStyle(fontSize: 13, color: color),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildBubbleContainer(
@@ -1875,6 +2097,15 @@ class _MessageBubbleState extends State<_MessageBubble> {
     );
 
     final timeText = Text(_formatBubbleTime(), style: timeStyle);
+    final pinnedIcon = _message.isPinned
+        ? Icon(
+            Icons.push_pin,
+            size: 14,
+            color: _isSelf
+                ? Colors.white.withValues(alpha: 0.85)
+                : AppColors.textTertiary,
+          )
+        : null;
     Widget? status;
     if (_message.isSelf) {
       final readTap =
@@ -1897,6 +2128,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Align(alignment: Alignment.centerLeft, child: timeText),
+          if (pinnedIcon != null) ...[const SizedBox(width: 6), pinnedIcon],
           if (status != null) ...[const SizedBox(width: 8), status],
         ],
       ),
@@ -2172,6 +2404,422 @@ class _QuotePreviewBar extends StatelessWidget {
   }
 }
 
+class _ForwardedMessageContent extends StatelessWidget {
+  const _ForwardedMessageContent({
+    required this.forwardInfo,
+    required this.isSelf,
+    required this.child,
+  });
+
+  final ForwardInfo forwardInfo;
+  final bool isSelf;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = isSelf
+        ? Colors.white.withValues(alpha: 0.9)
+        : AppColors.textSecondary;
+    final subtitleColor = isSelf
+        ? Colors.white.withValues(alpha: 0.7)
+        : AppColors.textTertiary;
+
+    IconData icon;
+    switch (forwardInfo.sourceType) {
+      case ForwardSourceType.group:
+        icon = Icons.groups_2_rounded;
+        break;
+      case ForwardSourceType.favorite:
+        icon = Icons.star_rounded;
+        break;
+      case ForwardSourceType.user:
+        icon = Icons.person_rounded;
+        break;
+      case ForwardSourceType.unknown:
+        icon = Icons.forward_to_inbox_rounded;
+        break;
+    }
+
+    final originSender = forwardInfo.originSenderName?.trim();
+    final showOriginSender =
+        originSender != null &&
+        originSender.isNotEmpty &&
+        originSender != forwardInfo.displaySourceName;
+
+    return Column(
+      crossAxisAlignment: isSelf
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: titleColor),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                '转发自 ${forwardInfo.displaySourceName}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: titleColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (showOriginSender) ...[
+          const SizedBox(height: 2),
+          Text(
+            '原发送人：$originSender',
+            style: TextStyle(fontSize: 11, color: subtitleColor),
+          ),
+        ],
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+class _PinnedMessageBanner extends StatelessWidget {
+  const _PinnedMessageBanner({
+    required this.message,
+    required this.onTap,
+    required this.onUnpin,
+  });
+
+  final Message message;
+  final VoidCallback onTap;
+  final VoidCallback onUnpin;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final preview = _buildPreviewText();
+    final forwardInfo = message.forwardInfo;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(Icons.push_pin, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '已置顶',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (forwardInfo != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '转发自 ${forwardInfo.displaySourceName}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: message.isDeleted
+                            ? AppColors.textTertiary
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.close,
+                  size: 18,
+                  color: AppColors.textTertiary,
+                ),
+                splashRadius: 18,
+                onPressed: onUnpin,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _buildPreviewText() {
+    if (message.isDeleted) {
+      return '消息已删除';
+    }
+    switch (message.type) {
+      case MessageType.text:
+        return message.content;
+      case MessageType.image:
+        return '[图片消息]';
+      case MessageType.voice:
+        return '[语音消息]';
+      case MessageType.video:
+        return '[视频消息]';
+      case MessageType.file:
+        return '[文件消息]';
+      case MessageType.system:
+        return '[系统消息]';
+    }
+  }
+}
+
+class _ForwardTargetSheet extends StatefulWidget {
+  const _ForwardTargetSheet({required this.chats, required this.message});
+
+  final List<Chat> chats;
+  final Message message;
+
+  @override
+  State<_ForwardTargetSheet> createState() => _ForwardTargetSheetState();
+}
+
+class _ForwardTargetSheetState extends State<_ForwardTargetSheet> {
+  late List<Chat> _filtered;
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.chats;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onKeywordChanged(String value) {
+    final keyword = value.trim().toLowerCase();
+    setState(() {
+      if (keyword.isEmpty) {
+        _filtered = widget.chats;
+      } else {
+        _filtered = widget.chats
+            .where((chat) => chat.name.toLowerCase().contains(keyword))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final previewText = widget.message.isDeleted
+        ? '消息已删除'
+        : widget.message.type == MessageType.text
+        ? widget.message.content
+        : '[消息]';
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '选择转发目标',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Text(
+                previewText,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.divider),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: TextField(
+                controller: _controller,
+                onChanged: _onKeywordChanged,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: '搜索会话',
+                  icon: Icon(Icons.search, size: 18),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        '未找到匹配的会话',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: _filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final chat = _filtered[index];
+                        return _ForwardTargetTile(
+                          chat: chat,
+                          onTap: () => Navigator.of(context).pop(chat),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ForwardTargetTile extends StatelessWidget {
+  const _ForwardTargetTile({required this.chat, required this.onTap});
+
+  final Chat chat;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Row(
+            children: [
+              _buildAvatar(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      chat.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _typeLabel(chat.type),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    const double size = 40;
+    if (chat.avatar != null && chat.avatar!.isNotEmpty) {
+      if (chat.avatar!.startsWith('http')) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundImage: NetworkImage(chat.avatar!),
+          backgroundColor: AppColors.surface,
+        );
+      }
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundImage: AssetImage(chat.avatar!),
+        backgroundColor: AppColors.surface,
+      );
+    }
+
+    final initial = chat.name.isNotEmpty ? chat.name[0] : '?';
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: AppColors.surfaceMuted,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  String _typeLabel(ChatType type) {
+    switch (type) {
+      case ChatType.group:
+        return '群聊';
+      case ChatType.favorite:
+        return '收藏夹';
+      case ChatType.single:
+        return '单聊';
+    }
+  }
+}
+
 class _ReadReceiptsSheet extends StatefulWidget {
   const _ReadReceiptsSheet({
     required this.provider,
@@ -2431,7 +3079,7 @@ class _IconButton extends StatelessWidget {
 
 /// 表情面板
 class _EmojiPanel extends StatelessWidget {
-  const _EmojiPanel({super.key, required this.onEmojiSelected});
+  const _EmojiPanel({required this.onEmojiSelected});
 
   final Function(String) onEmojiSelected;
 
@@ -2532,7 +3180,7 @@ class _EmojiPanel extends StatelessWidget {
 
 /// 更多操作面板
 class _MoreActionsPanel extends StatelessWidget {
-  const _MoreActionsPanel({super.key, required this.onActionSelected});
+  const _MoreActionsPanel({required this.onActionSelected});
 
   final Function(String) onActionSelected;
 

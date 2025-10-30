@@ -31,6 +31,14 @@ class ChatProvider with ChangeNotifier {
   List<Message> _messages = [];
   List<Message> get messages => _messages;
 
+  Message? get pinnedMessage => _currentRoomId == null
+      ? null
+      : _messageService.getPinnedMessage(_currentRoomId!);
+
+  bool isMessagePinned(Message message) {
+    return _messageService.isMessagePinned(message.roomId, message.id);
+  }
+
   // 已读同步状态
   String? _lastReadMessageId;
   bool _isMarkingRead = false;
@@ -198,6 +206,33 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  Future<void> forwardMessage(Message original, Chat targetChat) async {
+    final forwardInfo = original.forwardInfo ?? _buildForwardInfo(original);
+
+    try {
+      await _messageService.forwardMessage(
+        original: original,
+        targetRoomId: targetChat.roomId,
+        forwardInfo: forwardInfo,
+      );
+    } catch (e) {
+      debugPrint('Failed to forward message: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> pinMessage(Message message) async {
+    await _messageService.pinMessage(message.roomId, message.id);
+  }
+
+  Future<void> unpinMessage(Message message) async {
+    await _messageService.unpinMessage(message.roomId, message.id);
+  }
+
+  Future<void> deleteMessage(Message message) async {
+    await _messageService.markMessageDeleted(message.roomId, message.id);
+  }
+
   /// 重发消息
   Future<void> resendMessage(String messageId) async {
     await _messageService.resendMessage(messageId);
@@ -312,6 +347,43 @@ class ChatProvider with ChangeNotifier {
     _messageService.clearRoomMessages(roomId);
 
     // TODO: 调用API清空
+  }
+
+  ForwardInfo _buildForwardInfo(Message original) {
+    final forwarded = original.forwardInfo;
+    if (forwarded != null) {
+      return forwarded;
+    }
+
+    final sourceChat = _currentChat;
+    final sourceType = sourceChat == null
+        ? ForwardSourceType.unknown
+        : _mapForwardSourceType(sourceChat.type);
+
+    final sourceName = sourceChat?.name ?? original.displaySenderName;
+
+    return ForwardInfo(
+      sourceType: sourceType,
+      sourceId: sourceChat?.roomId ?? original.roomId,
+      sourceName: sourceName,
+      sourceAvatar: sourceChat?.avatar,
+      originMessageId: original.forwardInfo?.originMessageId ?? original.id,
+      originRoomId: original.forwardInfo?.originRoomId ?? original.roomId,
+      originSenderId: original.forwardInfo?.originSenderId ?? original.senderId,
+      originSenderName:
+          original.forwardInfo?.originSenderName ?? original.displaySenderName,
+    );
+  }
+
+  ForwardSourceType _mapForwardSourceType(ChatType type) {
+    switch (type) {
+      case ChatType.group:
+        return ForwardSourceType.group;
+      case ChatType.favorite:
+        return ForwardSourceType.favorite;
+      case ChatType.single:
+        return ForwardSourceType.user;
+    }
   }
 
   Future<void> _loadInitialHistory() async {

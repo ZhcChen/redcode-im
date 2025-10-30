@@ -341,6 +341,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                   'sender_username': updated.counterparty.username,
                 },
                 quotedMessage: null,
+                forwardMessage: null,
               ),
             );
           }

@@ -41,6 +41,7 @@ class MessageService with ChangeNotifier {
   final List<Chat> _chats = [];
   final Map<String, List<MessageReader>> _messageReadersCache = {};
   final Map<String, int> _roomMemberCountCache = {};
+  final Map<String, String> _pinnedMessageIds = {};
 
   // 单例模式
   static MessageService? _instance;
@@ -339,6 +340,240 @@ class MessageService with ChangeNotifier {
     }
   }
 
+  Future<void> forwardMessage({
+    required Message original,
+    required String targetRoomId,
+    required ForwardInfo forwardInfo,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    if (targetRoomId.isEmpty) {
+      throw ArgumentError('targetRoomId is required');
+    }
+
+    if (original.type != MessageType.text) {
+      throw UnsupportedError('当前仅支持转发文本消息');
+    }
+
+    final tempId = const uuid_pkg.Uuid().v4();
+    final now = DateTime.now();
+
+    final tempExtra = _mergeExtra(original.extra, {
+      'forward': forwardInfo.toCacheJson(),
+    });
+
+    final tempMessage = Message(
+      id: tempId,
+      roomId: targetRoomId,
+      senderId: session.user.id,
+      senderUsername: session.user.username,
+      senderName: session.user.nickname?.isNotEmpty == true
+          ? session.user.nickname!
+          : session.user.username,
+      senderAvatar: session.user.avatarUrl,
+      content: original.content,
+      type: original.type,
+      status: MessageStatus.sending,
+      timestamp: now,
+      isSelf: true,
+      extra: tempExtra,
+      quotedMessage: original.quotedMessage,
+      forwardInfo: forwardInfo,
+    );
+
+    _addMessage(tempMessage);
+    _pendingMessages[tempId] = tempMessage;
+
+    try {
+      final response = await _forwardMessageAPI(
+        roomId: targetRoomId,
+        originalMessageId: original.id,
+        token: session.token,
+      );
+
+      var updated = _messageFromResponse(
+        response,
+        session.user.id,
+        status: MessageStatus.sent,
+      );
+
+      if (_pendingMessages.containsKey(tempId)) {
+        _replaceMessage(tempId, updated);
+        _pendingMessages.remove(tempId);
+      } else {
+        _replaceMessage(updated.id, updated);
+      }
+
+      _updateChatLastMessage(targetRoomId, updated);
+    } catch (e) {
+      debugPrint('Failed to forward message: $e');
+      _updateMessageStatus(tempId, MessageStatus.failed);
+    }
+  }
+
+  Future<void> pinMessage(String roomId, String messageId) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _pinMessageAPI(
+      roomId: roomId,
+      messageId: messageId,
+      token: session.token,
+    );
+
+    if (response.message != null) {
+      final status = _currentMessageStatus(roomId, response.message!.id);
+      final updated = _messageFromResponse(
+        response.message!,
+        session.user.id,
+        status: status,
+      );
+      _replaceMessage(updated.id, updated);
+      return;
+    }
+
+    if (response.isPinned) {
+      final messages = _messagesByRoom[roomId];
+      if (messages != null) {
+        final index = messages.indexWhere((m) => m.id == messageId);
+        if (index >= 0) {
+          final msg = messages[index];
+          final extra = _mergeExtra(msg.extra, {
+            'pinned_at': response.pinnedAt?.toIso8601String(),
+            'pinned_by': response.pinnedBy,
+          });
+          messages[index] = msg.copyWith(
+            pinnedAt: response.pinnedAt,
+            extra: extra,
+          );
+          _refreshPinnedCache(roomId);
+          notifyListeners();
+          unawaited(_persistMessages(roomId));
+          _pinnedMessageIds[roomId] = messageId;
+        }
+      }
+    } else {
+      _pinnedMessageIds.remove(roomId);
+      _refreshPinnedCache(roomId);
+      notifyListeners();
+    }
+  }
+
+  Future<void> unpinMessage(String roomId, String messageId) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _unpinMessageAPI(
+      roomId: roomId,
+      messageId: messageId,
+      token: session.token,
+    );
+
+    if (response.message != null) {
+      final status = _currentMessageStatus(roomId, response.message!.id);
+      final updated = _messageFromResponse(
+        response.message!,
+        session.user.id,
+        status: status,
+      );
+      _replaceMessage(updated.id, updated);
+      return;
+    }
+
+    _pinnedMessageIds.remove(roomId);
+    final messages = _messagesByRoom[roomId];
+    if (messages != null) {
+      final index = messages.indexWhere((m) => m.id == messageId);
+      if (index >= 0) {
+        final msg = messages[index];
+        final extra = _mergeExtra(msg.extra, {
+          'pinned_at': null,
+          'pinned_by': null,
+        });
+        messages[index] = msg.copyWith(pinnedAt: null, extra: extra);
+        _refreshPinnedCache(roomId);
+        notifyListeners();
+        unawaited(_persistMessages(roomId));
+      } else {
+        _refreshPinnedCache(roomId);
+        notifyListeners();
+      }
+    } else {
+      _refreshPinnedCache(roomId);
+      notifyListeners();
+    }
+  }
+
+  Future<void> markMessageDeleted(String roomId, String messageId) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _deleteMessageAPI(
+      roomId: roomId,
+      messageId: messageId,
+      token: session.token,
+    );
+
+    final status = _currentMessageStatus(roomId, response.id);
+    final updated = _messageFromResponse(
+      response,
+      session.user.id,
+      status: status,
+    );
+
+    _replaceMessage(response.id, updated);
+  }
+
+  Message? getPinnedMessage(String roomId) {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null || messages.isEmpty) return null;
+
+    final pinnedId = _pinnedMessageIds[roomId];
+    if (pinnedId != null) {
+      for (final message in messages) {
+        if (message.id == pinnedId) {
+          return message;
+        }
+      }
+    }
+
+    for (final message in messages) {
+      if (message.isPinned) {
+        _pinnedMessageIds[roomId] = message.id;
+        return message;
+      }
+    }
+    return null;
+  }
+
+  bool isMessagePinned(String roomId, String messageId) {
+    final pinnedId = _pinnedMessageIds[roomId];
+    if (pinnedId != null) {
+      return pinnedId == messageId;
+    }
+    final messages = _messagesByRoom[roomId];
+    if (messages == null || messages.isEmpty) return false;
+    for (final message in messages) {
+      if (message.id == messageId) {
+        if (message.isPinned) {
+          _pinnedMessageIds[roomId] = messageId;
+          return true;
+        }
+        return false;
+      }
+    }
+    return false;
+  }
+
   /// 调用API发送消息
   Future<MessageResponse> _sendMessageAPI(
     String roomId,
@@ -372,6 +607,110 @@ class MessageService with ChangeNotifier {
     } else {
       throw Exception('Failed to send message: ${response.body}');
     }
+  }
+
+  Future<MessageResponse> _forwardMessageAPI({
+    required String roomId,
+    required String originalMessageId,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/forward',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'original_message_id': originalMessageId}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final payload = data['message'];
+      if (payload is Map<String, dynamic>) {
+        return MessageResponse.fromJson(payload);
+      }
+      throw Exception('Invalid forward message response structure');
+    }
+
+    throw Exception('Failed to forward message: ${response.body}');
+  }
+
+  Future<PinMessageServerResponse> _pinMessageAPI({
+    required String roomId,
+    required String messageId,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/pin',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return PinMessageServerResponse.fromJson(data);
+    }
+
+    throw Exception('置顶消息失败: ${response.body}');
+  }
+
+  Future<PinMessageServerResponse> _unpinMessageAPI({
+    required String roomId,
+    required String messageId,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/pin',
+    );
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return PinMessageServerResponse.fromJson(data);
+    }
+
+    throw Exception('取消置顶失败: ${response.body}');
+  }
+
+  Future<MessageResponse> _deleteMessageAPI({
+    required String roomId,
+    required String messageId,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId',
+    );
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return MessageResponse.fromJson(data);
+      }
+      throw Exception('Invalid delete message response structure');
+    }
+
+    throw Exception('删除消息失败: ${response.body}');
   }
 
   /// 加载历史消息
@@ -450,9 +789,15 @@ class MessageService with ChangeNotifier {
 
           existing.sort((a, b) => a.timestamp.compareTo(b.timestamp));
         } else {
-          _messagesByRoom[roomId] = newMessages;
+          final existing = _messagesByRoom[roomId];
+          if (existing != null && existing.isNotEmpty) {
+            _messagesByRoom[roomId] = _mergeMessageLists(existing, newMessages);
+          } else {
+            _messagesByRoom[roomId] = newMessages;
+          }
         }
 
+        _refreshPinnedCache(roomId);
         notifyListeners();
         await _persistMessages(roomId);
         return newMessages;
@@ -544,6 +889,78 @@ class MessageService with ChangeNotifier {
     }
   }
 
+  Future<void> handleMessageUpdate({
+    required String roomId,
+    required String messageId,
+    required bool isDeleted,
+    DateTime? deletedAt,
+  }) async {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null || messages.isEmpty) return;
+
+    final index = messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) return;
+
+    final message = messages[index];
+    final extra = _mergeExtra(message.extra, {
+      'is_deleted': isDeleted ? true : null,
+      'deleted_at': deletedAt?.toIso8601String(),
+    });
+
+    messages[index] = message.copyWith(isDeleted: isDeleted, extra: extra);
+
+    if (isDeleted && _pinnedMessageIds[roomId] == messageId) {
+      _pinnedMessageIds.remove(roomId);
+      _refreshPinnedCache(roomId);
+    }
+
+    notifyListeners();
+    unawaited(_persistMessages(roomId));
+  }
+
+  Future<void> handlePinUpdate({
+    required String roomId,
+    String? messageId,
+    required bool isPinned,
+    DateTime? pinnedAt,
+    String? pinnedBy,
+  }) async {
+    if (isPinned && messageId != null && messageId.isNotEmpty) {
+      _pinnedMessageIds[roomId] = messageId;
+    } else {
+      _pinnedMessageIds.remove(roomId);
+    }
+
+    final messages = _messagesByRoom[roomId];
+    var changed = false;
+
+    if (messages != null && messages.isNotEmpty && messageId != null) {
+      final index = messages.indexWhere((m) => m.id == messageId);
+      if (index >= 0) {
+        final message = messages[index];
+        final extra = _mergeExtra(message.extra, {
+          'pinned_at': pinnedAt?.toIso8601String(),
+          'pinned_by': pinnedBy,
+        });
+
+        messages[index] = message.copyWith(
+          pinnedAt: isPinned ? pinnedAt : null,
+          extra: extra,
+        );
+        changed = true;
+      }
+    }
+
+    _refreshPinnedCache(roomId);
+
+    if (changed) {
+      notifyListeners();
+      unawaited(_persistMessages(roomId));
+    } else {
+      notifyListeners();
+    }
+  }
+
   Future<void> _persistMessages(String roomId) async {
     final messages = _messagesByRoom[roomId];
     if (messages == null) return;
@@ -565,8 +982,10 @@ class MessageService with ChangeNotifier {
       messages[index] = _mergeMessage(messages[index], message);
     } else {
       messages.add(message);
+      _applyPinnedState(message.roomId, message);
     }
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    _refreshPinnedCache(message.roomId);
     notifyListeners();
     unawaited(_persistMessages(message.roomId));
   }
@@ -584,6 +1003,8 @@ class MessageService with ChangeNotifier {
     }
 
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    _applyPinnedState(newMessage.roomId, newMessage);
+    _refreshPinnedCache(newMessage.roomId);
     notifyListeners();
     unawaited(_persistMessages(newMessage.roomId));
   }
@@ -601,7 +1022,8 @@ class MessageService with ChangeNotifier {
         ? newMessage.timestamp
         : oldMessage.timestamp;
 
-    return oldMessage.copyWith(
+    final mergedExtra = _mergeExtra(oldMessage.extra, newMessage.extra);
+    final merged = oldMessage.copyWith(
       id: newMessage.id,
       senderId: newMessage.senderId,
       senderUsername: newMessage.senderUsername,
@@ -612,9 +1034,178 @@ class MessageService with ChangeNotifier {
       status: mergedStatus,
       timestamp: latestTimestamp,
       isSelf: newMessage.isSelf,
-      extra: newMessage.extra ?? oldMessage.extra,
+      extra: mergedExtra,
       quotedMessage: newMessage.quotedMessage ?? oldMessage.quotedMessage,
+      forwardInfo: newMessage.forwardInfo ?? oldMessage.forwardInfo,
+      isDeleted: newMessage.isDeleted || oldMessage.isDeleted,
+      pinnedAt: newMessage.pinnedAt ?? oldMessage.pinnedAt,
     );
+    _applyPinnedState(merged.roomId, merged);
+    return merged;
+  }
+
+  Map<String, dynamic>? _mergeExtra(
+    Map<String, dynamic>? base,
+    Map<String, dynamic>? updates,
+  ) {
+    if ((base == null || base.isEmpty) &&
+        (updates == null || updates.isEmpty)) {
+      return base ?? updates;
+    }
+
+    final result = <String, dynamic>{};
+    if (base != null && base.isNotEmpty) {
+      base.forEach((key, value) {
+        result[key] = value;
+      });
+    }
+
+    if (updates != null && updates.isNotEmpty) {
+      updates.forEach((key, value) {
+        if (value == null) {
+          result.remove(key);
+          return;
+        }
+
+        if (value is Map<String, dynamic> || value is Map) {
+          final current = result[key];
+          final normalizedCurrent = current is Map<String, dynamic>
+              ? current
+              : current is Map
+              ? _normalizeMap(current)
+              : <String, dynamic>{};
+          final normalizedValue = value is Map<String, dynamic>
+              ? value
+              : _normalizeMap(value as Map<dynamic, dynamic>);
+          final mergedMap = _mergeExtra(normalizedCurrent, normalizedValue);
+          if (mergedMap == null || mergedMap.isEmpty) {
+            result.remove(key);
+          } else {
+            result[key] = mergedMap;
+          }
+          return;
+        }
+
+        result[key] = value;
+      });
+    }
+
+    return result.isEmpty ? null : result;
+  }
+
+  Map<String, dynamic> _normalizeMap(Map<dynamic, dynamic> raw) {
+    final normalized = <String, dynamic>{};
+    raw.forEach((key, value) {
+      normalized[key.toString()] = value;
+    });
+    return normalized;
+  }
+
+  MessageStatus _currentMessageStatus(String roomId, String messageId) {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null || messages.isEmpty) {
+      return MessageStatus.sent;
+    }
+    final index = messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) {
+      return MessageStatus.sent;
+    }
+    return messages[index].status;
+  }
+
+  void _applyPinnedState(String roomId, Message message) {
+    if (message.isPinned) {
+      _pinnedMessageIds[roomId] = message.id;
+    } else if (_pinnedMessageIds[roomId] == message.id) {
+      _pinnedMessageIds.remove(roomId);
+    }
+  }
+
+  List<Message> _mergeMessageLists(
+    List<Message> existing,
+    List<Message> incoming,
+  ) {
+    final map = <String, Message>{};
+    for (final message in existing) {
+      map[message.id] = message;
+    }
+    for (final message in incoming) {
+      final prev = map[message.id];
+      if (prev != null) {
+        map[message.id] = _mergeMessage(prev, message);
+      } else {
+        map[message.id] = message;
+      }
+    }
+
+    final merged = map.values.toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return merged;
+  }
+
+  void _refreshPinnedCache(String roomId) {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null || messages.isEmpty) {
+      _pinnedMessageIds.remove(roomId);
+      return;
+    }
+
+    String? pinnedId;
+    for (final message in messages) {
+      if (message.isPinned) {
+        pinnedId = message.id;
+        break;
+      }
+    }
+
+    if (pinnedId != null) {
+      _pinnedMessageIds[roomId] = pinnedId;
+    } else {
+      _pinnedMessageIds.remove(roomId);
+    }
+  }
+
+  ForwardInfo? _parseForwardInfo(Map<String, dynamic>? extra) {
+    if (extra == null || extra.isEmpty) {
+      return null;
+    }
+    final raw = extra['forward'] ?? extra['forward_info'];
+    if (raw == null) return null;
+    if (raw is ForwardInfo) return raw;
+    if (raw is Map<String, dynamic>) {
+      return ForwardInfo.fromCacheJson(raw);
+    }
+    if (raw is Map) {
+      return ForwardInfo.fromCacheJson(_normalizeMap(raw));
+    }
+    return null;
+  }
+
+  bool _parseIsDeleted(Map<String, dynamic>? extra) {
+    if (extra == null || extra.isEmpty) {
+      return false;
+    }
+    final raw = extra['is_deleted'] ?? extra['deleted'] ?? extra['deleted_at'];
+    if (raw is bool) return raw;
+    if (raw is num) return raw != 0;
+    if (raw is String) {
+      final lowered = raw.trim().toLowerCase();
+      return lowered == 'true' || lowered == '1';
+    }
+    return false;
+  }
+
+  DateTime? _parsePinnedAt(Map<String, dynamic>? extra) {
+    if (extra == null || extra.isEmpty) {
+      return null;
+    }
+    final raw = extra['pinned_at'] ?? extra['pinnedAt'];
+    if (raw == null) return null;
+    if (raw is DateTime) return raw;
+    if (raw is String && raw.isNotEmpty) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
   }
 
   int _statusPriority(MessageStatus status) {
@@ -803,6 +1394,7 @@ class MessageService with ChangeNotifier {
   void clearRoomMessages(String roomId) {
     _messagesByRoom.remove(roomId);
     _clearMessageReadersForRoom(roomId);
+    _pinnedMessageIds.remove(roomId);
     unawaited(_messageStorage.clear(roomId));
     notifyListeners();
   }
@@ -814,6 +1406,7 @@ class MessageService with ChangeNotifier {
     _chats.clear();
     _messageReadersCache.clear();
     _roomMemberCountCache.clear();
+    _pinnedMessageIds.clear();
     try {
       WebSocketService.instance.ensureRoomsSubscribed(
         const <String>[],
@@ -1192,6 +1785,34 @@ class MessageService with ChangeNotifier {
         ? null
         : _quotedMessageFromResponse(response.quotedMessage!);
 
+    final extra = <String, dynamic>{
+      if (response.senderNickname != null &&
+          response.senderNickname!.isNotEmpty)
+        'sender_nickname': response.senderNickname,
+    };
+    ForwardInfo? forwardInfo;
+    if (response.forwardMessage != null &&
+        response.forwardMessage!.messageId.isNotEmpty) {
+      forwardInfo = _forwardInfoFromResponse(response.forwardMessage!);
+      extra['forward'] = forwardInfo.toCacheJson();
+    }
+
+    if (response.isDeleted) {
+      extra['is_deleted'] = true;
+      if (response.deletedAt != null) {
+        extra['deleted_at'] = response.deletedAt!.toIso8601String();
+      }
+    }
+
+    if (response.isPinned) {
+      if (response.pinnedAt != null) {
+        extra['pinned_at'] = response.pinnedAt!.toIso8601String();
+      }
+      if (response.pinnedBy != null) {
+        extra['pinned_by'] = response.pinnedBy;
+      }
+    }
+
     return Message(
       id: response.id,
       roomId: response.roomId,
@@ -1206,10 +1827,11 @@ class MessageService with ChangeNotifier {
       status: status,
       timestamp: response.createdAt,
       isSelf: isSelf,
-      extra: response.senderNickname == null
-          ? null
-          : {'sender_nickname': response.senderNickname},
+      extra: extra.isEmpty ? null : extra,
       quotedMessage: quoted,
+      forwardInfo: forwardInfo,
+      isDeleted: response.isDeleted,
+      pinnedAt: response.pinnedAt,
     );
   }
 
@@ -1224,6 +1846,20 @@ class MessageService with ChangeNotifier {
         ? null
         : _quotedMessageFromWebSocket(wsMessage.quotedMessage!);
 
+    final extra = wsMessage.extra != null
+        ? Map<String, dynamic>.from(wsMessage.extra!)
+        : <String, dynamic>{};
+    ForwardInfo? forwardInfo;
+    if (wsMessage.forwardMessage != null &&
+        wsMessage.forwardMessage!.messageId.isNotEmpty) {
+      forwardInfo = _forwardInfoFromWebSocket(wsMessage.forwardMessage!);
+      extra['forward'] = forwardInfo.toCacheJson();
+    } else {
+      forwardInfo = _parseForwardInfo(extra);
+    }
+    final isDeleted = _parseIsDeleted(extra);
+    final pinnedAt = _parsePinnedAt(extra);
+
     return Message(
       id: wsMessage.id,
       roomId: wsMessage.roomId,
@@ -1236,8 +1872,11 @@ class MessageService with ChangeNotifier {
       status: status,
       timestamp: wsMessage.timestamp,
       isSelf: isSelf,
-      extra: wsMessage.extra,
+      extra: extra.isEmpty ? null : extra,
       quotedMessage: quoted,
+      forwardInfo: forwardInfo,
+      isDeleted: isDeleted,
+      pinnedAt: pinnedAt,
     );
   }
 
@@ -1299,6 +1938,44 @@ class MessageService with ChangeNotifier {
       isDeleted: quoted.isDeleted,
     );
   }
+
+  ForwardInfo _forwardInfoFromResponse(ForwardMessageResponse forward) {
+    final originSenderName = forward.senderNickname?.isNotEmpty == true
+        ? forward.senderNickname!
+        : (forward.senderUsername?.isNotEmpty == true
+              ? forward.senderUsername!
+              : forward.senderId);
+
+    return ForwardInfo(
+      sourceType: ForwardSourceType.unknown,
+      sourceId: forward.roomId,
+      sourceName: originSenderName,
+      sourceAvatar: null,
+      originMessageId: forward.messageId,
+      originRoomId: forward.roomId,
+      originSenderId: forward.senderId,
+      originSenderName: originSenderName,
+    );
+  }
+
+  ForwardInfo _forwardInfoFromWebSocket(WebSocketForwardMessage forward) {
+    final originSenderName = forward.senderNickname?.isNotEmpty == true
+        ? forward.senderNickname!
+        : (forward.senderUsername?.isNotEmpty == true
+              ? forward.senderUsername!
+              : forward.senderId);
+
+    return ForwardInfo(
+      sourceType: ForwardSourceType.unknown,
+      sourceId: forward.roomId,
+      sourceName: originSenderName,
+      sourceAvatar: null,
+      originMessageId: forward.messageId,
+      originRoomId: forward.roomId,
+      originSenderId: forward.senderId,
+      originSenderName: originSenderName,
+    );
+  }
 }
 
 /// 消息响应模型
@@ -1313,6 +1990,12 @@ class MessageResponse {
   final String messageType;
   final DateTime createdAt;
   final QuotedMessageResponse? quotedMessage;
+  final ForwardMessageResponse? forwardMessage;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  final bool isPinned;
+  final DateTime? pinnedAt;
+  final String? pinnedBy;
 
   MessageResponse({
     required this.id,
@@ -1325,6 +2008,12 @@ class MessageResponse {
     required this.messageType,
     required this.createdAt,
     required this.quotedMessage,
+    required this.forwardMessage,
+    required this.isDeleted,
+    required this.deletedAt,
+    required this.isPinned,
+    required this.pinnedAt,
+    required this.pinnedBy,
   });
 
   factory MessageResponse.fromJson(Map<String, dynamic> json) {
@@ -1340,6 +2029,28 @@ class MessageResponse {
       quoted = QuotedMessageResponse.fromJson(map);
     }
 
+    ForwardMessageResponse? forward;
+    final forwardRaw = json['forward_message'];
+    if (forwardRaw is Map<String, dynamic>) {
+      forward = ForwardMessageResponse.fromJson(forwardRaw);
+    } else if (forwardRaw is Map) {
+      final map = <String, dynamic>{};
+      forwardRaw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      forward = ForwardMessageResponse.fromJson(map);
+    }
+
+    bool parseBool(dynamic value) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final lowered = value.toLowerCase();
+        return lowered == 'true' || lowered == '1';
+      }
+      return false;
+    }
+
     return MessageResponse(
       id: json['id'] ?? '',
       roomId: json['room_id'] ?? '',
@@ -1353,6 +2064,18 @@ class MessageResponse {
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       quotedMessage: quoted,
+      forwardMessage: forward,
+      isDeleted: parseBool(json['is_deleted']),
+      deletedAt:
+          json['deleted_at'] != null && json['deleted_at'].toString().isNotEmpty
+          ? DateTime.tryParse(json['deleted_at'].toString())
+          : null,
+      isPinned: parseBool(json['is_pinned']),
+      pinnedAt:
+          json['pinned_at'] != null && json['pinned_at'].toString().isNotEmpty
+          ? DateTime.tryParse(json['pinned_at'].toString())
+          : null,
+      pinnedBy: json['pinned_by']?.toString(),
     );
   }
 
@@ -1361,6 +2084,86 @@ class MessageResponse {
       return senderNickname!;
     }
     return senderUsername;
+  }
+}
+
+class ForwardMessageResponse {
+  ForwardMessageResponse({
+    required this.messageId,
+    required this.roomId,
+    required this.senderId,
+    this.senderUsername,
+    this.senderNickname,
+  });
+
+  final String messageId;
+  final String roomId;
+  final String senderId;
+  final String? senderUsername;
+  final String? senderNickname;
+
+  factory ForwardMessageResponse.fromJson(Map<String, dynamic> json) {
+    return ForwardMessageResponse(
+      messageId: json['message_id']?.toString() ?? '',
+      roomId: json['room_id']?.toString() ?? '',
+      senderId: json['sender_id']?.toString() ?? '',
+      senderUsername: json['sender_username']?.toString(),
+      senderNickname: json['sender_nickname']?.toString(),
+    );
+  }
+}
+
+class PinMessageServerResponse {
+  PinMessageServerResponse({
+    required this.roomId,
+    required this.isPinned,
+    this.message,
+    this.pinnedAt,
+    this.pinnedBy,
+  });
+
+  final String roomId;
+  final bool isPinned;
+  final MessageResponse? message;
+  final DateTime? pinnedAt;
+  final String? pinnedBy;
+
+  factory PinMessageServerResponse.fromJson(Map<String, dynamic> json) {
+    MessageResponse? message;
+    final messageRaw = json['message'];
+    if (messageRaw is Map<String, dynamic>) {
+      message = MessageResponse.fromJson(messageRaw);
+    } else if (messageRaw is Map) {
+      final map = <String, dynamic>{};
+      messageRaw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      message = MessageResponse.fromJson(map);
+    }
+
+    DateTime? pinnedAt;
+    final pinnedAtRaw = json['pinned_at']?.toString();
+    if (pinnedAtRaw != null && pinnedAtRaw.isNotEmpty) {
+      pinnedAt = DateTime.tryParse(pinnedAtRaw);
+    }
+
+    bool parseBool(dynamic value) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final lowered = value.toLowerCase();
+        return lowered == 'true' || lowered == '1';
+      }
+      return false;
+    }
+
+    return PinMessageServerResponse(
+      roomId: json['room_id']?.toString() ?? '',
+      isPinned: parseBool(json['is_pinned']),
+      message: message,
+      pinnedAt: pinnedAt,
+      pinnedBy: json['pinned_by']?.toString(),
+    );
   }
 }
 

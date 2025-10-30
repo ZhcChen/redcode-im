@@ -159,6 +159,18 @@ pub struct MessageInfo {
     pub created_at: String, // ISO 8601 格式
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quoted_message: Option<QuotedMessageInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forward_message: Option<ForwardMessageInfo>,
+    #[serde(default)]
+    pub is_deleted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<String>,
+    #[serde(default)]
+    pub is_pinned: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_by: Option<String>,
 }
 
 /// 发送消息请求
@@ -186,6 +198,16 @@ pub struct QuotedMessageInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     pub is_deleted: bool,
+}
+
+/// 转发的消息信息（API 响应）
+#[derive(Debug, Clone, Serialize)]
+pub struct ForwardMessageInfo {
+    pub message_id: String,
+    pub room_id: String,
+    pub sender_id: String,
+    pub sender_username: Option<String>,
+    pub sender_nickname: Option<String>,
 }
 
 /// 消息列表查询参数

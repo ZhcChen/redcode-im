@@ -1,4 +1,4 @@
-use crate::database::models::{Message, MessageType, MessageWithSender};
+use crate::database::models::{Message, MessageType, MessageWithSender, RoomPin};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -23,7 +23,10 @@ impl<'a> MessageStore<'a> {
         let rec = sqlx::query_as::<_, Message>(
             "INSERT INTO messages (id, room_id, sender_id, content, message_type, quoted_message_id)
              VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id, created_at, updated_at, deleted_at",
+             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+                       forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                       forward_from_sender_username, forward_from_sender_nickname,
+                       created_at, updated_at, deleted_at",
         )
         .bind(message_id)
         .bind(room_id)
@@ -53,6 +56,11 @@ impl<'a> MessageStore<'a> {
                  m.created_at,
                  m.updated_at,
                  m.deleted_at,
+                 m.forward_from_message_id,
+                 m.forward_from_room_id,
+                 m.forward_from_sender_id,
+                 m.forward_from_sender_username,
+                 m.forward_from_sender_nickname,
                  u.username AS sender_username,
                  u.nickname AS sender_nickname,
                  u.avatar_url AS sender_avatar_url,
@@ -84,7 +92,10 @@ impl<'a> MessageStore<'a> {
 
     pub async fn get_message(&self, message_id: Uuid) -> Result<Option<Message>, sqlx::Error> {
         let row = sqlx::query_as::<_, Message>(
-            "SELECT id, room_id, sender_id, content, message_type, quoted_message_id, created_at, updated_at, deleted_at
+            "SELECT id, room_id, sender_id, content, message_type, quoted_message_id,
+                    forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                    forward_from_sender_username, forward_from_sender_nickname,
+                    created_at, updated_at, deleted_at
              FROM messages WHERE id = $1",
         )
         .bind(message_id)
@@ -114,6 +125,11 @@ impl<'a> MessageStore<'a> {
                          m.created_at,
                          m.updated_at,
                          m.deleted_at,
+                         m.forward_from_message_id,
+                         m.forward_from_room_id,
+                         m.forward_from_sender_id,
+                         m.forward_from_sender_username,
+                         m.forward_from_sender_nickname,
                          u.username AS sender_username,
                          u.nickname AS sender_nickname,
                          u.avatar_url AS sender_avatar_url,
@@ -159,6 +175,11 @@ impl<'a> MessageStore<'a> {
                          m.created_at,
                          m.updated_at,
                          m.deleted_at,
+                         m.forward_from_message_id,
+                         m.forward_from_room_id,
+                         m.forward_from_sender_id,
+                         m.forward_from_sender_username,
+                         m.forward_from_sender_nickname,
                          u.username AS sender_username,
                          u.nickname AS sender_nickname,
                          u.avatar_url AS sender_avatar_url,
@@ -211,6 +232,11 @@ impl<'a> MessageStore<'a> {
                  m.created_at,
                  m.updated_at,
                  m.deleted_at,
+                 m.forward_from_message_id,
+                 m.forward_from_room_id,
+                 m.forward_from_sender_id,
+                 m.forward_from_sender_username,
+                 m.forward_from_sender_nickname,
                  u.username AS sender_username,
                  u.nickname AS sender_nickname,
                  u.avatar_url AS sender_avatar_url,
@@ -227,8 +253,142 @@ impl<'a> MessageStore<'a> {
              JOIN users u ON u.id = m.sender_id
              LEFT JOIN messages qm ON qm.id = m.quoted_message_id
              LEFT JOIN users qu ON qu.id = qm.sender_id
-             WHERE m.id = $1
-            "#,
+            WHERE m.id = $1
+           "#,
+        )
+        .bind(message_id)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(row)
+    }
+
+    pub async fn create_forward_message(
+        &self,
+        target_room_id: Uuid,
+        sender_id: Uuid,
+        original: &MessageWithSender,
+    ) -> Result<Message, sqlx::Error> {
+        let message_id = crate::id::generate();
+
+        let (origin_message_id, origin_room_id, origin_sender_id, origin_username, origin_nickname) =
+            if let Some(forward_id) = original.forward_from_message_id {
+                (
+                    forward_id,
+                    original.forward_from_room_id.unwrap_or(original.room_id),
+                    original
+                        .forward_from_sender_id
+                        .unwrap_or(original.sender_id),
+                    original
+                        .forward_from_sender_username
+                        .clone()
+                        .or_else(|| Some(original.sender_username.clone())),
+                    original
+                        .forward_from_sender_nickname
+                        .clone()
+                        .or_else(|| original.sender_nickname.clone()),
+                )
+            } else {
+                (
+                    original.id,
+                    original.room_id,
+                    original.sender_id,
+                    Some(original.sender_username.clone()),
+                    original.sender_nickname.clone(),
+                )
+            };
+
+        let rec = sqlx::query_as::<_, Message>(
+            "INSERT INTO messages (
+                id, room_id, sender_id, content, message_type, quoted_message_id,
+                forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                forward_from_sender_username, forward_from_sender_nickname
+            ) VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10)
+            RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+                      forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                      forward_from_sender_username, forward_from_sender_nickname,
+                      created_at, updated_at, deleted_at",
+        )
+        .bind(message_id)
+        .bind(target_room_id)
+        .bind(sender_id)
+        .bind(&original.content)
+        .bind(original.message_type)
+        .bind(origin_message_id)
+        .bind(origin_room_id)
+        .bind(origin_sender_id)
+        .bind(origin_username)
+        .bind(origin_nickname)
+        .fetch_one(self.pool)
+        .await?;
+
+        Ok(rec)
+    }
+
+    pub async fn get_room_pin(&self, room_id: Uuid) -> Result<Option<RoomPin>, sqlx::Error> {
+        let row = sqlx::query_as::<_, RoomPin>(
+            "SELECT room_id, message_id, pinned_by, pinned_at FROM room_pins WHERE room_id = $1",
+        )
+        .bind(room_id)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(row)
+    }
+
+    pub async fn upsert_room_pin(
+        &self,
+        room_id: Uuid,
+        message_id: Uuid,
+        pinned_by: Uuid,
+    ) -> Result<RoomPin, sqlx::Error> {
+        let row = sqlx::query_as::<_, RoomPin>(
+            "INSERT INTO room_pins (room_id, message_id, pinned_by, pinned_at)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT (room_id)
+             DO UPDATE SET message_id = EXCLUDED.message_id,
+                           pinned_by = EXCLUDED.pinned_by,
+                           pinned_at = NOW()
+             RETURNING room_id, message_id, pinned_by, pinned_at",
+        )
+        .bind(room_id)
+        .bind(message_id)
+        .bind(pinned_by)
+        .fetch_one(self.pool)
+        .await?;
+        Ok(row)
+    }
+
+    pub async fn remove_room_pin(
+        &self,
+        room_id: Uuid,
+        message_id: Option<Uuid>,
+    ) -> Result<u64, sqlx::Error> {
+        let result = if let Some(msg_id) = message_id {
+            sqlx::query("DELETE FROM room_pins WHERE room_id = $1 AND message_id = $2")
+                .bind(room_id)
+                .bind(msg_id)
+                .execute(self.pool)
+                .await?
+        } else {
+            sqlx::query("DELETE FROM room_pins WHERE room_id = $1")
+                .bind(room_id)
+                .execute(self.pool)
+                .await?
+        };
+        Ok(result.rows_affected())
+    }
+
+    pub async fn mark_message_deleted(
+        &self,
+        message_id: Uuid,
+    ) -> Result<Option<Message>, sqlx::Error> {
+        let row = sqlx::query_as::<_, Message>(
+            "UPDATE messages
+             SET deleted_at = NOW()
+             WHERE id = $1 AND deleted_at IS NULL
+             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+                       forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                       forward_from_sender_username, forward_from_sender_nickname,
+                       created_at, updated_at, deleted_at",
         )
         .bind(message_id)
         .fetch_optional(self.pool)

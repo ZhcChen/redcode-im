@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 
@@ -80,6 +80,10 @@ pub fn create_routes() -> Router<AppState> {
             "/rooms/:room_id/messages",
             post(message::send_message).get(message::list_messages),
         )
+        .route(
+            "/rooms/:room_id/messages/forward",
+            post(message::forward_message),
+        )
         // message reads
         .route(
             "/rooms/:room_id/messages/read",
@@ -88,6 +92,14 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/:room_id/messages/read_until",
             post(message_read::mark_messages_read_until),
+        )
+        .route(
+            "/rooms/:room_id/messages/:message_id/pin",
+            post(message::pin_message).delete(message::unpin_message),
+        )
+        .route(
+            "/rooms/:room_id/messages/:message_id",
+            delete(message::delete_message),
         )
         .route(
             "/rooms/:room_id/messages/:message_id/reads",

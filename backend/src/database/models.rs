@@ -126,6 +126,11 @@ pub struct Message {
     pub content: String,
     pub message_type: MessageType,
     pub quoted_message_id: Option<Uuid>,
+    pub forward_from_message_id: Option<Uuid>,
+    pub forward_from_room_id: Option<Uuid>,
+    pub forward_from_sender_id: Option<Uuid>,
+    pub forward_from_sender_username: Option<String>,
+    pub forward_from_sender_nickname: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -155,6 +160,19 @@ pub struct MessageWithSender {
     pub quoted_message_type: Option<MessageType>,
     pub quoted_message_created_at: Option<DateTime<Utc>>,
     pub quoted_message_deleted_at: Option<DateTime<Utc>>,
+    pub forward_from_message_id: Option<Uuid>,
+    pub forward_from_room_id: Option<Uuid>,
+    pub forward_from_sender_id: Option<Uuid>,
+    pub forward_from_sender_username: Option<String>,
+    pub forward_from_sender_nickname: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RoomPin {
+    pub room_id: Uuid,
+    pub message_id: Uuid,
+    pub pinned_by: Uuid,
+    pub pinned_at: DateTime<Utc>,
 }
 
 /// 消息类型枚举

@@ -140,7 +140,38 @@ pub fn db_room_member_to_api(
 /// 将数据库消息模型转换为 API 消息信息
 pub fn db_message_to_api_message_info(
     db_msg: &crate::database::models::MessageWithSender,
+    room_pin: Option<&crate::database::models::RoomPin>,
 ) -> crate::models::MessageInfo {
+    let is_pinned = room_pin
+        .map(|pin| pin.message_id == db_msg.id)
+        .unwrap_or(false);
+    let (pinned_at, pinned_by) = if is_pinned {
+        let pin = room_pin.unwrap();
+        (
+            Some(pin.pinned_at.to_rfc3339()),
+            Some(pin.pinned_by.to_string()),
+        )
+    } else {
+        (None, None)
+    };
+
+    let forward =
+        db_msg
+            .forward_from_message_id
+            .map(|message_id| crate::models::ForwardMessageInfo {
+                message_id: message_id.to_string(),
+                room_id: db_msg
+                    .forward_from_room_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                sender_id: db_msg
+                    .forward_from_sender_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                sender_username: db_msg.forward_from_sender_username.clone(),
+                sender_nickname: db_msg.forward_from_sender_nickname.clone(),
+            });
+
     crate::models::MessageInfo {
         id: db_msg.id.to_string(),
         room_id: db_msg.room_id.to_string(),
@@ -152,6 +183,12 @@ pub fn db_message_to_api_message_info(
         message_type: db_message_type_to_api(&db_msg.message_type),
         created_at: db_msg.created_at.to_rfc3339(),
         quoted_message: db_message_to_api_quoted_message(db_msg),
+        forward_message: forward,
+        is_deleted: db_msg.deleted_at.is_some(),
+        deleted_at: db_msg.deleted_at.map(|dt| dt.to_rfc3339()),
+        is_pinned,
+        pinned_at,
+        pinned_by,
     }
 }
 
@@ -350,7 +387,6 @@ pub fn strings_to_uuids(id_strs: &[String]) -> Result<Vec<Uuid>, crate::error::A
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use uuid::Uuid;
 
     #[test]

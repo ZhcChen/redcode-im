@@ -3,6 +3,82 @@ import '../../../core/services/message_service.dart';
 /// 消息类型
 enum MessageType { text, image, voice, video, file, system }
 
+/// 转发来源类型
+enum ForwardSourceType { user, group, favorite, unknown }
+
+/// 转发信息
+class ForwardInfo {
+  ForwardInfo({
+    required this.sourceType,
+    required this.sourceId,
+    required this.sourceName,
+    this.sourceAvatar,
+    this.originMessageId,
+    this.originRoomId,
+    this.originSenderId,
+    this.originSenderName,
+  });
+
+  final ForwardSourceType sourceType;
+  final String sourceId;
+  final String sourceName;
+  final String? sourceAvatar;
+  final String? originMessageId;
+  final String? originRoomId;
+  final String? originSenderId;
+  final String? originSenderName;
+
+  factory ForwardInfo.fromCacheJson(Map<String, dynamic> json) {
+    return ForwardInfo(
+      sourceType: _parseSourceType(json['sourceType'] as String?),
+      sourceId: json['sourceId'] as String? ?? '',
+      sourceName: json['sourceName'] as String? ?? '',
+      sourceAvatar: json['sourceAvatar'] as String?,
+      originMessageId: json['originMessageId'] as String?,
+      originRoomId: json['originRoomId'] as String?,
+      originSenderId: json['originSenderId'] as String?,
+      originSenderName: json['originSenderName'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'sourceType': sourceType.name,
+      'sourceId': sourceId,
+      'sourceName': sourceName,
+      'sourceAvatar': sourceAvatar,
+      'originMessageId': originMessageId,
+      'originRoomId': originRoomId,
+      'originSenderId': originSenderId,
+      'originSenderName': originSenderName,
+    };
+  }
+
+  String get displaySourceName {
+    if (sourceName.trim().isNotEmpty) {
+      return sourceName.trim();
+    }
+    if (sourceId.trim().isNotEmpty) {
+      return sourceId.trim();
+    }
+    return '未知来源';
+  }
+
+  static ForwardSourceType _parseSourceType(String? raw) {
+    switch ((raw ?? '').toLowerCase()) {
+      case 'user':
+      case 'single':
+        return ForwardSourceType.user;
+      case 'group':
+        return ForwardSourceType.group;
+      case 'favorite':
+        return ForwardSourceType.favorite;
+      default:
+        return ForwardSourceType.unknown;
+    }
+  }
+}
+
 /// 引用消息模型
 class QuotedMessage {
   QuotedMessage({
@@ -113,6 +189,8 @@ class QuotedMessage {
 
 /// 消息模型
 class Message {
+  static const Object _unset = Object();
+
   final String id;
   final String roomId;
   final String senderId;
@@ -126,6 +204,9 @@ class Message {
   final bool isSelf;
   final Map<String, dynamic>? extra;
   final QuotedMessage? quotedMessage;
+  final ForwardInfo? forwardInfo;
+  final bool isDeleted;
+  final DateTime? pinnedAt;
 
   Message({
     required this.id,
@@ -141,6 +222,9 @@ class Message {
     required this.isSelf,
     this.extra,
     this.quotedMessage,
+    this.forwardInfo,
+    this.isDeleted = false,
+    this.pinnedAt,
   });
 
   /// 复制并修改部分字段
@@ -156,8 +240,11 @@ class Message {
     MessageStatus? status,
     DateTime? timestamp,
     bool? isSelf,
-    Map<String, dynamic>? extra,
-    QuotedMessage? quotedMessage,
+    Object? extra = _unset,
+    Object? quotedMessage = _unset,
+    Object? forwardInfo = _unset,
+    bool? isDeleted,
+    Object? pinnedAt = _unset,
   }) {
     return Message(
       id: id ?? this.id,
@@ -171,8 +258,19 @@ class Message {
       status: status ?? this.status,
       timestamp: timestamp ?? this.timestamp,
       isSelf: isSelf ?? this.isSelf,
-      extra: extra ?? this.extra,
-      quotedMessage: quotedMessage ?? this.quotedMessage,
+      extra: identical(extra, _unset)
+          ? this.extra
+          : extra as Map<String, dynamic>?,
+      quotedMessage: identical(quotedMessage, _unset)
+          ? this.quotedMessage
+          : quotedMessage as QuotedMessage?,
+      forwardInfo: identical(forwardInfo, _unset)
+          ? this.forwardInfo
+          : forwardInfo as ForwardInfo?,
+      isDeleted: isDeleted ?? this.isDeleted,
+      pinnedAt: identical(pinnedAt, _unset)
+          ? this.pinnedAt
+          : pinnedAt as DateTime?,
     );
   }
 
@@ -255,6 +353,9 @@ class Message {
       'isSelf': isSelf,
       'extra': extra,
       'quoted': quotedMessage?.toCacheJson(),
+      'forward': forwardInfo?.toCacheJson(),
+      'isDeleted': isDeleted,
+      'pinnedAt': pinnedAt?.toIso8601String(),
     };
   }
 
@@ -286,6 +387,9 @@ class Message {
       isSelf: json['isSelf'] as bool? ?? false,
       extra: extra,
       quotedMessage: _parseQuotedFromCache(json['quoted']),
+      forwardInfo: _parseForwardFromCache(json['forward']),
+      isDeleted: json['isDeleted'] as bool? ?? false,
+      pinnedAt: _parseTimestamp(json['pinnedAt']),
     );
   }
 
@@ -348,4 +452,31 @@ class Message {
     }
     return null;
   }
+
+  static ForwardInfo? _parseForwardFromCache(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is ForwardInfo) return raw;
+    if (raw is Map<String, dynamic>) {
+      return ForwardInfo.fromCacheJson(raw);
+    }
+    if (raw is Map) {
+      final normalized = <String, dynamic>{};
+      raw.forEach((key, value) {
+        normalized[key.toString()] = value;
+      });
+      return ForwardInfo.fromCacheJson(normalized);
+    }
+    return null;
+  }
+
+  static DateTime? _parseTimestamp(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw;
+    if (raw is String && raw.isNotEmpty) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
+  }
+
+  bool get isPinned => pinnedAt != null;
 }
