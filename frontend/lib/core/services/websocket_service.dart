@@ -13,6 +13,7 @@ import 'friend_store.dart';
 import 'friend_service.dart';
 import '../../features/contacts/models/friend_models.dart';
 import '../../features/auth/models/auth_user.dart';
+import '../../proto/ws.pb.dart' as ws;
 
 /// WebSocket连接状态
 enum ConnectionStatus {
@@ -89,14 +90,18 @@ class WebSocketService with ChangeNotifier {
 
       // 建立WebSocket连接
       final wsUrl = AppConfig.wsUrl;
-      debugPrint('Connecting to WebSocket: $wsUrl');
+      final baseUri = Uri.parse(wsUrl);
+      final mergedParams = Map<String, String>.from(baseUri.queryParameters);
+      mergedParams['format'] = 'proto';
+      final wsUri = baseUri.replace(queryParameters: mergedParams);
+      debugPrint('Connecting to WebSocket: $wsUri');
 
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _channel = WebSocketChannel.connect(wsUri);
 
       // 监听消息
       _messageSubscription?.cancel();
       _messageSubscription = _channel!.stream.listen(
-        _handleMessage,
+        _handleIncomingFrame,
         onError: _handleError,
         onDone: _handleDisconnect,
         cancelOnError: false,
@@ -142,9 +147,8 @@ class WebSocketService with ChangeNotifier {
 
   /// 发送认证消息
   Future<void> _authenticate(String token) async {
-    final message = {'type': 'auth', 'token': token};
-
-    _sendMessage(message);
+    final event = ws.ClientEvent(auth: ws.ClientAuth(token: token));
+    _sendClientEvent(event);
   }
 
   /// 加入房间
@@ -168,10 +172,10 @@ class WebSocketService with ChangeNotifier {
       return;
     }
 
-    final message = {'type': 'join', 'room_id': roomId};
+    final event = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
     _pendingJoinRooms.add(roomId);
 
-    _sendMessage(message);
+    _sendClientEvent(event);
   }
 
   /// 离开房间
@@ -193,10 +197,10 @@ class WebSocketService with ChangeNotifier {
       return;
     }
 
-    final message = {'type': 'leave', 'room_id': roomId};
+    final event = ws.ClientEvent(leave: ws.ClientLeave(roomId: roomId));
     _pendingJoinRooms.remove(roomId);
 
-    _sendMessage(message);
+    _sendClientEvent(event);
   }
 
   /// 确保订阅指定房间；可选是否解除不在列表中的房间
@@ -241,32 +245,188 @@ class WebSocketService with ChangeNotifier {
         continue;
       }
 
-      final message = {'type': 'join', 'room_id': roomId};
+      final event = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
       _pendingJoinRooms.add(roomId);
-      _sendMessage(message);
+      _sendClientEvent(event);
     }
   }
 
-  /// 发送消息到WebSocket
-  void _sendMessage(Map<String, dynamic> message) {
+  /// 发送 protobuf 客户端事件
+  void _sendClientEvent(ws.ClientEvent event) {
     if (_channel == null) {
       debugPrint('Cannot send message: WebSocket not connected');
       return;
     }
 
     try {
-      final jsonStr = jsonEncode(message);
-      _channel!.sink.add(jsonStr);
-      debugPrint('Sent WebSocket message: ${message['type']}');
+      final bytes = event.writeToBuffer();
+      _channel!.sink.add(bytes);
+      debugPrint('Sent WebSocket client event: ${event.whichPayload()}');
     } catch (e) {
-      debugPrint('Failed to send WebSocket message: $e');
+      debugPrint('Failed to send WebSocket client event: $e');
     }
   }
 
-  /// 处理接收到的消息
-  void _handleMessage(dynamic data) {
+  void _handleIncomingFrame(dynamic data) {
+    if (data is String) {
+      _handleJsonFrame(data);
+    } else if (data is Uint8List) {
+      _handleBinaryMessage(data);
+    } else if (data is List<int>) {
+      _handleBinaryMessage(Uint8List.fromList(data));
+    } else {
+      debugPrint('Unknown WebSocket payload type: ${data.runtimeType}');
+    }
+  }
+
+  void _handleJsonFrame(String data) {
     try {
-      final Map<String, dynamic> message = jsonDecode(data);
+      final decoded = jsonDecode(data);
+      if (decoded is Map<String, dynamic>) {
+        _handleMapMessage(decoded);
+      } else {
+        debugPrint('Unexpected JSON payload: $decoded');
+      }
+    } catch (e) {
+      debugPrint('Failed to handle WebSocket JSON message: $e');
+    }
+  }
+
+  void _handleBinaryMessage(Uint8List data) {
+    try {
+      final event = ws.ServerEvent.create()..mergeFromBuffer(data);
+      final mapped = _serverEventToMap(event);
+      if (mapped != null) {
+        _handleMapMessage(mapped);
+      } else {
+        debugPrint('Ignored protobuf event: ${event.whichPayload()}');
+      }
+    } catch (e) {
+      debugPrint('Failed to handle protobuf WebSocket message: $e');
+    }
+  }
+
+  Map<String, dynamic>? _serverEventToMap(ws.ServerEvent event) {
+    switch (event.whichPayload()) {
+      case ws.ServerEvent_Payload.authed:
+        final payload = event.authed;
+        return {
+          'type': 'authed',
+          'user_id': payload.userId,
+          'conn_id': payload.connId,
+        };
+      case ws.ServerEvent_Payload.joined:
+        return {'type': 'joined', 'room_id': event.joined.roomId};
+      case ws.ServerEvent_Payload.left:
+        return {'type': 'left', 'room_id': event.left.roomId};
+      case ws.ServerEvent_Payload.message:
+        final payload = event.message;
+        final map = <String, dynamic>{
+          'type': 'message',
+          'id': payload.id,
+          'message_id': payload.messageId,
+          'room_id': payload.roomId,
+          'sender_id': payload.senderId,
+          'sender_username': _nullIfEmpty(payload.senderUsername),
+          'sender_nickname': _nullIfEmpty(payload.senderNickname),
+          'sender_avatar_url': _nullIfEmpty(payload.senderAvatarUrl),
+          'content': payload.content,
+          'message_type': payload.messageType,
+          'timestamp': payload.timestamp,
+        };
+
+        if (payload.hasQuotedMessage()) {
+          final quoted = payload.quotedMessage;
+          map['quoted_message'] = {
+            'id': quoted.id,
+            'room_id': quoted.roomId,
+            'sender_id': quoted.senderId,
+            'sender_username': _nullIfEmpty(quoted.senderUsername),
+            'sender_nickname': _nullIfEmpty(quoted.senderNickname),
+            'sender_avatar_url': _nullIfEmpty(quoted.senderAvatarUrl),
+            'content': _nullIfEmpty(quoted.content),
+            'message_type': quoted.messageType,
+            'created_at': _nullIfEmpty(quoted.createdAt),
+            'is_deleted': quoted.isDeleted,
+          };
+        } else {
+          map['quoted_message'] = null;
+        }
+
+        if (payload.hasForwardMessage()) {
+          final forward = payload.forwardMessage;
+          map['forward_message'] = {
+            'message_id': forward.messageId,
+            'room_id': forward.roomId,
+            'sender_id': forward.senderId,
+            'sender_username': _nullIfEmpty(forward.senderUsername),
+            'sender_nickname': _nullIfEmpty(forward.senderNickname),
+          };
+        } else {
+          map['forward_message'] = null;
+        }
+
+        return map;
+      case ws.ServerEvent_Payload.messageRead:
+        final payload = event.messageRead;
+        return {
+          'type': 'message_read',
+          'room_id': payload.roomId,
+          'message_id': payload.messageId,
+          'reader_id': payload.readerId,
+          'read_at': payload.readAt,
+        };
+      case ws.ServerEvent_Payload.messageUpdate:
+        final payload = event.messageUpdate;
+        return {
+          'type': 'message_update',
+          'room_id': payload.roomId,
+          'message_id': payload.messageId,
+          'is_deleted': payload.isDeleted,
+          'deleted_at': _nullIfEmpty(payload.deletedAt),
+        };
+      case ws.ServerEvent_Payload.pinUpdate:
+        final payload = event.pinUpdate;
+        return {
+          'type': 'pin_update',
+          'room_id': payload.roomId,
+          'message_id': _nullIfEmpty(payload.messageId),
+          'is_pinned': payload.isPinned,
+          'pinned_at': _nullIfEmpty(payload.pinnedAt),
+          'pinned_by': _nullIfEmpty(payload.pinnedBy),
+        };
+      case ws.ServerEvent_Payload.error:
+        return {'type': 'error', 'message': event.error.message};
+      case ws.ServerEvent_Payload.pong:
+        return {'type': 'pong'};
+      case ws.ServerEvent_Payload.friendRequestUpdate:
+        return {
+          'type': 'friend_request_update',
+          'pending_count': event.friendRequestUpdate.pendingCount,
+        };
+      case ws.ServerEvent_Payload.roomCreated:
+        final payload = event.roomCreated;
+        return {
+          'type': 'room_created',
+          'room_id': payload.roomId,
+          'room_name': payload.roomName,
+          'room_type': payload.roomType,
+          'initiator_id': payload.initiatorId,
+          'owner_id': payload.ownerId,
+          'description': _nullIfEmpty(payload.description),
+          'avatar_url': _nullIfEmpty(payload.avatarUrl),
+          'created_at': _nullIfEmpty(payload.createdAt),
+        };
+      case ws.ServerEvent_Payload.notSet:
+        return null;
+    }
+  }
+
+  String? _nullIfEmpty(String value) => value.isEmpty ? null : value;
+
+  /// 处理接收到的消息
+  void _handleMapMessage(Map<String, dynamic> message) {
+    try {
       debugPrint('Received WebSocket message: ${message['type']}');
 
       switch (message['type']) {
@@ -281,6 +441,12 @@ class WebSocketService with ChangeNotifier {
           break;
         case 'message':
           _handleNewMessage(message);
+          break;
+        case 'message_update':
+          _handleMessageUpdate(message);
+          break;
+        case 'pin_update':
+          _handlePinUpdate(message);
           break;
         case 'message_read':
           _handleMessageRead(message);
@@ -336,9 +502,9 @@ class WebSocketService with ChangeNotifier {
     _pendingJoinRooms.clear();
     for (final roomId in rooms) {
       if (roomId.isEmpty) continue;
-      final joinMessage = {'type': 'join', 'room_id': roomId};
+      final event = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
       _pendingJoinRooms.add(roomId);
-      _sendMessage(joinMessage);
+      _sendClientEvent(event);
     }
 
     // 认证成功后刷新：
@@ -393,6 +559,67 @@ class WebSocketService with ChangeNotifier {
         roomId: roomId,
         messageId: messageId,
         readerId: readerId,
+      ),
+    );
+  }
+
+  void _handleMessageUpdate(Map<String, dynamic> payload) {
+    final roomId = payload['room_id']?.toString() ?? '';
+    final messageId = payload['message_id']?.toString() ?? '';
+    if (roomId.isEmpty || messageId.isEmpty) {
+      debugPrint('Invalid message update payload: $payload');
+      return;
+    }
+
+    final isDeletedRaw = payload['is_deleted'];
+    final isDeleted = isDeletedRaw is bool
+        ? isDeletedRaw
+        : isDeletedRaw?.toString().toLowerCase() == 'true';
+
+    DateTime? deletedAt;
+    final deletedAtRaw = payload['deleted_at']?.toString();
+    if (deletedAtRaw != null && deletedAtRaw.isNotEmpty) {
+      deletedAt = DateTime.tryParse(deletedAtRaw);
+    }
+
+    unawaited(
+      _messageService.handleMessageUpdate(
+        roomId: roomId,
+        messageId: messageId,
+        isDeleted: isDeleted,
+        deletedAt: deletedAt,
+      ),
+    );
+  }
+
+  void _handlePinUpdate(Map<String, dynamic> payload) {
+    final roomId = payload['room_id']?.toString() ?? '';
+    if (roomId.isEmpty) {
+      debugPrint('Invalid pin update payload: $payload');
+      return;
+    }
+
+    final messageId = payload['message_id']?.toString();
+    final isPinnedRaw = payload['is_pinned'];
+    final isPinned = isPinnedRaw is bool
+        ? isPinnedRaw
+        : isPinnedRaw?.toString().toLowerCase() == 'true';
+
+    DateTime? pinnedAt;
+    final pinnedAtRaw = payload['pinned_at']?.toString();
+    if (pinnedAtRaw != null && pinnedAtRaw.isNotEmpty) {
+      pinnedAt = DateTime.tryParse(pinnedAtRaw);
+    }
+
+    final pinnedBy = payload['pinned_by']?.toString();
+
+    unawaited(
+      _messageService.handlePinUpdate(
+        roomId: roomId,
+        messageId: messageId,
+        isPinned: isPinned,
+        pinnedAt: pinnedAt,
+        pinnedBy: pinnedBy,
       ),
     );
   }
@@ -567,7 +794,7 @@ class WebSocketService with ChangeNotifier {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(_pingInterval, (_) {
       if (_isAuthenticated) {
-        _sendMessage({'type': 'ping'});
+        _sendClientEvent(ws.ClientEvent(ping: ws.ClientPing()));
       }
     });
   }
@@ -643,6 +870,7 @@ class WebSocketMessage {
   final DateTime timestamp;
   final Map<String, dynamic>? extra;
   final WebSocketQuotedMessage? quotedMessage;
+  final WebSocketForwardMessage? forwardMessage;
 
   WebSocketMessage({
     required this.id,
@@ -656,6 +884,7 @@ class WebSocketMessage {
     required this.timestamp,
     required this.extra,
     required this.quotedMessage,
+    required this.forwardMessage,
   });
 
   factory WebSocketMessage.fromJson(Map<String, dynamic> json) {
@@ -677,6 +906,7 @@ class WebSocketMessage {
     }
 
     WebSocketQuotedMessage? quotedMessage;
+    WebSocketForwardMessage? forwardMessage;
     final quotedRaw = json['quoted_message'];
     if (quotedRaw is Map<String, dynamic>) {
       quotedMessage = WebSocketQuotedMessage.fromJson(quotedRaw);
@@ -686,6 +916,17 @@ class WebSocketMessage {
         map[key.toString()] = value;
       });
       quotedMessage = WebSocketQuotedMessage.fromJson(map);
+    }
+
+    final forwardRaw = json['forward_message'];
+    if (forwardRaw is Map<String, dynamic>) {
+      forwardMessage = WebSocketForwardMessage.fromJson(forwardRaw);
+    } else if (forwardRaw is Map) {
+      final map = <String, dynamic>{};
+      forwardRaw.forEach((key, value) {
+        map[key.toString()] = value;
+      });
+      forwardMessage = WebSocketForwardMessage.fromJson(map);
     }
 
     return WebSocketMessage(
@@ -702,6 +943,7 @@ class WebSocketMessage {
           : DateTime.now(),
       extra: extra,
       quotedMessage: quotedMessage,
+      forwardMessage: forwardMessage,
     );
   }
 
@@ -713,6 +955,32 @@ class WebSocketMessage {
       return senderUsername!;
     }
     return senderId;
+  }
+}
+
+class WebSocketForwardMessage {
+  WebSocketForwardMessage({
+    required this.messageId,
+    required this.roomId,
+    required this.senderId,
+    this.senderUsername,
+    this.senderNickname,
+  });
+
+  final String messageId;
+  final String roomId;
+  final String senderId;
+  final String? senderUsername;
+  final String? senderNickname;
+
+  factory WebSocketForwardMessage.fromJson(Map<String, dynamic> json) {
+    return WebSocketForwardMessage(
+      messageId: json['message_id']?.toString() ?? '',
+      roomId: json['room_id']?.toString() ?? '',
+      senderId: json['sender_id']?.toString() ?? '',
+      senderUsername: json['sender_username']?.toString(),
+      senderNickname: json['sender_nickname']?.toString(),
+    );
   }
 }
 

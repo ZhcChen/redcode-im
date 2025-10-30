@@ -2,12 +2,13 @@ mod auth;
 mod database;
 mod error;
 mod handlers;
+mod id;
 mod models;
+mod proto;
 mod redis;
 mod routes;
 mod storage;
 mod websocket;
-mod id;
 
 use std::{
     env,

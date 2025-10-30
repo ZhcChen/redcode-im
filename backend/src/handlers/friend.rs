@@ -1,11 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+};
 
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
 };
 use serde::Deserialize;
-use serde_json::json;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -23,6 +25,7 @@ use crate::models::{
     Claims, CreateFriendRequest, FriendInfo, FriendRequestAction, FriendRequestInfo,
     RespondFriendRequest,
 };
+use crate::websocket::ServerPush;
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -253,15 +256,13 @@ async fn notify_pending_count(
     user_id: Uuid,
 ) -> Result<(), AppError> {
     let pending = friend_store.count_pending_incoming(user_id).await?;
+    let pending_i32 = i32::try_from(pending).unwrap_or(i32::MAX);
+    let payload = ServerPush::FriendRequestUpdate {
+        pending_count: pending_i32,
+    };
     state
         .connection_manager
-        .send_to_user(
-            &user_id.to_string(),
-            json!({
-                "type": "friend_request_update",
-                "pending_count": pending
-            }),
-        )
+        .send_to_user(&user_id.to_string(), payload)
         .await;
     Ok(())
 }

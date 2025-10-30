@@ -1,3 +1,6 @@
+mod protocol;
+pub use protocol::{RoomCreatedPayload, ServerPush};
+
 use axum::extract::{
     ws::{Message, WebSocket, WebSocketUpgrade},
     State,
@@ -5,8 +8,9 @@ use axum::extract::{
 use axum::{http::StatusCode, response::IntoResponse};
 use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use prost::Message as _;
+use serde::Deserialize;
+use serde_json::json;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -14,7 +18,8 @@ use std::{
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
-use crate::{auth, AppState};
+use crate::{auth, proto::ws, AppState};
+use protocol::{ConnectionFormat, OutboundFrame};
 use tracing::{error, info};
 
 // WebSocket连接管理器
@@ -33,7 +38,8 @@ pub struct ConnectionInfo {
     pub user_id: String,
     pub connected_at: chrono::DateTime<chrono::Utc>,
     pub last_ping: chrono::DateTime<chrono::Utc>,
-    pub sender: mpsc::UnboundedSender<String>,
+    pub format: ConnectionFormat,
+    pub sender: mpsc::UnboundedSender<OutboundFrame>,
 }
 
 impl ConnectionManager {
@@ -50,13 +56,15 @@ impl ConnectionManager {
         &self,
         conn_id: String,
         user_id: String,
-        sender: mpsc::UnboundedSender<String>,
+        format: ConnectionFormat,
+        sender: mpsc::UnboundedSender<OutboundFrame>,
     ) {
         let mut user_conns = self.user_connections.write().await;
         let conn_info = ConnectionInfo {
             user_id: user_id.clone(),
             connected_at: chrono::Utc::now(),
             last_ping: chrono::Utc::now(),
+            format,
             sender,
         };
 
@@ -65,7 +73,12 @@ impl ConnectionManager {
             .or_insert_with(HashMap::new)
             .insert(conn_id.clone(), conn_info);
 
-        info!("用户 {} 的连接 {} 已注册", user_id, conn_id);
+        info!(
+            "用户 {} 的连接 {} 已注册（格式: {}）",
+            user_id,
+            conn_id,
+            format.as_str()
+        );
     }
 
     // 注销连接
@@ -212,13 +225,40 @@ impl ConnectionManager {
         room_subs.get(&room_id).map(|subs| subs.len()).unwrap_or(0)
     }
 
-    pub async fn send_to_user(&self, user_id: &str, payload: Value) {
-        let message = payload.to_string();
+    pub async fn send_to_user(&self, user_id: &str, payload: ServerPush) {
+        let payload = Arc::new(payload);
+        let mut json_cache: Option<String> = None;
+        let mut proto_cache: Option<Vec<u8>> = None;
 
         let user_conns = self.user_connections.read().await;
         if let Some(conns) = user_conns.get(user_id) {
             for (conn_id, info) in conns {
-                if let Err(err) = info.sender.send(message.clone()) {
+                let send_result = match info.format {
+                    ConnectionFormat::Json => {
+                        let text = match &json_cache {
+                            Some(cached) => cached.clone(),
+                            None => {
+                                let encoded = payload.as_ref().to_json_string();
+                                json_cache = Some(encoded);
+                                json_cache.as_ref().unwrap().clone()
+                            }
+                        };
+                        info.sender.send(OutboundFrame::Text(text))
+                    }
+                    ConnectionFormat::Protobuf => {
+                        let bytes = match &proto_cache {
+                            Some(cached) => cached.clone(),
+                            None => {
+                                let encoded = payload.as_ref().to_protobuf_bytes();
+                                proto_cache = Some(encoded);
+                                proto_cache.as_ref().unwrap().clone()
+                            }
+                        };
+                        info.sender.send(OutboundFrame::Binary(bytes))
+                    }
+                };
+
+                if let Err(err) = send_result {
                     tracing::debug!(
                         "向用户 {} 的连接 {} 发送事件失败: {}",
                         user_id,
@@ -240,69 +280,153 @@ enum ClientEvent {
     Ping,
 }
 
-#[derive(Serialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum ServerEvent<'a> {
-    Authed {
-        user_id: &'a str,
-    },
-    Joined {
-        room_id: Uuid,
-    },
-    Left {
-        room_id: Uuid,
-    },
-    Message {
-        room_id: Uuid,
-        payload: serde_json::Value,
-    },
-    Error {
-        message: &'a str,
-    },
-    Pong,
+impl TryFrom<ws::ClientEvent> for ClientEvent {
+    type Error = String;
+
+    fn try_from(value: ws::ClientEvent) -> Result<Self, Self::Error> {
+        use ws::client_event::Payload;
+
+        match value.payload {
+            Some(Payload::Auth(auth)) => Ok(ClientEvent::Auth { token: auth.token }),
+            Some(Payload::Join(join)) => Ok(ClientEvent::Join {
+                room_id: Uuid::parse_str(&join.room_id)
+                    .map_err(|_| "invalid room_id".to_string())?,
+            }),
+            Some(Payload::Leave(leave)) => Ok(ClientEvent::Leave {
+                room_id: Uuid::parse_str(&leave.room_id)
+                    .map_err(|_| "invalid room_id".to_string())?,
+            }),
+            Some(Payload::Ping(_)) => Ok(ClientEvent::Ping),
+            None => Err("missing payload".to_string()),
+        }
+    }
+}
+
+async fn handle_client_event(
+    event: ClientEvent,
+    conn_id: &str,
+    format: ConnectionFormat,
+    connection_manager: Arc<ConnectionManager>,
+    out_tx: &mpsc::UnboundedSender<OutboundFrame>,
+    pubsub_cmd_tx: &mpsc::UnboundedSender<PubSubCmd>,
+) -> Result<(), String> {
+    match event {
+        ClientEvent::Auth { token } => match auth::verify_token(&token) {
+            Ok(claims) => {
+                let user_id = claims.sub.clone();
+                connection_manager
+                    .register_connection(
+                        conn_id.to_string(),
+                        user_id.clone(),
+                        format,
+                        out_tx.clone(),
+                    )
+                    .await;
+
+                let push = ServerPush::Authed {
+                    user_id: user_id.clone(),
+                    conn_id: conn_id.to_string(),
+                };
+                let _ = out_tx.send(push.encode(format));
+
+                info!(
+                    "WebSocket连接 {} 认证成功，用户: {} (格式: {})",
+                    conn_id,
+                    user_id,
+                    format.as_str()
+                );
+
+                Ok(())
+            }
+            Err(e) => {
+                error!("WebSocket认证失败: {}", e);
+                Err("unauthorized".to_string())
+            }
+        },
+        ClientEvent::Join { room_id } => {
+            connection_manager
+                .subscribe_room(conn_id, room_id)
+                .await
+                .map_err(|err| {
+                    error!("连接 {} 订阅房间 {} 失败: {}", conn_id, room_id, err);
+                    err
+                })?;
+
+            let channel = format!("room:{}", room_id);
+            let _ = pubsub_cmd_tx.send(PubSubCmd::Subscribe(channel));
+
+            let push = ServerPush::Joined { room_id };
+            let _ = out_tx.send(push.encode(format));
+            info!("连接 {} 加入房间 {}", conn_id, room_id);
+
+            Ok(())
+        }
+        ClientEvent::Leave { room_id } => {
+            if connection_manager.unsubscribe_room(conn_id, room_id).await {
+                let channel = format!("room:{}", room_id);
+                let _ = pubsub_cmd_tx.send(PubSubCmd::Unsubscribe(channel));
+
+                let push = ServerPush::Left { room_id };
+                let _ = out_tx.send(push.encode(format));
+                info!("连接 {} 离开房间 {}", conn_id, room_id);
+                Ok(())
+            } else {
+                Err("not subscribed".to_string())
+            }
+        }
+        ClientEvent::Ping => {
+            connection_manager.update_ping(conn_id).await;
+            let _ = out_tx.send(ServerPush::Pong.encode(format));
+            Ok(())
+        }
+    }
 }
 
 // WebSocket处理函数
-pub async fn handle_socket(state: AppState, socket: WebSocket) {
+pub async fn handle_socket(state: AppState, socket: WebSocket, format: ConnectionFormat) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    let conn_id = format!("conn_{}", uuid::Uuid::new_v4());
+    let conn_id = format!("conn_{}", Uuid::new_v4());
 
-    // 使用全局ConnectionManager
     let connection_manager = state.connection_manager.clone();
 
-    // Outgoing WS messages channel
-    let (out_tx, mut out_rx) = mpsc::unbounded_channel::<String>();
+    let (out_tx, mut out_rx) = mpsc::unbounded_channel::<OutboundFrame>();
     let out_tx_clone = out_tx.clone();
-
-    // PubSub订阅管理channel
     let (pubsub_cmd_tx, mut pubsub_cmd_rx) = mpsc::unbounded_channel::<PubSubCmd>();
 
-    // 发送任务
     let send_task = tokio::spawn(async move {
-        while let Some(payload) = out_rx.recv().await {
-            let _ = ws_sender.send(Message::Text(payload)).await;
+        while let Some(frame) = out_rx.recv().await {
+            let result = match frame {
+                OutboundFrame::Text(text) => ws_sender.send(Message::Text(text)).await,
+                OutboundFrame::Binary(bytes) => ws_sender.send(Message::Binary(bytes)).await,
+            };
+            if let Err(err) = result {
+                tracing::debug!("WebSocket发送失败: {}", err);
+                break;
+            }
         }
     });
 
-    // PubSub管理任务
     let pubsub_client = state.redis.get_pubsub_client().clone();
     let conn_id_clone = conn_id.clone();
+    let format_for_pubsub = format;
     let forward_task = tokio::spawn(async move {
         let conn = match pubsub_client.get_async_connection().await {
             Ok(c) => c,
-            Err(_) => {
-                let _ = out_tx_clone
-                    .send(json!({"type":"error","message":"redis unavailable"}).to_string());
+            Err(e) => {
+                error!("Redis PubSub 连接失败: {}", e);
+                let _ = out_tx_clone.send(
+                    ServerPush::Error {
+                        message: "redis unavailable".to_string(),
+                    }
+                    .encode(format_for_pubsub),
+                );
                 return;
             }
         };
         let mut pubsub = conn.into_pubsub();
-
-        // 当前连接下已订阅的频道（用于断线重建）
         let mut subscribed_channels: std::collections::HashSet<String> =
             std::collections::HashSet::new();
 
-        // 便捷函数：在 EOF 等连接错误后重建 PubSub，并恢复订阅
         async fn rebuild_pubsub(
             client: &redis::Client,
             current_channels: &std::collections::HashSet<String>,
@@ -310,11 +434,9 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
             match client.get_async_connection().await {
                 Ok(conn) => {
                     let mut new_pubsub = conn.into_pubsub();
-                    // 尝试恢复已订阅频道
                     for ch in current_channels {
                         if let Err(e) = new_pubsub.subscribe(&ch).await {
                             tracing::error!("重建后订阅频道失败 {}: {}", ch, e);
-                            // 若恢复任一频道失败，继续尝试其他频道，尽量恢复大部分
                         }
                     }
                     Some(new_pubsub)
@@ -328,7 +450,6 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
 
         loop {
             tokio::select! {
-                // 处理订阅命令
                 Some(cmd) = pubsub_cmd_rx.recv() => {
                     match cmd {
                         PubSubCmd::Subscribe(channel) => {
@@ -339,7 +460,6 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
                                 }
                                 Err(e) => {
                                     error!("订阅Redis频道失败 {}: {}", channel, e);
-                                    // 针对连接断开类错误进行重建并重试一次
                                     let msg = e.to_string();
                                     if msg.contains("unexpected end of file") || msg.contains("Connection reset") {
                                         if let Some(new_ps) = rebuild_pubsub(&pubsub_client, &subscribed_channels).await {
@@ -389,8 +509,6 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
                         }
                     }
                 }
-
-                // 处理订阅消息
                 msg = async {
                     let mut on_msg = pubsub.on_message();
                     on_msg.next().await
@@ -398,39 +516,34 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
                     if let Some(msg) = msg {
                         let payload: String = match msg.get_payload() {
                             Ok(p) => p,
-                            Err(_) => continue
+                            Err(err) => {
+                                error!("读取Redis消息负载失败: {}", err);
+                                continue;
+                            }
                         };
 
-                        // 解析Redis Pub/Sub消息并转发给WebSocket
-                        if let Ok(event) = serde_json::from_str::<crate::redis::models::PubSubPayload>(&payload) {
-                            match event {
-                                crate::redis::models::PubSubPayload::Message { data: redis_msg } => {
-                                    let response = json!({
-                                        "type": "message",
-                                        "id": redis_msg.id,
-                                        "message_id": redis_msg.id,
-                                        "room_id": redis_msg.room_id,
-                                        "sender_id": redis_msg.sender_id,
-                                        "sender_username": redis_msg.sender_username,
-                                        "sender_nickname": redis_msg.sender_nickname,
-                                        "sender_avatar_url": redis_msg.sender_avatar_url,
-                                        "content": redis_msg.content,
-                                        "message_type": redis_msg.message_type,
-                                        "quoted_message": redis_msg.quoted_message,
-                                        "timestamp": redis_msg.timestamp
-                                    });
-                                    let _ = out_tx_clone.send(response.to_string());
-                                }
-                                crate::redis::models::PubSubPayload::ReadReceipt { data } => {
-                                    let response = json!({
-                                        "type": "message_read",
-                                        "room_id": data.room_id,
-                                        "message_id": data.message_id,
-                                        "reader_id": data.reader_id,
-                                        "read_at": data.read_at
-                                    });
-                                    let _ = out_tx_clone.send(response.to_string());
-                                }
+                        match serde_json::from_str::<crate::redis::models::PubSubPayload>(&payload) {
+                            Ok(event) => {
+                                let push = match event {
+                                    crate::redis::models::PubSubPayload::Message { data } => {
+                                        ServerPush::Message { data }
+                                    }
+                                    crate::redis::models::PubSubPayload::ReadReceipt { data } => {
+                                        ServerPush::MessageRead { data }
+                                    }
+                                    crate::redis::models::PubSubPayload::MessageUpdate { data } => {
+                                        ServerPush::MessageUpdate { data }
+                                    }
+                                    crate::redis::models::PubSubPayload::PinUpdate { data } => {
+                                        ServerPush::PinUpdate { data }
+                                    }
+                                };
+
+                                let frame = push.encode(format_for_pubsub);
+                                let _ = out_tx_clone.send(frame);
+                            }
+                            Err(err) => {
+                                error!("解析Redis消息失败: {}", err);
                             }
                         }
                     }
@@ -439,111 +552,103 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
         }
     });
 
-    // 处理WebSocket消息
     while let Some(Ok(msg)) = ws_receiver.next().await {
         match msg {
             Message::Text(text) => {
-                info!("WebSocket收到消息: {}", text);
-                if let Ok(parsed) = serde_json::from_str::<ClientEvent>(&text) {
-                    match parsed {
-                        ClientEvent::Auth { token } => {
-                            match auth::verify_token(&token) {
-                                Ok(claims) => {
-                                    // 注册连接
-                                    connection_manager
-                                        .register_connection(
-                                            conn_id.clone(),
-                                            claims.sub.clone(),
-                                            out_tx.clone(),
-                                        )
-                                        .await;
-
-                                    let response = json!({
-                                        "type": "authed",
-                                        "user_id": claims.sub,
-                                        "conn_id": conn_id
-                                    });
-                                    let _ = out_tx.send(response.to_string());
-
-                                    info!(
-                                        "WebSocket连接 {} 认证成功，用户: {}",
-                                        conn_id, claims.sub
-                                    );
+                info!("WebSocket收到文本消息: {}", text);
+                match serde_json::from_str::<ClientEvent>(&text) {
+                    Ok(event) => {
+                        if let Err(err) = handle_client_event(
+                            event,
+                            &conn_id,
+                            format,
+                            connection_manager.clone(),
+                            &out_tx,
+                            &pubsub_cmd_tx,
+                        )
+                        .await
+                        {
+                            let _ = out_tx.send(
+                                ServerPush::Error {
+                                    message: err.clone(),
                                 }
-                                Err(e) => {
-                                    error!("WebSocket认证失败: {}", e);
-                                    let response = json!({
-                                        "type": "error",
-                                        "message": "unauthorized"
-                                    });
-                                    let _ = out_tx.send(response.to_string());
-                                }
-                            }
-                        }
-                        ClientEvent::Join { room_id } => {
-                            match connection_manager.subscribe_room(&conn_id, room_id).await {
-                                Ok(()) => {
-                                    // 订阅Redis Pub/Sub频道
-                                    let channel = format!("room:{}", room_id);
-                                    let _ = pubsub_cmd_tx.send(PubSubCmd::Subscribe(channel));
-
-                                    let response = json!({
-                                        "type": "joined",
-                                        "room_id": room_id
-                                    });
-                                    let _ = out_tx.send(response.to_string());
-                                    info!("连接 {} 加入房间 {}", conn_id, room_id);
-                                }
-                                Err(err) => {
-                                    let response = json!({
-                                        "type": "error",
-                                        "message": err
-                                    });
-                                    let _ = out_tx.send(response.to_string());
-                                }
-                            }
-                        }
-                        ClientEvent::Leave { room_id } => {
-                            if connection_manager.unsubscribe_room(&conn_id, room_id).await {
-                                // 取消订阅Redis Pub/Sub频道
-                                let channel = format!("room:{}", room_id);
-                                let _ = pubsub_cmd_tx.send(PubSubCmd::Unsubscribe(channel));
-
-                                let response = json!({
-                                    "type": "left",
-                                    "room_id": room_id
-                                });
-                                let _ = out_tx.send(response.to_string());
-                                info!("连接 {} 离开房间 {}", conn_id, room_id);
-                            }
-                        }
-                        ClientEvent::Ping => {
-                            connection_manager.update_ping(&conn_id).await;
-                            let response = json!({ "type": "pong" });
-                            let _ = out_tx.send(response.to_string());
+                                .encode(format),
+                            );
+                            error!("处理客户端事件失败: {}", err);
                         }
                     }
-                } else {
-                    // 无效的消息格式，记录错误和详细信息
-                    let parse_error = serde_json::from_str::<ClientEvent>(&text).unwrap_err();
-                    error!("无法解析WebSocket消息: {}，错误: {}", text, parse_error);
-                    let response = json!({
-                        "type": "error",
-                        "message": format!("Parse error: {}", parse_error)
-                    });
-                    let _ = out_tx.send(response.to_string());
+                    Err(parse_err) => {
+                        error!("无法解析WebSocket消息: {}，错误: {}", text, parse_err);
+                        let err_text = format!("Parse error: {}", parse_err);
+                        let _ = out_tx.send(
+                            ServerPush::Error {
+                                message: err_text.clone(),
+                            }
+                            .encode(format),
+                        );
+                    }
                 }
             }
             Message::Binary(data) => {
-                let response = json!({
-                    "type": "binary",
-                    "data": base64::engine::general_purpose::STANDARD.encode(&data)
-                });
-                let _ = out_tx.send(response.to_string());
+                if format == ConnectionFormat::Protobuf {
+                    match ws::ClientEvent::decode(data.as_ref()) {
+                        Ok(pb_event) => match ClientEvent::try_from(pb_event) {
+                            Ok(event) => {
+                                if let Err(err) = handle_client_event(
+                                    event,
+                                    &conn_id,
+                                    format,
+                                    connection_manager.clone(),
+                                    &out_tx,
+                                    &pubsub_cmd_tx,
+                                )
+                                .await
+                                {
+                                    let _ = out_tx.send(
+                                        ServerPush::Error {
+                                            message: err.clone(),
+                                        }
+                                        .encode(format),
+                                    );
+                                    error!("处理客户端事件失败: {}", err);
+                                }
+                            }
+                            Err(err) => {
+                                error!("解析protobuf客户端事件失败: {}", err);
+                                let _ = out_tx.send(
+                                    ServerPush::Error {
+                                        message: err.clone(),
+                                    }
+                                    .encode(format),
+                                );
+                            }
+                        },
+                        Err(decode_err) => {
+                            error!("解码protobuf消息失败: {}", decode_err);
+                            let err_text = format!("protobuf decode error: {}", decode_err);
+                            let _ = out_tx.send(
+                                ServerPush::Error {
+                                    message: err_text.clone(),
+                                }
+                                .encode(format),
+                            );
+                        }
+                    }
+                } else {
+                    let encoded = base64::engine::general_purpose::STANDARD.encode(&data);
+                    let frame = OutboundFrame::Text(
+                        json!({
+                            "type": "binary",
+                            "data": encoded
+                        })
+                        .to_string(),
+                    );
+                    let _ = out_tx.send(frame);
+                }
             }
             Message::Ping(_) => {
-                let response = json!({ "type": "pong" });
-                let _ = out_tx.send(response.to_string());
+                connection_manager.update_ping(&conn_id).await;
+                let _ = out_tx.send(ServerPush::Pong.encode(format));
             }
             Message::Pong(_) => {
                 connection_manager.update_ping(&conn_id).await;
@@ -554,10 +659,8 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
         }
     }
 
-    // 清理连接
     let rooms = connection_manager.unregister_connection(&conn_id).await;
 
-    // 取消订阅所有房间的Redis频道
     if let Some(room_list) = rooms {
         for room_id in room_list {
             let channel = format!("room:{}", room_id);
@@ -565,12 +668,10 @@ pub async fn handle_socket(state: AppState, socket: WebSocket) {
         }
     }
 
-    // 关闭PubSub任务
     let _ = pubsub_cmd_tx.send(PubSubCmd::Shutdown);
 
     info!("WebSocket连接 {} 已关闭", conn_id);
 
-    // 关闭任务
     let _ = forward_task.abort();
     let _ = send_task.abort();
 }
@@ -582,12 +683,20 @@ pub async fn handle_websocket_upgrade(
     // 可选的查询参数中的token
     axum::extract::Query(params): axum::extract::Query<WsUpgradeParams>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    let connection_format = ConnectionFormat::from_query(params.format.as_deref());
+
     // 检查是否有token（可选的连接前认证）
     if let Some(ref token) = params.token {
         match auth::verify_token(token) {
             Ok(claims) => {
-                info!("WebSocket握手认证成功，用户: {}", claims.sub);
-                return Ok(ws.on_upgrade(move |socket| handle_socket(state, socket)));
+                info!(
+                    "WebSocket握手认证成功，用户: {}，格式: {}",
+                    claims.sub,
+                    connection_format.as_str()
+                );
+                return Ok(
+                    ws.on_upgrade(move |socket| handle_socket(state, socket, connection_format))
+                );
             }
             Err(e) => {
                 error!("WebSocket握手认证失败: {}", e);
@@ -597,13 +706,17 @@ pub async fn handle_websocket_upgrade(
     }
 
     // 无token也允许连接，但需要在连接后通过Auth事件认证
-    info!("WebSocket握手完成，等待客户端认证");
-    Ok(ws.on_upgrade(move |socket| handle_socket(state, socket)))
+    info!(
+        "WebSocket握手完成（未提前认证），等待客户端认证，格式: {}",
+        connection_format.as_str()
+    );
+    Ok(ws.on_upgrade(move |socket| handle_socket(state, socket, connection_format)))
 }
 
 #[derive(serde::Deserialize)]
 pub struct WsUpgradeParams {
     pub token: Option<String>,
+    pub format: Option<String>,
 }
 
 enum PubSubCmd {

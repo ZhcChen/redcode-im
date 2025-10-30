@@ -5,7 +5,6 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
 use crate::database::{
@@ -15,6 +14,7 @@ use crate::database::{
 use crate::error::AppError;
 use crate::models::convert::{db_chat_summary_to_api, string_to_uuid};
 use crate::models::{ChatSummary, Claims};
+use crate::websocket::{RoomCreatedPayload, ServerPush};
 use crate::AppState;
 
 #[derive(Deserialize)]
@@ -103,22 +103,21 @@ pub async fn create_room(
     let room_created_at = room.created_at;
     let room_owner = room.owner_id;
     for user_id in notify_targets {
+        let payload = ServerPush::RoomCreated {
+            data: RoomCreatedPayload {
+                room_id,
+                room_name: room_name.clone(),
+                room_type: requested_type.to_string(),
+                initiator_id: owner,
+                owner_id: room_owner,
+                description: room_description.clone(),
+                avatar_url: room_avatar.clone(),
+                created_at: Some(room_created_at),
+            },
+        };
         state
             .connection_manager
-            .send_to_user(
-                &user_id.to_string(),
-                json!({
-                    "type": "room_created",
-                    "room_id": room_id,
-                    "room_name": room_name,
-                    "room_type": requested_type.to_string(),
-                    "initiator_id": owner.to_string(),
-                    "owner_id": room_owner.to_string(),
-                    "description": room_description,
-                    "avatar_url": room_avatar,
-                    "created_at": room_created_at,
-                }),
-            )
+            .send_to_user(&user_id.to_string(), payload)
             .await;
     }
 
