@@ -15,6 +15,9 @@ import '../../features/contacts/models/friend_models.dart';
 import '../../features/auth/models/auth_user.dart';
 import '../../proto/ws.pb.dart' as ws;
 
+String? _asOptionalString(String? value) =>
+    value == null || value.isEmpty ? null : value;
+
 /// WebSocket连接状态
 enum ConnectionStatus {
   connecting,
@@ -268,12 +271,12 @@ class WebSocketService with ChangeNotifier {
   }
 
   void _handleIncomingFrame(dynamic data) {
-    if (data is String) {
-      _handleJsonFrame(data);
-    } else if (data is Uint8List) {
+    if (data is Uint8List) {
       _handleBinaryMessage(data);
     } else if (data is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(data));
+    } else if (data is String) {
+      _handleJsonFrame(data);
     } else {
       debugPrint('Unknown WebSocket payload type: ${data.runtimeType}');
     }
@@ -283,7 +286,12 @@ class WebSocketService with ChangeNotifier {
     try {
       final decoded = jsonDecode(data);
       if (decoded is Map<String, dynamic>) {
-        _handleMapMessage(decoded);
+        final event = _eventFromLegacyMap(decoded);
+        if (event != null) {
+          _dispatchEvent(event);
+        } else {
+          debugPrint('Ignored legacy WebSocket event: ${decoded['type']}');
+        }
       } else {
         debugPrint('Unexpected JSON payload: $decoded');
       }
@@ -295,9 +303,9 @@ class WebSocketService with ChangeNotifier {
   void _handleBinaryMessage(Uint8List data) {
     try {
       final event = ws.ServerEvent.create()..mergeFromBuffer(data);
-      final mapped = _serverEventToMap(event);
-      if (mapped != null) {
-        _handleMapMessage(mapped);
+      final parsed = _eventFromProto(event);
+      if (parsed != null) {
+        _dispatchEvent(parsed);
       } else {
         debugPrint('Ignored protobuf event: ${event.whichPayload()}');
       }
@@ -306,193 +314,274 @@ class WebSocketService with ChangeNotifier {
     }
   }
 
-  Map<String, dynamic>? _serverEventToMap(ws.ServerEvent event) {
+  String? _nullIfEmpty(String? value) =>
+      value == null || value.isEmpty ? null : value;
+
+  _WsEvent? _eventFromProto(ws.ServerEvent event) {
     switch (event.whichPayload()) {
       case ws.ServerEvent_Payload.authed:
         final payload = event.authed;
-        return {
-          'type': 'authed',
-          'user_id': payload.userId,
-          'conn_id': payload.connId,
-        };
+        if (payload.userId.isEmpty || payload.connId.isEmpty) {
+          return null;
+        }
+        return _AuthedEvent(
+          userId: payload.userId,
+          connectionId: payload.connId,
+        );
       case ws.ServerEvent_Payload.joined:
-        return {'type': 'joined', 'room_id': event.joined.roomId};
+        final roomId = event.joined.roomId;
+        if (roomId.isEmpty) return null;
+        return _JoinedEvent(roomId: roomId);
       case ws.ServerEvent_Payload.left:
-        return {'type': 'left', 'room_id': event.left.roomId};
+        final roomId = event.left.roomId;
+        if (roomId.isEmpty) return null;
+        return _LeftEvent(roomId: roomId);
       case ws.ServerEvent_Payload.message:
-        final payload = event.message;
-        final map = <String, dynamic>{
-          'type': 'message',
-          'id': payload.id,
-          'message_id': payload.messageId,
-          'room_id': payload.roomId,
-          'sender_id': payload.senderId,
-          'sender_username': _nullIfEmpty(payload.senderUsername),
-          'sender_nickname': _nullIfEmpty(payload.senderNickname),
-          'sender_avatar_url': _nullIfEmpty(payload.senderAvatarUrl),
-          'content': payload.content,
-          'message_type': payload.messageType,
-          'timestamp': payload.timestamp,
-        };
-
-        if (payload.hasQuotedMessage()) {
-          final quoted = payload.quotedMessage;
-          map['quoted_message'] = {
-            'id': quoted.id,
-            'room_id': quoted.roomId,
-            'sender_id': quoted.senderId,
-            'sender_username': _nullIfEmpty(quoted.senderUsername),
-            'sender_nickname': _nullIfEmpty(quoted.senderNickname),
-            'sender_avatar_url': _nullIfEmpty(quoted.senderAvatarUrl),
-            'content': _nullIfEmpty(quoted.content),
-            'message_type': quoted.messageType,
-            'created_at': _nullIfEmpty(quoted.createdAt),
-            'is_deleted': quoted.isDeleted,
-          };
-        } else {
-          map['quoted_message'] = null;
+        try {
+          final message = WebSocketMessage.fromProto(event.message);
+          return _MessageEvent(message: message);
+        } catch (e) {
+          debugPrint('Failed to convert message proto: $e');
+          return null;
         }
-
-        if (payload.hasForwardMessage()) {
-          final forward = payload.forwardMessage;
-          map['forward_message'] = {
-            'message_id': forward.messageId,
-            'room_id': forward.roomId,
-            'sender_id': forward.senderId,
-            'sender_username': _nullIfEmpty(forward.senderUsername),
-            'sender_nickname': _nullIfEmpty(forward.senderNickname),
-          };
-        } else {
-          map['forward_message'] = null;
-        }
-
-        return map;
       case ws.ServerEvent_Payload.messageRead:
         final payload = event.messageRead;
-        return {
-          'type': 'message_read',
-          'room_id': payload.roomId,
-          'message_id': payload.messageId,
-          'reader_id': payload.readerId,
-          'read_at': payload.readAt,
-        };
+        if (payload.roomId.isEmpty ||
+            payload.messageId.isEmpty ||
+            payload.readerId.isEmpty) {
+          return null;
+        }
+        return _MessageReadEvent(
+          roomId: payload.roomId,
+          messageId: payload.messageId,
+          readerId: payload.readerId,
+        );
       case ws.ServerEvent_Payload.messageUpdate:
         final payload = event.messageUpdate;
-        return {
-          'type': 'message_update',
-          'room_id': payload.roomId,
-          'message_id': payload.messageId,
-          'is_deleted': payload.isDeleted,
-          'deleted_at': _nullIfEmpty(payload.deletedAt),
-        };
+        if (payload.roomId.isEmpty || payload.messageId.isEmpty) {
+          return null;
+        }
+        return _MessageUpdateEvent(
+          roomId: payload.roomId,
+          messageId: payload.messageId,
+          isDeleted: payload.isDeleted,
+          deletedAt: _parseDateTime(_nullIfEmpty(payload.deletedAt)),
+        );
       case ws.ServerEvent_Payload.pinUpdate:
         final payload = event.pinUpdate;
-        return {
-          'type': 'pin_update',
-          'room_id': payload.roomId,
-          'message_id': _nullIfEmpty(payload.messageId),
-          'is_pinned': payload.isPinned,
-          'pinned_at': _nullIfEmpty(payload.pinnedAt),
-          'pinned_by': _nullIfEmpty(payload.pinnedBy),
-        };
-      case ws.ServerEvent_Payload.error:
-        return {'type': 'error', 'message': event.error.message};
-      case ws.ServerEvent_Payload.pong:
-        return {'type': 'pong'};
+        if (payload.roomId.isEmpty) {
+          return null;
+        }
+        return _PinUpdateEvent(
+          roomId: payload.roomId,
+          messageId: _nullIfEmpty(payload.messageId),
+          isPinned: payload.isPinned,
+          pinnedAt: _parseDateTime(_nullIfEmpty(payload.pinnedAt)),
+          pinnedBy: _nullIfEmpty(payload.pinnedBy),
+        );
       case ws.ServerEvent_Payload.friendRequestUpdate:
-        return {
-          'type': 'friend_request_update',
-          'pending_count': event.friendRequestUpdate.pendingCount,
-        };
+        return _FriendRequestUpdateEvent(
+          pendingCount: event.friendRequestUpdate.pendingCount,
+        );
       case ws.ServerEvent_Payload.roomCreated:
         final payload = event.roomCreated;
-        return {
-          'type': 'room_created',
-          'room_id': payload.roomId,
-          'room_name': payload.roomName,
-          'room_type': payload.roomType,
-          'initiator_id': payload.initiatorId,
-          'owner_id': payload.ownerId,
-          'description': _nullIfEmpty(payload.description),
-          'avatar_url': _nullIfEmpty(payload.avatarUrl),
-          'created_at': _nullIfEmpty(payload.createdAt),
-        };
+        return _RoomCreatedEvent(
+          roomId: payload.roomId,
+          roomName: payload.roomName,
+          roomType: _nullIfEmpty(payload.roomType),
+          avatarUrl: _nullIfEmpty(payload.avatarUrl),
+          description: _nullIfEmpty(payload.description),
+          initiatorId: _nullIfEmpty(payload.initiatorId),
+          createdAt: _parseDateTime(_nullIfEmpty(payload.createdAt)),
+        );
+      case ws.ServerEvent_Payload.error:
+        return _ErrorEvent(message: event.error.message);
+      case ws.ServerEvent_Payload.pong:
+        return const _PongEvent();
       case ws.ServerEvent_Payload.notSet:
         return null;
     }
   }
 
-  String? _nullIfEmpty(String value) => value.isEmpty ? null : value;
+  _WsEvent? _eventFromLegacyMap(Map<String, dynamic> message) {
+    final rawType = message['type'];
+    if (rawType == null) return null;
+    final type = rawType.toString().toLowerCase();
 
-  /// 处理接收到的消息
-  void _handleMapMessage(Map<String, dynamic> message) {
-    try {
-      debugPrint('Received WebSocket message: ${message['type']}');
-
-      switch (message['type']) {
-        case 'authed':
-          _handleAuthed(message);
-          break;
-        case 'joined':
-          _handleJoined(message);
-          break;
-        case 'left':
-          _handleLeft(message);
-          break;
-        case 'message':
-          _handleNewMessage(message);
-          break;
-        case 'message_update':
-          _handleMessageUpdate(message);
-          break;
-        case 'pin_update':
-          _handlePinUpdate(message);
-          break;
-        case 'message_read':
-          _handleMessageRead(message);
-          break;
-        case 'error':
-          _handleServerError(message);
-          break;
-        case 'pong':
-          // 心跳响应
-          debugPrint('Received pong');
-          break;
-        case 'friend_request_update':
-          _handleFriendRequestUpdate(message);
-          break;
-        // 好友增量事件（服务端命名可能不同，做多别名兼容）
-        case 'friendship.created':
-        case 'friendship_created':
-          _handleFriendshipCreated(message);
-          break;
-        case 'friendship.deleted':
-        case 'friendship_deleted':
-          _handleFriendshipDeleted(message);
-          break;
-        case 'friend.updated':
-        case 'friend_profile_updated':
-          _handleFriendProfileUpdated(message);
-          break;
-        case 'friends.version':
-        case 'friends_version':
-          _handleFriendsVersion(message);
-          break;
-        case 'room.created':
-        case 'room_created':
-          _handleRoomCreated(message);
-          break;
-        default:
-          debugPrint('Unknown message type: ${message['type']}');
-      }
-    } catch (e) {
-      debugPrint('Failed to handle WebSocket message: $e');
+    switch (type) {
+      case 'authed':
+        final userId = message['user_id']?.toString();
+        final connId = message['conn_id']?.toString();
+        if (userId == null ||
+            userId.isEmpty ||
+            connId == null ||
+            connId.isEmpty) {
+          return null;
+        }
+        return _AuthedEvent(userId: userId, connectionId: connId);
+      case 'joined':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        return _JoinedEvent(roomId: roomId);
+      case 'left':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        return _LeftEvent(roomId: roomId);
+      case 'message':
+        try {
+          final msg = WebSocketMessage.fromJson(message);
+          return _MessageEvent(message: msg);
+        } catch (e) {
+          debugPrint('Failed to parse legacy message event: $e');
+          return null;
+        }
+      case 'message_read':
+        final roomId = message['room_id']?.toString() ?? '';
+        final messageId = message['message_id']?.toString() ?? '';
+        final readerId = message['reader_id']?.toString() ?? '';
+        if (roomId.isEmpty || messageId.isEmpty || readerId.isEmpty) {
+          return null;
+        }
+        return _MessageReadEvent(
+          roomId: roomId,
+          messageId: messageId,
+          readerId: readerId,
+        );
+      case 'message_update':
+        final roomId = message['room_id']?.toString() ?? '';
+        final messageId = message['message_id']?.toString() ?? '';
+        if (roomId.isEmpty || messageId.isEmpty) {
+          return null;
+        }
+        final rawDeleted = message['is_deleted'];
+        final isDeleted = rawDeleted is bool
+            ? rawDeleted
+            : rawDeleted?.toString().toLowerCase() == 'true';
+        final deletedAt = _parseDateTime(message['deleted_at']?.toString());
+        return _MessageUpdateEvent(
+          roomId: roomId,
+          messageId: messageId,
+          isDeleted: isDeleted,
+          deletedAt: deletedAt,
+        );
+      case 'pin_update':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        final rawPinned = message['is_pinned'];
+        final isPinned = rawPinned is bool
+            ? rawPinned
+            : rawPinned?.toString().toLowerCase() == 'true';
+        final pinnedAt = _parseDateTime(message['pinned_at']?.toString());
+        final messageId = message['message_id']?.toString();
+        final pinnedBy = message['pinned_by']?.toString();
+        return _PinUpdateEvent(
+          roomId: roomId,
+          messageId: _nullIfEmpty(messageId),
+          isPinned: isPinned,
+          pinnedAt: pinnedAt,
+          pinnedBy: _nullIfEmpty(pinnedBy),
+        );
+      case 'error':
+        final msg = message['message']?.toString() ?? 'Unknown error';
+        return _ErrorEvent(message: msg);
+      case 'pong':
+        return const _PongEvent();
+      case 'friend_request_update':
+        final rawCount = message['pending_count'];
+        final count = rawCount is num ? rawCount.toInt() : 0;
+        return _FriendRequestUpdateEvent(pendingCount: count);
+      case 'room_created':
+      case 'room.created':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        return _RoomCreatedEvent(
+          roomId: roomId,
+          roomName: message['room_name']?.toString() ?? '',
+          roomType: _nullIfEmpty(message['room_type']?.toString()),
+          avatarUrl: _nullIfEmpty(message['avatar_url']?.toString()),
+          description: _nullIfEmpty(message['description']?.toString()),
+          initiatorId: _nullIfEmpty(message['initiator_id']?.toString()),
+          createdAt: _parseDateTime(message['created_at']?.toString()),
+        );
+      case 'friendship.created':
+      case 'friendship_created':
+        final data = message['friend'] ?? message['user'];
+        AuthUser? user;
+        if (data is Map<String, dynamic>) {
+          try {
+            user = AuthUser.fromJson(Map<String, dynamic>.from(data));
+          } catch (e) {
+            debugPrint('Failed to parse friendship.created payload: $e');
+          }
+        }
+        return _FriendshipCreatedEvent(user: user);
+      case 'friendship.deleted':
+      case 'friendship_deleted':
+        final id = message['user_id'] ?? message['friend_user_id'];
+        return _FriendshipDeletedEvent(
+          userId: id is String ? id : id?.toString(),
+        );
+      case 'friend.updated':
+      case 'friend_profile_updated':
+        final userId = message['user_id']?.toString();
+        if (userId == null || userId.isEmpty) return null;
+        return _FriendProfileUpdatedEvent(
+          userId: userId,
+          username: _nullIfEmpty(message['username']?.toString()),
+          nickname: _nullIfEmpty(message['nickname']?.toString()),
+          avatarUrl: _nullIfEmpty(message['avatar_url']?.toString()),
+        );
+      case 'friends.version':
+      case 'friends_version':
+        final version = message['version']?.toString();
+        return _FriendsVersionEvent(version: version);
+      default:
+        return null;
     }
   }
 
+  void _dispatchEvent(_WsEvent event) {
+    if (event is _AuthedEvent) {
+      _handleAuthed(event);
+    } else if (event is _JoinedEvent) {
+      _handleJoined(event);
+    } else if (event is _LeftEvent) {
+      _handleLeft(event);
+    } else if (event is _MessageEvent) {
+      _handleNewMessage(event.message);
+    } else if (event is _MessageReadEvent) {
+      _handleMessageRead(event);
+    } else if (event is _MessageUpdateEvent) {
+      _handleMessageUpdate(event);
+    } else if (event is _PinUpdateEvent) {
+      _handlePinUpdate(event);
+    } else if (event is _FriendRequestUpdateEvent) {
+      _handleFriendRequestUpdate(event);
+    } else if (event is _RoomCreatedEvent) {
+      _handleRoomCreated(event);
+    } else if (event is _FriendshipCreatedEvent) {
+      _handleFriendshipCreated(event);
+    } else if (event is _FriendshipDeletedEvent) {
+      _handleFriendshipDeleted(event);
+    } else if (event is _FriendProfileUpdatedEvent) {
+      _handleFriendProfileUpdated(event);
+    } else if (event is _FriendsVersionEvent) {
+      _handleFriendsVersion(event);
+    } else if (event is _ErrorEvent) {
+      _handleServerError(event.message);
+    } else if (event is _PongEvent) {
+      debugPrint('Received pong');
+    }
+  }
+
+  DateTime? _parseDateTime(String? value) {
+    if (value == null || value.isEmpty) return null;
+    return DateTime.tryParse(value);
+  }
+
   /// 处理认证成功
-  void _handleAuthed(Map<String, dynamic> message) {
-    _connectionId = message['conn_id'];
+  void _handleAuthed(_AuthedEvent event) {
+    _connectionId = event.connectionId;
     _setStatus(ConnectionStatus.authenticated);
     debugPrint('WebSocket authenticated: $_connectionId');
 
@@ -502,9 +591,9 @@ class WebSocketService with ChangeNotifier {
     _pendingJoinRooms.clear();
     for (final roomId in rooms) {
       if (roomId.isEmpty) continue;
-      final event = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
+      final joinEvent = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
       _pendingJoinRooms.add(roomId);
-      _sendClientEvent(event);
+      _sendClientEvent(joinEvent);
     }
 
     // 认证成功后刷新：
@@ -515,18 +604,16 @@ class WebSocketService with ChangeNotifier {
   }
 
   /// 处理加入房间成功
-  void _handleJoined(Map<String, dynamic> message) {
-    final roomId = (message['room_id'] as String?) ?? '';
-    if (roomId.isEmpty) return;
+  void _handleJoined(_JoinedEvent event) {
+    final roomId = event.roomId;
     _pendingJoinRooms.remove(roomId);
     _subscribedRooms.add(roomId);
     debugPrint('Joined room: $roomId');
   }
 
   /// 处理离开房间成功
-  void _handleLeft(Map<String, dynamic> message) {
-    final roomId = (message['room_id'] as String?) ?? '';
-    if (roomId.isEmpty) return;
+  void _handleLeft(_LeftEvent event) {
+    final roomId = event.roomId;
     _subscribedRooms.remove(roomId);
     _pendingJoinRooms.remove(roomId);
     _desiredRooms.remove(roomId);
@@ -534,101 +621,50 @@ class WebSocketService with ChangeNotifier {
   }
 
   /// 处理新消息
-  void _handleNewMessage(Map<String, dynamic> message) {
+  void _handleNewMessage(WebSocketMessage message) {
     try {
-      // 转换为消息模型并通知MessageService
-      final wsMessage = WebSocketMessage.fromJson(message);
-      unawaited(_messageService.handleWebSocketMessage(wsMessage));
+      unawaited(_messageService.handleWebSocketMessage(message));
     } catch (e) {
       debugPrint('Failed to process new message: $e');
     }
   }
 
-  void _handleMessageRead(Map<String, dynamic> payload) {
-    final roomId = payload['room_id']?.toString() ?? '';
-    final messageId = payload['message_id']?.toString() ?? '';
-    final readerId = payload['reader_id']?.toString() ?? '';
-
-    if (roomId.isEmpty || messageId.isEmpty || readerId.isEmpty) {
-      debugPrint('Invalid read receipt payload: $payload');
-      return;
-    }
-
+  void _handleMessageRead(_MessageReadEvent event) {
     unawaited(
       _messageService.handleReadReceipt(
-        roomId: roomId,
-        messageId: messageId,
-        readerId: readerId,
+        roomId: event.roomId,
+        messageId: event.messageId,
+        readerId: event.readerId,
       ),
     );
   }
 
-  void _handleMessageUpdate(Map<String, dynamic> payload) {
-    final roomId = payload['room_id']?.toString() ?? '';
-    final messageId = payload['message_id']?.toString() ?? '';
-    if (roomId.isEmpty || messageId.isEmpty) {
-      debugPrint('Invalid message update payload: $payload');
-      return;
-    }
-
-    final isDeletedRaw = payload['is_deleted'];
-    final isDeleted = isDeletedRaw is bool
-        ? isDeletedRaw
-        : isDeletedRaw?.toString().toLowerCase() == 'true';
-
-    DateTime? deletedAt;
-    final deletedAtRaw = payload['deleted_at']?.toString();
-    if (deletedAtRaw != null && deletedAtRaw.isNotEmpty) {
-      deletedAt = DateTime.tryParse(deletedAtRaw);
-    }
-
+  void _handleMessageUpdate(_MessageUpdateEvent event) {
     unawaited(
       _messageService.handleMessageUpdate(
-        roomId: roomId,
-        messageId: messageId,
-        isDeleted: isDeleted,
-        deletedAt: deletedAt,
+        roomId: event.roomId,
+        messageId: event.messageId,
+        isDeleted: event.isDeleted,
+        deletedAt: event.deletedAt,
       ),
     );
   }
 
-  void _handlePinUpdate(Map<String, dynamic> payload) {
-    final roomId = payload['room_id']?.toString() ?? '';
-    if (roomId.isEmpty) {
-      debugPrint('Invalid pin update payload: $payload');
-      return;
-    }
-
-    final messageId = payload['message_id']?.toString();
-    final isPinnedRaw = payload['is_pinned'];
-    final isPinned = isPinnedRaw is bool
-        ? isPinnedRaw
-        : isPinnedRaw?.toString().toLowerCase() == 'true';
-
-    DateTime? pinnedAt;
-    final pinnedAtRaw = payload['pinned_at']?.toString();
-    if (pinnedAtRaw != null && pinnedAtRaw.isNotEmpty) {
-      pinnedAt = DateTime.tryParse(pinnedAtRaw);
-    }
-
-    final pinnedBy = payload['pinned_by']?.toString();
-
+  void _handlePinUpdate(_PinUpdateEvent event) {
     unawaited(
       _messageService.handlePinUpdate(
-        roomId: roomId,
-        messageId: messageId,
-        isPinned: isPinned,
-        pinnedAt: pinnedAt,
-        pinnedBy: pinnedBy,
+        roomId: event.roomId,
+        messageId: event.messageId,
+        isPinned: event.isPinned,
+        pinnedAt: event.pinnedAt,
+        pinnedBy: event.pinnedBy,
       ),
     );
   }
 
-  void _handleFriendRequestUpdate(Map<String, dynamic> message) {
-    final rawCount = message['pending_count'];
-    final count = rawCount is num ? rawCount.toInt() : 0;
-    _setPendingFriendRequestCount(count);
-    FriendStore.instance.setPendingIncoming(count);
+  void _handleFriendRequestUpdate(_FriendRequestUpdateEvent event) {
+    _setPendingFriendRequestCount(event.pendingCount);
+    FriendStore.instance.setPendingIncoming(event.pendingCount);
     // 好友请求状态变更后，尝试刷新会话列表，确保“被同意”一侧也能看到新会话
     unawaited(_messageService.fetchChats());
   }
@@ -643,118 +679,84 @@ class WebSocketService with ChangeNotifier {
     }
   }
 
-  void _handleFriendshipCreated(Map<String, dynamic> message) {
-    try {
-      final data = message['friend'] ?? message['user'];
-      if (data is Map<String, dynamic>) {
-        final user = AuthUser.fromJson(data);
-        // 如果缺少 id，用 username 兜底不处理
-        if (user.id.isEmpty) return;
-        FriendStore.instance.upsertFriend(
-          FriendInfo(id: user.id, user: user, createdAt: DateTime.now()),
+  void _handleFriendshipCreated(_FriendshipCreatedEvent event) {
+    final user = event.user;
+    if (user == null || user.id.isEmpty) {
+      unawaited(_refreshFriendsOnce());
+      unawaited(_messageService.fetchChats());
+      return;
+    }
+
+    FriendStore.instance.upsertFriend(
+      FriendInfo(id: user.id, user: user, createdAt: DateTime.now()),
+    );
+
+    unawaited(() async {
+      try {
+        final ensure = await FriendService().ensurePrivateChat(user.id);
+        await joinRoom(ensure.roomId);
+        await _messageService.fetchChats();
+      } catch (e) {
+        debugPrint(
+          'ensure/join/fetch chats after friendship created failed: $e',
         );
-
-        // 确保双方设备都立即拥有单聊会话：
-        // 1) 尝试通过 HTTP 确保/获取单聊房间
-        // 2) 订阅该房间的 WS
-        // 3) 刷新会话列表以出现在聊天页
-        unawaited(() async {
-          try {
-            final ensure = await FriendService().ensurePrivateChat(user.id);
-            await joinRoom(ensure.roomId);
-            await _messageService.fetchChats();
-          } catch (e) {
-            debugPrint(
-              'ensure/join/fetch chats after friendship created failed: $e',
-            );
-          }
-        }());
-      } else {
-        // 无可用 payload，回退全量同步
-        unawaited(_refreshFriendsOnce());
-        unawaited(_messageService.fetchChats());
       }
-    } catch (e) {
-      debugPrint('handle friendship.created error: $e');
-    }
+    }());
   }
 
-  void _handleFriendshipDeleted(Map<String, dynamic> message) {
-    try {
-      final id = message['user_id'] ?? message['friend_user_id'];
-      if (id is String && id.isNotEmpty) {
-        FriendStore.instance.removeFriendByUserId(id);
-      } else {
-        unawaited(_refreshFriendsOnce());
-      }
-    } catch (e) {
-      debugPrint('handle friendship.deleted error: $e');
-    }
-  }
-
-  void _handleFriendProfileUpdated(Map<String, dynamic> message) {
-    try {
-      final id = message['user_id'] as String?;
-      if (id == null || id.isEmpty) return;
-      FriendStore.instance.updateFriendProfile(
-        userId: id,
-        username: message['username'] as String?,
-        nickname: message['nickname'] as String?,
-        avatarUrl: message['avatar_url'] as String?,
-      );
-    } catch (e) {
-      debugPrint('handle friend.updated error: $e');
-    }
-  }
-
-  void _handleFriendsVersion(Map<String, dynamic> message) {
-    final serverVersion = message['version']?.toString();
-    if (serverVersion == null) return;
-    if (FriendStore.instance.version == null ||
-        FriendStore.instance.version != serverVersion) {
-      // 版本不一致，做一次全量纠偏
+  void _handleFriendshipDeleted(_FriendshipDeletedEvent event) {
+    final userId = event.userId;
+    if (userId != null && userId.isNotEmpty) {
+      FriendStore.instance.removeFriendByUserId(userId);
+    } else {
       unawaited(_refreshFriendsOnce());
     }
   }
 
-  void _handleRoomCreated(Map<String, dynamic> message) {
-    final roomId = message['room_id']?.toString() ?? '';
-    if (roomId.isEmpty) {
-      debugPrint('room_created payload missing room_id: $message');
-      return;
-    }
+  void _handleFriendProfileUpdated(_FriendProfileUpdatedEvent event) {
+    final userId = event.userId;
+    if (userId == null || userId.isEmpty) return;
+    FriendStore.instance.updateFriendProfile(
+      userId: userId,
+      username: event.username,
+      nickname: event.nickname,
+      avatarUrl: event.avatarUrl,
+    );
+  }
 
-    final roomName = message['room_name']?.toString() ?? '';
-    final roomType = message['room_type']?.toString();
-    final avatarUrl = message['avatar_url']?.toString();
-    final description = message['description']?.toString();
-    final initiatorId = message['initiator_id']?.toString();
-    final createdAtRaw = message['created_at']?.toString();
-    DateTime? createdAt;
-    if (createdAtRaw != null && createdAtRaw.isNotEmpty) {
-      createdAt = DateTime.tryParse(createdAtRaw);
+  void _handleFriendsVersion(_FriendsVersionEvent event) {
+    final version = event.version;
+    if (version == null) return;
+    if (FriendStore.instance.version == null ||
+        FriendStore.instance.version != version) {
+      unawaited(_refreshFriendsOnce());
+    }
+  }
+
+  void _handleRoomCreated(_RoomCreatedEvent event) {
+    final roomId = event.roomId;
+    if (roomId.isEmpty) {
+      debugPrint('room_created payload missing room_id');
+      return;
     }
 
     _messageService.ensureRoomPlaceholder(
       roomId: roomId,
-      name: roomName,
-      roomType: roomType,
-      avatarUrl: avatarUrl,
-      description: description,
-      initiatorId: initiatorId,
-      createdAt: createdAt,
+      name: event.roomName,
+      roomType: event.roomType,
+      avatarUrl: event.avatarUrl,
+      description: event.description,
+      initiatorId: event.initiatorId,
+      createdAt: event.createdAt,
     );
 
-    // 立即订阅房间，避免错过后续消息
     unawaited(joinRoom(roomId));
-    // 更新聊天列表
     unawaited(_messageService.fetchChats());
   }
 
   /// 处理服务器错误
-  void _handleServerError(Map<String, dynamic> message) {
-    final error = message['message'] ?? 'Unknown error';
-    debugPrint('Server error: $error');
+  void _handleServerError(String message) {
+    debugPrint('Server error: $message');
   }
 
   /// 处理连接错误
@@ -947,6 +949,41 @@ class WebSocketMessage {
     );
   }
 
+  factory WebSocketMessage.fromProto(ws.ServerMessage proto) {
+    final generatedId = proto.id.isNotEmpty
+        ? proto.id
+        : proto.messageId.isNotEmpty
+        ? proto.messageId
+        : const uuid_pkg.Uuid().v4();
+
+    final quotedMessage = proto.hasQuotedMessage()
+        ? WebSocketQuotedMessage.fromProto(proto.quotedMessage)
+        : null;
+
+    final forwardMessage = proto.hasForwardMessage()
+        ? WebSocketForwardMessage.fromProto(proto.forwardMessage)
+        : null;
+
+    final timestamp = proto.timestamp.isNotEmpty
+        ? DateTime.tryParse(proto.timestamp) ?? DateTime.now()
+        : DateTime.now();
+
+    return WebSocketMessage(
+      id: generatedId,
+      roomId: proto.roomId,
+      senderId: proto.senderId,
+      senderUsername: _asOptionalString(proto.senderUsername),
+      senderNickname: _asOptionalString(proto.senderNickname),
+      senderAvatarUrl: _asOptionalString(proto.senderAvatarUrl),
+      content: proto.content,
+      messageType: proto.messageType.isNotEmpty ? proto.messageType : 'text',
+      timestamp: timestamp,
+      extra: null,
+      quotedMessage: quotedMessage,
+      forwardMessage: forwardMessage,
+    );
+  }
+
   String get displayName {
     if (senderNickname != null && senderNickname!.isNotEmpty) {
       return senderNickname!;
@@ -980,6 +1017,16 @@ class WebSocketForwardMessage {
       senderId: json['sender_id']?.toString() ?? '',
       senderUsername: json['sender_username']?.toString(),
       senderNickname: json['sender_nickname']?.toString(),
+    );
+  }
+
+  factory WebSocketForwardMessage.fromProto(ws.ForwardMessage proto) {
+    return WebSocketForwardMessage(
+      messageId: proto.messageId,
+      roomId: proto.roomId,
+      senderId: proto.senderId,
+      senderUsername: _asOptionalString(proto.senderUsername),
+      senderNickname: _asOptionalString(proto.senderNickname),
     );
   }
 }
@@ -1035,4 +1082,146 @@ class WebSocketQuotedMessage {
       isDeleted: parseDeleted(json['is_deleted']),
     );
   }
+
+  factory WebSocketQuotedMessage.fromProto(ws.QuotedMessage proto) {
+    return WebSocketQuotedMessage(
+      id: proto.id,
+      roomId: proto.roomId,
+      senderId: proto.senderId,
+      senderUsername: _asOptionalString(proto.senderUsername),
+      senderNickname: _asOptionalString(proto.senderNickname),
+      senderAvatarUrl: _asOptionalString(proto.senderAvatarUrl),
+      content: _asOptionalString(proto.content),
+      messageType: proto.messageType.isNotEmpty ? proto.messageType : 'text',
+      createdAt: proto.createdAt.isNotEmpty
+          ? DateTime.tryParse(proto.createdAt)
+          : null,
+      isDeleted: proto.isDeleted,
+    );
+  }
+}
+
+abstract class _WsEvent {
+  const _WsEvent();
+}
+
+class _AuthedEvent extends _WsEvent {
+  const _AuthedEvent({required this.userId, required this.connectionId});
+  final String userId;
+  final String connectionId;
+}
+
+class _JoinedEvent extends _WsEvent {
+  const _JoinedEvent({required this.roomId});
+  final String roomId;
+}
+
+class _LeftEvent extends _WsEvent {
+  const _LeftEvent({required this.roomId});
+  final String roomId;
+}
+
+class _MessageEvent extends _WsEvent {
+  const _MessageEvent({required this.message});
+  final WebSocketMessage message;
+}
+
+class _MessageReadEvent extends _WsEvent {
+  const _MessageReadEvent({
+    required this.roomId,
+    required this.messageId,
+    required this.readerId,
+  });
+  final String roomId;
+  final String messageId;
+  final String readerId;
+}
+
+class _MessageUpdateEvent extends _WsEvent {
+  const _MessageUpdateEvent({
+    required this.roomId,
+    required this.messageId,
+    required this.isDeleted,
+    this.deletedAt,
+  });
+  final String roomId;
+  final String messageId;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+}
+
+class _PinUpdateEvent extends _WsEvent {
+  const _PinUpdateEvent({
+    required this.roomId,
+    required this.isPinned,
+    this.messageId,
+    this.pinnedAt,
+    this.pinnedBy,
+  });
+  final String roomId;
+  final bool isPinned;
+  final String? messageId;
+  final DateTime? pinnedAt;
+  final String? pinnedBy;
+}
+
+class _FriendRequestUpdateEvent extends _WsEvent {
+  const _FriendRequestUpdateEvent({required this.pendingCount});
+  final int pendingCount;
+}
+
+class _RoomCreatedEvent extends _WsEvent {
+  const _RoomCreatedEvent({
+    required this.roomId,
+    required this.roomName,
+    this.roomType,
+    this.avatarUrl,
+    this.description,
+    this.initiatorId,
+    this.createdAt,
+  });
+  final String roomId;
+  final String roomName;
+  final String? roomType;
+  final String? avatarUrl;
+  final String? description;
+  final String? initiatorId;
+  final DateTime? createdAt;
+}
+
+class _FriendshipCreatedEvent extends _WsEvent {
+  const _FriendshipCreatedEvent({this.user});
+  final AuthUser? user;
+}
+
+class _FriendshipDeletedEvent extends _WsEvent {
+  const _FriendshipDeletedEvent({this.userId});
+  final String? userId;
+}
+
+class _FriendProfileUpdatedEvent extends _WsEvent {
+  const _FriendProfileUpdatedEvent({
+    this.userId,
+    this.username,
+    this.nickname,
+    this.avatarUrl,
+  });
+  final String? userId;
+  final String? username;
+  final String? nickname;
+  final String? avatarUrl;
+}
+
+class _FriendsVersionEvent extends _WsEvent {
+  const _FriendsVersionEvent({this.version});
+  final String? version;
+}
+
+class _PongEvent extends _WsEvent {
+  const _PongEvent();
+}
+
+class _ErrorEvent extends _WsEvent {
+  const _ErrorEvent({required this.message});
+  final String message;
 }
