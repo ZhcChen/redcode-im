@@ -1,29 +1,29 @@
-# Repository Guidelines
+# 仓库指引
 
-## Project Structure & Module Organization
-The repository hosts three applications: the Rust API under `backend/backend/src`, the Flutter client in `frontend/lib`, and the Vue 3 admin console inside `admin/src`. SQLx migrations stay in `backend/migrations`, while command-line integration scripts are grouped as `backend/test_*.sh`. Flutter assets are stored in `frontend/assets`, tests in `frontend/test`, and Vue configuration helpers sit under `admin/config`. Infrastructure files—`docker-compose*.yml`, `services.sh`, `docker-start.sh`—reside at the root.
+## 项目结构与模块组织
+本仓库包含三套应用：Rust API 位于 `backend/backend/src`，Flutter 客户端位于 `frontend/lib`，Vue 3 管理端位于 `admin/src`。SQLx 迁移脚本存放在 `backend/migrations`，命令行集成脚本集中在 `backend/test_*.sh`。Flutter 资源放在 `frontend/assets`，测试位于 `frontend/test`，Vue 配置辅助脚本位于 `admin/config`。基础设施文件（如 `docker-compose*.yml`、`services.sh`、`docker-start.sh`）统一放在仓库根目录。
 
-## Build, Test, and Development Commands
-- `cd backend && docker-compose up -d` spins up PostgreSQL 17 and the three Redis instances on 6381/6382/6383.
-- `cd backend && cargo run` launches the API (default port 8010) and serves static docs on port 8011; use `cargo build --release` before packaging.
-- `cd frontend && flutter run` or `./run_flutter.sh` boots the client after `flutter pub get`; `flutter test` covers widget suites.
-- `cd admin && pnpm install && pnpm dev` runs the dashboard locally, while `pnpm build` emits optimized bundles; invoke `./test_all.sh` for a full-stack smoke test.
+## 构建、测试与开发命令
+- `cd backend && docker-compose up -d` 可启动 PostgreSQL 17 和运行在 6381/6382/6383 端口的三套 Redis 实例。
+- `cd backend && cargo run` 启动 API（默认监听 8010），并在 8011 端口提供静态文档；打包前请运行 `cargo build --release`。
+- `cd frontend && flutter run` 或 `./run_flutter.sh` 在执行过 `flutter pub get` 后启动客户端；`flutter test` 用于运行组件测试。
+- `cd admin && pnpm install && pnpm dev` 本地启动管理端，`pnpm build` 生成优化后的构建产物；若需做一次全链路冒烟，可执行 `./test_all.sh`。
 
-## Coding Style & Naming Conventions
-Rust modules follow `cargo fmt --all` and `cargo clippy --all-targets -- -D warnings`, keeping modules `snake_case` and types `PascalCase`. Flutter code adheres to `dart format .` and `dart analyze`, with files in `snake_case.dart` and widgets in `PascalCase`. Vue code uses two-space indentation, `camelCase` script identifiers, and `PascalCase.vue` components; formatting and linting run automatically through lint-staged and Prettier.
+## 代码风格与命名规范
+Rust 模块遵循 `cargo fmt --all` 与 `cargo clippy --all-targets -- -D warnings`，模块名使用 `snake_case`，类型名使用 `PascalCase`。Flutter 代码需跑 `dart format .` 与 `dart analyze`，文件命名保持 `snake_case.dart`，组件使用 `PascalCase`。Vue 代码采用两个空格缩进，脚本标识符使用 `camelCase`，组件文件名保持 `PascalCase.vue`；所有格式化与 lint 通过 lint-staged 与 Prettier 自动执行。
 
-## Testing Guidelines
-- Run `cargo test` before calling integration helpers like `backend/test_flow.sh` or `backend/test_friend_api.sh`.
-- Place Flutter widget and golden tests under `frontend/test/<feature>_test.dart`, stubbing network calls with existing mock services.
-- Rely on `pnpm type:check` (and `pnpm lint` when enabled) for the admin console, and capture emulator screenshots or logs for UI regressions.
+## 测试规范
+- 在调用集成脚本（如 `backend/test_flow.sh`、`backend/test_friend_api.sh`）前先运行 `cargo test`。
+- Flutter 的组件测试与 golden 测试放在 `frontend/test/<feature>_test.dart` 下，网络请求请复用现有的 mock 服务。
+- 管理端依赖 `pnpm type:check`（以及开启时的 `pnpm lint`），出现 UI 回归时请补充模拟器截图或日志。
 
-## Commit & Pull Request Guidelines
-We follow Conventional Commits enforced by commitlint, e.g., `feat(frontend-chat): enable reactions` or `fix(backend-auth): trim token scope`. Keep commits focused, rebase with main, and ensure formatters and unit tests pass before pushing. Pull requests should describe the change, link related issues, list verification steps (including `./test_all.sh` when used), and attach screenshots for UI updates.
+## Commit 与 Pull Request 规范
+遵循由 commitlint 强制的 Conventional Commits 格式，例如 `feat(frontend-chat): enable reactions` 或 `fix(backend-auth): trim token scope`。保持单次提交聚焦、与 main 分支保持 rebase，并在推送前确保格式化与单元测试通过。Pull Request 需描述变更、关联相关 issue、列出验证步骤（若执行过 `./test_all.sh` 需写明），UI 变更需附带截图。
 
-## Configuration & Security Tips
-Copy `backend/.env.example` to `backend/.env`, rotate JWT secrets, and store credentials in the shared vault; never commit generated `.env` files. Prefer `backend/docker-compose.prod.yml` for staging or production deployments and override Redis passwords per environment. Tear down local containers with `cd backend && docker-compose down` to free ports and avoid stale Redis data.
+## 配置与安全提示
+复制 `backend/.env.example` 为 `backend/.env`，定期轮换 JWT 密钥，将凭据存放在共享保险库；禁止提交生成的 `.env` 文件。部署到 staging 或生产时优先使用 `backend/docker-compose.prod.yml`，并为不同环境覆写 Redis 密码。开发完毕后运行 `cd backend && docker-compose down` 释放端口，避免遗留旧的 Redis 数据。
 
-## Database Conventions
-- 从 2025-10-20 起，业务状态字段在数据库中统一使用整数型表示，禁止新增或扩展 PostgreSQL 枚举；对应取值及含义须在代码侧集中维护（使用枚举/常量并写明注释）。
-- 整个取值域由业务代码约束，数据库层无需额外 `CHECK` 约束；请确保代码常量与文档同步更新，所有入口在写入前都需校验值是否属于枚举定义。
-- 所有结构或基础数据变更需在 `backend/sql` 目录新增时间戳命名的 SQL 文件（`YYYYMMDDHHMMSS_desc.sql`），不得直接修改现有快照文件。
+## 数据库约定
+- 自 2025-10-20 起，数据库中的业务状态字段统一使用整数类型，禁止新增或扩展 PostgreSQL 枚举；对应取值及含义需在代码端集中维护（使用枚举或常量并写明注释）。
+- 值域由业务代码约束，数据库层无需额外 `CHECK` 约束；请确保代码常量与文档保持同步，所有入口在写入前都需校验值是否合法。
+- 若要变更结构或基础数据，需在 `backend/sql` 目录新增按时间戳命名的 SQL 文件（`YYYYMMDDHHMMSS_desc.sql`），禁止直接修改既有快照。
