@@ -4,13 +4,17 @@
     <a-card class="general-card" title="文件上传提供商设置" :bordered="false">
       <div class="actions">
         <a-space>
-          <a-button type="primary" :loading="loading" @click="handleCreate">
+          <a-button
+            type="primary"
+            :loading="actionLoading"
+            @click="handleCreate"
+          >
             <template #icon>
               <icon-plus />
             </template>
             新增提供商
           </a-button>
-          <a-button :loading="loading" @click="handleRefresh">
+          <a-button :loading="listLoading" @click="handleRefresh">
             <template #icon>
               <icon-refresh />
             </template>
@@ -22,7 +26,7 @@
       <a-table
         :columns="columns"
         :data="providers"
-        :loading="loading"
+        :loading="listLoading"
         :pagination="false"
         class="provider-table"
       >
@@ -65,6 +69,7 @@
         :visible="modalVisible"
         :title="modalTitle"
         :width="600"
+        :confirm-loading="actionLoading"
         @update:visible="modalVisible = $event"
         @before-ok="handleBeforeOk"
         @cancel="handleCancel"
@@ -169,9 +174,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { reactive, ref, computed, onMounted } from 'vue';
-  import { Message } from '@arco-design/web-vue';
-  import useLoading from '@/hooks/loading';
+  import { reactive, ref, computed, onMounted, nextTick } from 'vue';
+  import { Message, type FormInstance } from '@arco-design/web-vue';
   import {
     listStorageProviders,
     createStorageProvider,
@@ -181,12 +185,12 @@
     type CreateStorageProviderPayload,
   } from '@/api/settings';
 
-  const { loading, setLoading } = useLoading(false);
-
   const providers = ref<StorageProvider[]>([]);
   const modalVisible = ref(false);
   const editingId = ref<string | null>(null);
-  const formRef = ref();
+  const formRef = ref<FormInstance>();
+  const listLoading = ref(false);
+  const actionLoading = ref(false);
 
   const formData = reactive<
     CreateStorageProviderPayload & { description?: string }
@@ -276,7 +280,7 @@
 
   const fetchProviders = async () => {
     try {
-      setLoading(true);
+      listLoading.value = true;
       const response = await listStorageProviders();
       // 处理不同的响应格式
       const data = response.data?.data || response.data;
@@ -289,7 +293,7 @@
         '获取提供商列表失败';
       Message.error(errorMsg);
     } finally {
-      setLoading(false);
+      listLoading.value = false;
     }
   };
 
@@ -308,6 +312,9 @@
       description: '',
     });
     modalVisible.value = true;
+    nextTick(() => {
+      formRef.value?.clearValidate?.();
+    });
   };
 
   const handleEdit = (record: StorageProvider) => {
@@ -325,16 +332,27 @@
       description: record.description || '',
     });
     modalVisible.value = true;
+    nextTick(() => {
+      formRef.value?.clearValidate?.();
+    });
   };
 
   const handleSubmit = async () => {
-    const valid = await formRef.value?.validate();
-    if (!valid) {
+    if (!formRef.value) {
+      return false;
+    }
+
+    try {
+      const errors = await formRef.value.validate();
+      if (errors) {
+        return false;
+      }
+    } catch (error) {
       return false; // 阻止 Modal 关闭
     }
 
     try {
-      setLoading(true);
+      actionLoading.value = true;
       const payload = {
         ...formData,
         bucket_name: formData.bucket_name || undefined,
@@ -360,7 +378,7 @@
       Message.error(errorMsg);
       return false; // 阻止 Modal 关闭
     } finally {
-      setLoading(false);
+      actionLoading.value = false;
     }
   };
 
@@ -371,7 +389,7 @@
 
   const handleDelete = async (id: string) => {
     try {
-      setLoading(true);
+      actionLoading.value = true;
       await deleteStorageProvider(id);
       Message.success('删除成功');
       await fetchProviders();
@@ -383,7 +401,7 @@
         '删除失败';
       Message.error(errorMsg);
     } finally {
-      setLoading(false);
+      actionLoading.value = false;
     }
   };
 
