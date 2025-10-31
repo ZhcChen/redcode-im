@@ -470,6 +470,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -483,13 +484,14 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _performSearch(),
               onChanged: (value) {
+                setState(() {});
                 if (value.isEmpty && _hasSearched) {
                   setState(() {
                     _hasSearched = false;
@@ -497,17 +499,33 @@ class _AddFriendPageState extends State<AddFriendPage> {
                   });
                 }
               },
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.textPrimary,
+              ),
               decoration: InputDecoration(
                 hintText: '输入好友账号，搜索并添加',
+                hintStyle: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 16,
+                ),
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
                 prefixIcon: const Icon(
-                  Icons.search,
+                  Icons.search_rounded,
                   color: AppColors.textSecondary,
+                  size: 24,
                 ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear),
+                        icon: const Icon(
+                          Icons.clear_rounded,
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
                         onPressed: () {
                           _searchController.clear();
+                          setState(() {});
                           if (_hasSearched) {
                             setState(() {
                               _hasSearched = false;
@@ -518,24 +536,27 @@ class _AddFriendPageState extends State<AddFriendPage> {
                       )
                     : null,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.divider),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.divider),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.primary),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 2,
+                  ),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 20,
+                  vertical: 16,
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -543,26 +564,36 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 2,
+                  shadowColor: AppColors.primary.withOpacity(0.3),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
                 child: _searching
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
+                          strokeWidth: 2.5,
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        '搜索',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_rounded, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            '搜索',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
               ),
             ),
