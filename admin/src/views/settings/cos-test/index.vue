@@ -59,14 +59,37 @@
                 placeholder="例如：text/plain, image/png"
               />
             </a-form-item>
+            <a-form-item label="选择本地文件（可选）">
+              <input
+                ref="fileInputRef"
+                type="file"
+                style="display: none"
+                @change="handleFileChange"
+              />
+              <a-space>
+                <a-button @click="triggerFileSelect">选择文件</a-button>
+                <span v-if="selectedFileInfo">{{ selectedFileInfo }}</span>
+              </a-space>
+            </a-form-item>
             <a-form-item>
-              <a-button
-                type="primary"
-                :loading="uploadLoading"
-                @click="handleUpload"
-              >
-                上传文件
-              </a-button>
+              <a-space wrap>
+                <a-button
+                  type="primary"
+                  :loading="uploadLoading"
+                  @click="handleUpload"
+                >
+                  上传文本内容
+                </a-button>
+                <a-button
+                  type="primary"
+                  status="success"
+                  :loading="uploadFileLoading"
+                  :disabled="!selectedFile"
+                  @click="handleUploadSelectedFile"
+                >
+                  上传所选文件
+                </a-button>
+              </a-space>
             </a-form-item>
           </a-form>
           <a-result
@@ -198,7 +221,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { reactive, ref, onMounted } from 'vue';
+  import { reactive, ref, onMounted, computed } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import {
     listStorageProviders,
@@ -246,6 +269,7 @@
   });
 
   const uploadLoading = ref(false);
+  const uploadFileLoading = ref(false);
   const deleteLoading = ref(false);
   const existsLoading = ref(false);
   const bucketsLoading = ref(false);
@@ -280,6 +304,20 @@
       dataIndex: 'creation_date',
     },
   ];
+
+  const fileInputRef = ref<HTMLInputElement | null>(null);
+  const selectedFile = ref<File | null>(null);
+  const selectedFileInfo = computed(() => {
+    if (!selectedFile.value) {
+      return '';
+    }
+    const sizeKB = selectedFile.value.size / 1024;
+    const displaySize =
+      sizeKB >= 1024
+        ? `${(sizeKB / 1024).toFixed(2)} MB`
+        : `${sizeKB.toFixed(2)} KB`;
+    return `${selectedFile.value.name} (${displaySize})`;
+  });
 
   const fetchProviders = async () => {
     try {
@@ -342,6 +380,91 @@
       };
     } finally {
       uploadLoading.value = false;
+    }
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.value?.click();
+  };
+
+  const handleFileChange = (event: Event) => {
+    const inputEl = event.target as HTMLInputElement;
+    const { files } = inputEl;
+    selectedFile.value = files && files.length > 0 ? files[0] : null;
+
+    if (selectedFile.value) {
+      if (!uploadForm.key || uploadForm.key.startsWith('test/')) {
+        uploadForm.key = `test/${Date.now()}-${selectedFile.value.name}`;
+      }
+      if (!uploadForm.content_type && selectedFile.value.type) {
+        uploadForm.content_type = selectedFile.value.type;
+      }
+    }
+  };
+
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const resetFileSelection = () => {
+    selectedFile.value = null;
+    if (fileInputRef.value) {
+      fileInputRef.value.value = '';
+    }
+  };
+
+  const handleUploadSelectedFile = async () => {
+    if (!selectedFile.value) {
+      Message.error('请先选择文件');
+      return;
+    }
+    if (!uploadForm.key.trim()) {
+      Message.error('请输入文件路径');
+      return;
+    }
+
+    try {
+      uploadFileLoading.value = true;
+      uploadResult.value = null;
+
+      const dataUrl = await readFileAsDataUrl(selectedFile.value);
+
+      const payload: TestCosUploadRequest = {
+        provider_id: formData.provider_id,
+        key: uploadForm.key.trim(),
+        file_base64: dataUrl,
+        content_type:
+          selectedFile.value.type || uploadForm.content_type || undefined,
+      };
+
+      const response = await testCosUpload(payload);
+      const data = response.data?.data || response.data;
+      uploadResult.value = data;
+
+      if (data.success) {
+        Message.success('上传成功');
+        resetFileSelection();
+      } else {
+        Message.error(data.message);
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '上传失败';
+      Message.error(errorMsg);
+      uploadResult.value = {
+        success: false,
+        message: errorMsg,
+      };
+    } finally {
+      uploadFileLoading.value = false;
     }
   };
 

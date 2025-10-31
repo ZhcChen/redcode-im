@@ -571,7 +571,8 @@ pub async fn get_default_storage_provider(
 pub struct TestCosUploadRequest {
     pub provider_id: Option<String>,
     pub key: String,
-    pub content: String,
+    pub content: Option<String>,
+    pub file_base64: Option<String>,
     pub content_type: Option<String>,
 }
 
@@ -587,10 +588,21 @@ pub async fn test_cos_upload(
     State(state): State<AppState>,
     Json(req): Json<TestCosUploadRequest>,
 ) -> Result<Json<TestCosUploadResponse>, AppError> {
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::Engine;
+
+    let TestCosUploadRequest {
+        provider_id,
+        key,
+        content,
+        file_base64,
+        content_type,
+    } = req;
+
     let store = StorageProviderStore::new(state.database.clone());
 
     // 获取提供商配置
-    let provider = if let Some(provider_id) = req.provider_id {
+    let provider = if let Some(provider_id) = provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
             .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
         store
@@ -626,9 +638,34 @@ pub async fn test_cos_upload(
     let storage_service = storage::create_storage_service(&provider)?;
 
     // 上传文件
-    let content_bytes = bytes::Bytes::from(req.content);
+    let content_bytes = if let Some(file_base64) = file_base64 {
+        let data_part = file_base64
+            .split_once(',')
+            .map(|(_, data)| data)
+            .unwrap_or(file_base64.as_str());
+
+        match BASE64_STANDARD.decode(data_part) {
+            Ok(bytes_vec) => bytes::Bytes::from(bytes_vec),
+            Err(e) => {
+                return Ok(Json(TestCosUploadResponse {
+                    success: false,
+                    url: None,
+                    message: format!("文件内容解码失败: {}", e),
+                }))
+            }
+        }
+    } else if let Some(text_content) = content {
+        bytes::Bytes::from(text_content)
+    } else {
+        return Ok(Json(TestCosUploadResponse {
+            success: false,
+            url: None,
+            message: "请提供文件内容或选择文件上传".to_string(),
+        }));
+    };
+
     match storage_service
-        .upload_file(&req.key, content_bytes, req.content_type.as_deref())
+        .upload_file(&key, content_bytes, content_type.as_deref())
         .await
     {
         Ok(url) => Ok(Json(TestCosUploadResponse {

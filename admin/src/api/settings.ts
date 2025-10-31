@@ -104,7 +104,8 @@ export function getDefaultStorageProvider() {
 export interface TestCosUploadRequest {
   provider_id?: string;
   key: string;
-  content: string;
+  content?: string;
+  file_base64?: string;
   content_type?: string;
 }
 
