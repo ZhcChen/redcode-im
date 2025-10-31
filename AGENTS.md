@@ -18,7 +18,9 @@ Rust 模块遵循 `cargo fmt --all` 与 `cargo clippy --all-targets -- -D warnin
 - 管理端依赖 `pnpm type:check`（以及开启时的 `pnpm lint`），出现 UI 回归时请补充模拟器截图或日志。
 
 ## Commit 与 Pull Request 规范
-遵循由 commitlint 强制的 Conventional Commits 格式，例如 `feat(frontend-chat): enable reactions` 或 `fix(backend-auth): trim token scope`。保持单次提交聚焦、与 main 分支保持 rebase，并在推送前确保格式化与单元测试通过。Pull Request 需描述变更、关联相关 issue、列出验证步骤（若执行过 `./test_all.sh` 需写明），UI 变更需附带截图。每次完成功能逻辑改动后务必执行 Git 提交并推送，确保远端历史及时同步。
+遵循由 commitlint 强制的 Conventional Commits 格式，例如 `feat(frontend-chat): enable reactions` 或 `fix(backend-auth): trim token scope`。保持单次提交聚焦、与 main 分支保持 rebase，并在推送前确保格式化与单元测试通过。Pull Request 需描述变更、关联相关 issue、列出验证步骤（若执行过 `./test_all.sh` 需写明），UI 变更需附带截图。
+
+**重要规则：每次代码改动完成后，必须立即执行 Git 提交并推送到远端仓库，确保远端历史及时同步。不允许在本地累积多次未提交的改动。**
 
 ## 配置与安全提示
 复制 `backend/.env.example` 为 `backend/.env`，定期轮换 JWT 密钥，将凭据存放在共享保险库；禁止提交生成的 `.env` 文件。部署到 staging 或生产时优先使用 `backend/docker-compose.prod.yml`，并为不同环境覆写 Redis 密码。开发完毕后运行 `cd backend && docker-compose down` 释放端口，避免遗留旧的 Redis 数据。
