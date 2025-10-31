@@ -1756,6 +1756,7 @@ dependencies = [
  "protoc-bin-vendored",
  "rand",
  "redis",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

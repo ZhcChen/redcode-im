@@ -34,6 +34,7 @@ hex = "0.4"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 urlencoding = "2.1"
 async-trait = "0.1"
+regex = "1.10"
 
 [build-dependencies]
 prost-build = "0.12"

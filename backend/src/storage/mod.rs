@@ -4,6 +4,7 @@ use crate::database::models::{StorageProvider, StorageProviderType};
 use crate::error::AppError;
 use async_trait::async_trait;
 use bytes::Bytes;
+use serde::{Deserialize, Serialize};
 
 /// 存储服务 trait
 #[async_trait]
@@ -24,6 +25,20 @@ pub trait StorageService: Send + Sync {
 
     /// 获取文件访问 URL
     fn get_file_url(&self, key: &str) -> String;
+
+    /// 获取所有 bucket 列表
+    async fn list_buckets(&self) -> Result<Vec<BucketInfo>, AppError>;
+
+    /// 创建 bucket
+    async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError>;
+}
+
+/// Bucket 信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BucketInfo {
+    pub name: String,
+    pub region: String,
+    pub creation_date: Option<String>,
 }
 
 /// 创建存储服务实例
@@ -41,6 +56,24 @@ pub fn create_storage_service(provider: &StorageProvider) -> Result<Box<dyn Stor
                 provider.region.clone(),
                 provider.endpoint.clone(),
                 provider.bucket_name.clone().unwrap(),
+            )?))
+        }
+        _ => Err(AppError::ValidationError(format!(
+            "不支持的存储提供商类型: {:?}",
+            provider.provider_type
+        ))),
+    }
+}
+
+/// 创建存储服务实例（不需要 bucket_name，用于列表和创建 bucket）
+pub fn create_storage_service_without_bucket(provider: &StorageProvider) -> Result<Box<dyn StorageService>, AppError> {
+    match provider.provider_type {
+        StorageProviderType::TencentCos => {
+            Ok(Box::new(cos::TencentCosService::new_without_bucket(
+                provider.secret_id.clone(),
+                provider.secret_key.clone(),
+                provider.region.clone(),
+                provider.endpoint.clone(),
             )?))
         }
         _ => Err(AppError::ValidationError(format!(

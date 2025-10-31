@@ -70,6 +70,14 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/storage-providers/test/exists",
             post(admin::test_cos_exists),
         )
+        .route(
+            "/api/admin/storage-providers/test/buckets",
+            post(admin::test_cos_list_buckets),
+        )
+        .route(
+            "/api/admin/storage-providers/test/buckets/create",
+            post(admin::test_cos_create_bucket),
+        )
         .route("/feedbacks", post(feedback::submit_feedback))
         // users
         .route("/users/search", get(user::search_users))

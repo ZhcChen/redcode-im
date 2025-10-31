@@ -15,7 +15,7 @@ use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::storage;
 use crate::AppState;
-use bytes::Bytes;
+use chrono::Utc;
 use tracing::error;
 
 #[derive(Debug, Serialize)]
@@ -399,6 +399,51 @@ pub async fn create_storage_provider(
     let updated_by = Uuid::parse_str(&claims.sub).ok();
 
     let store = StorageProviderStore::new(state.database.clone());
+    
+    // 如果是腾讯云 COS 且没有指定 bucket_name，尝试创建一个默认的 bucket
+    let mut bucket_name = req.bucket_name.clone();
+    if provider_type == StorageProviderType::TencentCos && bucket_name.is_none() {
+        // 生成一个默认的 bucket 名称
+        let uuid_str = Uuid::new_v4().to_string().replace("-", "");
+        let default_bucket_name = format!("redcode-im-{}", &uuid_str[..8]);
+        
+        // 创建临时的存储服务实例来创建 bucket
+        let temp_provider = StorageProvider {
+            id: Uuid::new_v4(),
+            provider_type: StorageProviderType::TencentCos,
+            name: req.name.clone(),
+            secret_id: req.secret_id.clone(),
+            secret_key: req.secret_key.clone(),
+            region: req.region.clone(),
+            endpoint: req.endpoint.clone(),
+            bucket_name: None,
+            is_active: false,
+            is_default: false,
+            description: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            updated_by: None,
+        };
+        
+        match storage::create_storage_service_without_bucket(&temp_provider) {
+            Ok(storage_service) => {
+                match storage_service.create_bucket(&default_bucket_name).await {
+                    Ok(_) => {
+                        bucket_name = Some(default_bucket_name);
+                        tracing::info!("自动创建 bucket: {}", bucket_name.as_ref().unwrap());
+                    }
+                    Err(e) => {
+                        tracing::warn!("自动创建 bucket 失败: {}，将使用用户指定的 bucket_name", e);
+                        // 继续执行，让用户稍后手动指定 bucket_name
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("创建存储服务实例失败: {}，将使用用户指定的 bucket_name", e);
+            }
+        }
+    }
+    
     let provider = store
         .create_provider(
             provider_type,
@@ -407,7 +452,7 @@ pub async fn create_storage_provider(
             req.secret_key.trim(),
             req.region.trim(),
             req.endpoint.trim(),
-            req.bucket_name.as_deref(),
+            bucket_name.as_deref(),
             req.is_active.unwrap_or(false),
             req.is_default.unwrap_or(false),
             req.description.as_deref(),
@@ -728,6 +773,143 @@ pub async fn test_cos_exists(
             success: false,
             exists: false,
             message: format!("检查失败: {}", e),
+        })),
+    }
+}
+
+// ========== Bucket 管理 API ==========
+
+#[derive(Debug, Deserialize)]
+pub struct TestCosListBucketsRequest {
+    pub provider_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosListBucketsResponse {
+    pub success: bool,
+    pub buckets: Vec<storage::BucketInfo>,
+    pub message: String,
+}
+
+/// 测试 COS 获取 bucket 列表
+pub async fn test_cos_list_buckets(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosListBucketsRequest>,
+) -> Result<Json<TestCosListBucketsResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    // 获取提供商配置
+    let provider = if let Some(provider_id) = req.provider_id {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosListBucketsResponse {
+            success: false,
+            buckets: Vec::new(),
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosListBucketsResponse {
+            success: false,
+            buckets: Vec::new(),
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    let storage_service = storage::create_storage_service_without_bucket(&provider)?;
+
+    match storage_service.list_buckets().await {
+        Ok(buckets) => Ok(Json(TestCosListBucketsResponse {
+            success: true,
+            buckets: buckets.clone(),
+            message: format!("成功获取 {} 个 bucket", buckets.len()),
+        })),
+        Err(e) => Ok(Json(TestCosListBucketsResponse {
+            success: false,
+            buckets: Vec::new(),
+            message: format!("获取 bucket 列表失败: {}", e),
+        })),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestCosCreateBucketRequest {
+    pub provider_id: Option<String>,
+    pub bucket_name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosCreateBucketResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// 测试 COS 创建 bucket
+pub async fn test_cos_create_bucket(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosCreateBucketRequest>,
+) -> Result<Json<TestCosCreateBucketResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    // 获取提供商配置
+    let provider = if let Some(provider_id) = req.provider_id {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosCreateBucketResponse {
+            success: false,
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosCreateBucketResponse {
+            success: false,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    if req.bucket_name.trim().is_empty() {
+        return Ok(Json(TestCosCreateBucketResponse {
+            success: false,
+            message: "bucket 名称不能为空".to_string(),
+        }));
+    }
+
+    let storage_service = storage::create_storage_service_without_bucket(&provider)?;
+
+    match storage_service.create_bucket(&req.bucket_name.trim()).await {
+        Ok(_) => Ok(Json(TestCosCreateBucketResponse {
+            success: true,
+            message: format!("成功创建 bucket: {}", req.bucket_name),
+        })),
+        Err(e) => Ok(Json(TestCosCreateBucketResponse {
+            success: false,
+            message: format!("创建 bucket 失败: {}", e),
         })),
     }
 }

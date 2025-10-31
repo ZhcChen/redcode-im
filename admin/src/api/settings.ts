@@ -155,3 +155,41 @@ export function testCosExists(payload: TestCosExistsRequest) {
     payload
   );
 }
+
+export interface TestCosListBucketsRequest {
+  provider_id?: string;
+}
+
+export interface TestCosListBucketsResponse {
+  success: boolean;
+  buckets: Array<{
+    name: string;
+    region: string;
+    creation_date?: string | null;
+  }>;
+  message: string;
+}
+
+export interface TestCosCreateBucketRequest {
+  provider_id?: string;
+  bucket_name: string;
+}
+
+export interface TestCosCreateBucketResponse {
+  success: boolean;
+  message: string;
+}
+
+export function testCosListBuckets(payload: TestCosListBucketsRequest) {
+  return axios.post<TestCosListBucketsResponse>(
+    '/api/admin/storage-providers/test/buckets',
+    payload
+  );
+}
+
+export function testCosCreateBucket(payload: TestCosCreateBucketRequest) {
+  return axios.post<TestCosCreateBucketResponse>(
+    '/api/admin/storage-providers/test/buckets/create',
+    payload
+  );
+}

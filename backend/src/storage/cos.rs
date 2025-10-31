@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::storage::StorageService;
+use crate::storage::{BucketInfo, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
@@ -44,6 +44,28 @@ impl TencentCosService {
         })
     }
 
+    /// 创建一个不需要 bucket_name 的实例（用于列表和创建 bucket）
+    pub fn new_without_bucket(
+        secret_id: String,
+        secret_key: String,
+        region: String,
+        endpoint: String,
+    ) -> Result<Self, AppError> {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| AppError::InternalError(format!("创建HTTP客户端失败: {}", e)))?;
+
+        Ok(Self {
+            secret_id,
+            secret_key,
+            region,
+            endpoint,
+            bucket_name: String::new(), // 空字符串表示未指定 bucket
+            client,
+        })
+    }
+
     /// 生成腾讯云 COS API v1 签名
     fn generate_signature_v1(
         &self,
@@ -51,6 +73,18 @@ impl TencentCosService {
         path: &str,
         headers: &BTreeMap<String, String>,
         timestamp: i64,
+    ) -> String {
+        self.generate_signature_v1_with_host(method, path, headers, timestamp, &self.endpoint)
+    }
+
+    /// 生成腾讯云 COS API v1 签名（指定 host）
+    fn generate_signature_v1_with_host(
+        &self,
+        method: &str,
+        path: &str,
+        headers: &BTreeMap<String, String>,
+        timestamp: i64,
+        host: &str,
     ) -> String {
         // 构建签名字符串
         let mut sign_string = format!("{}\n{}\n", method, path);
@@ -69,7 +103,7 @@ impl TencentCosService {
 
         // 添加 Host header
         header_list.push("host".to_string());
-        write!(header_str, "host:{}\n", self.endpoint).unwrap();
+        write!(header_str, "host:{}\n", host).unwrap();
 
         sign_string.push_str(&header_str);
         sign_string.push_str(&format!("{}\n", timestamp));
@@ -209,5 +243,117 @@ impl StorageService for TencentCosService {
     fn get_file_url(&self, key: &str) -> String {
         self.get_full_url(key)
     }
+
+    async fn list_buckets(&self) -> Result<Vec<BucketInfo>, AppError> {
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+
+        // 获取 bucket 列表的路径
+        let path = "/";
+        let headers_map = BTreeMap::new();
+        
+        // 使用 service.cos.myqcloud.com 作为服务端点
+        let service_endpoint = "service.cos.myqcloud.com";
+        let authorization = self.generate_signature_v1_with_host("GET", path, &headers_map, timestamp, service_endpoint);
+        
+        let url = format!("https://{}", service_endpoint);
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", authorization)
+            .header("Host", service_endpoint)
+            .send()
+            .await
+            .map_err(|e| AppError::InternalError(format!("获取bucket列表失败: {}", e)))?;
+
+        if response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            // 解析 XML 响应
+            let buckets = parse_list_buckets_response(&body)?;
+            Ok(buckets)
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(AppError::InternalError(format!(
+                "获取bucket列表失败: {} - {}",
+                status, body
+            )))
+        }
+    }
+
+    async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError> {
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+
+        // 创建 bucket 的路径
+        let path = "/";
+        let mut headers_map = BTreeMap::new();
+        headers_map.insert("x-cos-acl".to_string(), "private".to_string());
+        
+        // 使用 bucket.cos.region.myqcloud.com 格式
+        let bucket_endpoint = format!("{}.cos.{}.myqcloud.com", bucket_name, self.region);
+        let authorization = self.generate_signature_v1_with_host("PUT", path, &headers_map, timestamp, &bucket_endpoint);
+        
+        let url = format!("https://{}", bucket_endpoint);
+
+        let response = self
+            .client
+            .put(&url)
+            .header("Authorization", authorization)
+            .header("Host", &bucket_endpoint)
+            .header("x-cos-acl", "private")
+            .send()
+            .await
+            .map_err(|e| AppError::InternalError(format!("创建bucket失败: {}", e)))?;
+
+        if response.status().is_success() || response.status() == 200 {
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(AppError::InternalError(format!(
+                "创建bucket失败: {} - {}",
+                status, body
+            )))
+        }
+    }
+}
+
+/// 解析 ListBuckets 响应 XML
+fn parse_list_buckets_response(xml: &str) -> Result<Vec<BucketInfo>, AppError> {
+    // 简化实现：使用正则表达式或 XML 解析器
+    // 这里使用简单的字符串解析
+    let mut buckets = Vec::new();
+    
+    // 查找所有 <Name> 标签
+    let name_pattern = regex::Regex::new(r"<Name>(.*?)</Name>").unwrap();
+    let location_pattern = regex::Regex::new(r"<Location>(.*?)</Location>").unwrap();
+    let date_pattern = regex::Regex::new(r"<CreationDate>(.*?)</CreationDate>").unwrap();
+    
+    let names: Vec<&str> = name_pattern
+        .captures_iter(xml)
+        .map(|cap| cap.get(1).unwrap().as_str())
+        .collect();
+    
+    let locations: Vec<&str> = location_pattern
+        .captures_iter(xml)
+        .map(|cap| cap.get(1).unwrap().as_str())
+        .collect();
+    
+    let dates: Vec<&str> = date_pattern
+        .captures_iter(xml)
+        .map(|cap| cap.get(1).unwrap().as_str())
+        .collect();
+    
+    for (i, name) in names.iter().enumerate() {
+        buckets.push(BucketInfo {
+            name: name.to_string(),
+            region: locations.get(i).map(|s| s.to_string()).unwrap_or_default(),
+            creation_date: dates.get(i).map(|s| Some(s.to_string())).unwrap_or(None),
+        });
+    }
+    
+    Ok(buckets)
 }
 

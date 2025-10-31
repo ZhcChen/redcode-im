@@ -140,6 +140,58 @@
             </template>
           </a-result>
         </a-card>
+
+        <!-- Bucket 列表 -->
+        <a-card title="Bucket 列表" size="small">
+          <a-space direction="vertical" :size="16" style="width: 100%">
+            <a-button
+              type="primary"
+              :loading="bucketsLoading"
+              @click="handleListBuckets"
+            >
+              加载 Bucket 列表
+            </a-button>
+            <a-table
+              v-if="buckets.length > 0"
+              :columns="bucketColumns"
+              :data="buckets"
+              :pagination="false"
+              size="small"
+            />
+            <a-empty v-else-if="bucketsLoaded" description="暂无 Bucket" />
+            <a-result
+              v-if="bucketsResult"
+              :status="bucketsResult.success ? 'success' : 'error'"
+              :title="bucketsResult.message"
+            />
+          </a-space>
+        </a-card>
+
+        <!-- 创建 Bucket -->
+        <a-card title="创建 Bucket" size="small">
+          <a-form :model="createBucketForm" layout="vertical">
+            <a-form-item label="Bucket 名称">
+              <a-input
+                v-model="createBucketForm.bucket_name"
+                placeholder="请输入 bucket 名称（只能包含小写字母、数字和连字符）"
+              />
+            </a-form-item>
+            <a-form-item>
+              <a-button
+                type="primary"
+                :loading="createBucketLoading"
+                @click="handleCreateBucket"
+              >
+                创建 Bucket
+              </a-button>
+            </a-form-item>
+          </a-form>
+          <a-result
+            v-if="createBucketResult"
+            :status="createBucketResult.success ? 'success' : 'error'"
+            :title="createBucketResult.message"
+          />
+        </a-card>
       </a-space>
     </a-card>
   </div>
@@ -153,6 +205,8 @@
     testCosUpload,
     testCosDelete,
     testCosExists,
+    testCosListBuckets,
+    testCosCreateBucket,
     type StorageProvider,
     type TestCosUploadRequest,
     type TestCosUploadResponse,
@@ -160,6 +214,10 @@
     type TestCosDeleteResponse,
     type TestCosExistsRequest,
     type TestCosExistsResponse,
+    type TestCosListBucketsRequest,
+    type TestCosListBucketsResponse,
+    type TestCosCreateBucketRequest,
+    type TestCosCreateBucketResponse,
   } from '@/api/settings';
 
   const providers = ref<StorageProvider[]>([]);
@@ -183,13 +241,45 @@
     key: '',
   });
 
+  const createBucketForm = reactive({
+    bucket_name: '',
+  });
+
   const uploadLoading = ref(false);
   const deleteLoading = ref(false);
   const existsLoading = ref(false);
+  const bucketsLoading = ref(false);
+  const createBucketLoading = ref(false);
 
   const uploadResult = ref<TestCosUploadResponse | null>(null);
   const deleteResult = ref<TestCosDeleteResponse | null>(null);
   const existsResult = ref<TestCosExistsResponse | null>(null);
+  const bucketsResult = ref<TestCosListBucketsResponse | null>(null);
+  const createBucketResult = ref<TestCosCreateBucketResponse | null>(null);
+
+  const buckets = ref<
+    Array<{
+      name: string;
+      region: string;
+      creation_date?: string | null;
+    }>
+  >([]);
+  const bucketsLoaded = ref(false);
+
+  const bucketColumns = [
+    {
+      title: 'Bucket 名称',
+      dataIndex: 'name',
+    },
+    {
+      title: '地域',
+      dataIndex: 'region',
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'creation_date',
+    },
+  ];
 
   const fetchProviders = async () => {
     try {
@@ -333,6 +423,87 @@
       };
     } finally {
       existsLoading.value = false;
+    }
+  };
+
+  const handleListBuckets = async () => {
+    try {
+      bucketsLoading.value = true;
+      bucketsResult.value = null;
+
+      const payload: TestCosListBucketsRequest = {
+        provider_id: formData.provider_id,
+      };
+
+      const response = await testCosListBuckets(payload);
+      const data = response.data?.data || response.data;
+      bucketsResult.value = data;
+
+      if (data.success) {
+        buckets.value = data.buckets;
+        bucketsLoaded.value = true;
+        Message.success(data.message);
+      } else {
+        Message.error(data.message);
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '获取 bucket 列表失败';
+      Message.error(errorMsg);
+      bucketsResult.value = {
+        success: false,
+        buckets: [],
+        message: errorMsg,
+      };
+    } finally {
+      bucketsLoading.value = false;
+    }
+  };
+
+  const handleCreateBucket = async () => {
+    if (!createBucketForm.bucket_name.trim()) {
+      Message.error('请输入 bucket 名称');
+      return;
+    }
+
+    try {
+      createBucketLoading.value = true;
+      createBucketResult.value = null;
+
+      const payload: TestCosCreateBucketRequest = {
+        provider_id: formData.provider_id,
+        bucket_name: createBucketForm.bucket_name.trim(),
+      };
+
+      const response = await testCosCreateBucket(payload);
+      const data = response.data?.data || response.data;
+      createBucketResult.value = data;
+
+      if (data.success) {
+        Message.success(data.message);
+        // 创建成功后刷新 bucket 列表
+        await handleListBuckets();
+        // 清空表单
+        createBucketForm.bucket_name = '';
+      } else {
+        Message.error(data.message);
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '创建 bucket 失败';
+      Message.error(errorMsg);
+      createBucketResult.value = {
+        success: false,
+        message: errorMsg,
+      };
+    } finally {
+      createBucketLoading.value = false;
     }
   };
 
