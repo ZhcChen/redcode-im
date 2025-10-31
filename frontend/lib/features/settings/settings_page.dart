@@ -316,7 +316,7 @@ class _SettingsPageState extends State<SettingsPage> {
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF4F5F6),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.zero,
@@ -325,17 +325,17 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               // 顶部标题区域
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
                 child: const Text(
                   '设置',
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: 28,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               // 用户卡片区域
               if (_loading)
                 const Center(
@@ -355,15 +355,22 @@ class _SettingsPageState extends State<SettingsPage> {
                     updatingNickname: _updatingNickname,
                   ),
                 ),
-              const SizedBox(height: 24),
-              // 设置项列表卡片（按照 SVG: x=16, y=306, w=343, h=170, rx=16）
+              const SizedBox(height: 20),
+              // 设置项列表卡片
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
@@ -376,15 +383,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              // 危险操作区域（按照 SVG: x=16, y=500, w=343, h=44, rx=8, fill=#FEECEB）
+              const SizedBox(height: 20),
+              // 危险操作区域
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEECEB),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: _DangerZone(
                     onDeactivate: _deactivating ? null : _handleDeactivate,
@@ -393,7 +400,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -425,48 +432,76 @@ class _UserCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: Image.asset(
-                  AppAssets.loginLogo,
-                  width: 72,
-                  height: 72,
-                  fit: BoxFit.cover,
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    AppAssets.loginLogo,
+                    width: 76,
+                    height: 76,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
               Positioned(
-                bottom: -4,
-                right: -4,
+                bottom: -2,
+                right: -2,
                 child: Container(
-                  width: 28,
-                  height: 28,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF00C2B3),
+                    shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 6,
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: SvgPicture.asset(AppAssets.settingsEdit),
+                    padding: const EdgeInsets.all(6),
+                    child: SvgPicture.asset(
+                      AppAssets.settingsEdit,
+                      colorFilter: const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,9 +516,10 @@ class _UserCard extends StatelessWidget {
                         child: Text(
                           displayName,
                           style: const TextStyle(
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
+                            height: 1.2,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -495,39 +531,44 @@ class _UserCard extends StatelessWidget {
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.primary,
+                            color: Color(0xFF00C2B3),
                           ),
                         )
                       else if (onEditNickname != null)
                         SvgPicture.asset(
                           AppAssets.settingsEditOutline,
-                          width: 16,
+                          width: 18,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.textSecondary,
+                            BlendMode.srcIn,
+                          ),
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   '账号：$account',
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     color: AppColors.textSecondary,
+                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
+                    color: const Color(0xFFF4F5F6),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
                     emailText,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
@@ -555,21 +596,23 @@ class _SettingListTile extends StatelessWidget {
 
     return InkWell(
       onTap: data.onTap == null ? null : () async => await data.onTap!.call(),
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Column(
           children: [
             Row(
               children: [
                 SizedBox(width: 24, height: 24, child: data.leading),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Text(
                     data.title,
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,
+                      height: 1.4,
                     ),
                   ),
                 ),
@@ -577,9 +620,13 @@ class _SettingListTile extends StatelessWidget {
               ],
             ),
             if (showDivider)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
-                child: Divider(height: 1, color: Color(0xFFE9EBEF)),
+              Padding(
+                padding: const EdgeInsets.only(top: 14, left: 38),
+                child: Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: const Color(0xFFE9EBEF).withValues(alpha: 0.6),
+                ),
               ),
           ],
         ),
@@ -601,12 +648,9 @@ class _DangerZone extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 按照 SVG 设计：高度 44，圆角 8，红色背景 #FEECEB
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+    return Padding(
+      padding: const EdgeInsets.all(16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
             child: InkWell(
@@ -615,9 +659,14 @@ class _DangerZone extends StatelessWidget {
                   : () async => await onDeactivate!(),
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                height: 44,
+                height: 48,
                 decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.danger.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -634,8 +683,8 @@ class _DangerZone extends StatelessWidget {
                     const SizedBox(width: 8),
                     deactivating
                         ? const SizedBox(
-                            width: 16,
-                            height: 16,
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: AppColors.danger,
@@ -644,8 +693,8 @@ class _DangerZone extends StatelessWidget {
                         : const Text(
                             '注销账号',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
                               color: AppColors.danger,
                             ),
                           ),
@@ -660,9 +709,17 @@ class _DangerZone extends StatelessWidget {
               onTap: onLogout,
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                height: 44,
+                height: 48,
                 decoration: BoxDecoration(
+                  color: AppColors.danger,
                   borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.danger.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -672,7 +729,7 @@ class _DangerZone extends StatelessWidget {
                       width: 20,
                       height: 20,
                       colorFilter: const ColorFilter.mode(
-                        AppColors.danger,
+                        Colors.white,
                         BlendMode.srcIn,
                       ),
                     ),
@@ -680,9 +737,9 @@ class _DangerZone extends StatelessWidget {
                     const Text(
                       '退出登录',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.danger,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
                       ),
                     ),
                   ],
