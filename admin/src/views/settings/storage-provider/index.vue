@@ -62,9 +62,10 @@
 
       <!-- 创建/编辑对话框 -->
       <a-modal
-        v-model:visible="modalVisible"
+        :visible="modalVisible"
         :title="modalTitle"
         :width="600"
+        @update:visible="modalVisible = $event"
         @before-ok="handleSubmit"
         @cancel="handleCancel"
       >
