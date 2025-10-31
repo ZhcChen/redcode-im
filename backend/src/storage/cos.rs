@@ -141,18 +141,23 @@ impl TencentCosService {
 
         debug!("StringToSign: {:?}", string_to_sign);
         debug!("HttpString SHA1: {}", http_string_sha1);
+        debug!("KeyTime: {}", key_time);
 
         // 4. 计算 SignKey = HMAC-SHA1(SecretKey, KeyTime)
         let mut sign_key_mac = HmacSha1::new_from_slice(self.secret_key.as_bytes())
             .expect("HMAC can take key of any size");
         sign_key_mac.update(key_time.as_bytes());
         let sign_key = sign_key_mac.finalize();
+        let sign_key_bytes = sign_key.into_bytes();
 
         // 5. 计算 Signature = HMAC-SHA1(SignKey, StringToSign)
-        let mut signature_mac = HmacSha1::new_from_slice(&sign_key.into_bytes())
+        let mut signature_mac = HmacSha1::new_from_slice(&sign_key_bytes)
             .expect("HMAC can take key of any size");
         signature_mac.update(string_to_sign.as_bytes());
         let signature = hex::encode(signature_mac.finalize().into_bytes());
+
+        debug!("Signature: {}", signature);
+        debug!("Header list: {}", header_list.join(";"));
 
         // 6. 构建 header list 字符串
         let header_list_str = header_list.join(";");
