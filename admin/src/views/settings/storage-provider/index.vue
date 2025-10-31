@@ -3,12 +3,20 @@
     <Breadcrumb :items="['menu.settings', 'menu.settings.storageProvider']" />
     <a-card class="general-card" title="文件上传提供商设置" :bordered="false">
       <div class="actions">
-        <a-button type="primary" @click="handleCreate">
-          <template #icon>
-            <icon-plus />
-          </template>
-          新增提供商
-        </a-button>
+        <a-space>
+          <a-button type="primary" @click="handleCreate">
+            <template #icon>
+              <icon-plus />
+            </template>
+            新增提供商
+          </a-button>
+          <a-button @click="handleRefresh">
+            <template #icon>
+              <icon-refresh />
+            </template>
+            刷新
+          </a-button>
+        </a-space>
       </div>
 
       <a-table
@@ -389,6 +397,10 @@
   const handleCancel = () => {
     modalVisible.value = false;
     editingId.value = null;
+  };
+
+  const handleRefresh = () => {
+    fetchProviders();
   };
 
   onMounted(() => {
