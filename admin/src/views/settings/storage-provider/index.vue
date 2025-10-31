@@ -66,7 +66,7 @@
         :title="modalTitle"
         :width="600"
         @update:visible="modalVisible = $event"
-        @ok="handleOk"
+        @before-ok="handleBeforeOk"
         @cancel="handleCancel"
       >
         <a-form
@@ -338,6 +338,13 @@
       description: record.description || '',
     });
     modalVisible.value = true;
+  };
+
+  const handleBeforeOk = async (done: (closed: boolean) => void) => {
+    console.log('handleBeforeOk 被调用');
+    const result = await handleSubmit();
+    console.log('handleSubmit 返回结果:', result);
+    done(result); // result 为 true 时关闭 Modal，false 时不关闭
   };
 
   const handleOk = async () => {
