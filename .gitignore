@@ -15,3 +15,7 @@ bear-chat-uniapp
 .dartServer
 .dart-tool
 log
+
+target/
+node_modules/
+.env
