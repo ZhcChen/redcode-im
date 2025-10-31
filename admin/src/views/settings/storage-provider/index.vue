@@ -248,7 +248,7 @@
     {
       title: '操作',
       slotName: 'operations',
-      width: 150,
+      width: 200,
     },
   ];
 
@@ -421,7 +421,7 @@
 
 <style scoped>
   .storage-provider-settings-container {
-    padding: 0 20px 20px 20px;
+    padding: 0 20px 20px;
   }
 
   .storage-provider-settings-container .general-card .actions {

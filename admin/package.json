@@ -32,6 +32,8 @@
   "dependencies": {
     "@arco-design/web-vue": "^2.44.7",
     "@vueuse/core": "^9.3.0",
+    "@wangeditor/editor": "^5.1.23",
+    "@wangeditor/editor-for-vue": "^5.1.12",
     "axios": "^0.24.0",
     "dayjs": "^1.11.5",
     "echarts": "^5.4.0",
@@ -44,9 +46,7 @@
     "vue": "^3.2.40",
     "vue-echarts": "^6.2.3",
     "vue-i18n": "^9.2.2",
-    "vue-router": "^4.0.14",
-    "@wangeditor/editor": "^5.1.23",
-    "@wangeditor/editor-for-vue": "^5.1.12"
+    "vue-router": "^4.0.14"
   },
   "devDependencies": {
     "@arco-plugins/vite-vue": "^1.4.5",
@@ -82,7 +82,7 @@
     "stylelint-config-prettier": "^9.0.3",
     "stylelint-config-rational-order": "^0.1.2",
     "stylelint-config-recommended-vue": "^1.4.0",
-    "stylelint-config-standard": "^29.0.0",
+    "stylelint-config-standard": "^28.0.0",
     "stylelint-order": "^5.0.0",
     "typescript": "^4.8.4",
     "unplugin-vue-components": "^0.24.1",
