@@ -58,6 +58,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   final GlobalKey _inputAreaKey = GlobalKey();
   double _lastKeyboardInset = 0.0;
   double _keyboardInset = 0.0; // 当前键盘高度，用于避免频繁查询 MediaQuery
+  Timer? _keyboardUpdateTimer; // 防抖定时器，减少键盘动画期间的 setState 调用
 
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
@@ -130,6 +131,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   @override
   void dispose() {
+    _keyboardUpdateTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _chatProvider.leaveChatRoom();
     if (_ownsProvider) {
@@ -148,18 +150,27 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     final view = WidgetsBinding.instance.platformDispatcher.views.first;
     final viewInset = view.viewInsets.bottom / view.devicePixelRatio;
     
-    // 更新键盘高度状态，触发 UI 更新
-    if ((viewInset - _keyboardInset).abs() > 1.0) {
-      setState(() {
-        _keyboardInset = viewInset;
-      });
-      
-      if (viewInset > _lastKeyboardInset) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 使用防抖机制，减少键盘动画期间的频繁 setState
+    // 限制更新频率为每 16ms 一次（约 60fps），避免过度重建
+    if ((viewInset - _keyboardInset).abs() > 0.5) {
+      _keyboardUpdateTimer?.cancel();
+      _keyboardUpdateTimer = Timer(const Duration(milliseconds: 16), () {
+        if (!mounted) return;
+        // 使用 scheduleMicrotask 确保在下一帧更新，避免阻塞当前帧
+        scheduleMicrotask(() {
           if (!mounted) return;
-          _scrollToBottom(animated: false);
+          setState(() {
+            _keyboardInset = viewInset;
+          });
         });
-      }
+        
+        if (viewInset > _lastKeyboardInset) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _scrollToBottom(animated: false);
+          });
+        }
+      });
     }
     _lastKeyboardInset = viewInset;
   }
@@ -640,30 +651,36 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRect(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SizeTransition(
-                      sizeFactor: animation,
-                      axisAlignment: -1.0,
-                      child: child,
+            // 优化 AnimatedSwitcher：使用更简单的动画，减少键盘动画期间的性能开销
+            // 移除 ClipRect 以减少额外的裁剪计算
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 150),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              // 简化 transition，只使用 FadeTransition，移除 SizeTransition 以减少布局计算
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  children: <Widget>[
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                  alignment: Alignment.bottomCenter,
+                );
+              },
+              child: _quotedMessage == null
+                  ? const SizedBox.shrink(key: ValueKey('empty'))
+                  : _QuotePreviewBar(
+                      key: ValueKey(_quotedMessage!.id),
+                      message: _quotedMessage!,
+                      onClose: _clearQuotedMessage,
+                      onTap: () => _scrollToMessage(_quotedMessage!.id),
                     ),
-                  );
-                },
-                child: _quotedMessage == null
-                    ? const SizedBox.shrink()
-                    : _QuotePreviewBar(
-                        key: ValueKey(_quotedMessage!.id),
-                        message: _quotedMessage!,
-                        onClose: _clearQuotedMessage,
-                        onTap: () => _scrollToMessage(_quotedMessage!.id),
-                      ),
-              ),
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
             Row(
@@ -715,8 +732,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   onTap: _toggleEmoji,
                 ),
                 const SizedBox(width: 4),
-                Consumer<ChatProvider>(
-                  builder: (context, provider, child) {
+                // 使用 Selector 替代 Consumer，只在 isSending 变化时重建，减少键盘动画时的重建
+                Selector<ChatProvider, bool>(
+                  selector: (_, provider) => provider.isSending,
+                  builder: (context, isSending, child) {
                     final hasText = _textController.text.trim().isNotEmpty;
 
                     if (hasText) {
@@ -725,12 +744,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                         borderRadius: BorderRadius.circular(18),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(18),
-                          onTap: provider.isSending ? null : _sendMessage,
+                          onTap: isSending ? null : _sendMessage,
                           child: Container(
                             width: 36,
                             height: 36,
                             alignment: Alignment.center,
-                            child: provider.isSending
+                            child: isSending
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
