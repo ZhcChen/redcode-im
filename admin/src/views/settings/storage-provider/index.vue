@@ -280,10 +280,22 @@
   const fetchProviders = async () => {
     try {
       setLoading(true);
-      const { data } = await listStorageProviders();
-      providers.value = data.providers || [];
-    } catch (error) {
-      Message.error('获取提供商列表失败');
+      const response = await listStorageProviders();
+      console.log('列表响应:', response);
+      console.log('响应数据:', response.data);
+      // 处理不同的响应格式
+      const data = response.data?.data || response.data;
+      providers.value = data?.providers || [];
+      console.log('提供商列表:', providers.value);
+    } catch (error: any) {
+      console.error('获取提供商列表失败:', error);
+      console.error('错误详情:', error?.response);
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '获取提供商列表失败';
+      Message.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -336,19 +348,30 @@
         bucket_name: formData.bucket_name || undefined,
         description: formData.description || undefined,
       };
+      console.log('提交数据:', payload);
 
+      let response;
       if (editingId.value) {
-        await updateStorageProvider(editingId.value, payload);
-        Message.success('更新成功');
+        response = await updateStorageProvider(editingId.value, payload);
+        console.log('更新响应:', response);
       } else {
-        await createStorageProvider(payload);
-        Message.success('创建成功');
+        response = await createStorageProvider(payload);
+        console.log('创建响应:', response);
       }
 
+      Message.success(editingId.value ? '更新成功' : '创建成功');
       modalVisible.value = false;
+      // 刷新列表
       await fetchProviders();
-    } catch (error) {
-      Message.error(editingId.value ? '更新失败' : '创建失败');
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      console.error('错误响应:', error?.response);
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        (editingId.value ? '更新失败' : '创建失败');
+      Message.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -360,8 +383,14 @@
       await deleteStorageProvider(id);
       Message.success('删除成功');
       await fetchProviders();
-    } catch (error) {
-      Message.error('删除失败');
+    } catch (error: any) {
+      console.error('删除失败:', error);
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '删除失败';
+      Message.error(errorMsg);
     } finally {
       setLoading(false);
     }
