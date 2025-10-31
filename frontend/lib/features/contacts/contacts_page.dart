@@ -338,7 +338,7 @@ class ContactsPageState extends State<ContactsPage> {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  '搜索手机号 / 用户名 / 邮箱添加好友',
+                  '搜索添加好友',
                   style: TextStyle(fontSize: 15, color: AppColors.textTertiary),
                 ),
               ),
