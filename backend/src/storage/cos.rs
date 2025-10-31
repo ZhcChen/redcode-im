@@ -2,6 +2,8 @@ use crate::error::AppError;
 use crate::storage::{BucketInfo, CorsRule, DirectUploadSignature, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use hmac::{Hmac, Mac};
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
@@ -423,9 +425,12 @@ impl StorageService for TencentCosService {
         }
 
         let xml_body = build_cors_configuration_xml(rules);
+        let md5_digest = md5::compute(xml_body.as_bytes());
+        let content_md5 = BASE64_STANDARD.encode(md5_digest.0);
 
         let mut headers_map = BTreeMap::new();
         headers_map.insert("Content-Type".to_string(), "application/xml".to_string());
+        headers_map.insert("Content-MD5".to_string(), content_md5.clone());
 
         let mut query_params = BTreeMap::new();
         query_params.insert("cors".to_string(), String::new());
@@ -449,6 +454,7 @@ impl StorageService for TencentCosService {
             .header("Authorization", authorization)
             .header("Host", &bucket_endpoint)
             .header("Content-Type", "application/xml")
+            .header("Content-MD5", content_md5)
             .body(xml_body.clone())
             .send()
             .await
