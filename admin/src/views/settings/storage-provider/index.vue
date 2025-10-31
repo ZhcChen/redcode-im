@@ -169,7 +169,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { reactive, ref, computed, onMounted } from 'vue';
+  import { reactive, ref, computed, onMounted, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
   import {
