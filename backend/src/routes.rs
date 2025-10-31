@@ -58,6 +58,18 @@ pub fn create_routes() -> Router<AppState> {
             axum::routing::patch(admin::update_storage_provider)
                 .delete(admin::delete_storage_provider),
         )
+        .route(
+            "/api/admin/storage-providers/test/upload",
+            post(admin::test_cos_upload),
+        )
+        .route(
+            "/api/admin/storage-providers/test/delete",
+            post(admin::test_cos_delete),
+        )
+        .route(
+            "/api/admin/storage-providers/test/exists",
+            post(admin::test_cos_exists),
+        )
         .route("/feedbacks", post(feedback::submit_feedback))
         // users
         .route("/users/search", get(user::search_users))

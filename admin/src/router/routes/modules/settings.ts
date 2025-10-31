@@ -42,6 +42,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'cos-test',
+      name: 'CosTestSettings',
+      component: () => import('@/views/settings/cos-test/index.vue'),
+      meta: {
+        locale: 'menu.settings.cosTest',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

@@ -1,19 +1,51 @@
-// 此模块已废弃，现在使用 database::user_store
-// 保留此文件以供参考
+pub mod cos;
 
-/*
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use uuid::Uuid;
-use chrono::Utc;
+use crate::database::models::{StorageProvider, StorageProviderType};
+use crate::error::AppError;
+use async_trait::async_trait;
+use bytes::Bytes;
 
-use crate::models::{User, UserStatus, CreateUserRequest};
+/// 存储服务 trait
+#[async_trait]
+pub trait StorageService: Send + Sync {
+    /// 上传文件
+    async fn upload_file(
+        &self,
+        key: &str,
+        content: Bytes,
+        content_type: Option<&str>,
+    ) -> Result<String, AppError>;
 
-// 内存用户存储 (已废弃，使用 database::user_store 替代)
-pub struct UserStorage {
-    users: Arc<RwLock<HashMap<String, User>>>,
-    username_index: Arc<RwLock<HashMap<String, String>>>,
-    email_index: Arc<RwLock<HashMap<String, String>>>,
+    /// 删除文件
+    async fn delete_file(&self, key: &str) -> Result<(), AppError>;
+
+    /// 检查文件是否存在
+    async fn file_exists(&self, key: &str) -> Result<bool, AppError>;
+
+    /// 获取文件访问 URL
+    fn get_file_url(&self, key: &str) -> String;
 }
-*/
+
+/// 创建存储服务实例
+pub fn create_storage_service(provider: &StorageProvider) -> Result<Box<dyn StorageService>, AppError> {
+    match provider.provider_type {
+        StorageProviderType::TencentCos => {
+            if provider.bucket_name.is_none() {
+                return Err(AppError::ValidationError(
+                    "腾讯云COS需要配置bucket_name".to_string(),
+                ));
+            }
+            Ok(Box::new(cos::TencentCosService::new(
+                provider.secret_id.clone(),
+                provider.secret_key.clone(),
+                provider.region.clone(),
+                provider.endpoint.clone(),
+                provider.bucket_name.clone().unwrap(),
+            )?))
+        }
+        _ => Err(AppError::ValidationError(format!(
+            "不支持的存储提供商类型: {:?}",
+            provider.provider_type
+        ))),
+    }
+}

@@ -27,6 +27,13 @@ rand = "0.8"
 prost = "0.12"
 prost-types = "0.12"
 bytes = "1.6"
+reqwest = { version = "0.11", features = ["json", "multipart"] }
+sha1 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+urlencoding = "2.1"
+async-trait = "0.1"
 
 [build-dependencies]
 prost-build = "0.12"

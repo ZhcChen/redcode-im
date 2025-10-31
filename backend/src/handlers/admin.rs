@@ -13,7 +13,9 @@ use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
+use crate::storage;
 use crate::AppState;
+use bytes::Bytes;
 use tracing::error;
 
 #[derive(Debug, Serialize)]
@@ -515,5 +517,217 @@ pub async fn get_default_storage_provider(
         None => Err(AppError::NotFound(
             "未找到默认文件上传提供商配置".to_string(),
         )),
+    }
+}
+
+// ========== COS 测试 API ==========
+
+#[derive(Debug, Deserialize)]
+pub struct TestCosUploadRequest {
+    pub provider_id: Option<String>,
+    pub key: String,
+    pub content: String,
+    pub content_type: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosUploadResponse {
+    pub success: bool,
+    pub url: Option<String>,
+    pub message: String,
+}
+
+/// 测试 COS 文件上传
+pub async fn test_cos_upload(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosUploadRequest>,
+) -> Result<Json<TestCosUploadResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    // 获取提供商配置
+    let provider = if let Some(provider_id) = req.provider_id {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    // 检查提供商是否启用
+    if !provider.is_active {
+        return Ok(Json(TestCosUploadResponse {
+            success: false,
+            url: None,
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    // 检查是否为腾讯云 COS
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosUploadResponse {
+            success: false,
+            url: None,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    // 创建存储服务
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    // 上传文件
+    let content_bytes = bytes::Bytes::from(req.content);
+    match storage_service
+        .upload_file(&req.key, content_bytes, req.content_type.as_deref())
+        .await
+    {
+        Ok(url) => Ok(Json(TestCosUploadResponse {
+            success: true,
+            url: Some(url),
+            message: "上传成功".to_string(),
+        })),
+        Err(e) => Ok(Json(TestCosUploadResponse {
+            success: false,
+            url: None,
+            message: format!("上传失败: {}", e),
+        })),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestCosDeleteRequest {
+    pub provider_id: Option<String>,
+    pub key: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosDeleteResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// 测试 COS 文件删除
+pub async fn test_cos_delete(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosDeleteRequest>,
+) -> Result<Json<TestCosDeleteResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    // 获取提供商配置
+    let provider = if let Some(provider_id) = req.provider_id {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosDeleteResponse {
+            success: false,
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosDeleteResponse {
+            success: false,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    match storage_service.delete_file(&req.key).await {
+        Ok(_) => Ok(Json(TestCosDeleteResponse {
+            success: true,
+            message: "删除成功".to_string(),
+        })),
+        Err(e) => Ok(Json(TestCosDeleteResponse {
+            success: false,
+            message: format!("删除失败: {}", e),
+        })),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestCosExistsRequest {
+    pub provider_id: Option<String>,
+    pub key: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosExistsResponse {
+    pub success: bool,
+    pub exists: bool,
+    pub message: String,
+}
+
+/// 测试 COS 文件是否存在
+pub async fn test_cos_exists(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosExistsRequest>,
+) -> Result<Json<TestCosExistsResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    // 获取提供商配置
+    let provider = if let Some(provider_id) = req.provider_id {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosExistsResponse {
+            success: false,
+            exists: false,
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosExistsResponse {
+            success: false,
+            exists: false,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    match storage_service.file_exists(&req.key).await {
+        Ok(exists) => Ok(Json(TestCosExistsResponse {
+            success: true,
+            exists,
+            message: if exists {
+                "文件存在".to_string()
+            } else {
+                "文件不存在".to_string()
+            },
+        })),
+        Err(e) => Ok(Json(TestCosExistsResponse {
+            success: false,
+            exists: false,
+            message: format!("检查失败: {}", e),
+        })),
     }
 }

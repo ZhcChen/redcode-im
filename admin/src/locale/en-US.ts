@@ -20,6 +20,7 @@ export default {
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
   'menu.settings.storageProvider': 'Storage Provider',
+  'menu.settings.cosTest': 'COS Test',
   'menu.list': 'List',
   'menu.result': 'Result',
   'menu.exception': 'Exception',

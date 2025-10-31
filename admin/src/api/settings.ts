@@ -98,3 +98,60 @@ export function deleteStorageProvider(providerId: string) {
 export function getDefaultStorageProvider() {
   return axios.get<StorageProvider>('/api/admin/storage-providers/default');
 }
+
+// ========== COS 测试 API ==========
+
+export interface TestCosUploadRequest {
+  provider_id?: string;
+  key: string;
+  content: string;
+  content_type?: string;
+}
+
+export interface TestCosUploadResponse {
+  success: boolean;
+  url?: string;
+  message: string;
+}
+
+export interface TestCosDeleteRequest {
+  provider_id?: string;
+  key: string;
+}
+
+export interface TestCosDeleteResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface TestCosExistsRequest {
+  provider_id?: string;
+  key: string;
+}
+
+export interface TestCosExistsResponse {
+  success: boolean;
+  exists: boolean;
+  message: string;
+}
+
+export function testCosUpload(payload: TestCosUploadRequest) {
+  return axios.post<TestCosUploadResponse>(
+    '/api/admin/storage-providers/test/upload',
+    payload
+  );
+}
+
+export function testCosDelete(payload: TestCosDeleteRequest) {
+  return axios.post<TestCosDeleteResponse>(
+    '/api/admin/storage-providers/test/delete',
+    payload
+  );
+}
+
+export function testCosExists(payload: TestCosExistsRequest) {
+  return axios.post<TestCosExistsResponse>(
+    '/api/admin/storage-providers/test/exists',
+    payload
+  );
+}
