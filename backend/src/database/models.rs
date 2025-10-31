@@ -70,15 +70,6 @@ pub struct UpdateUserRequest {
     pub status: Option<UserStatus>,
 }
 
-/// JWT Claims
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: String, // 用户ID
-    pub username: String,
-    pub exp: usize, // 过期时间
-    pub iat: usize, // 签发时间
-}
-
 /// 房间表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Room {

@@ -15,11 +15,3 @@ bear-chat-uniapp
 .dartServer
 .dart-tool
 log
-
-redcode-im-server/
-redcode-im-app/
-redcode-im-admin/
-
-admin/
-backend/
-frontend/

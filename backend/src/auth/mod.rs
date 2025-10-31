@@ -65,8 +65,3 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
 
     Err(StatusCode::UNAUTHORIZED)
 }
-
-// 获取当前用户信息
-pub fn get_current_user(request: &Request) -> Option<&Claims> {
-    request.extensions().get::<Claims>()
-}
