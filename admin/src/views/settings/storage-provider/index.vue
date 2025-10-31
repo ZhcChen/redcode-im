@@ -252,6 +252,11 @@
     return editingId.value ? '编辑提供商配置' : '新增提供商配置';
   });
 
+  // 监听 modalVisible 变化，用于调试
+  watch(modalVisible, (newVal) => {
+    console.log('modalVisible watch 触发，新值:', newVal);
+  });
+
   const getProviderTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       tencent_cos: '腾讯云COS',
@@ -399,6 +404,7 @@
   };
 
   const handleCancel = () => {
+    console.log('handleCancel 被调用');
     modalVisible.value = false;
     editingId.value = null;
   };
