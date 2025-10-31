@@ -80,7 +80,7 @@ impl StorageProviderStore {
     ) -> Result<StorageProvider, Error> {
         // 如果设置为默认，需要先取消其他默认提供商
         if is_default {
-            let _: () = sqlx::query(
+            let _ = sqlx::query(
                 "UPDATE storage_providers SET is_default = FALSE WHERE is_default = TRUE",
             )
             .execute(&self.database.pool)
@@ -133,7 +133,7 @@ impl StorageProviderStore {
     ) -> Result<Option<StorageProvider>, Error> {
         // 如果设置为默认，需要先取消其他默认提供商
         if let Some(true) = is_default {
-            let _: () = sqlx::query(
+            let _ = sqlx::query(
                 "UPDATE storage_providers SET is_default = FALSE WHERE is_default = TRUE AND id != $1",
             )
             .bind(id)
