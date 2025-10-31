@@ -402,26 +402,33 @@ class _LoginPageState extends State<LoginPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (_agreed)
-            SvgPicture.asset(AppAssets.loginCheckboxSelected, height: 20)
-          else
-            Container(
-              height: 20,
-              width: 20,
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Container(
-                height: 16,
-                width: 16,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: _agreed
+                ? SvgPicture.asset(
+                    AppAssets.loginCheckboxSelected,
+                    width: 20,
+                    height: 20,
+                  )
+                : Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Container(
+                      height: 16,
+                      width: 16,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+          ),
           const SizedBox(width: 12),
           const Flexible(
             child: Text(
