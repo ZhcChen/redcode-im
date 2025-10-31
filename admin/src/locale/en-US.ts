@@ -19,6 +19,7 @@ export default {
   'menu.userManagement.list': 'User List',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
+  'menu.settings.storageProvider': 'Storage Provider',
   'menu.list': 'List',
   'menu.result': 'Result',
   'menu.exception': 'Exception',

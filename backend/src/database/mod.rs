@@ -8,6 +8,7 @@ pub mod message_store;
 pub mod models;
 pub mod room_store;
 pub mod settings_store;
+pub mod storage_provider_store;
 pub mod user_store;
 
 /// 数据库连接池

@@ -32,6 +32,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'storage-provider',
+      name: 'StorageProviderSettings',
+      component: () => import('@/views/settings/storage-provider/index.vue'),
+      meta: {
+        locale: 'menu.settings.storageProvider',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

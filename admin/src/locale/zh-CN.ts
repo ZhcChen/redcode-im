@@ -20,6 +20,7 @@ export default {
   'menu.settings': '系统设置',
   'menu.settings.captcha': '验证码设置',
   'menu.settings.privacyPolicy': '隐私政策',
+  'menu.settings.storageProvider': '文件上传提供商',
   'menu.list': '列表页',
   'menu.result': '结果页',
   'menu.exception': '异常页',

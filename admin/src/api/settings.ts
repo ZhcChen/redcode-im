@@ -18,5 +18,83 @@ export function getPrivacyPolicy() {
 }
 
 export function updatePrivacyPolicy(payload: UpdateDocumentPayload) {
-  return axios.post<DocumentContent>('/api/admin/settings/privacy-policy', payload);
+  return axios.post<DocumentContent>(
+    '/api/admin/settings/privacy-policy',
+    payload
+  );
+}
+
+// ========== 文件上传提供商管理 API ==========
+
+export interface StorageProvider {
+  id: string;
+  provider_type: string;
+  name: string;
+  secret_id: string;
+  secret_key: string;
+  region: string;
+  endpoint: string;
+  bucket_name?: string | null;
+  is_active: boolean;
+  is_default: boolean;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+  updated_by?: string | null;
+}
+
+export interface StorageProviderListResponse {
+  providers: StorageProvider[];
+}
+
+export interface CreateStorageProviderPayload {
+  provider_type: string;
+  name: string;
+  secret_id: string;
+  secret_key: string;
+  region: string;
+  endpoint: string;
+  bucket_name?: string;
+  is_active?: boolean;
+  is_default?: boolean;
+  description?: string;
+}
+
+export interface UpdateStorageProviderPayload {
+  provider_type?: string;
+  name?: string;
+  secret_id?: string;
+  secret_key?: string;
+  region?: string;
+  endpoint?: string;
+  bucket_name?: string | null;
+  is_active?: boolean;
+  is_default?: boolean;
+  description?: string | null;
+}
+
+export function listStorageProviders() {
+  return axios.get<StorageProviderListResponse>('/api/admin/storage-providers');
+}
+
+export function createStorageProvider(payload: CreateStorageProviderPayload) {
+  return axios.post<StorageProvider>('/api/admin/storage-providers', payload);
+}
+
+export function updateStorageProvider(
+  providerId: string,
+  payload: UpdateStorageProviderPayload
+) {
+  return axios.patch<StorageProvider>(
+    `/api/admin/storage-providers/${providerId}`,
+    payload
+  );
+}
+
+export function deleteStorageProvider(providerId: string) {
+  return axios.delete(`/api/admin/storage-providers/${providerId}`);
+}
+
+export function getDefaultStorageProvider() {
+  return axios.get<StorageProvider>('/api/admin/storage-providers/default');
 }

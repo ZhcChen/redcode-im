@@ -335,3 +335,53 @@ pub struct Friendship {
     pub user_b_id: Uuid,
     pub created_at: DateTime<Utc>,
 }
+
+/// 文件上传提供商类型枚举
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i16)]
+#[sqlx(type_name = "int2")]
+pub enum StorageProviderType {
+    Unknown = 0,
+    TencentCos = 1, // 腾讯云COS
+    AliyunOss = 2,  // 阿里云OSS
+    AwsS3 = 3,      // AWS S3
+    Minio = 4,      // MinIO
+}
+
+impl Default for StorageProviderType {
+    fn default() -> Self {
+        StorageProviderType::Unknown
+    }
+}
+
+impl fmt::Display for StorageProviderType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            StorageProviderType::Unknown => "unknown",
+            StorageProviderType::TencentCos => "tencent_cos",
+            StorageProviderType::AliyunOss => "aliyun_oss",
+            StorageProviderType::AwsS3 => "aws_s3",
+            StorageProviderType::Minio => "minio",
+        };
+        f.write_str(text)
+    }
+}
+
+/// 文件上传提供商配置记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct StorageProvider {
+    pub id: Uuid,
+    pub provider_type: StorageProviderType,
+    pub name: String,
+    pub secret_id: String,
+    pub secret_key: String,
+    pub region: String,
+    pub endpoint: String,
+    pub bucket_name: Option<String>,
+    pub is_active: bool,
+    pub is_default: bool,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}

@@ -45,6 +45,19 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/settings/privacy-policy",
             get(settings::get_privacy_policy_admin).post(settings::update_privacy_policy),
         )
+        .route(
+            "/api/admin/storage-providers",
+            get(admin::list_storage_providers).post(admin::create_storage_provider),
+        )
+        .route(
+            "/api/admin/storage-providers/default",
+            get(admin::get_default_storage_provider),
+        )
+        .route(
+            "/api/admin/storage-providers/:provider_id",
+            axum::routing::patch(admin::update_storage_provider)
+                .delete(admin::delete_storage_provider),
+        )
         .route("/feedbacks", post(feedback::submit_feedback))
         // users
         .route("/users/search", get(user::search_users))
