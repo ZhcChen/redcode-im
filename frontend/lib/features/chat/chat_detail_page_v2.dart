@@ -57,6 +57,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   final FocusNode _inputFocusNode = FocusNode();
   final GlobalKey _inputAreaKey = GlobalKey();
   double _lastKeyboardInset = 0.0;
+  double _keyboardInset = 0.0; // 当前键盘高度，用于避免频繁查询 MediaQuery
 
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
@@ -146,11 +147,19 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     super.didChangeMetrics();
     final view = WidgetsBinding.instance.platformDispatcher.views.first;
     final viewInset = view.viewInsets.bottom / view.devicePixelRatio;
-    if (viewInset > _lastKeyboardInset) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _scrollToBottom(animated: false);
+    
+    // 更新键盘高度状态，触发 UI 更新
+    if ((viewInset - _keyboardInset).abs() > 1.0) {
+      setState(() {
+        _keyboardInset = viewInset;
       });
+      
+      if (viewInset > _lastKeyboardInset) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _scrollToBottom(animated: false);
+        });
+      }
     }
     _lastKeyboardInset = viewInset;
   }
@@ -289,9 +298,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final keyboardInset = mediaQuery.viewInsets.bottom;
-    final keyboardVisible = keyboardInset > 0.0;
+    final keyboardVisible = _keyboardInset > 0.0;
 
     if (keyboardVisible && !_wasKeyboardVisible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -315,8 +322,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           child: Column(
             children: [
               _buildHeader(context),
-              Expanded(child: _buildMessageList(listBottomPadding)),
-              _buildInputArea(),
+              Expanded(
+                child: RepaintBoundary(
+                  child: _buildMessageList(listBottomPadding),
+                ),
+              ),
+              RepaintBoundary(
+                child: _buildInputArea(),
+              ),
               if (_showEmojiPanel)
                 _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
               if (_showMorePanel)
@@ -521,25 +534,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           final pinnedMessage = provider.pinnedMessage;
           final hasPinnedBanner =
               pinnedMessage != null && messages.contains(pinnedMessage);
-          final mediaQuery = MediaQuery.of(context);
-          final bottomInset = mediaQuery.viewInsets.bottom;
-          if (bottomInset != _lastKeyboardInset) {
-            // 键盘弹起时，自动滚动到底部
-            // 无论用户是否在底部，都应该滚动到底部以确保输入框和消息可见
-            if (bottomInset > _lastKeyboardInset) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _scrollToBottom(animated: false);
-              });
-            }
-            _lastKeyboardInset = bottomInset;
-          }
 
-          content = AnimatedOpacity(
-            opacity: _messageListOpacity,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            child: ListView.builder(
+          // 使用 Opacity 替代 AnimatedOpacity，避免键盘动画期间的额外性能开销
+          // 只有在初始加载时才需要动画，后续直接使用静态 Opacity
+          final messageListWidget = ListView.builder(
               controller: _scrollController,
               padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
               itemCount: messages.length + (hasPinnedBanner ? 1 : 0),
@@ -609,8 +607,19 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   ),
                 );
               },
-            ),
-          );
+            );
+          
+          content = _messageListOpacity < 1.0
+              ? AnimatedOpacity(
+                  opacity: _messageListOpacity,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: messageListWidget,
+                )
+              : Opacity(
+                  opacity: 1.0,
+                  child: messageListWidget,
+                );
         }
 
         return content;
