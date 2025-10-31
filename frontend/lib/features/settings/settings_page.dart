@@ -319,20 +319,24 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: EdgeInsets.zero,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '设置',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.5,
+              // 顶部标题区域
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                child: const Text(
+                  '设置',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              // 用户卡片区域
               if (_loading)
                 const Center(
                   child: Padding(
@@ -341,42 +345,55 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 )
               else
-                _UserCard(
-                  user: _user,
-                  onEditNickname: (_user != null && !_updatingNickname)
-                      ? _editNickname
-                      : null,
-                  updatingNickname: _updatingNickname,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _UserCard(
+                    user: _user,
+                    onEditNickname: (_user != null && !_updatingNickname)
+                        ? _editNickname
+                        : null,
+                    updatingNickname: _updatingNickname,
+                  ),
                 ),
-              const SizedBox(height: 28),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    for (var i = 0; i < items.length; i++)
-                      _SettingListTile(
-                        data: items[i],
-                        showDivider: i != items.length - 1,
-                      ),
-                  ],
+              const SizedBox(height: 24),
+              // 设置项列表卡片（按照 SVG: x=16, y=306, w=343, h=170, rx=16）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < items.length; i++)
+                        _SettingListTile(
+                          data: items[i],
+                          showDivider: i != items.length - 1,
+                        ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 36),
-              _DangerZone(
-                onDeactivate: _deactivating ? null : _handleDeactivate,
-                onLogout: _logout,
-                deactivating: _deactivating,
+              const SizedBox(height: 24),
+              // 危险操作区域（按照 SVG: x=16, y=500, w=343, h=44, rx=8, fill=#FEECEB）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEECEB),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: _DangerZone(
+                    onDeactivate: _deactivating ? null : _handleDeactivate,
+                    onLogout: _logout,
+                    deactivating: _deactivating,
+                  ),
+                ),
               ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -406,17 +423,10 @@ class _UserCard extends StatelessWidget {
         : '邮箱：未绑定';
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -427,30 +437,29 @@ class _UserCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(30),
                 child: Image.asset(
                   AppAssets.loginLogo,
-                  width: 80,
-                  height: 80,
+                  width: 72,
+                  height: 72,
                   fit: BoxFit.cover,
                 ),
               ),
               Positioned(
-                bottom: -2,
-                right: -2,
+                bottom: -4,
+                right: -4,
                 child: Container(
-                  width: 32,
-                  height: 32,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 6,
                       ),
                     ],
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(4),
                     child: SvgPicture.asset(AppAssets.settingsEdit),
                   ),
                 ),
@@ -472,57 +481,54 @@ class _UserCard extends StatelessWidget {
                         child: Text(
                           displayName,
                           style: const TextStyle(
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
-                            letterSpacing: -0.3,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       if (updatingNickname)
                         const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
+                            strokeWidth: 2,
                             color: AppColors.primary,
                           ),
                         )
                       else if (onEditNickname != null)
                         SvgPicture.asset(
                           AppAssets.settingsEditOutline,
-                          width: 18,
+                          width: 16,
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   '账号：$account',
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     color: AppColors.textSecondary,
-                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+                    horizontal: 12,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
                     emailText,
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: AppColors.textSecondary,
-                      height: 1.3,
                     ),
                   ),
                 ),
@@ -545,50 +551,37 @@ class _SettingListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final trailing =
         data.trailingBuilder?.call(context) ??
-        const Icon(
-          Icons.chevron_right_rounded,
-          color: AppColors.textQuaternary,
-          size: 20,
-        );
+        const Icon(Icons.chevron_right, color: AppColors.textQuaternary);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: data.onTap == null ? null : () async => await data.onTap!.call(),
-        borderRadius: BorderRadius.zero,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  SizedBox(width: 24, height: 24, child: data.leading),
-                  const SizedBox(width: 18),
-                  Expanded(
-                    child: Text(
-                      data.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.2,
-                      ),
+    return InkWell(
+      onTap: data.onTap == null ? null : () async => await data.onTap!.call(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                SizedBox(width: 24, height: 24, child: data.leading),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    data.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  trailing,
-                ],
-              ),
-              if (showDivider)
-                const Padding(
-                  padding: EdgeInsets.only(top: 18),
-                  child: Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Color(0xFFE9EBEF),
-                  ),
                 ),
-            ],
-          ),
+                trailing,
+              ],
+            ),
+            if (showDivider)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Divider(height: 1, color: Color(0xFFE9EBEF)),
+              ),
+          ],
         ),
       ),
     );
@@ -608,91 +601,97 @@ class _DangerZone extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actions = <Widget>[
-      OutlinedButton.icon(
-        onPressed: onDeactivate == null
-            ? null
-            : () async => await onDeactivate!(),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.danger,
-          side: const BorderSide(color: AppColors.danger, width: 1.5),
-          minimumSize: const Size.fromHeight(56),
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          backgroundColor: Colors.white,
-          elevation: 0,
-        ),
-        icon: SvgPicture.asset(
-          AppAssets.settingsLogout,
-          width: 20,
-          height: 20,
-          colorFilter: const ColorFilter.mode(
-            AppColors.danger,
-            BlendMode.srcIn,
-          ),
-        ),
-        label: deactivating
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: AppColors.danger,
+    // 按照 SVG 设计：高度 44，圆角 8，红色背景 #FEECEB
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: onDeactivate == null
+                  ? null
+                  : () async => await onDeactivate!(),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              )
-            : const Text(
-                '注销账号',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SvgPicture.asset(
+                      AppAssets.settingsLogout,
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.danger,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    deactivating
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.danger,
+                            ),
+                          )
+                        : const Text(
+                            '注销账号',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                  ],
                 ),
               ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: InkWell(
+              onTap: onLogout,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SvgPicture.asset(
+                      AppAssets.settingsLogout,
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.danger,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '退出登录',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      OutlinedButton.icon(
-        onPressed: onLogout,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.danger,
-          side: const BorderSide(color: AppColors.danger, width: 1.5),
-          minimumSize: const Size.fromHeight(56),
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          backgroundColor: Colors.white,
-          elevation: 0,
-        ),
-        icon: SvgPicture.asset(
-          AppAssets.settingsLogout,
-          width: 20,
-          height: 20,
-          colorFilter: const ColorFilter.mode(
-            AppColors.danger,
-            BlendMode.srcIn,
-          ),
-        ),
-        label: const Text(
-          '退出登录',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ),
-    ];
-
-    return Column(
-      children: List.generate(actions.length, (index) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: index == actions.length - 1 ? 0 : 14,
-          ),
-          child: actions[index],
-        );
-      }),
     );
   }
 }
