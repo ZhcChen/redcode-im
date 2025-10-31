@@ -66,7 +66,7 @@
         :title="modalTitle"
         :width="600"
         @update:visible="modalVisible = $event"
-        @before-ok="handleSubmit"
+        @ok="handleOk"
         @cancel="handleCancel"
       >
         <a-form
@@ -340,12 +340,28 @@
     modalVisible.value = true;
   };
 
+  const handleOk = async () => {
+    console.log('handleOk 被调用');
+    const result = await handleSubmit();
+    if (result) {
+      modalVisible.value = false;
+    }
+  };
+
   const handleSubmit = async () => {
+    console.log('handleSubmit 被调用');
+    console.log('formRef.value:', formRef.value);
+    console.log('formData:', formData);
+    
     const valid = await formRef.value?.validate();
+    console.log('表单验证结果:', valid);
+    
     if (!valid) {
+      console.log('表单验证失败，阻止提交');
       return false; // 阻止 Modal 关闭
     }
 
+    console.log('表单验证通过，开始提交');
     try {
       setLoading(true);
       const payload = {
@@ -357,15 +373,16 @@
 
       let response;
       if (editingId.value) {
+        console.log('执行更新操作');
         response = await updateStorageProvider(editingId.value, payload);
         console.log('更新响应:', response);
       } else {
+        console.log('执行创建操作');
         response = await createStorageProvider(payload);
         console.log('创建响应:', response);
       }
 
       Message.success(editingId.value ? '更新成功' : '创建成功');
-      modalVisible.value = false;
       // 刷新列表
       await fetchProviders();
       return true; // 允许 Modal 关闭
