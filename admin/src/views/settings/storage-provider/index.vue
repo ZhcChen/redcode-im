@@ -4,13 +4,13 @@
     <a-card class="general-card" title="文件上传提供商设置" :bordered="false">
       <div class="actions">
         <a-space>
-          <a-button type="primary" @click="handleCreate" :loading="loading">
+          <a-button type="primary" :loading="loading" @click="handleCreate">
             <template #icon>
               <icon-plus />
             </template>
             新增提供商
           </a-button>
-          <a-button @click="handleRefresh" :loading="loading">
+          <a-button :loading="loading" @click="handleRefresh">
             <template #icon>
               <icon-refresh />
             </template>
@@ -46,8 +46,8 @@
           <a-button
             type="text"
             size="small"
-            @click="handleEdit(record)"
             style="margin-right: 8px"
+            @click="handleEdit(record)"
           >
             编辑
           </a-button>
@@ -169,7 +169,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { reactive, ref, computed, onMounted, watch } from 'vue';
+  import { reactive, ref, computed, onMounted } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
   import {
@@ -252,11 +252,6 @@
     return editingId.value ? '编辑提供商配置' : '新增提供商配置';
   });
 
-  // 监听 modalVisible 变化，用于调试
-  watch(modalVisible, (newVal) => {
-    console.log('modalVisible watch 触发，新值:', newVal);
-  });
-
   const getProviderTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       tencent_cos: '腾讯云COS',
@@ -283,15 +278,10 @@
     try {
       setLoading(true);
       const response = await listStorageProviders();
-      console.log('列表响应:', response);
-      console.log('响应数据:', response.data);
       // 处理不同的响应格式
       const data = response.data?.data || response.data;
       providers.value = data?.providers || [];
-      console.log('提供商列表:', providers.value);
     } catch (error: any) {
-      console.error('获取提供商列表失败:', error);
-      console.error('错误详情:', error?.response);
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
@@ -304,7 +294,6 @@
   };
 
   const handleCreate = () => {
-    console.log('handleCreate 被调用');
     editingId.value = null;
     Object.assign(formData, {
       provider_type: 'tencent_cos',
@@ -318,9 +307,7 @@
       is_default: false,
       description: '',
     });
-    console.log('设置 modalVisible 为 true');
     modalVisible.value = true;
-    console.log('modalVisible 当前值:', modalVisible.value);
   };
 
   const handleEdit = (record: StorageProvider) => {
@@ -340,35 +327,12 @@
     modalVisible.value = true;
   };
 
-  const handleBeforeOk = async (done: (closed: boolean) => void) => {
-    console.log('handleBeforeOk 被调用');
-    const result = await handleSubmit();
-    console.log('handleSubmit 返回结果:', result);
-    done(result); // result 为 true 时关闭 Modal，false 时不关闭
-  };
-
-  const handleOk = async () => {
-    console.log('handleOk 被调用');
-    const result = await handleSubmit();
-    if (result) {
-      modalVisible.value = false;
-    }
-  };
-
   const handleSubmit = async () => {
-    console.log('handleSubmit 被调用');
-    console.log('formRef.value:', formRef.value);
-    console.log('formData:', formData);
-    
     const valid = await formRef.value?.validate();
-    console.log('表单验证结果:', valid);
-    
     if (!valid) {
-      console.log('表单验证失败，阻止提交');
       return false; // 阻止 Modal 关闭
     }
 
-    console.log('表单验证通过，开始提交');
     try {
       setLoading(true);
       const payload = {
@@ -376,17 +340,11 @@
         bucket_name: formData.bucket_name || undefined,
         description: formData.description || undefined,
       };
-      console.log('提交数据:', payload);
 
-      let response;
       if (editingId.value) {
-        console.log('执行更新操作');
-        response = await updateStorageProvider(editingId.value, payload);
-        console.log('更新响应:', response);
+        await updateStorageProvider(editingId.value, payload);
       } else {
-        console.log('执行创建操作');
-        response = await createStorageProvider(payload);
-        console.log('创建响应:', response);
+        await createStorageProvider(payload);
       }
 
       Message.success(editingId.value ? '更新成功' : '创建成功');
@@ -394,8 +352,6 @@
       await fetchProviders();
       return true; // 允许 Modal 关闭
     } catch (error: any) {
-      console.error('保存失败:', error);
-      console.error('错误响应:', error?.response);
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
@@ -408,6 +364,11 @@
     }
   };
 
+  const handleBeforeOk = async (done: (closed: boolean) => void) => {
+    const result = await handleSubmit();
+    done(result); // result 为 true 时关闭 Modal，false 时不关闭
+  };
+
   const handleDelete = async (id: string) => {
     try {
       setLoading(true);
@@ -415,7 +376,6 @@
       Message.success('删除成功');
       await fetchProviders();
     } catch (error: any) {
-      console.error('删除失败:', error);
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
@@ -428,7 +388,6 @@
   };
 
   const handleCancel = () => {
-    console.log('handleCancel 被调用');
     modalVisible.value = false;
     editingId.value = null;
   };
@@ -442,18 +401,16 @@
   });
 </script>
 
-<style lang="less" scoped>
+<style scoped>
   .storage-provider-settings-container {
     padding: 0 20px 20px 20px;
+  }
 
-    .general-card {
-      .actions {
-        margin-bottom: 16px;
-      }
+  .storage-provider-settings-container .general-card .actions {
+    margin-bottom: 16px;
+  }
 
-      .provider-table {
-        margin-top: 16px;
-      }
-    }
+  .storage-provider-settings-container .general-card .provider-table {
+    margin-top: 16px;
   }
 </style>
