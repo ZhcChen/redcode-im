@@ -168,7 +168,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final secondConfirm = await showConfirmActionDialog(
       context,
       title: '最终确认',
-      message: '请输入 “注销” 以确认注销账号。',
+      message: '请输入 "注销" 以确认注销账号。',
       confirmLabel: '确认注销',
       confirmationKeyword: '注销',
     );
@@ -263,30 +263,18 @@ class _SettingsPageState extends State<SettingsPage> {
     final items = <_SettingItemData>[
       _SettingItemData(
         title: '账号与安全',
-        leading: Image.asset(
-          AppAssets.settingsAccountSafe,
-          width: 24,
-          height: 24,
-        ),
         onTap: () async => _openAccountSecurity(),
       ),
       _SettingItemData(
         title: '隐私政策',
-        leading: Image.asset(AppAssets.settingsPrivacy, width: 24, height: 24),
         onTap: () async => _openPrivacyPolicy(),
       ),
       _SettingItemData(
         title: '意见反馈',
-        leading: Image.asset(AppAssets.settingsFeedback, width: 24, height: 24),
         onTap: _openFeedback,
       ),
       _SettingItemData(
-        title: '清除聊天缓存',
-        leading: const Icon(
-          Icons.cleaning_services_outlined,
-          size: 24,
-          color: AppColors.textPrimary,
-        ),
+        title: '清理缓存',
         onTap: _clearingCache ? null : _clearLocalCache,
         trailingBuilder: (_) => AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
@@ -306,111 +294,91 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: AppColors.primary,
                   ),
                 )
-              : const Icon(
-                  Icons.chevron_right,
-                  key: ValueKey('cache-chevron'),
-                  color: AppColors.textQuaternary,
+              : const SizedBox(
+                  key: ValueKey('cache-arrow'),
+                  width: 7,
+                  height: 15,
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 15,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
         ),
       ),
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F6),
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 顶部标题区域
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                child: const Text(
+        bottom: false,
+        child: Column(
+          children: [
+            // 导航栏
+            Container(
+              padding: const EdgeInsets.only(top: 44, bottom: 16),
+              color: AppColors.background,
+              child: const Center(
+                child: Text(
                   '设置',
                   style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textBlack,
+                    letterSpacing: 0,
+                    height: 1.2,
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              // 用户卡片区域
-              if (_loading)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _UserCard(
-                    user: _user,
-                    onEditNickname: (_user != null && !_updatingNickname)
-                        ? _editNickname
-                        : null,
-                    updatingNickname: _updatingNickname,
-                  ),
-                ),
-              const SizedBox(height: 20),
-              // 设置项列表卡片
-              Padding(
+            ),
+            // 主内容区域
+            Expanded(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < items.length; i++)
-                        _SettingListTile(
-                          data: items[i],
-                          showDivider: i != items.length - 1,
+                child: Column(
+                  children: [
+                    // 用户信息区域
+                    if (_loading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: CircularProgressIndicator(),
                         ),
-                    ],
-                  ),
+                      )
+                    else
+                      _UserInfoSection(
+                        user: _user,
+                        onEditNickname: (_user != null && !_updatingNickname)
+                            ? _editNickname
+                            : null,
+                        updatingNickname: _updatingNickname,
+                      ),
+                    const SizedBox(height: 32),
+                    // 设置卡片
+                    _SettingsCard(items: items),
+                    const SizedBox(height: 24),
+                    // 注销账号按钮
+                    _DeactivateButton(
+                      onTap: _deactivating ? null : _handleDeactivate,
+                      deactivating: _deactivating,
+                    ),
+                    const SizedBox(height: 12),
+                    // 退出登录按钮
+                    _LogoutButton(onTap: _logout),
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
-              // 危险操作区域
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEECEB),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: _DangerZone(
-                    onDeactivate: _deactivating ? null : _handleDeactivate,
-                    onLogout: _logout,
-                    deactivating: _deactivating,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _UserCard extends StatelessWidget {
-  const _UserCard({
+class _UserInfoSection extends StatelessWidget {
+  const _UserInfoSection({
     this.user,
     this.onEditNickname,
     this.updatingNickname = false,
@@ -423,331 +391,357 @@ class _UserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayName = user?.displayName ?? '未命名用户';
-    final username = user?.username ?? '';
-    final account = username.isNotEmpty ? username : '未绑定';
-    final emailText = user?.email != null && user!.email!.isNotEmpty
-        ? '邮箱：${user!.email}'
-        : '邮箱：未绑定';
+    final phone = user?.phone ?? '';
+    final phoneText = phone.isNotEmpty && phone.length >= 7
+        ? '${phone.substring(0, 3)}****${phone.substring(phone.length - 4)}'
+        : phone.isNotEmpty
+            ? phone
+            : '未绑定';
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 12),
+        // 头像
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppColors.settingsAvatarBg,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: ClipOval(
+                child: user?.avatarUrl != null
+                    ? Image.network(
+                        user!.avatarUrl!,
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _DefaultAvatar(),
+                      )
+                    : _DefaultAvatar(),
+              ),
+            ),
+            // 头像右上角编辑图标
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
-                child: ClipOval(
-                  child: Image.asset(
-                    AppAssets.loginLogo,
-                    width: 76,
-                    height: 76,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: -2,
-                right: -2,
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00C2B3),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: SvgPicture.asset(
-                      AppAssets.settingsEdit,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.white,
-                        BlendMode.srcIn,
-                      ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: SvgPicture.asset(
+                    AppAssets.settingsEdit,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.white,
+                      BlendMode.srcIn,
                     ),
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        // 用户昵称
+        GestureDetector(
+          onTap: updatingNickname ? null : onEditNickname,
+          behavior: HitTestBehavior.opaque,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                displayName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (updatingNickname)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                )
+              else if (onEditNickname != null)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: SvgPicture.asset(
+                    AppAssets.settingsEditOutline,
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.textPrimary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
             ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: updatingNickname ? null : onEditNickname,
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          displayName,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                            height: 1.2,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (updatingNickname)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF00C2B3),
-                          ),
-                        )
-                      else if (onEditNickname != null)
-                        SvgPicture.asset(
-                          AppAssets.settingsEditOutline,
-                          width: 18,
-                          colorFilter: const ColorFilter.mode(
-                            AppColors.textSecondary,
-                            BlendMode.srcIn,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '账号：$account',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF4F5F6),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    emailText,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        ),
+        const SizedBox(height: 16),
+        // 手机号
+        Text(
+          phoneText,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: AppColors.settingsTextMuted,
           ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+class _DefaultAvatar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: const BoxDecoration(
+        color: AppColors.settingsAvatarBg,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.person,
+        size: 40,
+        color: AppColors.settingsTextMuted,
+      ),
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.items});
+
+  final List<_SettingItemData> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 170),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++)
+            _SettingItem(
+              data: items[i],
+              showDivider: i != items.length - 1,
+            ),
         ],
       ),
     );
   }
 }
 
-class _SettingListTile extends StatelessWidget {
-  const _SettingListTile({required this.data, required this.showDivider});
+class _SettingItem extends StatelessWidget {
+  const _SettingItem({
+    required this.data,
+    required this.showDivider,
+  });
 
   final _SettingItemData data;
   final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final trailing =
-        data.trailingBuilder?.call(context) ??
-        const Icon(Icons.chevron_right, color: AppColors.textQuaternary);
+    final trailing = data.trailingBuilder?.call(context) ??
+        const SizedBox(
+          width: 7,
+          height: 15,
+          child: Icon(
+            Icons.chevron_right,
+            size: 15,
+            color: AppColors.textPrimary,
+          ),
+        );
 
-    return InkWell(
-      onTap: data.onTap == null ? null : () async => await data.onTap!.call(),
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                SizedBox(width: 24, height: 24, child: data.leading),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    data.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                      height: 1.4,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: data.onTap == null
+            ? null
+            : () async {
+                await data.onTap!.call();
+              },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          constraints: const BoxConstraints(minHeight: 56),
+          decoration: showDivider
+              ? const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: AppColors.settingsDivider,
+                      width: 1,
                     ),
                   ),
-                ),
-                trailing,
-              ],
-            ),
-            if (showDivider)
-              Padding(
-                padding: const EdgeInsets.only(top: 14, left: 38),
-                child: Divider(
-                  height: 1,
-                  thickness: 0.5,
-                  color: const Color(0xFFE9EBEF).withValues(alpha: 0.6),
+                )
+              : null,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                data.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.textPrimary,
+                  height: 1.5,
                 ),
               ),
-          ],
+              trailing,
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _DangerZone extends StatelessWidget {
-  const _DangerZone({
-    required this.onDeactivate,
-    required this.onLogout,
+class _DeactivateButton extends StatelessWidget {
+  const _DeactivateButton({
+    required this.onTap,
     required this.deactivating,
   });
 
-  final Future<void> Function()? onDeactivate;
-  final VoidCallback onLogout;
+  final Future<void> Function()? onTap;
   final bool deactivating;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: onDeactivate == null
-                  ? null
-                  : () async => await onDeactivate!(),
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: Material(
+        color: AppColors.settingsDeactivateBg,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap == null
+              ? null
+              : () async {
+                  await onTap!();
+                },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppColors.danger.withValues(alpha: 0.2),
-                    width: 1,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: SvgPicture.asset(
+                    AppAssets.settingsLogout,
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.white,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset(
-                      AppAssets.settingsLogout,
-                      width: 20,
-                      height: 20,
-                      colorFilter: const ColorFilter.mode(
-                        AppColors.danger,
-                        BlendMode.srcIn,
+                const SizedBox(width: 8),
+                deactivating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        '注销账号',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                          height: 1,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    deactivating
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.danger,
-                            ),
-                          )
-                        : const Text(
-                            '注销账号',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.danger,
-                            ),
-                          ),
-                  ],
-                ),
-              ),
+              ],
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: InkWell(
-              onTap: onLogout,
+        ),
+      ),
+    );
+  }
+}
+
+class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: Material(
+        color: AppColors.settingsLogoutBg,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.danger,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.danger.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: SvgPicture.asset(
+                    AppAssets.settingsLogout,
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.danger,
+                      BlendMode.srcIn,
                     ),
-                  ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset(
-                      AppAssets.settingsLogout,
-                      width: 20,
-                      height: 20,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.white,
-                        BlendMode.srcIn,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      '退出登录',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                const Text(
+                  '退出登录',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.danger,
+                    height: 1,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -756,13 +750,11 @@ class _DangerZone extends StatelessWidget {
 class _SettingItemData {
   const _SettingItemData({
     required this.title,
-    required this.leading,
     this.onTap,
     this.trailingBuilder,
   });
 
   final String title;
-  final Widget leading;
   final Future<void> Function()? onTap;
   final Widget Function(BuildContext context)? trailingBuilder;
 }
