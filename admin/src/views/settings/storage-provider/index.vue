@@ -69,7 +69,7 @@
         v-model:visible="modalVisible"
         :title="modalTitle"
         :width="600"
-        @ok="handleSubmit"
+        @before-ok="handleSubmit"
         @cancel="handleCancel"
       >
         <a-form
@@ -338,7 +338,7 @@
   const handleSubmit = async () => {
     const valid = await formRef.value?.validate();
     if (!valid) {
-      return;
+      return false; // 阻止 Modal 关闭
     }
 
     try {
@@ -363,6 +363,7 @@
       modalVisible.value = false;
       // 刷新列表
       await fetchProviders();
+      return true; // 允许 Modal 关闭
     } catch (error: any) {
       console.error('保存失败:', error);
       console.error('错误响应:', error?.response);
@@ -372,6 +373,7 @@
         error?.message ||
         (editingId.value ? '更新失败' : '创建失败');
       Message.error(errorMsg);
+      return false; // 阻止 Modal 关闭
     } finally {
       setLoading(false);
     }
