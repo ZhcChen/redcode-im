@@ -99,24 +99,36 @@ impl TencentCosService {
         http_string.push_str("\n");
 
         // HttpHeaders（按字典序排序）
-        let mut header_list = Vec::new();
-        let mut header_str = String::new();
+        // 收集所有需要签名的 headers（x-cos- 开头的和 host）
+        let mut header_map = BTreeMap::new();
         
+        // 添加 x-cos- 开头的 headers
         for (key, value) in headers {
             let key_lower = key.to_lowercase();
             if key_lower.starts_with("x-cos-") {
-                header_list.push(key_lower.clone());
-                write!(header_str, "{}:{}\n", key_lower, value).unwrap();
+                header_map.insert(key_lower.clone(), value.clone());
             }
         }
+        
+        // 添加 host header（必须包含）
+        header_map.insert("host".to_string(), host.to_string());
 
-        // 添加 Host header（必须包含）
-        header_list.push("host".to_string());
-        write!(header_str, "host:{}\n", host).unwrap();
+        // 构建 header_list 和 header_str（按字典序）
+        let mut header_list = Vec::new();
+        let mut header_str = String::new();
+        
+        for (key, value) in &header_map {
+            header_list.push(key.clone());
+            write!(header_str, "{}:{}\n", key, value).unwrap();
+        }
 
         http_string.push_str(&header_str);
         // HttpString 最后需要一个换行符
         http_string.push_str("\n");
+
+        // 调试输出：打印 HttpString（用于排查签名问题）
+        debug!("HttpString (hex): {}", hex::encode(http_string.as_bytes()));
+        debug!("HttpString (text): {:?}", http_string);
 
         // 2. 计算 HttpString 的 SHA1
         let mut hasher = Sha1::new();
@@ -126,6 +138,9 @@ impl TencentCosService {
         // 3. 构建 StringToSign
         // StringToSign = Sha1 + "\n" + ExpireTime + "\n" + SHA1(HttpString) + "\n"
         let string_to_sign = format!("sha1\n{}\n{}\n", key_time, http_string_sha1);
+
+        debug!("StringToSign: {:?}", string_to_sign);
+        debug!("HttpString SHA1: {}", http_string_sha1);
 
         // 4. 计算 SignKey = HMAC-SHA1(SecretKey, KeyTime)
         let mut sign_key_mac = HmacSha1::new_from_slice(self.secret_key.as_bytes())
