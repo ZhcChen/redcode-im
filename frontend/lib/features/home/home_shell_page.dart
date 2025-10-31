@@ -150,7 +150,8 @@ class _HomeShellPageState extends State<HomeShellPage> {
 
     setState(() => _index = index);
     if (index == 1) {
-      _contactsKey.currentState?.refreshContacts();
+      // 切换到联系人页面时，静默更新（后台刷新数据）
+      _contactsKey.currentState?.refreshContacts(force: false);
     }
   }
 

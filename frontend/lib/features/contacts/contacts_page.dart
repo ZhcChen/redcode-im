@@ -36,6 +36,7 @@ class ContactsPageState extends State<ContactsPage> {
   int _pendingRequests = 0;
   bool _isLoading = true;
   bool _loadFailed = false;
+  bool _hasLoadedCache = false;
 
   @override
   void initState() {
@@ -45,16 +46,39 @@ class ContactsPageState extends State<ContactsPage> {
     _webSocketService.addListener(_onWebSocketEvent);
     _friendStore.addListener(_onFriendStoreChanged);
     _pendingRequests = _friendStore.pendingIncoming;
-    _updateSections();
     _scrollController.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadContacts();
+      _initContacts();
     });
+  }
+
+  /// 初始化联系人：先加载缓存，然后静默更新
+  Future<void> _initContacts() async {
+    // 先加载缓存数据
+    final cachedFriends = await _friendStore.loadCachedFriends();
+    if (cachedFriends.isNotEmpty && mounted) {
+      _hasLoadedCache = true;
+      _friends = cachedFriends;
+      _friendMap
+        ..clear()
+        ..addEntries(
+          cachedFriends.map((friend) => MapEntry(friend.user.id, friend)),
+        );
+      _updateSections();
+      setState(() {
+        _isLoading = false;
+      });
+    }
+
+    // 静默更新（后台请求最新数据，不显示 loading）
+    _loadContacts(silent: true);
   }
 
   Future<void> refreshContacts({bool force = false}) async {
     if (_isLoading && !force) return;
-    await _loadContacts();
+    // 如果已有缓存数据且不是强制刷新，则静默更新
+    final silent = _hasLoadedCache && !force;
+    await _loadContacts(silent: silent);
   }
 
   @override
@@ -65,11 +89,14 @@ class ContactsPageState extends State<ContactsPage> {
     super.dispose();
   }
 
-  Future<void> _loadContacts() async {
-    setState(() {
-      _isLoading = true;
-      _loadFailed = false;
-    });
+  Future<void> _loadContacts({bool silent = false}) async {
+    // 静默更新时不显示 loading，除非是首次加载或强制刷新
+    if (!silent || !_hasLoadedCache) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
 
     try {
       final friends = await _friendService.fetchFriends();
@@ -89,23 +116,32 @@ class ContactsPageState extends State<ContactsPage> {
         _pendingRequests = pending.length;
         _isLoading = false;
         _loadFailed = false;
+        _hasLoadedCache = true;
         _updateSections();
       });
-      // 同步到全局 Store，后续增量由 WS 维护
+      // 同步到全局 Store，后续增量由 WS 维护（会自动保存到缓存）
       _friendStore.setFriends(friends);
       _friendStore.setPendingIncoming(pending.length);
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _friends = [];
-        _pendingRequests = 0;
-        _isLoading = false;
-        _loadFailed = true;
-        _friendMap.clear();
-        _updateSections();
-      });
-      _friendStore.setPendingIncoming(0);
-      _showSnack('加载联系人失败');
+      // 静默更新失败时不显示错误提示，保留缓存数据
+      if (!silent) {
+        setState(() {
+          _friends = [];
+          _pendingRequests = 0;
+          _isLoading = false;
+          _loadFailed = true;
+          _friendMap.clear();
+          _updateSections();
+        });
+        _friendStore.setPendingIncoming(0);
+        _showSnack('加载联系人失败');
+      } else {
+        // 静默更新失败时，只更新 loading 状态
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
