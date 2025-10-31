@@ -298,6 +298,7 @@
   };
 
   const handleCreate = () => {
+    console.log('handleCreate 被调用');
     editingId.value = null;
     Object.assign(formData, {
       provider_type: 'tencent_cos',
@@ -311,7 +312,9 @@
       is_default: false,
       description: '',
     });
+    console.log('设置 modalVisible 为 true');
     modalVisible.value = true;
+    console.log('modalVisible 当前值:', modalVisible.value);
   };
 
   const handleEdit = (record: StorageProvider) => {
