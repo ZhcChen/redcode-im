@@ -316,7 +316,7 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             // 导航栏
             Container(
-              padding: const EdgeInsets.only(top: 44, bottom: 16),
+              padding: const EdgeInsets.only(top: 16, bottom: 16),
               color: AppColors.background,
               child: const Center(
                 child: Text(
@@ -403,7 +403,7 @@ class _UserInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         // 头像
         Stack(
           clipBehavior: Clip.none,
@@ -453,7 +453,7 @@ class _UserInfoSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         // 用户昵称
         GestureDetector(
           onTap: updatingNickname ? null : onEditNickname,
@@ -496,10 +496,10 @@ class _UserInfoSection extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         // 手机号
         Text(
-          phoneText,
+          'ID：$phoneText',
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,

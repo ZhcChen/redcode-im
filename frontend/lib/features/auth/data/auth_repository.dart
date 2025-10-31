@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/constants/app_config.dart';
@@ -47,31 +49,94 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/login');
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password}),
+    if (kDebugMode) {
+      debugPrint('[Auth] 登录请求 - API Base URL: ${AppConfig.apiBaseUrl}');
+      debugPrint('[Auth] 登录请求 - Username: $username');
+    }
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      ),
+      uri: uri,
     );
 
     if (response.statusCode == 200) {
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      final token = payload['token'] as String?;
-      final userJson = payload['user'];
-
-      if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
-        throw const AuthException('登录响应异常');
+      if (kDebugMode) {
+        debugPrint('[Auth] 响应体长度: ${response.body.length}');
+        debugPrint('[Auth] 响应体内容: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
       }
-
-      final user = AuthUser.fromJson(userJson);
-      final session = AuthSession(token: token, user: user);
-      await _storage.saveSession(session);
+      
       try {
-        await WebSocketService.instance.disconnect();
-      } catch (_) {}
-      await MessageService.instance.clearAll();
-      FriendStore.instance.clearAll();
-      _authStateController.add(AuthState.authenticated);
-      return session;
+        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        if (kDebugMode) {
+          debugPrint('[Auth] 解析后的 payload keys: ${payload.keys}');
+        }
+        
+        final token = payload['token'] as String?;
+        final userJson = payload['user'];
+
+        if (kDebugMode) {
+          debugPrint('[Auth] Token 是否存在: ${token != null}');
+          debugPrint('[Auth] Token 长度: ${token?.length ?? 0}');
+          debugPrint('[Auth] User JSON 类型: ${userJson.runtimeType}');
+        }
+
+        if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
+          if (kDebugMode) {
+            debugPrint('[Auth] 登录响应异常 - token: ${token != null && token.isNotEmpty}, userJson: ${userJson is Map<String, dynamic>}');
+          }
+          throw const AuthException('登录响应异常');
+        }
+
+        if (kDebugMode) {
+          debugPrint('[Auth] 开始解析用户信息...');
+        }
+        final user = AuthUser.fromJson(userJson as Map<String, dynamic>);
+        if (kDebugMode) {
+          debugPrint('[Auth] 用户信息解析成功: ${user.username}');
+        }
+        
+        final session = AuthSession(token: token, user: user);
+        if (kDebugMode) {
+          debugPrint('[Auth] 开始保存 session...');
+        }
+        try {
+          await _storage.saveSession(session);
+          if (kDebugMode) {
+            debugPrint('[Auth] Session 保存成功');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[Auth] Session 保存失败: $e');
+          }
+          // 如果是 PlatformException，提供更友好的错误信息
+          if (e.toString().contains('SharedPreferences') || 
+              e.toString().contains('PlatformException')) {
+            throw AuthException('本地存储初始化失败，请尝试重启应用');
+          }
+          rethrow;
+        }
+        
+        try {
+          await WebSocketService.instance.disconnect();
+        } catch (_) {}
+        await MessageService.instance.clearAll();
+        FriendStore.instance.clearAll();
+        _authStateController.add(AuthState.authenticated);
+        if (kDebugMode) {
+          debugPrint('[Auth] 登录流程完成');
+        }
+        return session;
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          debugPrint('[Auth] JSON 解析或后续处理出错: $e');
+          debugPrint('[Auth] 异常类型: ${e.runtimeType}');
+          debugPrint('[Auth] 堆栈跟踪: $stackTrace');
+        }
+        rethrow;
+      }
     }
 
     final message = _extractErrorMessage(response.body);
@@ -104,15 +169,17 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/register');
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'username': username,
-        'email': email,
-        'password': password,
-        'nickname': effectiveNickname,
-      }),
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'email': email,
+          'password': password,
+          'nickname': effectiveNickname,
+        }),
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -135,10 +202,12 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/sms/send');
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone.trim()}),
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone.trim()}),
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -178,10 +247,17 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/login/sms');
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone.trim(), 'code': code.trim()}),
+    if (kDebugMode) {
+      debugPrint('[Auth] 验证码登录请求 - API Base URL: ${AppConfig.apiBaseUrl}');
+      debugPrint('[Auth] 验证码登录请求 - Phone: ${phone.trim()}');
+    }
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone.trim(), 'code': code.trim()}),
+      ),
+      uri: uri,
     );
 
     if (response.statusCode == 200) {
@@ -227,17 +303,19 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/password/reset');
-    final response = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${session.token}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'phone': phone.trim(),
-        'code': code.trim(),
-        'new_password': newPassword.trim(),
-      }),
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'phone': phone.trim(),
+          'code': code.trim(),
+          'new_password': newPassword.trim(),
+        }),
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -278,13 +356,15 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/users/me');
-    final response = await http.patch(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${session.token}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(payload),
+    final response = await _makeRequest(
+      () => http.patch(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -313,16 +393,18 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/users/me/password');
-    final response = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${session.token}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'old_password': oldPassword,
-        'new_password': newPassword,
-      }),
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'old_password': oldPassword,
+          'new_password': newPassword,
+        }),
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -340,12 +422,14 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/users/me');
-    final response = await http.delete(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${session.token}',
-        'Content-Type': 'application/json',
-      },
+    final response = await _makeRequest(
+      () => http.delete(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -373,12 +457,14 @@ class AuthRepository {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/me');
-    final response = await http.get(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${session.token}',
-        'Content-Type': 'application/json',
-      },
+    final response = await _makeRequest(
+      () => http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -407,6 +493,66 @@ class AuthRepository {
 
     await _storage.clear();
     _authStateController.add(AuthState.unauthenticated);
+  }
+
+  /// 统一的 HTTP 请求处理，添加超时和错误处理
+  Future<http.Response> _makeRequest(
+    Future<http.Response> Function() request, {
+    Uri? uri,
+  }) async {
+    if (kDebugMode && uri != null) {
+      debugPrint('[Auth] 请求 URL: ${uri.toString()}');
+    }
+    
+    try {
+      final response = await request().timeout(
+        AppConfig.apiTimeout,
+        onTimeout: () {
+          if (kDebugMode) {
+            debugPrint('[Auth] 请求超时: ${uri?.toString() ?? 'unknown'}');
+          }
+          throw TimeoutException(
+            '请求超时，请检查网络连接',
+            AppConfig.apiTimeout,
+          );
+        },
+      );
+      
+      if (kDebugMode) {
+        debugPrint('[Auth] 响应状态码: ${response.statusCode}');
+        debugPrint('[Auth] 响应头: ${response.headers}');
+      }
+      
+      return response;
+    } on SocketException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[Auth] SocketException: ${e.message}');
+        debugPrint('[Auth] OS Error: ${e.osError}');
+      }
+      throw AuthException('网络连接失败：${e.message}。请检查设备是否与服务器在同一网络');
+    } on TimeoutException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[Auth] TimeoutException: ${e.message}');
+      }
+      throw AuthException('请求超时，请检查网络连接');
+    } on HttpException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[Auth] HttpException: ${e.message}');
+      }
+      throw AuthException('HTTP 错误：${e.message}');
+    } on FormatException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[Auth] FormatException: ${e.message}');
+      }
+      throw AuthException('数据格式错误：${e.message}');
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('[Auth] 未知异常: $e');
+        debugPrint('[Auth] 异常类型: ${e.runtimeType}');
+        debugPrint('[Auth] 堆栈跟踪: $stackTrace');
+      }
+      throw AuthException('网络异常：${e.toString()}');
+    }
   }
 
   String? _extractErrorMessage(String body) {

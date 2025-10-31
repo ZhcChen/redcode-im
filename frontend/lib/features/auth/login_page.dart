@@ -744,9 +744,13 @@ class _LoginPageState extends State<LoginPage> {
         (route) => false,
       );
     } on AuthException catch (error) {
+      debugPrint('[LoginPage] AuthException: ${error.message}');
       _showMessage(error.message);
-    } catch (_) {
-      _showMessage('网络异常，请稍后重试');
+    } catch (e, stackTrace) {
+      debugPrint('[LoginPage] 未知异常: $e');
+      debugPrint('[LoginPage] 异常类型: ${e.runtimeType}');
+      debugPrint('[LoginPage] 堆栈跟踪: $stackTrace');
+      _showMessage('网络异常，请稍后重试：${e.toString()}');
     } finally {
       if (mounted) {
         setState(() => _loading = false);

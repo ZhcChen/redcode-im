@@ -3,7 +3,6 @@ package com.example.frontend
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugins.GeneratedPluginRegistrant
 
 class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,9 +20,6 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
-        // 显式注册所有插件
-        GeneratedPluginRegistrant.registerWith(flutterEngine)
-        android.util.Log.d("MainActivity", "Flutter 插件注册完成")
+        android.util.Log.d("MainActivity", "Flutter 插件已通过自动机制注册")
     }
 }
