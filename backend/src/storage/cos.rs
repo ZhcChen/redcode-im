@@ -5,7 +5,6 @@ use bytes::Bytes;
 use hmac::{Hmac, Mac};
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
-use std::fmt::Write;
 use time::OffsetDateTime;
 use tracing::{debug, error, warn};
 use urlencoding::encode;
@@ -39,7 +38,7 @@ impl TencentCosService {
             secret_id,
             secret_key,
             region,
-            endpoint,
+            endpoint: sanitize_endpoint(&endpoint),
             bucket_name,
             client,
         })
@@ -61,7 +60,7 @@ impl TencentCosService {
             secret_id,
             secret_key,
             region,
-            endpoint,
+            endpoint: sanitize_endpoint(&endpoint),
             bucket_name: String::new(), // 空字符串表示未指定 bucket
             client,
         })
@@ -75,7 +74,8 @@ impl TencentCosService {
         headers: &BTreeMap<String, String>,
         timestamp: i64,
     ) -> String {
-        self.generate_signature_v1_with_host(method, path, headers, timestamp, &self.endpoint)
+        let host = self.resolve_object_host();
+        self.generate_signature_v1_with_host(method, path, headers, timestamp, &host, None)
     }
 
     /// 生成腾讯云 COS API v1 签名（指定 host）
@@ -86,100 +86,86 @@ impl TencentCosService {
         headers: &BTreeMap<String, String>,
         timestamp: i64,
         host: &str,
+        query_params: Option<&BTreeMap<String, String>>,
     ) -> String {
         let start_time = timestamp;
         let end_time = timestamp + 3600;
         let key_time = format!("{};{}", start_time, end_time);
 
-        // 1. 构建 HttpString
-        // HttpString = HttpMethod + "\n" + HttpUri + "\n" + HttpParameters + "\n" + HttpHeaders + "\n"
-        let mut http_string = format!("{}\n{}\n", method.to_uppercase(), path);
+        let sanitized_host = sanitize_endpoint(host);
+        let canonical_path = if path.is_empty() { "/" } else { path };
+        let (header_list, canonical_headers) = build_canonical_headers(headers, &sanitized_host);
+        let (param_list, canonical_params) = build_canonical_params(query_params);
 
-        // HttpParameters 为空（没有查询参数），但需要保留换行符
-        http_string.push_str("\n");
+        let http_method = method.to_ascii_lowercase();
+        let http_string = format!(
+            "{}\n{}\n{}\n{}\n",
+            http_method, canonical_path, canonical_params, canonical_headers
+        );
 
-        // HttpHeaders（按字典序排序）
-        // 收集所有需要签名的 headers（x-cos- 开头的和 host）
-        let mut header_map = BTreeMap::new();
-        
-        // 添加 x-cos- 开头的 headers
-        for (key, value) in headers {
-            let key_lower = key.to_lowercase();
-            if key_lower.starts_with("x-cos-") {
-                header_map.insert(key_lower.clone(), value.clone());
-            }
-        }
-        
-        // 添加 host header（必须包含）
-        header_map.insert("host".to_string(), host.to_string());
-
-        // 构建 header_list 和 header_str（按字典序）
-        let mut header_list = Vec::new();
-        let mut header_str = String::new();
-        
-        for (key, value) in &header_map {
-            header_list.push(key.clone());
-            write!(header_str, "{}:{}\n", key, value).unwrap();
-        }
-
-        http_string.push_str(&header_str);
-        // HttpString 最后需要一个换行符
-        http_string.push_str("\n");
-
-        // 调试输出：打印 HttpString（用于排查签名问题）
         debug!("HttpString (hex): {}", hex::encode(http_string.as_bytes()));
         debug!("HttpString (text): {:?}", http_string);
 
-        // 2. 计算 HttpString 的 SHA1
         let mut hasher = Sha1::new();
         hasher.update(http_string.as_bytes());
         let http_string_sha1 = hex::encode(hasher.finalize());
 
-        // 3. 构建 StringToSign
-        // StringToSign = Sha1 + "\n" + ExpireTime + "\n" + SHA1(HttpString) + "\n"
         let string_to_sign = format!("sha1\n{}\n{}\n", key_time, http_string_sha1);
 
         debug!("StringToSign: {:?}", string_to_sign);
         debug!("HttpString SHA1: {}", http_string_sha1);
         debug!("KeyTime: {}", key_time);
 
-        // 4. 计算 SignKey = HMAC-SHA1(SecretKey, KeyTime)
         let mut sign_key_mac = HmacSha1::new_from_slice(self.secret_key.as_bytes())
             .expect("HMAC can take key of any size");
         sign_key_mac.update(key_time.as_bytes());
         let sign_key = sign_key_mac.finalize();
         let sign_key_bytes = sign_key.into_bytes();
 
-        // 5. 计算 Signature = HMAC-SHA1(SignKey, StringToSign)
-        let mut signature_mac = HmacSha1::new_from_slice(&sign_key_bytes)
-            .expect("HMAC can take key of any size");
+        let mut signature_mac =
+            HmacSha1::new_from_slice(&sign_key_bytes).expect("HMAC can take key of any size");
         signature_mac.update(string_to_sign.as_bytes());
         let signature = hex::encode(signature_mac.finalize().into_bytes());
 
-        debug!("Signature: {}", signature);
-        debug!("Header list: {}", header_list.join(";"));
-
-        // 6. 构建 header list 字符串
         let header_list_str = header_list.join(";");
+        let param_list_str = param_list.join(";");
 
-        // 7. 构建 Authorization header
+        debug!("Signature: {}", signature);
+        debug!("Header list: {}", header_list_str);
+        debug!("Param list: {}", param_list_str);
+
         format!(
-            "q-sign-algorithm=sha1&q-ak={}&q-sign-time={}&q-key-time={}&q-header-list={}&q-url-param-list=&q-signature={}",
+            "q-sign-algorithm=sha1&q-ak={}&q-sign-time={}&q-key-time={}&q-header-list={}&q-url-param-list={}&q-signature={}",
             self.secret_id,
             key_time,
             key_time,
             header_list_str,
+            param_list_str,
             signature
         )
     }
 
     /// 获取完整的 URL
     fn get_full_url(&self, key: &str) -> String {
-        // 如果 endpoint 已经包含 bucket，直接使用
-        if self.endpoint.contains(&self.bucket_name) {
-            format!("https://{}/{}", self.endpoint, encode(key))
+        let host = self.resolve_object_host();
+        format!("https://{}/{}", host, encode(key))
+    }
+
+    fn resolve_object_host(&self) -> String {
+        if self.bucket_name.is_empty() {
+            return self.endpoint.clone();
+        }
+
+        let endpoint = self.endpoint.clone();
+
+        if endpoint.is_empty() {
+            format!("{}.cos.{}.myqcloud.com", self.bucket_name, self.region)
+        } else if endpoint.contains(&self.bucket_name) {
+            endpoint
+        } else if endpoint.contains(".cos.") || endpoint.contains(".myqcloud.com") {
+            format!("{}.{}", self.bucket_name, endpoint)
         } else {
-            format!("https://{}.cos.{}.myqcloud.com/{}", self.bucket_name, self.region, encode(key))
+            endpoint
         }
     }
 }
@@ -195,7 +181,11 @@ impl StorageService for TencentCosService {
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
-        debug!("开始上传文件到 COS: key={}, size={} bytes", key, content.len());
+        debug!(
+            "开始上传文件到 COS: key={}, size={} bytes",
+            key,
+            content.len()
+        );
 
         // 构建请求路径
         let path = format!("/{}", encode(key));
@@ -214,7 +204,7 @@ impl StorageService for TencentCosService {
             .client
             .put(&url)
             .header("Authorization", authorization)
-            .header("Host", &self.endpoint)
+            .header("Host", self.resolve_object_host())
             .header("Content-Type", content_type_str)
             .body(content.to_vec())
             .send()
@@ -230,7 +220,10 @@ impl StorageService for TencentCosService {
         } else {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            error!("上传文件失败: key={}, status={}, body={}", key, status, body);
+            error!(
+                "上传文件失败: key={}, status={}, body={}",
+                key, status, body
+            );
             Err(AppError::InternalError(format!(
                 "上传文件失败: {} - {}",
                 status, body
@@ -253,7 +246,7 @@ impl StorageService for TencentCosService {
             .client
             .delete(&url)
             .header("Authorization", authorization)
-            .header("Host", &self.endpoint)
+            .header("Host", self.resolve_object_host())
             .send()
             .await
             .map_err(|e| {
@@ -267,7 +260,10 @@ impl StorageService for TencentCosService {
         } else {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!("删除文件失败: key={}, status={}, body={}", key, status, body);
+            warn!(
+                "删除文件失败: key={}, status={}, body={}",
+                key, status, body
+            );
             Err(AppError::InternalError(format!(
                 "删除文件失败: {} - {}",
                 status, body
@@ -290,7 +286,7 @@ impl StorageService for TencentCosService {
             .client
             .head(&url)
             .header("Authorization", authorization)
-            .header("Host", &self.endpoint)
+            .header("Host", self.resolve_object_host())
             .send()
             .await
             .map_err(|e| {
@@ -316,11 +312,18 @@ impl StorageService for TencentCosService {
         // 获取 bucket 列表的路径
         let path = "/";
         let headers_map = BTreeMap::new();
-        
+
         // 使用 service.cos.myqcloud.com 作为服务端点
         let service_endpoint = "service.cos.myqcloud.com";
-        let authorization = self.generate_signature_v1_with_host("GET", path, &headers_map, timestamp, service_endpoint);
-        
+        let authorization = self.generate_signature_v1_with_host(
+            "GET",
+            path,
+            &headers_map,
+            timestamp,
+            service_endpoint,
+            None,
+        );
+
         let url = format!("https://{}", service_endpoint);
 
         let response = self
@@ -356,17 +359,27 @@ impl StorageService for TencentCosService {
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
-        debug!("开始创建 COS bucket: name={}, region={}", bucket_name, self.region);
+        debug!(
+            "开始创建 COS bucket: name={}, region={}",
+            bucket_name, self.region
+        );
 
         // 创建 bucket 的路径
         let path = "/";
         let mut headers_map = BTreeMap::new();
         headers_map.insert("x-cos-acl".to_string(), "private".to_string());
-        
+
         // 使用 bucket.cos.region.myqcloud.com 格式
         let bucket_endpoint = format!("{}.cos.{}.myqcloud.com", bucket_name, self.region);
-        let authorization = self.generate_signature_v1_with_host("PUT", path, &headers_map, timestamp, &bucket_endpoint);
-        
+        let authorization = self.generate_signature_v1_with_host(
+            "PUT",
+            path,
+            &headers_map,
+            timestamp,
+            &bucket_endpoint,
+            None,
+        );
+
         let url = format!("https://{}", bucket_endpoint);
 
         let response = self
@@ -388,7 +401,10 @@ impl StorageService for TencentCosService {
         } else {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!("创建 bucket 失败: name={}, status={}, body={}", bucket_name, status, body);
+            warn!(
+                "创建 bucket 失败: name={}, status={}, body={}",
+                bucket_name, status, body
+            );
             Err(AppError::InternalError(format!(
                 "创建bucket失败: {} - {}",
                 status, body
@@ -402,27 +418,27 @@ fn parse_list_buckets_response(xml: &str) -> Result<Vec<BucketInfo>, AppError> {
     // 简化实现：使用正则表达式或 XML 解析器
     // 这里使用简单的字符串解析
     let mut buckets = Vec::new();
-    
+
     // 查找所有 <Name> 标签
     let name_pattern = regex::Regex::new(r"<Name>(.*?)</Name>").unwrap();
     let location_pattern = regex::Regex::new(r"<Location>(.*?)</Location>").unwrap();
     let date_pattern = regex::Regex::new(r"<CreationDate>(.*?)</CreationDate>").unwrap();
-    
+
     let names: Vec<&str> = name_pattern
         .captures_iter(xml)
         .map(|cap| cap.get(1).unwrap().as_str())
         .collect();
-    
+
     let locations: Vec<&str> = location_pattern
         .captures_iter(xml)
         .map(|cap| cap.get(1).unwrap().as_str())
         .collect();
-    
+
     let dates: Vec<&str> = date_pattern
         .captures_iter(xml)
         .map(|cap| cap.get(1).unwrap().as_str())
         .collect();
-    
+
     for (i, name) in names.iter().enumerate() {
         buckets.push(BucketInfo {
             name: name.to_string(),
@@ -430,7 +446,171 @@ fn parse_list_buckets_response(xml: &str) -> Result<Vec<BucketInfo>, AppError> {
             creation_date: dates.get(i).map(|s| Some(s.to_string())).unwrap_or(None),
         });
     }
-    
+
     Ok(buckets)
 }
 
+fn sanitize_endpoint(endpoint: &str) -> String {
+    let trimmed = endpoint.trim();
+    let without_scheme = trimmed
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_start_matches("//");
+    let without_trailing = without_scheme.trim_end_matches('/');
+    without_trailing.to_string()
+}
+
+fn build_canonical_headers(
+    headers: &BTreeMap<String, String>,
+    host: &str,
+) -> (Vec<String>, String) {
+    let mut header_map = BTreeMap::new();
+
+    for (key, value) in headers {
+        let value_trimmed = value.trim();
+        if value_trimmed.is_empty() {
+            continue;
+        }
+        header_map.insert(key.to_ascii_lowercase(), value_trimmed.to_string());
+    }
+
+    if !host.is_empty() {
+        header_map.insert("host".to_string(), host.to_string());
+    }
+
+    let header_list = header_map.keys().cloned().collect::<Vec<_>>();
+
+    let header_str = header_map
+        .iter()
+        .map(|(key, value)| {
+            format!(
+                "{}={}",
+                urlencoding::encode(key),
+                urlencoding::encode(value)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("&");
+
+    (header_list, header_str)
+}
+
+fn build_canonical_params(params: Option<&BTreeMap<String, String>>) -> (Vec<String>, String) {
+    if let Some(params) = params {
+        let mut canonical = Vec::new();
+        let mut param_list = Vec::new();
+
+        for (key, value) in params {
+            let key_lower = key.to_ascii_lowercase();
+            canonical.push(format!(
+                "{}={}",
+                urlencoding::encode(&key_lower),
+                urlencoding::encode(value)
+            ));
+            param_list.push(key_lower);
+        }
+
+        canonical.sort();
+        param_list.sort();
+
+        let canonical_str = canonical.join("&");
+
+        (param_list, canonical_str)
+    } else {
+        (Vec::new(), String::new())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_signature_matches_expected_format() {
+        let service = TencentCosService {
+            secret_id: "AKIDEXAMPLE".to_string(),
+            secret_key: "SECRET".to_string(),
+            region: "ap-shanghai".to_string(),
+            endpoint: sanitize_endpoint("cos.ap-shanghai.myqcloud.com"),
+            bucket_name: "examplebucket-1250000000".to_string(),
+            client: reqwest::Client::builder().build().unwrap(),
+        };
+
+        let mut headers = BTreeMap::new();
+        headers.insert("Content-Type".to_string(), "text/plain".to_string());
+
+        let timestamp = 1_718_000_000;
+        let authorization = service.generate_signature_v1_with_host(
+            "PUT",
+            "/example.txt",
+            &headers,
+            timestamp,
+            "examplebucket-1250000000.cos.ap-shanghai.myqcloud.com",
+            None,
+        );
+
+        assert!(authorization.starts_with("q-sign-algorithm=sha1&q-ak=AKIDEXAMPLE"));
+        assert!(
+            authorization.contains("q-header-list=content-type;host"),
+            "header list missing expected entries: {}",
+            authorization
+        );
+        assert!(
+            authorization.contains("q-url-param-list="),
+            "url param list missing: {}",
+            authorization
+        );
+    }
+
+    #[test]
+    fn test_build_canonical_headers_includes_host_and_sorts() {
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Cos-Acl".to_string(), "private".to_string());
+        headers.insert("Content-Type".to_string(), "text/plain".to_string());
+
+        let (header_list, canonical_headers) =
+            build_canonical_headers(&headers, "bucket-125.cos.ap-shanghai.myqcloud.com");
+
+        assert_eq!(
+            header_list,
+            vec![
+                "content-type".to_string(),
+                "host".to_string(),
+                "x-cos-acl".to_string()
+            ]
+        );
+        assert_eq!(
+            canonical_headers,
+            "content-type=text%2Fplain&host=bucket-125.cos.ap-shanghai.myqcloud.com&x-cos-acl=private"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_endpoint_trims_scheme_and_trailing_slash() {
+        assert_eq!(
+            sanitize_endpoint("https://cos.ap-shanghai.myqcloud.com/"),
+            "cos.ap-shanghai.myqcloud.com"
+        );
+        assert_eq!(
+            sanitize_endpoint("cos.ap-shanghai.myqcloud.com"),
+            "cos.ap-shanghai.myqcloud.com"
+        );
+    }
+
+    #[test]
+    fn test_resolve_object_host_with_base_endpoint() {
+        let service = TencentCosService::new(
+            "AKID".to_string(),
+            "SECRET".to_string(),
+            "ap-shanghai".to_string(),
+            "cos.ap-shanghai.myqcloud.com".to_string(),
+            "examplebucket-1250000000".to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            service.resolve_object_host(),
+            "examplebucket-1250000000.cos.ap-shanghai.myqcloud.com"
+        );
+    }
+}

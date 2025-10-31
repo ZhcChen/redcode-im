@@ -42,7 +42,9 @@ pub struct BucketInfo {
 }
 
 /// 创建存储服务实例
-pub fn create_storage_service(provider: &StorageProvider) -> Result<Box<dyn StorageService>, AppError> {
+pub fn create_storage_service(
+    provider: &StorageProvider,
+) -> Result<Box<dyn StorageService>, AppError> {
     match provider.provider_type {
         StorageProviderType::TencentCos => {
             if provider.bucket_name.is_none() {
@@ -66,7 +68,9 @@ pub fn create_storage_service(provider: &StorageProvider) -> Result<Box<dyn Stor
 }
 
 /// 创建存储服务实例（不需要 bucket_name，用于列表和创建 bucket）
-pub fn create_storage_service_without_bucket(provider: &StorageProvider) -> Result<Box<dyn StorageService>, AppError> {
+pub fn create_storage_service_without_bucket(
+    provider: &StorageProvider,
+) -> Result<Box<dyn StorageService>, AppError> {
     match provider.provider_type {
         StorageProviderType::TencentCos => {
             Ok(Box::new(cos::TencentCosService::new_without_bucket(

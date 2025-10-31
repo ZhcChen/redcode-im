@@ -399,14 +399,14 @@ pub async fn create_storage_provider(
     let updated_by = Uuid::parse_str(&claims.sub).ok();
 
     let store = StorageProviderStore::new(state.database.clone());
-    
+
     // 如果是腾讯云 COS 且没有指定 bucket_name，尝试创建一个默认的 bucket
     let mut bucket_name = req.bucket_name.clone();
     if provider_type == StorageProviderType::TencentCos && bucket_name.is_none() {
         // 生成一个默认的 bucket 名称
         let uuid_str = Uuid::new_v4().to_string().replace("-", "");
         let default_bucket_name = format!("redcode-im-{}", &uuid_str[..8]);
-        
+
         // 创建临时的存储服务实例来创建 bucket
         let temp_provider = StorageProvider {
             id: Uuid::new_v4(),
@@ -424,7 +424,7 @@ pub async fn create_storage_provider(
             updated_at: Utc::now(),
             updated_by: None,
         };
-        
+
         match storage::create_storage_service_without_bucket(&temp_provider) {
             Ok(storage_service) => {
                 match storage_service.create_bucket(&default_bucket_name).await {
@@ -443,7 +443,7 @@ pub async fn create_storage_provider(
             }
         }
     }
-    
+
     let provider = store
         .create_provider(
             provider_type,
