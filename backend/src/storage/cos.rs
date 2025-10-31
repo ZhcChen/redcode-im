@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::storage::{BucketInfo, StorageService};
+use crate::storage::{BucketInfo, DirectUploadSignature, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
@@ -409,6 +409,42 @@ impl StorageService for TencentCosService {
                 status, body
             )))
         }
+    }
+
+    async fn generate_direct_upload_signature(
+        &self,
+        key: &str,
+        content_type: Option<&str>,
+    ) -> Result<DirectUploadSignature, AppError> {
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+        let path = format!("/{}", encode(key));
+
+        let mut headers_map = BTreeMap::new();
+        if let Some(ct) = content_type {
+            if !ct.trim().is_empty() {
+                headers_map.insert("Content-Type".to_string(), ct.trim().to_string());
+            }
+        }
+
+        let authorization = self.generate_signature_v1("PUT", &path, &headers_map, timestamp);
+        let host = self.resolve_object_host();
+        let url = format!("https://{}/{}", host, encode(key));
+
+        let mut response_headers = BTreeMap::new();
+        response_headers.insert("Authorization".to_string(), authorization);
+        if let Some(ct) = content_type {
+            if !ct.trim().is_empty() {
+                response_headers.insert("Content-Type".to_string(), ct.trim().to_string());
+            }
+        }
+
+        Ok(DirectUploadSignature {
+            url,
+            method: "PUT".to_string(),
+            headers: response_headers,
+            key: key.to_string(),
+        })
     }
 }
 

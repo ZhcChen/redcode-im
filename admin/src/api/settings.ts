@@ -115,6 +115,25 @@ export interface TestCosUploadResponse {
   message: string;
 }
 
+export interface DirectUploadSignature {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  key: string;
+}
+
+export interface TestCosUploadSignatureRequest {
+  provider_id?: string;
+  key: string;
+  content_type?: string;
+}
+
+export interface TestCosUploadSignatureResponse {
+  success: boolean;
+  signature?: DirectUploadSignature;
+  message: string;
+}
+
 export interface TestCosDeleteRequest {
   provider_id?: string;
   key: string;
@@ -139,6 +158,13 @@ export interface TestCosExistsResponse {
 export function testCosUpload(payload: TestCosUploadRequest) {
   return axios.post<TestCosUploadResponse>(
     '/api/admin/storage-providers/test/upload',
+    payload
+  );
+}
+
+export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
+  return axios.post<TestCosUploadSignatureResponse>(
+    '/api/admin/storage-providers/test/upload/signature',
     payload
   );
 }

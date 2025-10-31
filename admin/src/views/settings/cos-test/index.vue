@@ -225,14 +225,12 @@
   import { Message } from '@arco-design/web-vue';
   import {
     listStorageProviders,
-    testCosUpload,
     testCosDelete,
     testCosExists,
     testCosListBuckets,
     testCosCreateBucket,
+    testCosUploadSignature,
     type StorageProvider,
-    type TestCosUploadRequest,
-    type TestCosUploadResponse,
     type TestCosDeleteRequest,
     type TestCosDeleteResponse,
     type TestCosExistsRequest,
@@ -241,6 +239,9 @@
     type TestCosListBucketsResponse,
     type TestCosCreateBucketRequest,
     type TestCosCreateBucketResponse,
+    type TestCosUploadSignatureRequest,
+    type TestCosUploadSignatureResponse,
+    type DirectUploadSignature,
   } from '@/api/settings';
 
   const providers = ref<StorageProvider[]>([]);
@@ -268,6 +269,12 @@
     bucket_name: '',
   });
 
+  type UploadTestResult = {
+    success: boolean;
+    message: string;
+    url?: string;
+  };
+
   const uploadLoading = ref(false);
   const uploadFileLoading = ref(false);
   const deleteLoading = ref(false);
@@ -275,7 +282,7 @@
   const bucketsLoading = ref(false);
   const createBucketLoading = ref(false);
 
-  const uploadResult = ref<TestCosUploadResponse | null>(null);
+  const uploadResult = ref<UploadTestResult | null>(null);
   const deleteResult = ref<TestCosDeleteResponse | null>(null);
   const existsResult = ref<TestCosExistsResponse | null>(null);
   const bucketsResult = ref<TestCosListBucketsResponse | null>(null);
@@ -337,6 +344,98 @@
     }
   };
 
+  const requestUploadSignature = async (
+    key: string,
+    contentType?: string
+  ): Promise<DirectUploadSignature> => {
+    const payload: TestCosUploadSignatureRequest = {
+      provider_id: formData.provider_id,
+      key,
+      content_type: contentType?.trim() || undefined,
+    };
+    const response = await testCosUploadSignature(payload);
+    const data =
+      (
+        response.data as TestCosUploadSignatureResponse & {
+          data?: TestCosUploadSignatureResponse;
+        }
+      ).data || response.data;
+
+    if (!data.success || !data.signature) {
+      throw new Error(data.message || '生成直传签名失败');
+    }
+
+    return data.signature;
+  };
+
+  const performDirectUpload = async (
+    blob: Blob,
+    contentType: string | undefined,
+    loadingRef: typeof uploadLoading
+  ): Promise<boolean> => {
+    try {
+      loadingRef.value = true;
+      uploadResult.value = null;
+
+      const signature = await requestUploadSignature(
+        uploadForm.key.trim(),
+        contentType
+      );
+
+      const headers = new Headers();
+      Object.entries(signature.headers || {}).forEach(
+        ([headerKey, headerValue]) => {
+          if (headerKey.toLowerCase() === 'host') {
+            return;
+          }
+          headers.set(headerKey, headerValue);
+        }
+      );
+
+      if (contentType && contentType.trim() && !headers.has('Content-Type')) {
+        headers.set('Content-Type', contentType.trim());
+      }
+
+      const response = await fetch(signature.url, {
+        method: signature.method || 'PUT',
+        headers,
+        body: blob,
+      });
+
+      if (!response.ok) {
+        let errorDetails = '';
+        try {
+          errorDetails = await response.text();
+        } catch {
+          errorDetails = '';
+        }
+        throw new Error(
+          `COS 返回 ${response.status}${
+            errorDetails ? `: ${errorDetails.slice(0, 200)}` : ''
+          }`
+        );
+      }
+
+      uploadResult.value = {
+        success: true,
+        message: '上传成功',
+        url: signature.url,
+      };
+      Message.success('上传成功');
+      return true;
+    } catch (error: any) {
+      const errorMsg = error?.message || '上传失败';
+      Message.error(errorMsg);
+      uploadResult.value = {
+        success: false,
+        message: errorMsg,
+      };
+      return false;
+    } finally {
+      loadingRef.value = false;
+    }
+  };
+
   const handleUpload = async () => {
     if (!uploadForm.key.trim()) {
       Message.error('请输入文件路径');
@@ -347,40 +446,10 @@
       return;
     }
 
-    try {
-      uploadLoading.value = true;
-      uploadResult.value = null;
-
-      const payload: TestCosUploadRequest = {
-        provider_id: formData.provider_id,
-        key: uploadForm.key.trim(),
-        content: uploadForm.content,
-        content_type: uploadForm.content_type || undefined,
-      };
-
-      const response = await testCosUpload(payload);
-      const data = response.data?.data || response.data;
-      uploadResult.value = data;
-
-      if (data.success) {
-        Message.success('上传成功');
-      } else {
-        Message.error(data.message);
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '上传失败';
-      Message.error(errorMsg);
-      uploadResult.value = {
-        success: false,
-        message: errorMsg,
-      };
-    } finally {
-      uploadLoading.value = false;
-    }
+    const contentType =
+      uploadForm.content_type?.trim() || 'text/plain; charset=utf-8';
+    const blob = new Blob([uploadForm.content], { type: contentType });
+    await performDirectUpload(blob, contentType, uploadLoading);
   };
 
   const triggerFileSelect = () => {
@@ -402,15 +471,6 @@
     }
   };
 
-  const readFileAsDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const resetFileSelection = () => {
     selectedFile.value = null;
     if (fileInputRef.value) {
@@ -428,43 +488,19 @@
       return;
     }
 
-    try {
-      uploadFileLoading.value = true;
-      uploadResult.value = null;
+    const contentType =
+      selectedFile.value.type ||
+      uploadForm.content_type?.trim() ||
+      'application/octet-stream';
 
-      const dataUrl = await readFileAsDataUrl(selectedFile.value);
+    const success = await performDirectUpload(
+      selectedFile.value,
+      contentType,
+      uploadFileLoading
+    );
 
-      const payload: TestCosUploadRequest = {
-        provider_id: formData.provider_id,
-        key: uploadForm.key.trim(),
-        file_base64: dataUrl,
-        content_type:
-          selectedFile.value.type || uploadForm.content_type || undefined,
-      };
-
-      const response = await testCosUpload(payload);
-      const data = response.data?.data || response.data;
-      uploadResult.value = data;
-
-      if (data.success) {
-        Message.success('上传成功');
-        resetFileSelection();
-      } else {
-        Message.error(data.message);
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '上传失败';
-      Message.error(errorMsg);
-      uploadResult.value = {
-        success: false,
-        message: errorMsg,
-      };
-    } finally {
-      uploadFileLoading.value = false;
+    if (success) {
+      resetFileSelection();
     }
   };
 

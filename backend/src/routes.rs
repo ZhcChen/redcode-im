@@ -63,6 +63,10 @@ pub fn create_routes() -> Router<AppState> {
             post(admin::test_cos_upload),
         )
         .route(
+            "/api/admin/storage-providers/test/upload/signature",
+            post(admin::test_cos_upload_signature),
+        )
+        .route(
             "/api/admin/storage-providers/test/delete",
             post(admin::test_cos_delete),
         )

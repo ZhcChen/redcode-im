@@ -5,6 +5,24 @@ use crate::error::AppError;
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+/// Bucket 信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BucketInfo {
+    pub name: String,
+    pub region: String,
+    pub creation_date: Option<String>,
+}
+
+/// 前端直传所需的签名信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectUploadSignature {
+    pub url: String,
+    pub method: String,
+    pub headers: BTreeMap<String, String>,
+    pub key: String,
+}
 
 /// 存储服务 trait
 #[async_trait]
@@ -31,14 +49,17 @@ pub trait StorageService: Send + Sync {
 
     /// 创建 bucket
     async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError>;
-}
 
-/// Bucket 信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BucketInfo {
-    pub name: String,
-    pub region: String,
-    pub creation_date: Option<String>,
+    /// 生成用于前端直传的签名信息
+    async fn generate_direct_upload_signature(
+        &self,
+        _key: &str,
+        _content_type: Option<&str>,
+    ) -> Result<DirectUploadSignature, AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持前端直传上传".to_string(),
+        ))
+    }
 }
 
 /// 创建存储服务实例
