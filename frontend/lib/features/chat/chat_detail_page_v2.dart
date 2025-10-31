@@ -330,6 +330,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         resizeToAvoidBottomInset: true,
         body: SafeArea(
           top: true,
+          bottom: false, // 禁用底部 SafeArea，减少键盘动画时的布局计算
           child: Column(
             children: [
               _buildHeader(context),
