@@ -209,7 +209,7 @@ class _NavButton extends StatelessWidget {
                 if (showBadge)
                   Positioned(
                     right: -6,
-                    top: -8,
+                    top: -6,
                     child: AppBadge(
                       count: badgeCount,
                       size: 16,
