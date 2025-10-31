@@ -119,11 +119,10 @@ impl TencentCosService {
         let mut sign_key_mac = HmacSha1::new_from_slice(self.secret_key.as_bytes())
             .expect("HMAC can take key of any size");
         sign_key_mac.update(key_time.as_bytes());
-        let sign_key = sign_key_mac.finalize();
-        let sign_key_bytes = sign_key.into_bytes();
+        let sign_key_hex = hex::encode(sign_key_mac.finalize().into_bytes());
 
-        let mut signature_mac =
-            HmacSha1::new_from_slice(&sign_key_bytes).expect("HMAC can take key of any size");
+        let mut signature_mac = HmacSha1::new_from_slice(sign_key_hex.as_bytes())
+            .expect("HMAC can take key of any size");
         signature_mac.update(string_to_sign.as_bytes());
         let signature = hex::encode(signature_mac.finalize().into_bytes());
 
@@ -611,6 +610,24 @@ mod tests {
         assert_eq!(
             service.resolve_object_host(),
             "examplebucket-1250000000.cos.ap-shanghai.myqcloud.com"
+        );
+    }
+
+    #[test]
+    fn test_signature_example_matches_official_docs() {
+        // 来自官方文档 https://cloud.tencent.com/document/product/1344/50456
+        let sign_key_hex = "82f0e7ee09b1070dc6f3a37c41b01bc2eaf43ced";
+        let string_to_sign =
+            "sha1\n1671039836;1671043436\nd5c37ed1e8f7fd51d14853f8e9e81869f32fdc54\n";
+
+        let mut signature_mac =
+            HmacSha1::new_from_slice(sign_key_hex.as_bytes()).expect("HMAC key error");
+        signature_mac.update(string_to_sign.as_bytes());
+        let signature = hex::encode(signature_mac.finalize().into_bytes());
+
+        assert_eq!(
+            signature,
+            "2fab8f7909236046e789b4ea483330ec6df91331".to_string()
         );
     }
 }
