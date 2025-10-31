@@ -4,13 +4,13 @@
     <a-card class="general-card" title="文件上传提供商设置" :bordered="false">
       <div class="actions">
         <a-space>
-          <a-button type="primary" @click="handleCreate">
+          <a-button type="primary" @click="handleCreate" :loading="loading">
             <template #icon>
               <icon-plus />
             </template>
             新增提供商
           </a-button>
-          <a-button @click="handleRefresh">
+          <a-button @click="handleRefresh" :loading="loading">
             <template #icon>
               <icon-refresh />
             </template>
