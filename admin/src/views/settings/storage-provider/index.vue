@@ -2,18 +2,6 @@
   <div class="storage-provider-settings-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.storageProvider']" />
     <a-card class="general-card" title="文件上传提供商设置" :bordered="false">
-      <div class="info-alert">
-        <a-alert type="info" show-icon>
-          <template #message>
-            <div>
-              <strong>说明：</strong
-              >配置文件上传提供商，用于存储用户上传的文件（如头像、图片、附件等）。目前支持腾讯云COS、阿里云OSS、AWS
-              S3和MinIO。
-            </div>
-          </template>
-        </a-alert>
-      </div>
-
       <div class="actions">
         <a-button type="primary" @click="handleCreate">
           <template #icon>
@@ -413,10 +401,6 @@
     padding: 0 20px 20px 20px;
 
     .general-card {
-      .info-alert {
-        margin-bottom: 24px;
-      }
-
       .actions {
         margin-bottom: 16px;
       }
