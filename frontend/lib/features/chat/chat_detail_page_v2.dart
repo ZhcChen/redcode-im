@@ -468,6 +468,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   Widget _buildMessageList(double bottomPadding) {
     return Consumer<ChatProvider>(
       builder: (context, provider, child) {
+        // 使用 SchedulerBinding 确保在下一帧处理，避免在 build 阶段执行副作用
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _processMessages(provider.messages);
@@ -542,14 +543,22 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               controller: _scrollController,
               padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
               itemCount: messages.length + (hasPinnedBanner ? 1 : 0),
+              // 性能优化：增加缓存范围，减少滚动时的重建
+              cacheExtent: 500,
+              // 性能优化：消息列表不需要保持状态
+              addAutomaticKeepAlives: false,
+              // 性能优化：启用重绘边界，减少不必要的重绘
+              addRepaintBoundaries: true,
               itemBuilder: (context, index) {
                 if (hasPinnedBanner && index == 0) {
                   // ignore: unnecessary_non_null_assertion
                   final pinned = pinnedMessage!;
-                  return _PinnedMessageBanner(
-                    message: pinned,
-                    onTap: () => _scrollToMessage(pinned.id),
-                    onUnpin: () => unawaited(_togglePinMessage(pinned)),
+                  return RepaintBoundary(
+                    child: _PinnedMessageBanner(
+                      message: pinned,
+                      onTap: () => _scrollToMessage(pinned.id),
+                      onUnpin: () => unawaited(_togglePinMessage(pinned)),
+                    ),
                   );
                 }
 
@@ -571,30 +580,33 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   message,
                 );
 
-                return Column(
+                // 使用 RepaintBoundary 包裹每个消息项，避免不必要的重绘
+                return RepaintBoundary(
                   key: itemKey,
-                  children: [
-                    if (showTimestamp && dayLabel.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        dayLabel,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textTertiary,
+                  child: Column(
+                    children: [
+                      if (showTimestamp && dayLabel.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          dayLabel,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textTertiary,
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                      ],
+                      _MessageBubble(
+                        message: message,
+                        onResend: () => provider.resendMessage(message.id),
+                        canShowReadReceipts: canShowReadReceipts,
+                        onShowReadReceipts: canShowReadReceipts
+                            ? () => _showMessageReaders(message)
+                            : null,
+                        onBubbleTap: _showMessageActions,
+                        onQuoteTap: _scrollToMessage,
                       ),
-                      const SizedBox(height: 12),
                     ],
-                    _MessageBubble(
-                      message: message,
-                      onResend: () => provider.resendMessage(message.id),
-                      canShowReadReceipts: canShowReadReceipts,
-                      onShowReadReceipts: canShowReadReceipts
-                          ? () => _showMessageReaders(message)
-                          : null,
-                      onBubbleTap: _showMessageActions,
-                      onQuoteTap: _scrollToMessage,
-                    ),
-                  ],
+                  ),
                 );
               },
             ),
