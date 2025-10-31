@@ -124,6 +124,9 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Future<void> _performSearch({bool refreshOnly = false}) async {
+    // 关闭键盘
+    FocusScope.of(context).unfocus();
+
     final keyword = _searchController.text.trim();
     if (keyword.isEmpty) {
       if (!refreshOnly) {
