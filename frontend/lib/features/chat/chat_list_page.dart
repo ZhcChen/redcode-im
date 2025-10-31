@@ -32,22 +32,26 @@ class _ChatListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ChatProvider>();
-    final List<Chat> chats = provider.chats;
-    final isLoading = provider.isChatsLoading && chats.isEmpty;
+    final List<Chat> chats = provider.filteredChats;
+    final isLoading = provider.isChatsLoading && provider.chats.isEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
         children: [
           _ChatListHeader(
-            onSearchTap: () => _showSnackBar(context, '搜索功能暂未接入'),
+            searchKeyword: provider.searchKeyword,
+            onSearchChanged: (keyword) => provider.setSearchKeyword(keyword),
+            onSearchCleared: () => provider.clearSearch(),
             onMenuSelected: (action) => _handleMenuSelected(context, action),
           ),
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : chats.isEmpty
-                ? const _EmptyPlaceholder()
+                ? _EmptyPlaceholder(
+                    isEmptySearch: provider.searchKeyword.isNotEmpty,
+                  )
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 0),
@@ -252,14 +256,45 @@ class _FavoriteAvatar extends StatelessWidget {
   }
 }
 
-class _ChatListHeader extends StatelessWidget {
+class _ChatListHeader extends StatefulWidget {
   const _ChatListHeader({
-    required this.onSearchTap,
+    required this.searchKeyword,
+    required this.onSearchChanged,
+    required this.onSearchCleared,
     required this.onMenuSelected,
   });
 
-  final VoidCallback onSearchTap;
+  final String searchKeyword;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onSearchCleared;
   final ValueChanged<_ChatMenuAction> onMenuSelected;
+
+  @override
+  State<_ChatListHeader> createState() => _ChatListHeaderState();
+}
+
+class _ChatListHeaderState extends State<_ChatListHeader> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchKeyword);
+  }
+
+  @override
+  void didUpdateWidget(_ChatListHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchKeyword != widget.searchKeyword) {
+      _searchController.text = widget.searchKeyword;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -280,37 +315,57 @@ class _ChatListHeader extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              _ChatMenuButton(onSelected: onMenuSelected),
+              _ChatMenuButton(onSelected: widget.onMenuSelected),
               const SizedBox(width: 16),
               Expanded(
-                child: GestureDetector(
-                  onTap: onSearchTap,
-                  child: Container(
-                    height: 46,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Row(
-                      children: const [
-                        Icon(
-                          Icons.search,
-                          size: 20,
-                          color: AppColors.textTertiary,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '搜索',
-                            style: TextStyle(
+                child: Container(
+                  height: 46,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.search,
+                        size: 20,
+                        color: AppColors.textTertiary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: widget.onSearchChanged,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: '搜索',
+                            hintStyle: TextStyle(
                               fontSize: 14,
                               color: AppColors.textTertiary,
                             ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      if (widget.searchKeyword.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            widget.onSearchCleared();
+                          },
+                          child: const Icon(
+                            Icons.clear,
+                            size: 18,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -578,28 +633,32 @@ class _MenuArrow extends StatelessWidget {
 }
 
 class _EmptyPlaceholder extends StatelessWidget {
-  const _EmptyPlaceholder();
+  const _EmptyPlaceholder({this.isEmptySearch = false});
+
+  final bool isEmptySearch;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
+        children: [
           Icon(
-            Icons.mark_chat_unread_outlined,
+            isEmptySearch ? Icons.search_off : Icons.mark_chat_unread_outlined,
             size: 56,
             color: AppColors.textTertiary,
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
-            '暂无会话',
-            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            isEmptySearch ? '未找到相关会话' : '暂无会话',
+            style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            '开始一段新的聊天吧',
-            style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+            isEmptySearch
+                ? '试试其他关键词'
+                : '开始一段新的聊天吧',
+            style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
           ),
         ],
       ),

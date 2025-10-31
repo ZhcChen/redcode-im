@@ -47,6 +47,29 @@ class ChatProvider with ChangeNotifier {
   List<Chat> _chats = [];
   List<Chat> get chats => _chats;
 
+  // 搜索关键词
+  String _searchKeyword = '';
+  String get searchKeyword => _searchKeyword;
+
+  // 过滤后的聊天列表
+  List<Chat> get filteredChats {
+    if (_searchKeyword.isEmpty) {
+      return _chats;
+    }
+    final keyword = _searchKeyword.toLowerCase().trim();
+    return _chats.where((chat) {
+      // 匹配聊天名称
+      if (chat.name.toLowerCase().contains(keyword)) {
+        return true;
+      }
+      // 匹配最后消息内容
+      if (chat.lastMessage.toLowerCase().contains(keyword)) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
   // 加载状态
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -418,6 +441,22 @@ class ChatProvider with ChangeNotifier {
     if (status == ConnectionStatus.authenticated && _currentRoomId != null) {
       // 重新订阅当前房间
       _webSocketService.joinRoom(_currentRoomId!);
+    }
+  }
+
+  /// 设置搜索关键词
+  void setSearchKeyword(String keyword) {
+    if (_searchKeyword != keyword) {
+      _searchKeyword = keyword;
+      notifyListeners();
+    }
+  }
+
+  /// 清空搜索
+  void clearSearch() {
+    if (_searchKeyword.isNotEmpty) {
+      _searchKeyword = '';
+      notifyListeners();
     }
   }
 
