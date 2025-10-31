@@ -134,6 +134,24 @@ export interface TestCosUploadSignatureResponse {
   message: string;
 }
 
+export interface SetCosCorsRulePayload {
+  allowed_origins: string[];
+  allowed_methods: string[];
+  allowed_headers?: string[];
+  expose_headers?: string[];
+  max_age_seconds?: number;
+}
+
+export interface SetCosCorsRequest {
+  provider_id?: string;
+  rules: SetCosCorsRulePayload[];
+}
+
+export interface SetCosCorsResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface TestCosDeleteRequest {
   provider_id?: string;
   key: string;
@@ -165,6 +183,13 @@ export function testCosUpload(payload: TestCosUploadRequest) {
 export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
   return axios.post<TestCosUploadSignatureResponse>(
     '/api/admin/storage-providers/test/upload/signature',
+    payload
+  );
+}
+
+export function setCosCors(payload: SetCosCorsRequest) {
+  return axios.post<SetCosCorsResponse>(
+    '/api/admin/storage-providers/test/cors',
     payload
   );
 }

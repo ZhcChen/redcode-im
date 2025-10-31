@@ -597,6 +597,29 @@ pub struct TestCosUploadSignatureResponse {
     pub message: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CorsRuleInput {
+    pub allowed_origins: Vec<String>,
+    pub allowed_methods: Vec<String>,
+    #[serde(default)]
+    pub allowed_headers: Vec<String>,
+    #[serde(default)]
+    pub expose_headers: Vec<String>,
+    pub max_age_seconds: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestCosSetCorsRequest {
+    pub provider_id: Option<String>,
+    pub rules: Vec<CorsRuleInput>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosSetCorsResponse {
+    pub success: bool,
+    pub message: String,
+}
+
 /// 测试 COS 文件上传
 pub async fn test_cos_upload(
     State(state): State<AppState>,
@@ -756,6 +779,103 @@ pub async fn test_cos_upload_signature(
             success: false,
             signature: None,
             message: format!("生成直传签名失败: {}", e),
+        })),
+    }
+}
+
+/// 配置 COS 跨域规则
+pub async fn test_cos_set_cors(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosSetCorsRequest>,
+) -> Result<Json<TestCosSetCorsResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    if req.rules.is_empty() {
+        return Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: "请至少提供一条跨域规则".to_string(),
+        }));
+    }
+
+    let provider = if let Some(provider_id) = req.provider_id.clone() {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    let normalize = |items: &[String]| -> Vec<String> {
+        items
+            .iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect()
+    };
+
+    let cors_rules: Vec<storage::CorsRule> = req
+        .rules
+        .iter()
+        .map(|rule| storage::CorsRule {
+            allowed_origins: normalize(&rule.allowed_origins),
+            allowed_methods: normalize(&rule.allowed_methods),
+            allowed_headers: normalize(&rule.allowed_headers),
+            expose_headers: normalize(&rule.expose_headers),
+            max_age_seconds: rule.max_age_seconds,
+        })
+        .collect();
+
+    if cors_rules
+        .iter()
+        .any(|rule| rule.allowed_origins.is_empty())
+    {
+        return Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: "每条跨域规则必须至少配置一个允许的来源".to_string(),
+        }));
+    }
+
+    if cors_rules
+        .iter()
+        .any(|rule| rule.allowed_methods.is_empty())
+    {
+        return Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: "每条跨域规则必须至少配置一个允许的方法".to_string(),
+        }));
+    }
+
+    match storage_service.set_cors_rules(&cors_rules).await {
+        Ok(_) => Ok(Json(TestCosSetCorsResponse {
+            success: true,
+            message: "跨域规则配置成功".to_string(),
+        })),
+        Err(e) => Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: format!("配置跨域规则失败: {}", e),
         })),
     }
 }

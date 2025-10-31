@@ -24,6 +24,18 @@ pub struct DirectUploadSignature {
     pub key: String,
 }
 
+/// CORS 规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorsRule {
+    pub allowed_origins: Vec<String>,
+    pub allowed_methods: Vec<String>,
+    #[serde(default)]
+    pub allowed_headers: Vec<String>,
+    #[serde(default)]
+    pub expose_headers: Vec<String>,
+    pub max_age_seconds: Option<u32>,
+}
+
 /// 存储服务 trait
 #[async_trait]
 pub trait StorageService: Send + Sync {
@@ -49,6 +61,13 @@ pub trait StorageService: Send + Sync {
 
     /// 创建 bucket
     async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError>;
+
+    /// 设置跨域规则
+    async fn set_cors_rules(&self, _rules: &[CorsRule]) -> Result<(), AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持跨域规则配置".to_string(),
+        ))
+    }
 
     /// 生成用于前端直传的签名信息
     async fn generate_direct_upload_signature(

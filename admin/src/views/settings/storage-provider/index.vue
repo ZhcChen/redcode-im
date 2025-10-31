@@ -47,20 +47,27 @@
         </template>
 
         <template #operations="{ record }">
-          <a-button
-            type="text"
-            size="small"
-            style="margin-right: 8px"
-            @click="handleEdit(record)"
-          >
-            编辑
-          </a-button>
-          <a-popconfirm
-            content="确定要删除这个提供商配置吗？"
-            @ok="handleDelete(record.id)"
-          >
-            <a-button type="text" size="small" status="danger"> 删除 </a-button>
-          </a-popconfirm>
+          <a-space size="mini">
+            <a-button
+              v-if="record.provider_type === 'tencent_cos'"
+              type="text"
+              size="small"
+              @click="openCorsModal(record)"
+            >
+              配置跨域
+            </a-button>
+            <a-button type="text" size="small" @click="handleEdit(record)">
+              编辑
+            </a-button>
+            <a-popconfirm
+              content="确定要删除这个提供商配置吗？"
+              @ok="handleDelete(record.id)"
+            >
+              <a-button type="text" size="small" status="danger">
+                删除
+              </a-button>
+            </a-popconfirm>
+          </a-space>
         </template>
       </a-table>
 
@@ -169,6 +176,61 @@
           </a-form-item>
         </a-form>
       </a-modal>
+
+      <!-- 跨域配置对话框 -->
+      <a-modal
+        :visible="corsModalVisible"
+        title="配置跨域规则"
+        :width="600"
+        :confirm-loading="corsSubmitting"
+        @update:visible="corsModalVisible = $event"
+        @ok="handleCorsSubmit"
+        @cancel="handleCorsCancel"
+      >
+        <a-form
+          :model="corsForm"
+          label-align="left"
+          :label-col-props="{ span: 6 }"
+          :wrapper-col-props="{ span: 18 }"
+        >
+          <a-form-item label="允许来源">
+            <a-textarea
+              v-model="corsForm.allowed_origins"
+              :rows="3"
+              placeholder="每行一个来源，例如：https://example.com"
+            />
+            <template #help> 可使用逗号或换行分隔多个域名 </template>
+          </a-form-item>
+          <a-form-item label="允许方法">
+            <a-input
+              v-model="corsForm.allowed_methods"
+              placeholder="例如：PUT,GET,OPTIONS"
+            />
+            <template #help> 多个方法使用逗号或换行分隔 </template>
+          </a-form-item>
+          <a-form-item label="允许头部">
+            <a-input
+              v-model="corsForm.allowed_headers"
+              placeholder="默认为 * 表示允许所有自定义头"
+            />
+          </a-form-item>
+          <a-form-item label="暴露头部">
+            <a-input
+              v-model="corsForm.expose_headers"
+              placeholder="例如：ETag"
+            />
+          </a-form-item>
+          <a-form-item label="缓存时间 (秒)">
+            <a-input-number
+              v-model="corsForm.max_age_seconds"
+              :min="0"
+              :step="60"
+              style="width: 100%"
+              placeholder="例如：600"
+            />
+          </a-form-item>
+        </a-form>
+      </a-modal>
     </a-card>
   </div>
 </template>
@@ -181,13 +243,18 @@
     createStorageProvider,
     updateStorageProvider,
     deleteStorageProvider,
+    setCosCors,
     type StorageProvider,
     type CreateStorageProviderPayload,
+    type SetCosCorsRequest,
   } from '@/api/settings';
 
   const providers = ref<StorageProvider[]>([]);
   const modalVisible = ref(false);
+  const corsModalVisible = ref(false);
+  const corsSubmitting = ref(false);
   const editingId = ref<string | null>(null);
+  const currentCorsProvider = ref<StorageProvider | null>(null);
   const formRef = ref<FormInstance>();
   const listLoading = ref(false);
   const actionLoading = ref(false);
@@ -205,6 +272,14 @@
     is_active: false,
     is_default: false,
     description: '',
+  });
+
+  const corsForm = reactive({
+    allowed_origins: 'http://localhost:8011',
+    allowed_methods: 'PUT,GET,OPTIONS',
+    allowed_headers: '*',
+    expose_headers: 'ETag',
+    max_age_seconds: 600,
   });
 
   const formRules = {
@@ -248,7 +323,7 @@
     {
       title: '操作',
       slotName: 'operations',
-      width: 200,
+      width: 260,
     },
   ];
 
@@ -335,6 +410,92 @@
     nextTick(() => {
       formRef.value?.clearValidate?.();
     });
+  };
+
+  const openCorsModal = (record: StorageProvider) => {
+    if (record.provider_type !== 'tencent_cos') {
+      Message.warning('当前提供商不支持跨域配置');
+      return;
+    }
+    currentCorsProvider.value = record;
+    const defaultOrigin =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : 'http://localhost:8011';
+    corsForm.allowed_origins = defaultOrigin;
+    corsForm.allowed_methods = 'PUT,GET,OPTIONS';
+    corsForm.allowed_headers = '*';
+    corsForm.expose_headers = 'ETag';
+    corsForm.max_age_seconds = 600;
+    corsModalVisible.value = true;
+  };
+
+  const handleCorsCancel = () => {
+    corsModalVisible.value = false;
+    corsSubmitting.value = false;
+  };
+
+  const splitInput = (input: string, toUpper = false) => {
+    return input
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .map((item) => (toUpper ? item.toUpperCase() : item));
+  };
+
+  const handleCorsSubmit = async () => {
+    if (!currentCorsProvider.value) {
+      return;
+    }
+
+    const allowedOrigins = splitInput(corsForm.allowed_origins);
+    if (allowedOrigins.length === 0) {
+      Message.error('请至少配置一个允许来源');
+      return;
+    }
+
+    const allowedMethods = splitInput(corsForm.allowed_methods, true);
+    if (allowedMethods.length === 0) {
+      Message.error('请至少配置一个允许方法');
+      return;
+    }
+
+    const payload: SetCosCorsRequest = {
+      provider_id: currentCorsProvider.value.id,
+      rules: [
+        {
+          allowed_origins: allowedOrigins,
+          allowed_methods: allowedMethods,
+          allowed_headers: splitInput(corsForm.allowed_headers),
+          expose_headers: splitInput(corsForm.expose_headers),
+          max_age_seconds:
+            typeof corsForm.max_age_seconds === 'number'
+              ? corsForm.max_age_seconds
+              : undefined,
+        },
+      ],
+    };
+
+    try {
+      corsSubmitting.value = true;
+      const response = await setCosCors(payload);
+      const data = response.data?.data || response.data;
+      if (data?.success) {
+        Message.success(data.message || '跨域规则配置成功');
+        corsModalVisible.value = false;
+      } else {
+        Message.error(data?.message || '跨域规则配置失败');
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '跨域规则配置失败';
+      Message.error(errorMsg);
+    } finally {
+      corsSubmitting.value = false;
+    }
   };
 
   const handleSubmit = async () => {

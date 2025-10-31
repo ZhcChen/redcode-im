@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::storage::{BucketInfo, DirectUploadSignature, StorageService};
+use crate::storage::{BucketInfo, CorsRule, DirectUploadSignature, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
@@ -411,6 +411,66 @@ impl StorageService for TencentCosService {
         }
     }
 
+    async fn set_cors_rules(&self, rules: &[CorsRule]) -> Result<(), AppError> {
+        if self.bucket_name.is_empty() {
+            return Err(AppError::ValidationError(
+                "未配置 bucket 名称，无法设置跨域规则".to_string(),
+            ));
+        }
+
+        if rules.is_empty() {
+            return Err(AppError::ValidationError("跨域规则不能为空".to_string()));
+        }
+
+        let xml_body = build_cors_configuration_xml(rules);
+
+        let mut headers_map = BTreeMap::new();
+        headers_map.insert("Content-Type".to_string(), "application/xml".to_string());
+
+        let mut query_params = BTreeMap::new();
+        query_params.insert("cors".to_string(), String::new());
+
+        let timestamp = OffsetDateTime::now_utc().unix_timestamp();
+        let bucket_endpoint = self.resolve_object_host();
+
+        let authorization = self.generate_signature_v1_with_host(
+            "PUT",
+            "/",
+            &headers_map,
+            timestamp,
+            &bucket_endpoint,
+            Some(&query_params),
+        );
+
+        let url = format!("https://{}/?cors", bucket_endpoint);
+        let response = self
+            .client
+            .put(&url)
+            .header("Authorization", authorization)
+            .header("Host", &bucket_endpoint)
+            .header("Content-Type", "application/xml")
+            .body(xml_body.clone())
+            .send()
+            .await
+            .map_err(|e| {
+                error!("设置 COS 跨域规则失败: error={}", e);
+                AppError::InternalError(format!("配置跨域规则失败: {}", e))
+            })?;
+
+        if response.status().is_success() {
+            debug!("成功设置 COS 跨域规则");
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            error!("设置跨域规则失败: status={}, body={}", status, body);
+            Err(AppError::InternalError(format!(
+                "配置跨域规则失败: {} - {}",
+                status, body
+            )))
+        }
+    }
+
     async fn generate_direct_upload_signature(
         &self,
         key: &str,
@@ -483,6 +543,62 @@ fn parse_list_buckets_response(xml: &str) -> Result<Vec<BucketInfo>, AppError> {
     }
 
     Ok(buckets)
+}
+
+fn build_cors_configuration_xml(rules: &[CorsRule]) -> String {
+    let mut xml = String::from("<CORSConfiguration>");
+    for rule in rules {
+        xml.push_str("<CORSRule>");
+
+        for origin in &rule.allowed_origins {
+            xml.push_str("<AllowedOrigin>");
+            xml.push_str(&xml_escape(origin));
+            xml.push_str("</AllowedOrigin>");
+        }
+
+        for method in &rule.allowed_methods {
+            xml.push_str("<AllowedMethod>");
+            xml.push_str(&xml_escape(method));
+            xml.push_str("</AllowedMethod>");
+        }
+
+        for header in &rule.allowed_headers {
+            xml.push_str("<AllowedHeader>");
+            xml.push_str(&xml_escape(header));
+            xml.push_str("</AllowedHeader>");
+        }
+
+        for header in &rule.expose_headers {
+            xml.push_str("<ExposeHeader>");
+            xml.push_str(&xml_escape(header));
+            xml.push_str("</ExposeHeader>");
+        }
+
+        if let Some(max_age) = rule.max_age_seconds {
+            xml.push_str("<MaxAgeSeconds>");
+            xml.push_str(&max_age.to_string());
+            xml.push_str("</MaxAgeSeconds>");
+        }
+
+        xml.push_str("</CORSRule>");
+    }
+    xml.push_str("</CORSConfiguration>");
+    xml
+}
+
+fn xml_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&apos;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 fn sanitize_endpoint(endpoint: &str) -> String {
