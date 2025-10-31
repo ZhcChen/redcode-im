@@ -3,7 +3,7 @@ use crate::storage::{BucketInfo, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
-use sha1::Sha1;
+use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use std::fmt::Write;
 use time::OffsetDateTime;
@@ -86,10 +86,18 @@ impl TencentCosService {
         timestamp: i64,
         host: &str,
     ) -> String {
-        // 构建签名字符串
-        let mut sign_string = format!("{}\n{}\n", method, path);
+        let start_time = timestamp;
+        let end_time = timestamp + 3600;
+        let key_time = format!("{};{}", start_time, end_time);
 
-        // 添加 HTTP headers (按字典序排序)
+        // 1. 构建 HttpString
+        // HttpString = HttpMethod + "\n" + HttpUri + "\n" + HttpParameters + "\n" + HttpHeaders + "\n"
+        let mut http_string = format!("{}\n{}\n", method.to_uppercase(), path);
+
+        // HttpParameters 为空（没有查询参数），但需要保留换行符
+        http_string.push_str("\n");
+
+        // HttpHeaders（按字典序排序）
         let mut header_list = Vec::new();
         let mut header_str = String::new();
         
@@ -101,33 +109,46 @@ impl TencentCosService {
             }
         }
 
-        // 添加 Host header
+        // 添加 Host header（必须包含）
         header_list.push("host".to_string());
         write!(header_str, "host:{}\n", host).unwrap();
 
-        sign_string.push_str(&header_str);
-        sign_string.push_str(&format!("{}\n", timestamp));
+        http_string.push_str(&header_str);
+        // HttpString 最后需要一个换行符
+        http_string.push_str("\n");
 
-        // 构建 header list 字符串
+        // 2. 计算 HttpString 的 SHA1
+        let mut hasher = Sha1::new();
+        hasher.update(http_string.as_bytes());
+        let http_string_sha1 = hex::encode(hasher.finalize());
+
+        // 3. 构建 StringToSign
+        // StringToSign = Sha1 + "\n" + ExpireTime + "\n" + SHA1(HttpString) + "\n"
+        let string_to_sign = format!("sha1\n{}\n{}\n", key_time, http_string_sha1);
+
+        // 4. 计算 SignKey = HMAC-SHA1(SecretKey, KeyTime)
+        let mut sign_key_mac = HmacSha1::new_from_slice(self.secret_key.as_bytes())
+            .expect("HMAC can take key of any size");
+        sign_key_mac.update(key_time.as_bytes());
+        let sign_key = sign_key_mac.finalize();
+
+        // 5. 计算 Signature = HMAC-SHA1(SignKey, StringToSign)
+        let mut signature_mac = HmacSha1::new_from_slice(&sign_key.into_bytes())
+            .expect("HMAC can take key of any size");
+        signature_mac.update(string_to_sign.as_bytes());
+        let signature = hex::encode(signature_mac.finalize().into_bytes());
+
+        // 6. 构建 header list 字符串
         let header_list_str = header_list.join(";");
 
-        // 计算 HMAC-SHA1
-        let mut mac = HmacSha1::new_from_slice(self.secret_key.as_bytes())
-            .expect("HMAC can take key of any size");
-        mac.update(sign_string.as_bytes());
-        let result = mac.finalize();
-        let signature_hex = hex::encode(result.into_bytes());
-
-        // 构建 Authorization header
+        // 7. 构建 Authorization header
         format!(
-            "q-sign-algorithm=sha1&q-ak={}&q-sign-time={};{}&q-key-time={};{}&q-header-list={}&q-url-param-list=&q-signature={}",
+            "q-sign-algorithm=sha1&q-ak={}&q-sign-time={}&q-key-time={}&q-header-list={}&q-url-param-list=&q-signature={}",
             self.secret_id,
-            timestamp,
-            timestamp + 3600,
-            timestamp,
-            timestamp + 3600,
+            key_time,
+            key_time,
             header_list_str,
-            signature_hex
+            signature
         )
     }
 
