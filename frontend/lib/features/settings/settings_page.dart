@@ -391,11 +391,13 @@ class _UserInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayName = user?.displayName ?? '未命名用户';
-    final phone = user?.phone ?? '';
-    final phoneText = phone.isNotEmpty && phone.length >= 7
-        ? '${phone.substring(0, 3)}****${phone.substring(phone.length - 4)}'
-        : phone.isNotEmpty
-            ? phone
+    final username = user?.username ?? '';
+    // 如果 username 是 11 位数字（手机号格式），则格式化显示
+    final phoneText = username.isNotEmpty && 
+            RegExp(r'^\d{11}$').hasMatch(username)
+        ? '${username.substring(0, 3)}****${username.substring(username.length - 4)}'
+        : username.isNotEmpty
+            ? username
             : '未绑定';
 
     return Column(
