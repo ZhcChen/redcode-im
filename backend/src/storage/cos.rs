@@ -1,9 +1,9 @@
 use crate::error::AppError;
 use crate::storage::{BucketInfo, CorsRule, DirectUploadSignature, StorageService};
 use async_trait::async_trait;
-use bytes::Bytes;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
+use bytes::Bytes;
 use hmac::{Hmac, Mac};
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;

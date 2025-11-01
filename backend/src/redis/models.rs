@@ -568,11 +568,6 @@ impl CacheKeys {
         format!("room:{}", room_id)
     }
 
-    /// Stream 键名
-    pub fn stream_key(room_id: &Uuid) -> String {
-        format!("stream:room:{}", room_id)
-    }
-
     /// 用户缓存键
     pub fn user_cache(user_id: &Uuid) -> String {
         format!("cache:user:{}", user_id)

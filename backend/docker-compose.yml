@@ -62,35 +62,6 @@ services:
       - "com.redcode.service=redis-session"
       - "com.redcode.description=Session专用Redis-持久化模式"
 
-  # Streams 专用 Redis - 消息分发模式
-  redis-streams:
-    image: redis:8.2.2-alpine
-    container_name: redcode-redis-streams
-    ports:
-      - "6382:6382"
-    command: |
-      redis-server
-      --port 6382
-      --requirepass 123456
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --timeout 300
-      --tcp-keepalive 60
-    networks:
-      - backend-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6382", "-a", "123456", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    environment:
-      TZ: Asia/Shanghai
-    labels:
-      - "com.redcode.service=redis-streams"
-      - "com.redcode.description=Streams专用Redis-消息分发模式"
-
   # Cache 专用 Redis - 纯缓存模式
   redis-cache:
     image: redis:8.2.2-alpine
@@ -144,8 +115,6 @@ services:
         condition: service_healthy
       redis-session:
         condition: service_healthy
-      redis-streams:
-        condition: service_healthy
       redis-cache:
         condition: service_healthy
     networks:
@@ -168,14 +137,13 @@ services:
     ports:
       - "8081:8081"
     environment:
-      REDIS_HOSTS: "session:redcode-redis-session:6381:0:123456,streams:redcode-redis-streams:6382:0:123456,cache:redcode-redis-cache:6383:0:123456"
+      REDIS_HOSTS: "session:redcode-redis-session:6381:0:123456,cache:redcode-redis-cache:6383:0:123456"
       HTTP_USER: admin
       HTTP_PASSWORD: admin
     networks:
       - backend-network
     depends_on:
       - redis-session
-      - redis-streams
       - redis-cache
     restart: unless-stopped
     profiles:

@@ -12,12 +12,9 @@ use crate::database::{
 };
 use crate::error::AppError;
 use crate::models::{convert::db_message_to_api_message_info, MessageInfo};
-use crate::redis::{
-    models::{
-        CacheKeys, CrossNodeMessage, ForwardMessagePayload, MessagePriority, MessageUpdatePayload,
-        PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
-    },
-    streams::StreamManager,
+use crate::redis::models::{
+    CacheKeys, CrossNodeMessage, ForwardMessagePayload, MessagePriority, MessageUpdatePayload,
+    PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
 };
 use crate::AppState;
 use ::redis::AsyncCommands;
@@ -165,30 +162,6 @@ pub async fn send_message(
         error!("广播消息失败: {}", e);
     }
 
-    // 高优先级消息才入 Stream（此处保留接口，默认 Normal 不入流）
-    // Stream用于消息持久化和离线消息等场景
-    let _ = StreamManager::new(
-        state.redis.get_streams_client().clone(),
-        state.node_id.clone(),
-    )
-    .send_message(&CrossNodeMessage {
-        id: enriched.id,
-        room_id,
-        sender_id,
-        content: enriched.content.clone(),
-        message_type: message_type.clone(),
-        priority: MessagePriority::Normal,
-        timestamp: enriched.created_at,
-        source_node: state.node_id.clone(),
-        target_nodes: vec![],
-        sender_username: Some(enriched.sender_username.clone()),
-        sender_nickname: enriched.sender_nickname.clone(),
-        sender_avatar_url: enriched.sender_avatar_url.clone(),
-        quoted_message: build_quoted_payload(&enriched),
-        forward_message: build_forward_payload(&enriched),
-    })
-    .await;
-
     let api_message = db_message_to_api_message_info(&enriched, None);
     Ok(Json(SendMessageResponse {
         message: api_message,
@@ -245,28 +218,6 @@ pub async fn forward_message(
     if let Err(e) = broadcast_message_to_room(&state, &enriched).await {
         error!("广播转发消息失败: {}", e);
     }
-
-    let _ = StreamManager::new(
-        state.redis.get_streams_client().clone(),
-        state.node_id.clone(),
-    )
-    .send_message(&CrossNodeMessage {
-        id: enriched.id,
-        room_id,
-        sender_id,
-        content: enriched.content.clone(),
-        message_type: original.message_type.clone(),
-        priority: MessagePriority::Normal,
-        timestamp: enriched.created_at,
-        source_node: state.node_id.clone(),
-        target_nodes: vec![],
-        sender_username: Some(enriched.sender_username.clone()),
-        sender_nickname: enriched.sender_nickname.clone(),
-        sender_avatar_url: enriched.sender_avatar_url.clone(),
-        quoted_message: build_quoted_payload(&enriched),
-        forward_message: build_forward_payload(&enriched),
-    })
-    .await;
 
     let api_message = db_message_to_api_message_info(&enriched, None);
     Ok(Json(SendMessageResponse {

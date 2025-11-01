@@ -7,7 +7,6 @@
 ### 密码设置
 
 - **Session Redis** (端口 6381): `REDIS_SESSION_PASSWORD`
-- **Streams Redis** (端口 6382): `REDIS_STREAM_PASSWORD`
 - **Cache Redis** (端口 6383): `REDIS_CACHE_PASSWORD`
 
 ### 环境变量配置
@@ -16,7 +15,6 @@
 在 `.env` 文件中设置：
 ```bash
 REDIS_SESSION_PASSWORD=redis_session_password_2024
-REDIS_STREAM_PASSWORD=redis_stream_password_2024
 REDIS_CACHE_PASSWORD=redis_cache_password_2024
 ```
 

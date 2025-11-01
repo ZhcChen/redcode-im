@@ -60,33 +60,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Streams 专用 Redis
-  redis-streams:
-    image: redis:8.2.2-alpine
-    container_name: redcode-redis-streams
-    command: |
-      redis-server
-      --port 6382
-      --requirepass ${REDIS_STREAM_PASSWORD}
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --timeout 300
-      --tcp-keepalive 60
-    networks:
-      - backend-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6382", "-a", "${REDIS_STREAM_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # Cache 专用 Redis
   redis-cache:
     image: redis:8.2.2-alpine
@@ -134,8 +107,6 @@ services:
       postgres:
         condition: service_healthy
       redis-session:
-        condition: service_healthy
-      redis-streams:
         condition: service_healthy
       redis-cache:
         condition: service_healthy

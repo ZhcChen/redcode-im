@@ -62,7 +62,6 @@ DATABASE_URL=postgresql://postgres:123456@postgres:5432/redcode_im
 
 # Redis 配置（Docker 内部网络）
 REDIS_SESSION_URL=redis://:123456@redis-session:6381
-REDIS_STREAM_URL=redis://:123456@redis-streams:6382
 REDIS_CACHE_URL=redis://:123456@redis-cache:6383
 
 # 服务器配置
@@ -101,7 +100,6 @@ environment:
 ### 服务通信
 - **后端 → PostgreSQL**: `postgres:5432`
 - **后端 → Redis-Session**: `redis-session:6381`
-- **后端 → Redis-Streams**: `redis-streams:6382`
 - **后端 → Redis-Cache**: `redis-cache:6383`
 
 ## 📊 端口映射
@@ -110,7 +108,6 @@ environment:
 - **后端**: `8080:8080`
 - **PostgreSQL**: `5432:5432`
 - **Redis-Session**: `6381:6381`
-- **Redis-Streams**: `6382:6382`
 - **Redis-Cache**: `6383:6383`
 - **Redis Commander**: `8081:8081` (可选)
 

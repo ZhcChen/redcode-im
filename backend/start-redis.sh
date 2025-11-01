@@ -75,7 +75,6 @@ stop_redis_instances() {
     # 停止本地Redis实例
     pkill -f "redis-server.*6379"
     pkill -f "redis-server.*6381"
-    pkill -f "redis-server.*6382"
     pkill -f "redis-server.*6383"
 
     echo "✅ 所有Redis实例已停止"
@@ -85,7 +84,7 @@ stop_redis_instances() {
 check_redis_status() {
     echo "📊 检查Redis实例状态..."
 
-    for port in 6379 6381 6382 6383; do
+    for port in 6379 6381 6383; do
         if redis-cli -p $port ping >/dev/null 2>&1; then
             echo "✅ Redis $port: 运行正常"
         else
@@ -107,11 +106,6 @@ case "${1:-start}" in
             "--appendonly yes --save 900 1 --save 300 10 --save 60 10000 --maxmemory 128mb --maxmemory-policy volatile-lru" \
             "session"
 
-        # 启动Streams Redis
-        start_redis_instance 6382 \
-            "--appendonly yes --aof-use-rdb-preamble yes --save 900 1 --save 300 10 --maxmemory 512mb --maxmemory-policy volatile-lru" \
-            "streams"
-
         # 启动Cache Redis
         start_redis_instance 6383 \
             "--maxmemory 512mb --maxmemory-policy allkeys-lru --save \"\"" \
@@ -122,7 +116,6 @@ case "${1:-start}" in
         echo "📝 端口映射:"
         echo "   - 主Redis:      6379 (标准模式)"
         echo "   - Session Redis: 6381 (持久化模式)"
-        echo "   - Streams Redis: 6382 (持久化流模式)"
         echo "   - Cache Redis:   6383 (纯缓存模式)"
         echo ""
         echo "💡 使用 './start-redis.sh status' 检查状态"

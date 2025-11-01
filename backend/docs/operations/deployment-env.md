@@ -49,7 +49,6 @@ backend/
 # 设置系统环境变量
 export DATABASE_URL="postgresql://user:pass@host:5432/db"
 export REDIS_SESSION_URL="redis://:password@host:6381"
-export REDIS_STREAM_URL="redis://:password@host:6382"
 export REDIS_CACHE_URL="redis://:password@host:6383"
 export JWT_SECRET="your-jwt-secret"
 export PORT=8080

@@ -5,18 +5,15 @@ use tracing::info;
 pub mod cache;
 pub mod models;
 pub mod session;
-pub mod streams;
 
 /// Redis 连接管理器
 ///
 /// 多实例架构:
 /// - Session专用Redis (6381): 持久化模式，存储用户会话和节点心跳
-/// - Streams专用Redis (6382): 消息分发模式，实时消息推送和分发
 /// - Cache专用Redis (6383): 纯缓存模式，存储房间信息、用户资料等元数据
 #[derive(Clone)]
 pub struct RedisManager {
     pub pubsub_client: Client,
-    pub streams_client: Client,
     pub cache_client: Client,
     pub session_client: Client,
 }
@@ -32,12 +29,6 @@ impl RedisManager {
         let pubsub_client = Client::open(pubsub_url)?;
         info!("Redis Pub/Sub 连接建立成功");
 
-        // Streams 专用连接
-        let streams_url =
-            env::var("REDIS_STREAM_URL").unwrap_or_else(|_| "redis://localhost:6382".to_string());
-        let streams_client = Client::open(streams_url)?;
-        info!("Redis Streams 连接建立成功");
-
         // Cache 专用连接
         let cache_url =
             env::var("REDIS_CACHE_URL").unwrap_or_else(|_| "redis://localhost:6383".to_string());
@@ -52,7 +43,6 @@ impl RedisManager {
 
         Ok(RedisManager {
             pubsub_client,
-            streams_client,
             cache_client,
             session_client,
         })
@@ -64,10 +54,6 @@ impl RedisManager {
         let mut pubsub_conn = self.pubsub_client.get_connection()?;
         let _: String = redis::cmd("PING").query(&mut pubsub_conn)?;
         info!("Redis Pub/Sub 连接测试成功");
-
-        let mut streams_conn = self.streams_client.get_connection()?;
-        let _: String = redis::cmd("PING").query(&mut streams_conn)?;
-        info!("Redis Streams 连接测试成功");
 
         let mut cache_conn = self.cache_client.get_connection()?;
         let _: String = redis::cmd("PING").query(&mut cache_conn)?;
@@ -83,11 +69,6 @@ impl RedisManager {
     /// 获取 Pub/Sub 客户端
     pub fn get_pubsub_client(&self) -> &Client {
         &self.pubsub_client
-    }
-
-    /// 获取 Streams 客户端
-    pub fn get_streams_client(&self) -> &Client {
-        &self.streams_client
     }
 
     /// 获取 Cache 客户端

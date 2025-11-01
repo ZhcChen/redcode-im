@@ -19,14 +19,7 @@ redcode-im项目使用Redis多实例架构，将不同功能的数据分离到�
 - **内存限制**: 128MB
 - **淘汰策略**: volatile-lru (只淘汰设置TTL的键)
 
-### 3. Streams专用Redis (端口: 6382)
-- **用途**: Redis Streams消息流存储，消息推送和订阅
-- **模式**: 持久化流模式
-- **持久化**: AOF + RDB (双重保障，数据不丢失)
-- **内存限制**: 512MB
-- **淘汰策略**: volatile-lru (保护未设置TTL的流数据)
-
-### 4. Cache专用Redis (端口: 6383)
+### 3. Cache专用Redis (端口: 6383)
 - **用途**: 用户/房间信息缓存，高频读写
 - **模式**: 纯缓存模式
 - **持久化**: 关闭
@@ -64,7 +57,7 @@ docker-compose -f docker-compose-redis.yml down
 ### 方式三：使用完整Docker环境 (推荐)
 
 ```bash
-# 启动完整环境 (PostgreSQL + 4个Redis实例 + 后端服务)
+# 启动完整环境 (PostgreSQL + 3个Redis实例 + 后端服务)
 ./docker-start.sh start
 
 # 启动包含管理工具的环境
@@ -91,12 +84,6 @@ redis-server --port 6381 --appendonly yes \
   --save 900 1 --save 300 10 --save 60 10000 \
   --maxmemory 128mb --maxmemory-policy volatile-lru
 
-# 启动Streams Redis
-redis-server --port 6382 \
-  --appendonly yes --aof-use-rdb-preamble yes \
-  --save 900 1 --save 300 10 \
-  --maxmemory 512mb --maxmemory-policy volatile-lru
-
 # 启动Cache Redis
 redis-server --port 6383 \
   --maxmemory 512mb --maxmemory-policy allkeys-lru \
@@ -110,7 +97,6 @@ redis-server --port 6383 \
 ```bash
 REDIS_URL=redis://localhost:6379
 REDIS_SESSION_URL=redis://localhost:6381
-REDIS_STREAM_URL=redis://localhost:6382
 REDIS_CACHE_URL=redis://localhost:6383
 ```
 
@@ -123,13 +109,6 @@ node_sessions:{node_id}     # 节点会话列表
 node_heartbeat:{node_id}    # 节点心跳信息
 active_nodes                # 活跃节点集合
 ```
-
-### Streams Redis数据结构
-```
-stream:room:{room_id}       # 房间消息流 (持久化存储)
-consumer_group:node_{id}    # 节点消费者组
-```
-**重要**: Streams Redis存储关键的消息推送和订阅数据，必须确保持久化配置正确，避免消息丢失。
 
 ### Cache Redis数据结构
 ```
@@ -149,7 +128,6 @@ user_online:{user_id}       # 用户在线状态
 # 或手动检查
 redis-cli -p 6379 ping
 redis-cli -p 6381 ping
-redis-cli -p 6382 ping
 redis-cli -p 6383 ping
 ```
 
@@ -157,7 +135,6 @@ redis-cli -p 6383 ping
 ```bash
 redis-cli -p 6379 info memory
 redis-cli -p 6381 info memory
-redis-cli -p 6382 info memory
 redis-cli -p 6383 info memory
 ```
 
@@ -166,8 +143,6 @@ redis-cli -p 6383 info memory
 # 清空缓存数据 (Cache Redis)
 redis-cli -p 6383 flushall
 
-# 清理过期的Stream数据 (Streams Redis)
-redis-cli -p 6382 xtrim stream:room:* MAXLEN 1000
 ```
 
 ## 故障排除
@@ -177,7 +152,6 @@ redis-cli -p 6382 xtrim stream:room:* MAXLEN 1000
 # 检查端口占用
 lsof -i :6379
 lsof -i :6381
-lsof -i :6382
 lsof -i :6383
 
 # 强制停止Redis
@@ -213,5 +187,4 @@ pkill -f redis-server
 ## 更多资源
 
 - [Redis官方文档](https://redis.io/documentation)
-- [Redis Streams文档](https://redis.io/topics/streams-intro)
 - [Docker Compose文档](https://docs.docker.com/compose/)
