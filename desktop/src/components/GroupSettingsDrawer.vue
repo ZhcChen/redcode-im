@@ -1,0 +1,466 @@
+<template>
+  <div class="group-settings-drawer" :class="{ 'group-settings-drawer--visible': visible }" @click="handleMaskClick">
+    <!-- 抽屉内容 -->
+    <div class="drawer-content" @click.stop>
+      <!-- 第一行：标题栏 -->
+      <div class="drawer-header">
+        <img
+          src="@/assets/image/icon-menu.svg"
+          alt="群设置"
+          class="header-icon"
+          @click="handleClose"
+        />
+        <div class="header-title">群设置</div>
+      </div>
+
+      <!-- 第二行：群成员管理 -->
+      <div class="drawer-section">
+        <div class="member-grid">
+          <!-- 新增成员按钮 -->
+          <div class="member-item add-member-btn" @click="handleAddMember">
+            <div class="member-avatar add-avatar">
+              <span class="add-icon">+</span>
+            </div>
+            <div class="member-name">添加</div>
+          </div>
+
+          <!-- 删除成员按钮 -->
+          <div class="member-item remove-member-btn" @click="handleRemoveMember">
+            <div class="member-avatar remove-avatar">
+              <span class="remove-icon">-</span>
+            </div>
+            <div class="member-name">删除</div>
+          </div>
+
+          <!-- 群成员列表 -->
+          <div
+            v-for="member in displayMembers"
+            :key="member.id"
+            class="member-item"
+          >
+            <Avatar
+              :src="member.avatar || member.userAvatar"
+              :text="member.name || member.userName || member.nickname || member.realName"
+              :size="48"
+            />
+            <div class="member-name">{{ member.name || member.userName || member.nickname || member.realName }}</div>
+          </div>
+        </div>
+
+        <!-- 查看更多成员 -->
+        <div class="view-all-members" @click="toggleMemberExpansion">
+          {{ viewAllText }}
+        </div>
+      </div>
+
+      <!-- 第三行：群设置选项 -->
+      <div class="drawer-section">
+        <div class="setting-item" @click="handleEditGroupName">
+          <div class="setting-label">群名称</div>
+          <div class="setting-value">
+            {{ groupInfo?.name || '' }}
+            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+          </div>
+        </div>
+
+        <div class="setting-item" @click="handleEditGroupAvatar">
+          <div class="setting-label">群头像</div>
+          <div class="setting-value">
+            <Avatar :src="groupInfo?.avatar" :text="groupInfo?.name" :size="32" />
+            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+          </div>
+        </div>
+
+        <div class="setting-item" @click="handleEditGroupNotice">
+          <div class="setting-label">群公告</div>
+          <div class="setting-value">
+            {{ groupNoticeText }}
+            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-label">消息免打扰</div>
+          <div class="setting-value">
+            <BSwitch v-model="muteNotification" @change="handleMuteChange" />
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-label">置顶聊天</div>
+          <div class="setting-value">
+            <BSwitch v-model="isTop" @change="handleTopChange" />
+          </div>
+        </div>
+
+        <div class="setting-item" @click="handleClearHistory">
+          <div class="setting-label">清除聊天记录</div>
+          <div class="setting-value">
+            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+          </div>
+        </div>
+
+        <div class="setting-item" @click="handleReport">
+          <div class="setting-label">举报群聊</div>
+        </div>
+
+        <div class="setting-item danger" @click="handleLeaveGroup">
+          <div class="setting-label">退出群聊</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import Avatar from './Avatar.vue'
+import BSwitch from './BSwitch.vue'
+
+interface GroupInfo {
+  id: string
+  name: string
+  avatar?: string
+  groupId: string
+  memberCount?: number
+  groupType: number
+  isTop?: boolean
+}
+
+interface Props {
+  visible: boolean
+  groupInfo?: GroupInfo | null
+  groupMembers?: any[]
+}
+
+interface Emits {
+  (e: 'close'): void
+  (e: 'edit-group-name'): void
+  (e: 'edit-group-avatar'): void
+  (e: 'edit-group-notice'): void
+  (e: 'toggle-mute', value: boolean): void
+  (e: 'toggle-top', value: boolean): void
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  groupMembers: () => []
+})
+const emit = defineEmits<Emits>()
+
+// 群成员展开状态
+const isExpanded = ref(false)
+
+// 显示的成员（第一行只显示前两个，因为有新增删除按钮）
+const displayMembers = computed(() => {
+  if (!props.groupMembers || props.groupMembers.length === 0) {
+    return []
+  }
+
+  // 展开时显示所有成员，收起时只显示前两个（第一行）
+  return isExpanded.value ? props.groupMembers : props.groupMembers.slice(0, 2)
+})
+
+// 总成员数
+const totalMemberCount = computed(() => props.groupMembers?.length || 0)
+
+// 展开/收起按钮文案
+const viewAllText = computed(() => {
+  return isExpanded.value ? '收起' : `点击查看${totalMemberCount.value}人>`
+})
+
+// 开关状态
+const muteNotification = ref(false)
+const isTop = ref(false)
+
+// 监听props变化，更新开关状态
+watch(() => props.groupInfo, (newGroupInfo) => {
+  if (newGroupInfo) {
+    muteNotification.value = newGroupInfo.chatStatus === 1 // 1=免打扰
+    isTop.value = newGroupInfo.isTop || false
+  }
+}, { immediate: true })
+
+// 计算群公告显示文本
+const groupNoticeText = computed(() => {
+  const groupInfo = props.groupInfo
+  if (!groupInfo) return '暂无公告'
+
+  // 尝试多种可能的字段名和层级
+  const notice = groupInfo.imGroup?.groupNotice ||
+                 groupInfo.groupNotice ||
+                 groupInfo.notice ||
+                 groupInfo.chatGroupNotice || ''
+
+  console.log('🔍 群公告显示逻辑:', {
+    groupInfo: groupInfo,
+    imGroup: groupInfo.imGroup,
+    imGroupNotice: groupInfo.imGroup?.groupNotice,
+    groupNotice: groupInfo.groupNotice,
+    finalNotice: notice
+  })
+
+  return notice || '暂无公告'
+})
+
+// 事件处理
+const handleClose = () => {
+  emit('close')
+}
+
+const handleMaskClick = () => {
+  // 点击抽屉容器外部区域关闭抽屉
+  emit('close')
+}
+
+const handleEditGroupName = () => {
+  console.log('编辑群名称')
+  emit('edit-group-name')
+}
+
+const handleEditGroupAvatar = () => {
+  console.log('编辑群头像')
+  emit('edit-group-avatar')
+}
+
+const handleEditGroupNotice = () => {
+  console.log('编辑群公告')
+  emit('edit-group-notice')
+}
+
+const handleAddMember = () => {
+  console.log('添加成员')
+  // TODO: 实现添加成员功能
+}
+
+const handleRemoveMember = () => {
+  console.log('删除成员')
+  // TODO: 实现删除成员功能
+}
+
+const toggleMemberExpansion = () => {
+  isExpanded.value = !isExpanded.value
+  console.log('切换群成员展示状态:', isExpanded.value ? '展开' : '收起')
+}
+
+const handleViewAllMembers = () => {
+  console.log('查看所有成员')
+  // 已合并到 toggleMemberExpansion
+}
+
+const handleMuteChange = (value: boolean) => {
+  console.log('消息免打扰:', value)
+  emit('toggle-mute', value)
+}
+
+const handleTopChange = (value: boolean) => {
+  console.log('置顶聊天:', value)
+  emit('toggle-top', value)
+}
+
+const handleClearHistory = () => {
+  console.log('清除聊天记录')
+  // TODO: 实现清除聊天记录功能
+}
+
+const handleReport = () => {
+  console.log('举报群聊')
+  // TODO: 实现举报群聊功能
+}
+
+const handleLeaveGroup = () => {
+  console.log('退出群聊')
+  // TODO: 实现退出群聊功能
+}
+</script>
+
+<style lang="scss" scoped>
+.group-settings-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background-color: transparent; /* 透明遮罩 */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+
+  &--visible {
+    opacity: 1;
+    visibility: visible;
+
+    .drawer-content {
+      transform: translateX(0);
+    }
+  }
+}
+
+.drawer-content {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 348px;
+  height: 100%;
+  background-color: #F4F4F7;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 24px;
+  position: relative;
+
+  .header-icon {
+    position: absolute;
+    left: 24px;
+    width: 24px;
+    height: 24px;
+    transform: rotate(90deg); /* 顺时针旋转90度 */
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  .header-title {
+    font-size: 17px;
+    color: #000000;
+    font-weight: bold;
+  }
+}
+
+.drawer-section {
+  background: white;
+  margin: 0 24px;
+  padding: 20px;
+  border-radius: 16px;
+
+  &:not(:first-child) {
+    margin-top: 24px;
+  }
+
+  &:last-child {
+    margin-bottom: 16px;
+  }
+}
+
+.drawer-section:first-of-type {
+  margin-top: 24px;
+}
+
+.drawer-section:not(:last-child) {
+  margin-bottom: 0;
+}
+
+.drawer-section + .drawer-section {
+  margin-top: 16px;
+}
+
+/* 群成员网格 */
+.member-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+
+  .member-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+
+    .member-name {
+      font-size: 12px;
+      color: #000000;
+      margin-top: 12px;
+      text-align: center;
+      line-height: 1;
+    }
+  }
+
+  .add-member-btn, .remove-member-btn {
+    .member-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+    }
+
+    .add-avatar {
+      background-color: var(--primary-color, #4ECDC4);
+    }
+
+    .remove-avatar {
+      background-color: #ff4757;
+    }
+  }
+}
+
+.view-all-members {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: #999999;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.7;
+  }
+}
+
+/* 设置选项 */
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid #f5f5f5;
+  }
+
+  &:hover {
+    opacity: 0.7;
+  }
+
+  &.danger {
+    .setting-label {
+      color: #ff4757;
+    }
+  }
+
+  .setting-label {
+    font-size: 14px;
+    color: #2C2D3A;
+    font-weight: 400;
+  }
+
+  .setting-value {
+    font-size: 14px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 6px; /* 元素间距离6px */
+
+    .setting-arrow {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+  }
+}
+</style>

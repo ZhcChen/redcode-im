@@ -6,8 +6,9 @@ import "./styles/global.css";
 import { invoke } from '@tauri-apps/api/core';
 import toast from './utils/toast';
 
-store.dispatch('restoreSession');
-store.dispatch('refreshCurrentUser').catch(() => {});
+// 清理可能存在的旧登录数据，确保每次启动都是全新状态
+localStorage.removeItem('authToken');
+localStorage.removeItem('userInfo');
 
 const app = createApp(App).use(router).use(store);
 

@@ -11,10 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-package-lock.json
-yarn.lock
-bun.lockb
-pnpm-lock.yaml
 
 # Editor directories and files
 .vscode/*
@@ -27,6 +23,5 @@ pnpm-lock.yaml
 *.sln
 *.sw?
 
-# Rust / Tauri build
-src-tauri/target
-target
+.claude
+bear-chat-uniapp

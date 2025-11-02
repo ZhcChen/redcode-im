@@ -1,26 +1,27 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Redcode Desktop",
-  "version": "0.1.0",
-  "identifier": "com.redcode.desktop",
+  "productName": "Chatly",
+  "version": "0.1.1",
+  "identifier": "com.chen.bear-chat-tauri",
   "build": {
-    "beforeDevCommand": "pnpm --filter redcode-desktop dev",
+    "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm --filter redcode-desktop build",
+    "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": false,
     "trayIcon": {
       "id": "main-tray",
       "iconPath": "icons/icon.ico",
       "iconAsTemplate": false,
       "menuOnLeftClick": false,
-      "tooltip": "Redcode Desktop"
+      "tooltip": "Chatly - 点击显示/隐藏"
     },
     "windows": [
       {
         "label": "main",
-        "title": "Redcode Desktop",
+        "title": "Chatly",
         "width": 1000,
         "height": 650,
         "minWidth": 400,
@@ -41,7 +42,7 @@
       },
       {
         "label": "splashscreen",
-        "title": "Redcode Desktop",
+        "title": "Chatly",
         "url": "/splashscreen.html",
         "width": 400,
         "height": 600,
@@ -60,7 +61,8 @@
     ],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": false
   },
   "bundle": {
     "active": true,

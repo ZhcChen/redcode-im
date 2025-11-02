@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createApp, h, type App as VueApp } from 'vue'
 import Toast from '@/components/Toast.vue'
 
 interface ToastOptions {
@@ -7,10 +7,8 @@ interface ToastOptions {
   duration?: number
 }
 
-type ToastAppInstance = ReturnType<typeof createApp> | null
-
 class ToastManager {
-  private toastInstance: ToastAppInstance = null
+  private toastInstance: VueApp | null = null
   private container: HTMLElement | null = null
 
   show(options: ToastOptions) {
@@ -23,10 +21,16 @@ class ToastManager {
 
     // 创建 Vue 应用实例
     const self = this
-    this.toastInstance = createApp(Toast, {
-      ...options,
-      visible: true,
-      onClose: () => self.close()
+    this.toastInstance = createApp({
+      render() {
+        return h(Toast, {
+          ...options,
+          visible: true,
+          onClose: () => {
+            self.close()
+          }
+        })
+      }
     })
 
     // 挂载到容器
