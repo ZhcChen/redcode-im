@@ -1,0 +1,14 @@
+[install]
+# 配置安装缓存
+cache = true
+
+# 配置镜像源（可选，根据网络情况调整）
+# registry = "https://registry.npmmirror.com"
+
+[lockfile]
+# 生成 bun.lockb 文件
+print = "yarn"
+
+[scripts]
+# 脚本执行配置
+shell = ["zsh", "-c"]

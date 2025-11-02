@@ -44,7 +44,57 @@ export interface StorageProvider {
 }
 
 export interface StorageProviderListResponse {
-  providers: StorageProvider[];
+  data: {
+    providers: StorageProvider[];
+  };
+}
+
+// API 响应包装类型
+export interface ApiResponse<T> {
+  data: T;
+  success?: boolean;
+  message?: string;
+}
+
+export interface TestCosDeleteResponse {
+  data: {
+    success: boolean;
+    message: string;
+  };
+}
+
+export interface TestCosExistsResponse {
+  data: {
+    success: boolean;
+    exists: boolean;
+    message: string;
+  };
+}
+
+export interface TestCosListBucketsResponse {
+  data: {
+    success: boolean;
+    buckets: Array<{
+      name: string;
+      region: string;
+      creation_date?: string | null;
+    }>;
+    message: string;
+  };
+}
+
+export interface TestCosCreateBucketResponse {
+  data: {
+    success: boolean;
+    message: string;
+  };
+}
+
+export interface SetCosCorsResponse {
+  data: {
+    success: boolean;
+    message: string;
+  };
 }
 
 export interface CreateStorageProviderPayload {
@@ -147,19 +197,9 @@ export interface SetCosCorsRequest {
   rules: SetCosCorsRulePayload[];
 }
 
-export interface SetCosCorsResponse {
-  success: boolean;
-  message: string;
-}
-
 export interface TestCosDeleteRequest {
   provider_id?: string;
   key: string;
-}
-
-export interface TestCosDeleteResponse {
-  success: boolean;
-  message: string;
 }
 
 export interface TestCosExistsRequest {
@@ -167,10 +207,13 @@ export interface TestCosExistsRequest {
   key: string;
 }
 
-export interface TestCosExistsResponse {
-  success: boolean;
-  exists: boolean;
-  message: string;
+export interface TestCosListBucketsRequest {
+  provider_id?: string;
+}
+
+export interface TestCosCreateBucketRequest {
+  provider_id?: string;
+  bucket_name: string;
 }
 
 export function testCosUpload(payload: TestCosUploadRequest) {
@@ -206,30 +249,6 @@ export function testCosExists(payload: TestCosExistsRequest) {
     '/api/admin/storage-providers/test/exists',
     payload
   );
-}
-
-export interface TestCosListBucketsRequest {
-  provider_id?: string;
-}
-
-export interface TestCosListBucketsResponse {
-  success: boolean;
-  buckets: Array<{
-    name: string;
-    region: string;
-    creation_date?: string | null;
-  }>;
-  message: string;
-}
-
-export interface TestCosCreateBucketRequest {
-  provider_id?: string;
-  bucket_name: string;
-}
-
-export interface TestCosCreateBucketResponse {
-  success: boolean;
-  message: string;
 }
 
 export function testCosListBuckets(payload: TestCosListBucketsRequest) {

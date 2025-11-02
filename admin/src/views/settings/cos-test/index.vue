@@ -127,8 +127,8 @@
           </a-form>
           <a-result
             v-if="deleteResult"
-            :status="deleteResult.success ? 'success' : 'error'"
-            :title="deleteResult.message"
+            :status="deleteResult.data?.success ? 'success' : 'error'"
+            :title="deleteResult.data?.message"
           />
         </a-card>
 
@@ -153,12 +153,12 @@
           </a-form>
           <a-result
             v-if="existsResult"
-            :status="existsResult.success ? 'success' : 'error'"
-            :title="existsResult.message"
+            :status="existsResult.data?.success ? 'success' : 'error'"
+            :title="existsResult.data?.message"
           >
-            <template #subtitle>
-              <a-tag :color="existsResult.exists ? 'green' : 'gray'">
-                {{ existsResult.exists ? '文件存在' : '文件不存在' }}
+            <template v-if="existsResult.data?.exists !== undefined" #extra>
+              <a-tag :color="existsResult.data?.exists ? 'green' : 'gray'">
+                {{ existsResult.data?.exists ? '文件存在' : '文件不存在' }}
               </a-tag>
             </template>
           </a-result>
@@ -184,8 +184,8 @@
             <a-empty v-else-if="bucketsLoaded" description="暂无 Bucket" />
             <a-result
               v-if="bucketsResult"
-              :status="bucketsResult.success ? 'success' : 'error'"
-              :title="bucketsResult.message"
+              :status="bucketsResult.data?.success ? 'success' : 'error'"
+              :title="bucketsResult.data?.message"
             />
           </a-space>
         </a-card>
@@ -211,8 +211,8 @@
           </a-form>
           <a-result
             v-if="createBucketResult"
-            :status="createBucketResult.success ? 'success' : 'error'"
-            :title="createBucketResult.message"
+            :status="createBucketResult.data?.success ? 'success' : 'error'"
+            :title="createBucketResult.data?.message"
           />
         </a-card>
       </a-space>
@@ -521,12 +521,12 @@
 
       const response = await testCosDelete(payload);
       const data = response.data?.data || response.data;
-      deleteResult.value = data;
+      deleteResult.value = response.data;
 
-      if (data.success) {
+      if (data?.success) {
         Message.success('删除成功');
       } else {
-        Message.error(data.message);
+        Message.error(data?.message || '删除失败');
       }
     } catch (error: any) {
       const errorMsg =
@@ -536,8 +536,10 @@
         '删除失败';
       Message.error(errorMsg);
       deleteResult.value = {
-        success: false,
-        message: errorMsg,
+        data: {
+          success: false,
+          message: errorMsg,
+        },
       };
     } finally {
       deleteLoading.value = false;
@@ -561,12 +563,12 @@
 
       const response = await testCosExists(payload);
       const data = response.data?.data || response.data;
-      existsResult.value = data;
+      existsResult.value = response.data;
 
-      if (data.success) {
-        Message.success(data.exists ? '文件存在' : '文件不存在');
+      if (data?.success) {
+        Message.success(data?.exists ? '文件存在' : '文件不存在');
       } else {
-        Message.error(data.message);
+        Message.error(data?.message || '检查失败');
       }
     } catch (error: any) {
       const errorMsg =
@@ -576,9 +578,11 @@
         '检查失败';
       Message.error(errorMsg);
       existsResult.value = {
-        success: false,
-        exists: false,
-        message: errorMsg,
+        data: {
+          success: false,
+          exists: false,
+          message: errorMsg,
+        },
       };
     } finally {
       existsLoading.value = false;
@@ -596,14 +600,14 @@
 
       const response = await testCosListBuckets(payload);
       const data = response.data?.data || response.data;
-      bucketsResult.value = data;
+      bucketsResult.value = response.data;
 
-      if (data.success) {
-        buckets.value = data.buckets;
+      if (data?.success) {
+        buckets.value = data?.buckets || [];
         bucketsLoaded.value = true;
-        Message.success(data.message);
+        Message.success('获取 bucket 列表成功');
       } else {
-        Message.error(data.message);
+        Message.error(data?.message || '获取 bucket 列表失败');
       }
     } catch (error: any) {
       const errorMsg =
@@ -613,9 +617,11 @@
         '获取 bucket 列表失败';
       Message.error(errorMsg);
       bucketsResult.value = {
-        success: false,
-        buckets: [],
-        message: errorMsg,
+        data: {
+          success: false,
+          buckets: [],
+          message: errorMsg,
+        },
       };
     } finally {
       bucketsLoading.value = false;
@@ -639,16 +645,15 @@
 
       const response = await testCosCreateBucket(payload);
       const data = response.data?.data || response.data;
-      createBucketResult.value = data;
+      createBucketResult.value = response.data;
 
-      if (data.success) {
-        Message.success(data.message);
+      if (data?.success) {
+        Message.success(data?.message || '创建成功');
         // 创建成功后刷新 bucket 列表
         await handleListBuckets();
-        // 清空表单
         createBucketForm.bucket_name = '';
       } else {
-        Message.error(data.message);
+        Message.error(data?.message || '创建失败');
       }
     } catch (error: any) {
       const errorMsg =
@@ -658,8 +663,10 @@
         '创建 bucket 失败';
       Message.error(errorMsg);
       createBucketResult.value = {
-        success: false,
-        message: errorMsg,
+        data: {
+          success: false,
+          message: errorMsg,
+        },
       };
     } finally {
       createBucketLoading.value = false;

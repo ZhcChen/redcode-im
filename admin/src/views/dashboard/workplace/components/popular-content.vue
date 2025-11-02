@@ -123,24 +123,28 @@
     }
   };
   const typeChange = (contentType: string) => {
-    fetchData(contentType);
+    fetchData();
   };
-  fetchData('text');
+  fetchData();
 </script>
 
 <style scoped lang="less">
   .general-card {
     min-height: 395px;
   }
+
   :deep(.arco-table-tr) {
     height: 44px;
+
     .arco-typography {
       margin-bottom: 0;
     }
   }
+
   .increases-cell {
     display: flex;
     align-items: center;
+
     span {
       margin-right: 4px;
     }
