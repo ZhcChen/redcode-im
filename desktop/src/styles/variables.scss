@@ -1,0 +1,201 @@
+// 全局 SCSS 变量文件
+// 这个文件定义了整个应用的设计系统
+
+@use 'sass:color';
+
+// 字体定义已移至 global.css 中
+
+// ===== 颜色系统 =====
+// 主色调
+$primary-color: #4ECDC4;
+$primary-light: color.adjust($primary-color, $lightness: 10%);
+$primary-dark: color.adjust($primary-color, $lightness: -10%);
+
+$secondary-color: #44A08D;
+$secondary-light: color.adjust($secondary-color, $lightness: 10%);
+$secondary-dark: color.adjust($secondary-color, $lightness: -10%);
+
+$accent-color: #093637;
+$accent-light: color.adjust($accent-color, $lightness: 20%);
+
+// 文本颜色
+$text-primary: #2C3E50;
+$text-secondary: #34495E;
+$text-muted: #7F8C8D;
+$text-light: #95A5A6;
+$text-white: #FFFFFF;
+
+// 背景颜色
+$bg-primary: #FFFFFF;
+$bg-secondary: #F8FFFE;
+$bg-chat: #F8FCFD;
+$bg-muted: #E8F4F8;
+$bg-dark: #2C3E50;
+$bg-light-gray: #F5F5F5;
+
+// CSS 变量定义已移至 App.vue 中，以确保在所有组件中生效
+
+// 边框颜色
+$border-light: #E8F4F8;
+$border-medium: #BDC3C7;
+$border-dark: #95A5A6;
+
+// 状态颜色
+$success-color: #27AE60;
+$warning-color: #F39C12;
+$error-color: #E74C3C;
+$info-color: #3498DB;
+
+// 退出登录相关颜色
+$logout-bg: #FEECEB;
+$logout-text: #F6695E;
+
+// 设置页面相关颜色
+$settings-label-color: #686A8A;
+$settings-text-color: #2C2D3A;
+
+// ===== 字体系统 =====
+$font-family-base: 'OPPO Sans', 'Inter', 'Avenir', 'Helvetica', 'Arial', sans-serif;
+$font-family-mono: 'Fira Code', 'Monaco', 'Consolas', monospace;
+
+// 字体大小
+$font-size-xs: 0.75rem;    // 12px
+$font-size-sm: 0.875rem;   // 14px
+$font-size-base: 1rem;     // 16px
+$font-size-lg: 1.125rem;   // 18px
+$font-size-xl: 1.25rem;    // 20px
+$font-size-2xl: 1.5rem;    // 24px
+$font-size-3xl: 1.875rem;  // 30px
+$font-size-4xl: 2.25rem;   // 36px
+$font-size-5xl: 3rem;      // 48px
+
+// 字体粗细
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+$font-weight-extrabold: 800;
+$font-weight-black: 900;
+
+// 行高
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+
+// ===== 间距系统 =====
+$spacing-0: 0;
+$spacing-1: 0.25rem;   // 4px
+$spacing-2: 0.5rem;    // 8px
+$spacing-3: 0.75rem;   // 12px
+$spacing-4: 1rem;      // 16px
+$spacing-5: 1.25rem;   // 20px
+$spacing-6: 1.5rem;    // 24px
+$spacing-8: 2rem;      // 32px
+$spacing-10: 2.5rem;   // 40px
+$spacing-12: 3rem;     // 48px
+$spacing-16: 4rem;     // 64px
+$spacing-20: 5rem;     // 80px
+$spacing-24: 6rem;     // 96px
+
+// ===== 圆角系统 =====
+$border-radius-none: 0;
+$border-radius-sm: 0.125rem;   // 2px
+$border-radius-base: 0.25rem;  // 4px
+$border-radius-md: 0.375rem;   // 6px
+$border-radius-lg: 0.5rem;     // 8px
+$border-radius-xl: 0.75rem;    // 12px
+$border-radius-2xl: 1rem;      // 16px
+$border-radius-3xl: 1.5rem;    // 24px
+$border-radius-full: 9999px;
+
+// ===== 阴影系统 =====
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+$shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+$shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+
+// ===== 断点系统 =====
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-2xl: 1536px;
+
+// ===== Z-index 系统 =====
+$z-index-dropdown: 1000;
+$z-index-sticky: 1020;
+$z-index-fixed: 1030;
+$z-index-modal-backdrop: 1040;
+$z-index-modal: 1050;
+$z-index-popover: 1060;
+$z-index-tooltip: 1070;
+
+// ===== 过渡动画 =====
+$transition-fast: 0.15s ease-in-out;
+$transition-base: 0.3s ease-in-out;
+$transition-slow: 0.5s ease-in-out;
+
+// 缓动函数
+$ease-in-quad: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+$ease-in-cubic: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+$ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+$ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+$ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);
+$ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+
+// ===== 组件特定变量 =====
+// 按钮
+$button-height-sm: 2rem;
+$button-height-base: 2.5rem;
+$button-height-lg: 3rem;
+$button-padding-x-sm: 0.75rem;
+$button-padding-x-base: 1rem;
+$button-padding-x-lg: 1.5rem;
+
+// 输入框
+$input-height-sm: 2rem;
+$input-height-base: 2.5rem;
+$input-height-lg: 3rem;
+$input-padding-x: 0.75rem;
+$input-border-width: 1px;
+
+// 卡片
+$card-padding: 1.5rem;
+$card-border-radius: $border-radius-lg;
+$card-shadow: $shadow-base;
+
+// 导航
+$navbar-height: 4rem;
+$sidebar-width: 16rem;
+
+// 侧边栏相关颜色 (用于兼容现有组件)
+$side-menu-bg: #F5F4F5;
+$side-menu-border: #E0E0E0;
+$side-menu-hover: #EAEAEA;
+$side-menu-active: rgba(0, 194, 179, 0.1);
+
+// 兼容的文字颜色变量
+$text-secondary: $text-muted;
+$chat-name-color: $text-primary;
+$chat-message-color: $text-secondary;
+$message-time-color: #E9EAEB; // 消息时间颜色
+$message-time-other-color: #D0D1DB; // 他人消息时间颜色
+$message-sender-name-color: #9A9BB1; // 消息发送者昵称颜色
+
+// ===== 渐变系统 =====
+$gradient-primary: linear-gradient(135deg, $primary-color 0%, $secondary-color 50%, $accent-color 100%);
+$gradient-secondary: linear-gradient(135deg, $secondary-color, $primary-color);
+$gradient-success: linear-gradient(135deg, $success-color, color.adjust($success-color, $lightness: 10%));
+$gradient-warning: linear-gradient(135deg, $warning-color, color.adjust($warning-color, $lightness: 10%));
+$gradient-error: linear-gradient(135deg, $error-color, color.adjust($error-color, $lightness: 10%));
+
+// ===== 玻璃态效果 =====
+$glass-bg: rgba($bg-primary, 0.95);
+$glass-border: rgba($bg-primary, 0.2);
+$glass-backdrop-filter: blur(20px);
+
+// 全局字体应用规则已移至 global.css 中

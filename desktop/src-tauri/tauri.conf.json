@@ -1,0 +1,86 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Redcode Desktop",
+  "version": "0.1.0",
+  "identifier": "com.redcode.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm --filter redcode-desktop dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm --filter redcode-desktop build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "icons/icon.ico",
+      "iconAsTemplate": false,
+      "menuOnLeftClick": false,
+      "tooltip": "Redcode Desktop"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Redcode Desktop",
+        "width": 1000,
+        "height": 650,
+        "minWidth": 400,
+        "minHeight": 300,
+        "maxWidth": 3840,
+        "maxHeight": 2160,
+        "center": true,
+        "resizable": true,
+        "maximizable": true,
+        "minimizable": true,
+        "closable": true,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "fullscreen": false,
+        "focus": true,
+        "transparent": false,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "Redcode Desktop",
+        "url": "/splashscreen.html",
+        "width": 400,
+        "height": 600,
+        "center": true,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "fullscreen": false,
+        "focus": true,
+        "transparent": false,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "fs": {
+      "requireLiteralLeadingDot": false
+    }
+  }
+}

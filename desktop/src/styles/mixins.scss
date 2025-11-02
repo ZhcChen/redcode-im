@@ -1,0 +1,321 @@
+// 全局 SCSS Mixins 文件
+// 这个文件包含了可重用的样式混合器
+// 注意：变量已在 vite.config.ts 中全局导入，这里不需要再导入
+
+// ===== 布局 Mixins =====
+
+// Flexbox 居中
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Flexbox 垂直居中
+@mixin flex-center-vertical {
+  display: flex;
+  align-items: center;
+}
+
+// Flexbox 水平居中
+@mixin flex-center-horizontal {
+  display: flex;
+  justify-content: center;
+}
+
+// Flexbox 两端对齐
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// Flexbox 两端对齐
+@mixin flex-column-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+// Grid 居中
+@mixin grid-center {
+  display: grid;
+  place-items: center;
+}
+
+// 绝对定位居中
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+// ===== 视觉效果 Mixins =====
+
+// 玻璃态效果
+@mixin glass-effect($opacity: 0.95) {
+  background: rgba($bg-primary, $opacity);
+  backdrop-filter: $glass-backdrop-filter;
+  border: 1px solid $glass-border;
+}
+
+// 卡片样式
+@mixin card-style($padding: $card-padding, $radius: $card-border-radius, $shadow: $card-shadow) {
+  background: $bg-primary;
+  padding: $padding;
+  border-radius: $radius;
+  box-shadow: $shadow;
+}
+
+// 按钮悬停效果
+@mixin button-hover($color: $primary-color, $lift: 2px) {
+  transition: all $transition-base;
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-$lift);
+    box-shadow: 0 8px 25px rgba($color, 0.3);
+  }
+}
+
+// 输入框焦点效果
+@mixin input-focus($color: $primary-color) {
+  transition: all $transition-base;
+  
+  &:focus {
+    outline: none;
+    border-color: $color;
+    box-shadow: 0 0 0 3px rgba($color, 0.1);
+  }
+}
+
+// 文本截断
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 多行文本截断
+@mixin text-truncate-lines($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// 隐藏滚动条
+@mixin hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+// 自定义滚动条
+@mixin custom-scrollbar($width: 8px, $track-color: rgba($bg-primary, 0.1), $thumb-color: rgba($bg-primary, 0.3)) {
+  &::-webkit-scrollbar {
+    width: $width;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: $track-color;
+    border-radius: $width / 2;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: $thumb-color;
+    border-radius: $width / 2;
+    
+    &:hover {
+      background: rgba($bg-primary, 0.5);
+    }
+  }
+}
+
+// ===== 响应式 Mixins =====
+
+// 媒体查询断点
+@mixin mobile {
+  @media (max-width: #{$breakpoint-sm - 1px}) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: $breakpoint-sm) and (max-width: #{$breakpoint-md - 1px}) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: $breakpoint-md) {
+    @content;
+  }
+}
+
+@mixin large-desktop {
+  @media (min-width: $breakpoint-lg) {
+    @content;
+  }
+}
+
+// 最小宽度媒体查询
+@mixin min-width($width) {
+  @media (min-width: $width) {
+    @content;
+  }
+}
+
+// 最大宽度媒体查询
+@mixin max-width($width) {
+  @media (max-width: $width) {
+    @content;
+  }
+}
+
+// ===== 动画 Mixins =====
+
+// 淡入动画
+@mixin fade-in($duration: $transition-base) {
+  animation: fadeIn $duration ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// 滑入动画
+@mixin slide-in-up($duration: $transition-base, $distance: 20px) {
+  animation: slideInUp $duration $ease-out-cubic;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// 缩放动画
+@mixin scale-in($duration: $transition-base) {
+  animation: scaleIn $duration $ease-out-cubic;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+// 脉冲动画
+@mixin pulse($color: $primary-color) {
+  animation: pulse 2s infinite;
+  
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba($color, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba($color, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba($color, 0);
+    }
+  }
+}
+
+// ===== 工具 Mixins =====
+
+// 清除浮动
+@mixin clearfix {
+  &::after {
+    content: '';
+    display: table;
+    clear: both;
+  }
+}
+
+// 视觉隐藏（保持可访问性）
+@mixin visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+// 重置按钮样式
+@mixin button-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+// 重置列表样式
+@mixin list-reset {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+// 图片响应式
+@mixin img-responsive {
+  max-width: 100%;
+  height: auto;
+}
+
+// ===== 主题 Mixins =====
+
+// 深色主题
+@mixin dark-theme {
+  [data-theme='dark'] & {
+    @content;
+  }
+}
+
+// 浅色主题
+@mixin light-theme {
+  [data-theme='light'] & {
+    @content;
+  }
+}
+
+// 高对比度主题
+@mixin high-contrast {
+  @media (prefers-contrast: high) {
+    @content;
+  }
+}
+
+// 减少动画
+@mixin reduce-motion {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+}

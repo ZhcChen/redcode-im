@@ -1,0 +1,47 @@
+// 全局颜色变量
+:root {
+  // 主色调
+  --primary-color: #00C2B3;
+  --primary-active: #00C2B3;
+  
+  // 侧边栏相关颜色
+  --side-menu-bg: #F5F4F5;
+  --side-menu-border: #E0E0E0;
+  --side-menu-hover: #EAEAEA;
+  --side-menu-active: rgba(0, 194, 179, 0.1);
+  
+  // 文字颜色
+  --text-color: #333333;
+  --text-light: #666666;
+  --text-secondary: #9B9BB0;
+  --chat-name-color: #011627;
+  --chat-message-color: #707991;
+  
+  // 其他颜色
+  --secondary-color: #764ba2;
+  --background-light: #FFFFFF;
+  --background-dark: #F8F9FA;
+}
+
+// SCSS 变量 (用于兼容)
+// 主色调
+$primary-color: #00C2B3;
+$primary-active: #00C2B3;
+
+// 侧边栏相关颜色
+$side-menu-bg: #F5F4F5;
+$side-menu-border: #E0E0E0;
+$side-menu-hover: #EAEAEA;
+$side-menu-active: rgba(0, 194, 179, 0.1);
+
+// 文字颜色
+$text-color: #333333;
+$text-light: #666666;
+$text-secondary: #9B9BB0;
+$chat-name-color: #011627;
+$chat-message-color: #707991;
+
+// 其他颜色
+$secondary-color: #764ba2;
+$background-light: #FFFFFF;
+$background-dark: #F8F9FA;

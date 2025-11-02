@@ -1,0 +1,40 @@
+import { createApp } from "vue";
+import App from "./App.vue";
+import { router } from "./router";
+import { store } from "./store";
+import "./styles/global.css";
+import { invoke } from '@tauri-apps/api/core';
+import toast from './utils/toast';
+
+store.dispatch('restoreSession');
+store.dispatch('refreshCurrentUser').catch(() => {});
+
+const app = createApp(App).use(router).use(store);
+
+// 注册全局 Toast API
+app.config.globalProperties.$toast = toast;
+
+// 挂载应用
+app.mount("#app");
+
+// 移除预加载指示器
+const loadingElement = document.getElementById('app-loading');
+if (loadingElement) {
+  loadingElement.remove();
+}
+
+// 应用挂载完成后，通知后端关闭启动画面
+setTimeout(async () => {
+  try {
+    await invoke('app_ready');
+    console.log('启动画面已关闭，主应用已显示');
+  } catch (error) {
+    console.error('关闭启动画面失败:', error);
+    // 如果命令调用失败，尝试直接关闭启动画面
+    try {
+      await invoke('close_splashscreen');
+    } catch (fallbackError) {
+      console.error('备用关闭启动画面方法也失败:', fallbackError);
+    }
+  }
+}, 800); // 减少延迟到800ms
