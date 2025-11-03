@@ -2,13 +2,23 @@ FROM oven/bun:1.3.1-alpine
 
 WORKDIR /app
 
-# 安装解压工具
-RUN apk add --no-cache tar gzip
+# 安装解压工具（支持 7z 和 tar.gz）
+RUN apk add --no-cache p7zip tar gzip
 
 # 复制并解压构建产物压缩包
-# 假设压缩包名为 build.tar.gz，包含 .output、public、nuxt.config.ts、package.json
-COPY build.tar.gz /tmp/
-RUN tar -xzf /tmp/build.tar.gz -C /app && rm /tmp/build.tar.gz
+# 支持 7z 格式（优先级）或 tar.gz 格式
+# 先尝试复制 7z，如果不存在则复制 tar.gz
+COPY build.7z* /tmp/ 2>/dev/null || COPY build.tar.gz* /tmp/
+
+# 尝试解压 7z，如果失败则尝试 tar.gz
+RUN if ls /tmp/build.7z* 1> /dev/null 2>&1; then \
+        7z x /tmp/build.7z* -o/app -y && rm -f /tmp/build.7z*; \
+    elif ls /tmp/build.tar.gz* 1> /dev/null 2>&1; then \
+        tar -xzf /tmp/build.tar.gz* -C /app && rm -f /tmp/build.tar.gz*; \
+    else \
+        echo "错误: 未找到构建产物压缩包 (build.7z 或 build.tar.gz)"; \
+        exit 1; \
+    fi
 
 # 暴露端口
 EXPOSE 8015

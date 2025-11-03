@@ -1,4 +1,5 @@
-# 保留 build.tar.gz，这是构建产物
+# 保留构建产物压缩包
+# !build.7z
 # !build.tar.gz
 
 # Dependencies

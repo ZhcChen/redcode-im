@@ -10,28 +10,42 @@
 
 ## 部署流程
 
-### 1. 本地构建打包
+### 方式一：使用自动部署脚本（推荐）
 
 在 `website` 目录下运行：
 
 ```bash
-chmod +x build.sh
+# 1. 配置服务器信息（首次使用）
+cp .deploy.env.example .deploy.env
+# 编辑 .deploy.env 文件，设置服务器地址、用户名和路径
+
+# 2. 执行部署脚本（会自动构建、压缩、上传）
+./deploy.sh
+```
+
+### 方式二：手动部署
+
+#### 1. 本地构建打包
+
+在 `website` 目录下运行：
+
+```bash
 ./build.sh
 ```
 
-这会生成一个带时间戳的压缩包，例如：`website-build-20240101-120000.tar.gz`
+这会生成一个带时间戳的压缩包，例如：`website-build-20240101-120000.7z`
 
-### 2. 上传到服务器
+#### 2. 上传到服务器
 
-将压缩包上传到服务器的 `website/docker` 目录，并重命名为 `build.tar.gz`：
+将压缩包上传到服务器的 `website/docker` 目录，并重命名为 `build.7z`：
 
 ```bash
 # 在服务器上
 cd /path/to/website/docker
-mv /path/to/website-build-*.tar.gz build.tar.gz
+mv /path/to/website-build-*.7z build.7z
 ```
 
-### 3. 构建和运行
+#### 3. 构建和运行
 
 ```bash
 cd /path/to/website/docker
@@ -55,10 +69,11 @@ docker-compose restart website
 
 ## 注意事项
 
-- Dockerfile 期望在构建上下文中存在 `build.tar.gz` 文件
+- Dockerfile 支持 `build.7z` 和 `build.tar.gz` 两种格式（优先使用 7z）
 - 压缩包应包含以下文件：`.output`、`public`、`nuxt.config.ts`、`package.json`
-- 使用 `build.sh` 脚本可以自动生成正确的压缩包
+- 使用 `deploy.sh` 脚本可以自动完成构建、压缩和上传
+- 使用 `build.sh` 脚本仅进行本地构建打包
 - 端口 8015 需要在宿主机上可用
-- 构建产物通过本地 `build.sh` 脚本生成并上传
+- 需要确保 SSH 密钥已配置，可以通过 scp 访问服务器
 
 
