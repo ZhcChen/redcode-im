@@ -116,44 +116,9 @@
     </div>
     
     <script>
-        console.log('启动画面加载完成');
-        
-        // 检查主应用是否已加载完成
-        function checkMainApp() {
-            try {
-                console.log('检查主应用状态...');
-                if (window.__TAURI__) {
-                    console.log('Tauri API 可用，尝试关闭启动画面...');
-                    window.__TAURI__.invoke('close_splashscreen').then(() => {
-                        console.log('启动画面关闭成功');
-                    }).catch((error) => {
-                        console.error('关闭启动画面失败:', error);
-                        // 继续等待
-                        setTimeout(checkMainApp, 200);
-                    });
-                } else {
-                    console.log('Tauri API 不可用，继续等待...');
-                    setTimeout(checkMainApp, 200);
-                }
-            } catch (error) {
-                console.error('检查主应用时出错:', error);
-                setTimeout(checkMainApp, 200);
-            }
-        }
-        
-        // 更短的等待时间开始检查
-        setTimeout(() => {
-            console.log('开始检查主应用...');
-            checkMainApp();
-        }, 500);
-        
-        // 强制关闭时间延长到5秒
-        setTimeout(() => {
-            console.log('强制关闭启动画面...');
-            if (window.__TAURI__) {
-                window.__TAURI__.invoke('close_splashscreen');
-            }
-        }, 5000);
+        console.log('[Splashscreen] 启动画面加载完成，等待主应用关闭');
+        // 不再主动关闭 splashscreen，完全由主应用的 main.ts 控制
+        // 这样可以避免竞态条件，确保启动流程稳定
     </script>
 </body>
 </html>
