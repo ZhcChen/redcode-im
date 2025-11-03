@@ -4,11 +4,11 @@
  * WebSocket 管理工具
  */
 import { apiConfig } from '@/api/config';
-import { 
-  BUSINESS_CODE, 
-  WebSocketParams, 
-  WebSocketMessage, 
-  WebSocketState 
+import { BUSINESS_CODE } from '@/types/websocket';
+import type {
+  WebSocketParams,
+  WebSocketMessage,
+  WebSocketState
 } from '@/types/websocket';
 import { toast } from '@/utils/toast';
 import { store } from '@/store'; // 直接导入store实例
