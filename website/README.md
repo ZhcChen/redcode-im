@@ -10,7 +10,7 @@ bun install
 
 ## 开发
 
-启动开发服务器（默认运行在 `http://localhost:3000`）：
+启动开发服务器（默认运行在 `http://localhost:8015`）：
 
 ```bash
 bun run dev
