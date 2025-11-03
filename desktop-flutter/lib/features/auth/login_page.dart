@@ -116,24 +116,19 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                Container(
-                  margin: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-                  padding: const EdgeInsets.fromLTRB(36, 16, 36, 24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, -4),
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                    padding: const EdgeInsets.fromLTRB(36, 16, 36, 0),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
-                    ],
+                    ),
+                    child: const LoginForm(),
                   ),
-                  child: const LoginForm(),
                 ),
               ],
             ),
