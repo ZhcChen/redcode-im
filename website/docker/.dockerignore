@@ -1,3 +1,6 @@
+# 保留 build.tar.gz，这是构建产物
+# !build.tar.gz
+
 # Dependencies
 node_modules
 .nuxt

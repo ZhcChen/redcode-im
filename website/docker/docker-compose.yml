@@ -4,15 +4,12 @@ services:
   # Nuxt 网站
   website:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
+    image: redcode-website:latest
     container_name: redcode-website
     ports:
       - "8015:8015"
-    volumes:
-      - ../:/app
-      - /app/node_modules
-      - /app/.nuxt
     environment:
       - TZ=Asia/Shanghai
     networks:
