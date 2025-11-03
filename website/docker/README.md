@@ -45,7 +45,7 @@ cd /path/to/website/docker
 # 上传压缩包后解压
 tar -xzf website-build-*.tar.gz -C .  # 如果是 tar.gz
 # 或
-7z x website-build-*.7z -o.  # 如果是 7z
+7z x -y website-build-*.7z -o.  # 如果是 7z（-y 参数自动确认覆盖）
 ```
 
 #### 3. 构建和运行
