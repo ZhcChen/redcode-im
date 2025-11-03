@@ -52,110 +52,108 @@ class _LoginFormState extends State<LoginForm> {
     final theme = Theme.of(context);
     return Form(
       key: _formKey,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 标题和滑块
-            Column(
-              children: [
-                Text(
-                  '密码登录',
-                  style: theme.textTheme.titleMedium?.copyWith(fontSize: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 标题和滑块
+          Column(
+            children: [
+              Text(
+                '密码登录',
+                style: theme.textTheme.titleMedium?.copyWith(fontSize: 14),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                height: 4,
+                width: 20,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)],
+                  ),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 6),
-                Container(
-                  height: 4,
-                  width: 20,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)],
-                    ),
-                    borderRadius: BorderRadius.circular(2),
+              ),
+            ],
+          ),
+          const SizedBox(height: 56),
+          _LabeledField(
+            label: '手机号',
+            child: _ChatlyInput(
+              controller: _phoneController,
+              placeholder: '请输入手机号',
+              keyboardType: TextInputType.phone,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return '请输入手机号';
+                }
+                if (value.length < 6) {
+                  return '手机号格式不正确';
+                }
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          _LabeledField(
+            label: '密码',
+            child: _ChatlyInput(
+              controller: _passwordController,
+              placeholder: '请输入密码',
+              obscureText: !_passwordVisible,
+              suffix: GestureDetector(
+                onTap: () => setState(() => _passwordVisible = !_passwordVisible),
+                child: SvgPicture.asset(
+                  'assets/images/icon-passwd-show.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: ColorFilter.mode(
+                    _passwordVisible ? theme.colorScheme.primary : const Color(0xFF9B9BB0),
+                    BlendMode.srcIn,
                   ),
                 ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return '请输入密码';
+                }
+                if (value.length < 6) {
+                  return '密码至少 6 位';
+                }
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 44,
+            child: FilledButton(
+              onPressed: _isLoading ? null : _onSubmit,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF4ECDC4),
+                disabledBackgroundColor: const Color(0xFF4ECDC4).withValues(alpha: 0.6),
+                shape: const StadiumBorder(),
+              ),
+              child: Text(_isLoading ? '登录中...' : '登录账号'),
+            ),
+          ),
+          const SizedBox(height: 17),
+          GestureDetector(
+            onTap: _toggleAgreement,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                _AgreementRadio(selected: _isAgreed),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '注册/登陆即代表同意《用户协议》和《隐私协议》',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                )
               ],
             ),
-            const SizedBox(height: 56),
-            _LabeledField(
-              label: '手机号',
-              child: _ChatlyInput(
-                controller: _phoneController,
-                placeholder: '请输入手机号',
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return '请输入手机号';
-                  }
-                  if (value.length < 6) {
-                    return '手机号格式不正确';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-            _LabeledField(
-              label: '密码',
-              child: _ChatlyInput(
-                controller: _passwordController,
-                placeholder: '请输入密码',
-                obscureText: !_passwordVisible,
-                suffix: GestureDetector(
-                  onTap: () => setState(() => _passwordVisible = !_passwordVisible),
-                  child: SvgPicture.asset(
-                    'assets/images/icon-passwd-show.svg',
-                    width: 16,
-                    height: 16,
-                    colorFilter: ColorFilter.mode(
-                      _passwordVisible ? theme.colorScheme.primary : const Color(0xFF9B9BB0),
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '请输入密码';
-                  }
-                  if (value.length < 6) {
-                    return '密码至少 6 位';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 44,
-              child: FilledButton(
-                onPressed: _isLoading ? null : _onSubmit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4ECDC4),
-                  disabledBackgroundColor: const Color(0xFF4ECDC4).withValues(alpha: 0.6),
-                  shape: const StadiumBorder(),
-                ),
-                child: Text(_isLoading ? '登录中...' : '登录账号'),
-              ),
-            ),
-            const SizedBox(height: 17),
-            GestureDetector(
-              onTap: _toggleAgreement,
-              behavior: HitTestBehavior.opaque,
-              child: Row(
-                children: [
-                  _AgreementRadio(selected: _isAgreed),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '注册/登陆即代表同意《用户协议》和《隐私协议》',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  )
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

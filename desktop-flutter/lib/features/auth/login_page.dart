@@ -18,7 +18,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _setupLoginWindowSize() async {
-    await windowManager.setSize(const Size(400, 600));
+    // 根据表单内容计算合适的窗口高度
+    // 顶部 header: ~160px, 表单内容: ~380px, padding/margin: ~40px
+    // 总计约 580px,设置为 590 更舒适
+    await windowManager.setSize(const Size(400, 590));
     await windowManager.setResizable(false);
     await windowManager.center();
     await windowManager.setTitle('Chatly');
@@ -113,26 +116,24 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                    padding: const EdgeInsets.fromLTRB(36, 16, 36, 32),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: const Offset(0, -4),
-                        ),
-                      ],
+                Container(
+                  margin: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(36, 16, 36, 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
                     ),
-                    child: const LoginForm(),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
                   ),
+                  child: const LoginForm(),
                 ),
               ],
             ),
