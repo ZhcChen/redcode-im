@@ -1446,7 +1446,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 }
 
-class _ChatInfoDrawer extends StatelessWidget {
+class _ChatInfoDrawer extends StatefulWidget {
   const _ChatInfoDrawer({
     required this.chat,
     required this.provider,
@@ -1458,6 +1458,15 @@ class _ChatInfoDrawer extends StatelessWidget {
   final ChatProvider provider;
   final VoidCallback onClose;
   final Future<void> Function()? onRefreshMembers;
+
+  @override
+  State<_ChatInfoDrawer> createState() => _ChatInfoDrawerState();
+}
+
+class _ChatInfoDrawerState extends State<_ChatInfoDrawer> {
+  bool _isMuted = false;
+  bool _isPinned = false;
+  bool _isForbidden = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1473,6 +1482,8 @@ class _ChatInfoDrawer extends StatelessWidget {
 
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
+    final isGroupOwner = widget.chat.extra?['is_owner'] == true ||
+        widget.chat.extra?['isOwner'] == true;
 
     return Align(
       alignment: Alignment.centerRight,
@@ -1480,86 +1491,38 @@ class _ChatInfoDrawer extends StatelessWidget {
         width: drawerWidth,
         height: mq.size.height,
         child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              bottomLeft: Radius.circular(24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x1A000000),
-                blurRadius: 32,
-                offset: Offset(-12, 0),
-              ),
-            ],
-          ),
+          color: AppColors.background,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 height: topPadding,
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
+                color: AppColors.surface,
               ),
               _buildHeader(context),
-              const Divider(height: 1, thickness: 0.5),
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.only(
-                    left: 20,
-                    right: 20,
-                    bottom: bottomPadding + 24,
+                    bottom: bottomPadding + 16,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 16),
-                      if (chat.type == ChatType.single)
-                        _PersonalChatPanel(chat: chat)
+                      if (widget.chat.type == ChatType.single)
+                        _PersonalChatPanel(chat: widget.chat, onClose: widget.onClose)
                       else
                         _GroupChatPanel(
-                          chat: chat,
-                          provider: provider,
-                          onRefreshMembers: onRefreshMembers,
+                          chat: widget.chat,
+                          provider: widget.provider,
+                          onRefreshMembers: widget.onRefreshMembers,
+                          onClose: widget.onClose,
                         ),
-                      const SizedBox(height: 32),
-                      _DrawerSection(
-                        title: '功能与设置',
-                        children: [
-                          _DrawerActionTile(
-                            icon: Icons.search,
-                            label: '查找聊天记录',
-                            onTap: () {
-                              debugPrint('Search messages');
-                              onClose();
-                            },
-                          ),
-                          if (chat.type == ChatType.group)
-                            _DrawerActionTile(
-                              icon: Icons.notifications_off_outlined,
-                              label: '消息免打扰',
-                              onTap: () {
-                                debugPrint('Toggle mute');
-                                onClose();
-                              },
-                            ),
-                          _DrawerActionTile(
-                            icon: Icons.cleaning_services_outlined,
-                            label: '清空聊天记录',
-                            danger: true,
-                            onTap: () {
-                              debugPrint('Clear conversation');
-                              onClose();
-                            },
-                          ),
-                        ],
-                      ),
+                      const SizedBox(height: 16),
+                      _buildSettingsSection(context, isGroupOwner),
+                      if (widget.chat.type == ChatType.group) ..[
+                        const SizedBox(height: 24),
+                        _buildBottomActions(context, isGroupOwner),
+                      ],
                     ],
                   ),
                 ),
@@ -1572,13 +1535,24 @@ class _ChatInfoDrawer extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Padding(
+    final memberCount = widget.provider.cachedMemberCount(widget.chat.roomId);
+    final title = widget.chat.type == ChatType.group
+        ? '聊天信息${memberCount != null ? "($memberCount)" : ""}'
+        : '聊天详情';
+
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          bottom: BorderSide(color: AppColors.divider, width: 0.5),
+        ),
+      ),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              chat.type == ChatType.group ? '群聊详情' : '聊天详情',
+              title,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -1587,8 +1561,219 @@ class _ChatInfoDrawer extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.close, color: AppColors.textSecondary),
-            onPressed: onClose,
+            onPressed: widget.onClose,
             splashRadius: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsSection(BuildContext context, bool isGroupOwner) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          if (widget.chat.type == ChatType.group && isGroupOwner)
+            _SwitchTile(
+              label: '禁止发送消息',
+              value: _isForbidden,
+              onChanged: (value) {
+                setState(() => _isForbidden = value);
+                debugPrint('Toggle forbidden: $value');
+              },
+            ),
+          _SwitchTile(
+            label: '消息免打扰',
+            value: _isMuted,
+            onChanged: (value) {
+              setState(() => _isMuted = value);
+              debugPrint('Toggle mute: $value');
+            },
+          ),
+          _SwitchTile(
+            label: '置顶聊天',
+            value: _isPinned,
+            onChanged: (value) {
+              setState(() => _isPinned = value);
+              debugPrint('Toggle pin: $value');
+            },
+          ),
+          _SettingTile(
+            label: '立即投诉举报',
+            onTap: () {
+              widget.onClose();
+              _showReportDialog(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomActions(BuildContext context, bool isGroupOwner) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                widget.onClose();
+                _showClearMessagesDialog(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFBC6847),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                '清空聊天记录',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                widget.onClose();
+                if (isGroupOwner) {
+                  _showDissolveGroupDialog(context);
+                } else {
+                  _showQuitGroupDialog(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isGroupOwner
+                    ? const Color(0xFFBC2222)
+                    : const Color(0xFFBC6847),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                isGroupOwner ? '解散群组' : '退出群聊',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearMessagesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清空聊天记录'),
+        content: const Text('确认要清空聊天记录吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              debugPrint('Clear messages confirmed');
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQuitGroupDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('退出群聊'),
+        content: const Text('确认要退出群聊吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              debugPrint('Quit group confirmed');
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDissolveGroupDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('解散群组'),
+        content: const Text('确认要解散群聊吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              debugPrint('Dissolve group confirmed');
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确定要举报他吗？'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          maxLength: 500,
+          decoration: const InputDecoration(
+            hintText: '请输入举报内容',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('再想想'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              debugPrint('Report submitted: ${controller.text}');
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('确定'),
           ),
         ],
       ),
@@ -1597,9 +1782,10 @@ class _ChatInfoDrawer extends StatelessWidget {
 }
 
 class _PersonalChatPanel extends StatelessWidget {
-  const _PersonalChatPanel({required this.chat});
+  const _PersonalChatPanel({required this.chat, required this.onClose});
 
   final Chat chat;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -1659,7 +1845,7 @@ class _PersonalChatPanel extends StatelessWidget {
               label: '查看资料',
               onTap: () {
                 debugPrint('View personal profile');
-                Navigator.of(context).pop();
+                onClose();
               },
             ),
             _DrawerActionTile(
@@ -1667,7 +1853,7 @@ class _PersonalChatPanel extends StatelessWidget {
               label: '屏蔽或删除联系人',
               onTap: () {
                 debugPrint('Block or delete contact');
-                Navigator.of(context).pop();
+                onClose();
               },
             ),
           ],
@@ -1681,98 +1867,196 @@ class _GroupChatPanel extends StatelessWidget {
   const _GroupChatPanel({
     required this.chat,
     required this.provider,
+    required this.onClose,
     this.onRefreshMembers,
   });
 
   final Chat chat;
   final ChatProvider provider;
+  final VoidCallback onClose;
   final Future<void> Function()? onRefreshMembers;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final extra = chat.extra ?? const <String, dynamic>{};
-    final description = extra['description'] as String?;
-    final initiatorId = extra['initiator_id'] as String?;
     final memberCount = provider.cachedMemberCount(chat.roomId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          chat.name,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+        // 群成员网格
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildMemberGrid(context),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 18,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              memberCount != null ? '共$memberCount人' : '成员加载中...',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            if (onRefreshMembers != null)
-              TextButton(onPressed: onRefreshMembers, child: const Text('刷新')),
-          ],
-        ),
-        if (description != null && description.trim().isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            description.trim(),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-        if (initiatorId != null && initiatorId.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            '创建人：$initiatorId',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.textTertiary,
-            ),
-          ),
-        ],
         const SizedBox(height: 16),
-        _DrawerSection(
-          title: '群聊管理',
-          children: [
-            _DrawerActionTile(
-              icon: Icons.group_outlined,
-              label: '查看群成员',
-              onTap: () {
-                debugPrint('View group members');
-                Navigator.of(context).pop();
-              },
-            ),
-            _DrawerActionTile(
-              icon: Icons.person_add_alt,
-              label: '邀请好友入群',
-              onTap: () {
-                debugPrint('Invite member');
-                Navigator.of(context).pop();
-              },
-            ),
-            _DrawerActionTile(
-              icon: Icons.settings_outlined,
-              label: '群管理设置',
-              onTap: () {
-                debugPrint('Manage group settings');
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+        // 群信息设置
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              _SettingTile(
+                label: '群聊名称',
+                value: chat.name,
+                onTap: () {
+                  onClose();
+                  debugPrint('Edit group name');
+                },
+              ),
+              _SettingTile(
+                label: '群头像',
+                trailing: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.surfaceMuted,
+                  backgroundImage: chat.avatar != null
+                      ? AssetImage(chat.avatar!)
+                      : null,
+                  child: chat.avatar == null
+                      ? const Icon(Icons.group, size: 20)
+                      : null,
+                ),
+                onTap: () {
+                  onClose();
+                  debugPrint('Edit group avatar');
+                },
+              ),
+              _SettingTile(
+                label: '群公告',
+                value: chat.extra?['notice'] as String? ?? '无',
+                onTap: () {
+                  onClose();
+                  debugPrint('Edit group notice');
+                },
+              ),
+            ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMemberGrid(BuildContext context) {
+    // 模拟成员数据
+    final members = List.generate(
+      8,
+      (index) => {
+        'name': '成员${index + 1}',
+        'avatar': null,
+      },
+    );
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: members.length + 2, // +2 for add and remove buttons
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _buildActionMember(
+            context,
+            Icons.person_add,
+            '添加',
+            () => debugPrint('Add member'),
+          );
+        }
+        if (index == 1) {
+          return _buildActionMember(
+            context,
+            Icons.person_remove,
+            '移除',
+            () => debugPrint('Remove member'),
+          );
+        }
+        final member = members[index - 2];
+        return _buildMemberItem(context, member);
+      },
+    );
+  }
+
+  Widget _buildMemberItem(BuildContext context, Map<String, dynamic> member) {
+    return GestureDetector(
+      onTap: () => debugPrint('Member tapped: ${member['name']}'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: AppColors.surfaceMuted,
+            child: Text(
+              member['name'].toString().substring(0, 1),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            member['name'],
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionMember(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 24,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1874,6 +2158,99 @@ class _SubtitleRow extends StatelessWidget {
         '$label：$value',
         style: theme.textTheme.bodySmall?.copyWith(
           color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _SwitchTile extends StatelessWidget {
+  const _SwitchTile({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: AppColors.primary,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingTile extends StatelessWidget {
+  const _SettingTile({
+    required this.label,
+    this.value,
+    this.trailing,
+    this.onTap,
+  });
+
+  final String label;
+  final String? value;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (value != null)
+              Flexible(
+                child: Text(
+                  value!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            if (trailing != null) trailing!,
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: AppColors.textTertiary,
+            ),
+          ],
         ),
       ),
     );
