@@ -25,27 +25,20 @@ if (loadingElement) {
 }
 
 // 应用挂载完成后，通知后端关闭启动画面
-// 使用 router.isReady() 确保路由系统完全初始化
-router.isReady().then(() => {
-  console.log('路由系统已就绪，准备关闭启动画面');
-
-  setTimeout(async () => {
+setTimeout(async () => {
+  try {
+    console.log('[Main] 调用 app_ready 关闭启动画面...');
+    await invoke('app_ready');
+    console.log('[Main] ✅ 启动画面已关闭，主应用已显示');
+  } catch (error) {
+    console.error('[Main] ❌ 关闭启动画面失败:', error);
+    // 如果命令调用失败，尝试直接关闭启动画面
     try {
-      console.log('调用 app_ready 关闭启动画面...');
-      await invoke('app_ready');
-      console.log('✅ 启动画面已关闭，主应用已显示');
-    } catch (error) {
-      console.error('❌ 关闭启动画面失败:', error);
-      // 如果命令调用失败，尝试直接关闭启动画面
-      try {
-        console.log('尝试备用方法 close_splashscreen...');
-        await invoke('close_splashscreen');
-        console.log('✅ 备用方法成功关闭启动画面');
-      } catch (fallbackError) {
-        console.error('❌ 备用关闭启动画面方法也失败:', fallbackError);
-      }
+      console.log('[Main] 尝试备用方法 close_splashscreen...');
+      await invoke('close_splashscreen');
+      console.log('[Main] ✅ 备用方法成功关闭启动画面');
+    } catch (fallbackError) {
+      console.error('[Main] ❌ 备用关闭启动画面方法也失败:', fallbackError);
     }
-  }, 500); // 路由就绪后再等待500ms
-}).catch(error => {
-  console.error('路由初始化失败:', error);
-});
+  }
+}, 800); // 减少延迟到800ms
