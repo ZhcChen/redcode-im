@@ -1,8 +1,6 @@
 import 'package:desktop_flutter/features/home/sections/chat_section.dart';
 import 'package:desktop_flutter/features/home/sections/contact_section.dart';
-import 'package:desktop_flutter/features/home/sections/privacy_section.dart';
 import 'package:desktop_flutter/features/home/sections/settings_section.dart';
-import 'package:desktop_flutter/features/home/widgets/home_header.dart';
 import 'package:desktop_flutter/features/home/widgets/side_menu.dart';
 import 'package:desktop_flutter/state/app_state.dart';
 import 'package:desktop_flutter/state/home_state.dart';
@@ -19,27 +17,21 @@ class HomeShell extends StatelessWidget {
       child: Consumer2<HomeState, AppState>(
         builder: (context, homeState, appState, _) {
           return Scaffold(
+            backgroundColor: const Color(0xFFF5F4F5),
             body: SafeArea(
               child: Row(
                 children: [
                   SideMenu(
                     currentSection: homeState.currentSection,
                     onSectionSelected: homeState.select,
+                    onOpenSettings: () => homeState.select(HomeSection.settings),
                     onLogout: context.read<AppState>().logout,
+                    user: appState.currentUser,
                   ),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        HomeHeader(user: appState.currentUser),
-                        const Divider(height: 1),
-                        Expanded(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 250),
-                            child: _buildSection(homeState.currentSection),
-                          ),
-                        ),
-                      ],
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _buildSection(homeState.currentSection),
                     ),
                   ),
                 ],
@@ -59,8 +51,6 @@ class HomeShell extends StatelessWidget {
         return const ContactSection();
       case HomeSection.settings:
         return const SettingsSection();
-      case HomeSection.privacy:
-        return const PrivacySection();
     }
   }
 }

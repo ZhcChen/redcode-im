@@ -1,227 +1,417 @@
+import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-class ChatSection extends StatelessWidget {
+class ChatSection extends StatefulWidget {
   const ChatSection({super.key});
+
+  @override
+  State<ChatSection> createState() => _ChatSectionState();
+}
+
+class _ChatSectionState extends State<ChatSection> {
+  final List<_Conversation> _conversations = _mockConversations;
+  final List<_Message> _messages = _mockMessages;
+
+  double _chatListWidth = 320;
+  _Conversation? _selectedConversation;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedConversation = _conversations.first;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      color: const Color(0xFFF5F7FB),
+      color: const Color(0xFFF8F9FA),
+      child: Column(
+        children: [
+          _buildHeader(theme),
+          const Divider(height: 1, thickness: 1),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: _chatListWidth,
+                  child: _buildConversationList(theme),
+                ),
+                _ResizeHandle(
+                  onDrag: (delta) {
+                    setState(() {
+                      _chatListWidth = (_chatListWidth + delta).clamp(260, 420);
+                    });
+                  },
+                  onReset: () => setState(() => _chatListWidth = 320),
+                ),
+                Expanded(
+                  child: _selectedConversation == null
+                      ? _buildEmptyWindow(theme)
+                      : _buildChatWindow(theme),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(ThemeData theme) {
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      color: Colors.white,
       child: Row(
         children: [
           SizedBox(
-            width: 320,
-            child: Column(
+            width: _chatListWidth,
+            child: Row(
               children: [
-                _ConversationHeader(theme: theme),
-                const Divider(height: 1),
+                SvgPicture.asset('assets/images/icon-menu.svg', width: 20, height: 20),
+                const SizedBox(width: 16),
                 Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _mockConversations.length,
-                    separatorBuilder: (_, __) => const Divider(indent: 72, endIndent: 16, height: 1),
-                    itemBuilder: (context, index) {
-                      final conversation = _mockConversations[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: theme.colorScheme.primaryContainer,
-                          child: Text(conversation.name.substring(0, 1)),
-                        ),
-                        title: Text(conversation.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(
-                          conversation.preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: Text(
-                          conversation.timeLabel,
-                          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                        ),
-                        onTap: () {},
-                      );
-                    },
+                  child: _SearchInput(
+                    hintText: '搜索聊天...',
+                    onChanged: (value) {},
                   ),
                 ),
               ],
             ),
           ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: Column(
-              children: [
-                _ChatHeader(theme: theme),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    itemCount: _mockMessages.length,
-                    itemBuilder: (context, index) {
-                      final message = _mockMessages[index];
-                      final isMine = message.isMine;
-                      final alignment = isMine ? Alignment.centerRight : Alignment.centerLeft;
-                      final bubbleColor = isMine
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.surfaceVariant;
-                      final textColor = isMine ? Colors.white : Colors.black87;
-
-                      return Align(
-                        alignment: alignment,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          constraints: const BoxConstraints(maxWidth: 420),
-                          decoration: BoxDecoration(
-                            color: bubbleColor,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(message.content, style: TextStyle(color: textColor)),
-                        ),
-                      );
-                    },
+          const SizedBox(width: 24),
+          if (_selectedConversation != null)
+            Expanded(
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 21,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Text(
+                      _selectedConversation!.avatarLabel,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
-                _Composer(theme: theme),
-              ],
-            ),
-          ),
+                  const SizedBox(width: 16),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedConversation!.name,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _selectedConversation!.groupType == 1
+                            ? '人数 ${_selectedConversation!.memberCount}'
+                            : '在线 · 正在输入…',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: '搜索',
+                    onPressed: () {},
+                    icon: const Icon(Icons.search_rounded),
+                  ),
+                  if (_selectedConversation!.isTop)
+                    IconButton(
+                      tooltip: '取消置顶',
+                      onPressed: () {},
+                      icon: const Icon(Icons.push_pin_outlined),
+                    )
+                  else
+                    IconButton(
+                      tooltip: '置顶聊天',
+                      onPressed: () {},
+                      icon: const Icon(Icons.push_pin_outlined),
+                    ),
+                  IconButton(
+                    tooltip: '更多',
+                    onPressed: () {},
+                    icon: const Icon(Icons.more_vert),
+                  ),
+                ],
+              ),
+            )
+          else
+            const Expanded(child: SizedBox.shrink()),
         ],
       ),
     );
   }
-}
 
-class _ConversationHeader extends StatelessWidget {
-  const _ConversationHeader({required this.theme});
-
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('会话列表', style: theme.textTheme.titleLarge),
-          const SizedBox(height: 12),
-          TextField(
-            decoration: InputDecoration(
-              hintText: '搜索联系人或会话',
-              prefixIcon: const Icon(Icons.search_rounded),
-              filled: true,
-              fillColor: Colors.grey.shade100,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatHeader extends StatelessWidget {
-  const _ChatHeader({required this.theme});
-
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: Colors.white,
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: const Text('张'),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('张三', style: theme.textTheme.titleLarge),
-                Text(
-                  '在线 · 正在输入…',
-                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.search_rounded),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.push_pin_outlined),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Composer extends StatelessWidget {
-  const _Composer({required this.theme});
-
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildConversationList(ThemeData theme) {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-      child: Column(
-        children: [
-          Row(
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        itemBuilder: (context, index) {
+          final conversation = _conversations[index];
+          final isSelected = _selectedConversation?.id == conversation.id;
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedConversation = conversation;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: isSelected ? const Color(0xFFEFFBF9) : Colors.white,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
+                    child: Text(
+                      conversation.avatarLabel,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                conversation.name,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: const Color(0xFF011627),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              conversation.time,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                conversation.lastMessage,
+                                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF707991)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (conversation.unreadCount > 0)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  conversation.unreadCount.toString(),
+                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        separatorBuilder: (context, index) => Divider(
+          indent: 72,
+          endIndent: 16,
+          thickness: 0.5,
+          color: const Color(0xFFE5E9F0),
+        ),
+        itemCount: _conversations.length,
+      ),
+    );
+  }
+
+  Widget _buildChatWindow(ThemeData theme) {
+    return Column(
+      children: [
+        Expanded(
+          child: Container(
+            color: Colors.white,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                final isMine = message.isMine;
+                return Align(
+                  alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isMine ? theme.colorScheme.primary : const Color(0xFFF3F4F8),
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(18),
+                          topRight: const Radius.circular(18),
+                          bottomLeft: Radius.circular(isMine ? 18 : 4),
+                          bottomRight: Radius.circular(isMine ? 4 : 18),
+                        ),
+                      ),
+                      child: Text(
+                        message.content,
+                        style: TextStyle(
+                          color: isMine ? Colors.white : const Color(0xFF333333),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const Divider(height: 1, thickness: 1),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          child: Column(
             children: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.emoji_emotions_outlined),
-                tooltip: '表情',
+              Row(
+                children: [
+                  _ComposerIconButton(icon: 'assets/images/icon-emoji.svg', tooltip: '表情'),
+                  const SizedBox(width: 12),
+                  _ComposerIconButton(icon: 'assets/images/icon-upload.svg', tooltip: '附件'),
+                  const SizedBox(width: 12),
+                  _ComposerIconButton(icon: 'assets/images/icon-message.svg', tooltip: '快捷消息'),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {},
+                    child: const Text('清空'),
+                  ),
+                ],
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.attach_file_outlined),
-                tooltip: '附件',
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const TextField(
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    hintText: '输入消息，按 Enter 发送',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                ),
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.mic_none_rounded),
-                tooltip: '语音',
-              ),
-              const Spacer(),
-              FilledButton.tonal(
-                onPressed: () {},
-                child: const Text('清空'),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: () {},
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                  ),
+                  icon: SvgPicture.asset('assets/images/icon-send.svg', width: 16, height: 16, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+                  label: const Text('发送'),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          TextField(
-            maxLines: 5,
-            minLines: 3,
-            decoration: InputDecoration(
-              hintText: '输入消息，按 Enter 发送',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyWindow(ThemeData theme) {
+    return Container(
+      color: Colors.white,
+      child: Center(
+        child: Text(
+          '请选择一个会话开始聊天',
+          style: theme.textTheme.bodyMedium,
+        ),
+      ),
+    );
+  }
+}
+
+class _ResizeHandle extends StatelessWidget {
+  const _ResizeHandle({required this.onDrag, required this.onReset});
+
+  final ValueChanged<double> onDrag;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+        onDoubleTap: onReset,
+        child: Container(
+          width: 8,
+          color: Colors.transparent,
+          child: Center(
+            child: Container(
+              width: 2,
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0E0E0),
+                borderRadius: BorderRadius.circular(1),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: () {},
-              child: const Text('发送'),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchInput extends StatelessWidget {
+  const _SearchInput({required this.hintText, required this.onChanged});
+
+  final String hintText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F8),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 18, color: Color(0xFF9B9BB0)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: hintText,
+                border: InputBorder.none,
+              ),
             ),
           ),
         ],
@@ -230,31 +420,88 @@ class _Composer extends StatelessWidget {
   }
 }
 
-class _ConversationPreview {
-  const _ConversationPreview(this.name, this.preview, this.timeLabel);
+class _ComposerIconButton extends StatelessWidget {
+  const _ComposerIconButton({required this.icon, required this.tooltip});
 
-  final String name;
-  final String preview;
-  final String timeLabel;
+  final String icon;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: SvgPicture.asset(icon, width: 20, height: 20),
+    );
+  }
 }
 
-class _MessagePreview {
-  const _MessagePreview({required this.content, required this.isMine});
+class _Conversation {
+  const _Conversation({
+    required this.id,
+    required this.name,
+    required this.lastMessage,
+    required this.time,
+    required this.isTop,
+    required this.groupType,
+    required this.memberCount,
+    required this.unreadCount,
+  });
+
+  final String id;
+  final String name;
+  final String lastMessage;
+  final String time;
+  final bool isTop;
+  final int groupType; // 0: 单聊, 1: 群聊
+  final int memberCount;
+  final int unreadCount;
+
+  String get avatarLabel => name.isNotEmpty ? name.characters.first : '群';
+}
+
+class _Message {
+  const _Message({required this.content, required this.isMine});
 
   final String content;
   final bool isMine;
 }
 
-const _mockConversations = <_ConversationPreview>[
-  _ConversationPreview('张三', '今晚有空聊聊项目吗？', '08:32'),
-  _ConversationPreview('创业群', 'Alice: PPT 更新完毕', '昨天'),
-  _ConversationPreview('产品设计组', '你收藏的文档已更新', '昨天'),
-  _ConversationPreview('王五', '收到，稍后发你', '周三'),
+const _mockConversations = <_Conversation>[
+  _Conversation(
+    id: '1',
+    name: '桌面端设计讨论',
+    lastMessage: 'Alice: 记得同步新的 UI 规范。',
+    time: '08:32',
+    isTop: true,
+    groupType: 1,
+    memberCount: 12,
+    unreadCount: 2,
+  ),
+  _Conversation(
+    id: '2',
+    name: '张三',
+    lastMessage: '今晚有空聊聊迁移计划吗？',
+    time: '昨天',
+    isTop: false,
+    groupType: 0,
+    memberCount: 2,
+    unreadCount: 0,
+  ),
+  _Conversation(
+    id: '3',
+    name: '产品设计组',
+    lastMessage: '你收藏的文档已更新。',
+    time: '周三',
+    isTop: false,
+    groupType: 1,
+    memberCount: 6,
+    unreadCount: 5,
+  ),
 ];
 
-const _mockMessages = <_MessagePreview>[
-  _MessagePreview(content: '嗨，今日的桌面端版本已经准备好。', isMine: false),
-  _MessagePreview(content: '太好了，我正在整理迁移计划。', isMine: true),
-  _MessagePreview(content: '记得同步下 Flutter 适配的最新设计稿。', isMine: false),
-  _MessagePreview(content: '了解，晚上之前发你。', isMine: true),
+const _mockMessages = <_Message>[
+  _Message(content: '嗨，桌面端 Flutter 版本的进度怎么样？', isMine: false),
+  _Message(content: '刚完成 UI 框架的搭建，准备迁移组件。', isMine: true),
+  _Message(content: '记得把聊天列表的拖拽宽度也实现一下。', isMine: false),
+  _Message(content: '已经加上了，准备联调。', isMine: true),
 ];

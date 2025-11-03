@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class SettingsSection extends StatelessWidget {
   const SettingsSection({super.key});
@@ -6,58 +7,86 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        Container(
-          width: 260,
-          color: Colors.white,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            children: const [
-              _SettingsCategory(title: '通用设置', isActive: true),
-              _SettingsCategory(title: '通知提醒'),
-              _SettingsCategory(title: '音视频设备'),
-              _SettingsCategory(title: '快捷键'),
-              _SettingsCategory(title: '高级实验室'),
-            ],
-          ),
+    return Container(
+      color: const Color(0xFFF8F9FA),
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _AvatarSection(onEdit: () {}),
+            const SizedBox(height: 32),
+            _SettingsCard(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('桌面端用户', style: theme.textTheme.titleLarge),
+                  GestureDetector(
+                    onTap: () {},
+                    child: SvgPicture.asset('assets/images/icon-pen.svg', width: 24, height: 24),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _SettingsCard(
+              child: Row(
+                children: [
+                  Text('手机号：', style: theme.textTheme.titleMedium),
+                  const SizedBox(width: 8),
+                  Text('188****0000', style: theme.textTheme.titleMedium?.copyWith(color: const Color(0xFF707991))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _SettingsCard(
+              onTap: () {},
+              child: Row(
+                children: [
+                  Text('隐私政策', style: theme.textTheme.titleMedium),
+                  const Spacer(),
+                  SvgPicture.asset('assets/images/icon/right.svg', width: 20, height: 20),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            _LogoutButton(onPressed: () {}),
+          ],
         ),
-        const VerticalDivider(width: 1),
-        Expanded(
+      ),
+    );
+  }
+}
+
+class _AvatarSection extends StatelessWidget {
+  const _AvatarSection({required this.onEdit});
+
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        const CircleAvatar(
+          radius: 60,
+          backgroundColor: Color(0xFF00C2B3),
+          child: Text('桌', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w600)),
+        ),
+        GestureDetector(
+          onTap: onEdit,
           child: Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('通用设置', style: theme.textTheme.headlineSmall),
-                const SizedBox(height: 24),
-                SwitchListTile.adaptive(
-                  value: true,
-                  onChanged: (_) {},
-                  title: const Text('启动时自动登录'),
-                  subtitle: const Text('打开应用时自动恢复上次登录状态。'),
-                ),
-                SwitchListTile.adaptive(
-                  value: false,
-                  onChanged: (_) {},
-                  title: const Text('使用系统深色模式'),
-                  subtitle: const Text('跟随系统深浅色切换，手动覆盖可在实验室设置。'),
-                ),
-                SwitchListTile.adaptive(
-                  value: true,
-                  onChanged: (_) {},
-                  title: const Text('窗口关闭最小化至托盘'),
-                  subtitle: const Text('关闭按钮仅最小化，完全退出请在托盘菜单中选择退出。'),
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('重置设置'),
-                ),
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2)),
               ],
             ),
+            child: SvgPicture.asset('assets/images/icon-edit.svg', fit: BoxFit.scaleDown, width: 18, height: 18),
           ),
         ),
       ],
@@ -65,33 +94,54 @@ class SettingsSection extends StatelessWidget {
   }
 }
 
-class _SettingsCategory extends StatelessWidget {
-  const _SettingsCategory({required this.title, this.isActive = false});
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.child, this.onTap});
 
-  final String title;
-  final bool isActive;
+  final Widget child;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Material(
-        color: isActive ? theme.colorScheme.primary.withOpacity(0.12) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: isActive ? theme.colorScheme.primary : Colors.grey[800],
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-              ),
-            ),
-          ),
+    final card = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0F000000), blurRadius: 12, offset: Offset(0, 6)),
+        ],
+      ),
+      child: child,
+    );
+
+    if (onTap != null) {
+      return GestureDetector(onTap: onTap, child: card);
+    }
+    return card;
+  }
+}
+
+class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: SvgPicture.asset('assets/images/icon-logout-red.svg', width: 20, height: 20),
+        label: const Text('退出登录'),
+        style: ElevatedButton.styleFrom(
+          foregroundColor: const Color(0xFFD43745),
+          backgroundColor: const Color(0xFFFFF0F0),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          elevation: 0,
         ),
       ),
     );

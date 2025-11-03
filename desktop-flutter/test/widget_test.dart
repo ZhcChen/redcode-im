@@ -12,7 +12,7 @@ void main() {
   testWidgets('显示登录页并提示输入手机号', (tester) async {
     await tester.pumpWidget(const DesktopFlutterApp());
 
-    expect(find.text('欢迎登录'), findsOneWidget);
+    expect(find.text('Hello!'), findsOneWidget);
     expect(find.text('手机号'), findsOneWidget);
   });
 }
