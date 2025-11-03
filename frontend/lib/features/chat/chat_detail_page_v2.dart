@@ -1519,7 +1519,7 @@ class _ChatInfoDrawerState extends State<_ChatInfoDrawer> {
                         ),
                       const SizedBox(height: 16),
                       _buildSettingsSection(context, isGroupOwner),
-                      if (widget.chat.type == ChatType.group) ..[
+                      if (widget.chat.type == ChatType.group) ...[
                         const SizedBox(height: 24),
                         _buildBottomActions(context, isGroupOwner),
                       ],
