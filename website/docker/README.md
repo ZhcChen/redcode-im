@@ -35,14 +35,17 @@ cp .deploy.env.example .deploy.env
 
 这会生成一个带时间戳的压缩包，例如：`website-build-20240101-120000.7z`
 
-#### 2. 上传到服务器
+#### 2. 上传并解压到服务器
 
-将压缩包上传到服务器的 `website/docker` 目录，并重命名为 `build.7z`：
+将压缩包上传到服务器，解压到 docker 目录：
 
 ```bash
 # 在服务器上
 cd /path/to/website/docker
-mv /path/to/website-build-*.7z build.7z
+# 上传压缩包后解压
+tar -xzf website-build-*.tar.gz -C .  # 如果是 tar.gz
+# 或
+7z x website-build-*.7z -o.  # 如果是 7z
 ```
 
 #### 3. 构建和运行
@@ -69,8 +72,8 @@ docker-compose restart website
 
 ## 注意事项
 
-- Dockerfile 支持 `build.7z` 和 `build.tar.gz` 两种格式（优先使用 7z）
-- 压缩包应包含以下文件：`.output`、`public`、`nuxt.config.ts`、`package.json`
+- Dockerfile 直接复制已解压的构建产物（`.output`、`public`、`nuxt.config.ts`、`package.json`）
+- 需要在服务器上先解压构建产物压缩包，确保这些文件和目录存在于 docker 目录下
 - 使用 `deploy.sh` 脚本可以自动完成构建、压缩和上传
 - 使用 `build.sh` 脚本仅进行本地构建打包
 - 端口 8015 需要在宿主机上可用
