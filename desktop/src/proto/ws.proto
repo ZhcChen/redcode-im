@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+package ws;
+
+message ClientEvent {
+  oneof payload {
+    ClientAuth auth = 1;
+    ClientJoin join = 2;
+    ClientLeave leave = 3;
+    ClientPing ping = 4;
+  }
+}
+
+message ClientAuth {
+  string token = 1;
+}
+
+message ClientJoin {
+  string room_id = 1;
+}
+
+message ClientLeave {
+  string room_id = 1;
+}
+
+message ClientPing {}
+
+message ServerEvent {
+  oneof payload {
+    ServerAuthed authed = 1;
+    ServerJoined joined = 2;
+    ServerLeft left = 3;
+    ServerMessage message = 4;
+    ServerMessageRead message_read = 5;
+    ServerMessageUpdate message_update = 6;
+    ServerPinUpdate pin_update = 7;
+    ServerError error = 8;
+    ServerPong pong = 9;
+    ServerFriendRequestUpdate friend_request_update = 10;
+    ServerRoomCreated room_created = 11;
+  }
+}
+
+message ServerAuthed {
+  string user_id = 1;
+  string conn_id = 2;
+}
+
+message ServerJoined {
+  string room_id = 1;
+}
+
+message ServerLeft {
+  string room_id = 1;
+}
+
+message ServerMessage {
+  string id = 1;
+  string message_id = 2;
+  string room_id = 3;
+  string sender_id = 4;
+  string sender_username = 5;
+  string sender_nickname = 6;
+  string sender_avatar_url = 7;
+  string content = 8;
+  string message_type = 9;
+  string timestamp = 10;
+  QuotedMessage quoted_message = 11;
+  ForwardMessage forward_message = 12;
+}
+
+message QuotedMessage {
+  string id = 1;
+  string room_id = 2;
+  string sender_id = 3;
+  string sender_username = 4;
+  string sender_nickname = 5;
+  string sender_avatar_url = 6;
+  string content = 7;
+  string message_type = 8;
+  string created_at = 9;
+  bool is_deleted = 10;
+}
+
+message ForwardMessage {
+  string message_id = 1;
+  string room_id = 2;
+  string sender_id = 3;
+  string sender_username = 4;
+  string sender_nickname = 5;
+}
+
+message ServerMessageRead {
+  string room_id = 1;
+  string message_id = 2;
+  string reader_id = 3;
+  string read_at = 4;
+}
+
+message ServerMessageUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  bool is_deleted = 3;
+  string deleted_at = 4;
+}
+
+message ServerPinUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  bool is_pinned = 3;
+  string pinned_at = 4;
+  string pinned_by = 5;
+}
+
+message ServerError {
+  string message = 1;
+}
+
+message ServerPong {}
+
+message ServerFriendRequestUpdate {
+  int32 pending_count = 1;
+}
+
+message ServerRoomCreated {
+  string room_id = 1;
+  string room_name = 2;
+  string room_type = 3;
+  string initiator_id = 4;
+  string owner_id = 5;
+  string description = 6;
+  string avatar_url = 7;
+  string created_at = 8;
+}
+
+enum PubSubPriority {
+  PUBSUB_PRIORITY_UNKNOWN = 0;
+  PUBSUB_PRIORITY_CRITICAL = 1;
+  PUBSUB_PRIORITY_HIGH = 2;
+  PUBSUB_PRIORITY_NORMAL = 3;
+  PUBSUB_PRIORITY_LOW = 4;
+}
+
+message PubSubMessage {
+  string id = 1;
+  string room_id = 2;
+  string sender_id = 3;
+  string content = 4;
+  string message_type = 5;
+  PubSubPriority priority = 6;
+  string timestamp = 7;
+  string source_node = 8;
+  repeated string target_nodes = 9;
+  string sender_username = 10;
+  string sender_nickname = 11;
+  string sender_avatar_url = 12;
+  QuotedMessage quoted_message = 13;
+  ForwardMessage forward_message = 14;
+}
+
+message PubSubReadReceipt {
+  string room_id = 1;
+  string reader_id = 2;
+  string message_id = 3;
+  string read_at = 4;
+  string source_node = 5;
+}
+
+message PubSubMessageUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  bool is_deleted = 3;
+  string deleted_at = 4;
+}
+
+message PubSubPinUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  bool is_pinned = 3;
+  string pinned_at = 4;
+  string pinned_by = 5;
+}
+
+message PubSubEvent {
+  oneof payload {
+    PubSubMessage message = 1;
+    PubSubReadReceipt read_receipt = 2;
+    PubSubMessageUpdate message_update = 3;
+    PubSubPinUpdate pin_update = 4;
+  }
+}

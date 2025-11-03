@@ -6,6 +6,11 @@ declare module "*.vue" {
   export default component;
 }
 
+declare module "*.proto?raw" {
+  const content: string;
+  export default content;
+}
+
 // Toast 类型声明
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {

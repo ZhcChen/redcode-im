@@ -615,6 +615,12 @@ const loadChatList = async (forceRefresh = false) => {
       compareWithStore: true // 启用与store的数据比对
     })
 
+    const roomIds = chatList.value
+      .map(chat => chat.groupId)
+      .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0)
+
+    webSocketManager.ensureRoomsSubscribed(roomIds, false)
+
     isInitialized.value = true
     console.log('✅ 聊天列表加载完成')
   } catch (error: any) {
@@ -1173,6 +1179,7 @@ watch(messages, () => {
 const selectChat = async (chat: ChatItem) => {
   selectedChat.value = chat
   store.dispatch('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
+  webSocketManager.joinRoom(chat.groupId)
 
   // 如果是群聊，获取群组详细信息和成员列表
   if (chat.groupType === 1) {
@@ -1324,8 +1331,7 @@ const sendMessage = async () => {
     // 因为后端没有提供HTTP API发送消息接口
     await sendMessageViaWebSocket(content, groupId, tempMessage.id, timestamp)
 
-    console.log('✅ WebSocket消息发送成功，等待服务器回显确认...')
-    // 注意：不在这里更新状态为成功，而是等待WebSocket回显时更新
+    console.log('✅ 消息发送成功，等待实时推送同步...')
 
   } catch (error: any) {
     // 发送异常，更新消息状态
@@ -1340,78 +1346,57 @@ const sendMessage = async () => {
 
 // 抽取WebSocket发送逻辑为独立函数
 const sendMessageViaWebSocket = async (content: string, groupId: string, messageId: string, timestamp?: number): Promise<void> => {
-  return new Promise(async (resolve, reject) => {
-    // 构造消息对象，参考bear-chat-uniapp的格式
-    const msgTimestamp = timestamp || new Date().getTime()
-    const user = store.getters.currentUser
+  const msgTimestamp = timestamp || Date.now()
+  const user = store.getters.currentUser
 
-    // 详细调试用户信息
-    console.log('🔍 构造消息对象时的用户信息:', {
-      currentUser: user,
-      userId: user?.id,
-      username: user?.username,
-      nickname: user?.nickname,
-      avatar: user?.avatar,
-      currentUserId: currentUserId.value
-    })
-
-    const messageObj = {
-      id: messageId,
-      chatGroupId: groupId,
-      userId: parseInt(user?.id || currentUserId.value) || 0, // 确保userId是数字类型，与bear-chat-uniapp保持一致
-      meFlag: true,
-      userName: user?.username || user?.nickname || '未知用户', // 使用username字段，与bear-chat-uniapp保持一致
-      userAvatar: user?.avatar || '/static/image/default/default-user/default-user.png', // 默认头像路径
-      messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG, // 用户消息
-      contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE, // 文本消息
-      content: {
-        text: content
-      },
-      createTime: getTimeStr(msgTimestamp), // 使用与bear-chat-uniapp一致的时间格式
-      timestamp: msgTimestamp,
-      platFrom: MESSAGE_CONSTANTS.PLATFORM.WEB, // web平台
-      showTimeFlag: false
-    }
-
-    console.log('📤 准备发送的完整消息对象:', messageObj)
-
-    // 检查WebSocket连接状态
-    const websocket = store.getters.websocket
-    const networkState = store.getters.networkState
-    const token = store.getters.token
-
-    console.log('🔍 WebSocket连接状态检查:', {
-      websocket: !!websocket,
-      networkState,
-      userId: user?.id,
-      token: token ? '存在' : '缺失'
-    })
-
-    if (!websocket || !networkState) {
-      console.log('❌ WebSocket未连接，无法发送消息')
-      reject(new Error('网络连接断开，消息发送失败'))
-      return
-    }
-
-    // 通过WebSocket发送消息
-    webSocketManager.sendMessage(messageObj, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
-      if (success) {
-        console.log('✅ 消息通过WebSocket发送成功，等待服务器回显...')
-
-        // 添加到最近发送的消息集合，用于识别WebSocket回显
-        recentSentMessages.value.add(messageId) // 使用正确的messageId参数
-        // 10秒后自动清理
-        setTimeout(() => {
-          recentSentMessages.value.delete(messageId)
-        }, 10000)
-
-        resolve()
-      } else {
-        console.warn('❌ 消息通过WebSocket发送失败')
-        reject(new Error('WebSocket发送失败'))
-      }
-    })
+  console.log('🔍 构造消息对象时的用户信息:', {
+    currentUser: user,
+    userId: user?.id,
+    username: user?.username,
+    nickname: user?.nickname,
+    avatar: user?.avatar,
+    currentUserId: currentUserId.value
   })
+
+  const messageObj = {
+    id: messageId,
+    chatGroupId: groupId,
+    userId: parseInt(user?.id || currentUserId.value) || 0,
+    meFlag: true,
+    userName: user?.username || user?.nickname || '未知用户',
+    userAvatar: user?.avatar || '/static/image/default/default-user/default-user.png',
+    messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
+    contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
+    content: {
+      text: content
+    },
+    createTime: getTimeStr(msgTimestamp),
+    timestamp: msgTimestamp,
+    platFrom: MESSAGE_CONSTANTS.PLATFORM.WEB,
+    showTimeFlag: false
+  }
+
+  console.log('📤 准备发送的完整消息对象:', messageObj)
+
+  const apiMessage = await webSocketManager.sendMessage(messageObj, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
+    if (success) {
+      recentSentMessages.value.add(messageId)
+      setTimeout(() => {
+        recentSentMessages.value.delete(messageId)
+      }, 10000)
+    }
+  })
+
+  if (apiMessage) {
+    const messageIndex = messages.value.findIndex(msg => msg.id === messageId)
+    if (messageIndex !== -1) {
+      messages.value[messageIndex].status = 2
+      messages.value[messageIndex].id = apiMessage.id
+      messages.value[messageIndex].time = formatTime(apiMessage.createTime || new Date().toISOString())
+      messages.value[messageIndex].createTime = apiMessage.createTime || messages.value[messageIndex].createTime
+      messages.value[messageIndex].timestamp = apiMessage.timestamp || messages.value[messageIndex].timestamp
+    }
+  }
 }
 
 // 重发消息功能
