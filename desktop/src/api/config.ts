@@ -10,10 +10,13 @@ const normalizeUrl = (value: string): string => {
   return value.replace(/\/+$/, '');
 };
 
-const rawApiBase =
-  (import.meta as any).env?.VITE_API_BASE_URL ||
-  process.env.VITE_API_BASE_URL ||
-  'http://localhost:8010';
+const resolveEnv = (key: string, fallback?: string): string | undefined => {
+  const metaEnv = ((import.meta as any)?.env ?? {}) as Record<string, string | undefined>;
+  const processEnv = ((globalThis as any)?.process?.env ?? {}) as Record<string, string | undefined>;
+  return metaEnv[key] ?? processEnv[key] ?? fallback;
+};
+
+const rawApiBase = resolveEnv('VITE_API_BASE_URL', 'http://localhost:8010');
 
 const apiBaseUrl = normalizeUrl(rawApiBase);
 
@@ -27,15 +30,9 @@ const inferredWsUrl = (() => {
   return `${apiBaseUrl}/ws`;
 })();
 
-const rawWsUrl =
-  (import.meta as any).env?.VITE_WS_URL ||
-  process.env.VITE_WS_URL ||
-  inferredWsUrl;
+const rawWsUrl = resolveEnv('VITE_WS_URL', inferredWsUrl);
 
-const rawFileBase =
-  (import.meta as any).env?.VITE_FILE_BASE_URL ||
-  process.env.VITE_FILE_BASE_URL ||
-  apiBaseUrl;
+const rawFileBase = resolveEnv('VITE_FILE_BASE_URL', apiBaseUrl);
 
 export const apiConfig = {
   API_BASE_URL: apiBaseUrl,

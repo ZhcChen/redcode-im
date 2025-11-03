@@ -5,11 +5,19 @@ import { ref, computed } from 'vue'
 const props = withDefaults(defineProps<{
   type: string,
   placeholder: string,
-  modelValue?: string
+  modelValue?: string,
+  autocomplete?: string,
+  autocapitalize?: string,
+  autocorrect?: string,
+  spellcheck?: boolean
 }>(), {
   type: 'text',
   placeholder: '请输入',
-  modelValue: ''
+  modelValue: '',
+  autocomplete: 'off',
+  autocapitalize: 'none',
+  autocorrect: 'off',
+  spellcheck: false
 })
 
 // 定义 emit 事件
@@ -63,6 +71,10 @@ function handleKeypress(event: KeyboardEvent) {
       :type="actualType" 
       :placeholder="placeholder" 
       :value="modelValue"
+      :autocomplete="autocomplete"
+      :autocapitalize="autocapitalize"
+      :autocorrect="autocorrect"
+      :spellcheck="spellcheck"
       @input="handleInput"
       @keydown="handleKeydown"
       @keyup="handleKeyup"

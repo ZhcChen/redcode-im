@@ -16,9 +16,13 @@
         @change="handleLoginTypeChange"
       />
       <div class="login-container-form-item">
-        <div class="login-container-form-item-label">手机号</div>
+        <div class="login-container-form-item-label">{{ primaryFieldLabel }}</div>
         <div class="login-container-form-item-value">
-          <b-input v-model="loginForm.phone" placeholder="请输入手机号" @keydown="handleKeydown"></b-input>
+          <b-input 
+            v-model="loginForm.phone" 
+            :placeholder="primaryFieldPlaceholder" 
+            @keydown="handleKeydown"
+          ></b-input>
         </div>
       </div>
       <div class="login-container-form-item" v-if="loginType === 'password'">
@@ -342,12 +346,15 @@ const countdown = ref(0);
 let countdownTimer: NodeJS.Timeout | null = null;
 
 // 表单验证
+const primaryFieldLabel = computed(() => loginType.value === 'captcha' ? '账号' : '手机号');
+const primaryFieldPlaceholder = computed(() => loginType.value === 'captcha' ? '请输入账号' : '请输入手机号');
+
 const isFormValid = computed(() => {
+  const account = loginForm.value.phone.trim();
   if (loginType.value === 'password') {
-    return loginForm.value.phone.length === 11 && loginForm.value.password.length >= 6 && isAgreed.value;
-  } else {
-    return loginForm.value.phone.length === 11 && loginForm.value.captcha.length === 6 && isAgreed.value;
+    return account.length > 0 && loginForm.value.password.length >= 6 && isAgreed.value;
   }
+  return account.length > 0 && loginForm.value.captcha.length === 6 && isAgreed.value;
 });
 
 // 切换登录类型
@@ -362,12 +369,15 @@ function handleLoginTypeChange(value: string | number) {
 
 // 表单验证函数
 function validateForm(): boolean {
-  if (!loginForm.value.phone.trim()) {
-    toast.error("请输入手机号");
+  const account = loginForm.value.phone.trim();
+  const isCaptchaMode = loginType.value === 'captcha';
+
+  if (!account) {
+    toast.error(isCaptchaMode ? "请输入账号" : "请输入手机号");
     return false;
   }
-  
-  if (loginForm.value.phone.length !== 11) {
+
+  if (!isCaptchaMode && loginForm.value.phone.length !== 11) {
     toast.error("请输入正确的手机号");
     return false;
   }
@@ -405,12 +415,7 @@ function validateForm(): boolean {
 // 发送验证码
 async function handleSendCaptcha() {
   if (!loginForm.value.phone.trim()) {
-    toast.error("请输入手机号");
-    return;
-  }
-  
-  if (loginForm.value.phone.length !== 11) {
-    toast.error("请输入正确的手机号");
+    toast.error("请输入账号");
     return;
   }
   
