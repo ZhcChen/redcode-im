@@ -323,30 +323,37 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         ? 16.0
         : 12.0;
 
-    return ChangeNotifierProvider.value(
-      value: _chatProvider,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        resizeToAvoidBottomInset: true,
-        body: SafeArea(
-          top: true,
-          bottom: false, // 禁用底部 SafeArea，减少键盘动画时的布局计算
-          child: Column(
-            children: [
-              _buildHeader(context),
-              Expanded(
-                child: RepaintBoundary(
-                  child: _buildMessageList(listBottomPadding),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.white,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: ChangeNotifierProvider.value(
+        value: _chatProvider,
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          resizeToAvoidBottomInset: true,
+          body: SafeArea(
+            top: true,
+            bottom: false, // 禁用底部 SafeArea，减少键盘动画时的布局计算
+            child: Column(
+              children: [
+                _buildHeader(context),
+                Expanded(
+                  child: RepaintBoundary(
+                    child: _buildMessageList(listBottomPadding),
+                  ),
                 ),
-              ),
-              RepaintBoundary(
-                child: _buildInputArea(),
-              ),
-              if (_showEmojiPanel)
-                _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
-              if (_showMorePanel)
-                _MoreActionsPanel(onActionSelected: _handleMoreAction),
-            ],
+                RepaintBoundary(
+                  child: _buildInputArea(),
+                ),
+                if (_showEmojiPanel)
+                  _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
+                if (_showMorePanel)
+                  _MoreActionsPanel(onActionSelected: _handleMoreAction),
+              ],
+            ),
           ),
         ),
       ),
