@@ -1,7 +1,7 @@
 # 仓库指引
 
 ## 项目结构与模块组织
-本仓库包含三套应用：Rust API 位于 `backend/backend/src`，Flutter 客户端位于 `frontend/lib`，Vue 3 管理端位于 `admin/src`。SQLx 迁移脚本存放在 `backend/migrations`，命令行集成脚本集中在 `backend/test_*.sh`。Flutter 资源放在 `frontend/assets`，测试位于 `frontend/test`，Vue 配置辅助脚本位于 `admin/config`。基础设施文件（如 `docker-compose*.yml`、`services.sh`、`docker-start.sh`）统一放在仓库根目录。
+本仓库包含多套应用：Rust API 位于 `backend/backend/src`，Flutter 客户端位于 `frontend/lib`，Vue 3 管理端位于 `admin/src`，Nuxt.js 官网页面位于 `website/app`。SQLx 迁移脚本存放在 `backend/migrations`，命令行集成脚本集中在 `backend/test_*.sh`。Flutter 资源放在 `frontend/assets`，测试位于 `frontend/test`，Vue 配置辅助脚本位于 `admin/config`。基础设施文件（如 `docker-compose*.yml`、`services.sh`、`docker-start.sh`）统一放在仓库根目录。
 
 ## 构建、测试与开发命令
 - `cd backend && docker-compose up -d` 可启动 PostgreSQL 17 和运行在 6381/6382/6383 端口的三套 Redis 实例。
@@ -9,9 +9,10 @@
 - `cd frontend && flutter run` 或 `./run_flutter.sh` 在执行过 `flutter pub get` 后启动客户端；`flutter test` 用于运行组件测试。
 - `cd admin && pnpm install && pnpm dev` 本地启动管理端，`pnpm build` 生成优化后的构建产物；若需做一次全链路冒烟，可执行 `./test_all.sh`。
 - `cd desktop && bun install && bun run tauri dev` 启动桌面端开发模式，CI 使用 `cd desktop && bun run build` 进行构建。
+- `cd website && bun install && bun run dev` 启动官网页面开发模式（默认运行在 `http://localhost:3000`），`bun run build` 构建生产版本。
 
 ## 代码风格与命名规范
-Rust 模块遵循 `cargo fmt --all` 与 `cargo clippy --all-targets -- -D warnings`，模块名使用 `snake_case`，类型名使用 `PascalCase`。Flutter 代码需跑 `dart format .` 与 `dart analyze`，文件命名保持 `snake_case.dart`，组件使用 `PascalCase`。Vue 代码采用两个空格缩进，脚本标识符使用 `camelCase`，组件文件名保持 `PascalCase.vue`；所有格式化与 lint 通过 lint-staged 与 Prettier 自动执行。
+Rust 模块遵循 `cargo fmt --all` 与 `cargo clippy --all-targets -- -D warnings`，模块名使用 `snake_case`，类型名使用 `PascalCase`。Flutter 代码需跑 `dart format .` 与 `dart analyze`，文件命名保持 `snake_case.dart`，组件使用 `PascalCase`。Vue 代码采用两个空格缩进，脚本标识符使用 `camelCase`，组件文件名保持 `PascalCase.vue`；所有格式化与 lint 通过 lint-staged 与 Prettier 自动执行。Nuxt.js 官网项目遵循 Vue 3 代码规范，使用 TypeScript，组件命名采用 `PascalCase.vue`。
 
 ## 测试规范
 - 在调用集成脚本（如 `backend/test_flow.sh`、`backend/test_friend_api.sh`）前先运行 `cargo test`。
