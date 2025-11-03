@@ -1,7 +1,7 @@
-import { parse } from 'protobufjs/light';
+import protobuf from 'protobufjs';
 import wsProto from './ws.proto?raw';
 
-const root = parse(wsProto, { keepCase: true }).root;
+const root = protobuf.parse(wsProto, { keepCase: true }).root;
 
 export const ClientEvent = root.lookupType('ws.ClientEvent');
 export const ClientAuth = root.lookupType('ws.ClientAuth');
