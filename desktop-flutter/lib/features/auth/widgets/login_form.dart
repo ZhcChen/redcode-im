@@ -130,7 +130,8 @@ class _LoginFormState extends State<LoginForm> {
               child: FilledButton(
                 onPressed: _isLoading ? null : _onSubmit,
                 style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
+                  backgroundColor: const Color(0xFF4ECDC4),
+                  disabledBackgroundColor: const Color(0xFF4ECDC4).withValues(alpha: 0.6),
                   shape: const StadiumBorder(),
                 ),
                 child: Text(_isLoading ? '登录中...' : '登录账号'),
