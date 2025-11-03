@@ -154,18 +154,44 @@ pub fn run() {
                     let _ = window_clone.center();
                 });
             }
+
+            // 自动关闭启动画面(作为备用方案)
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // 等待主窗口加载
+                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                println!("[Rust Setup] 自动关闭启动画面...");
+
+                // 关闭启动画面
+                if let Some(splash_window) = app_handle.get_webview_window("splashscreen") {
+                    let _ = splash_window.close();
+                    println!("[Rust Setup] ✅ 启动画面已关闭");
+                }
+
+                // 显示主窗口
+                if let Some(main_window) = app_handle.get_webview_window("main") {
+                    let _ = main_window.show();
+                    let _ = main_window.set_focus();
+                    println!("[Rust Setup] ✅ 主窗口已显示");
+                }
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 拦截窗口关闭事件
+            // 拦截窗口关闭事件(仅针对主窗口)
             if let WindowEvent::CloseRequested { api, .. } = event {
-                // 阻止默认关闭行为
-                api.prevent_close();
+                // 只有主窗口才隐藏到托盘,其他窗口正常关闭
+                if window.label() == "main" {
+                    // 阻止默认关闭行为
+                    api.prevent_close();
 
-                // 隐藏窗口到系统托盘
-                let _ = window.hide();
+                    // 隐藏窗口到系统托盘
+                    let _ = window.hide();
 
-                println!("窗口已隐藏到系统托盘");
+                    println!("[Main Window] 窗口已隐藏到系统托盘");
+                }
+                // splashscreen 等其他窗口正常关闭,不拦截
             }
         })
         .run(tauri::generate_context!())
