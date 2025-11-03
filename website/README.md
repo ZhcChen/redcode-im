@@ -42,9 +42,8 @@ bun run preview
 # 1. 首次使用前配置服务器信息
 cp .deploy.env.example .deploy.env
 # 编辑 .deploy.env 文件，设置：
-# SERVER_HOST=your-server.com
-# SERVER_USER=root
-# SERVER_PATH=/path/to/website/docker
+# SSH_HOST=myServer  # SSH 配置中的快捷名称
+# SERVER_PATH=/opt/website/docker
 
 # 2. 执行部署脚本
 ./deploy.sh
@@ -58,7 +57,14 @@ cp .deploy.env.example .deploy.env
 
 **注意事项：**
 - 需要安装 7z：`brew install p7zip`（macOS）或 `apt-get install p7zip-full`（Linux）
-- 需要配置 SSH 密钥，确保可以通过 scp 访问服务器
+- 需要在 `~/.ssh/config` 中配置 SSH 快捷名称（如 `myServer`）
+- 配置示例：
+  ```
+  Host myServer
+    HostName your-server.com
+    User root
+    IdentityFile ~/.ssh/id_rsa
+  ```
 - 服务器上需要已安装 Docker 和 docker-compose
 
 ### 方式二：本地构建打包

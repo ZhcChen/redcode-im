@@ -10,9 +10,8 @@ if [ -f ".deploy.env" ]; then
 fi
 
 # 配置变量（可通过环境变量或 .deploy.env 文件覆盖）
-SERVER_HOST="${SERVER_HOST:-your-server.com}"
-SERVER_USER="${SERVER_USER:-root}"
-SERVER_PATH="${SERVER_PATH:-/path/to/website/docker}"
+SSH_HOST="${SSH_HOST:-myServer}"
+SERVER_PATH="${SERVER_PATH:-/opt/website/docker}"
 BUILD_NAME="build.7z"
 
 echo "=== 开始构建 ==="
@@ -66,24 +65,24 @@ echo "✓ 压缩完成: $BUILD_NAME"
 # 4. 上传到服务器
 echo ""
 echo "3. 上传到服务器..."
-echo "   服务器: $SERVER_USER@$SERVER_HOST"
+echo "   SSH 快捷名称: $SSH_HOST"
 echo "   路径: $SERVER_PATH"
 
 # 检查 SSH 连接
-if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" exit 2>/dev/null; then
-    echo "错误: 无法连接到服务器 $SERVER_USER@$SERVER_HOST"
+if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$SSH_HOST" exit 2>/dev/null; then
+    echo "错误: 无法连接到服务器 $SSH_HOST"
     echo "请确保:"
-    echo "  1. SSH 密钥已配置"
-    echo "  2. 服务器地址正确"
+    echo "  1. SSH 配置文件中已配置 $SSH_HOST"
+    echo "  2. SSH 密钥已配置"
     echo "  3. 可以通过 SSH 访问服务器"
     exit 1
 fi
 
 # 创建远程目录（如果不存在）
-ssh "$SERVER_USER@$SERVER_HOST" "mkdir -p $SERVER_PATH"
+ssh "$SSH_HOST" "mkdir -p $SERVER_PATH"
 
 # 上传文件
-scp "$BUILD_NAME" "$SERVER_USER@$SERVER_HOST:$SERVER_PATH/"
+scp "$BUILD_NAME" "$SSH_HOST:$SERVER_PATH/"
 
 # 清理本地压缩包
 rm -f "$BUILD_NAME"
@@ -99,5 +98,5 @@ echo "  cd $SERVER_PATH"
 echo "  docker-compose up -d --build"
 echo ""
 echo "或者执行远程部署命令:"
-echo "  ssh $SERVER_USER@$SERVER_HOST 'cd $SERVER_PATH && docker-compose up -d --build'"
+echo "  ssh $SSH_HOST 'cd $SERVER_PATH && docker-compose up -d --build'"
 
