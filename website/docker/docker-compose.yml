@@ -7,7 +7,7 @@ services:
     image: redcode-website:latest
     container_name: redcode-website
     ports:
-      - "8015:8015"
+      - "127.0.0.1:8015:8015"
     environment:
       - TZ=Asia/Shanghai
     restart: unless-stopped
