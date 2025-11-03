@@ -47,7 +47,7 @@
 | 编号 | 任务 | 子任务 | 说明 | 依赖 |
 | --- | --- | --- | --- | --- |
 | QA-1 | 自动化测试 | `uv run python -m pytest` API/E2E 脚本（登录/好友/消息） | 结合 Playwright/Tauri CLI | 测试数据 |
-| QA-2 | CI 集成 | 在主仓库 CI 运行 `pnpm --dir desktop build` + 测试 | 与现有 pipelines 对齐 | DevOps |
+| QA-2 | CI 集成 | 在主仓库 CI 运行 `cd desktop && bun run build` + 测试 | 与现有 pipelines 对齐 | DevOps |
 | QA-3 | 手动验收脚本 | 冒烟 checklist（登录、消息往返、好友申请等） | 文档化 | - |
 | QA-4 | Release 流程 | Tauri 打包脚本、签名、渠道说明 | 与 Ops 协作 | 发布 |
 

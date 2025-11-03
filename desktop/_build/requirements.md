@@ -9,7 +9,7 @@
 - **前端框架**: Vue.js + TypeScript
 - **桌面应用框架**: Tauri
 - **构建工具**: Vite
-- **包管理器**: npm/pnpm
+- **包管理器**: Bun
 
 ## 核心功能需求
 

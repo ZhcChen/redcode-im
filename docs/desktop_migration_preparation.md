@@ -2,14 +2,14 @@
 
 ## 1. 代码与依赖盘点
 - **现有实现**：`bear-chat-tauri` 基于 Vue 3 + Vite + Vuex，桌面壳为 Tauri 2（Rust 端位于 `src-tauri`）。存在 `_build` 本地产物目录，应在迁移时忽略。
-- **前端依赖**：`@tauri-apps/api`、`@tauri-apps/plugin-opener`、`vue@^3.5`、`vue-router@^4.5`、`vuex@^4.1`，开发依赖包含 `vite@^6`、`vue-tsc`、`typescript@~5.6` 等。锁文件同时存在 `bun.lock` 与 `package-lock.json`，后续需统一包管理器（建议 `pnpm` 与仓库保持一致）。
+- **前端依赖**：`@tauri-apps/api`、`@tauri-apps/plugin-opener`、`vue@^3.5`、`vue-router@^4.5`、`vuex@^4.1`，开发依赖包含 `vite@^6`、`vue-tsc`、`typescript@~5.6` 等。锁文件同时存在 `bun.lock` 与 `package-lock.json`，后续需统一包管理器（建议改用 `bun` 并移除其他锁文件）。
 - **Tauri 端依赖**：`tauri`、`tauri-plugin-*`、`tokio`、`serde`，配置位于 `src-tauri/Cargo.toml` 与 `tauri.conf.json`。
 - **资源结构**：静态资源 `public/`、业务组件与页面在 `src/`，API 封装集中于 `src/api`，状态管理位于 `src/store`。
 - **目标目录**：当前 `desktop/` 为空，可直接落地迁移文件，无需保留原实现回滚路径。
 
 ## 2. 迁移策略
 - **文件同步**：使用 `rsync`/脚本从 `bear-chat-tauri` 迁移至 `desktop`，排除 `.git`、`_build`、`node_modules`、锁文件（待统一后再生成）。
-- **依赖管理**：统一采用 `pnpm`，迁移后补充 `pnpm-workspace.yaml`/`package.json` 适配，生成新的锁文件并移除历史锁。
+- **依赖管理**：统一采用 `bun`，迁移后补充 `package.json` 脚本适配，生成新的 `bun.lock` 并移除历史锁。
 - **配置调整**：更新 API 基础配置，改为读取新后端 `API_BASE_URL` 与 `WS_URL`，对接仓库现有 `.env`/配置体系。
 - **状态管理**：复用既有 Vuex 结构，但清理所有旧 API 相关状态，改为调用新接口返回结构。
 - **脚本与 CI**：为桌面端补充 `package.json` 脚本（`dev`/`build`/`lint`/`test`），并接入仓库统一测试命令。
