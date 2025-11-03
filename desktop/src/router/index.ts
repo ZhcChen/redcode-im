@@ -62,17 +62,6 @@ router.beforeEach(async (to, from, next) => {
   console.log('路由守卫 - 目标路由:', to.name)
   console.log('路由守卫 - 登录状态:', isLoggedIn)
 
-  // 当用户访问登录页面时，重置登出状态
-  if (to.name === 'Login') {
-    try {
-      const { setLoggingOut } = await import('../api/http')
-      setLoggingOut(false)
-      console.log('📝 访问登录页面，已重置登出状态')
-    } catch (error) {
-      console.warn('重置登出状态失败:', error)
-    }
-  }
-
   // 如果用户已登录且试图访问登录页，重定向到主页
   if (isLoggedIn && to.name === 'Login') {
     console.log('已登录用户试图访问登录页，重定向到主页')
