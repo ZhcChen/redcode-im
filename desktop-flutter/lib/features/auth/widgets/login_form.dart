@@ -1,11 +1,7 @@
-import 'dart:async';
-
 import 'package:desktop_flutter/state/app_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-
-enum LoginMethod { password, captcha }
 
 class LoginForm extends StatefulWidget {
   const LoginForm({super.key});
@@ -18,22 +14,15 @@ class _LoginFormState extends State<LoginForm> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _captchaController = TextEditingController();
 
-  LoginMethod _method = LoginMethod.password;
   bool _isAgreed = true;
-  bool _isSendingCaptcha = false;
   bool _isLoading = false;
-  int _countdown = 0;
-  Timer? _timer;
   bool _passwordVisible = false;
 
   @override
   void dispose() {
-    _timer?.cancel();
     _phoneController.dispose();
     _passwordController.dispose();
-    _captchaController.dispose();
     super.dispose();
   }
 
@@ -52,53 +41,10 @@ class _LoginFormState extends State<LoginForm> {
     }
   }
 
-  void _switchMethod(LoginMethod method) {
-    if (_method == method) return;
-    setState(() {
-      _method = method;
-    });
-  }
-
   void _toggleAgreement() {
     setState(() {
       _isAgreed = !_isAgreed;
     });
-  }
-
-  void _startCountdown() {
-    setState(() {
-      _countdown = 60;
-      _isSendingCaptcha = false;
-    });
-
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_countdown <= 1) {
-        timer.cancel();
-        setState(() {
-          _countdown = 0;
-        });
-      } else {
-        setState(() {
-          _countdown -= 1;
-        });
-      }
-    });
-  }
-
-  Future<void> _sendCaptcha() async {
-    if (_countdown > 0 || _isSendingCaptcha) return;
-    if (_phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先输入手机号')), 
-      );
-      return;
-    }
-
-    setState(() => _isSendingCaptcha = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    _startCountdown();
   }
 
   @override
@@ -110,11 +56,27 @@ class _LoginFormState extends State<LoginForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _LoginTabs(
-              method: _method,
-              onSelect: _switchMethod,
+            // 标题和滑块
+            Column(
+              children: [
+                Text(
+                  '密码登录',
+                  style: theme.textTheme.titleMedium?.copyWith(fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 4,
+                  width: 20,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)],
+                    ),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 0),
+            const SizedBox(height: 56),
             _LabeledField(
               label: '手机号',
               child: _ChatlyInput(
@@ -133,73 +95,35 @@ class _LoginFormState extends State<LoginForm> {
               ),
             ),
             const SizedBox(height: 24),
-            if (_method == LoginMethod.password)
-              _LabeledField(
-                label: '密码',
-                child: _ChatlyInput(
-                  controller: _passwordController,
-                  placeholder: '请输入密码',
-                  obscureText: !_passwordVisible,
-                  suffix: GestureDetector(
-                    onTap: () => setState(() => _passwordVisible = !_passwordVisible),
-                    child: SvgPicture.asset(
-                      'assets/images/icon-passwd-show.svg',
-                      width: 16,
-                      height: 16,
-                      colorFilter: ColorFilter.mode(
-                        _passwordVisible ? theme.colorScheme.primary : const Color(0xFF9B9BB0),
-                        BlendMode.srcIn,
-                      ),
+            _LabeledField(
+              label: '密码',
+              child: _ChatlyInput(
+                controller: _passwordController,
+                placeholder: '请输入密码',
+                obscureText: !_passwordVisible,
+                suffix: GestureDetector(
+                  onTap: () => setState(() => _passwordVisible = !_passwordVisible),
+                  child: SvgPicture.asset(
+                    'assets/images/icon-passwd-show.svg',
+                    width: 16,
+                    height: 16,
+                    colorFilter: ColorFilter.mode(
+                      _passwordVisible ? theme.colorScheme.primary : const Color(0xFF9B9BB0),
+                      BlendMode.srcIn,
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return '请输入密码';
-                    }
-                    if (value.length < 6) {
-                      return '密码至少 6 位';
-                    }
-                    return null;
-                  },
                 ),
-              )
-            else
-              _LabeledField(
-                label: '验证码',
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _ChatlyInput(
-                        controller: _captchaController,
-                        placeholder: '请输入验证码',
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '请输入验证码';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      height: 44,
-                      child: OutlinedButton(
-                        onPressed: _sendCaptcha,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _countdown > 0 ? Colors.grey : theme.colorScheme.primary,
-                          side: BorderSide(color: _countdown > 0 ? Colors.grey.shade400 : theme.colorScheme.primary),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                        ),
-                        child: Text(
-                          _countdown > 0
-                              ? '${_countdown}s后重发'
-                              : (_isSendingCaptcha ? '发送中...' : '发送验证码'),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return '请输入密码';
+                  }
+                  if (value.length < 6) {
+                    return '密码至少 6 位';
+                  }
+                  return null;
+                },
               ),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               height: 44,
@@ -231,52 +155,6 @@ class _LoginFormState extends State<LoginForm> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _LoginTabs extends StatelessWidget {
-  const _LoginTabs({required this.method, required this.onSelect});
-
-  final LoginMethod method;
-  final ValueChanged<LoginMethod> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F7F8),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: LoginMethod.values.map((item) {
-          final isActive = item == method;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onSelect(item),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                decoration: BoxDecoration(
-                  color: isActive ? theme.colorScheme.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  item == LoginMethod.password ? '密码登录' : '验证码登录',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontSize: 14,
-                    color: isActive ? Colors.white : const Color(0xFF707991),
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
