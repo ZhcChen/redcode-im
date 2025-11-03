@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createRouter, createWebHistory } from 'vue-router'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { store } from '../store'

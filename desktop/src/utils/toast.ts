@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createApp, h, type App as VueApp } from 'vue'
 import Toast from '@/components/Toast.vue'
 

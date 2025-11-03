@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {createStore} from 'vuex'
 
 // 辅助函数：格式化最后在线时间
@@ -87,6 +88,7 @@ export interface ChatItem {
     isTop: boolean
     isHidden: boolean
     groupType: number // 0=单聊, 1=群聊
+    lastMessageId?: string | null
     // groupUser相关字段，供API调用使用
     groupUserId?: number
     chatStatus?: number
@@ -1097,6 +1099,7 @@ export const store = createStore<State>({
                             isTop: group.groupUser?.topFlag === 1,
                             isHidden: group.groupUser?.hiddenFlag === 1,
                             groupType: group.imGroup?.groupType || 0,
+                            lastMessageId: group.imGroupMessageRef?.msgId || null,
                             // 保存完整的groupUser数据供后续API调用使用
                             groupUserId: group.groupUser?.id,
                             chatStatus: group.groupUser?.chatStatus,

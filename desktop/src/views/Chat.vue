@@ -415,7 +415,7 @@ import DialogInput from '../components/DialogInput.vue'
 import MediaPreview from '../components/MediaPreview.vue'
 import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
 import { api, MessageApi } from '../api'
-import { GroupApi, GroupMemberApi } from '../api/group'
+import { GroupApi } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
 import type { ChatGroupInfo } from '../api/group'
@@ -1203,15 +1203,13 @@ const selectChat = async (chat: ChatItem) => {
 const markChatAsRead = async (chat: ChatItem) => {
   try {
     const currentUser = store.getters.currentUser
-    const currentTime = getTimeStr(Date.now())
-    
     console.log('🔄 标记聊天为已读:', {
       chatName: chat.name,
       chatId: chat.id,
       groupId: chat.groupId,
       currentUnreadCount: chat.unreadCount,
       userId: currentUser?.id,
-      currentTime
+      currentTime: getTimeStr(Date.now())
     })
     
     if (!currentUser?.id) {
@@ -1229,47 +1227,22 @@ const markChatAsRead = async (chat: ChatItem) => {
       return
     }
     
-    // 参考bear-chat-uniapp，需要传递完整的groupUser对象
-    // 从store中获取对应的群组数据
-    const originalGroup = store.getters.getChatById(chat.id)
-    if (!originalGroup) {
-      console.warn('❌ 找不到原始群组数据')
-      toast.error('找不到群组数据')
+    if (!chat.lastMessageId) {
+      console.warn('⚠️ 未找到最新消息 ID，跳过远端标记已读')
       return
     }
-    
-    // 构造完整的groupUser参数，参考bear-chat-uniapp的做法
-    const params = {
-      id: originalGroup.groupUserId || 0, // groupUser的ID
-      userId: parseInt(currentUser.id) || 0,
-      groupId: chat.groupId, // 关键字段：groupId而不是chatGroupId
-      chatStatus: originalGroup.chatStatus || 0,
-      topFlag: chat.isTop ? 1 : 0,
-      memberType: originalGroup.memberType || 0,
-      saveFlag: originalGroup.saveFlag || 0,
-      createUser: originalGroup.createUser || parseInt(currentUser.id) || 0,
-      readTime: currentTime,
-      createTime: originalGroup.createTime || currentTime,
-      clearTime: originalGroup.clearTime || null,
-      remark: originalGroup.remark || null,
-      delFlag: 0,
-      unReadNum: 0, // 重置未读数量为0
-      hiddenFlag: chat.isHidden ? 1 : 0,
-      showOptionFlag: false,
-      pushClientId: originalGroup.pushClientId || null,
-      userName: originalGroup.userName || null,
-      friendName: originalGroup.friendName || null,
-      userAvatar: originalGroup.userAvatar || null
-    }
-    
-    console.log('📤 发送标记已读请求:', params)
-    
-    const response = await GroupMemberApi.updateMyGroupSet(params as any)
-    
-    console.log('📥 标记已读响应:', response)
-    
+
+    console.log('📤 发送标记已读请求:', {
+      groupId: chat.groupId,
+      lastMessageId: chat.lastMessageId
+    })
+
+    const response = await MessageApi.markMessagesAsRead({
+      groupId: chat.groupId,
+      messageIds: [chat.lastMessageId]
+    })
+
     if (response.success) {
-      // 更新store中聊天列表的未读数量
       const updatedChat = { ...chat, unreadCount: 0 }
       store.dispatch('updateChatItem', updatedChat)
       console.log('✅ 聊天已标记为已读:', chat.name)
@@ -2100,42 +2073,9 @@ const handleToggleMute = async (value: boolean) => {
 
   try {
     console.log('🔄 切换消息免打扰:', value)
-
-    // 构建完整的groupUser对象（与bear-chat-uniapp保持一致）
-    const currentUser = store.getters.currentUser
-    const currentTime = new Date().toISOString()
-
-    // 直接更新selectedChat中的chatStatus
-    selectedChat.value.chatStatus = value ? 1 : 0
-
-    // 构建groupUser对象，只包含必需字段
-    const groupUserParams = {
-      userId: parseInt(currentUser.id) || 0,
-      groupId: selectedChat.value.groupId,
-      chatStatus: value ? 1 : 0,  // 消息免打扰：1=免打扰，0=正常
-      topFlag: selectedChat.value.isTop ? 1 : 0,
-      hiddenFlag: selectedChat.value.isHidden ? 1 : 0,
-      unReadNum: selectedChat.value.unreadCount || 0,
-      readTime: currentTime
-    }
-
-    console.log('📤 消息免打扰API参数:', groupUserParams)
-
-    const response = await GroupMemberApi.updateMyGroupSet(groupUserParams)
-
-    if (response.success) {
-      console.log('✅ 免打扰设置成功')
-      toast.success(value ? '已开启消息免打扰' : '已关闭消息免打扰')
-
-      // 触发聊天列表刷新（与bear-chat-uniapp保持一致）
-      await loadChatList(true)
-    } else {
-      console.warn('❌ 免打扰设置失败:', response.message)
-      toast.error('设置失败: ' + (response.message || '未知错误'))
-
-      // 回滚本地状态
-      selectedChat.value.chatStatus = value ? 0 : 1
-    }
+    toast.warning('当前版本暂未实现消息免打扰设置，功能将在后续版本提供')
+    // 回滚本地状态
+    selectedChat.value.chatStatus = value ? 0 : 1
   } catch (error: any) {
     console.error('❌ 免打扰设置异常:', error)
     toast.error('设置失败: ' + (error.message || '网络错误'))
@@ -2153,46 +2093,8 @@ const handleToggleTop = async (value: boolean) => {
 
   try {
     console.log('🔄 切换置顶聊天:', value)
-
-    // 构建完整的groupUser对象（与bear-chat-uniapp保持一致）
-    const currentUser = store.getters.currentUser
-    const currentTime = new Date().toISOString()
-
-    // 直接更新selectedChat中的isTop状态
-    selectedChat.value.isTop = value
-
-    // 构建groupUser对象，只包含必需字段
-    const groupUserParams = {
-      userId: parseInt(currentUser.id) || 0,
-      groupId: selectedChat.value.groupId,
-      chatStatus: selectedChat.value.chatStatus || 0,
-      topFlag: value ? 1 : 0,  // 置顶聊天：1=置顶，0=不置顶
-      hiddenFlag: selectedChat.value.isHidden ? 1 : 0,
-      unReadNum: selectedChat.value.unreadCount || 0,
-      readTime: currentTime
-    }
-
-    console.log('📤 置顶聊天API参数:', groupUserParams)
-
-    const response = await GroupMemberApi.updateMyGroupSet(groupUserParams)
-
-    if (response.success) {
-      console.log('✅ 置顶设置成功')
-      toast.success(value ? '已置顶聊天' : '已取消置顶')
-
-      // 更新store中的聊天列表
-      const updatedChat = { ...selectedChat.value, isTop: value }
-      store.dispatch('updateChatItem', updatedChat)
-
-      // 触发聊天列表刷新（与bear-chat-uniapp保持一致）
-      await loadChatList(true)
-    } else {
-      console.warn('❌ 置顶设置失败:', response.message)
-      toast.error('设置失败: ' + (response.message || '未知错误'))
-
-      // 回滚本地状态
-      selectedChat.value.isTop = !value
-    }
+    toast.warning('当前版本暂未提供聊天置顶功能，敬请期待后续更新')
+    selectedChat.value.isTop = !value
   } catch (error: any) {
     console.error('❌ 置顶设置异常:', error)
     toast.error('设置失败: ' + (error.message || '网络错误'))
@@ -2400,11 +2302,9 @@ const handleConfirmAddMembers = async (selectedMemberIds: string[]) => {
     })
 
     const response = await GroupApi.launchChatGroup({
-      createUser: currentUser.id,                    // 创建者ID（必需）
-      chatGroupName: pendingGroupData.value.name,    // 群名称（必需）
-      chatGroupMembers: membersWithCreator,          // 成员列表（必须包含创建者）
-      maxCount: 500,                                 // 最大成员数（默认500）
-      chatGroupAvatar: pendingGroupData.value.avatar || null // 群头像（可选）
+      name: pendingGroupData.value.name,
+      memberIds: membersWithCreator,
+      description: pendingGroupData.value.description || undefined
     })
 
     if (response.success && response.data) {
@@ -2415,7 +2315,8 @@ const handleConfirmAddMembers = async (selectedMemberIds: string[]) => {
       showAddMemberDialog.value = false
 
       // 提取返回的群组信息
-      const { groupId, groupName } = response.data
+      const groupId = response.data.roomId
+      const groupName = pendingGroupData.value.name
       console.log('📋 新群组信息:', { groupId, groupName })
 
       // 重新加载聊天列表以显示新创建的群组
@@ -2430,10 +2331,10 @@ const handleConfirmAddMembers = async (selectedMemberIds: string[]) => {
 
         // 优先使用 groupId 查找，其次使用 groupName
         newGroup = chatList.value.find(chat =>
-          chat.groupId === groupId ||           // 精确匹配 groupId
-          chat.id === groupId ||                // 有些情况下 id 字段可能是 groupId
-          chat.name === groupName ||            // 精确匹配群名称
-          chat.name.includes(groupName)         // 包含群名称
+          chat.groupId === groupId ||
+          chat.id === groupId ||
+          chat.name === groupName ||
+          chat.name.includes(groupName)
         )
 
         if (newGroup) {
@@ -2646,12 +2547,11 @@ const handleRouteParams = async () => {
       console.log('🔄 创建新的单聊...')
       // 创建单聊 - 使用与bear-chat-uniapp相同的参数格式
       const response = await GroupApi.createSingleChat({
-        fromUser: currentUserId.value,
-        toUser: contactId as string,
-        friendName: contactName as string
+        friendId: contactId as string
       })
       
       if (response.success) {
+        const createdRoomId = response.data?.roomId || ''
         console.log('✅ 单聊创建成功，响应数据:', response.data)
         
         // 重新加载聊天列表以获取新创建的单聊
@@ -2671,8 +2571,8 @@ const handleRouteParams = async () => {
               chat.name.includes(contactName as string) ||
               (contactName as string).includes(chat.name)
             )
-            const matchesId = response.data?.groupId && chat.id === response.data.groupId
-            const matchesGroupId = response.data?.groupId && chat.groupId === response.data.groupId
+            const matchesId = createdRoomId && chat.id === createdRoomId
+            const matchesGroupId = createdRoomId && chat.groupId === createdRoomId
 
             return matchesName || matchesId || matchesGroupId
           })
@@ -3034,37 +2934,7 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
       return
     }
     
-    // 构造完整的groupUser参数，参考bear-chat-uniapp的做法
-    const params = {
-      id: chat.groupUserId || 0,
-      userId: parseInt(currentUser.id) || 0,
-      groupId: chat.groupId, // 关键字段：groupId而不是chatGroupId
-      chatStatus: chat.chatStatus || 0,
-      topFlag: chat.isTop ? 1 : 0,
-      memberType: chat.memberType || 0,
-      saveFlag: chat.saveFlag || 0,
-      createUser: chat.createUser || parseInt(currentUser.id) || 0,
-      readTime: currentTime, // 更新已读时间为当前时间
-      createTime: chat.createTime || currentTime,
-      clearTime: chat.clearTime || null,
-      remark: chat.remark || null,
-      delFlag: 0,
-      unReadNum: chat.unreadCount || 0,
-      hiddenFlag: chat.isHidden ? 1 : 0,
-      showOptionFlag: false,
-      pushClientId: chat.pushClientId || null,
-      userName: chat.userName || null,
-      friendName: chat.friendName || null,
-      userAvatar: chat.userAvatar || null
-    }
-    
-    const response = await GroupMemberApi.updateMyGroupSet(params as any)
-    
-    if (response.success) {
-      console.log('✅ 已读时间更新成功:', chat.name, currentTime)
-    } else {
-      console.warn('❌ 已读时间更新失败:', response.message)
-    }
+    console.log('ℹ️ 当前版本离开聊天不再调用旧的群用户接口，稍后将接入新的阅读状态接口')
   } catch (error: any) {
     console.error('❌ 已读时间更新异常:', error)
   }

@@ -58,7 +58,7 @@ import { SystemApi } from './system';
 import { UserApi } from './user';
 import { FriendApi } from './friend';
 import { AccountApi } from './account';
-import { GroupApi, GroupMemberApi, RedPacketApi } from './group';
+import { GroupApi } from './group';
 import { MessageApi } from './message';
 import { FriendCircleApi, FriendCircleCommentApi } from './friendCircle';
 import { ChatGptApi } from './chatgpt';
@@ -85,14 +85,7 @@ export const api = {
   account: AccountApi,
   
   // 群聊相关接口
-  group: {
-    // 群聊管理
-    ...GroupApi,
-    // 群成员管理
-    member: GroupMemberApi,
-    // 红包转账
-    redPacket: RedPacketApi
-  },
+  group: GroupApi,
   
   // 消息相关接口
   message: MessageApi,

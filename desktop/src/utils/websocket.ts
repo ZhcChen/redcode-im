@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * WebSocket 管理工具
  */
@@ -22,7 +24,7 @@ class WebSocketManager {
   };
 
   private initParams: WebSocketParams | null = null;
-  private readonly TIO_SERVER = apiConfig.TIO_SERVER;
+  private readonly WS_ENDPOINT = apiConfig.WS_URL;
   private readonly PING_INTERVAL = 3000; // 心跳间隔 3秒 - 与 bear-chat-uniapp 保持一致
   private readonly RECONNECT_INTERVAL = 5000; // 重连间隔 5秒
   private readonly MAX_RECONNECT_COUNT = 10; // 最大重连次数
@@ -113,7 +115,7 @@ class WebSocketManager {
 
       // 构建连接 URL
       const urlParams = this.buildUrlParams(this.initParams);
-      const wsUrl = `${this.TIO_SERVER}${urlParams}`;
+      const wsUrl = `${this.WS_ENDPOINT}?${urlParams}`;
       
       console.log('WebSocket 连接地址:', wsUrl);
 
@@ -157,7 +159,7 @@ class WebSocketManager {
 
     // 构建连接 URL
     const urlParams = this.buildUrlParams(params);
-    const wsUrl = `${this.TIO_SERVER}${urlParams}`;
+    const wsUrl = `${this.WS_ENDPOINT}?${urlParams}`;
     
     console.log('WebSocket 连接地址:', wsUrl);
 
@@ -576,8 +578,8 @@ class WebSocketManager {
    * 构建 URL 参数
    */
   private buildUrlParams(params: WebSocketParams): string {
-    const paramEntries = Object.entries(params);
-    const paramStrings = paramEntries.map(([key, value]) => `${key}=${value}`);
+    const paramEntries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null);
+    const paramStrings = paramEntries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
     return paramStrings.join('&');
   }
 

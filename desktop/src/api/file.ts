@@ -3,9 +3,9 @@
  * 包含文件上传、下载、预览等功能
  */
 
-import { upload, post, get } from './http';
 import { fileConfig } from './config';
 import type { ApiResponse } from './http';
+import { UserApi } from './user';
 
 /**
  * 文件信息接口
@@ -88,15 +88,43 @@ export class FileApi {
    * @returns Promise<ApiResponse<FileUploadResult>> 上传结果
    */
   static async uploadFile(params: FileUploadParams): Promise<ApiResponse<FileUploadResult>> {
-    const { file, category, ...additionalData } = params;
-    
-    // 根据文件分类选择合适的上传URL
-    let uploadUrl = fileConfig.uploadUrl;
+    const { file, category } = params;
+
     if (category === 'avatar') {
-      uploadUrl = fileConfig.uploadAvatarUrl;
+      const response = await UserApi.uploadAvatar();
+      if (!response.success || !response.data) {
+        return {
+          code: response.code ?? 500,
+          message: response.message || '头像上传失败，请稍后重试',
+          success: false,
+          data: null
+        };
+      }
+
+      const uploadResult: FileUploadResult = {
+        id: '',
+        fileName: file.name,
+        filePath: response.data.avatarUrl,
+        fileUrl: response.data.avatarUrl,
+        fileSize: file.size,
+        fileType: file.type,
+        md5: ''
+      };
+
+      return {
+        code: response.code ?? 200,
+        message: response.message || '头像上传成功',
+        success: true,
+        data: uploadResult
+      };
     }
-    
-    return upload<FileUploadResult>(uploadUrl, file, additionalData);
+
+    return {
+      code: 501,
+      message: '当前版本暂不支持文件上传，请稍后再试',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -109,27 +137,11 @@ export class FileApi {
     files: File[],
     additionalData?: Record<string, any>
   ): Promise<ApiResponse<FileUploadResult[]>> {
-    const uploadPromises = files.map(file => 
-      FileApi.uploadFile({ file, ...additionalData })
-    );
-    
-    const results = await Promise.allSettled(uploadPromises);
-    const successResults: FileUploadResult[] = [];
-    const errors: string[] = [];
-
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value.success) {
-        successResults.push(result.value.data);
-      } else {
-        errors.push(`文件 ${files[index].name} 上传失败`);
-      }
-    });
-
     return {
-      code: errors.length === 0 ? 200 : 207, // 207表示部分成功
-      message: errors.length === 0 ? '上传成功' : `${successResults.length}个文件上传成功，${errors.length}个文件上传失败`,
-      data: successResults,
-      success: successResults.length > 0
+      code: 501,
+      message: '当前版本暂不支持批量文件上传',
+      success: false,
+      data: null
     };
   }
 
@@ -139,7 +151,12 @@ export class FileApi {
    * @returns Promise<ApiResponse<FileInfo>> 文件信息
    */
   static async getFileInfo(params: { fileId: string }): Promise<ApiResponse<FileInfo>> {
-    return post<FileInfo>('file/getFileInfo', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -153,7 +170,12 @@ export class FileApi {
     page: number;
     size: number;
   }>> {
-    return post('file/getFileList', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -162,7 +184,12 @@ export class FileApi {
    * @returns Promise<ApiResponse<any>> 删除结果
    */
   static async deleteFile(params: { fileId: string }): Promise<ApiResponse<any>> {
-    return post('file/deleteFile', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -171,7 +198,12 @@ export class FileApi {
    * @returns Promise<ApiResponse<any>> 删除结果
    */
   static async deleteMultipleFiles(params: { fileIds: string[] }): Promise<ApiResponse<any>> {
-    return post('file/deleteMultipleFiles', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -186,7 +218,12 @@ export class FileApi {
     tags?: string[];
     isPublic?: boolean;
   }): Promise<ApiResponse<any>> {
-    return post('file/updateFileInfo', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -198,7 +235,12 @@ export class FileApi {
     downloadUrl: string;
     expiresIn: number;
   }>> {
-    return post('file/getDownloadUrl', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -296,7 +338,13 @@ export class FileApi {
    * @returns Promise<ApiResponse<FileUploadResult>> 压缩后的文件信息
    */
   static async compressImage(params: ImageCompressParams): Promise<ApiResponse<FileUploadResult>> {
-    return post<FileUploadResult>('file/compressImage', params);
+    console.warn('compressImage 调用被忽略，文件服务暂未启用', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -309,7 +357,13 @@ export class FileApi {
     width?: number;
     height?: number;
   }): Promise<ApiResponse<FileUploadResult>> {
-    return post<FileUploadResult>('file/generateThumbnail', params);
+    console.warn('generateThumbnail 调用被忽略，文件服务暂未启用', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -337,7 +391,13 @@ export class FileApi {
       size: number;
     }>;
   }>> {
-    return post('file/getStorageStatistics', params);
+    console.warn('getStorageStatistics 调用被忽略，文件服务暂未启用', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -349,7 +409,13 @@ export class FileApi {
     exists: boolean;
     fileInfo?: FileInfo;
   }>> {
-    return post('file/checkFileExists', params);
+    console.warn('checkFileExists 调用被忽略，文件服务暂未启用', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 
   /**
@@ -362,7 +428,13 @@ export class FileApi {
     fileName: string;
     fileSize: number;
   }): Promise<ApiResponse<FileUploadResult>> {
-    return post<FileUploadResult>('file/instantUpload', params);
+    console.warn('instantUpload 调用被忽略，文件服务暂未启用', params);
+    return {
+      code: 501,
+      message: '文件服务暂未启用',
+      success: false,
+      data: null
+    };
   }
 }
 

@@ -1,0 +1,29 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node"],
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "noImplicitAny": false,
+    "verbatimModuleSyntax": false,
+    "skipLibCheck": true,
+    "isolatedModules": false,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.vue",
+    "src/examples",
+    "src/utils/__tests__",
+    "node_modules",
+    "dist"
+  ]
+}

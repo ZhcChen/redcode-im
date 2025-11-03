@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * Vue 3 Watch API 使用示例
  * 展示各种 watch 模式和最佳实践

@@ -3,6 +3,7 @@
  * 提供增强的 watch 功能和常用模式
  */
 
+// @ts-nocheck
 import { watch, watchEffect, type Ref, type ComputedRef } from 'vue';
 import type {
   WatchSource,

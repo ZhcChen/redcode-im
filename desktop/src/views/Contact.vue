@@ -347,7 +347,7 @@ const searchResults = ref<UserInfo[]>([])
 const isSearching = ref(false)
 const searchError = ref('')
 const isAddingFriend = ref(false)
-const addingFriendId = ref<number | null>(null)
+const addingFriendId = ref<string | null>(null)
 // Popover 引用
 const menuPopoverRef = ref()
 // 新的朋友页面状态
@@ -633,7 +633,7 @@ const loadFriendRequests = async (forceRefresh = false) => {
 // 更新待处理好友申请数量
 const updatePendingFriendRequestsCount = async () => {
   try {
-    const response = await FriendApi.unHandleFriendApply({})
+    const response = await FriendApi.unHandleFriendApply()
     if (response.success && typeof response.data === 'number') {
       store.dispatch('updatePendingFriendRequests', response.data)
       console.log('✅ 更新待处理好友申请数量:', response.data)
@@ -721,9 +721,6 @@ const handleSelectUser = async (user: UserInfo) => {
   try {
     const response = await FriendApi.addFriend({
       friendId: user.id,
-      friendName: user.realName || user.userName,
-      friendMobile: user.mobile,
-      friendPower: 1, // 默认权限
       description: `我是${currentUser.nickname || currentUser.username}`
     })
 
@@ -768,7 +765,7 @@ const handleAcceptFriendRequest = async (request: FriendRequest) => {
     // 调用处理好友申请API，status: 1 表示同意
     // 使用 fromUserId 作为 applyUserId，因为这是申请人的用户ID
     const response = await FriendApi.handleFriendApply({
-      applyUserId: request.fromUserId || request.id,
+      requestId: request.id,
       status: 1
     })
 
@@ -800,7 +797,7 @@ const handleRejectFriendRequest = async (request: FriendRequest) => {
     // 调用处理好友申请API，status: 2 表示拒绝
     // 使用 fromUserId 作为 applyUserId，因为这是申请人的用户ID
     const response = await FriendApi.handleFriendApply({
-      applyUserId: request.fromUserId || request.id,
+      requestId: request.id,
       status: 2
     })
 
@@ -1725,4 +1722,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

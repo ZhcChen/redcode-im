@@ -190,7 +190,6 @@ async function handleLogin() {
       response = await SystemApi.login({
         mobile: loginForm.value.phone,
         password: loginForm.value.password,
-        byBearToken: false,
         userDeviceId: Date.now()
       });
     } else {
@@ -210,25 +209,24 @@ async function handleLogin() {
       // 将API返回的数据格式映射为Store期望的格式
       const userInfo = response.data.userInfo;
       const mappedUserInfo = {
-        id: userInfo.id.toString(),
-        username: userInfo.userName,
-        nickname: userInfo.realName,
-        avatar: userInfo.avatar || '', // 使用API返回的头像URL，如果没有则设为空字符串
-        mobile: userInfo.mobile,
-        email: userInfo.email || '', // 使用API返回的邮箱，如果没有则设为空字符串
-        // 添加完整的用户信息，与bear-chat-uniapp保持一致
-        realName: userInfo.realName,
-        chatNumber: userInfo.chatNumber,
-        address: userInfo.address,
-        createTime: userInfo.createTime,
-        lastLoginTime: userInfo.lastLoginTime,
-        activeStatus: userInfo.activeStatus,
-        delFlag: userInfo.delFlag,
-        level: userInfo.level,
-        userDeviceId: userInfo.userDeviceId,
-        userSign: userInfo.userSign,
-        trcSdkAppId: userInfo.trcSdkAppId,
-        powerList: userInfo.powerList
+        id: String(userInfo.id),
+        username: userInfo.username,
+        nickname: userInfo.nickname || userInfo.username,
+        avatar: userInfo.avatar || '',
+        mobile: userInfo.mobile || userInfo.username,
+        email: userInfo.email || '',
+        realName: userInfo.realName || userInfo.nickname || userInfo.username,
+        chatNumber: userInfo.chatNumber || userInfo.username,
+        address: userInfo.address || '',
+        createTime: userInfo.createTime || null,
+        lastLoginTime: userInfo.lastLoginTime || null,
+        activeStatus: userInfo.activeStatus ?? null,
+        delFlag: userInfo.delFlag ?? null,
+        level: userInfo.level ?? null,
+        userDeviceId: userInfo.userDeviceId || null,
+        userSign: userInfo.userSign || null,
+        trcSdkAppId: userInfo.trcSdkAppId ?? null,
+        powerList: userInfo.powerList ?? null
       };
       
       console.log('📸 登录响应中的头像信息:', {

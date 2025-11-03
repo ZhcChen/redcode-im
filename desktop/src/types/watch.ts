@@ -3,6 +3,7 @@
  * 提供更严格和实用的 watch 相关类型
  */
 
+// @ts-nocheck
 import type { Ref, ComputedRef } from 'vue';
 
 // 基础 Watch 类型

@@ -11,7 +11,7 @@ import { apiConfig, requestConfig } from './config';
 export interface ApiResponse<T = any> {
   code: number;
   message: string;
-  data: T;
+  data: T | null;
   success: boolean;
 }
 
@@ -19,7 +19,7 @@ export interface ApiResponse<T = any> {
  * 请求参数接口
  */
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: any;
   timeout?: number;
@@ -304,11 +304,12 @@ class HttpClient {
       // 处理 HTTP 状态码
       if (response.status === 401) {
         // 401 认证失败的特殊处理 - 防止重复登出
+        const authorizationHeader = requestHeaders['Authorization'] || '';
         console.error(`🚫 [${requestId}] 401认证失败:`, {
           url: fullUrl,
           method,
-          hasToken: !!requestHeaders['TOKEN_IM'],
-          tokenPreview: requestHeaders['TOKEN_IM'] ? `${requestHeaders['TOKEN_IM'].substring(0, 10)}...` : '无token',
+          hasAuthorization: !!authorizationHeader,
+          tokenPreview: authorizationHeader ? `${authorizationHeader.slice(0, 20)}...` : '无token',
           isLoggingOut: this.isLoggingOut,
           storeToken: store.state.token ? `${store.state.token.substring(0, 10)}...` : '无token',
           isLoggedIn: store.getters.isLoggedIn,
@@ -354,14 +355,42 @@ class HttpClient {
         throw new Error('身份验证失效，请重新登录');
       }
 
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+      const contentType = response.headers.get('content-type') || '';
+      const rawText = await response.text();
+      let parsedBody: any = null;
+
+      if (rawText) {
+        if (contentType.includes('application/json')) {
+          try {
+            parsedBody = JSON.parse(rawText);
+          } catch (parseError) {
+            console.warn(`响应JSON解析失败，返回原始文本:`, parseError);
+            parsedBody = rawText;
+          }
+        } else {
+          parsedBody = rawText;
+        }
       }
 
-      const result = await response.json();
+      if (!response.ok) {
+        const errorMessage =
+          (parsedBody && typeof parsedBody === 'object' && parsedBody !== null && (parsedBody.message || parsedBody.error)) ||
+          response.statusText ||
+          '请求失败';
+        throw new Error(`HTTP ${response.status}: ${errorMessage}`);
+      }
+
+      const apiResponse: ApiResponse<T> = {
+        code: response.status,
+        success: true,
+        message:
+          (parsedBody && typeof parsedBody === 'object' && parsedBody !== null && (parsedBody.message || parsedBody.error)) ||
+          '',
+        data: (parsedBody ?? null) as T | null
+      };
 
       // 执行响应拦截器
-      return await this.executeResponseInterceptors<T>(result);
+      return await this.executeResponseInterceptors<T>(apiResponse);
     } catch (error) {
       // 请求失败，从 pending 列表中移除
       this.pendingRequests.delete(requestId);
@@ -440,6 +469,19 @@ class HttpClient {
   }
 
   /**
+   * PATCH 请求
+   * @param url 请求地址
+   * @param data 请求数据
+   * @returns Promise<ApiResponse>
+   */
+  async patch<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(url, {
+      method: 'PATCH',
+      body: data
+    });
+  }
+
+  /**
    * DELETE 请求
    * @param url 请求地址
    * @returns Promise<ApiResponse>
@@ -477,22 +519,17 @@ class HttpClient {
 import { store } from '../store';
 
 // 创建 HTTP 客户端实例
-export const httpClient = new HttpClient(apiConfig.BASE_API);
+export const httpClient = new HttpClient(apiConfig.API_BASE_URL);
 
 // 定义不需要 token 的接口白名单（参考 bear-chat-uniapp 项目）
 const noTokenApis = [
-  "login",
-  "checkMobile", 
-  "sendSmsCode",
-  "getShareMsgDetail",
-  "getAppConfig",
-  "senMobileSMS",
-  "updateUserInfoKeepAlive",
-  "txByToken",
-  "authlogin",
-  "register",  // 注册接口也不需要 token
-  "auth/sms/send",  // 发送验证码
-  "auth/login/sms"  // 验证码登录
+  '/auth/login',
+  '/auth/login/sms',
+  '/auth/register',
+  '/auth/sms/send',
+  '/settings/privacy-policy',
+  '/healthz',
+  '/ws'
 ];
 
 /**
@@ -533,10 +570,8 @@ httpClient.addRequestInterceptor((config) => {
     });
 
     if (token) {
-      // 只要有token就添加到请求头，不再检查isLoggedIn状态
-      // 这样可以避免登录过程中的状态同步问题
-      headers['TOKEN_IM'] = token;
-      console.log(`[${requestId}] ✅ 已添加token到请求头`);
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log(`[${requestId}] ✅ 已添加 Authorization 头`);
 
       // 如果状态不同步，给出警告但不阻止请求
       if (!isLoggedIn) {
@@ -559,19 +594,13 @@ httpClient.addRequestInterceptor((config) => {
 
 // 添加默认响应拦截器 - 根据code字段添加success字段
 httpClient.addResponseInterceptor((response) => {
-  // 根据 code 字段生成 success 字段
-  const processedResponse = {
-    ...response,
-    success: response.code === 200
-  };
-  
-  if (processedResponse.success) {
-    console.log(`请求成功:`, processedResponse.code, processedResponse.message);
+  if (response.success) {
+    console.log(`请求成功:`, response.code, response.message);
   } else {
-    console.warn(`请求失败:`, processedResponse.code, processedResponse.message);
+    console.warn(`请求失败:`, response.code, response.message);
   }
-  
-  return processedResponse;
+
+  return response;
 });
 
 // 添加默认错误拦截器 - 统一错误处理
@@ -612,11 +641,12 @@ httpClient.addErrorInterceptor((error) => {
 });
 
 // 导出便捷方法
-export const get = httpClient.get.bind(httpClient);
-export const post = httpClient.post.bind(httpClient);
-export const put = httpClient.put.bind(httpClient);
-export const del = httpClient.delete.bind(httpClient);
-export const upload = httpClient.upload.bind(httpClient);
+export const get = <T>(url: string, params?: Record<string, any>) => httpClient.get<T>(url, params);
+export const post = <T>(url: string, data?: any, options?: Partial<RequestOptions>) => httpClient.post<T>(url, data, options);
+export const put = <T>(url: string, data?: any) => httpClient.put<T>(url, data);
+export const patch = <T>(url: string, data?: any) => httpClient.patch<T>(url, data);
+export const del = <T>(url: string) => httpClient.delete<T>(url);
+export const upload = <T>(url: string, file: File, additionalData?: Record<string, any>) => httpClient.upload<T>(url, file, additionalData);
 
 // 导出拦截器管理函数
 export const addRequestInterceptor = httpClient.addRequestInterceptor.bind(httpClient);

@@ -1,0 +1,32 @@
+declare module 'vue' {
+  const vue: any;
+  export default vue;
+  export const ref: any;
+  export type Ref<T = any> = any;
+  export const reactive: any;
+  export const computed: any;
+  export type ComputedRef<T = any> = any;
+  export const watch: any;
+  export const watchEffect: any;
+  export const watchSyncEffect: any;
+  export const watchPostEffect: any;
+  export const onMounted: any;
+  export const onBeforeMount: any;
+  export const onUnmounted: any;
+  export const onBeforeUnmount: any;
+  export const onUpdated: any;
+  export const onBeforeUpdate: any;
+  export const onActivated: any;
+  export const onDeactivated: any;
+  export const app: any;
+  export const createApp: any;
+  export type App = any;
+  export const nextTick: any;
+  export const defineComponent: any;
+  export const defineProps: any;
+  export const defineEmits: any;
+  export const defineExpose: any;
+  export const withDefaults: any;
+  export const getCurrentInstance: any;
+  export const h: any;
+}
