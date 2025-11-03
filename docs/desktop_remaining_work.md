@@ -81,4 +81,72 @@
 2. **M2：消息体验完善**（完成 4-6 节核心项）
 3. **M3：发布准备**（完成测试、文档与 CI 集成）
 
+## 阶段一执行计划
+
+### API 对齐清单（参考 `frontend/lib/core/services`）
+
+| 模块 | HTTP 方法 | 路径 | 功能 | 桌面端要点 |
+| --- | --- | --- | --- | --- |
+| 会话 | `GET` | `/chats` | 查询会话列表 | 解析单聊/群聊 extra 字段，维护未读数；接入订阅同步 |
+| 消息 | `GET` | `/rooms/{roomId}/messages` | 分页拉取消息 | 支持 `limit`/`before_id`/`since_id` 查询参数，合并本地缓存 |
+| 消息 | `POST` | `/rooms/{roomId}/messages` | 发送文本/引用消息 | 创建临时消息、状态回写；预留 `message_type` 扩展 |
+| 消息 | `POST` | `/rooms/{roomId}/messages/forward` | 转发消息 | 转发信息写入 `extra.forward`，保持一致的 ForwardInfo 模型 |
+| 消息 | `DELETE` | `/rooms/{roomId}/messages/{messageId}` | 删除消息 | 配合 `message_update` 推送刷新本地状态 |
+| 消息 | `POST` | `/rooms/{roomId}/messages/{messageId}/pin` | 置顶消息 | 处理返回消息体或布尔标记两种响应 |
+| 消息 | `DELETE` | `/rooms/{roomId}/messages/{messageId}/pin` | 取消置顶 | 同步 `_pinnedMessageIds` 缓存和 UI |
+| 消息 | `POST` | `/rooms/{roomId}/messages/read` | 上报已读 | 本地状态批量更改，自行动画未读清零 |
+| 消息 | `GET` | `/rooms/{roomId}/messages/{messageId}/reads` | 获取已读成员 | 缓存 `MessageReader`，支撑阅读回执面板 |
+| 房间 | `GET` | `/rooms/{roomId}/members` | 查询群成员 | 缓存人数，驱动群成员面板 |
+| 房间 | `POST` | `/rooms` | 创建群聊 | 用于桌面端群聊引导（可后置） |
+| 好友 | `GET` | `/friends` | 获取好友列表 | 初始化联系人数据，驱动会话占位 |
+| 好友 | `POST` | `/friends/{friendUserId}/chat` | 确保私聊会话 | 新好友建立后自动加入房间 |
+| 好友申请 | `GET` | `/friends/requests` | 列表/状态过滤 | `websocket` 事件 `friend_request_update` 同步待处理数量 |
+| 好友申请 | `POST` | `/friends/requests` | 发送请求 | 保留备注信息 |
+| 好友申请 | `POST` | `/friends/requests/{requestId}/respond` | 处理好友请求 | 同步联系人与会话刷新 |
+| 用户 | `GET` | `/users/search` | 搜索用户 | 桌面端适配全局搜索体验 |
+
+> 若后端接口有新增字段，请同步更新桌面端模型与序列化逻辑。
+
+### WebSocket 事件对齐（参考 `frontend/lib/core/services/websocket_service.dart`）
+
+- `authed`：鉴权成功后重放订阅、刷新会话与好友列表。
+- `joined`/`left`：维护 `_subscribedRooms` 与 `_desiredRooms`，决定是否补拉历史消息。
+- `message`：调用消息服务去重、合并状态；与 HTTP 发送流程联动剔除临时消息。
+- `message_read`：同步本地已读状态，并失效 `MessageReader` 缓存。
+- `message_update`：处理删除、编辑等状态变更，更新 pinned 缓存。
+- `pin_update`：刷新置顶消息 UI 与缓存字段。
+- `friend_request_update`、`friendship_created/deleted`、`friend_profile_updated`、`friends.version`：驱动联系人与侧边栏徽标。
+- `room_created`：为新群聊创建占位、触发订阅与会话刷新。
+- `error`/`pong`：调试与心跳。
+
+### 阶段一任务拆解（执行顺序建议）
+
+1. **HTTP 客户端落地**
+   - 选型 `fetch`/`axios` 或自封装 `tauri::http`，支持全局 Base URL、超时、鉴权头、错误统一处理。
+   - 写入刷新 token/登出处理策略，与桌面端本地存储方案衔接。
+
+2. **数据模型同步**
+   - 基于移动端 `Chat`、`Message`、`MessageResponse`、`ForwardInfo`、`MessageReader`、`FriendInfo` 定义 TypeScript 接口。
+   - 统一状态枚举（消息状态、房间类型、消息类型），避免魔法字符串。
+   - 约定前后端时间戳统一为 ISO 字符串，进入应用内即转为 `Date` 对象。
+
+3. **本地仓储与状态管理**
+   - 确定桌面端全局状态方案（如 Zustand/Redux）与消息缓存持久化介质（IndexedDB/文件）。
+   - 设计消息字典结构：`roomId -> message[]`、`pendingMessages`、`pinnedMessageIds` 等，与移动端字段保持对齐。
+
+4. **WebSocket 客户端框架**
+   - 复刻移动端连接流程（连接→鉴权→订阅），实现自动重连、心跳、网络状态监听。
+   - 定义事件枚举与处理器，将原始推送转为应用层事件流。
+
+5. **消息发送/接收 MVP**
+   - 完成文本消息发送流程：临时 ID → HTTP → 状态更新 → WS 去重。
+   - 构建聊天列表/消息面板简版 UI 验证数据流。
+   - 支持历史消息分页加载与滚动补拉。
+
+6. **验证与文档**
+   - 编写阶段一冒烟脚本：登录→建立连接→发送消息→跨端验证。
+   - 在 `docs` 更新 API 字段映射表、事件时序图、错误处理指引。
+
+完成以上步骤后，即可进入阶段二的高级消息和多媒体能力开发。
+
 
