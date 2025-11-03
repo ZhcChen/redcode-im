@@ -8,7 +8,7 @@ class SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      color: const Color(0xFFF8F9FA),
+      color: Colors.white,
       alignment: Alignment.topCenter,
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
@@ -71,7 +71,7 @@ class _AvatarSection extends StatelessWidget {
       children: [
         const CircleAvatar(
           radius: 60,
-          backgroundColor: Color(0xFF00C2B3),
+          backgroundColor: Color(0xFF4ECDC4),
           child: Text('桌', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w600)),
         ),
         GestureDetector(

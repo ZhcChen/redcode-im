@@ -30,7 +30,7 @@ class SideMenu extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.only(top: 20, bottom: 10),
             child: GestureDetector(
               onTap: onOpenSettings,
               child: CircleAvatar(
@@ -45,7 +45,7 @@ class SideMenu extends StatelessWidget {
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               children: [
                 _SideMenuItem(
                   label: HomeSection.chat.label,
@@ -135,28 +135,32 @@ class _SideMenuItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SvgPicture.asset(
-              isActive ? activeIconPath : iconPath,
-              width: 24,
-              height: 24,
-            ),
-            const SizedBox(height: 11),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: isActive ? theme.colorScheme.primary : const Color(0xFF9B9BB0),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          color: Colors.transparent,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SvgPicture.asset(
+                isActive ? activeIconPath : iconPath,
+                width: 24,
+                height: 24,
               ),
-            ),
-          ],
+              const SizedBox(height: 11),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? const Color(0xFF4ECDC4) : const Color(0xFF9B9BB0),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

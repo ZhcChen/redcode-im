@@ -114,7 +114,7 @@ class _LoginFormState extends State<LoginForm> {
               method: _method,
               onSelect: _switchMethod,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 0),
             _LabeledField(
               label: '手机号',
               child: _ChatlyInput(
@@ -132,7 +132,7 @@ class _LoginFormState extends State<LoginForm> {
                 },
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             if (_method == LoginMethod.password)
               _LabeledField(
                 label: '密码',
@@ -212,14 +212,14 @@ class _LoginFormState extends State<LoginForm> {
                 child: Text(_isLoading ? '登录中...' : '登录账号'),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 17),
             GestureDetector(
               onTap: _toggleAgreement,
               behavior: HitTestBehavior.opaque,
               child: Row(
                 children: [
                   _AgreementRadio(selected: _isAgreed),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       '注册/登陆即代表同意《用户协议》和《隐私协议》',
@@ -297,9 +297,10 @@ class _LabeledField extends StatelessWidget {
           padding: const EdgeInsets.only(left: 12),
           child: Text(
             label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: const TextStyle(
                   fontSize: 14,
-                  color: const Color(0xFF333333),
+                  height: 1.286,
+                  color: Color(0xFF333333),
                 ),
           ),
         ),
@@ -370,16 +371,15 @@ class _AgreementRadio extends StatelessWidget {
       width: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Theme.of(context).colorScheme.primary, width: 1),
-        color: selected ? Theme.of(context).colorScheme.primary : Colors.white,
+        border: Border.all(color: const Color(0xFF4ECDC4), width: 1),
+        color: selected ? const Color(0xFF4ECDC4) : Colors.white,
       ),
       child: selected
-          ? Center(
-              child: SvgPicture.asset(
-                'assets/images/icon/selected.svg',
-                width: 8,
-                height: 8,
-                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+          ? const Center(
+              child: Icon(
+                Icons.check,
+                size: 10,
+                color: Colors.white,
               ),
             )
           : null,

@@ -52,10 +52,10 @@ class LoginPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 40),
                 Expanded(
                   child: Container(
-                    margin: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                     padding: const EdgeInsets.fromLTRB(36, 16, 36, 32),
                     decoration: BoxDecoration(
                       color: Colors.white,

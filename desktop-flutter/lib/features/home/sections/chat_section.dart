@@ -26,7 +26,7 @@ class _ChatSectionState extends State<ChatSection> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      color: const Color(0xFFF8F9FA),
+      color: Colors.white,
       child: Column(
         children: [
           _buildHeader(theme),
@@ -162,7 +162,7 @@ class _ChatSectionState extends State<ChatSection> {
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: isSelected ? const Color(0xFFEFFBF9) : Colors.white,
+              color: isSelected ? const Color(0xFFEFFBF9) : Colors.transparent,
               child: Row(
                 children: [
                   CircleAvatar(
@@ -271,8 +271,9 @@ class _ChatSectionState extends State<ChatSection> {
                       child: Text(
                         message.content,
                         style: TextStyle(
-                          color: isMine ? Colors.white : const Color(0xFF333333),
+                          color: isMine ? Colors.white : const Color(0xFF2C3E50),
                           fontSize: 14,
+                          height: 1.5,
                         ),
                       ),
                     ),
@@ -291,46 +292,56 @@ class _ChatSectionState extends State<ChatSection> {
               Row(
                 children: [
                   _ComposerIconButton(icon: 'assets/images/icon-emoji.svg', tooltip: '表情'),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   _ComposerIconButton(icon: 'assets/images/icon-upload.svg', tooltip: '附件'),
-                  const SizedBox(width: 12),
-                  _ComposerIconButton(icon: 'assets/images/icon-message.svg', tooltip: '快捷消息'),
                   const Spacer(),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('清空'),
-                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const TextField(
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    hintText: '输入消息，按 Enter 发送',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 100),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F7F8),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: const TextField(
+                        maxLines: null,
+                        decoration: InputDecoration(
+                          hintText: '输入消息...',
+                          hintStyle: TextStyle(color: Color(0xFF9B9BB0)),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: () {},
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                  const SizedBox(width: 16),
+                  GestureDetector(
+                    onTap: () {},
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4ECDC4),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: SvgPicture.asset(
+                          'assets/images/icon-send.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                        ),
+                      ),
+                    ),
                   ),
-                  icon: SvgPicture.asset('assets/images/icon-send.svg', width: 16, height: 16, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
-                  label: const Text('发送'),
-                ),
+                ],
               ),
             ],
           ),

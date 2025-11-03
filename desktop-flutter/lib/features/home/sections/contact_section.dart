@@ -27,7 +27,7 @@ class _ContactSectionState extends State<ContactSection> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      color: const Color(0xFFF8F9FA),
+      color: Colors.white,
       child: Column(
         children: [
           _buildHeader(theme),
@@ -344,7 +344,7 @@ class _ContactItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        color: isSelected ? const Color(0xFFEFFBF9) : Colors.white,
+        color: isSelected ? const Color(0xFFEFFBF9) : Colors.transparent,
         child: Row(
           children: [
             CircleAvatar(
