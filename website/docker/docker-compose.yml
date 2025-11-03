@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Nuxt 网站
   website:
@@ -12,19 +10,6 @@ services:
       - "8015:8015"
     environment:
       - TZ=Asia/Shanghai
-    networks:
-      - website-network
     restart: unless-stopped
-    labels:
-      - "com.redcode.service=website"
-      - "com.redcode.description=Nuxt网站"
-
-networks:
-  website-network:
-    driver: bridge
-    name: redcode_website_network
-    ipam:
-      config:
-        - subnet: 172.22.0.0/16
 
 
