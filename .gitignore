@@ -12,6 +12,7 @@
 logs/
 
 bear-chat-uniapp
+bear-chat-tauri
 .dartServer
 .dart-tool
 log
