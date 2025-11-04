@@ -10,7 +10,6 @@ use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use time::OffsetDateTime;
 use tracing::{debug, error, warn};
-use urlencoding::encode;
 
 type HmacSha1 = Hmac<Sha1>;
 
@@ -150,7 +149,8 @@ impl TencentCosService {
     /// 获取完整的 URL
     fn get_full_url(&self, key: &str) -> String {
         let host = self.resolve_object_host();
-        format!("https://{}/{}", host, encode(key))
+        let encoded_key = encode_object_key(key);
+        format!("https://{}/{}", host, encoded_key)
     }
 
     fn resolve_object_host(&self) -> String {
@@ -190,7 +190,7 @@ impl StorageService for TencentCosService {
         );
 
         // 构建请求路径
-        let path = format!("/{}", encode(key));
+        let path = build_uri_pathname(key);
 
         // 构建 headers
         let mut headers_map = BTreeMap::new();
@@ -239,7 +239,7 @@ impl StorageService for TencentCosService {
 
         debug!("开始删除 COS 文件: key={}", key);
 
-        let path = format!("/{}", encode(key));
+        let path = build_uri_pathname(key);
         let headers_map = BTreeMap::new();
         let authorization = self.generate_signature_v1("DELETE", &path, &headers_map, timestamp);
 
@@ -279,7 +279,7 @@ impl StorageService for TencentCosService {
 
         debug!("检查 COS 文件是否存在: key={}", key);
 
-        let path = format!("/{}", encode(key));
+        let path = build_uri_pathname(key);
         let headers_map = BTreeMap::new();
         let authorization = self.generate_signature_v1("HEAD", &path, &headers_map, timestamp);
 
@@ -544,7 +544,7 @@ impl StorageService for TencentCosService {
     ) -> Result<DirectUploadSignature, AppError> {
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
-        let path = format!("/{}", encode(key));
+        let path = build_uri_pathname(key);
 
         let mut headers_map = BTreeMap::new();
         if let Some(ct) = content_type {
@@ -555,7 +555,8 @@ impl StorageService for TencentCosService {
 
         let authorization = self.generate_signature_v1("PUT", &path, &headers_map, timestamp);
         let host = self.resolve_object_host();
-        let url = format!("https://{}/{}", host, encode(key));
+        let encoded_key = encode_object_key(key);
+        let url = format!("https://{}/{}", host, encoded_key);
 
         let mut response_headers = BTreeMap::new();
         response_headers.insert("Authorization".to_string(), authorization);
@@ -794,6 +795,33 @@ fn build_canonical_params(params: Option<&BTreeMap<String, String>>) -> (Vec<Str
         (param_list, canonical_str)
     } else {
         (Vec::new(), String::new())
+    }
+}
+
+fn normalize_object_key(key: &str) -> &str {
+    let trimmed = key.trim_start_matches('/');
+    if trimmed.is_empty() {
+        key
+    } else {
+        trimmed
+    }
+}
+
+fn build_uri_pathname(key: &str) -> String {
+    let normalized = normalize_object_key(key);
+    if normalized.starts_with('/') {
+        normalized.to_string()
+    } else {
+        format!("/{}", normalized)
+    }
+}
+
+fn encode_object_key(key: &str) -> String {
+    let normalized = normalize_object_key(key);
+    if normalized.is_empty() {
+        String::new()
+    } else {
+        urlencoding::encode(normalized).to_string()
     }
 }
 
