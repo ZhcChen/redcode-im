@@ -67,6 +67,10 @@ pub fn create_routes() -> Router<AppState> {
             post(admin::test_cos_upload_signature),
         )
         .route(
+            "/api/admin/storage-providers/test/cors/list",
+            post(admin::test_cos_get_cors),
+        )
+        .route(
             "/api/admin/storage-providers/test/cors",
             post(admin::test_cos_set_cors),
         )

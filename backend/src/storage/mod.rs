@@ -62,6 +62,13 @@ pub trait StorageService: Send + Sync {
     /// 创建 bucket
     async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError>;
 
+    /// 获取跨域规则
+    async fn get_cors_rules(&self) -> Result<Vec<CorsRule>, AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持跨域规则查询".to_string(),
+        ))
+    }
+
     /// 设置跨域规则
     async fn set_cors_rules(&self, _rules: &[CorsRule]) -> Result<(), AppError> {
         Err(AppError::ValidationError(

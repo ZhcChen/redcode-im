@@ -57,44 +57,29 @@ export interface ApiResponse<T> {
 }
 
 export interface TestCosDeleteResponse {
-  data: {
-    success: boolean;
-    message: string;
-  };
+  success: boolean;
+  message: string;
 }
 
 export interface TestCosExistsResponse {
-  data: {
-    success: boolean;
-    exists: boolean;
-    message: string;
-  };
+  success: boolean;
+  exists?: boolean;
+  message: string;
 }
 
 export interface TestCosListBucketsResponse {
-  data: {
-    success: boolean;
-    buckets: Array<{
-      name: string;
-      region: string;
-      creation_date?: string | null;
-    }>;
-    message: string;
-  };
+  success: boolean;
+  buckets: Array<{
+    name: string;
+    region: string;
+    creation_date?: string | null;
+  }>;
+  message: string;
 }
 
 export interface TestCosCreateBucketResponse {
-  data: {
-    success: boolean;
-    message: string;
-  };
-}
-
-export interface SetCosCorsResponse {
-  data: {
-    success: boolean;
-    message: string;
-  };
+  success: boolean;
+  message: string;
 }
 
 export interface CreateStorageProviderPayload {
@@ -197,6 +182,21 @@ export interface SetCosCorsRequest {
   rules: SetCosCorsRulePayload[];
 }
 
+export interface GetCosCorsRequest {
+  provider_id?: string;
+}
+
+export interface GetCosCorsResponse {
+  success: boolean;
+  message: string;
+  rules: SetCosCorsRulePayload[];
+}
+
+export interface SetCosCorsResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface TestCosDeleteRequest {
   provider_id?: string;
   key: string;
@@ -233,6 +233,13 @@ export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
 export function setCosCors(payload: SetCosCorsRequest) {
   return axios.post<SetCosCorsResponse>(
     '/api/admin/storage-providers/test/cors',
+    payload
+  );
+}
+
+export function getCosCors(payload: GetCosCorsRequest) {
+  return axios.post<GetCosCorsResponse>(
+    '/api/admin/storage-providers/test/cors/list',
     payload
   );
 }

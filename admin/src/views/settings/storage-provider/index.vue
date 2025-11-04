@@ -479,12 +479,12 @@
     try {
       corsSubmitting.value = true;
       const response = await setCosCors(payload);
-      const data = response.data?.data || response.data;
-      if (data?.success) {
+      const { data } = response;
+      if (data.success) {
         Message.success(data.message || '跨域规则配置成功');
         corsModalVisible.value = false;
       } else {
-        Message.error(data?.message || '跨域规则配置失败');
+        Message.error(data.message || '跨域规则配置失败');
       }
     } catch (error: any) {
       const errorMsg =

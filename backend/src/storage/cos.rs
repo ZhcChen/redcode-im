@@ -5,6 +5,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
+use reqwest::StatusCode;
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use time::OffsetDateTime;
@@ -413,6 +414,65 @@ impl StorageService for TencentCosService {
         }
     }
 
+    async fn get_cors_rules(&self) -> Result<Vec<CorsRule>, AppError> {
+        if self.bucket_name.is_empty() {
+            return Err(AppError::ValidationError(
+                "未配置 bucket 名称，无法获取跨域规则".to_string(),
+            ));
+        }
+
+        let headers_map = BTreeMap::new();
+        let mut query_params = BTreeMap::new();
+        query_params.insert("cors".to_string(), String::new());
+
+        let timestamp = OffsetDateTime::now_utc().unix_timestamp();
+        let bucket_endpoint = self.resolve_object_host();
+
+        let authorization = self.generate_signature_v1_with_host(
+            "GET",
+            "/",
+            &headers_map,
+            timestamp,
+            &bucket_endpoint,
+            Some(&query_params),
+        );
+
+        let url = format!("https://{}/?cors", bucket_endpoint);
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", authorization)
+            .header("Host", &bucket_endpoint)
+            .send()
+            .await
+            .map_err(|e| {
+                error!("获取 COS 跨域规则失败: error={}", e);
+                AppError::InternalError(format!("获取跨域规则失败: {}", e))
+            })?;
+
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+
+        if status == StatusCode::NOT_FOUND {
+            debug!("未配置 COS 跨域规则，返回空列表");
+            return Ok(vec![]);
+        }
+
+        if !status.is_success() {
+            error!("获取跨域规则失败: status={}, body={}", status, body);
+            return Err(AppError::InternalError(format!(
+                "获取跨域规则失败: {} - {}",
+                status, body
+            )));
+        }
+
+        if body.trim().is_empty() {
+            return Ok(vec![]);
+        }
+
+        parse_cors_configuration_xml(&body)
+    }
+
     async fn set_cors_rules(&self, rules: &[CorsRule]) -> Result<(), AppError> {
         if self.bucket_name.is_empty() {
             return Err(AppError::ValidationError(
@@ -514,6 +574,56 @@ impl StorageService for TencentCosService {
     }
 }
 
+/// 解析 CORS 配置响应 XML
+fn parse_cors_configuration_xml(xml: &str) -> Result<Vec<CorsRule>, AppError> {
+    let rule_pattern = regex::Regex::new(r"(?s)<CORSRule>(.*?)</CORSRule>").unwrap();
+    let mut rules = Vec::new();
+
+    for caps in rule_pattern.captures_iter(xml) {
+        let block = caps.get(1).map(|m| m.as_str()).unwrap_or_default();
+
+        let allowed_origins = extract_xml_values(block, "AllowedOrigin");
+        let allowed_methods = extract_xml_values(block, "AllowedMethod");
+        let allowed_headers = extract_xml_values(block, "AllowedHeader");
+        let expose_headers = extract_xml_values(block, "ExposeHeader");
+        let max_age =
+            extract_xml_value(block, "MaxAgeSeconds").and_then(|value| value.parse::<u32>().ok());
+
+        if allowed_origins.is_empty() || allowed_methods.is_empty() {
+            // 忽略无效规则
+            continue;
+        }
+
+        rules.push(CorsRule {
+            allowed_origins,
+            allowed_methods,
+            allowed_headers,
+            expose_headers,
+            max_age_seconds: max_age,
+        });
+    }
+
+    Ok(rules)
+}
+
+fn extract_xml_values(block: &str, tag: &str) -> Vec<String> {
+    let pattern = format!(r"<{tag}>(.*?)</{tag}>", tag = tag);
+    let regex = regex::Regex::new(&pattern).unwrap();
+    regex
+        .captures_iter(block)
+        .map(|cap| xml_unescape(cap.get(1).map(|m| m.as_str()).unwrap_or_default().trim()))
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn extract_xml_value(block: &str, tag: &str) -> Option<String> {
+    let pattern = format!(r"<{tag}>(.*?)</{tag}>", tag = tag);
+    let regex = regex::Regex::new(&pattern).unwrap();
+    regex
+        .captures(block)
+        .map(|cap| xml_unescape(cap.get(1).map(|m| m.as_str()).unwrap_or_default().trim()))
+}
+
 /// 解析 ListBuckets 响应 XML
 fn parse_list_buckets_response(xml: &str) -> Result<Vec<BucketInfo>, AppError> {
     // 简化实现：使用正则表达式或 XML 解析器
@@ -605,6 +715,15 @@ fn xml_escape(value: &str) -> String {
         }
     }
     escaped
+}
+
+fn xml_unescape(value: &str) -> String {
+    value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
 }
 
 fn sanitize_endpoint(endpoint: &str) -> String {
