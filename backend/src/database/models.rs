@@ -72,6 +72,29 @@ pub struct UpdateUserRequest {
     pub status: Option<UserStatus>,
 }
 
+/// 应用版本记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AppVersion {
+    pub id: Uuid,
+    pub platform: String,
+    pub version: String,
+    pub build_number: i32,
+    pub channel: String,
+    pub download_key: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub release_notes: Option<String>,
+    pub mandatory: bool,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub released_at: Option<DateTime<Utc>>,
+    pub created_by: Option<Uuid>,
+    pub updated_by: Option<Uuid>,
+}
+
 /// 房间表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Room {
