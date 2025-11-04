@@ -10,7 +10,8 @@ import {
 } from '@/proto';
 import type { WebSocketParams } from '@/types/websocket';
 import { BUSINESS_CODE } from '@/types/websocket';
-import { MessageApi } from '@/api/message';
+import { MessageApi, transformBackendMessage } from '@/api/message';
+import type { Message } from '@/types/models';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'authenticated';
 
@@ -60,32 +61,51 @@ const arrayBufferFromData = async (data: Blob | ArrayBuffer | string): Promise<A
   }
 };
 
-const normalizeServerMessage = (message: any, currentUserId: string | null) => {
-  const senderId = message.sender_id || message.senderId || '';
-  const inferredMessageType = MESSAGE_TYPE_CODE[message.message_type as string] ?? 1;
+const mapNumericMessageTypeToString = (value: number | string | undefined | null): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  switch (value) {
+    case 2:
+      return 'image';
+    case 3:
+      return 'audio';
+    case 4:
+      return 'video';
+    case 5:
+      return 'file';
+    case 9:
+      return 'system';
+    case 1:
+    default:
+      return 'text';
+  }
+};
 
-  return {
+const normalizeServerMessage = (message: any, currentUserId: string | null): Message => {
+  const messageType = mapNumericMessageTypeToString(message.message_type ?? message.messageType ?? 'text');
+  const backendMessage = {
     id: message.message_id || message.id,
-    messageId: message.message_id || message.id,
-    chatGroupId: message.room_id,
-    groupId: message.room_id,
-    userId: senderId,
-    userName: message.sender_username || message.sender_nickname || '未知用户',
-    senderId,
-    senderName: message.sender_nickname || message.sender_username || '未知用户',
-    senderAvatar: message.sender_avatar_url || '',
-    messageType: inferredMessageType,
-    contentType: inferredMessageType,
-    content: {
-      text: message.content,
-      raw: message.content,
-    },
-    createTime: message.timestamp || new Date().toISOString(),
-    timestamp: message.timestamp ? Date.parse(message.timestamp) : Date.now(),
-    meFlag: currentUserId ? senderId?.toString() === currentUserId.toString() : false,
-    showTimeFlag: false,
-    raw: message,
-  };
+    room_id: message.room_id,
+    sender_id: message.sender_id || message.senderId,
+    sender_username: message.sender_username || message.senderUsername || '',
+    sender_nickname: message.sender_nickname || null,
+    sender_avatar_url: message.sender_avatar_url || null,
+    content: typeof message.content === 'string' ? message.content : message.content?.text || '',
+    message_type: messageType,
+    status: message.status,
+    created_at: message.timestamp || message.created_at || new Date().toISOString(),
+    quoted_message: message.quoted_message || null,
+    forward_message: message.forward_message || null,
+    is_deleted: message.is_deleted || false,
+    deleted_at: message.deleted_at || null,
+    is_pinned: message.is_pinned || false,
+    pinned_at: message.pinned_at || null,
+    pinned_by: message.pinned_by || null,
+    extra: message.extra || null,
+  } as any;
+
+  return transformBackendMessage(backendMessage, currentUserId || undefined);
 };
 
 class WebSocketManager {
@@ -221,7 +241,10 @@ class WebSocketManager {
       const normalized = normalizeServerMessage(payload.message, this.state.lastUserId);
       window.dispatchEvent(
         new CustomEvent('websocket-chat-message', {
-          detail: normalized,
+          detail: {
+            message: normalized,
+            raw: payload.message,
+          },
         }),
       );
       return;
@@ -237,18 +260,34 @@ class WebSocketManager {
     }
 
     if (payload.message_update) {
+      const normalizedUpdate = { ...payload.message_update };
+      if (normalizedUpdate.message) {
+        normalizedUpdate.message = normalizeServerMessage(
+          normalizedUpdate.message,
+          this.state.lastUserId,
+        );
+      }
+
       window.dispatchEvent(
         new CustomEvent('websocket-message-update', {
-          detail: payload.message_update,
+          detail: normalizedUpdate,
         }),
       );
       return;
     }
 
     if (payload.pin_update) {
+      const normalizedPin = { ...payload.pin_update };
+      if (normalizedPin.message) {
+        normalizedPin.message = normalizeServerMessage(
+          normalizedPin.message,
+          this.state.lastUserId,
+        );
+      }
+
       window.dispatchEvent(
         new CustomEvent('websocket-pin-update', {
-          detail: payload.pin_update,
+          detail: normalizedPin,
         }),
       );
       return;

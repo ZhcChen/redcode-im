@@ -1,8 +1,14 @@
 import { get, post } from './http';
 import type { ApiResponse } from './http';
+import {
+  Chat,
+  ChatType,
+  RoomMember,
+  RoomMemberRole,
+  EnsureChatResult,
+} from '@/types/models';
 
-type RoomType = 'private' | 'group' | 'public' | 'favorite';
-type MemberRole = 'owner' | 'admin' | 'member';
+type BackendRoomType = 'private' | 'group' | 'public' | 'favorite';
 
 interface BackendChatMessagePreview {
   id: string;
@@ -17,13 +23,15 @@ interface BackendChatMessagePreview {
 interface BackendChatSummary {
   room_id: string;
   name: string;
-  room_type: RoomType;
+  room_type: BackendRoomType;
   avatar_url?: string | null;
   description?: string | null;
   unread_count: number;
-  last_read_message_id?: string | null;
-  last_read_at?: string | null;
   last_message?: BackendChatMessagePreview | null;
+  last_message_at?: string | null;
+  is_pinned?: boolean;
+  is_muted?: boolean;
+  extra?: Record<string, unknown> | null;
 }
 
 interface BackendRoomInfo {
@@ -31,178 +39,132 @@ interface BackendRoomInfo {
   name: string;
   description?: string | null;
   avatar_url?: string | null;
-  room_type: RoomType;
+  room_type: BackendRoomType;
   owner_id: string;
   created_at: string;
+  is_pinned?: boolean;
+  is_muted?: boolean;
+  extra?: Record<string, unknown> | null;
 }
 
 interface BackendRoomMember {
   user_id: string;
-  role: MemberRole;
-}
-
-export interface ChatGroupInfo {
-  imGroup: {
-    groupId: string;
-    groupName: string;
-    groupCode: string;
-    groupAvatar: string | null;
-    groupNotice: string | null;
-    groupType: number;
-    groupStatus: number;
-    maxMemberCount: number;
-    canAddFriendFlag: number;
-    createUser: string;
-    createTime: string;
-    updateTime: string | null;
-    showNoticeFlag: number;
-    remark: string | null;
-    memberCounts: number | null;
-    friendUserId: string | null;
-    delFlag: number;
-  };
-  groupUser: {
-    id: string;
-    userId: string;
-    groupId: string;
-    chatStatus: number;
-    topFlag: number;
-    memberType: number;
-    saveFlag: number;
-    createUser: string;
-    readTime: string;
-    createTime: string;
-    clearTime: string | null;
-    remark: string | null;
-    delFlag: number;
-    unReadNum: number;
-    hiddenFlag: number;
-    showOptionFlag: boolean;
-    pushClientId: string | null;
-    userName: string | null;
-    friendName: string | null;
-    userAvatar: string | null;
-  };
-  imGroupMessageRef: {
-    msgId: string;
-    msgGroupId: string;
-    msgType: number;
-    msgFromUserId: string;
-    msgFromPlat: number;
-    msgContent: string;
-    msgContentType: number;
-    msgSearchWords: string;
-    createTime: string;
-    delFlag: number;
-    lastMsgContent: string;
-    userAvatar: string | null;
-    userName: string | null;
-    meFlag: boolean;
-    revertFlag: boolean;
-  };
-}
-
-export interface GroupMemberInfo {
-  id: string;
-  groupId: string;
-  userId: string;
   username: string;
-  nickname: string;
-  avatar: string;
-  role: number;
-  isMuted: boolean;
-  joinTime: string;
+  nickname?: string | null;
+  avatar_url?: string | null;
+  role: 'owner' | 'admin' | 'member';
+  joined_at?: string | null;
 }
 
-const DEFAULT_REST_CHAT_GROUP_INFO: ChatGroupInfo = {
-  imGroup: {
-    groupId: '',
-    groupName: '',
-    groupCode: '',
-    groupAvatar: null,
-    groupNotice: null,
-    groupType: 0,
-    groupStatus: 1,
-    maxMemberCount: 500,
-    canAddFriendFlag: 1,
-    createUser: '',
-    createTime: '',
-    updateTime: null,
-    showNoticeFlag: 0,
-    remark: null,
-    memberCounts: null,
-    friendUserId: null,
-    delFlag: 0,
-  },
-  groupUser: {
-    id: '',
-    userId: '',
-    groupId: '',
-    chatStatus: 1,
-    topFlag: 0,
-    memberType: 3,
-    saveFlag: 1,
-    createUser: '',
-    readTime: '',
-    createTime: '',
-    clearTime: null,
-    remark: null,
-    delFlag: 0,
-    unReadNum: 0,
-    hiddenFlag: 0,
-    showOptionFlag: true,
-    pushClientId: null,
-    userName: null,
-    friendName: null,
-    userAvatar: null,
-  },
-  imGroupMessageRef: {
-    msgId: '',
-    msgGroupId: '',
-    msgType: 1,
-    msgFromUserId: '',
-    msgFromPlat: 1,
-    msgContent: '',
-    msgContentType: 1,
-    msgSearchWords: '',
-    createTime: '',
-    delFlag: 0,
-    lastMsgContent: '',
-    userAvatar: null,
-    userName: null,
-    meFlag: false,
-    revertFlag: false,
-  },
+interface BackendEnsureChatResponse {
+  room_id: string;
+  room_name: string;
+  room_type: string;
+  friend_id: string;
+  friend_name: string;
+  friend_avatar?: string | null;
+}
+
+interface CreateGroupResponse {
+  room: BackendRoomInfo;
+}
+
+const parseRoomType = (value: BackendRoomType): ChatType => {
+  switch (value) {
+    case 'group':
+      return ChatType.GROUP;
+    case 'favorite':
+      return ChatType.FAVORITE;
+    case 'private':
+    case 'public':
+    default:
+      return ChatType.SINGLE;
+  }
 };
 
-const toLegacyGroup = (summary: BackendChatSummary): ChatGroupInfo => {
-  const base: ChatGroupInfo = JSON.parse(JSON.stringify(DEFAULT_REST_CHAT_GROUP_INFO));
-
-  base.imGroup.groupId = summary.room_id;
-  base.imGroup.groupName = summary.name;
-  base.imGroup.groupAvatar = summary.avatar_url ?? null;
-  base.imGroup.groupType = summary.room_type === 'group' ? 1 : 0;
-  base.imGroup.groupNotice = summary.description ?? null;
-  base.imGroup.createTime = summary.last_message?.created_at ?? new Date().toISOString();
-  base.imGroup.memberCounts = null;
-
-  base.groupUser.groupId = summary.room_id;
-  base.groupUser.unReadNum = summary.unread_count ?? 0;
-  base.groupUser.readTime = summary.last_read_at ?? '';
-  base.groupUser.createTime = summary.last_message?.created_at ?? new Date().toISOString();
-
-  base.imGroupMessageRef.msgGroupId = summary.room_id;
-  base.imGroupMessageRef.msgId = summary.last_message?.id ?? '';
-  base.imGroupMessageRef.lastMsgContent = summary.last_message?.content ?? '';
-  base.imGroupMessageRef.createTime = summary.last_message?.created_at ?? '';
-  base.imGroupMessageRef.userName =
-    summary.last_message?.sender_nickname ?? summary.last_message?.sender_username ?? null;
-
-  return base;
+const parseTimestamp = (value?: string | null): Date => {
+  if (!value) {
+    return new Date();
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date();
+  }
+  return parsed;
 };
+
+const mapChatSummary = (summary: BackendChatSummary): Chat => {
+  const lastMessage = summary.last_message;
+  const lastTimestamp =
+    summary.last_message_at ??
+    summary.last_message?.created_at ??
+    new Date().toISOString();
+
+  const summaryExtra = summary.extra as Record<string, unknown> | null;
+  const memberCountRaw = summaryExtra ? summaryExtra['member_count'] : undefined;
+  const memberCount = typeof memberCountRaw === 'number' ? memberCountRaw : undefined;
+
+  return {
+    id: summary.room_id,
+    roomId: summary.room_id,
+    name: summary.name,
+    avatar: summary.avatar_url ?? null,
+    type: parseRoomType(summary.room_type),
+    lastMessage: lastMessage?.content ?? '',
+    lastMessageTime: parseTimestamp(lastTimestamp),
+    lastMessageId: lastMessage?.id,
+    unreadCount: summary.unread_count ?? 0,
+    isPinned: Boolean(summary.is_pinned),
+    isMuted: Boolean(summary.is_muted),
+    memberCount,
+    extra: summary.extra ?? (summary.description ? { description: summary.description } : null),
+  };
+};
+
+const mapRoomInfo = (room: BackendRoomInfo): Chat => {
+  const roomExtra = room.extra as Record<string, unknown> | null;
+  const memberCountRaw = roomExtra ? roomExtra['member_count'] : undefined;
+  const memberCount = typeof memberCountRaw === 'number' ? memberCountRaw : undefined;
+
+  return {
+    id: room.id,
+    roomId: room.id,
+    name: room.name,
+    avatar: room.avatar_url ?? null,
+    type: parseRoomType(room.room_type),
+    lastMessage: '',
+    lastMessageTime: parseTimestamp(room.created_at),
+    lastMessageId: undefined,
+    unreadCount: 0,
+    isPinned: Boolean(room.is_pinned),
+    isMuted: Boolean(room.is_muted),
+    memberCount,
+    extra: room.extra ?? (room.description ? { description: room.description } : null),
+  };
+};
+
+const mapRoomMemberRole = (role: string): RoomMemberRole => {
+  switch (role) {
+    case 'owner':
+      return 'owner';
+    case 'admin':
+      return 'admin';
+    default:
+      return 'member';
+  }
+};
+
+const mapRoomMember = (member: BackendRoomMember): RoomMember => ({
+  userId: member.user_id,
+  username: member.username,
+  nickname: member.nickname ?? null,
+  avatarUrl: member.avatar_url ?? null,
+  role: mapRoomMemberRole(member.role),
+  joinedAt: member.joined_at ? parseTimestamp(member.joined_at) : null,
+});
 
 export class GroupApi {
-  static async getMyChatGroupList(): Promise<ApiResponse<ChatGroupInfo[]>> {
+  static async getMyChatGroupList(): Promise<ApiResponse<Chat[]>> {
     const response = await get<BackendChatSummary[]>('/chats');
     if (!response.success || !response.data) {
       return {
@@ -211,14 +173,13 @@ export class GroupApi {
       };
     }
 
-    const mapped = response.data.map((item) => toLegacyGroup(item));
     return {
       ...response,
-      data: mapped,
+      data: response.data.map(mapChatSummary),
     };
   }
 
-  static async getMyJoinChatGroupList(): Promise<ApiResponse<ChatGroupInfo[]>> {
+  static async getMyJoinChatGroupList(): Promise<ApiResponse<Chat[]>> {
     const response = await get<BackendRoomInfo[]>('/rooms');
     if (!response.success || !response.data) {
       return {
@@ -227,28 +188,33 @@ export class GroupApi {
       };
     }
 
-    const mapped = response.data.map((room) =>
-      toLegacyGroup({
-        room_id: room.id,
-        name: room.name,
-        room_type: room.room_type,
-        avatar_url: room.avatar_url,
-        description: room.description,
-        unread_count: 0,
-        last_read_message_id: null,
-        last_read_at: null,
-        last_message: null,
-      }),
+    return {
+      ...response,
+      data: response.data.map(mapRoomInfo),
+    };
+  }
+
+  static async getChatGroupInfo(params: { chatGroupId: string }): Promise<ApiResponse<Chat>> {
+    const response = await get<BackendRoomInfo>(`/rooms/${params.chatGroupId}`);
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapRoomInfo(response.data),
+    };
+  }
+
+  static async getChatGroupMembers(params: {
+    chatGroupId: string;
+  }): Promise<ApiResponse<RoomMember[]>> {
+    const response = await get<BackendRoomMember[]>(
+      `/rooms/${params.chatGroupId}/members`,
     );
-
-    return {
-      ...response,
-      data: mapped,
-    };
-  }
-
-  static async getChatGroupInfo(params: { chatGroupId: string }): Promise<ApiResponse<ChatGroupInfo>> {
-    const response = await get<BackendRoomInfo[]>('/rooms');
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -256,69 +222,14 @@ export class GroupApi {
       };
     }
 
-    const room = response.data.find((item) => item.id === params.chatGroupId);
-    if (!room) {
-      return {
-        code: 404,
-        success: false,
-        message: '未找到对应的房间',
-        data: null,
-      };
-    }
-
-    const adapted = toLegacyGroup({
-      room_id: room.id,
-      name: room.name,
-      room_type: room.room_type,
-      avatar_url: room.avatar_url,
-      description: room.description,
-      unread_count: 0,
-      last_read_message_id: null,
-      last_read_at: null,
-      last_message: null,
-    });
-
-    adapted.imGroup.createUser = room.owner_id;
-    adapted.imGroup.createTime = room.created_at;
-
     return {
       ...response,
-      data: adapted,
-      success: true,
-      code: response.code ?? 200,
-      message: 'ok',
+      data: response.data.map(mapRoomMember),
     };
   }
 
-  static async getChatGroupMembers(params: { chatGroupId: string }): Promise<ApiResponse<GroupMemberInfo[]>> {
-    const response = await get<BackendRoomMember[]>(`/rooms/${params.chatGroupId}/members`);
-    if (!response.success || !response.data) {
-      return {
-        ...response,
-        data: null,
-      };
-    }
-
-    const members: GroupMemberInfo[] = response.data.map((member) => ({
-      id: `${params.chatGroupId}-${member.user_id}`,
-      groupId: params.chatGroupId,
-      userId: member.user_id,
-      username: member.user_id,
-      nickname: member.user_id,
-      avatar: '',
-      role: member.role === 'owner' ? 1 : member.role === 'admin' ? 2 : 3,
-      isMuted: false,
-      joinTime: new Date().toISOString(),
-    }));
-
-    return {
-      ...response,
-      data: members,
-    };
-  }
-
-  static async createSingleChat(params: { friendId: string }): Promise<ApiResponse<{ roomId: string }>> {
-    const response = await post<{ room_id: string }>(`/friends/${params.friendId}/chat`, {});
+  static async createSingleChat(params: { friendId: string }): Promise<ApiResponse<EnsureChatResult>> {
+    const response = await post<BackendEnsureChatResponse>(`/friends/${params.friendId}/chat`, {});
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -330,17 +241,34 @@ export class GroupApi {
       ...response,
       data: {
         roomId: response.data.room_id,
+        roomName: response.data.room_name,
+        roomType: response.data.room_type,
+        friendId: response.data.friend_id,
+        friendName: response.data.friend_name,
+        friendAvatar: response.data.friend_avatar ?? null,
       },
     };
   }
 
-  static async launchChatGroup(params: { name: string; memberIds: string[]; description?: string }): Promise<ApiResponse<{ roomId: string }>> {
-    const response = await post<{ room: BackendRoomInfo }>('/rooms', {
+  static async launchChatGroup(params: {
+    name: string;
+    memberIds: string[];
+    description?: string;
+    avatarUrl?: string;
+  }): Promise<ApiResponse<{ roomId: string }>> {
+    const payload: Record<string, unknown> = {
       name: params.name,
-      description: params.description,
       member_ids: params.memberIds,
-    });
+    };
 
+    if (params.description) {
+      payload.description = params.description;
+    }
+    if (params.avatarUrl) {
+      payload.avatar_url = params.avatarUrl;
+    }
+
+    const response = await post<CreateGroupResponse>('/rooms', payload);
     if (!response.success || !response.data) {
       return {
         ...response,

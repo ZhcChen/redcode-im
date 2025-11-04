@@ -18,7 +18,6 @@ export type { UserInfo } from './user';
 
 // 导出好友相关 API
 export { FriendApi } from './friend';
-export type { FriendInfo, FriendApply } from './friend';
 
 // 导出账户相关 API
 export { 

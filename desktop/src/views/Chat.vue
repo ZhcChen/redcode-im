@@ -160,9 +160,10 @@
                 </template>
 
                 <!-- 其他类型消息 -->
-                <template v-else>
-                  {{ getTextContent(message) }}
-                </template>
+              <template v-else>
+                <span>{{ getTextContent(message) }}</span>
+                <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
+              </template>
 
                 <div class="message-time-other">
                   {{ formatMessageTime(message.createTime || message.time) }}
@@ -229,7 +230,8 @@
 
               <!-- 其他类型消息 -->
               <template v-else>
-                {{ getTextContent(message) }}
+                <span>{{ getTextContent(message) }}</span>
+                <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
               </template>
 
               <div class="message-time">
@@ -418,8 +420,8 @@ import { api, MessageApi } from '../api'
 import { GroupApi } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
-import type { ChatGroupInfo } from '../api/group'
-import type { MessageInfo } from '../api/message'
+import type { Message as DomainMessage, Chat, RoomMember } from '@/types/models'
+import { ChatType, MessageStatus, MessageType } from '@/types/models'
 import { toast } from '../utils/toast'
 import { webSocketManager } from '../utils/websocket'
 import { eventManager } from '../utils/eventManager'
@@ -465,32 +467,43 @@ const MESSAGE_CONSTANTS = {
   }
 }
 
+const messageStatusToUiStatus: Record<MessageStatus, number> = {
+  [MessageStatus.SENDING]: 1,
+  [MessageStatus.SENT]: 2,
+  [MessageStatus.DELIVERED]: 2,
+  [MessageStatus.READ]: 2,
+  [MessageStatus.FAILED]: 3
+}
+
+const messageTypeToContentType: Record<MessageType, number> = {
+  [MessageType.TEXT]: MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
+  [MessageType.IMAGE]: MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE,
+  [MessageType.VOICE]: MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE,
+  [MessageType.VIDEO]: MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
+  [MessageType.FILE]: MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE,
+  [MessageType.SYSTEM]: MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE
+}
+
+
 interface ChatItem {
   id: string
+  roomId: string
   name: string
-  avatar?: string
+  avatar?: string | null
   lastMessage: string
   time: string
   groupId: string
   memberCount?: number
-  // 新增字段
-  unreadCount: number // 未读消息数量
-  isTop: boolean // 是否置顶
-  isHidden: boolean // 是否隐藏
+  unreadCount: number
+  isTop: boolean
+  isHidden?: boolean
   groupType: number // 0=单聊, 1=群聊
-  // groupUser相关字段，供API调用使用
-  groupUserId?: number
+  lastMessageId?: string | null
   chatStatus?: number
-  memberType?: number
-  saveFlag?: number
-  createUser?: number
-  createTime?: string
-  clearTime?: string | null
-  remark?: string | null
-  pushClientId?: string | null
-  userName?: string | null
-  friendName?: string | null
+  groupNotice?: string | null
+  showNoticeFlag?: boolean
   userAvatar?: string | null
+  friendName?: string | null
 }
 
 interface Message {
@@ -517,6 +530,7 @@ interface Message {
   createTime?: string  // 原始创建时间
   timestamp?: number   // 时间戳
   contentType?: number // 内容类型：1=文本，2=图片，3=视频等
+  isEdited?: boolean
 }
 
 const route = useRoute()
@@ -552,7 +566,7 @@ const pendingGroupData = ref<any>(null)
 const showGroupSettings = ref(false)
 
 // 群成员数据
-const groupMembers = ref<any[]>([])
+const groupMembers = ref<RoomMember[]>([])
 
 // 群名修改相关状态
 const showEditGroupNameDialog = ref(false)
@@ -747,19 +761,28 @@ const loadGroupDetailInfo = async (groupId: string) => {
     })
 
     if (groupInfoResponse.success && groupInfoResponse.data) {
-      console.log('✅ 群组信息获取成功:', groupInfoResponse.data)
-      console.log('🔍 群组信息中的公告字段:', {
-        groupNotice: groupInfoResponse.data.groupNotice,
-        showNoticeFlag: groupInfoResponse.data.showNoticeFlag,
-        allFields: Object.keys(groupInfoResponse.data)
+      const groupInfo: Chat = groupInfoResponse.data
+      const description =
+        (groupInfo.extra && typeof groupInfo.extra.description === 'string'
+          ? groupInfo.extra.description
+          : '') || ''
+
+      console.log('✅ 群组信息获取成功:', {
+        id: groupInfo.id,
+        name: groupInfo.name,
+        description
       })
 
-      // 更新当前选中聊天的详细信息
       if (selectedChat.value) {
         selectedChat.value = {
           ...selectedChat.value,
-          ...groupInfoResponse.data,
-          memberCount: groupInfoResponse.data.memberCounts || selectedChat.value.memberCount
+          roomId: groupInfo.roomId,
+          name: groupInfo.name,
+          avatar: groupInfo.avatar || selectedChat.value.avatar,
+          groupType: groupInfo.type === ChatType.GROUP ? 1 : 0,
+          memberCount: groupInfo.memberCount ?? selectedChat.value.memberCount,
+          groupNotice: description,
+          showNoticeFlag: description.trim().length > 0
         }
 
         console.log('📋 更新后的selectedChat数据:', {
@@ -800,34 +823,14 @@ const loadMessages = async (groupId: string) => {
     
     const response = await MessageApi.getMessageListByChatGroupId({
       groupId,
-      page: 1,
-      size: 50
+      limit: 50,
+      currentUserId: currentUserId.value
     })
     
     if (response.success && response.data) {
-      // 新的API响应直接返回消息数组，而不是包含list的对象
-      const messageList = Array.isArray(response.data) ? response.data : []
-      
-      // 转换消息格式
-      const convertedMessages = messageList.map((msg: MessageInfo) => ({
-        id: msg.id,
-        // 处理content结构：保持原始的object结构以便后续URL构建
-        content: msg.content || '',
-        // 使用新的meFlag字段判断是否为当前用户发送的消息
-        isSelf: msg.meFlag !== undefined ? msg.meFlag : (msg.senderId === currentUserId.value || msg.userId?.toString() === currentUserId.value),
-        time: formatTime(msg.createTime),
-        // 兼容新旧字段
-        senderId: msg.senderId || msg.userId?.toString() || '',
-        senderName: msg.senderName || msg.userName || '未知用户',
-        senderAvatar: msg.senderAvatar || msg.userAvatar || '',
-        messageType: msg.messageType,
-        contentType: msg.contentType || MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE, // 添加内容类型支持
-        // 新消息默认状态为成功，兼容旧的status字段
-        status: msg.status || 2,
-        // 保存原始时间用于排序
-        createTime: msg.createTime,
-        timestamp: msg.timestamp
-      }))
+      const messageList = Array.isArray(response.data) ? (response.data as DomainMessage[]) : []
+
+      const convertedMessages = messageList.map((msg) => mapDomainMessageToUi(msg))
       
       // 按时间排序：最早的消息在上面，最新的在下面
       // 使用 createTime 或 timestamp 进行排序
@@ -1066,6 +1069,29 @@ const formatTime = (timeStr: string) => {
     return `${diffDays}天前`
   } else {
     return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  }
+}
+
+const mapDomainMessageToUi = (msg: DomainMessage): Message => {
+  const timestamp = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)
+  const messageType = msg.type === MessageType.SYSTEM
+    ? MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG
+    : MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG
+
+  return {
+    id: msg.id,
+    content: msg.content,
+    isSelf: msg.isSelf,
+    time: formatTime(timestamp.toISOString()),
+    senderId: msg.senderId,
+    senderName: msg.senderName,
+    senderAvatar: msg.senderAvatar || '',
+    messageType,
+    contentType: messageTypeToContentType[msg.type] || MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
+    status: messageStatusToUiStatus[msg.status] || 2,
+    createTime: timestamp.toISOString(),
+    timestamp: timestamp.getTime(),
+    isEdited: !!(msg.extra && (msg.extra as Record<string, unknown>).edited)
   }
 }
 
@@ -1967,9 +1993,7 @@ const handleEditGroupNotice = () => {
   console.log('🔄 打开群公告修改弹窗')
 
   // 设置当前群公告作为默认值（如果有的话）
-  editingGroupNotice.value = selectedChat.value.imGroup?.groupNotice ||
-                             selectedChat.value.groupNotice ||
-                             ''
+  editingGroupNotice.value = selectedChat.value.groupNotice || ''
   groupNameError.value = ''
 
   // 关闭群设置抽屉，打开群公告修改弹窗
@@ -2672,159 +2696,200 @@ const isContentMatch = (content1: any, content2: any): boolean => {
 
 // WebSocket消息监听
 const handleWebSocketMessage = (event: CustomEvent) => {
-  const messageData = event.detail
-  console.log('📨 收到WebSocket聊天消息:', messageData)
-  
-  // 检查消息是否属于当前选中的群聊
-  // 兼容新旧字段：chatGroupId 或 groupId
-  const messageGroupId = messageData.chatGroupId || messageData.groupId
-  if (selectedChat.value && messageGroupId === selectedChat.value.groupId) {
-    const messageId = messageData.id || `ws-${Date.now()}`
-    const currentUser = store.getters.currentUser
-    
-    // 详细调试接收到的消息
-    console.log('🔍 处理WebSocket消息详情:', {
-      messageId,
-      messageGroupId,
-      currentChatGroupId: selectedChat.value.groupId,
-      messageUserId: messageData.userId,
-      currentUserId: currentUser?.id,
-      messageUserName: messageData.userName,
-      currentUserName: currentUser?.username,
-      meFlag: messageData.meFlag,
-      content: messageData.content
-    })
-    
-    // 检查消息是否已存在，避免重复添加
-    const existingMessageIndex = messages.value.findIndex(msg => msg.id === messageId)
-    
-    const newMessage: Message = {
-      id: messageId,
-      // 处理新的content结构 - 支持文本和媒体内容，保持原始结构
-      content: messageData.content || messageData.message || '',
-      // 使用meFlag或比较userId（支持字符串和数字类型比较）
-      isSelf: messageData.meFlag !== undefined ? messageData.meFlag :
-              (messageData.senderId === currentUser?.id ||
-               messageData.userId?.toString() === currentUser?.id?.toString() ||
-               messageData.userId === currentUser?.id),
-      time: formatTime(messageData.createTime || new Date().toISOString()),
-      // 兼容新旧字段
-      senderId: messageData.senderId || messageData.userId?.toString() || '',
-      senderName: messageData.senderName || messageData.userName || '未知用户',
-      senderAvatar: messageData.senderAvatar || messageData.userAvatar || '',
-      messageType: messageData.messageType || 1,
-      contentType: messageData.contentType || MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE, // 添加内容类型支持
-      status: 2 // 接收到的消息状态为成功
-    }
-    
-    console.log('🔄 处理后的消息对象:', newMessage)
-    
+  const detail = event.detail as { message?: DomainMessage; raw?: any }
+  if (!detail?.message) {
+    console.warn('⚠️ WebSocket 消息缺少 message 字段，忽略:', detail)
+    return
+  }
+
+  const messageData = detail.message
+  const uiMessage = mapDomainMessageToUi(messageData)
+  const messageGroupId = messageData.roomId
+  const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === messageGroupId
+
+  if (isCurrentRoom) {
+    const existingMessageIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
+
     if (existingMessageIndex !== -1) {
-      // 消息已存在，更新消息状态（主要用于自己发送的消息状态同步）
-      if (newMessage.isSelf && messages.value[existingMessageIndex].status === 1) {
-        // 如果是自己发送的消息且当前状态是发送中，更新为成功
-        messages.value[existingMessageIndex].status = 2
-        // 更新为服务器返回的真实ID
-        messages.value[existingMessageIndex].id = messageId
-        console.log('✅ 已更新自己发送消息的状态为成功:', messageId)
-      } else {
-        console.log('⚠️ 收到重复消息，忽略:', messageId)
+      if (messageData.isSelf && messages.value[existingMessageIndex].status === 1) {
+        messages.value[existingMessageIndex] = {
+          ...messages.value[existingMessageIndex],
+          ...uiMessage,
+          status: 2
+        }
+        recentSentMessages.value.delete(uiMessage.id)
       }
     } else {
-      // 检查是否是自己刚发送的消息
-      if (newMessage.isSelf) {
-        console.log('🔍 检查是否为自己刚发送的消息...')
-        console.log('📊 最近发送的消息ID集合:', Array.from(recentSentMessages.value))
-
-        // 检查WebSocket回显的消息ID是否匹配我们发送的消息
-        let matchedLocalMessageId: string | null = null
-
-        // 方法1：直接ID匹配（如果WebSocket返回的是我们发送时的ID）
-        if (recentSentMessages.value.has(messageId)) {
-          matchedLocalMessageId = messageId
-          console.log('✅ 直接ID匹配成功:', messageId)
+      let matchedLocalMessageId: string | null = null
+      if (messageData.isSelf) {
+        if (recentSentMessages.value.has(uiMessage.id)) {
+          matchedLocalMessageId = uiMessage.id
         } else {
-          // 方法2：检查是否是重发消息的回显（重发消息使用特殊ID格式）
           const resendMatchId = Array.from(recentSentMessages.value).find((sentId: string) =>
             sentId.startsWith('resend_') && messageData.content
           )
-
           if (resendMatchId) {
-            console.log('🔄 检测到重发消息的回显，忽略以避免重复')
             recentSentMessages.value.delete(resendMatchId)
-            return // 重发消息的回显直接忽略，因为本地消息已经更新过状态
+            return
           }
-
-          // 方法3：通过内容匹配查找对应的本地消息
           for (const sentId of Array.from(recentSentMessages.value)) {
             const localMessage = messages.value.find(msg => msg.id === sentId)
-            if (localMessage && isContentMatch(localMessage.content, newMessage.content)) {
+            if (localMessage && isContentMatch(localMessage.content, uiMessage.content)) {
               matchedLocalMessageId = sentId as string
-              console.log('✅ 通过内容匹配找到本地消息:', sentId)
               break
             }
           }
         }
-
-        if (matchedLocalMessageId) {
-          // 找到对应的本地消息，更新其状态和ID
-          const localMessageIndex = messages.value.findIndex(msg => msg.id === matchedLocalMessageId)
-          if (localMessageIndex !== -1) {
-            // 更新消息信息
-            messages.value[localMessageIndex].id = messageId // 更新为服务器ID
-            messages.value[localMessageIndex].status = 2 // 确保状态为成功
-
-            // 如果WebSocket消息包含更完整的content信息，也要更新
-            if (typeof newMessage.content === 'object' && typeof messages.value[localMessageIndex].content === 'object') {
-              messages.value[localMessageIndex].content = {
-                ...messages.value[localMessageIndex].content as any,
-                ...newMessage.content as any
-              }
-            } else if (typeof newMessage.content === 'object' && newMessage.content.text) {
-              // 如果WebSocket回显是对象但本地是字符串，更新为对象格式
-              messages.value[localMessageIndex].content = newMessage.content
-            }
-
-            // 从跟踪集合中移除
-            recentSentMessages.value.delete(matchedLocalMessageId)
-
-            console.log('✅ 已将本地消息更新为服务器回显消息:', messageId)
-            return // 不添加新消息，只更新现有消息
-          }
-        } else {
-          console.log('❌ 未找到匹配的本地消息，将添加为新消息')
-        }
       }
 
-      // 新消息，添加到列表
-      messages.value.push(newMessage)
-      console.log('✅ 已添加新消息到当前聊天:', newMessage)
-
-      // 滚动到底部显示新消息
-      scrollToBottom()
+      if (matchedLocalMessageId) {
+        const localMessageIndex = messages.value.findIndex(msg => msg.id === matchedLocalMessageId)
+        if (localMessageIndex !== -1) {
+          messages.value[localMessageIndex] = {
+            ...messages.value[localMessageIndex],
+            ...uiMessage,
+            id: uiMessage.id,
+            status: 2
+          }
+          recentSentMessages.value.delete(matchedLocalMessageId)
+        }
+      } else {
+        messages.value.push(uiMessage)
+        if (messageData.isSelf) {
+          recentSentMessages.value.delete(uiMessage.id)
+        }
+        scrollToBottom()
+      }
     }
-  } else {
-    console.log('⚠️ 消息不属于当前聊天群组，忽略:', {
-      messageGroupId,
-      currentGroupId: selectedChat.value?.groupId
-    })
   }
-  
-  // 更新群聊列表中的最后一条消息
+
   const existingChat = store.getters.getChatByGroupId(messageGroupId)
   if (existingChat) {
-    // 获取消息内容文本
-    const messageContent = (typeof messageData.content === 'object' && messageData.content.text) ?
-                          messageData.content.text :
-                          (messageData.content || messageData.message || '新消息')
+    const shouldIncreaseUnread = !isCurrentRoom && !messageData.isSelf
+    const unreadCount = shouldIncreaseUnread ? (existingChat.unreadCount || 0) + 1 : (isCurrentRoom ? 0 : (existingChat.unreadCount || 0))
 
     const updatedChat = {
       ...existingChat,
-      lastMessage: messageContent,
-      time: formatTime(messageData.createTime || new Date().toISOString())
+      lastMessage: getTextContent(uiMessage),
+      time: uiMessage.time,
+      lastMessageId: messageData.id,
+      unreadCount
     }
 
-    // 更新store中的聊天项
+    store.dispatch('updateChatItem', updatedChat)
+    store.dispatch('setChatUnreadCount', { groupId: messageGroupId, unreadCount })
+
+    if (isCurrentRoom && selectedChat.value) {
+      selectedChat.value.unreadCount = 0
+      selectedChat.value.lastMessage = updatedChat.lastMessage
+      selectedChat.value.time = updatedChat.time
+      selectedChat.value.lastMessageId = updatedChat.lastMessageId ?? null
+    }
+
+    if (shouldIncreaseUnread && !document.hasFocus()) {
+      toast.info(`${uiMessage.senderName}: ${getTextContent(uiMessage)}`)
+    }
+  }
+}
+
+const handleWebSocketMessageUpdate = (event: CustomEvent) => {
+  const detail = event.detail as { message?: DomainMessage; action?: string } | undefined
+  if (!detail?.message) {
+    console.warn('⚠️ WebSocket 消息更新缺少 message 字段，忽略:', detail)
+    return
+  }
+
+  const message = detail.message
+  const uiMessage = mapDomainMessageToUi(message)
+  const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === message.roomId
+
+  if (isCurrentRoom) {
+    const existingIndex = messages.value.findIndex((msg) => msg.id === uiMessage.id)
+
+    if (message.isDeleted) {
+      if (existingIndex !== -1) {
+        messages.value.splice(existingIndex, 1)
+      }
+    } else if (existingIndex !== -1) {
+      messages.value.splice(existingIndex, 1, {
+        ...messages.value[existingIndex],
+        ...uiMessage,
+        isEdited: true
+      })
+    }
+  }
+
+  const chatItem = store.getters.getChatByGroupId(message.roomId)
+  if (chatItem && chatItem.lastMessageId === message.id) {
+    const updatedChat = {
+      ...chatItem,
+      lastMessage: message.isDeleted ? '[消息已删除]' : getTextContent(uiMessage),
+      time: uiMessage.time
+    }
+    store.dispatch('updateChatItem', updatedChat)
+  }
+}
+
+const handleWebSocketMessageRead = (event: CustomEvent) => {
+  const detail = event.detail as { room_id?: string; roomId?: string; message_ids?: string[]; message_id?: string; messageId?: string } | undefined
+  if (!detail) return
+
+  const roomId = detail.room_id || detail.roomId
+  if (!roomId || !selectedChat.value || roomId !== selectedChat.value.groupId) {
+    return
+  }
+
+  const ids: string[] = []
+  if (Array.isArray(detail.message_ids)) {
+    ids.push(...detail.message_ids)
+  }
+  if (detail.message_id) ids.push(detail.message_id)
+  if (detail.messageId) ids.push(detail.messageId)
+
+  if (!ids.length) return
+
+  ids.forEach((id) => {
+    const index = messages.value.findIndex((msg) => msg.id === id)
+    if (index !== -1) {
+      messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
+    }
+  })
+
+  store.dispatch('setChatUnreadCount', { groupId: roomId, unreadCount: 0 })
+  if (selectedChat.value) {
+    selectedChat.value.unreadCount = 0
+  }
+}
+
+const handleWebSocketPinUpdate = (event: CustomEvent) => {
+  const detail = event.detail as { room_id?: string; roomId?: string; is_pinned?: boolean; isPinned?: boolean; message?: DomainMessage } | undefined
+  if (!detail) return
+
+  const roomId = detail.room_id || detail.roomId
+  if (!roomId || !selectedChat.value || roomId !== selectedChat.value.groupId) {
+    return
+  }
+
+  if (detail.message) {
+    const uiMessage = mapDomainMessageToUi(detail.message)
+    const existingIndex = messages.value.findIndex((msg) => msg.id === uiMessage.id)
+    if (existingIndex !== -1) {
+      messages.value.splice(existingIndex, 1, {
+        ...messages.value[existingIndex],
+        ...uiMessage
+      })
+    }
+  }
+
+  const isPinned = detail.is_pinned ?? detail.isPinned ?? false
+  selectedChat.value.isTop = isPinned
+
+  const chatItem = store.getters.getChatByGroupId(roomId)
+  if (chatItem) {
+    const updatedChat = {
+      ...chatItem,
+      isTop: isPinned
+    }
     store.dispatch('updateChatItem', updatedChat)
   }
 }
@@ -2842,7 +2907,11 @@ onMounted(async () => {
   eventManager.addWindowListener('resize', handleWindowResize)
   eventManager.addWindowListener('websocket-chat-message', handleWebSocketMessage as EventListener)
   eventManager.addWindowListener('websocket-launch-group', handleWebSocketGroupMessage as EventListener)
+  eventManager.addWindowListener('websocket-room-created', handleWebSocketGroupMessage as EventListener)
   eventManager.addWindowListener('websocket-delete-group', handleWebSocketGroupMessage as EventListener)
+  eventManager.addWindowListener('websocket-message-update', handleWebSocketMessageUpdate as EventListener)
+  eventManager.addWindowListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
+  eventManager.addWindowListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
@@ -2903,7 +2972,11 @@ onUnmounted(async () => {
   // 移除WebSocket事件监听
   window.removeEventListener('websocket-chat-message', handleWebSocketMessage as EventListener)
   window.removeEventListener('websocket-launch-group', handleWebSocketGroupMessage as EventListener)
+  window.removeEventListener('websocket-room-created', handleWebSocketGroupMessage as EventListener)
   window.removeEventListener('websocket-delete-group', handleWebSocketGroupMessage as EventListener)
+  window.removeEventListener('websocket-message-update', handleWebSocketMessageUpdate as EventListener)
+  window.removeEventListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
+  window.removeEventListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
 })
 
 // 离开聊天时更新已读时间
@@ -3218,6 +3291,12 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
         text-align: right;
         line-height: 1;
       }
+
+      .message-edited-flag {
+        margin-left: 6px;
+        font-size: 12px;
+        color: $message-time-color;
+      }
     }
   }
 
@@ -3283,6 +3362,12 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
       text-align: left;
       line-height: 1;
       white-space: nowrap; /* 防止时间换行 */
+    }
+
+    .message-edited-flag {
+      margin-left: 6px;
+      font-size: 12px;
+      color: $message-time-other-color;
     }
   }
 }

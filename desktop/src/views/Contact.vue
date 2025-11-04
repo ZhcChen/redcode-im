@@ -324,7 +324,7 @@ import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 import Badge from '../components/Badge.vue'
 import { UserApi, type UserInfo } from '../api/user'
-import { FriendApi, type FriendApply } from '../api/friend'
+import { FriendApi } from '../api/friend'
 import { toast } from '../utils/toast'
 import { eventManager } from '../utils/eventManager'
 import type { Contact } from '../store/index'
@@ -633,9 +633,9 @@ const loadFriendRequests = async (forceRefresh = false) => {
 // 更新待处理好友申请数量
 const updatePendingFriendRequestsCount = async () => {
   try {
-    const response = await FriendApi.unHandleFriendApply()
+    const response = await FriendApi.getPendingFriendRequestCount()
     if (response.success && typeof response.data === 'number') {
-      store.dispatch('updatePendingFriendRequests', response.data)
+      store.commit('SET_PENDING_FRIEND_REQUESTS', response.data)
       console.log('✅ 更新待处理好友申请数量:', response.data)
     }
   } catch (error: any) {
@@ -764,9 +764,9 @@ const handleAcceptFriendRequest = async (request: FriendRequest) => {
 
     // 调用处理好友申请API，status: 1 表示同意
     // 使用 fromUserId 作为 applyUserId，因为这是申请人的用户ID
-    const response = await FriendApi.handleFriendApply({
+    const response = await FriendApi.handleFriendRequest({
       requestId: request.id,
-      status: 1
+      action: 'accept'
     })
 
     if (response.success) {
@@ -796,9 +796,9 @@ const handleRejectFriendRequest = async (request: FriendRequest) => {
 
     // 调用处理好友申请API，status: 2 表示拒绝
     // 使用 fromUserId 作为 applyUserId，因为这是申请人的用户ID
-    const response = await FriendApi.handleFriendApply({
+    const response = await FriendApi.handleFriendRequest({
       requestId: request.id,
-      status: 2
+      action: 'decline'
     })
 
     if (response.success) {
@@ -843,31 +843,8 @@ const startChatWithFriendRequest = (request: FriendRequest) => {
 
 // 撤销我发起的好友申请
 const cancelMyFriendRequest = async (request: FriendRequest) => {
-  try {
-    console.log('撤销好友申请:', request)
-    
-    // 调用撤销好友申请API - 这里可能需要根据实际API调整
-    // 暂时使用拒绝API的逻辑，但参数可能需要调整
-    const response = await FriendApi.handleFriendApply({
-      applyUserId: request.fromUserId || request.id,
-      status: 3 // 假设 3 表示撤销，需要根据后端API确认
-    })
-    
-    if (response.success) {
-      toast.success('已撤销好友申请')
-      // 重新加载好友申请列表
-      await loadFriendRequests()
-      // 更新待处理数量
-      await updatePendingFriendRequestsCount()
-      // 清除选中的申请
-      selectedFriendRequest.value = null
-    } else {
-      toast.error(response.message || '撤销好友申请失败')
-    }
-  } catch (error: any) {
-    console.error('撤销好友申请失败:', error)
-    toast.error(error.message || '撤销好友申请失败')
-  }
+  console.log('撤销好友申请（暂未实现接口）:', request)
+  toast.info('撤销好友申请功能将在桌面端后续版本提供，请暂时使用移动端处理')
 }
 
 // 拖拽调整宽度相关函数

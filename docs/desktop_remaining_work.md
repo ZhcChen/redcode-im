@@ -2,7 +2,7 @@
 
 ## 背景
 
-移动端（`frontend` Flutter 客户端）已经具备完整的登录、联系人、群聊以及消息收发能力，服务端接口也在稳定运行。桌面端（`desktop` Tauri 应用）目前只完成基础壳体，消息发送、接收以及周边高级能力尚未落地。需要对照移动端现有实现，梳理并落地桌面端的 API 适配、状态管理与 WebSocket 事件处理。
+移动端（`frontend` Flutter 客户端）已经具备完整的登录、联系人、群聊以及消息收发能力，服务端接口也在稳定运行。桌面端（`desktop` Tauri 应用）目前只完成基础壳体，消息发送、接收以及周边高级能力尚未落地。需要对照移动端现有实现，梳理并落地桌面端的 API 适配、状态管理与 WebSocket 事件处理。自 2025-11-03 起，桌面端必须彻底抛弃旧版数据结构，所有模型、枚举与字段命名均以 `frontend` Flutter 客户端为唯一标准，UI 行为保持现状，由适配层负责过渡。
 
 ## 目标
 
@@ -24,7 +24,7 @@
 
 - [ ] 审核后端 API 文档与 `frontend/lib` 中的服务抽象（`services`, `providers` 等），梳理桌面端需要的接口清单。
 - [ ] 为桌面端建立统一的 HTTP 客户端封装（鉴权拦截器、错误处理、重试策略）。
-- [ ] 整理消息、会话、联系人等核心模型定义，统一 ID、时间戳、状态字段。
+- [ ] 整理消息、会话、联系人等核心模型定义，统一 ID、时间戳、状态字段；所有定义需对标 `frontend/lib/features` 内现有模型实现，禁止继续沿用遗留字段。
 
 ### 2. 消息核心流程
 
@@ -112,9 +112,9 @@
 - `authed`：鉴权成功后重放订阅、刷新会话与好友列表。
 - `joined`/`left`：维护 `_subscribedRooms` 与 `_desiredRooms`，决定是否补拉历史消息。
 - `message`：调用消息服务去重、合并状态；与 HTTP 发送流程联动剔除临时消息。
-- `message_read`：同步本地已读状态，并失效 `MessageReader` 缓存。
+- `message_read`：同步本地已读状态，并失效 `MessageReader` 缓存。（桌面端当前版本已将推送转换为统一消息模型并驱动未读计数清零）
 - `message_update`：处理删除、编辑等状态变更，更新 pinned 缓存。
-- `pin_update`：刷新置顶消息 UI 与缓存字段。
+- `pin_update`：刷新置顶消息 UI 与缓存字段。（桌面端已落地置顶事件监听，能够实时刷新聊天列表与当前会话状态）
 - `friend_request_update`、`friendship_created/deleted`、`friend_profile_updated`、`friends.version`：驱动联系人与侧边栏徽标。
 - `room_created`：为新群聊创建占位、触发订阅与会话刷新。
 - `error`/`pong`：调试与心跳。
@@ -126,9 +126,9 @@
    - 写入刷新 token/登出处理策略，与桌面端本地存储方案衔接。
 
 2. **数据模型同步**
-   - 基于移动端 `Chat`、`Message`、`MessageResponse`、`ForwardInfo`、`MessageReader`、`FriendInfo` 定义 TypeScript 接口。
-   - 统一状态枚举（消息状态、房间类型、消息类型），避免魔法字符串。
-   - 约定前后端时间戳统一为 ISO 字符串，进入应用内即转为 `Date` 对象。
+   - 以移动端 `frontend/lib/features/**/models` 为唯一范本，重新定义 TypeScript 接口（`ChatConversation`、`Chat`、`Message`、`ForwardInfo`、`MessageReader`、`FriendInfo` 等），删除遗留的 `ChatGroupInfo`、`MessageInfo`、`FriendGroup` 等旧结构。
+  - 统一状态枚举（消息状态、房间类型、消息类型），枚举成员名称必须与 Flutter 端保持一致，禁止再出现魔法字符串。
+  - 约定前后端时间戳统一为 ISO 字符串，进入应用内即转为 `Date` 对象，由适配层负责在不破坏现有 UI 交互的情况下完成过渡。
 
 3. **本地仓储与状态管理**
    - 确定桌面端全局状态方案（如 Zustand/Redux）与消息缓存持久化介质（IndexedDB/文件）。
@@ -142,11 +142,10 @@
    - 完成文本消息发送流程：临时 ID → HTTP → 状态更新 → WS 去重。
    - 构建聊天列表/消息面板简版 UI 验证数据流。
    - 支持历史消息分页加载与滚动补拉。
+   - 现阶段已完成 WebSocket 文本消息推送的归一化、未读数同步与置顶状态刷新，下一步聚焦多媒体消息和编辑提示体验。
 
 6. **验证与文档**
    - 编写阶段一冒烟脚本：登录→建立连接→发送消息→跨端验证。
    - 在 `docs` 更新 API 字段映射表、事件时序图、错误处理指引。
 
 完成以上步骤后，即可进入阶段二的高级消息和多媒体能力开发。
-
-

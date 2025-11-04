@@ -33,17 +33,17 @@
           </div>
 
           <!-- 群成员列表 -->
-          <div
+<div
             v-for="member in displayMembers"
-            :key="member.id"
+            :key="member.userId"
             class="member-item"
           >
             <Avatar
-              :src="member.avatar || member.userAvatar"
-              :text="member.name || member.userName || member.nickname || member.realName"
+              :src="member.avatarUrl || ''"
+              :text="member.nickname || member.username"
               :size="48"
             />
-            <div class="member-name">{{ member.name || member.userName || member.nickname || member.realName }}</div>
+            <div class="member-name">{{ member.nickname || member.username }}</div>
           </div>
         </div>
 
@@ -116,21 +116,25 @@
 import { ref, computed, watch } from 'vue'
 import Avatar from './Avatar.vue'
 import BSwitch from './BSwitch.vue'
+import type { RoomMember } from '@/types/models'
 
 interface GroupInfo {
   id: string
+  roomId: string
   name: string
-  avatar?: string
-  groupId: string
+  avatar?: string | null
   memberCount?: number
   groupType: number
   isTop?: boolean
+  chatStatus?: number
+  groupNotice?: string | null
+  showNoticeFlag?: boolean
 }
 
 interface Props {
   visible: boolean
   groupInfo?: GroupInfo | null
-  groupMembers?: any[]
+  groupMembers?: RoomMember[]
 }
 
 interface Emits {
@@ -143,7 +147,7 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  groupMembers: () => []
+  groupMembers: () => [] as RoomMember[]
 })
 const emit = defineEmits<Emits>()
 
@@ -153,11 +157,11 @@ const isExpanded = ref(false)
 // 显示的成员（第一行只显示前两个，因为有新增删除按钮）
 const displayMembers = computed(() => {
   if (!props.groupMembers || props.groupMembers.length === 0) {
-    return []
+    return [] as RoomMember[]
   }
 
   // 展开时显示所有成员，收起时只显示前两个（第一行）
-  return isExpanded.value ? props.groupMembers : props.groupMembers.slice(0, 2)
+  return (isExpanded.value ? props.groupMembers : props.groupMembers.slice(0, 2)) as RoomMember[]
 })
 
 // 总成员数
@@ -185,21 +189,8 @@ const groupNoticeText = computed(() => {
   const groupInfo = props.groupInfo
   if (!groupInfo) return '暂无公告'
 
-  // 尝试多种可能的字段名和层级
-  const notice = groupInfo.imGroup?.groupNotice ||
-                 groupInfo.groupNotice ||
-                 groupInfo.notice ||
-                 groupInfo.chatGroupNotice || ''
-
-  console.log('🔍 群公告显示逻辑:', {
-    groupInfo: groupInfo,
-    imGroup: groupInfo.imGroup,
-    imGroupNotice: groupInfo.imGroup?.groupNotice,
-    groupNotice: groupInfo.groupNotice,
-    finalNotice: notice
-  })
-
-  return notice || '暂无公告'
+  const notice = groupInfo.groupNotice || ''
+  return notice.trim().length > 0 ? notice : '暂无公告'
 })
 
 // 事件处理

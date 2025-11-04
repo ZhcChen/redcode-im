@@ -1,5 +1,6 @@
 // @ts-nocheck
 import {createStore} from 'vuex'
+import type { Message as DomainMessage } from '@/types/models'
 
 // 辅助函数：格式化最后在线时间
 function formatLastSeen(timeStr: string): string {
@@ -78,30 +79,23 @@ export interface Contact {
 // 定义聊天列表项接口
 export interface ChatItem {
     id: string
+    roomId: string
     name: string
-    avatar?: string
+    avatar?: string | null
     lastMessage: string
     time: string
     groupId: string
     memberCount?: number
     unreadCount: number
     isTop: boolean
-    isHidden: boolean
+    isHidden?: boolean
     groupType: number // 0=单聊, 1=群聊
     lastMessageId?: string | null
-    // groupUser相关字段，供API调用使用
-    groupUserId?: number
     chatStatus?: number
-    memberType?: number
-    saveFlag?: number
-    createUser?: number
-    createTime?: string
-    clearTime?: string | null
-    remark?: string | null
-    pushClientId?: string | null
-    userName?: string | null
-    friendName?: string | null
+    groupNotice?: string | null
+    showNoticeFlag?: boolean
     userAvatar?: string | null
+    friendName?: string | null
 }
 
 // 定义状态接口
@@ -554,6 +548,14 @@ export const store = createStore<State>({
             }
         },
 
+        SET_CHAT_UNREAD_COUNT(state: State, payload: { groupId: string; unreadCount: number }) {
+            const { groupId, unreadCount } = payload
+            const chat = state.chatList.list.find(item => item.groupId === groupId || item.id === groupId)
+            if (chat) {
+                chat.unreadCount = Math.max(0, unreadCount)
+            }
+        },
+
         ADD_CHAT_ITEM(state: State, newChat: ChatItem) {
             const exists = state.chatList.list.some(chat => chat.id === newChat.id)
             if (!exists) {
@@ -889,22 +891,12 @@ export const store = createStore<State>({
             try {
                 // 导入 FriendApi 并调用 API
                 const { FriendApi } = await import('../api/friend')
-                const response = await FriendApi.unHandleFriendApply()
-                
-                if (response.success && response.data !== undefined) {
-                    // 根据API返回的数据类型判断
-                    let count = 0
-                    if (typeof response.data === 'number') {
-                        // 如果直接返回数量
-                        count = response.data
-                    } else if (Array.isArray(response.data)) {
-                        // 如果返回数组，取数组长度
-                        count = response.data.length
-                    }
-                    commit('SET_PENDING_FRIEND_REQUESTS', count)
-                    console.log('✅ 更新待处理好友申请数量:', count)
+                const response = await FriendApi.getPendingFriendRequestCount()
+
+                if (response.success && typeof response.data === 'number') {
+                    commit('SET_PENDING_FRIEND_REQUESTS', response.data)
+                    console.log('✅ 更新待处理好友申请数量:', response.data)
                 } else {
-                    // 如果API调用失败，使用默认值0
                     commit('SET_PENDING_FRIEND_REQUESTS', 0)
                     console.warn('⚠️ API调用失败，设置好友申请数量为0')
                 }
@@ -950,36 +942,28 @@ export const store = createStore<State>({
                     size: 1000 // 获取所有联系人
                 })
 
-                if (response.success && response.data) {
-                    // 根据新的API响应结构处理数据
-                    const apiData = response.data
-                    const contacts: Contact[] = []
+                if (response.success && Array.isArray(response.data)) {
+                    const contacts: Contact[] = response.data.map((friend: any) => {
+                        const user = friend.user || {}
+                        const displayName = user.nickname?.trim() || user.username || '未知用户'
+                        const createdAt: Date = friend.createdAt instanceof Date ? friend.createdAt : new Date(friend.createdAt)
+                        const createdAtIso = isNaN(createdAt.getTime()) ? new Date() : createdAt
 
-                    // 检查数据结构
-                    if (apiData.myFriendList && Array.isArray(apiData.myFriendList)) {
-                        // 遍历每个字母分组
-                        apiData.myFriendList.forEach((group: any) => {
-                            if (group.friends && Array.isArray(group.friends)) {
-                                // 遍历该分组下的好友
-                                group.friends.forEach((friend: any) => {
-                                    contacts.push({
-                                        id: friend.friendId?.toString() || friend.id?.toString() || '',
-                                        name: friend.friendName || friend.realName || friend.userName || `用户${friend.friendId || friend.id}`,
-                                        avatar: friend.avatar || '', // API响应中可能没有头像字段
-                                        phone: friend.friendMobile || friend.mobile || '',
-                                        email: friend.email || '',
-                                        isOnline: Math.random() > 0.5, // 临时随机状态，后续可接入真实在线状态
-                                        lastSeen: formatLastSeen(friend.createTime),
-                                        isRecent: isRecentContact(friend.createTime),
-                                        remark: friend.friendName || friend.realName,
-                                        status: friend.status || 1,
-                                        createTime: friend.createTime,
-                                        updateTime: friend.updateTime || friend.createTime
-                                    })
-                                })
-                            }
-                        })
-                    }
+                        return {
+                            id: user.id?.toString() || friend.id?.toString() || '',
+                            name: displayName,
+                            avatar: user.avatarUrl || '',
+                            phone: user.username || '',
+                            email: user.email || '',
+                            isOnline: false,
+                            lastSeen: formatLastSeen(createdAtIso.toISOString()),
+                            isRecent: isRecentContact(createdAtIso.toISOString()),
+                            remark: user.nickname || '',
+                            status: 1,
+                            createTime: createdAtIso.toISOString(),
+                            updateTime: createdAtIso.toISOString()
+                        }
+                    })
 
                     // 根据参数选择使用同步模式还是替换模式
                     if (params.compareWithStore && state.contacts.list.length > 0) {
@@ -997,7 +981,6 @@ export const store = createStore<State>({
                     }
 
                     console.log('✅ 联系人列表加载成功:', contacts.length, '个联系人')
-                    console.log('📊 API返回的分组索引:', apiData.myFriendsIndexList)
                 } else {
                     commit('SET_CONTACTS_ERROR', response.message || '加载联系人列表失败')
                     console.warn('❌ 联系人列表API调用失败:', response.message)
@@ -1046,24 +1029,20 @@ export const store = createStore<State>({
 
                 // 导入 GroupApi 并调用 API
                 const { GroupApi } = await import('../api/group')
-                const response = await GroupApi.getMyChatGroupList({
-                    page: 1,
-                    size: 100
-                })
+                const response = await GroupApi.getMyChatGroupList()
 
-                if (response.success && response.data) {
+                if (response.success && Array.isArray(response.data)) {
                     const groups = response.data
                     console.log('🔍 API响应的原始群组数据:', groups)
 
                     const chatList: ChatItem[] = groups.map((group: any) => {
                         // 时间格式化函数
-                        const formatTime = (timeStr: string) => {
-                            if (!timeStr) return ''
-
+                        const formatTime = (timeValue: Date | string | null | undefined) => {
+                            if (!timeValue) return ''
                             const now = new Date()
-                            const time = new Date(timeStr)
+                            const time = timeValue instanceof Date ? timeValue : new Date(timeValue)
 
-                            if (isNaN(time.getTime())) return timeStr
+                            if (isNaN(time.getTime())) return ''
 
                             const diffMs = now.getTime() - time.getTime()
                             const diffMinutes = Math.floor(diffMs / (1000 * 60))
@@ -1085,34 +1064,33 @@ export const store = createStore<State>({
                             }
                         }
 
+                        const lastMessageTime = group.lastMessageTime instanceof Date
+                            ? group.lastMessageTime
+                            : new Date(group.lastMessageTime || Date.now())
+
+                        const extra = group.extra && typeof group.extra === 'object' ? group.extra : {}
+
+                        const groupNotice = typeof extra.description === 'string' ? extra.description : null
+
                         return {
-                            // 使用真实的三对象结构数据
-                            id: group.imGroup?.groupId || '',
-                            name: group.imGroup?.groupName || '未知群聊',
-                            avatar: group.imGroup?.groupAvatar || '',
-                            lastMessage: group.imGroupMessageRef?.lastMsgContent || '暂无消息',
-                            time: formatTime(group.imGroupMessageRef?.createTime),
-                            groupId: group.imGroup?.groupId || '',
-                            memberCount: group.imGroup?.maxMemberCount || 0,
-                            // 新增字段：使用真实的用户设置数据
-                            unreadCount: group.groupUser?.unReadNum || 0,
-                            isTop: group.groupUser?.topFlag === 1,
-                            isHidden: group.groupUser?.hiddenFlag === 1,
-                            groupType: group.imGroup?.groupType || 0,
-                            lastMessageId: group.imGroupMessageRef?.msgId || null,
-                            // 保存完整的groupUser数据供后续API调用使用
-                            groupUserId: group.groupUser?.id,
-                            chatStatus: group.groupUser?.chatStatus,
-                            memberType: group.groupUser?.memberType,
-                            saveFlag: group.groupUser?.saveFlag,
-                            createUser: group.groupUser?.createUser,
-                            createTime: group.groupUser?.createTime,
-                            clearTime: group.groupUser?.clearTime,
-                            remark: group.groupUser?.remark,
-                            pushClientId: group.groupUser?.pushClientId,
-                            userName: group.groupUser?.userName,
-                            friendName: group.groupUser?.friendName,
-                            userAvatar: group.groupUser?.userAvatar
+                            id: group.id || group.roomId || '',
+                            roomId: group.roomId || group.id || '',
+                            name: group.name || '未命名会话',
+                            avatar: group.avatar || '',
+                            lastMessage: group.lastMessage || '',
+                            time: formatTime(lastMessageTime),
+                            groupId: group.roomId || group.id || '',
+                            memberCount: typeof extra.memberCount === 'number' ? extra.memberCount : null,
+                            unreadCount: group.unreadCount || 0,
+                            isTop: Boolean(group.isPinned),
+                            isHidden: false,
+                            groupType: group.type === 'group' ? 1 : 0,
+                            lastMessageId: group.lastMessageId ?? null,
+                            chatStatus: group.isMuted ? 1 : 0,
+                            groupNotice,
+                            showNoticeFlag: !!(groupNotice && groupNotice.trim().length > 0),
+                            userAvatar: undefined,
+                            friendName: undefined
                         }
                     })
 
@@ -1158,6 +1136,10 @@ export const store = createStore<State>({
             commit('UPDATE_CHAT_ITEM', chatItem)
         },
 
+        setChatUnreadCount({commit}: { commit: any }, payload: { groupId: string; unreadCount: number }) {
+            commit('SET_CHAT_UNREAD_COUNT', payload)
+        },
+
         // 添加聊天项
         addChatItem({commit}: { commit: any }, chatItem: ChatItem) {
             commit('ADD_CHAT_ITEM', chatItem)
@@ -1189,77 +1171,62 @@ export const store = createStore<State>({
 
                 // 导入 FriendApi 并调用 API
                 const { FriendApi } = await import('../api/friend')
-                const response = await FriendApi.checkFriendApply({})
+                const response = await FriendApi.getFriendRequests({})
 
                 console.log('好友申请API响应:', response)
 
-                // 检查响应状态
                 if (response.success) {
-                    let friendRequests: FriendRequest[] = []
+                    const formatTime = (date: Date | string | null | undefined) => {
+                        if (!date) return '未知时间'
+                        const time = typeof date === 'string' ? new Date(date) : date
+                        if (!(time instanceof Date) || isNaN(time.getTime())) {
+                            return '未知时间'
+                        }
 
-                    if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-                        // 转换 API 数据为组件所需格式
-                        friendRequests = response.data.map((apply: any): FriendRequest => {
-                            // 状态映射：根据bear-chat-uniapp的实现
-                            const statusMap: Record<number, '待验证' | '已通过' | '已拒绝'> = {
-                                0: '待验证',
-                                1: '已通过',
-                                2: '已拒绝'
-                            }
+                        const now = new Date()
+                        const diffMs = now.getTime() - time.getTime()
+                        const diffMinutes = Math.floor(diffMs / (1000 * 60))
+                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+                        const diffDays = Math.floor(diffHours / 24)
 
-                            // 格式化时间
-                            const formatTime = (createTime: string | number) => {
-                                if (!createTime) return '未知时间'
-
-                                const now = new Date()
-                                const time = new Date(createTime)
-
-                                // 检查时间是否有效
-                                if (isNaN(time.getTime())) return '未知时间'
-
-                                const diffMs = now.getTime() - time.getTime()
-                                const diffMinutes = Math.floor(diffMs / (1000 * 60))
-                                const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-                                const diffDays = Math.floor(diffHours / 24)
-
-                                if (diffMinutes < 1) {
-                                    return '刚刚'
-                                } else if (diffMinutes < 60) {
-                                    return `${diffMinutes}分钟前`
-                                } else if (diffHours < 24) {
-                                    return `${diffHours}小时前`
-                                } else if (diffDays === 1) {
-                                    return '昨天'
-                                } else if (diffDays < 7) {
-                                    return `${diffDays}天前`
-                                } else if (diffDays < 30) {
-                                    return `${Math.floor(diffDays / 7)}周前`
-                                } else {
-                                    return time.toLocaleDateString()
-                                }
-                            }
-
-                            const applyData = apply as any
-
-                            return {
-                                id: applyData.id || applyData.applyId || String(Date.now()),
-                                name: applyData.userName || applyData.nickname || applyData.realName || `用户${applyData.fromUserId || applyData.id}`,
-                                avatar: applyData.avatar || applyData.userAvatar,
-                                phone: applyData.mobile || applyData.phone,
-                                status: statusMap[applyData.status] || '待验证',
-                                time: formatTime(applyData.createTime || applyData.addTime),
-                                message: applyData.message || applyData.description || applyData.applyMessage || '请求添加您为好友',
-                                fromUserId: applyData.fromUserId || applyData.userId,
-                                toUserId: applyData.toUserId
-                            }
-                        })
-
-                        console.log('✅ 加载好友申请成功:', friendRequests.length, '条申请')
-                    } else {
-                        // 成功但无数据
-                        friendRequests = []
-                        console.log('✅ 好友申请加载成功，暂无申请记录')
+                        if (diffMinutes < 1) {
+                            return '刚刚'
+                        } else if (diffMinutes < 60) {
+                            return `${diffMinutes}分钟前`
+                        } else if (diffHours < 24) {
+                            return `${diffHours}小时前`
+                        } else if (diffDays === 1) {
+                            return '昨天'
+                        } else if (diffDays < 7) {
+                            return `${diffDays}天前`
+                        } else if (diffDays < 30) {
+                            return `${Math.floor(diffDays / 7)}周前`
+                        } else {
+                            return time.toLocaleDateString()
+                        }
                     }
+
+                    const statusTextMap: Record<string, '待验证' | '已通过' | '已拒绝'> = {
+                        pending: '待验证',
+                        accepted: '已通过',
+                        declined: '已拒绝'
+                    }
+
+                    const friendRequests: FriendRequest[] = Array.isArray(response.data)
+                        ? response.data.map((request) => ({
+                            id: request.id,
+                            name: request.requester.nickname || request.requester.username,
+                            avatar: request.requester.avatarUrl || undefined,
+                            phone: request.requester.username,
+                            status: statusTextMap[request.status] || '待验证',
+                            time: formatTime(request.createdAt),
+                            message: request.message || '请求添加您为好友',
+                            fromUserId: request.requester.id,
+                            toUserId: request.addressee.id
+                        }))
+                        : []
+
+                    console.log('✅ 加载好友申请成功:', friendRequests.length, '条申请')
 
                     // 根据参数选择使用同步模式还是替换模式
                     if (params.compareWithStore && state.friendRequests.list.length > 0) {

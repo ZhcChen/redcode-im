@@ -117,6 +117,12 @@ function setupWebSocketEventListeners() {
     handleLaunchGroup(detail);
   });
 
+  window.addEventListener('websocket-room-created', (event) => {
+    const detail = (event as CustomEvent).detail;
+    console.log('新群聊创建:', detail);
+    handleLaunchGroup(detail);
+  });
+
   window.addEventListener('websocket-delete-group', (event) => {
     const detail = (event as CustomEvent).detail;
     console.log('群组被解散:', detail);
@@ -124,10 +130,22 @@ function setupWebSocketEventListeners() {
   });
 
   // 监听通话消息
-  window.addEventListener('websocket-calling', (event) => {
+  window.addEventListener('websocket-message-update', (event) => {
     const detail = (event as CustomEvent).detail;
-    console.log('收到通话消息:', detail);
-    handleCalling(detail);
+    console.log('消息更新:', detail);
+    handleMessageUpdate(detail);
+  });
+
+  window.addEventListener('websocket-message-read', (event) => {
+    const detail = (event as CustomEvent).detail;
+    console.log('消息已读:', detail);
+    handleMessageRead(detail);
+  });
+
+  window.addEventListener('websocket-pin-update', (event) => {
+    const detail = (event as CustomEvent).detail;
+    console.log('置顶更新:', detail);
+    handlePinUpdate(detail);
   });
 }
 
@@ -139,14 +157,17 @@ function removeWebSocketEventListeners() {
   window.removeEventListener('websocket-delete-friend', handleDeleteFriend);
   window.removeEventListener('websocket-friend-circle', handleFriendCircle);
   window.removeEventListener('websocket-launch-group', handleLaunchGroup);
+  window.removeEventListener('websocket-room-created', handleLaunchGroup);
   window.removeEventListener('websocket-delete-group', handleDeleteGroup);
-  window.removeEventListener('websocket-calling', handleCalling);
+  window.removeEventListener('websocket-message-update', handleMessageUpdate);
+  window.removeEventListener('websocket-message-read', handleMessageRead);
+  window.removeEventListener('websocket-pin-update', handlePinUpdate);
 }
 
 // 消息处理函数
 function handleChatMessage(detail: any) {
-  // 处理聊天消息逻辑
-  console.log('处理聊天消息:', detail);
+  const payload = detail?.message ?? detail
+  console.log('处理聊天消息:', payload)
   // 这里可以更新聊天界面，播放提示音等
 }
 
@@ -199,9 +220,28 @@ function handleDeleteGroup(detail: any) {
   }
 }
 
-function handleCalling(detail: any) {
-  // 处理通话消息逻辑
-  console.log('处理通话消息:', detail);
+function handleMessageUpdate(detail: any) {
+  console.log('处理消息更新事件:', detail);
+}
+
+function handleMessageRead(detail: any) {
+  console.log('处理消息已读事件:', detail);
+  const roomId = detail?.room_id || detail?.roomId;
+  if (roomId) {
+    store.dispatch('setChatUnreadCount', { groupId: roomId, unreadCount: 0 });
+  }
+}
+
+function handlePinUpdate(detail: any) {
+  console.log('处理消息置顶事件:', detail);
+  const roomId = detail?.room_id || detail?.roomId;
+  const isPinned = detail?.is_pinned ?? detail?.isPinned;
+  if (roomId !== undefined && isPinned !== undefined) {
+    const chat = store.getters.getChatByGroupId(roomId);
+    if (chat) {
+      store.dispatch('updateChatItem', { ...chat, isTop: !!isPinned });
+    }
+  }
 }
 
 // 监听页面可见性变化
