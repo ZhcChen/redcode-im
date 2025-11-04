@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     nickname VARCHAR(100),
     avatar_url TEXT,
+    avatar_object_key TEXT,
     status SMALLINT NOT NULL DEFAULT 0,            -- 0=active,1=inactive,2=banned
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

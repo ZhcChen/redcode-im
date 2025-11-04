@@ -13,6 +13,7 @@ pub struct User {
     pub password_hash: String,
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
+    pub avatar_object_key: Option<String>,
     pub status: UserStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -66,7 +67,6 @@ pub struct LoginRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserRequest {
     pub nickname: Option<String>,
-    pub avatar_url: Option<String>,
     pub status: Option<UserStatus>,
 }
 
