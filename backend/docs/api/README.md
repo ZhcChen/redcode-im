@@ -8,6 +8,7 @@
 
 - [认证与登录](./auth.md)
 - [系统管理](./system.md)
+- [存储测试](./admin-storage.md)
 - [WebSocket](./websocket.md)
 - [消息](./messages.md)
 - [会话](./chats.md)
