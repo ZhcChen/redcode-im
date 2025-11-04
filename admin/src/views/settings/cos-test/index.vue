@@ -212,6 +212,55 @@
             </template>
           </a-result>
         </a-card>
+
+        <!-- 测试四：下载链接生成 -->
+        <a-card title="测试四：生成下载链接" size="small">
+          <a-form :model="downloadForm" layout="vertical">
+            <a-form-item label="文件路径（Key）">
+              <a-input
+                v-model="downloadForm.key"
+                placeholder="使用上传后的 key，例如：test/xxx.png"
+              />
+            </a-form-item>
+            <a-form-item label="过期时间（秒，默认 600，最大 86400）">
+              <a-input-number
+                v-model="downloadForm.expires_in_seconds"
+                :min="60"
+                :max="86400"
+                :precision="0"
+                style="width: 100%"
+              />
+            </a-form-item>
+            <a-form-item>
+              <a-space wrap>
+                <a-button
+                  type="primary"
+                  :loading="downloadLoading"
+                  @click="handleGenerateDownloadUrl"
+                >
+                  生成下载链接
+                </a-button>
+                <a-button v-if="lastUploadedKey" @click="fillLastUploadedKey">
+                  使用最近上传的 key
+                </a-button>
+              </a-space>
+            </a-form-item>
+          </a-form>
+          <a-result
+            v-if="downloadResult"
+            :status="downloadResult.success ? 'success' : 'error'"
+            :title="downloadResult.message"
+          >
+            <template
+              v-if="downloadResult.success && downloadResult.url"
+              #subtitle
+            >
+              <a :href="downloadResult.url" target="_blank">
+                {{ downloadResult.url }}
+              </a>
+            </template>
+          </a-result>
+        </a-card>
       </a-space>
     </a-card>
   </div>
@@ -224,6 +273,7 @@
     listStorageProviders,
     testCosListBuckets,
     testCosUploadSignature,
+    testCosDownloadUrl,
     getCosCors,
     setCosCors,
     type StorageProvider,
@@ -232,6 +282,12 @@
   } from '@/api/settings';
 
   type UploadTestResult = {
+    success: boolean;
+    message: string;
+    url?: string;
+  };
+
+  type DownloadUrlResult = {
     success: boolean;
     message: string;
     url?: string;
@@ -282,6 +338,7 @@
 
   const uploadLoading = ref(false);
   const uploadResult = ref<UploadTestResult | null>(null);
+  const lastUploadedKey = ref('');
 
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedFile = ref<File | null>(null);
@@ -335,6 +392,13 @@
     maxAgeSeconds: 600 as number | null,
     overrideExisting: false,
   });
+
+  const downloadForm = reactive({
+    key: '',
+    expires_in_seconds: 600,
+  });
+  const downloadLoading = ref(false);
+  const downloadResult = ref<DownloadUrlResult | null>(null);
 
   const fetchProviders = async () => {
     try {
@@ -517,6 +581,7 @@
         message: '上传成功',
         url: signature.url,
       };
+      lastUploadedKey.value = uploadForm.key.trim();
       Message.success('上传成功');
       return true;
     } catch (error: any) {
@@ -581,6 +646,57 @@
 
     if (success) {
       resetFileSelection();
+    }
+  };
+
+  const fillLastUploadedKey = () => {
+    if (lastUploadedKey.value) {
+      downloadForm.key = lastUploadedKey.value;
+    } else {
+      Message.info('暂无最近上传的 key');
+    }
+  };
+
+  const handleGenerateDownloadUrl = async () => {
+    if (!downloadForm.key.trim()) {
+      Message.error('请先填写文件路径');
+      return;
+    }
+
+    const expiresIn = downloadForm.expires_in_seconds || 600;
+    if (expiresIn < 60 || expiresIn > 86400) {
+      Message.error('过期时间需在 60-86400 秒之间');
+      return;
+    }
+
+    downloadLoading.value = true;
+    downloadResult.value = null;
+    try {
+      const response = await testCosDownloadUrl({
+        provider_id: formData.provider_id,
+        key: downloadForm.key.trim(),
+        expires_in_seconds: expiresIn,
+      });
+      const { data } = response;
+      downloadResult.value = data;
+      if (data.success && data.url) {
+        Message.success('生成下载链接成功');
+      } else {
+        Message.error(data.message || '生成下载链接失败');
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '生成下载链接失败';
+      downloadResult.value = {
+        success: false,
+        message: errorMsg,
+      };
+      Message.error(errorMsg);
+    } finally {
+      downloadLoading.value = false;
     }
   };
 

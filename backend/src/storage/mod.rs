@@ -86,6 +86,17 @@ pub trait StorageService: Send + Sync {
             "当前存储提供商不支持前端直传上传".to_string(),
         ))
     }
+
+    /// 生成带过期时间的下载 URL
+    async fn generate_download_url(
+        &self,
+        _key: &str,
+        _expires_in: Option<u32>,
+    ) -> Result<String, AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持生成下载链接".to_string(),
+        ))
+    }
 }
 
 /// 创建存储服务实例

@@ -13,6 +13,9 @@ use tracing::{debug, error, warn};
 
 type HmacSha1 = Hmac<Sha1>;
 
+const DEFAULT_SIGNATURE_TTL: i64 = 3600;
+const MAX_SIGNATURE_TTL: i64 = 24 * 3600;
+
 /// 腾讯云 COS 服务实现
 pub struct TencentCosService {
     secret_id: String,
@@ -77,7 +80,15 @@ impl TencentCosService {
         timestamp: i64,
     ) -> String {
         let host = self.resolve_object_host();
-        self.generate_signature_v1_with_host(method, path, headers, timestamp, &host, None)
+        self.generate_signature_v1_with_host_and_ttl(
+            method,
+            path,
+            headers,
+            timestamp,
+            &host,
+            None,
+            DEFAULT_SIGNATURE_TTL,
+        )
     }
 
     /// 生成腾讯云 COS API v1 签名（指定 host）
@@ -90,8 +101,30 @@ impl TencentCosService {
         host: &str,
         query_params: Option<&BTreeMap<String, String>>,
     ) -> String {
+        self.generate_signature_v1_with_host_and_ttl(
+            method,
+            path,
+            headers,
+            timestamp,
+            host,
+            query_params,
+            DEFAULT_SIGNATURE_TTL,
+        )
+    }
+
+    fn generate_signature_v1_with_host_and_ttl(
+        &self,
+        method: &str,
+        path: &str,
+        headers: &BTreeMap<String, String>,
+        timestamp: i64,
+        host: &str,
+        query_params: Option<&BTreeMap<String, String>>,
+        ttl_seconds: i64,
+    ) -> String {
+        let duration = clamp_signature_ttl(ttl_seconds);
         let start_time = timestamp;
-        let end_time = timestamp + 3600;
+        let end_time = timestamp + duration;
         let key_time = format!("{};{}", start_time, end_time);
 
         let sanitized_host = sanitize_endpoint(host);
@@ -573,6 +606,43 @@ impl StorageService for TencentCosService {
             key: key.to_string(),
         })
     }
+
+    async fn generate_download_url(
+        &self,
+        key: &str,
+        expires_in: Option<u32>,
+    ) -> Result<String, AppError> {
+        if key.trim().is_empty() {
+            return Err(AppError::ValidationError(
+                "文件路径（key）不能为空".to_string(),
+            ));
+        }
+
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+        let path = build_uri_pathname(key);
+
+        let headers_map = BTreeMap::new();
+        let host = self.resolve_object_host();
+        let ttl = expires_in
+            .map(|v| v as i64)
+            .unwrap_or(DEFAULT_SIGNATURE_TTL);
+
+        let authorization = self.generate_signature_v1_with_host_and_ttl(
+            "GET",
+            &path,
+            &headers_map,
+            timestamp,
+            &host,
+            None,
+            ttl,
+        );
+
+        let encoded_key = encode_object_key(key);
+        let base_url = format!("https://{}/{}", host, encoded_key);
+        let separator = if base_url.contains('?') { '&' } else { '?' };
+        Ok(format!("{}{}{}", base_url, separator, authorization))
+    }
 }
 
 /// 解析 CORS 配置响应 XML
@@ -822,6 +892,14 @@ fn encode_object_key(key: &str) -> String {
         String::new()
     } else {
         urlencoding::encode(normalized).to_string()
+    }
+}
+
+fn clamp_signature_ttl(ttl_seconds: i64) -> i64 {
+    if ttl_seconds <= 0 {
+        DEFAULT_SIGNATURE_TTL
+    } else {
+        ttl_seconds.min(MAX_SIGNATURE_TTL)
     }
 }
 

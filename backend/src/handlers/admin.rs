@@ -597,6 +597,20 @@ pub struct TestCosUploadSignatureResponse {
     pub message: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TestCosDownloadUrlRequest {
+    pub provider_id: Option<String>,
+    pub key: String,
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosDownloadUrlResponse {
+    pub success: bool,
+    pub url: Option<String>,
+    pub message: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CorsRuleInput {
     pub allowed_origins: Vec<String>,
@@ -791,6 +805,70 @@ pub async fn test_cos_upload_signature(
             success: false,
             signature: None,
             message: format!("生成直传签名失败: {}", e),
+        })),
+    }
+}
+
+/// 生成可访问的下载链接
+pub async fn test_cos_download_url(
+    State(state): State<AppState>,
+    Json(req): Json<TestCosDownloadUrlRequest>,
+) -> Result<Json<TestCosDownloadUrlResponse>, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+
+    if req.key.trim().is_empty() {
+        return Ok(Json(TestCosDownloadUrlResponse {
+            success: false,
+            url: None,
+            message: "文件路径（key）不能为空".to_string(),
+        }));
+    }
+
+    let provider = if let Some(provider_id) = req.provider_id.clone() {
+        let provider_uuid = Uuid::parse_str(&provider_id)
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosDownloadUrlResponse {
+            success: false,
+            url: None,
+            message: "提供商未启用".to_string(),
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosDownloadUrlResponse {
+            success: false,
+            url: None,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+        }));
+    }
+
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    match storage_service
+        .generate_download_url(req.key.trim(), req.expires_in_seconds)
+        .await
+    {
+        Ok(url) => Ok(Json(TestCosDownloadUrlResponse {
+            success: true,
+            url: Some(url),
+            message: "生成下载链接成功".to_string(),
+        })),
+        Err(e) => Ok(Json(TestCosDownloadUrlResponse {
+            success: false,
+            url: None,
+            message: format!("生成下载链接失败: {}", e),
         })),
     }
 }

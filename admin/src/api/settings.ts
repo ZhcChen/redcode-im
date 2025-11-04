@@ -169,6 +169,18 @@ export interface TestCosUploadSignatureResponse {
   message: string;
 }
 
+export interface TestCosDownloadUrlRequest {
+  provider_id?: string;
+  key: string;
+  expires_in_seconds?: number;
+}
+
+export interface TestCosDownloadUrlResponse {
+  success: boolean;
+  url?: string;
+  message: string;
+}
+
 export interface SetCosCorsRulePayload {
   allowed_origins: string[];
   allowed_methods: string[];
@@ -254,6 +266,13 @@ export function testCosDelete(payload: TestCosDeleteRequest) {
 export function testCosExists(payload: TestCosExistsRequest) {
   return axios.post<TestCosExistsResponse>(
     '/api/admin/storage-providers/test/exists',
+    payload
+  );
+}
+
+export function testCosDownloadUrl(payload: TestCosDownloadUrlRequest) {
+  return axios.post<TestCosDownloadUrlResponse>(
+    '/api/admin/storage-providers/test/download-url',
     payload
   );
 }
