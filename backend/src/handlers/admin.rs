@@ -945,6 +945,8 @@ pub async fn test_cos_set_cors(
         }));
     }
 
+    const SUPPORTED_METHODS: [&str; 5] = ["GET", "PUT", "POST", "DELETE", "HEAD"];
+
     if cors_rules
         .iter()
         .any(|rule| rule.allowed_methods.is_empty())
@@ -952,6 +954,25 @@ pub async fn test_cos_set_cors(
         return Ok(Json(TestCosSetCorsResponse {
             success: false,
             message: "每条跨域规则必须至少配置一个允许的方法".to_string(),
+        }));
+    }
+
+    if let Some(invalid_method) = cors_rules
+        .iter()
+        .flat_map(|rule| &rule.allowed_methods)
+        .find(|method| {
+            let uppercase = method.to_ascii_uppercase();
+            !SUPPORTED_METHODS
+                .iter()
+                .any(|supported| supported.eq_ignore_ascii_case(&uppercase))
+        })
+    {
+        return Ok(Json(TestCosSetCorsResponse {
+            success: false,
+            message: format!(
+                "不支持的跨域方法: {}，COS 仅允许 GET/PUT/POST/DELETE/HEAD",
+                invalid_method
+            ),
         }));
     }
 

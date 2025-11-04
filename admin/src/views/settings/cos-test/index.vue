@@ -105,7 +105,9 @@
                   placeholder="例如：http://localhost:8011, https://admin.example.com"
                 />
               </a-form-item>
-              <a-form-item label="允许的方法">
+              <a-form-item
+                label="允许的方法（COS 仅支持 GET/PUT/POST/DELETE/HEAD）"
+              >
                 <a-select
                   v-model="corsForm.methods"
                   mode="multiple"
@@ -324,10 +326,10 @@
   const corsLoading = ref(false);
   const corsSaveLoading = ref(false);
   const corsResult = ref<SimpleResult | null>(null);
-  const corsMethodOptions = ['GET', 'PUT', 'POST', 'DELETE', 'HEAD', 'OPTIONS'];
+  const corsMethodOptions = ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'];
   const corsForm = reactive({
     origin: 'http://localhost:8011',
-    methods: ['PUT', 'OPTIONS'] as string[],
+    methods: ['PUT'] as string[],
     allowedHeaders: '*',
     exposeHeaders: '',
     maxAgeSeconds: 600 as number | null,
