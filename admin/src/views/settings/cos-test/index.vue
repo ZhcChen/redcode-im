@@ -35,137 +35,8 @@
           </a-form-item>
         </a-form>
 
-        <!-- 文件上传测试 -->
-        <a-card title="文件上传测试" size="small">
-          <a-form :model="uploadForm" layout="vertical">
-            <a-form-item label="文件路径（Key）">
-              <a-input
-                v-model="uploadForm.key"
-                placeholder="例如：test/hello.txt"
-                :default-value="`test/${Date.now()}.txt`"
-              />
-            </a-form-item>
-            <a-form-item label="文件内容">
-              <a-textarea
-                v-model="uploadForm.content"
-                placeholder="请输入要上传的文件内容"
-                :rows="5"
-                :default-value="`测试文件内容 - ${new Date().toLocaleString()}`"
-              />
-            </a-form-item>
-            <a-form-item label="Content-Type（可选）">
-              <a-input
-                v-model="uploadForm.content_type"
-                placeholder="例如：text/plain, image/png"
-              />
-            </a-form-item>
-            <a-form-item label="选择本地文件（可选）">
-              <input
-                ref="fileInputRef"
-                type="file"
-                style="display: none"
-                @change="handleFileChange"
-              />
-              <a-space>
-                <a-button @click="triggerFileSelect">选择文件</a-button>
-                <span v-if="selectedFileInfo">{{ selectedFileInfo }}</span>
-              </a-space>
-            </a-form-item>
-            <a-form-item>
-              <a-space wrap>
-                <a-button
-                  type="primary"
-                  :loading="uploadLoading"
-                  @click="handleUpload"
-                >
-                  上传文本内容
-                </a-button>
-                <a-button
-                  type="primary"
-                  status="success"
-                  :loading="uploadFileLoading"
-                  :disabled="!selectedFile"
-                  @click="handleUploadSelectedFile"
-                >
-                  上传所选文件
-                </a-button>
-              </a-space>
-            </a-form-item>
-          </a-form>
-          <a-result
-            v-if="uploadResult"
-            :status="uploadResult.success ? 'success' : 'error'"
-            :title="uploadResult.message"
-          >
-            <template v-if="uploadResult.success && uploadResult.url" #subtitle>
-              <a :href="uploadResult.url" target="_blank">{{
-                uploadResult.url
-              }}</a>
-            </template>
-          </a-result>
-        </a-card>
-
-        <!-- 文件删除测试 -->
-        <a-card title="文件删除测试" size="small">
-          <a-form :model="deleteForm" layout="vertical">
-            <a-form-item label="文件路径（Key）">
-              <a-input
-                v-model="deleteForm.key"
-                placeholder="请输入要删除的文件路径"
-              />
-            </a-form-item>
-            <a-form-item>
-              <a-button
-                type="primary"
-                status="danger"
-                :loading="deleteLoading"
-                @click="handleDelete"
-              >
-                删除文件
-              </a-button>
-            </a-form-item>
-          </a-form>
-          <a-result
-            v-if="deleteResult"
-            :status="deleteResult.data?.success ? 'success' : 'error'"
-            :title="deleteResult.data?.message"
-          />
-        </a-card>
-
-        <!-- 文件存在性检查测试 -->
-        <a-card title="文件存在性检查测试" size="small">
-          <a-form :model="existsForm" layout="vertical">
-            <a-form-item label="文件路径（Key）">
-              <a-input
-                v-model="existsForm.key"
-                placeholder="请输入要检查的文件路径"
-              />
-            </a-form-item>
-            <a-form-item>
-              <a-button
-                type="primary"
-                :loading="existsLoading"
-                @click="handleExists"
-              >
-                检查文件是否存在
-              </a-button>
-            </a-form-item>
-          </a-form>
-          <a-result
-            v-if="existsResult"
-            :status="existsResult.data?.success ? 'success' : 'error'"
-            :title="existsResult.data?.message"
-          >
-            <template v-if="existsResult.data?.exists !== undefined" #extra>
-              <a-tag :color="existsResult.data?.exists ? 'green' : 'gray'">
-                {{ existsResult.data?.exists ? '文件存在' : '文件不存在' }}
-              </a-tag>
-            </template>
-          </a-result>
-        </a-card>
-
-        <!-- Bucket 列表 -->
-        <a-card title="Bucket 列表" size="small">
+        <!-- 测试一：Bucket 列表 -->
+        <a-card title="Bucket 列表测试" size="small">
           <a-space direction="vertical" :size="16" style="width: 100%">
             <a-button
               type="primary"
@@ -180,40 +51,67 @@
               :data="buckets"
               :pagination="false"
               size="small"
+              row-key="name"
             />
             <a-empty v-else-if="bucketsLoaded" description="暂无 Bucket" />
             <a-result
               v-if="bucketsResult"
-              :status="bucketsResult.data?.success ? 'success' : 'error'"
-              :title="bucketsResult.data?.message"
+              :status="bucketsResult.success ? 'success' : 'error'"
+              :title="bucketsResult.message"
             />
           </a-space>
         </a-card>
 
-        <!-- 创建 Bucket -->
-        <a-card title="创建 Bucket" size="small">
-          <a-form :model="createBucketForm" layout="vertical">
-            <a-form-item label="Bucket 名称">
+        <!-- 测试二：本地文件直传 -->
+        <a-card title="本地文件直传测试" size="small">
+          <a-form :model="uploadForm" layout="vertical">
+            <a-form-item label="文件路径（Key）">
               <a-input
-                v-model="createBucketForm.bucket_name"
-                placeholder="请输入 bucket 名称（只能包含小写字母、数字和连字符）"
+                v-model="uploadForm.key"
+                placeholder="例如：test/hello.txt"
               />
+            </a-form-item>
+            <a-form-item label="Content-Type（可选）">
+              <a-input
+                v-model="uploadForm.content_type"
+                placeholder="例如：image/png"
+              />
+            </a-form-item>
+            <a-form-item label="选择本地文件">
+              <input
+                ref="fileInputRef"
+                type="file"
+                style="display: none"
+                @change="handleFileChange"
+              />
+              <a-space>
+                <a-button @click="triggerFileSelect">选择文件</a-button>
+                <span v-if="selectedFileInfo">{{ selectedFileInfo }}</span>
+              </a-space>
             </a-form-item>
             <a-form-item>
               <a-button
                 type="primary"
-                :loading="createBucketLoading"
-                @click="handleCreateBucket"
+                status="success"
+                :loading="uploadLoading"
+                :disabled="!selectedFile"
+                @click="handleUploadFile"
               >
-                创建 Bucket
+                上传所选文件
               </a-button>
             </a-form-item>
           </a-form>
           <a-result
-            v-if="createBucketResult"
-            :status="createBucketResult.data?.success ? 'success' : 'error'"
-            :title="createBucketResult.data?.message"
-          />
+            v-if="uploadResult"
+            :status="uploadResult.success ? 'success' : 'error'"
+            :title="uploadResult.message"
+          >
+            <template v-if="uploadResult.success && uploadResult.url" #subtitle>
+              <a :href="uploadResult.url" target="_blank">{{
+                uploadResult.url
+              }}</a>
+            </template>
+          </a-result>
         </a-card>
       </a-space>
     </a-card>
@@ -225,49 +123,15 @@
   import { Message } from '@arco-design/web-vue';
   import {
     listStorageProviders,
-    testCosDelete,
-    testCosExists,
     testCosListBuckets,
-    testCosCreateBucket,
     testCosUploadSignature,
     type StorageProvider,
-    type TestCosDeleteRequest,
-    type TestCosDeleteResponse,
-    type TestCosExistsRequest,
-    type TestCosExistsResponse,
     type TestCosListBucketsRequest,
     type TestCosListBucketsResponse,
-    type TestCosCreateBucketRequest,
-    type TestCosCreateBucketResponse,
     type TestCosUploadSignatureRequest,
     type TestCosUploadSignatureResponse,
     type DirectUploadSignature,
   } from '@/api/settings';
-
-  const providers = ref<StorageProvider[]>([]);
-  const providersLoading = ref(false);
-
-  const formData = reactive({
-    provider_id: undefined as string | undefined,
-  });
-
-  const uploadForm = reactive({
-    key: `test/${Date.now()}.txt`,
-    content: `测试文件内容 - ${new Date().toLocaleString()}`,
-    content_type: 'text/plain',
-  });
-
-  const deleteForm = reactive({
-    key: '',
-  });
-
-  const existsForm = reactive({
-    key: '',
-  });
-
-  const createBucketForm = reactive({
-    bucket_name: '',
-  });
 
   type UploadTestResult = {
     success: boolean;
@@ -275,19 +139,8 @@
     url?: string;
   };
 
-  const uploadLoading = ref(false);
-  const uploadFileLoading = ref(false);
-  const deleteLoading = ref(false);
-  const existsLoading = ref(false);
-  const bucketsLoading = ref(false);
-  const createBucketLoading = ref(false);
-
-  const uploadResult = ref<UploadTestResult | null>(null);
-  const deleteResult = ref<TestCosDeleteResponse | null>(null);
-  const existsResult = ref<TestCosExistsResponse | null>(null);
-  const bucketsResult = ref<TestCosListBucketsResponse | null>(null);
-  const createBucketResult = ref<TestCosCreateBucketResponse | null>(null);
-
+  const providers = ref<StorageProvider[]>([]);
+  const providersLoading = ref(false);
   const buckets = ref<
     Array<{
       name: string;
@@ -296,6 +149,26 @@
     }>
   >([]);
   const bucketsLoaded = ref(false);
+  const bucketsLoading = ref(false);
+  const bucketsResult = ref<{
+    success: boolean;
+    message?: string;
+  } | null>(null);
+
+  const uploadForm = reactive({
+    key: `test/${Date.now()}.txt`,
+    content_type: '',
+  });
+
+  const uploadLoading = ref(false);
+  const uploadResult = ref<UploadTestResult | null>(null);
+
+  const fileInputRef = ref<HTMLInputElement | null>(null);
+  const selectedFile = ref<File | null>(null);
+
+  const formData = reactive({
+    provider_id: undefined as string | undefined,
+  });
 
   const bucketColumns = [
     {
@@ -312,8 +185,6 @@
     },
   ];
 
-  const fileInputRef = ref<HTMLInputElement | null>(null);
-  const selectedFile = ref<File | null>(null);
   const selectedFileInfo = computed(() => {
     if (!selectedFile.value) {
       return '';
@@ -341,6 +212,54 @@
       Message.error(errorMsg);
     } finally {
       providersLoading.value = false;
+    }
+  };
+
+  const handleListBuckets = async () => {
+    try {
+      bucketsLoading.value = true;
+      bucketsResult.value = null;
+
+      const payload: TestCosListBucketsRequest = {
+        provider_id: formData.provider_id,
+      };
+
+      const response = await testCosListBuckets(payload);
+      const data =
+        (
+          response.data as TestCosListBucketsResponse & {
+            data?: TestCosListBucketsResponse;
+          }
+        ).data || response.data;
+
+      if (data?.success) {
+        buckets.value = data?.buckets || [];
+        bucketsLoaded.value = true;
+        bucketsResult.value = {
+          success: true,
+          message: data?.message || '获取 bucket 列表成功',
+        };
+        Message.success('获取 bucket 列表成功');
+      } else {
+        Message.error(data?.message || '获取 bucket 列表失败');
+        bucketsResult.value = {
+          success: false,
+          message: data?.message || '获取 bucket 列表失败',
+        };
+      }
+    } catch (error: any) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '获取 bucket 列表失败';
+      Message.error(errorMsg);
+      bucketsResult.value = {
+        success: false,
+        message: errorMsg,
+      };
+    } finally {
+      bucketsLoading.value = false;
     }
   };
 
@@ -436,22 +355,6 @@
     }
   };
 
-  const handleUpload = async () => {
-    if (!uploadForm.key.trim()) {
-      Message.error('请输入文件路径');
-      return;
-    }
-    if (!uploadForm.content.trim()) {
-      Message.error('请输入文件内容');
-      return;
-    }
-
-    const contentType =
-      uploadForm.content_type?.trim() || 'text/plain; charset=utf-8';
-    const blob = new Blob([uploadForm.content], { type: contentType });
-    await performDirectUpload(blob, contentType, uploadLoading);
-  };
-
   const triggerFileSelect = () => {
     fileInputRef.value?.click();
   };
@@ -478,7 +381,7 @@
     }
   };
 
-  const handleUploadSelectedFile = async () => {
+  const handleUploadFile = async () => {
     if (!selectedFile.value) {
       Message.error('请先选择文件');
       return;
@@ -496,180 +399,11 @@
     const success = await performDirectUpload(
       selectedFile.value,
       contentType,
-      uploadFileLoading
+      uploadLoading
     );
 
     if (success) {
       resetFileSelection();
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteForm.key.trim()) {
-      Message.error('请输入文件路径');
-      return;
-    }
-
-    try {
-      deleteLoading.value = true;
-      deleteResult.value = null;
-
-      const payload: TestCosDeleteRequest = {
-        provider_id: formData.provider_id,
-        key: deleteForm.key.trim(),
-      };
-
-      const response = await testCosDelete(payload);
-      const data = response.data?.data || response.data;
-      deleteResult.value = response.data;
-
-      if (data?.success) {
-        Message.success('删除成功');
-      } else {
-        Message.error(data?.message || '删除失败');
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '删除失败';
-      Message.error(errorMsg);
-      deleteResult.value = {
-        data: {
-          success: false,
-          message: errorMsg,
-        },
-      };
-    } finally {
-      deleteLoading.value = false;
-    }
-  };
-
-  const handleExists = async () => {
-    if (!existsForm.key.trim()) {
-      Message.error('请输入文件路径');
-      return;
-    }
-
-    try {
-      existsLoading.value = true;
-      existsResult.value = null;
-
-      const payload: TestCosExistsRequest = {
-        provider_id: formData.provider_id,
-        key: existsForm.key.trim(),
-      };
-
-      const response = await testCosExists(payload);
-      const data = response.data?.data || response.data;
-      existsResult.value = response.data;
-
-      if (data?.success) {
-        Message.success(data?.exists ? '文件存在' : '文件不存在');
-      } else {
-        Message.error(data?.message || '检查失败');
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '检查失败';
-      Message.error(errorMsg);
-      existsResult.value = {
-        data: {
-          success: false,
-          exists: false,
-          message: errorMsg,
-        },
-      };
-    } finally {
-      existsLoading.value = false;
-    }
-  };
-
-  const handleListBuckets = async () => {
-    try {
-      bucketsLoading.value = true;
-      bucketsResult.value = null;
-
-      const payload: TestCosListBucketsRequest = {
-        provider_id: formData.provider_id,
-      };
-
-      const response = await testCosListBuckets(payload);
-      const data = response.data?.data || response.data;
-      bucketsResult.value = response.data;
-
-      if (data?.success) {
-        buckets.value = data?.buckets || [];
-        bucketsLoaded.value = true;
-        Message.success('获取 bucket 列表成功');
-      } else {
-        Message.error(data?.message || '获取 bucket 列表失败');
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '获取 bucket 列表失败';
-      Message.error(errorMsg);
-      bucketsResult.value = {
-        data: {
-          success: false,
-          buckets: [],
-          message: errorMsg,
-        },
-      };
-    } finally {
-      bucketsLoading.value = false;
-    }
-  };
-
-  const handleCreateBucket = async () => {
-    if (!createBucketForm.bucket_name.trim()) {
-      Message.error('请输入 bucket 名称');
-      return;
-    }
-
-    try {
-      createBucketLoading.value = true;
-      createBucketResult.value = null;
-
-      const payload: TestCosCreateBucketRequest = {
-        provider_id: formData.provider_id,
-        bucket_name: createBucketForm.bucket_name.trim(),
-      };
-
-      const response = await testCosCreateBucket(payload);
-      const data = response.data?.data || response.data;
-      createBucketResult.value = response.data;
-
-      if (data?.success) {
-        Message.success(data?.message || '创建成功');
-        // 创建成功后刷新 bucket 列表
-        await handleListBuckets();
-        createBucketForm.bucket_name = '';
-      } else {
-        Message.error(data?.message || '创建失败');
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '创建 bucket 失败';
-      Message.error(errorMsg);
-      createBucketResult.value = {
-        data: {
-          success: false,
-          message: errorMsg,
-        },
-      };
-    } finally {
-      createBucketLoading.value = false;
     }
   };
 
