@@ -103,6 +103,12 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/users/me/password", post(user::change_password))
         .route("/users/me/avatar", post(user::upload_avatar))
+        .route(
+            "/users/me/avatar/direct-upload",
+            post(user::generate_avatar_direct_upload),
+        )
+        .route("/users/me/avatar/commit", post(user::commit_avatar_upload))
+        .route("/users/me/avatar/url", get(user::get_avatar_download_url))
         .route("/users/:user_id", get(user::get_user_by_id))
         // friends
         .route(

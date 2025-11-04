@@ -1,20 +1,71 @@
 use crate::auth::{hash_password, verify_password};
+use crate::database::models::{
+    StorageProvider, StorageProviderType, UpdateUserRequest as DbUpdateUserRequest,
+};
+use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{
     ChangePasswordRequest, Claims, UpdateUserRequest, UploadAvatarResponse, UserInfo,
 };
+use crate::storage;
+use crate::storage::DirectUploadSignature;
 use crate::AppState;
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
 };
-use serde::Deserialize;
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::warn;
+use uuid::Uuid;
+
+#[derive(Debug, Deserialize)]
+pub struct AvatarDirectUploadRequest {
+    pub content_type: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AvatarDirectUploadResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<DirectUploadSignature>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AvatarUploadCommitRequest {
+    pub key: String,
+    pub expires_in_seconds: Option<u32>,
+    #[serde(default = "AvatarUploadCommitRequest::default_delete_previous")]
+    pub delete_previous: bool,
+}
+
+impl AvatarUploadCommitRequest {
+    fn default_delete_previous() -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AvatarDownloadUrlRequest {
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AvatarDownloadUrlResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+}
 
 /// 更新当前用户资料
+
 pub async fn update_me(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -37,6 +88,140 @@ pub async fn update_me(
         }
         None => Err(AppError::NotFound(format!("User {} not found", user_id))),
     }
+}
+
+pub async fn generate_avatar_direct_upload(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<AvatarDirectUploadRequest>,
+) -> Result<Json<AvatarDirectUploadResponse>, AppError> {
+    let user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    let key = build_avatar_object_key(&user_id, req.content_type.as_deref());
+    let signature = storage_service
+        .generate_direct_upload_signature(&key, req.content_type.as_deref())
+        .await?;
+
+    Ok(Json(AvatarDirectUploadResponse {
+        success: true,
+        message: "生成头像直传签名成功".to_string(),
+        key: Some(key),
+        signature: Some(signature),
+    }))
+}
+
+pub async fn commit_avatar_upload(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<AvatarUploadCommitRequest>,
+) -> Result<Json<AvatarDownloadUrlResponse>, AppError> {
+    let key = req.key.trim();
+    if key.is_empty() {
+        return Ok(Json(AvatarDownloadUrlResponse {
+            success: false,
+            message: "文件路径（key）不能为空".to_string(),
+            download_url: None,
+        }));
+    }
+
+    let user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+
+    if !is_valid_avatar_key(&user_id, key) {
+        return Ok(Json(AvatarDownloadUrlResponse {
+            success: false,
+            message: "文件路径不合法".to_string(),
+            download_url: None,
+        }));
+    }
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    let user_store = UserStore::new(state.database.clone());
+    let existing_user = user_store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+    let previous_key = existing_user.avatar_object_key.clone();
+
+    let file_url = storage_service.get_file_url(key);
+    let update_req = DbUpdateUserRequest {
+        nickname: None,
+        avatar_url: Some(file_url.clone()),
+        avatar_object_key: Some(key.to_string()),
+        status: None,
+    };
+
+    let updated = user_store.update_user(&user_id, update_req).await?;
+    if updated.is_none() {
+        return Err(AppError::InternalError("更新用户头像失败".to_string()));
+    }
+
+    if req.delete_previous {
+        if let Some(prev_key) = previous_key {
+            if prev_key != key {
+                if let Err(e) = storage_service.delete_file(&prev_key).await {
+                    warn!(
+                        "failed to delete previous avatar for user {}: {}",
+                        user_id, e
+                    );
+                }
+            }
+        }
+    }
+
+    let download_url = storage_service
+        .generate_download_url(key, req.expires_in_seconds)
+        .await?;
+
+    Ok(Json(AvatarDownloadUrlResponse {
+        success: true,
+        message: "头像更新成功".to_string(),
+        download_url: Some(download_url),
+    }))
+}
+
+pub async fn get_avatar_download_url(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<AvatarDownloadUrlRequest>,
+) -> Result<Json<AvatarDownloadUrlResponse>, AppError> {
+    let user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+
+    let user_store = UserStore::new(state.database.clone());
+    let user = user_store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+
+    let key = match user.avatar_object_key {
+        Some(ref key) => key.clone(),
+        None => {
+            return Ok(Json(AvatarDownloadUrlResponse {
+                success: false,
+                message: "尚未设置头像".to_string(),
+                download_url: None,
+            }));
+        }
+    };
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+    let download_url = storage_service
+        .generate_download_url(&key, params.expires_in_seconds)
+        .await?;
+
+    Ok(Json(AvatarDownloadUrlResponse {
+        success: true,
+        message: "生成下载链接成功".to_string(),
+        download_url: Some(download_url),
+    }))
 }
 
 /// 修改密码
@@ -185,4 +370,60 @@ pub async fn upload_avatar(
     Ok(Json(UploadAvatarResponse {
         avatar_url: mock_avatar_url,
     }))
+}
+
+async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
+    let store = StorageProviderStore::new(state.database.clone());
+    let provider = store
+        .get_default_provider()
+        .await?
+        .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?;
+
+    if !provider.is_active {
+        return Err(AppError::ValidationError(
+            "默认文件上传提供商未启用".to_string(),
+        ));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Err(AppError::ValidationError(format!(
+            "不支持的提供商类型: {:?}",
+            provider.provider_type
+        )));
+    }
+
+    Ok(provider)
+}
+
+fn build_avatar_object_key(user_id: &Uuid, content_type: Option<&str>) -> String {
+    let extension = infer_avatar_extension(content_type);
+    let timestamp = Utc::now().format("%Y%m%d%H%M%S");
+    let random = Uuid::new_v4().simple().to_string();
+    let short = &random[..8];
+    format!("avatars/{}/{}_{}{}", user_id, timestamp, short, extension)
+}
+
+fn infer_avatar_extension(content_type: Option<&str>) -> &'static str {
+    let lowered = content_type
+        .map(|ct| ct.trim().to_ascii_lowercase())
+        .unwrap_or_default();
+    match lowered.as_str() {
+        "image/png" => ".png",
+        "image/jpeg" | "image/jpg" => ".jpg",
+        "image/webp" => ".webp",
+        "image/gif" => ".gif",
+        "image/heic" => ".heic",
+        "image/heif" => ".heif",
+        "image/svg+xml" => ".svg",
+        _ => ".bin",
+    }
+}
+
+fn is_valid_avatar_key(user_id: &Uuid, key: &str) -> bool {
+    let normalized = key.trim();
+    if normalized.is_empty() || normalized.contains("..") {
+        return false;
+    }
+    let expected_prefix = format!("avatars/{}/", user_id);
+    normalized.starts_with(&expected_prefix)
 }

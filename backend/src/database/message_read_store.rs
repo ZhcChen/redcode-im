@@ -127,6 +127,7 @@ impl<'a> MessageReadStore<'a> {
                 String,
                 Option<String>,
                 Option<String>,
+                Option<String>,
                 crate::database::models::UserStatus,
                 DateTime<Utc>,
                 DateTime<Utc>,
@@ -134,7 +135,7 @@ impl<'a> MessageReadStore<'a> {
                 DateTime<Utc>,
             ),
         >(
-            "SELECT u.id, u.username, u.email, u.password_hash, u.nickname, u.avatar_url,
+            "SELECT u.id, u.username, u.email, u.password_hash, u.nickname, u.avatar_url, u.avatar_object_key,
                     u.status, u.created_at, u.updated_at, u.deleted_at, mr.read_at
              FROM message_reads mr
              INNER JOIN users u ON mr.user_id = u.id
@@ -155,12 +156,13 @@ impl<'a> MessageReadStore<'a> {
                     password_hash: row.3,
                     nickname: row.4,
                     avatar_url: row.5,
-                    status: row.6,
-                    created_at: row.7,
-                    updated_at: row.8,
-                    deleted_at: row.9,
+                    avatar_object_key: row.6,
+                    status: row.7,
+                    created_at: row.8,
+                    updated_at: row.9,
+                    deleted_at: row.10,
                 };
-                (user, row.10)
+                (user, row.11)
             })
             .collect();
 

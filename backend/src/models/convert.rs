@@ -59,6 +59,7 @@ pub fn api_update_user_to_db(
     crate::database::models::UpdateUserRequest {
         nickname: api_req.nickname.clone(),
         avatar_url: api_req.avatar_url.clone(),
+        avatar_object_key: api_req.avatar_object_key.clone(),
         status: None, // API 层不允许直接修改状态
     }
 }

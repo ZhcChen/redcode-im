@@ -58,6 +58,7 @@ pub struct LoginResponse {
 pub struct UpdateUserRequest {
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
+    pub avatar_object_key: Option<String>,
 }
 
 /// 修改密码请求
