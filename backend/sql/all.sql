@@ -94,7 +94,36 @@ CREATE INDEX IF NOT EXISTS idx_room_members_user_active
     ON room_members(user_id)
     WHERE deleted_at IS NULL;
 
+-- 版本管理表
+CREATE TABLE IF NOT EXISTS app_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    platform TEXT NOT NULL,
+    version TEXT NOT NULL,
+    build_number INTEGER NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'stable',
+    download_key TEXT NOT NULL,
+    download_url TEXT,
+    file_size BIGINT,
+    checksum TEXT,
+    signature TEXT,
+    release_notes TEXT,
+    mandatory BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    released_at TIMESTAMPTZ,
+    created_by UUID,
+    updated_by UUID
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_versions_unique
+    ON app_versions(platform, channel, version);
+
+CREATE INDEX IF NOT EXISTS idx_app_versions_list
+    ON app_versions(platform, is_active, released_at DESC);
+
 -- 消息已读表
+
 CREATE TABLE IF NOT EXISTS message_reads (
     id UUID PRIMARY KEY,
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
