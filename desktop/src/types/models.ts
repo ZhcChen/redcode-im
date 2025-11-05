@@ -23,11 +23,31 @@ export interface Chat {
   type: ChatType;
   lastMessage: string;
   lastMessageTime: Date;
+  lastMessageId?: string | null;
   unreadCount: number;
   isPinned: boolean;
   isMuted: boolean;
   memberCount?: number;
   extra?: Record<string, unknown> | null;
+}
+
+export interface AppVersionInfo {
+  id: string;
+  platform: string;
+  version: string;
+  build_number: number;
+  channel: string;
+  download_key: string;
+  download_url?: string | null;
+  file_size?: number | null;
+  checksum?: string | null;
+  signature?: string | null;
+  release_notes?: string | null;
+  mandatory: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  released_at?: string | null;
 }
 
 export enum MessageType {

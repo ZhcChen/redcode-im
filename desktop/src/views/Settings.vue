@@ -39,6 +39,41 @@
       </div>
     </div>
 
+    <!-- 版本更新模块 -->
+    <div class="settings-section version-section">
+      <div class="version-container">
+        <div class="version-info">
+          <div class="version-title">桌面端版本</div>
+          <div class="version-detail">
+            当前：v{{ currentVersionInfo.version }}
+            <span v-if="hasUpdate && latestVersion" class="version-tag">
+              最新：v{{ latestVersion.version }}
+            </span>
+          </div>
+          <div v-if="latestVersion?.release_notes" class="version-notes">
+            {{ latestVersion.release_notes }}
+          </div>
+        </div>
+        <div class="version-actions">
+          <button
+            class="version-btn"
+            :disabled="checkingUpdate"
+            @click="handleCheckUpdate"
+          >
+            {{ checkingUpdate ? '检查中...' : '检查更新' }}
+          </button>
+          <button
+            v-if="hasUpdate && latestVersion"
+            class="version-btn primary"
+            :disabled="downloadInProgress"
+            @click="handleDownloadUpdate"
+          >
+            {{ downloadInProgress ? '下载中...' : '下载更新' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 隐私政策模块 -->
     <div class="settings-section privacy-section">
       <div class="privacy-container" @click="handleViewPrivacy">
@@ -91,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import Avatar from '../components/Avatar.vue'
@@ -99,7 +134,6 @@ import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 import { FileApi } from '../api/file'
 import { UserApi } from '../api/user'
-import { fileConfig } from '../api/config'
 import { toast } from '../utils/toast'
 import rightIcon from '../assets/image/icon/right.svg'
 import logoutIcon from '../assets/image/icon-logout-red.svg'
@@ -111,6 +145,7 @@ const store = useStore()
 
 // 图片预览状态
 const previewImageUrl = ref<string>('')
+const downloadInProgress = ref(false)
 
 // 昵称修改相关状态
 const showNicknameDialog = ref(false)
@@ -120,6 +155,24 @@ const nicknameError = ref('')
 
 // 获取当前用户信息
 const currentUser = computed(() => store.getters.currentUser)
+const versionState = computed(() => store.getters.appVersion)
+const currentVersionInfo = computed(() => versionState.value.current)
+const latestVersion = computed(() => store.getters.latestVersionInfo)
+const hasUpdate = computed(() => store.getters.hasAppUpdate)
+const checkingUpdate = computed(() => store.getters.appUpdateChecking)
+const versionError = computed(() => store.getters.appUpdateError)
+
+watch(versionError, (value) => {
+  if (value) {
+    toast.error(value)
+  }
+})
+
+onMounted(() => {
+  store.dispatch('checkAppUpdate').catch((error: any) => {
+    console.warn('初始化版本检查失败:', error)
+  })
+})
 
 // 用户显示名称（使用userName字段作为昵称）
 const userDisplayName = computed(() => {
@@ -131,6 +184,10 @@ const userAvatarSrc = computed(() => {
   // 如果有预览图，优先显示预览图
   if (previewImageUrl.value) {
     return previewImageUrl.value
+  }
+
+  if (currentUser.value.avatarLocalPath && currentUser.value.avatarLocalPath.trim()) {
+    return currentUser.value.avatarLocalPath
   }
   
   if (currentUser.value.avatar && currentUser.value.avatar.trim()) {
@@ -182,8 +239,7 @@ const handleFileSelect = async (event: Event) => {
     console.log('开始上传头像...')
     store.dispatch('showGlobalLoading', '正在上传头像...')
 
-    // 调用文件上传API
-    const uploadResult = await FileApi.uploadFile({
+   const uploadResult = await FileApi.uploadFile({
       file,
       category: 'avatar',
       isPublic: true,
@@ -191,36 +247,12 @@ const handleFileSelect = async (event: Event) => {
     })
 
     if (uploadResult.code === 200 && uploadResult.data) {
-      // 根据bear-chat-uniapp的逻辑构造头像URL
-      const fileInfo = uploadResult.data
-      console.log('头像上传响应结果:', fileInfo)
-      
-      // 使用统一的图片URL构建函数
-      const avatarUrl = FileApi.buildImageUrl(fileInfo)
-      console.log('构造的头像URL:', avatarUrl)
-
-      // 获取当前完整的用户信息，与bear-chat-uniapp保持一致
-      const currentUserInfo = store.getters.currentUser
-      const updateParams = {
-        ...currentUserInfo,
-        avatar: avatarUrl
-      }
-
-      // 更新用户头像
-      const updateResult = await UserApi.updateUserInfo(updateParams)
-
-      if (updateResult.code === 200) {
-        // 更新store中的用户信息
-        store.commit('UPDATE_USER_INFO', { avatar: avatarUrl })
-        console.log('头像更新成功')
-        // 清理预览URL
-        if (previewImageUrl.value) {
-          URL.revokeObjectURL(previewImageUrl.value)
-          previewImageUrl.value = ''
-        }
-      } else {
-        toast.error(updateResult.message || '头像更新失败')
-        console.error('头像更新失败:', updateResult.message)
+      console.log('头像上传响应结果:', uploadResult.data)
+      toast.success('头像更新成功')
+      // 清理预览URL，由 store 中的最新数据驱动界面
+      if (previewImageUrl.value) {
+        URL.revokeObjectURL(previewImageUrl.value)
+        previewImageUrl.value = ''
       }
     } else {
       toast.error(uploadResult.message || '头像上传失败')
@@ -373,6 +405,33 @@ const handleLogout = () => {
     }
   }, 5000) // 5秒后检查
 }
+
+const handleCheckUpdate = async () => {
+  try {
+    await store.dispatch('checkAppUpdate')
+    if (hasUpdate.value) {
+      toast.success('检测到新版本，快去更新吧')
+    } else {
+      toast.success('当前已是最新版本')
+    }
+  } catch (error: any) {
+    toast.error(error?.message || '检查更新失败')
+  }
+}
+
+const handleDownloadUpdate = async () => {
+  if (downloadInProgress.value) {
+    return
+  }
+  downloadInProgress.value = true
+  try {
+    await store.dispatch('downloadLatestVersion')
+  } catch (error: any) {
+    toast.error(error?.message || '下载更新失败')
+  } finally {
+    downloadInProgress.value = false
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -398,6 +457,87 @@ const handleLogout = () => {
 
 .phone-section {
   margin-top: 16px;
+}
+
+.version-section {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.version-container {
+  width: 343px;
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.version-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.version-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.version-detail {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.version-tag {
+  margin-left: 12px;
+  padding: 2px 8px;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.version-notes {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.version-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.version-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.version-btn.primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.version-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.version-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
 }
 
 .privacy-section {

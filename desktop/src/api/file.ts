@@ -51,6 +51,8 @@ export interface FileUploadResult {
   fileSize: number;
   fileType: string;
   md5: string;
+  objectKey?: string;
+  localPath?: string;
 }
 
 /**
@@ -91,7 +93,7 @@ export class FileApi {
     const { file, category } = params;
 
     if (category === 'avatar') {
-      const response = await UserApi.uploadAvatar();
+      const response = await UserApi.uploadAvatar(file);
       if (!response.success || !response.data) {
         return {
           code: response.code ?? 500,
@@ -108,7 +110,9 @@ export class FileApi {
         fileUrl: response.data.avatarUrl,
         fileSize: file.size,
         fileType: file.type,
-        md5: ''
+        md5: '',
+        objectKey: response.data.avatarObjectKey,
+        localPath: response.data.avatarLocalPath
       };
 
       return {

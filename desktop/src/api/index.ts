@@ -51,6 +51,7 @@ export * from './music';
 
 // 导出文件相关 API
 export * from './file';
+export * from './version';
 
 // 统一的 API 对象，方便使用
 import { SystemApi } from './system';
@@ -63,6 +64,7 @@ import { FriendCircleApi, FriendCircleCommentApi } from './friendCircle';
 import { ChatGptApi } from './chatgpt';
 import { MusicApi } from './music';
 import { FileApi } from './file';
+import { VersionApi } from './version';
 
 /**
  * 统一的 API 接口对象
@@ -104,7 +106,10 @@ export const api = {
   music: MusicApi,
   
   // 文件相关接口
-  file: FileApi
+  file: FileApi,
+
+  // 版本相关接口
+  version: VersionApi
 };
 
 // 默认导出
