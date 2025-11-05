@@ -135,3 +135,20 @@
   - 2025-11-10（周一）Checkpoint：三端上传复用完成、冒烟测试通过。
 - **进度同步**：使用 Notion 页面《Upload Policy Rollout》维护任务看板，字段包含`Owner`、`Deadline`、`Status`、`Risk`；每日同步后更新状态。
 - **回顾安排**：上线后一周（暂定 2025-11-17）复盘会议，回顾问题与优化建议，沉淀到 `docs/retro/upload_policy_20251117.md`。
+
+## 上线前检查清单
+1. **配置验证**
+   - 各环境（dev/staging/prod）`GET /system/upload-policy` 返回一致且白名单/大小策略正确。
+   - Redis 缓存命中率 > 95%，预警规则配置完成并通过一次演练。
+2. **客户端版本**
+   - Flutter/桌面端/Admin 完成版本号 bump，发布说明中注明“上传策略对齐”。
+   - 签名/上传/下载全链路在 staging 回归通过，记录在 Notion Checklist。
+3. **监控与告警**
+   - Prometheus 指标已收集 24 小时以上，Grafana 面板上线并在仪表盘中标注阈值。
+   - Sentry Alert 针对 `UPLOAD_POLICY_*` 错误配置完成，并与 oncall 群组联动。
+4. **文档与培训**
+   - 更新 `docs/api/attachments.md`，同步新增接口签名。
+   - Support 团队培训完成，FAQ 收录于内部知识库。
+5. **回滚策略确认**
+   - Feature flag `upload_policy_remote` 可在后台一分钟内关闭，客户端回退至本地配置。
+   - 预留 Rollback Tag（2025-11-05 nightly build），必要时回滚。
