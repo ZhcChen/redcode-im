@@ -873,6 +873,7 @@ class WebSocketMessage {
   final Map<String, dynamic>? extra;
   final WebSocketQuotedMessage? quotedMessage;
   final WebSocketForwardMessage? forwardMessage;
+  final List<WebSocketMessagePart> parts;
 
   WebSocketMessage({
     required this.id,
@@ -887,6 +888,7 @@ class WebSocketMessage {
     required this.extra,
     required this.quotedMessage,
     required this.forwardMessage,
+    required this.parts,
   });
 
   factory WebSocketMessage.fromJson(Map<String, dynamic> json) {
@@ -931,6 +933,22 @@ class WebSocketMessage {
       forwardMessage = WebSocketForwardMessage.fromJson(map);
     }
 
+    final parts = <WebSocketMessagePart>[];
+    final rawParts = json['parts'];
+    if (rawParts is List) {
+      for (final item in rawParts) {
+        if (item is Map<String, dynamic>) {
+          parts.add(WebSocketMessagePart.fromJson(item));
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          parts.add(WebSocketMessagePart.fromJson(normalized));
+        }
+      }
+    }
+
     return WebSocketMessage(
       id: messageId,
       roomId: json['room_id'] ?? '',
@@ -946,6 +964,7 @@ class WebSocketMessage {
       extra: extra,
       quotedMessage: quotedMessage,
       forwardMessage: forwardMessage,
+      parts: parts,
     );
   }
 
@@ -981,6 +1000,7 @@ class WebSocketMessage {
       extra: null,
       quotedMessage: quotedMessage,
       forwardMessage: forwardMessage,
+      parts: const [],
     );
   }
 
@@ -1027,6 +1047,94 @@ class WebSocketForwardMessage {
       senderId: proto.senderId,
       senderUsername: _asOptionalString(proto.senderUsername),
       senderNickname: _asOptionalString(proto.senderNickname),
+    );
+  }
+}
+
+class WebSocketMessagePart {
+  WebSocketMessagePart({
+    required this.position,
+    required this.partType,
+    this.text,
+    this.attachment,
+  });
+
+  final int position;
+  final String partType;
+  final String? text;
+  final WebSocketMessageAttachment? attachment;
+
+  factory WebSocketMessagePart.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic value, {int defaultValue = 0}) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) {
+        final parsed = int.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+      return defaultValue;
+    }
+
+    WebSocketMessageAttachment? attachment;
+    final attachmentRaw = json['attachment'];
+    if (attachmentRaw is Map<String, dynamic>) {
+      attachment = WebSocketMessageAttachment.fromJson(attachmentRaw);
+    } else if (attachmentRaw is Map) {
+      final normalized = <String, dynamic>{};
+      attachmentRaw.forEach((key, value) {
+        normalized[key.toString()] = value;
+      });
+      attachment = WebSocketMessageAttachment.fromJson(normalized);
+    }
+
+    return WebSocketMessagePart(
+      position: parseInt(json['position']),
+      partType:
+          json['part_type']?.toString() ?? json['type']?.toString() ?? 'text',
+      text: json['text']?.toString(),
+      attachment: attachment,
+    );
+  }
+}
+
+class WebSocketMessageAttachment {
+  WebSocketMessageAttachment({
+    required this.key,
+    this.name,
+    this.mime,
+    this.size,
+    this.width,
+    this.height,
+    this.durationMs,
+    this.thumbnailKey,
+  });
+
+  final String key;
+  final String? name;
+  final String? mime;
+  final int? size;
+  final int? width;
+  final int? height;
+  final int? durationMs;
+  final String? thumbnailKey;
+
+  factory WebSocketMessageAttachment.fromJson(Map<String, dynamic> json) {
+    int? parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    return WebSocketMessageAttachment(
+      key: json['key']?.toString() ?? '',
+      name: json['name']?.toString(),
+      mime: json['mime']?.toString(),
+      size: parseInt(json['size']),
+      width: parseInt(json['width']),
+      height: parseInt(json['height']),
+      durationMs: parseInt(json['duration_ms']),
+      thumbnailKey: json['thumbnail_key']?.toString(),
     );
   }
 }

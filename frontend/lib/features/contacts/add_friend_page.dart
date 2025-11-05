@@ -345,6 +345,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 },
                 quotedMessage: null,
                 forwardMessage: null,
+                parts: const [],
               ),
             );
           }

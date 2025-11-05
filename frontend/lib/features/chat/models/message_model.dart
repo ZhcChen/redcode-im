@@ -1,7 +1,9 @@
 import '../../../core/services/message_service.dart';
 
+const Object _unset = Object();
+
 /// 消息类型
-enum MessageType { text, image, voice, video, file, system }
+enum MessageType { text, image, audio, video, file, system, mixed }
 
 /// 转发来源类型
 enum ForwardSourceType { user, group, favorite, unknown }
@@ -173,7 +175,7 @@ class QuotedMessage {
     switch (type) {
       case MessageType.image:
         return '[图片]';
-      case MessageType.voice:
+      case MessageType.audio:
         return '[语音]';
       case MessageType.video:
         return '[视频]';
@@ -181,16 +183,211 @@ class QuotedMessage {
         return '[文件]';
       case MessageType.system:
         return '[系统消息]';
+      case MessageType.mixed:
+        return '[多媒体消息]';
       case MessageType.text:
         return '[消息]';
     }
   }
 }
 
+/// 消息分片类型
+enum MessagePartType { text, image, video, audio, file }
+
+/// 消息附件信息
+class MessageAttachment {
+  MessageAttachment({
+    required this.key,
+    this.name,
+    this.mime,
+    this.size,
+    this.width,
+    this.height,
+    this.durationMs,
+    this.thumbnailKey,
+    this.localPath,
+    this.localThumbnailPath,
+    this.uploadProgress,
+  });
+
+  final String key;
+  final String? name;
+  final String? mime;
+  final int? size;
+  final int? width;
+  final int? height;
+  final int? durationMs;
+  final String? thumbnailKey;
+  final String? localPath;
+  final String? localThumbnailPath;
+  final double? uploadProgress;
+
+  MessageAttachment copyWith({
+    String? key,
+    Object? name = _unset,
+    Object? mime = _unset,
+    Object? size = _unset,
+    Object? width = _unset,
+    Object? height = _unset,
+    Object? durationMs = _unset,
+    Object? thumbnailKey = _unset,
+    Object? localPath = _unset,
+    Object? localThumbnailPath = _unset,
+    Object? uploadProgress = _unset,
+  }) {
+    return MessageAttachment(
+      key: key ?? this.key,
+      name: identical(name, _unset) ? this.name : name as String?,
+      mime: identical(mime, _unset) ? this.mime : mime as String?,
+      size: identical(size, _unset) ? this.size : size as int?,
+      width: identical(width, _unset) ? this.width : width as int?,
+      height: identical(height, _unset) ? this.height : height as int?,
+      durationMs: identical(durationMs, _unset)
+          ? this.durationMs
+          : durationMs as int?,
+      thumbnailKey: identical(thumbnailKey, _unset)
+          ? this.thumbnailKey
+          : thumbnailKey as String?,
+      localPath: identical(localPath, _unset)
+          ? this.localPath
+          : localPath as String?,
+      localThumbnailPath: identical(localThumbnailPath, _unset)
+          ? this.localThumbnailPath
+          : localThumbnailPath as String?,
+      uploadProgress: identical(uploadProgress, _unset)
+          ? this.uploadProgress
+          : uploadProgress as double?,
+    );
+  }
+
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'key': key,
+      if (name != null) 'name': name,
+      if (mime != null) 'mime': mime,
+      if (size != null) 'size': size,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (thumbnailKey != null) 'thumbnail_key': thumbnailKey,
+      if (localPath != null) 'local_path': localPath,
+      if (localThumbnailPath != null)
+        'local_thumbnail_path': localThumbnailPath,
+      if (uploadProgress != null) 'upload_progress': uploadProgress,
+    };
+  }
+
+  factory MessageAttachment.fromCacheJson(Map<String, dynamic> json) {
+    return MessageAttachment(
+      key: json['key']?.toString() ?? '',
+      name: json['name']?.toString(),
+      mime: json['mime']?.toString(),
+      size: _parseInt(json['size']),
+      width: _parseInt(json['width']),
+      height: _parseInt(json['height']),
+      durationMs: _parseInt(json['duration_ms']),
+      thumbnailKey: json['thumbnail_key']?.toString(),
+      localPath: json['local_path']?.toString(),
+      localThumbnailPath: json['local_thumbnail_path']?.toString(),
+      uploadProgress: _parseDouble(json['upload_progress']),
+    );
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+}
+
+/// 消息分片
+class MessagePart {
+  MessagePart({
+    required this.position,
+    required this.type,
+    this.text,
+    this.attachment,
+  });
+
+  final int position;
+  final MessagePartType type;
+  final String? text;
+  final MessageAttachment? attachment;
+
+  MessagePart copyWith({
+    int? position,
+    MessagePartType? type,
+    Object? text = _unset,
+    Object? attachment = _unset,
+  }) {
+    return MessagePart(
+      position: position ?? this.position,
+      type: type ?? this.type,
+      text: identical(text, _unset) ? this.text : text as String?,
+      attachment: identical(attachment, _unset)
+          ? this.attachment
+          : attachment as MessageAttachment?,
+    );
+  }
+
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'position': position,
+      'type': type.name,
+      if (text != null) 'text': text,
+      if (attachment != null) 'attachment': attachment!.toCacheJson(),
+    };
+  }
+
+  factory MessagePart.fromCacheJson(Map<String, dynamic> json) {
+    final attachmentRaw = json['attachment'];
+    MessageAttachment? attachment;
+    if (attachmentRaw is Map<String, dynamic>) {
+      attachment = MessageAttachment.fromCacheJson(attachmentRaw);
+    } else if (attachmentRaw is Map) {
+      final normalized = <String, dynamic>{};
+      attachmentRaw.forEach((key, value) {
+        normalized[key.toString()] = value;
+      });
+      attachment = MessageAttachment.fromCacheJson(normalized);
+    }
+
+    return MessagePart(
+      position: MessageAttachment._parseInt(json['position']) ?? 0,
+      type: _parsePartType(json['type']?.toString()),
+      text: json['text']?.toString(),
+      attachment: attachment,
+    );
+  }
+
+  static MessagePartType _parsePartType(String? raw) {
+    switch ((raw ?? '').toLowerCase()) {
+      case 'image':
+        return MessagePartType.image;
+      case 'video':
+        return MessagePartType.video;
+      case 'audio':
+      case 'voice':
+        return MessagePartType.audio;
+      case 'file':
+        return MessagePartType.file;
+      case 'text':
+      default:
+        return MessagePartType.text;
+    }
+  }
+}
+
 /// 消息模型
 class Message {
-  static const Object _unset = Object();
-
   final String id;
   final String roomId;
   final String senderId;
@@ -207,6 +404,7 @@ class Message {
   final ForwardInfo? forwardInfo;
   final bool isDeleted;
   final DateTime? pinnedAt;
+  final List<MessagePart> parts;
 
   Message({
     required this.id,
@@ -225,7 +423,8 @@ class Message {
     this.forwardInfo,
     this.isDeleted = false,
     this.pinnedAt,
-  });
+    List<MessagePart>? parts,
+  }) : parts = parts ?? const [];
 
   /// 复制并修改部分字段
   Message copyWith({
@@ -245,6 +444,7 @@ class Message {
     Object? forwardInfo = _unset,
     bool? isDeleted,
     Object? pinnedAt = _unset,
+    Object? parts = _unset,
   }) {
     return Message(
       id: id ?? this.id,
@@ -271,6 +471,9 @@ class Message {
       pinnedAt: identical(pinnedAt, _unset)
           ? this.pinnedAt
           : pinnedAt as DateTime?,
+      parts: identical(parts, _unset)
+          ? this.parts
+          : List<MessagePart>.from(parts as List<MessagePart>),
     );
   }
 
@@ -356,6 +559,7 @@ class Message {
       'forward': forwardInfo?.toCacheJson(),
       'isDeleted': isDeleted,
       'pinnedAt': pinnedAt?.toIso8601String(),
+      'parts': parts.map((part) => part.toCacheJson()).toList(),
     };
   }
 
@@ -371,6 +575,22 @@ class Message {
         map[key.toString()] = value;
       });
       extra = map;
+    }
+
+    final parsedParts = <MessagePart>[];
+    final rawParts = json['parts'];
+    if (rawParts is List) {
+      for (final item in rawParts) {
+        if (item is Map<String, dynamic>) {
+          parsedParts.add(MessagePart.fromCacheJson(item));
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          parsedParts.add(MessagePart.fromCacheJson(normalized));
+        }
+      }
     }
 
     return Message(
@@ -390,6 +610,7 @@ class Message {
       forwardInfo: _parseForwardFromCache(json['forward']),
       isDeleted: json['isDeleted'] as bool? ?? false,
       pinnedAt: _parseTimestamp(json['pinnedAt']),
+      parts: parsedParts,
     );
   }
 

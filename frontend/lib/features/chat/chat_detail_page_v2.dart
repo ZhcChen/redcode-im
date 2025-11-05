@@ -1,13 +1,23 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_config.dart';
 import '../../core/services/message_service.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
@@ -149,7 +159,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     super.didChangeMetrics();
     final view = WidgetsBinding.instance.platformDispatcher.views.first;
     final viewInset = view.viewInsets.bottom / view.devicePixelRatio;
-    
+
     // 使用防抖机制，减少键盘动画期间的频繁 setState
     // 限制更新频率为每 16ms 一次（约 60fps），避免过度重建
     if ((viewInset - _keyboardInset).abs() > 0.5) {
@@ -163,7 +173,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             _keyboardInset = viewInset;
           });
         });
-        
+
         if (viewInset > _lastKeyboardInset) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
@@ -177,18 +187,45 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   void _sendMessage() {
     final text = _textController.text.trim();
-    if (text.isEmpty) return;
+    _dispatchSend(text: text);
+  }
 
-    _chatProvider.sendTextMessage(text, quotedMessage: _quotedMessage);
-    if (_quotedMessage != null) {
-      setState(() => _quotedMessage = null);
+  Future<void> _dispatchSend({
+    String? text,
+    List<MessageAttachmentDraft> attachments = const [],
+  }) async {
+    final trimmed = text?.trim();
+    if ((trimmed == null || trimmed.isEmpty) && attachments.isEmpty) {
+      return;
     }
-    _textController.clear();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+    try {
+      await _chatProvider.sendRichMessage(
+        text: trimmed,
+        attachments: attachments,
+        quotedMessage: _quotedMessage,
+      );
       if (!mounted) return;
-      FocusScope.of(context).requestFocus(_inputFocusNode);
-    });
-    _scrollToBottom(animated: false);
+      if (trimmed != null && trimmed.isNotEmpty) {
+        _textController.clear();
+      }
+      if (_quotedMessage != null) {
+        setState(() => _quotedMessage = null);
+      }
+      setState(() {
+        _showEmojiPanel = false;
+        _showMorePanel = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        FocusScope.of(context).requestFocus(_inputFocusNode);
+        _scrollToBottom(animated: false);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(SnackBar(content: Text('发送消息失败：$error')));
+    }
   }
 
   void _scrollToBottom({int retry = 0, bool animated = false}) {
@@ -345,9 +382,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     child: _buildMessageList(listBottomPadding),
                   ),
                 ),
-                RepaintBoundary(
-                  child: _buildInputArea(),
-                ),
+                RepaintBoundary(child: _buildInputArea()),
                 if (_showEmojiPanel)
                   _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
                 if (_showMorePanel)
@@ -557,77 +592,77 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           // 使用 Opacity 替代 AnimatedOpacity，避免键盘动画期间的额外性能开销
           // 只有在初始加载时才需要动画，后续直接使用静态 Opacity
           final messageListWidget = ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-              itemCount: messages.length + (hasPinnedBanner ? 1 : 0),
-              // 性能优化：增加缓存范围，减少滚动时的重建
-              cacheExtent: 500,
-              // 性能优化：消息列表不需要保持状态
-              addAutomaticKeepAlives: false,
-              // 性能优化：启用重绘边界，减少不必要的重绘
-              addRepaintBoundaries: true,
-              itemBuilder: (context, index) {
-                if (hasPinnedBanner && index == 0) {
-                  // ignore: unnecessary_non_null_assertion
-                  final pinned = pinnedMessage!;
-                  return RepaintBoundary(
-                    child: _PinnedMessageBanner(
-                      message: pinned,
-                      onTap: () => _scrollToMessage(pinned.id),
-                      onUnpin: () => unawaited(_togglePinMessage(pinned)),
-                    ),
-                  );
-                }
-
-                final effectiveIndex = hasPinnedBanner ? index - 1 : index;
-                final message = messages[effectiveIndex];
-                final previousMessage = effectiveIndex > 0
-                    ? messages[effectiveIndex - 1]
-                    : null;
-                final itemKey = _messageItemKeys.putIfAbsent(
-                  message.id,
-                  () => GlobalKey(),
-                );
-
-                final showTimestamp = message.shouldShowTimestamp(
-                  previousMessage,
-                );
-                final dayLabel = message.displayTime;
-                final canShowReadReceipts = provider.shouldShowReadReceipts(
-                  message,
-                );
-
-                // 使用 RepaintBoundary 包裹每个消息项，避免不必要的重绘
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+            itemCount: messages.length + (hasPinnedBanner ? 1 : 0),
+            // 性能优化：增加缓存范围，减少滚动时的重建
+            cacheExtent: 500,
+            // 性能优化：消息列表不需要保持状态
+            addAutomaticKeepAlives: false,
+            // 性能优化：启用重绘边界，减少不必要的重绘
+            addRepaintBoundaries: true,
+            itemBuilder: (context, index) {
+              if (hasPinnedBanner && index == 0) {
+                // ignore: unnecessary_non_null_assertion
+                final pinned = pinnedMessage!;
                 return RepaintBoundary(
-                  key: itemKey,
-                  child: Column(
-                    children: [
-                      if (showTimestamp && dayLabel.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          dayLabel,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      _MessageBubble(
-                        message: message,
-                        onResend: () => provider.resendMessage(message.id),
-                        canShowReadReceipts: canShowReadReceipts,
-                        onShowReadReceipts: canShowReadReceipts
-                            ? () => _showMessageReaders(message)
-                            : null,
-                        onBubbleTap: _showMessageActions,
-                        onQuoteTap: _scrollToMessage,
-                      ),
-                    ],
+                  child: _PinnedMessageBanner(
+                    message: pinned,
+                    onTap: () => _scrollToMessage(pinned.id),
+                    onUnpin: () => unawaited(_togglePinMessage(pinned)),
                   ),
                 );
-              },
-            );
-          
+              }
+
+              final effectiveIndex = hasPinnedBanner ? index - 1 : index;
+              final message = messages[effectiveIndex];
+              final previousMessage = effectiveIndex > 0
+                  ? messages[effectiveIndex - 1]
+                  : null;
+              final itemKey = _messageItemKeys.putIfAbsent(
+                message.id,
+                () => GlobalKey(),
+              );
+
+              final showTimestamp = message.shouldShowTimestamp(
+                previousMessage,
+              );
+              final dayLabel = message.displayTime;
+              final canShowReadReceipts = provider.shouldShowReadReceipts(
+                message,
+              );
+
+              // 使用 RepaintBoundary 包裹每个消息项，避免不必要的重绘
+              return RepaintBoundary(
+                key: itemKey,
+                child: Column(
+                  children: [
+                    if (showTimestamp && dayLabel.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        dayLabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    _MessageBubble(
+                      message: message,
+                      onResend: () => provider.resendMessage(message.id),
+                      canShowReadReceipts: canShowReadReceipts,
+                      onShowReadReceipts: canShowReadReceipts
+                          ? () => _showMessageReaders(message)
+                          : null,
+                      onBubbleTap: _showMessageActions,
+                      onQuoteTap: _scrollToMessage,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+
           content = _messageListOpacity < 1.0
               ? AnimatedOpacity(
                   opacity: _messageListOpacity,
@@ -635,10 +670,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   curve: Curves.easeOut,
                   child: messageListWidget,
                 )
-              : Opacity(
-                  opacity: 1.0,
-                  child: messageListWidget,
-                );
+              : Opacity(opacity: 1.0, child: messageListWidget);
         }
 
         return content;
@@ -667,10 +699,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               switchOutCurve: Curves.easeIn,
               // 简化 transition，只使用 FadeTransition，移除 SizeTransition 以减少布局计算
               transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
+                return FadeTransition(opacity: animation, child: child);
               },
               layoutBuilder: (currentChild, previousChildren) {
                 return Stack(
@@ -861,6 +890,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     );
   }
 
+  void _showErrorSnack(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _handleEmojiSelected(String emoji) {
     final selection = _textController.selection;
     final text = _textController.text;
@@ -883,16 +917,13 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   void _handleMoreAction(String action) {
     switch (action) {
       case 'album':
-        _pickImage();
+        unawaited(_pickImage());
         break;
       case 'camera':
-        _takePhoto();
-        break;
-      case 'location':
-        _shareLocation();
+        unawaited(_takePhoto());
         break;
       case 'file':
-        _pickFile();
+        unawaited(_pickFile());
         break;
     }
 
@@ -1341,24 +1372,153 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     );
   }
 
-  void _pickImage() async {
-    // TODO: 实现图片选择
-    debugPrint('Pick image');
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    try {
+      final files = await picker.pickMultiImage(
+        imageQuality: 90,
+        maxWidth: 4096,
+        maxHeight: 4096,
+      );
+      if (files == null || files.isEmpty) {
+        return;
+      }
+
+      final drafts = <MessageAttachmentDraft>[];
+      for (final file in files) {
+        drafts.add(await _createImageDraft(file));
+      }
+
+      final text = _textController.text.trim();
+      await _dispatchSend(
+        text: text.isNotEmpty ? text : null,
+        attachments: drafts,
+      );
+    } on PlatformException catch (error) {
+      _showErrorSnack('访问相册失败：${error.message ?? error.code}');
+    } catch (error) {
+      _showErrorSnack('处理图片失败：$error');
+    }
   }
 
-  void _takePhoto() async {
-    // TODO: 实现拍照
-    debugPrint('Take photo');
+  Future<void> _takePhoto() async {
+    final picker = ImagePicker();
+    try {
+      final photo = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+        maxWidth: 4096,
+        maxHeight: 4096,
+      );
+      if (photo == null) {
+        return;
+      }
+
+      final draft = await _createImageDraft(photo);
+      final text = _textController.text.trim();
+      await _dispatchSend(
+        text: text.isNotEmpty ? text : null,
+        attachments: [draft],
+      );
+    } on PlatformException catch (error) {
+      _showErrorSnack('启动相机失败：${error.message ?? error.code}');
+    } catch (error) {
+      _showErrorSnack('处理照片失败：$error');
+    }
   }
 
-  void _shareLocation() {
-    // TODO: 实现位置分享
-    debugPrint('Share location');
+  Future<void> _pickFile() async {
+    try {
+      final files = await openFiles(
+        acceptedTypeGroups: const [XTypeGroup(label: 'all-files')],
+      );
+      if (files.isEmpty) {
+        return;
+      }
+
+      final drafts = <MessageAttachmentDraft>[];
+      for (final file in files) {
+        drafts.add(await _createFileDraft(file));
+      }
+
+      final text = _textController.text.trim();
+      await _dispatchSend(
+        text: text.isNotEmpty ? text : null,
+        attachments: drafts,
+      );
+    } on PlatformException catch (error) {
+      _showErrorSnack('访问文件失败：${error.message ?? error.code}');
+    } catch (error) {
+      _showErrorSnack('处理文件失败：$error');
+    }
   }
 
-  void _pickFile() {
-    // TODO: 实现文件选择
-    debugPrint('Pick file');
+  Future<MessageAttachmentDraft> _createImageDraft(XFile source) async {
+    final file = await _materializeXFile(source);
+    final bytes = await file.readAsBytes();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final width = image.width;
+    final height = image.height;
+    image.dispose();
+    codec.dispose();
+
+    final mimeType = (source.mimeType ?? lookupMimeType(file.path) ?? 'image/*')
+        .toLowerCase();
+    if (!AppConfig.allowedImageMimeTypes.contains(mimeType)) {
+      throw StateError('暂不支持该图片格式 ($mimeType)');
+    }
+
+    return MessageAttachmentDraft(
+      type: MessagePartType.image,
+      file: file,
+      displayName: p.basename(file.path),
+      mime: mimeType,
+      width: width,
+      height: height,
+    );
+  }
+
+  Future<MessageAttachmentDraft> _createFileDraft(XFile source) async {
+    final file = await _materializeXFile(source);
+    final mimeType =
+        (source.mimeType ??
+                lookupMimeType(file.path) ??
+                'application/octet-stream')
+            .toLowerCase();
+
+    late final MessagePartType partType;
+    if (AppConfig.allowedVideoMimeTypes.contains(mimeType)) {
+      partType = MessagePartType.video;
+    } else if (AppConfig.allowedAudioMimeTypes.contains(mimeType)) {
+      partType = MessagePartType.audio;
+    } else if (AppConfig.allowedFileMimeTypes.contains(mimeType)) {
+      partType = MessagePartType.file;
+    } else {
+      throw StateError('暂不支持该文件类型 ($mimeType)');
+    }
+
+    return MessageAttachmentDraft(
+      type: partType,
+      file: file,
+      displayName: p.basename(file.path),
+      mime: mimeType,
+    );
+  }
+
+  Future<File> _materializeXFile(XFile source) async {
+    if (source.path.isNotEmpty) {
+      final file = File(source.path);
+      if (await file.exists()) {
+        return file;
+      }
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final target = File(p.join(tempDir.path, source.name));
+    await target.writeAsBytes(await source.readAsBytes(), flush: true);
+    return target;
   }
 
   void _showChatInfo() {
@@ -1489,7 +1649,8 @@ class _ChatInfoDrawerState extends State<_ChatInfoDrawer> {
 
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
-    final isGroupOwner = widget.chat.extra?['is_owner'] == true ||
+    final isGroupOwner =
+        widget.chat.extra?['is_owner'] == true ||
         widget.chat.extra?['isOwner'] == true;
 
     return Align(
@@ -1502,21 +1663,19 @@ class _ChatInfoDrawerState extends State<_ChatInfoDrawer> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                height: topPadding,
-                color: AppColors.surface,
-              ),
+              Container(height: topPadding, color: AppColors.surface),
               _buildHeader(context),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: EdgeInsets.only(
-                    bottom: bottomPadding + 16,
-                  ),
+                  padding: EdgeInsets.only(bottom: bottomPadding + 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (widget.chat.type == ChatType.single)
-                        _PersonalChatPanel(chat: widget.chat, onClose: widget.onClose)
+                        _PersonalChatPanel(
+                          chat: widget.chat,
+                          onClose: widget.onClose,
+                        )
                       else
                         _GroupChatPanel(
                           chat: widget.chat,
@@ -1675,7 +1834,10 @@ class _ChatInfoDrawerState extends State<_ChatInfoDrawer> {
               ),
               child: Text(
                 isGroupOwner ? '解散群组' : '退出群聊',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -1901,9 +2063,7 @@ class _GroupChatPanel extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMemberGrid(context),
-            ],
+            children: [_buildMemberGrid(context)],
           ),
         ),
         const SizedBox(height: 16),
@@ -1960,10 +2120,7 @@ class _GroupChatPanel extends StatelessWidget {
     // 模拟成员数据
     final members = List.generate(
       8,
-      (index) => {
-        'name': '成员${index + 1}',
-        'avatar': null,
-      },
+      (index) => {'name': '成员${index + 1}', 'avatar': null},
     );
 
     return GridView.builder(
@@ -2022,9 +2179,9 @@ class _GroupChatPanel extends StatelessWidget {
             member['name'],
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 12,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontSize: 12),
           ),
         ],
       ),
@@ -2049,18 +2206,14 @@ class _GroupChatPanel extends StatelessWidget {
               color: AppColors.surfaceMuted,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: AppColors.textSecondary,
-            ),
+            child: Icon(icon, size: 24, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 12,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontSize: 12),
           ),
         ],
       ),
@@ -2409,6 +2562,35 @@ class _MessageBubbleState extends State<_MessageBubble> {
       return _buildDeletedContent(context);
     }
 
+    final parts = [..._message.parts]
+      ..sort((a, b) => a.position.compareTo(b.position));
+
+    if (parts.isNotEmpty) {
+      final widgets = <Widget>[];
+      for (final part in parts) {
+        final widget = _buildPartWidget(context, part);
+        if (widget == null) continue;
+        if (widgets.isNotEmpty) {
+          widgets.add(const SizedBox(height: 8));
+        }
+        widgets.add(widget);
+      }
+
+      if (widgets.isNotEmpty) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: _isSelf
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: widgets,
+        );
+      }
+    }
+
+    return _buildLegacyContent(context);
+  }
+
+  Widget _buildLegacyContent(BuildContext context) {
     Widget content;
     switch (_message.type) {
       case MessageType.text:
@@ -2421,39 +2603,59 @@ class _MessageBubbleState extends State<_MessageBubble> {
         );
         break;
       case MessageType.image:
-        content = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                _message.content, // TODO: 使用网络图片
-                width: 200,
-                fit: BoxFit.cover,
-              ),
-            ),
-            if (_message.extra?['caption'] != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                _message.extra!['caption'],
-                style: TextStyle(
-                  fontSize: 14,
-                  color: _isSelf ? Colors.white : AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ],
+        content = Text(
+          '[图片]',
+          style: TextStyle(
+            fontSize: 15,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
+          ),
         );
         break;
-      default:
+      case MessageType.video:
         content = Text(
-          '[不支持的消息类型]',
+          '[视频]',
+          style: TextStyle(
+            fontSize: 15,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
+          ),
+        );
+        break;
+      case MessageType.audio:
+        content = Text(
+          '[语音]',
+          style: TextStyle(
+            fontSize: 15,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
+          ),
+        );
+        break;
+      case MessageType.file:
+        content = Text(
+          '[文件]',
+          style: TextStyle(
+            fontSize: 15,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
+          ),
+        );
+        break;
+      case MessageType.system:
+        content = Text(
+          _message.content,
           style: TextStyle(
             fontSize: 14,
             color: _isSelf ? Colors.white70 : AppColors.textSecondary,
           ),
         );
+        break;
+      case MessageType.mixed:
+        content = Text(
+          _message.content,
+          style: TextStyle(
+            fontSize: 15,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
+          ),
+        );
+        break;
     }
 
     final forwardInfo = _message.forwardInfo;
@@ -2466,6 +2668,53 @@ class _MessageBubbleState extends State<_MessageBubble> {
     }
 
     return content;
+  }
+
+  Widget? _buildPartWidget(BuildContext context, MessagePart part) {
+    switch (part.type) {
+      case MessagePartType.text:
+        final text = part.text?.trim();
+        if (text == null || text.isEmpty) {
+          return null;
+        }
+        return Text(
+          text,
+          style: TextStyle(
+            fontSize: 15,
+            color: _isSelf ? Colors.white : AppColors.textPrimary,
+          ),
+        );
+      case MessagePartType.image:
+        return _AttachmentImageView(
+          message: _message,
+          part: part,
+          isSelf: _isSelf,
+        );
+      case MessagePartType.video:
+        return _AttachmentFileTile(
+          message: _message,
+          part: part,
+          isSelf: _isSelf,
+          icon: Icons.movie,
+          fallbackLabel: '视频',
+        );
+      case MessagePartType.audio:
+        return _AttachmentFileTile(
+          message: _message,
+          part: part,
+          isSelf: _isSelf,
+          icon: Icons.audiotrack,
+          fallbackLabel: '语音',
+        );
+      case MessagePartType.file:
+        return _AttachmentFileTile(
+          message: _message,
+          part: part,
+          isSelf: _isSelf,
+          icon: Icons.insert_drive_file,
+          fallbackLabel: '文件',
+        );
+    }
   }
 
   Widget _buildDeletedContent(BuildContext context) {
@@ -3008,7 +3257,7 @@ class _PinnedMessageBanner extends StatelessWidget {
         return message.content;
       case MessageType.image:
         return '[图片消息]';
-      case MessageType.voice:
+      case MessageType.audio:
         return '[语音消息]';
       case MessageType.video:
         return '[视频消息]';
@@ -3016,6 +3265,8 @@ class _PinnedMessageBanner extends StatelessWidget {
         return '[文件消息]';
       case MessageType.system:
         return '[系统消息]';
+      case MessageType.mixed:
+        return '[多媒体消息]';
     }
   }
 }
@@ -3610,6 +3861,424 @@ class _EmojiPanel extends StatelessWidget {
 }
 
 /// 更多操作面板
+
+class _AttachmentImageView extends StatefulWidget {
+  const _AttachmentImageView({
+    required this.message,
+    required this.part,
+    required this.isSelf,
+  });
+
+  final Message message;
+  final MessagePart part;
+  final bool isSelf;
+
+  @override
+  State<_AttachmentImageView> createState() => _AttachmentImageViewState();
+}
+
+class _AttachmentImageViewState extends State<_AttachmentImageView> {
+  String? _localPath;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _localPath = widget.part.attachment?.localPath;
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentImageView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.part.attachment?.key != widget.part.attachment?.key) {
+      _localPath = widget.part.attachment?.localPath;
+      _error = null;
+      _loading = true;
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final attachment = widget.part.attachment;
+    if (attachment == null) {
+      setState(() {
+        _loading = false;
+        _error = '附件不存在';
+      });
+      return;
+    }
+
+    if (_localPath != null && _localPath!.isNotEmpty) {
+      final file = File(_localPath!);
+      if (await file.exists()) {
+        setState(() {
+          _loading = false;
+        });
+        return;
+      }
+    }
+
+    try {
+      final path = await MessageService.instance.ensureAttachmentCached(
+        roomId: widget.message.roomId,
+        message: widget.message,
+        part: widget.part,
+      );
+      if (!mounted) return;
+      setState(() {
+        _localPath = path;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = '$error';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final attachment = widget.part.attachment;
+    final size = _resolveMediaDisplaySize(
+      attachment?.width,
+      attachment?.height,
+    );
+
+    Widget child;
+    if (_loading) {
+      child = const Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
+        ),
+      );
+    } else if (_error != null) {
+      child = GestureDetector(
+        onTap: _load,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.broken_image, color: Colors.white70, size: 28),
+            const SizedBox(height: 6),
+            Text(
+              '加载失败，点击重试',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.white),
+            ),
+          ],
+        ),
+      );
+    } else if (_localPath != null) {
+      child = Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.file(
+                File(_localPath!),
+                width: size.width,
+                height: size.height,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _previewImage(context),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      child = const Center(
+        child: Icon(Icons.image_not_supported, color: Colors.white70),
+      );
+    }
+
+    final progress = attachment?.uploadProgress;
+
+    return Container(
+      constraints: BoxConstraints(maxWidth: size.width, maxHeight: size.height),
+      decoration: BoxDecoration(
+        color: widget.isSelf
+            ? Colors.white.withOpacity(0.25)
+            : Colors.black.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(child: child),
+          if (progress != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(10),
+                  bottomRight: Radius.circular(10),
+                ),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0, 1),
+                  minHeight: 4,
+                  backgroundColor: Colors.black.withOpacity(0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    widget.isSelf ? Colors.white : AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _previewImage(BuildContext context) async {
+    if (_localPath == null) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            color: Colors.black.withOpacity(0.9),
+            alignment: Alignment.center,
+            child: InteractiveViewer(child: Image.file(File(_localPath!))),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AttachmentFileTile extends StatefulWidget {
+  const _AttachmentFileTile({
+    required this.message,
+    required this.part,
+    required this.isSelf,
+    required this.icon,
+    required this.fallbackLabel,
+  });
+
+  final Message message;
+  final MessagePart part;
+  final bool isSelf;
+  final IconData icon;
+  final String fallbackLabel;
+
+  @override
+  State<_AttachmentFileTile> createState() => _AttachmentFileTileState();
+}
+
+class _AttachmentFileTileState extends State<_AttachmentFileTile> {
+  String? _localPath;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _localPath = widget.part.attachment?.localPath;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentFileTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.part.attachment?.key != widget.part.attachment?.key) {
+      _localPath = widget.part.attachment?.localPath;
+      _loading = false;
+    }
+  }
+
+  Future<void> _handleTap() async {
+    final attachment = widget.part.attachment;
+    if (attachment == null) {
+      return;
+    }
+
+    if (_loading || attachment.uploadProgress != null) return;
+
+    setState(() {
+      _loading = true;
+    });
+
+    try {
+      final path = await MessageService.instance.ensureAttachmentCached(
+        roomId: widget.message.roomId,
+        message: widget.message,
+        part: widget.part,
+        forceDownload: true,
+      );
+      if (!mounted) return;
+      _localPath = path;
+      if (path != null && path.isNotEmpty) {
+        await OpenFilex.open(path);
+      } else {
+        ScaffoldMessenger.maybeOf(
+          context,
+        )?.showSnackBar(const SnackBar(content: Text('文件保存成功')));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text('打开文件失败：$error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final attachment = widget.part.attachment;
+    final name = attachment?.name ?? widget.fallbackLabel;
+    final sizeText = _formatFileSize(attachment?.size);
+
+    return GestureDetector(
+      onTap: _handleTap,
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: widget.isSelf
+              ? Colors.white.withOpacity(0.24)
+              : Colors.black.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: widget.isSelf
+                    ? Colors.white.withOpacity(0.3)
+                    : Colors.black.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                widget.icon,
+                color: widget.isSelf ? Colors.white : AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: widget.isSelf
+                          ? Colors.white
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    sizeText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: widget.isSelf
+                          ? Colors.white70
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_loading)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(
+                Icons.arrow_circle_down,
+                size: 22,
+                color: widget.isSelf ? Colors.white : AppColors.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Size _resolveMediaDisplaySize(int? width, int? height) {
+  const double maxDimension = 220;
+  const double minDimension = 120;
+
+  if (width == null || height == null || width <= 0 || height <= 0) {
+    return const Size(180, 180);
+  }
+
+  var w = width.toDouble();
+  var h = height.toDouble();
+  final ratio = w / h;
+
+  if (w >= h) {
+    w = maxDimension;
+    h = maxDimension / ratio;
+    if (h < minDimension) {
+      h = minDimension;
+      w = minDimension * ratio;
+    }
+  } else {
+    h = maxDimension;
+    w = maxDimension * ratio;
+    if (w < minDimension) {
+      w = minDimension;
+      h = minDimension / ratio;
+    }
+  }
+
+  return Size(w, h);
+}
+
+String _formatFileSize(int? bytes) {
+  if (bytes == null || bytes <= 0) {
+    return '--';
+  }
+  const kb = 1024;
+  const mb = kb * 1024;
+  const gb = mb * 1024;
+
+  if (bytes >= gb) {
+    return '${(bytes / gb).toStringAsFixed(2)} GB';
+  }
+  if (bytes >= mb) {
+    return '${(bytes / mb).toStringAsFixed(1)} MB';
+  }
+  if (bytes >= kb) {
+    return '${(bytes / kb).toStringAsFixed(1)} KB';
+  }
+  return '$bytes B';
+}
+
 class _MoreActionsPanel extends StatelessWidget {
   const _MoreActionsPanel({required this.onActionSelected});
 
@@ -3636,11 +4305,6 @@ class _MoreActionsPanel extends StatelessWidget {
             icon: Icons.camera_alt,
             label: '拍摄',
             onTap: () => onActionSelected('camera'),
-          ),
-          _ActionItem(
-            icon: Icons.location_on,
-            label: '位置',
-            onTap: () => onActionSelected('location'),
           ),
           _ActionItem(
             icon: Icons.folder,

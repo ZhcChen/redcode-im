@@ -4,12 +4,17 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_config.dart';
+import '../../../core/network/direct_upload.dart';
 import '../../../core/services/websocket_service.dart';
 import '../../../core/services/message_service.dart';
 import '../../../core/services/friend_store.dart';
 import '../../../core/storage/token_storage.dart';
+import '../../../core/storage/avatar_cache.dart';
 import '../models/auth_session.dart';
 import '../models/auth_user.dart';
 
@@ -65,15 +70,17 @@ class AuthRepository {
     if (response.statusCode == 200) {
       if (kDebugMode) {
         debugPrint('[Auth] 响应体长度: ${response.body.length}');
-        debugPrint('[Auth] 响应体内容: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
+        debugPrint(
+          '[Auth] 响应体内容: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...',
+        );
       }
-      
+
       try {
         final payload = jsonDecode(response.body) as Map<String, dynamic>;
         if (kDebugMode) {
           debugPrint('[Auth] 解析后的 payload keys: ${payload.keys}');
         }
-        
+
         final token = payload['token'] as String?;
         final userJson = payload['user'];
 
@@ -83,9 +90,13 @@ class AuthRepository {
           debugPrint('[Auth] User JSON 类型: ${userJson.runtimeType}');
         }
 
-        if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
+        if (token == null ||
+            token.isEmpty ||
+            userJson is! Map<String, dynamic>) {
           if (kDebugMode) {
-            debugPrint('[Auth] 登录响应异常 - token: ${token != null && token.isNotEmpty}, userJson: ${userJson is Map<String, dynamic>}');
+            debugPrint(
+              '[Auth] 登录响应异常 - token: ${token != null && token.isNotEmpty}, userJson: ${userJson is Map<String, dynamic>}',
+            );
           }
           throw const AuthException('登录响应异常');
         }
@@ -93,11 +104,14 @@ class AuthRepository {
         if (kDebugMode) {
           debugPrint('[Auth] 开始解析用户信息...');
         }
-        final user = AuthUser.fromJson(userJson as Map<String, dynamic>);
+        final Map<String, dynamic> userMap = userJson;
+        var user = AuthUser.fromJson(userMap);
         if (kDebugMode) {
           debugPrint('[Auth] 用户信息解析成功: ${user.username}');
         }
-        
+
+        user = await _attachAvatarCache(token, user);
+
         final session = AuthSession(token: token, user: user);
         if (kDebugMode) {
           debugPrint('[Auth] 开始保存 session...');
@@ -112,13 +126,13 @@ class AuthRepository {
             debugPrint('[Auth] Session 保存失败: $e');
           }
           // 如果是 PlatformException，提供更友好的错误信息
-          if (e.toString().contains('SharedPreferences') || 
+          if (e.toString().contains('SharedPreferences') ||
               e.toString().contains('PlatformException')) {
             throw AuthException('本地存储初始化失败，请尝试重启应用');
           }
           rethrow;
         }
-        
+
         try {
           await WebSocketService.instance.disconnect();
         } catch (_) {}
@@ -369,7 +383,8 @@ class AuthRepository {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final updatedUser = AuthUser.fromJson(data);
+      var updatedUser = AuthUser.fromJson(data);
+      updatedUser = await _attachAvatarCache(session.token, updatedUser);
       await _storage.updateUser(updatedUser);
       _authStateController.add(AuthState.authenticated);
       return updatedUser;
@@ -413,6 +428,119 @@ class AuthRepository {
 
     final message = _extractErrorMessage(response.body);
     throw AuthException(message ?? '修改密码失败');
+  }
+
+  Future<AuthUser> uploadAvatar(File file) async {
+    if (!await file.exists()) {
+      throw const AuthException('所选文件不存在或已被删除');
+    }
+
+    final session = await _storage.readSession();
+    if (session == null) {
+      throw const AuthException('当前未登录');
+    }
+
+    final contentType = lookupMimeType(file.path) ?? 'application/octet-stream';
+    final directUri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/users/me/avatar/direct-upload',
+    );
+    final directResponse = await _makeRequest(
+      () => http.post(
+        directUri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'content_type': contentType}),
+      ),
+      uri: directUri,
+    );
+
+    if (directResponse.statusCode != 200) {
+      final message = _extractErrorMessage(directResponse.body);
+      throw AuthException(message ?? '获取上传签名失败');
+    }
+
+    final directPayload =
+        jsonDecode(directResponse.body) as Map<String, dynamic>;
+    final directSuccess = directPayload['success'] as bool? ?? false;
+    if (!directSuccess) {
+      final message = directPayload['message'] as String?;
+      throw AuthException(message ?? '获取上传签名失败');
+    }
+
+    final key = directPayload['key'] as String?;
+    final signatureMap =
+        directPayload['signature'] as Map<String, dynamic>? ?? {};
+    if (key == null || signatureMap.isEmpty) {
+      throw const AuthException('上传签名响应不完整');
+    }
+
+    final signature = DirectUploadSignature.fromJson(signatureMap);
+    final uploadRequest = http.Request(
+      signature.method,
+      Uri.parse(signature.url),
+    );
+    signature.applyHeaders(uploadRequest, defaultContentType: contentType);
+    uploadRequest.bodyBytes = await file.readAsBytes();
+
+    final uploadResponse = await uploadRequest.send();
+    if (!_isSuccessStatus(uploadResponse.statusCode)) {
+      final body = await uploadResponse.stream.bytesToString();
+      throw AuthException(
+        body.isNotEmpty
+            ? '上传失败: $body'
+            : '上传失败，状态码 ${uploadResponse.statusCode}',
+      );
+    }
+
+    final commitUri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/users/me/avatar/commit',
+    );
+    final commitResponse = await _makeRequest(
+      () => http.post(
+        commitUri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'key': key,
+          'delete_previous': true,
+          'expires_in_seconds': 600,
+        }),
+      ),
+      uri: commitUri,
+    );
+
+    if (commitResponse.statusCode != 200) {
+      final message = _extractErrorMessage(commitResponse.body);
+      throw AuthException(message ?? '提交头像信息失败');
+    }
+
+    final commitPayload =
+        jsonDecode(commitResponse.body) as Map<String, dynamic>;
+    final commitSuccess = commitPayload['success'] as bool? ?? false;
+    if (!commitSuccess) {
+      final message = commitPayload['message'] as String?;
+      throw AuthException(message ?? '提交头像信息失败');
+    }
+
+    final downloadUrl = commitPayload['download_url'] as String?;
+    final localPath = await AvatarCache.instance.save(
+      userId: session.user.id,
+      objectKey: key,
+      source: file,
+    );
+
+    final updatedUser = session.user.copyWith(
+      avatarUrl: downloadUrl ?? session.user.avatarUrl,
+      avatarObjectKey: key,
+      localAvatarPath: localPath,
+    );
+    await _storage.updateUser(updatedUser);
+    _authStateController.add(AuthState.authenticated);
+    return updatedUser;
   }
 
   Future<void> deactivateAccount() async {
@@ -469,7 +597,8 @@ class AuthRepository {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final user = AuthUser.fromJson(data);
+      var user = AuthUser.fromJson(data);
+      user = await _attachAvatarCache(session.token, user);
       await _storage.updateUser(user);
       return user;
     }
@@ -495,6 +624,80 @@ class AuthRepository {
     _authStateController.add(AuthState.unauthenticated);
   }
 
+  Future<AuthUser> _attachAvatarCache(String token, AuthUser user) async {
+    final key = user.avatarObjectKey;
+    if (key == null || key.isEmpty) {
+      await AvatarCache.instance.clear(user.id);
+      return user.copyWith(clearLocalAvatarPath: true);
+    }
+
+    final cachedPath = await AvatarCache.instance.resolveLocalPath(
+      userId: user.id,
+      objectKey: key,
+    );
+    if (cachedPath != null) {
+      return user.copyWith(localAvatarPath: cachedPath);
+    }
+
+    final downloadUri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/users/me/avatar/url?expires_in_seconds=600',
+    );
+
+    try {
+      final response = await _makeRequest(
+        () => http.get(
+          downloadUri,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        ),
+        uri: downloadUri,
+      );
+
+      if (response.statusCode == 200) {
+        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        final success = payload['success'] as bool? ?? false;
+        final url = payload['download_url'] as String?;
+        if (success && url != null && url.isNotEmpty) {
+          final file = await _downloadAvatar(url);
+          final savedPath = await AvatarCache.instance.save(
+            userId: user.id,
+            objectKey: key,
+            source: file,
+          );
+          return user.copyWith(avatarUrl: url, localAvatarPath: savedPath);
+        }
+      }
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('[Auth] 同步头像缓存失败: $error');
+        debugPrint(stackTrace.toString());
+      }
+    }
+
+    return user.copyWith(clearLocalAvatarPath: true);
+  }
+
+  Future<File> _downloadAvatar(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (!_isSuccessStatus(response.statusCode)) {
+      throw AuthException('下载头像失败，状态码 ${response.statusCode}');
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final uri = Uri.parse(url);
+    final ext = p.extension(uri.path);
+    final fileName =
+        'avatar_${DateTime.now().millisecondsSinceEpoch}_${response.bodyBytes.length}${ext.isNotEmpty ? ext : '.bin'}';
+    final file = File(p.join(tempDir.path, fileName));
+    await file.writeAsBytes(response.bodyBytes);
+    return file;
+  }
+
+  bool _isSuccessStatus(int statusCode) =>
+      statusCode >= 200 && statusCode < 300;
+
   /// 统一的 HTTP 请求处理，添加超时和错误处理
   Future<http.Response> _makeRequest(
     Future<http.Response> Function() request, {
@@ -503,7 +706,7 @@ class AuthRepository {
     if (kDebugMode && uri != null) {
       debugPrint('[Auth] 请求 URL: ${uri.toString()}');
     }
-    
+
     try {
       final response = await request().timeout(
         AppConfig.apiTimeout,
@@ -511,18 +714,15 @@ class AuthRepository {
           if (kDebugMode) {
             debugPrint('[Auth] 请求超时: ${uri?.toString() ?? 'unknown'}');
           }
-          throw TimeoutException(
-            '请求超时，请检查网络连接',
-            AppConfig.apiTimeout,
-          );
+          throw TimeoutException('请求超时，请检查网络连接', AppConfig.apiTimeout);
         },
       );
-      
+
       if (kDebugMode) {
         debugPrint('[Auth] 响应状态码: ${response.statusCode}');
         debugPrint('[Auth] 响应头: ${response.headers}');
       }
-      
+
       return response;
     } on SocketException catch (e) {
       if (kDebugMode) {

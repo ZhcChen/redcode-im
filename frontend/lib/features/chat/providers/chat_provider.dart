@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import '../../../core/services/message_service.dart';
+import '../../../core/services/message_service.dart'
+    show MessageAttachmentDraft, MessageService, MessageStatus;
 import '../../../core/services/websocket_service.dart';
 import '../models/message_model.dart';
 import '../models/chat_model.dart';
@@ -192,37 +193,33 @@ class ChatProvider with ChangeNotifier {
 
   /// 发送文本消息
   Future<void> sendTextMessage(String content, {Message? quotedMessage}) async {
-    if (_currentRoomId == null || content.trim().isEmpty || _isSending) return;
+    await sendRichMessage(text: content, quotedMessage: quotedMessage);
+  }
+
+  Future<void> sendRichMessage({
+    String? text,
+    List<MessageAttachmentDraft> attachments = const [],
+    Message? quotedMessage,
+  }) async {
+    if (_currentRoomId == null || _isSending) return;
+
+    final trimmed = text?.trim();
+    if ((trimmed == null || trimmed.isEmpty) && attachments.isEmpty) {
+      return;
+    }
 
     _isSending = true;
     notifyListeners();
 
     try {
-      await _messageService.sendTextMessage(
-        _currentRoomId!,
-        content,
+      await _messageService.sendRichMessage(
+        roomId: _currentRoomId!,
+        text: trimmed,
+        attachments: attachments,
         quotedMessage: quotedMessage,
       );
     } catch (e) {
       debugPrint('Failed to send message: $e');
-      // 可以显示错误提示
-    } finally {
-      _isSending = false;
-      notifyListeners();
-    }
-  }
-
-  /// 发送图片消息
-  Future<void> sendImageMessage(String imagePath) async {
-    if (_currentRoomId == null || _isSending) return;
-
-    _isSending = true;
-    notifyListeners();
-
-    try {
-      await _messageService.sendImageMessage(_currentRoomId!, imagePath);
-    } catch (e) {
-      debugPrint('Failed to send image: $e');
     } finally {
       _isSending = false;
       notifyListeners();

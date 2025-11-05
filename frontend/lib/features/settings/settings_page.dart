@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/message_service.dart';
+import '../../core/services/version_service.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/login_page.dart';
 import '../auth/models/auth_user.dart';
@@ -21,16 +27,25 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final AuthRepository _authRepository = AuthRepository();
+  final VersionService _versionService = VersionService();
   AuthUser? _user;
   bool _loading = true;
   bool _deactivating = false;
   bool _updatingNickname = false;
   bool _clearingCache = false;
+  bool _uploadingAvatar = false;
+  bool _checkingVersion = false;
+  bool _downloadInProgress = false;
+  PackageInfo? _packageInfo;
+  VersionCheckResult? _versionResult;
+  String? _downloadedFilePath;
+  int? _downloadedFileSize;
 
   @override
   void initState() {
     super.initState();
     _loadUser();
+    _initVersionInfo();
   }
 
   Future<void> _editNickname() async {
@@ -124,6 +139,66 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _handleEditAvatar() async {
+    if (_uploadingAvatar) return;
+
+    final picker = ImagePicker();
+    XFile? pickedFile;
+    try {
+      pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('打开相册失败: $error')),
+      );
+      return;
+    }
+
+    if (pickedFile == null) {
+      return;
+    }
+
+    final file = File(pickedFile.path);
+    if (!await file.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未找到所选文件')),
+      );
+      return;
+    }
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      final updatedUser = await _authRepository.uploadAvatar(file);
+      if (!mounted) return;
+      setState(() => _user = updatedUser);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('头像已更新')),
+      );
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('头像更新失败: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingAvatar = false);
+      } else {
+        _uploadingAvatar = false;
+      }
+    }
+  }
+
   Future<void> _loadUser() async {
     final cached = await _authRepository.loadSession();
     if (mounted) {
@@ -140,6 +215,312 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       setState(() => _user = refreshed);
     } catch (_) {}
+  }
+
+  Future<void> _initVersionInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _packageInfo = info;
+      });
+      await _checkForUpdate(auto: true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法获取应用版本信息：$error')),
+      );
+    }
+  }
+
+  Future<void> _checkForUpdate({bool auto = false}) async {
+    final currentVersion = _packageInfo?.version ?? '';
+    if (currentVersion.isEmpty) {
+      if (!auto && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('尚未获取当前版本信息')),
+        );
+      }
+      return;
+    }
+    setState(() {
+      _checkingVersion = true;
+    });
+    try {
+      final result = await _versionService.checkLatest(
+        currentVersion: currentVersion,
+      );
+      if (!mounted) return;
+      setState(() {
+        _versionResult = result;
+        _downloadedFilePath = null;
+        _downloadedFileSize = null;
+      });
+      if (!auto) {
+        final text = result.hasUpdate
+            ? '检测到新版本 v${result.latest?.version ?? ''}'
+            : '当前已是最新版本';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(text)),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('检查更新失败：$error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _checkingVersion = false;
+        });
+      } else {
+        _checkingVersion = false;
+      }
+    }
+  }
+
+  Future<void> _downloadUpdate() async {
+    final latest = _versionResult?.latest;
+    if (latest == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('没有可下载的版本')),
+        );
+      }
+      return;
+    }
+    setState(() {
+      _downloadInProgress = true;
+    });
+    try {
+      final result = await _versionService.downloadAndSave(version: latest);
+      if (!mounted) return;
+      setState(() {
+        _downloadedFilePath = result.filePath;
+        _downloadedFileSize = result.fileSize;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('安装包已保存至：${result.filePath}'),
+          action: SnackBarAction(
+            label: '打开',
+            onPressed: _openDownloadedFile,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('下载更新失败：$error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloadInProgress = false;
+        });
+      } else {
+        _downloadInProgress = false;
+      }
+    }
+  }
+
+  Future<void> _openDownloadedFile() async {
+    final path = _downloadedFilePath;
+    if (path == null || path.isEmpty) {
+      return;
+    }
+    final uri = Uri.file(path);
+    if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法打开已下载的文件')),
+      );
+    }
+  }
+
+  bool get _hasUpdate => _versionResult?.hasUpdate ?? false;
+  AppVersionInfo? get _latestVersion => _versionResult?.latest;
+
+  String _formatFileSize(int? size) {
+    if (size == null || size <= 0) return '-';
+    const kb = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+    if (size >= gb) {
+      return '${(size / gb).toStringAsFixed(2)} GB';
+    }
+    if (size >= mb) {
+      return '${(size / mb).toStringAsFixed(2)} MB';
+    }
+    if (size >= kb) {
+      return '${(size / kb).toStringAsFixed(1)} KB';
+    }
+    return '$size B';
+  }
+
+  Widget _buildVersionCard(String currentVersionLabel) {
+    final latest = _latestVersion;
+    final releaseNotes = latest?.releaseNotes;
+    final downloadPath = _downloadedFilePath;
+    final downloadSize = _formatFileSize(_downloadedFileSize);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '应用版本',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '当前：$currentVersionLabel',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.settingsTextMuted,
+                        ),
+                      ),
+                      if (_hasUpdate && latest != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: latest.mandatory
+                                      ? Colors.redAccent.withOpacity(0.1)
+                                      : AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  latest.mandatory ? '强制更新' : '可更新',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: latest.mandatory
+                                        ? Colors.redAccent
+                                        : AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '最新：v${latest.version}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    OutlinedButton(
+                      onPressed: _checkingVersion ? null : () => _checkForUpdate(auto: false),
+                      child: _checkingVersion
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('检查更新'),
+                    ),
+                    if (_hasUpdate && latest != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: FilledButton(
+                          onPressed: _downloadInProgress ? null : _downloadUpdate,
+                          child: _downloadInProgress
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('下载更新'),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            if (releaseNotes != null && releaseNotes.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  releaseNotes,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.settingsTextMuted,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            if (downloadPath != null && downloadPath.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: InkWell(
+                  onTap: _openDownloadedFile,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.save_alt, size: 18, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '已下载：$downloadPath ($downloadSize)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -260,6 +641,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentVersionLabel = _packageInfo != null
+        ? 'v${_packageInfo!.version} (build ${_packageInfo!.buildNumber})'
+        : '获取中…';
     final items = <_SettingItemData>[
       _SettingItemData(
         title: '账号与安全',
@@ -352,8 +736,14 @@ class _SettingsPageState extends State<SettingsPage> {
                             ? _editNickname
                             : null,
                         updatingNickname: _updatingNickname,
+                        onEditAvatar:
+                            (_user != null && !_uploadingAvatar)
+                                ? _handleEditAvatar
+                                : null,
+                        uploadingAvatar: _uploadingAvatar,
                       ),
                     const SizedBox(height: 32),
+                    _buildVersionCard(currentVersionLabel),
                     // 设置卡片
                     _SettingsCard(items: items),
                     const SizedBox(height: 24),
@@ -382,11 +772,15 @@ class _UserInfoSection extends StatelessWidget {
     this.user,
     this.onEditNickname,
     this.updatingNickname = false,
+    this.onEditAvatar,
+    this.uploadingAvatar = false,
   });
 
   final AuthUser? user;
   final VoidCallback? onEditNickname;
   final bool updatingNickname;
+  final VoidCallback? onEditAvatar;
+  final bool uploadingAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -400,58 +794,97 @@ class _UserInfoSection extends StatelessWidget {
             ? username
             : '未绑定';
 
+    final avatarPath = user?.localAvatarPath;
+    final avatarUrl = user?.avatarUrl;
+
+    Widget avatarContent;
+    if (avatarPath != null && avatarPath.isNotEmpty) {
+      avatarContent = Image.file(
+        File(avatarPath),
+        width: 100,
+        height: 100,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const _DefaultAvatar(),
+      );
+    } else if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      avatarContent = Image.network(
+        avatarUrl,
+        width: 100,
+        height: 100,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const _DefaultAvatar(),
+      );
+    } else {
+      avatarContent = const _DefaultAvatar();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const SizedBox(height: 8),
-        // 头像
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: AppColors.settingsAvatarBg,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: ClipOval(
-                child: user?.avatarUrl != null
-                    ? Image.network(
-                        user!.avatarUrl!,
-                        width: 100,
-                        height: 100,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _DefaultAvatar(),
-                      )
-                    : _DefaultAvatar(),
-              ),
-            ),
-            // 头像右上角编辑图标
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
+        GestureDetector(
+          onTap: (onEditAvatar != null && !uploadingAvatar)
+              ? onEditAvatar
+              : null,
+          behavior: HitTestBehavior.opaque,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppColors.settingsAvatarBg,
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: SvgPicture.asset(
-                    AppAssets.settingsEdit,
-                    colorFilter: const ColorFilter.mode(
-                      Colors.white,
-                      BlendMode.srcIn,
+                child: ClipOval(child: avatarContent),
+              ),
+              if (uploadingAvatar)
+                Positioned.fill(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color.fromRGBO(0, 0, 0, 0.45),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Opacity( 
+                  opacity: onEditAvatar != null ? 1.0 : 0.4,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: SvgPicture.asset(
+                        AppAssets.settingsEdit,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         // 用户昵称
@@ -513,6 +946,8 @@ class _UserInfoSection extends StatelessWidget {
 }
 
 class _DefaultAvatar extends StatelessWidget {
+  const _DefaultAvatar();
+
   @override
   Widget build(BuildContext context) {
     return Container(
