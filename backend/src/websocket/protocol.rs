@@ -6,8 +6,8 @@ use uuid::Uuid;
 use crate::{
     proto::ws,
     redis::models::{
-        CrossNodeMessage, ForwardMessagePayload, MessageUpdatePayload, PinUpdatePayload,
-        QuotedMessagePayload, ReadReceiptEvent,
+        CrossNodeMessage, ForwardMessagePayload, MessagePartEnvelope, MessageUpdatePayload,
+        PinUpdatePayload, QuotedMessagePayload, ReadReceiptEvent,
     },
 };
 
@@ -97,6 +97,7 @@ impl ServerPush {
             ServerPush::Message { data } => {
                 let quoted = data.quoted_message.as_ref().map(quoted_to_json);
                 let forward = data.forward_message.as_ref().map(forward_to_json);
+                let parts: Vec<Value> = data.parts.iter().map(part_to_json).collect();
                 json!({
                     "type": "message",
                     "id": data.id,
@@ -111,6 +112,7 @@ impl ServerPush {
                     "quoted_message": quoted,
                     "forward_message": forward,
                     "timestamp": data.timestamp.to_rfc3339(),
+                    "parts": parts,
                 })
             }
             ServerPush::MessageRead { data } => json!({
@@ -185,6 +187,7 @@ impl ServerPush {
                 timestamp: data.timestamp.to_rfc3339(),
                 quoted_message: data.quoted_message.as_ref().map(quoted_to_proto),
                 forward_message: data.forward_message.as_ref().map(forward_to_proto),
+                parts: data.parts.iter().map(ws::MessagePart::from).collect(),
             }),
             ServerPush::MessageRead { data } => Payload::MessageRead(ws::ServerMessageRead {
                 room_id: data.room_id.to_string(),
@@ -261,6 +264,7 @@ pub fn quoted_to_json(payload: &QuotedMessagePayload) -> Value {
         "message_type": payload.message_type.to_string(),
         "created_at": payload.created_at.map(|ts| ts.to_rfc3339()),
         "is_deleted": payload.is_deleted,
+        "parts": payload.parts.iter().map(part_to_json).collect::<Vec<_>>(),
     })
 }
 
@@ -289,6 +293,7 @@ fn quoted_to_proto(payload: &QuotedMessagePayload) -> ws::QuotedMessage {
             .map(|ts| ts.to_rfc3339())
             .unwrap_or_default(),
         is_deleted: payload.is_deleted,
+        parts: payload.parts.iter().map(ws::MessagePart::from).collect(),
     }
 }
 
@@ -300,4 +305,26 @@ fn forward_to_proto(payload: &ForwardMessagePayload) -> ws::ForwardMessage {
         sender_username: payload.sender_username.clone().unwrap_or_default(),
         sender_nickname: payload.sender_nickname.clone().unwrap_or_default(),
     }
+}
+
+fn part_to_json(part: &MessagePartEnvelope) -> Value {
+    let attachment = part.attachment.as_ref().map(|att| {
+        json!({
+            "key": att.key.clone(),
+            "name": att.name.clone(),
+            "mime": att.mime.clone(),
+            "size": att.size,
+            "width": att.width,
+            "height": att.height,
+            "duration_ms": att.duration_ms,
+            "thumbnail_key": att.thumbnail_key.clone(),
+        })
+    });
+
+    json!({
+        "position": part.position,
+        "part_type": part.part_type.to_string(),
+        "text": part.text,
+        "attachment": attachment,
+    })
 }

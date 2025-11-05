@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::FromRow;
 use std::fmt;
 use uuid::Uuid;
@@ -21,7 +22,9 @@ pub struct User {
 }
 
 /// 用户状态枚举
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
+)]
 #[repr(i16)]
 #[sqlx(type_name = "int2")]
 pub enum UserStatus {
@@ -110,7 +113,9 @@ pub struct Room {
 }
 
 /// 房间类型枚举
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
+)]
 #[repr(i16)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "int2")]
@@ -192,15 +197,20 @@ pub struct RoomPin {
 }
 
 /// 消息类型枚举
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
+)]
 #[repr(i16)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "int2")]
 pub enum MessageType {
-    Text = 0,   // 文本消息
-    Image = 1,  // 图片消息
-    File = 2,   // 文件消息
-    System = 3, // 系统消息
+    Text = 0,   // 纯文本
+    Image = 1,  // 单图
+    File = 2,   // 文件
+    System = 3, // 系统
+    Video = 4,  // 视频
+    Audio = 5,  // 音频/语音
+    Mixed = 6,  // 混合内容（文本 + 多媒体）
 }
 
 impl Default for MessageType {
@@ -216,9 +226,63 @@ impl fmt::Display for MessageType {
             MessageType::Image => "image",
             MessageType::File => "file",
             MessageType::System => "system",
+            MessageType::Video => "video",
+            MessageType::Audio => "audio",
+            MessageType::Mixed => "mixed",
         };
         f.write_str(text)
     }
+}
+
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
+)]
+#[repr(i16)]
+#[sqlx(type_name = "int2")]
+pub enum MessagePartType {
+    Text = 0,
+    Image = 1,
+    Video = 2,
+    Audio = 3,
+    File = 4,
+}
+
+impl Default for MessagePartType {
+    fn default() -> Self {
+        MessagePartType::Text
+    }
+}
+
+impl fmt::Display for MessagePartType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            MessagePartType::Text => "text",
+            MessagePartType::Image => "image",
+            MessagePartType::Video => "video",
+            MessagePartType::Audio => "audio",
+            MessagePartType::File => "file",
+        };
+        f.write_str(text)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MessagePart {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub position: i16,
+    pub part_type: MessagePartType,
+    pub text_content: Option<String>,
+    pub attachment_key: Option<String>,
+    pub attachment_name: Option<String>,
+    pub attachment_mime: Option<String>,
+    pub attachment_size: Option<i64>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration_ms: Option<i32>,
+    pub thumbnail_key: Option<String>,
+    pub extra: Option<Value>,
+    pub created_at: DateTime<Utc>,
 }
 
 /// 房间成员表模型

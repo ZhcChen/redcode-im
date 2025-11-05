@@ -1,4 +1,4 @@
-use crate::database::models::{MemberRole, MessageType, UserStatus};
+use crate::database::models::{MemberRole, MessagePart, MessagePartType, MessageType, UserStatus};
 use crate::proto::ws;
 use chrono::{DateTime, Utc};
 use prost::Message as _;
@@ -77,6 +77,8 @@ pub struct CrossNodeMessage {
     pub quoted_message: Option<QuotedMessagePayload>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forward_message: Option<ForwardMessagePayload>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<MessagePartEnvelope>,
 }
 
 /// 节点心跳信息
@@ -166,6 +168,40 @@ pub struct QuotedMessagePayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<DateTime<Utc>>,
     pub is_deleted: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<MessagePartEnvelope>,
+}
+
+/// 消息分片载荷
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessagePartEnvelope {
+    pub position: i16,
+    pub part_type: MessagePartType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<MessageAttachmentEnvelope>,
+}
+
+/// 消息附件载荷
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageAttachmentEnvelope {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_key: Option<String>,
 }
 
 /// 被转发的消息载荷
@@ -302,6 +338,7 @@ impl From<&CrossNodeMessage> for ws::PubSubMessage {
             sender_avatar_url: value.sender_avatar_url.clone().unwrap_or_default(),
             quoted_message: value.quoted_message.as_ref().map(ws::QuotedMessage::from),
             forward_message: value.forward_message.as_ref().map(ws::ForwardMessage::from),
+            parts: value.parts.iter().map(ws::MessagePart::from).collect(),
         }
     }
 }
@@ -340,6 +377,11 @@ impl TryFrom<ws::PubSubMessage> for CrossNodeMessage {
                 .forward_message
                 .map(ForwardMessagePayload::try_from)
                 .transpose()?,
+            parts: value
+                .parts
+                .into_iter()
+                .map(MessagePartEnvelope::try_from)
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -453,6 +495,7 @@ impl From<&QuotedMessagePayload> for ws::QuotedMessage {
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_default(),
             is_deleted: value.is_deleted,
+            parts: value.parts.iter().map(ws::MessagePart::from).collect(),
         }
     }
 }
@@ -474,7 +517,97 @@ impl TryFrom<ws::QuotedMessage> for QuotedMessagePayload {
                 .map(|s| parse_datetime(&s, "quoted.created_at"))
                 .transpose()?,
             is_deleted: value.is_deleted,
+            parts: value
+                .parts
+                .into_iter()
+                .map(MessagePartEnvelope::try_from)
+                .collect::<Result<_, _>>()?,
         })
+    }
+}
+
+impl From<&MessagePartEnvelope> for ws::MessagePart {
+    fn from(value: &MessagePartEnvelope) -> Self {
+        ws::MessagePart {
+            position: i32::from(value.position),
+            part_type: message_part_type_to_str(value.part_type).to_string(),
+            text: value.text.clone().unwrap_or_default(),
+            attachment: value.attachment.as_ref().map(ws::MessageAttachment::from),
+        }
+    }
+}
+
+impl TryFrom<ws::MessagePart> for MessagePartEnvelope {
+    type Error = String;
+
+    fn try_from(value: ws::MessagePart) -> Result<Self, Self::Error> {
+        Ok(MessagePartEnvelope {
+            position: value.position as i16,
+            part_type: parse_message_part_type(&value.part_type)?,
+            text: option_from_string(value.text),
+            attachment: value
+                .attachment
+                .map(MessageAttachmentEnvelope::try_from)
+                .transpose()?,
+        })
+    }
+}
+
+impl From<&MessageAttachmentEnvelope> for ws::MessageAttachment {
+    fn from(value: &MessageAttachmentEnvelope) -> Self {
+        ws::MessageAttachment {
+            key: value.key.clone().unwrap_or_default(),
+            name: value.name.clone().unwrap_or_default(),
+            mime: value.mime.clone().unwrap_or_default(),
+            size: value.size.unwrap_or(0),
+            width: value.width.unwrap_or(0),
+            height: value.height.unwrap_or(0),
+            duration_ms: value.duration_ms.unwrap_or(0),
+            thumbnail_key: value.thumbnail_key.clone().unwrap_or_default(),
+        }
+    }
+}
+
+impl TryFrom<ws::MessageAttachment> for MessageAttachmentEnvelope {
+    type Error = String;
+
+    fn try_from(value: ws::MessageAttachment) -> Result<Self, Self::Error> {
+        Ok(MessageAttachmentEnvelope {
+            key: option_from_string(value.key),
+            name: option_from_string(value.name),
+            mime: option_from_string(value.mime),
+            size: option_from_zero_i64(value.size),
+            width: option_from_zero_i32(value.width),
+            height: option_from_zero_i32(value.height),
+            duration_ms: option_from_zero_i32(value.duration_ms),
+            thumbnail_key: option_from_string(value.thumbnail_key),
+        })
+    }
+}
+
+impl From<&MessagePart> for MessagePartEnvelope {
+    fn from(part: &MessagePart) -> Self {
+        let attachment = if matches!(part.part_type, MessagePartType::Text) {
+            None
+        } else {
+            Some(MessageAttachmentEnvelope {
+                key: part.attachment_key.clone(),
+                name: part.attachment_name.clone(),
+                mime: part.attachment_mime.clone(),
+                size: part.attachment_size,
+                width: part.width,
+                height: part.height,
+                duration_ms: part.duration_ms,
+                thumbnail_key: part.thumbnail_key.clone(),
+            })
+        };
+
+        MessagePartEnvelope {
+            position: part.position,
+            part_type: part.part_type,
+            text: part.text_content.clone(),
+            attachment,
+        }
     }
 }
 
@@ -512,6 +645,22 @@ fn option_from_string(value: String) -> Option<String> {
     }
 }
 
+fn option_from_zero_i32(value: i32) -> Option<i32> {
+    if value == 0 {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn option_from_zero_i64(value: i64) -> Option<i64> {
+    if value == 0 {
+        None
+    } else {
+        Some(value)
+    }
+}
+
 fn parse_uuid(value: &str, field: &str) -> Result<Uuid, String> {
     Uuid::parse_str(value).map_err(|e| format!("invalid uuid for {}: {}", field, e))
 }
@@ -528,7 +677,31 @@ fn parse_message_type(value: &str) -> Result<MessageType, String> {
         "image" => Ok(MessageType::Image),
         "file" => Ok(MessageType::File),
         "system" => Ok(MessageType::System),
+        "video" => Ok(MessageType::Video),
+        "audio" => Ok(MessageType::Audio),
+        "mixed" => Ok(MessageType::Mixed),
         other => Err(format!("unknown message_type: {}", other)),
+    }
+}
+
+fn message_part_type_to_str(value: MessagePartType) -> &'static str {
+    match value {
+        MessagePartType::Text => "text",
+        MessagePartType::Image => "image",
+        MessagePartType::Video => "video",
+        MessagePartType::Audio => "audio",
+        MessagePartType::File => "file",
+    }
+}
+
+fn parse_message_part_type(value: &str) -> Result<MessagePartType, String> {
+    match value {
+        "text" => Ok(MessagePartType::Text),
+        "image" => Ok(MessagePartType::Image),
+        "video" => Ok(MessagePartType::Video),
+        "audio" => Ok(MessagePartType::Audio),
+        "file" => Ok(MessagePartType::File),
+        other => Err(format!("unknown part_type: {}", other)),
     }
 }
 

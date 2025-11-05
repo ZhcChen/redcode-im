@@ -228,7 +228,13 @@ pub async fn respond_friend_request(
             .await?
         {
             Some(enriched) => {
-                if let Err(err) = broadcast_message_to_room(&state, &enriched).await {
+                let mut part_ids = vec![enriched.id];
+                if let Some(qid) = enriched.quoted_message_id {
+                    part_ids.push(qid);
+                }
+                let parts_map = message_store.get_message_parts_map(&part_ids).await?;
+
+                if let Err(err) = broadcast_message_to_room(&state, &enriched, &parts_map).await {
                     warn!(
                         "Failed to broadcast welcome message for room {}: {}",
                         room.id, err

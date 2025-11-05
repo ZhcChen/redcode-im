@@ -1,9 +1,73 @@
-use crate::database::models::{Message, MessageType, MessageWithSender, RoomPin};
-use sqlx::PgPool;
+use crate::database::models::{
+    Message, MessagePart, MessagePartType, MessageType, MessageWithSender, RoomPin,
+};
+use serde_json::Value;
+use sqlx::{PgPool, Postgres, Transaction};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct MessageStore<'a> {
     pub pool: &'a PgPool,
+}
+
+pub struct NewMessagePart {
+    pub position: i16,
+    pub part_type: MessagePartType,
+    pub text_content: Option<String>,
+    pub attachment_key: Option<String>,
+    pub attachment_name: Option<String>,
+    pub attachment_mime: Option<String>,
+    pub attachment_size: Option<i64>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration_ms: Option<i32>,
+    pub thumbnail_key: Option<String>,
+    pub extra: Option<Value>,
+}
+
+async fn insert_message_parts(
+    tx: &mut Transaction<'_, Postgres>,
+    message_id: Uuid,
+    parts: &[NewMessagePart],
+) -> Result<(), sqlx::Error> {
+    for part in parts {
+        sqlx::query(
+            "INSERT INTO message_parts (
+                id,
+                message_id,
+                position,
+                part_type,
+                text_content,
+                attachment_key,
+                attachment_name,
+                attachment_mime,
+                attachment_size,
+                width,
+                height,
+                duration_ms,
+                thumbnail_key,
+                extra
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        )
+        .bind(crate::id::generate())
+        .bind(message_id)
+        .bind(part.position)
+        .bind(part.part_type)
+        .bind(part.text_content.as_ref())
+        .bind(part.attachment_key.as_ref())
+        .bind(part.attachment_name.as_ref())
+        .bind(part.attachment_mime.as_ref())
+        .bind(part.attachment_size)
+        .bind(part.width)
+        .bind(part.height)
+        .bind(part.duration_ms)
+        .bind(part.thumbnail_key.as_ref())
+        .bind(part.extra.as_ref())
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
 }
 
 impl<'a> MessageStore<'a> {
@@ -11,16 +75,19 @@ impl<'a> MessageStore<'a> {
         Self { pool }
     }
 
-    pub async fn create_message(
+    pub async fn create_message_with_parts(
         &self,
         room_id: Uuid,
         sender_id: Uuid,
-        content: String,
+        content_summary: String,
         message_type: MessageType,
         quoted_message_id: Option<Uuid>,
+        parts: &[NewMessagePart],
     ) -> Result<Message, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
         let message_id = crate::id::generate();
-        let rec = sqlx::query_as::<_, Message>(
+
+        let message = sqlx::query_as::<_, Message>(
             "INSERT INTO messages (id, room_id, sender_id, content, message_type, quoted_message_id)
              VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
@@ -31,12 +98,52 @@ impl<'a> MessageStore<'a> {
         .bind(message_id)
         .bind(room_id)
         .bind(sender_id)
-        .bind(content)
+        .bind(content_summary)
         .bind(message_type)
         .bind(quoted_message_id)
-        .fetch_one(self.pool)
+        .fetch_one(&mut *tx)
         .await?;
-        Ok(rec)
+
+        if !parts.is_empty() {
+            insert_message_parts(&mut tx, message_id, parts).await?;
+        }
+
+        tx.commit().await?;
+        Ok(message)
+    }
+
+    pub async fn create_message(
+        &self,
+        room_id: Uuid,
+        sender_id: Uuid,
+        content: String,
+        message_type: MessageType,
+        quoted_message_id: Option<Uuid>,
+    ) -> Result<Message, sqlx::Error> {
+        let parts = [NewMessagePart {
+            position: 0,
+            part_type: MessagePartType::Text,
+            text_content: Some(content.clone()),
+            attachment_key: None,
+            attachment_name: None,
+            attachment_mime: None,
+            attachment_size: None,
+            width: None,
+            height: None,
+            duration_ms: None,
+            thumbnail_key: None,
+            extra: None,
+        }];
+
+        self.create_message_with_parts(
+            room_id,
+            sender_id,
+            content,
+            message_type,
+            quoted_message_id,
+            &parts,
+        )
+        .await
     }
 
     pub async fn get_room_messages(
@@ -88,6 +195,52 @@ impl<'a> MessageStore<'a> {
         .fetch_all(self.pool)
         .await?;
         Ok(rows)
+    }
+
+    pub async fn get_message_parts_map(
+        &self,
+        message_ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Vec<MessagePart>>, sqlx::Error> {
+        if message_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let mut unique_ids: Vec<Uuid> = message_ids.to_vec();
+        unique_ids.sort_unstable();
+        unique_ids.dedup();
+
+        let rows = sqlx::query_as::<_, MessagePart>(
+            r#"
+            SELECT
+                id,
+                message_id,
+                position,
+                part_type,
+                text_content,
+                attachment_key,
+                attachment_name,
+                attachment_mime,
+                attachment_size,
+                width,
+                height,
+                duration_ms,
+                thumbnail_key,
+                extra,
+                created_at
+            FROM message_parts
+            WHERE message_id = ANY($1)
+            ORDER BY message_id, position
+            "#,
+        )
+        .bind(&unique_ids)
+        .fetch_all(self.pool)
+        .await?;
+
+        let mut map: HashMap<Uuid, Vec<MessagePart>> = HashMap::new();
+        for part in rows {
+            map.entry(part.message_id).or_default().push(part);
+        }
+        Ok(map)
     }
 
     pub async fn get_message(&self, message_id: Uuid) -> Result<Option<Message>, sqlx::Error> {
@@ -297,6 +450,8 @@ impl<'a> MessageStore<'a> {
                 )
             };
 
+        let mut tx = self.pool.begin().await?;
+
         let rec = sqlx::query_as::<_, Message>(
             "INSERT INTO messages (
                 id, room_id, sender_id, content, message_type, quoted_message_id,
@@ -318,8 +473,27 @@ impl<'a> MessageStore<'a> {
         .bind(origin_sender_id)
         .bind(origin_username)
         .bind(origin_nickname)
-        .fetch_one(self.pool)
+        .fetch_one(&mut *tx)
         .await?;
+
+        let parts = [NewMessagePart {
+            position: 0,
+            part_type: MessagePartType::Text,
+            text_content: Some(original.content.clone()),
+            attachment_key: None,
+            attachment_name: None,
+            attachment_mime: None,
+            attachment_size: None,
+            width: None,
+            height: None,
+            duration_ms: None,
+            thumbnail_key: None,
+            extra: None,
+        }];
+
+        insert_message_parts(&mut tx, message_id, &parts).await?;
+
+        tx.commit().await?;
 
         Ok(rec)
     }
