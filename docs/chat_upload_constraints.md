@@ -51,8 +51,55 @@
   - 2025-11-07 接入后端真实配置源（目前为环境变量+数据库快照）。
   - 2025-11-08 Flutter 与桌面端完成请求与缓存集成，自测通过后发起联调。
 
+#### 接口草案
+- **请求示例**：
+  ```http
+  GET /system/upload-policy HTTP/1.1
+  Authorization: Bearer <token>
+  X-Client-Version: 2.8.0
+  ```
+- **响应示例**：
+  ```json
+  {
+    "version": "2025-11-07",
+    "max_file_size_mb": 50,
+    "max_total_size_mb": 100,
+    "max_attachments_per_message": 10,
+    "mime_whitelist": [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "video/mp4",
+      "video/quicktime",
+      "audio/aac",
+      "audio/m4a",
+      "audio/mp4",
+      "application/pdf",
+      "application/zip"
+    ],
+    "audio_only": {
+      "enabled": true,
+      "force_single_attachment": true,
+      "allow_text": false
+    }
+  }
+  ```
+- **错误码约定**：`UPLOAD_POLICY_NOT_FOUND`（配置缺失）、`UPLOAD_POLICY_FETCH_FAILED`（远端服务异常）、`FORBIDDEN`（令牌无权限）。全部错误走 `message` + `trace_id` 统一结构。
+- **监控要求**：新增 Prometheus 指标 `upload_policy_fetch_latency`、`upload_policy_cache_hit_ratio`，并在 Grafana 仪表盘对接告警阈值（命中率 < 95% 告警）。
+
 ### 2. 客户端复用逻辑
 - **公共模块**：沉淀 `direct-upload` 工具（签名、上传、重试、事件回调），Flutter 与桌面端分别通过 `AttachmentUploader` 适配 UI；Admin 复用 TypeScript 版本。
 - **文件缓存**：统一约束缓存目录命名与过期策略（默认 48 小时）；桌面端落地到 `~/.redcode/attachments`，移动端使用沙箱目录，命中后直接返回本地路径。
 - **错误处理**：三端统一上报字段（`module=upload`, `stage=sign|put|send`, `error_code`），后端提供对齐的错误枚举，便于观测。
 - **交付目标**：2025-11-10 前完成桌面端复用并通过冒烟测试；其他客户端同步排期。
+
+#### 客户端拆解
+- **Flutter**：
+  - 2025-11-06 之前完成 `AttachmentCache` 接口定义与缓存目录初始化。
+  - 2025-11-08 自测通过文件上传（含失败重试）。
+- **桌面端**：
+  - 2025-11-07 接入 `direct-upload` 工具，校验多附件组合发送。
+  - 2025-11-09 完成冒烟用例（图片、视频、文档、音频）。
+- **Admin**：
+  - 2025-11-08 接入统一工具，重点校验表单批量上传。
+- **数据观测**：2025-11-10 前补充三端埋点，输出仪表盘初版。
