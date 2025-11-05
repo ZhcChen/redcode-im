@@ -7,6 +7,7 @@ pub mod message_read;
 pub mod room;
 pub mod settings;
 pub mod user;
+pub mod version;
 
 use axum::{
     extract::{ws::WebSocketUpgrade, State},

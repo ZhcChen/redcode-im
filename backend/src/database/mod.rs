@@ -226,3 +226,5 @@ fn split_sql_statements(script: &str) -> Vec<String> {
     }
     stmts
 }
+
+pub mod version_store;

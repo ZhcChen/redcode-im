@@ -15,6 +15,7 @@ pub fn db_user_to_api_user_info(
         email: db_user.email.clone(),
         nickname: db_user.nickname.clone(),
         avatar_url: db_user.avatar_url.clone(),
+        avatar_object_key: db_user.avatar_object_key.clone(),
         status: db_user_status_to_api_status(&db_user.status),
     }
 }
@@ -139,8 +140,11 @@ pub fn db_room_member_to_api(
 // ==================== 消息模型转换 ====================
 
 /// 将数据库消息模型转换为 API 消息信息
+use std::collections::HashMap;
+
 pub fn db_message_to_api_message_info(
     db_msg: &crate::database::models::MessageWithSender,
+    parts_lookup: &HashMap<uuid::Uuid, Vec<crate::database::models::MessagePart>>,
     room_pin: Option<&crate::database::models::RoomPin>,
 ) -> crate::models::MessageInfo {
     let is_pinned = room_pin
@@ -173,6 +177,14 @@ pub fn db_message_to_api_message_info(
                 sender_nickname: db_msg.forward_from_sender_nickname.clone(),
             });
 
+    let current_parts = parts_lookup
+        .get(&db_msg.id)
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
+
+    let api_parts: Vec<crate::models::MessagePartInfo> =
+        current_parts.iter().map(db_message_part_to_api).collect();
+
     crate::models::MessageInfo {
         id: db_msg.id.to_string(),
         room_id: db_msg.room_id.to_string(),
@@ -183,13 +195,14 @@ pub fn db_message_to_api_message_info(
         content: db_msg.content.clone(),
         message_type: db_message_type_to_api(&db_msg.message_type),
         created_at: db_msg.created_at.to_rfc3339(),
-        quoted_message: db_message_to_api_quoted_message(db_msg),
+        quoted_message: db_message_to_api_quoted_message(db_msg, parts_lookup),
         forward_message: forward,
         is_deleted: db_msg.deleted_at.is_some(),
         deleted_at: db_msg.deleted_at.map(|dt| dt.to_rfc3339()),
         is_pinned,
         pinned_at,
         pinned_by,
+        parts: api_parts,
     }
 }
 
@@ -202,6 +215,9 @@ pub fn db_message_type_to_api(
         crate::database::models::MessageType::Image => crate::models::MessageType::Image,
         crate::database::models::MessageType::File => crate::models::MessageType::File,
         crate::database::models::MessageType::System => crate::models::MessageType::System,
+        crate::database::models::MessageType::Video => crate::models::MessageType::Video,
+        crate::database::models::MessageType::Audio => crate::models::MessageType::Audio,
+        crate::database::models::MessageType::Mixed => crate::models::MessageType::Mixed,
     }
 }
 
@@ -214,6 +230,9 @@ pub fn api_message_type_to_db(
         crate::models::MessageType::Image => crate::database::models::MessageType::Image,
         crate::models::MessageType::File => crate::database::models::MessageType::File,
         crate::models::MessageType::System => crate::database::models::MessageType::System,
+        crate::models::MessageType::Video => crate::database::models::MessageType::Video,
+        crate::models::MessageType::Audio => crate::database::models::MessageType::Audio,
+        crate::models::MessageType::Mixed => crate::database::models::MessageType::Mixed,
     }
 }
 
@@ -260,6 +279,7 @@ pub fn db_chat_summary_to_api(
 
 fn db_message_to_api_quoted_message(
     db_msg: &crate::database::models::MessageWithSender,
+    parts_lookup: &HashMap<uuid::Uuid, Vec<crate::database::models::MessagePart>>,
 ) -> Option<crate::models::QuotedMessageInfo> {
     let quoted_id = db_msg.quoted_message_id?;
     let quoted_room_id = db_msg.quoted_message_room_id.unwrap_or(db_msg.room_id);
@@ -282,6 +302,10 @@ fn db_message_to_api_quoted_message(
     };
 
     let created_at = db_msg.quoted_message_created_at.map(|dt| dt.to_rfc3339());
+    let quoted_parts = parts_lookup
+        .get(&quoted_id)
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
 
     Some(crate::models::QuotedMessageInfo {
         id: quoted_id.to_string(),
@@ -294,7 +318,48 @@ fn db_message_to_api_quoted_message(
         message_type,
         created_at,
         is_deleted,
+        parts: quoted_parts.iter().map(db_message_part_to_api).collect(),
     })
+}
+
+fn db_message_part_to_api(
+    part: &crate::database::models::MessagePart,
+) -> crate::models::MessagePartInfo {
+    let attachment = match part.part_type {
+        crate::database::models::MessagePartType::Text => None,
+        _ => part
+            .attachment_key
+            .as_ref()
+            .map(|key| crate::models::MessageAttachmentInfo {
+                key: key.clone(),
+                name: part.attachment_name.clone(),
+                mime: part.attachment_mime.clone(),
+                size: part.attachment_size,
+                width: part.width,
+                height: part.height,
+                duration_ms: part.duration_ms,
+                thumbnail_key: part.thumbnail_key.clone(),
+            }),
+    };
+
+    crate::models::MessagePartInfo {
+        position: part.position,
+        part_type: db_message_part_type_to_api(&part.part_type),
+        text: part.text_content.clone(),
+        attachment,
+    }
+}
+
+fn db_message_part_type_to_api(
+    db_type: &crate::database::models::MessagePartType,
+) -> crate::models::MessagePartType {
+    match db_type {
+        crate::database::models::MessagePartType::Text => crate::models::MessagePartType::Text,
+        crate::database::models::MessagePartType::Image => crate::models::MessagePartType::Image,
+        crate::database::models::MessagePartType::Video => crate::models::MessagePartType::Video,
+        crate::database::models::MessagePartType::Audio => crate::models::MessagePartType::Audio,
+        crate::database::models::MessagePartType::File => crate::models::MessagePartType::File,
+    }
 }
 
 // ==================== 文档模型转换 ====================
@@ -418,5 +483,90 @@ mod tests {
     fn test_invalid_uuid() {
         let result = string_to_uuid("invalid-uuid");
         assert!(result.is_err());
+    }
+}
+
+pub fn db_app_version_to_api(
+    model: &crate::database::models::AppVersion,
+) -> crate::models::AppVersionInfo {
+    crate::models::AppVersionInfo {
+        id: model.id.to_string(),
+        platform: model.platform.clone(),
+        version: model.version.clone(),
+        build_number: model.build_number,
+        channel: model.channel.clone(),
+        download_key: model.download_key.clone(),
+        download_url: model.download_url.clone(),
+        file_size: model.file_size,
+        checksum: model.checksum.clone(),
+        signature: model.signature.clone(),
+        release_notes: model.release_notes.clone(),
+        mandatory: model.mandatory,
+        is_active: model.is_active,
+        created_at: model.created_at.to_rfc3339(),
+        updated_at: model.updated_at.to_rfc3339(),
+        released_at: model.released_at.map(|dt| dt.to_rfc3339()),
+    }
+}
+
+pub fn db_versions_to_api_list(
+    models: &[crate::database::models::AppVersion],
+) -> Vec<crate::models::AppVersionInfo> {
+    models.iter().map(db_app_version_to_api).collect()
+}
+
+pub fn api_create_version_to_db(
+    req: &crate::models::CreateAppVersionRequest,
+    operator: Option<uuid::Uuid>,
+) -> crate::database::version_store::AppVersionInsert {
+    use chrono::{DateTime, Utc};
+
+    let released_at = req
+        .released_at
+        .as_ref()
+        .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    crate::database::version_store::AppVersionInsert {
+        platform: req.platform.trim().to_string(),
+        version: req.version.trim().to_string(),
+        build_number: req.build_number,
+        channel: req.channel.trim().to_string(),
+        download_key: req.download_key.trim().to_string(),
+        download_url: req.download_url.clone(),
+        file_size: req.file_size,
+        checksum: req.checksum.clone(),
+        signature: req.signature.clone(),
+        release_notes: req.release_notes.clone(),
+        mandatory: req.mandatory,
+        is_active: req.is_active,
+        released_at,
+        operator,
+    }
+}
+
+pub fn api_update_version_to_db(
+    req: &crate::models::UpdateAppVersionRequest,
+    operator: Option<uuid::Uuid>,
+) -> crate::database::version_store::AppVersionUpdate {
+    use chrono::{DateTime, Utc};
+
+    let released_at = req
+        .released_at
+        .as_ref()
+        .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    crate::database::version_store::AppVersionUpdate {
+        download_key: req.download_key.clone(),
+        download_url: req.download_url.clone(),
+        file_size: req.file_size,
+        checksum: req.checksum.clone(),
+        signature: req.signature.clone(),
+        release_notes: req.release_notes.clone(),
+        mandatory: req.mandatory,
+        is_active: req.is_active,
+        released_at,
+        operator,
     }
 }

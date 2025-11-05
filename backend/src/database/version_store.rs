@@ -1,6 +1,7 @@
 use crate::database::models::AppVersion;
 use crate::database::Database;
-use sqlx::{query_as, query_scalar, Error};
+use chrono::{DateTime, Utc};
+use sqlx::{query_as, query_scalar, Error, QueryBuilder};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -13,10 +14,18 @@ impl VersionStore {
         Self { database }
     }
 
-    pub async fn create_version(
-        &self,
-        version: &AppVersionInsert,
-    ) -> Result<AppVersion, Error> {
+    pub async fn get_version(&self, id: Uuid) -> Result<Option<AppVersion>, Error> {
+        let record = query_as::<_, AppVersion>(
+            "SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.database.pool)
+        .await?;
+
+        Ok(record)
+    }
+
+    pub async fn create_version(&self, version: &AppVersionInsert) -> Result<AppVersion, Error> {
         let record = query_as::<_, AppVersion>(
             r#"
             INSERT INTO app_versions (
@@ -107,31 +116,21 @@ impl VersionStore {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<AppVersion>, Error> {
-        let mut query = String::from(
-            "SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE platform = $1",
+        let mut builder = QueryBuilder::new(
+            "SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE platform = ",
         );
-        if channel.is_some() {
-            query.push_str(" AND channel = $2");
+        builder.push_bind(platform);
+        if let Some(channel) = channel {
+            builder.push(" AND channel = ");
+            builder.push_bind(channel);
         }
-        query.push_str(" ORDER BY build_number DESC, created_at DESC LIMIT $3 OFFSET $4");
+        builder.push(" ORDER BY build_number DESC, created_at DESC LIMIT ");
+        builder.push_bind(limit);
+        builder.push(" OFFSET ");
+        builder.push_bind(offset);
 
-        let records = if let Some(channel) = channel {
-            query_as::<_, AppVersion>(&query)
-                .bind(platform)
-                .bind(channel)
-                .bind(limit)
-                .bind(offset)
-                .fetch_all(&self.database.pool)
-                .await?
-        } else {
-            query_as::<_, AppVersion>(&query)
-                .bind(platform)
-                .bind(limit)
-                .bind(offset)
-                .fetch_all(&self.database.pool)
-                .await?
-        };
-
+        let query = builder.build_query_as::<AppVersion>();
+        let records = query.fetch_all(&self.database.pool).await?;
         Ok(records)
     }
 
@@ -157,7 +156,11 @@ impl VersionStore {
         Ok(record)
     }
 
-    pub async fn deactivate_version(&self, id: Uuid, operator: Option<Uuid>) -> Result<Option<AppVersion>, Error> {
+    pub async fn deactivate_version(
+        &self,
+        id: Uuid,
+        operator: Option<Uuid>,
+    ) -> Result<Option<AppVersion>, Error> {
         let record = query_as::<_, AppVersion>(
             r#"
             UPDATE app_versions SET
@@ -184,6 +187,26 @@ impl VersionStore {
             .rows_affected();
 
         Ok(affected > 0)
+    }
+
+    pub async fn count_versions(
+        &self,
+        platform: &str,
+        channel: Option<&str>,
+    ) -> Result<i64, Error> {
+        let query = if let Some(channel) = channel {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM app_versions WHERE platform = $1 AND channel = $2",
+            )
+            .bind(platform)
+            .bind(channel)
+        } else {
+            sqlx::query_scalar("SELECT COUNT(*) FROM app_versions WHERE platform = $1")
+                .bind(platform)
+        };
+
+        let total: i64 = query.fetch_one(&self.database.pool).await?;
+        Ok(total)
     }
 }
 

@@ -67,6 +67,7 @@ message ServerMessage {
   string timestamp = 10;
   QuotedMessage quoted_message = 11;
   ForwardMessage forward_message = 12;
+  repeated MessagePart parts = 13;
 }
 
 message QuotedMessage {
@@ -80,6 +81,7 @@ message QuotedMessage {
   string message_type = 8;
   string created_at = 9;
   bool is_deleted = 10;
+  repeated MessagePart parts = 11;
 }
 
 message ForwardMessage {
@@ -88,6 +90,24 @@ message ForwardMessage {
   string sender_id = 3;
   string sender_username = 4;
   string sender_nickname = 5;
+}
+
+message MessageAttachment {
+  string key = 1;
+  string name = 2;
+  string mime = 3;
+  int64 size = 4;
+  int32 width = 5;
+  int32 height = 6;
+  int32 duration_ms = 7;
+  string thumbnail_key = 8;
+}
+
+message MessagePart {
+  int32 position = 1;
+  string part_type = 2;
+  string text = 3;
+  MessageAttachment attachment = 4;
 }
 
 message ServerMessageRead {
@@ -156,6 +176,7 @@ message PubSubMessage {
   string sender_avatar_url = 12;
   QuotedMessage quoted_message = 13;
   ForwardMessage forward_message = 14;
+  repeated MessagePart parts = 15;
 }
 
 message PubSubReadReceipt {

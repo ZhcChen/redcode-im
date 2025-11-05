@@ -27,6 +27,7 @@ pub struct UserInfo {
     pub email: String,
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
+    pub avatar_object_key: Option<String>,
     pub status: UserStatus,
 }
 
@@ -53,7 +54,6 @@ pub struct LoginResponse {
     pub user: UserInfo,
 }
 
-/// 更新用户资料请求
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserRequest {
     pub nickname: Option<String>,
@@ -72,6 +72,109 @@ pub struct ChangePasswordRequest {
 #[derive(Debug, Serialize)]
 pub struct UploadAvatarResponse {
     pub avatar_url: String,
+}
+
+// ==================== 版本管理模型 ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppVersionInfo {
+    pub id: String,
+    pub platform: String,
+    pub version: String,
+    pub build_number: i32,
+    pub channel: String,
+    pub download_key: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub release_notes: Option<String>,
+    pub mandatory: bool,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub released_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAppVersionRequest {
+    pub platform: String,
+    pub version: String,
+    pub build_number: i32,
+    #[serde(default = "CreateAppVersionRequest::default_channel")]
+    pub channel: String,
+    pub download_key: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub release_notes: Option<String>,
+    #[serde(default)]
+    pub mandatory: bool,
+    #[serde(default = "CreateAppVersionRequest::default_is_active")]
+    pub is_active: bool,
+    pub released_at: Option<String>,
+}
+
+impl CreateAppVersionRequest {
+    fn default_channel() -> String {
+        "stable".to_string()
+    }
+
+    fn default_is_active() -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct UpdateAppVersionRequest {
+    pub download_key: Option<String>,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub release_notes: Option<String>,
+    pub mandatory: Option<bool>,
+    pub is_active: Option<bool>,
+    pub released_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListAppVersionsQuery {
+    pub platform: String,
+    pub channel: Option<String>,
+    #[serde(default = "ListAppVersionsQuery::default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+impl ListAppVersionsQuery {
+    fn default_limit() -> i64 {
+        20
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LatestVersionQuery {
+    pub platform: String,
+    #[serde(default = "LatestVersionQuery::default_channel")]
+    pub channel: String,
+    #[serde(default)]
+    pub current_version: Option<String>,
+}
+
+impl LatestVersionQuery {
+    fn default_channel() -> String {
+        "stable".to_string()
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct LatestVersionResponse {
+    pub has_update: bool,
+    pub current_version: Option<String>,
+    pub version: Option<AppVersionInfo>,
 }
 
 // ==================== JWT Claims ====================
@@ -140,10 +243,52 @@ pub struct RoomMemberInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum MessageType {
-    Text,   // 文本消息
-    Image,  // 图片消息
-    File,   // 文件消息
-    System, // 系统消息
+    Text,
+    Image,
+    File,
+    System,
+    Video,
+    Audio,
+    Mixed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum MessagePartType {
+    Text,
+    Image,
+    Video,
+    Audio,
+    File,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageAttachmentInfo {
+    pub key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessagePartInfo {
+    pub position: i16,
+    pub part_type: MessagePartType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<MessageAttachmentInfo>,
 }
 
 /// 消息信息（API 响应）
@@ -172,16 +317,78 @@ pub struct MessageInfo {
     pub pinned_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pinned_by: Option<String>,
+    #[serde(default)]
+    pub parts: Vec<MessagePartInfo>,
 }
 
 /// 发送消息请求
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
-    pub content: String,
+    pub content: Option<String>,
     #[serde(default)]
-    pub message_type: Option<MessageType>,
+    pub parts: Vec<MessagePartPayload>,
     #[serde(default)]
     pub quoted_message_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum MessagePartPayload {
+    Text {
+        text: String,
+    },
+    Image {
+        key: String,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        mime: Option<String>,
+        #[serde(default)]
+        size: Option<i64>,
+        #[serde(default)]
+        width: Option<i32>,
+        #[serde(default)]
+        height: Option<i32>,
+        #[serde(default)]
+        thumbnail_key: Option<String>,
+    },
+    Video {
+        key: String,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        mime: Option<String>,
+        #[serde(default)]
+        size: Option<i64>,
+        #[serde(default)]
+        width: Option<i32>,
+        #[serde(default)]
+        height: Option<i32>,
+        #[serde(default)]
+        duration_ms: Option<i32>,
+        #[serde(default)]
+        thumbnail_key: Option<String>,
+    },
+    Audio {
+        key: String,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        mime: Option<String>,
+        #[serde(default)]
+        size: Option<i64>,
+        #[serde(default)]
+        duration_ms: Option<i32>,
+    },
+    File {
+        key: String,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        mime: Option<String>,
+        #[serde(default)]
+        size: Option<i64>,
+    },
 }
 
 /// 引用的消息信息（API 响应）
@@ -199,6 +406,8 @@ pub struct QuotedMessageInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     pub is_deleted: bool,
+    #[serde(default)]
+    pub parts: Vec<MessagePartInfo>,
 }
 
 /// 转发的消息信息（API 响应）

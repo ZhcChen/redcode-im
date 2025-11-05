@@ -6,7 +6,8 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, feedback, friend, healthz, message, message_read, room, root, settings, user, ws,
+    admin, auth, feedback, friend, healthz, message, message_read, room, root, settings, user,
+    version, ws,
 };
 use crate::AppState;
 
@@ -16,6 +17,8 @@ pub fn create_routes() -> Router<AppState> {
         .route("/", get(root))
         .route("/healthz", get(healthz))
         .route("/ws", get(ws))
+        .route("/versions/latest", get(version::latest_version))
+        .route("/versions/download", get(version::download_version))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/login/sms", post(auth::login_with_sms))
@@ -94,6 +97,24 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/storage-providers/test/buckets/create",
             post(admin::test_cos_create_bucket),
         )
+        .route(
+            "/api/admin/app-versions/upload/signature",
+            post(version::generate_version_upload_signature),
+        )
+        .route(
+            "/api/admin/app-versions",
+            get(version::list_app_versions).post(version::create_app_version),
+        )
+        .route(
+            "/api/admin/app-versions/:id",
+            get(version::get_app_version)
+                .patch(version::update_app_version)
+                .delete(version::delete_app_version),
+        )
+        .route(
+            "/api/admin/app-versions/:id/deactivate",
+            post(version::deactivate_app_version),
+        )
         .route("/feedbacks", post(feedback::submit_feedback))
         // users
         .route("/users/search", get(user::search_users))
@@ -134,6 +155,14 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/:room_id/messages",
             post(message::send_message).get(message::list_messages),
+        )
+        .route(
+            "/rooms/:room_id/messages/attachments/signature",
+            post(message::generate_message_attachment_signature),
+        )
+        .route(
+            "/rooms/:room_id/messages/attachments/download",
+            get(message::generate_message_attachment_download_url),
         )
         .route(
             "/rooms/:room_id/messages/forward",
