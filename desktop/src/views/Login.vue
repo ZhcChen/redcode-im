@@ -6,7 +6,11 @@
         <div class="login-container-header-left-subtitle">欢迎来到CHATLY</div>
       </div>
       <div class="login-container-header-right">
-        <img class="login-container-header-right-img" src="@/assets/image/logo-text.svg" alt=""/>
+        <img
+          class="login-container-header-right-img"
+          src="@/assets/image/logo-text.svg"
+          alt=""
+        />
       </div>
     </div>
     <div class="login-container-form">
@@ -16,11 +20,13 @@
         @change="handleLoginTypeChange"
       />
       <div class="login-container-form-item">
-        <div class="login-container-form-item-label">{{ primaryFieldLabel }}</div>
+        <div class="login-container-form-item-label">
+          {{ primaryFieldLabel }}
+        </div>
         <div class="login-container-form-item-value">
-          <b-input 
-            v-model="loginForm.phone" 
-            :placeholder="primaryFieldPlaceholder" 
+          <b-input
+            v-model="loginForm.phone"
+            :placeholder="primaryFieldPlaceholder"
             @keydown="handleKeydown"
           ></b-input>
         </div>
@@ -28,53 +34,68 @@
       <div class="login-container-form-item" v-if="loginType === 'password'">
         <div class="login-container-form-item-label">密码</div>
         <div class="login-container-form-item-value">
-          <b-input v-model="loginForm.password" type="password" placeholder="请输入密码" @keydown="handleKeydown"></b-input>
+          <b-input
+            v-model="loginForm.password"
+            type="password"
+            placeholder="请输入密码"
+            @keydown="handleKeydown"
+          ></b-input>
         </div>
       </div>
       <div class="login-container-form-item" v-if="loginType === 'captcha'">
         <div class="login-container-form-item-label">验证码</div>
-        <div class="login-container-form-item-value login-container-form-item-value-captcha">
+        <div
+          class="login-container-form-item-value login-container-form-item-value-captcha"
+        >
           <div class="login-container-form-item-captcha-input">
-            <b-input 
-              v-model="loginForm.captcha" 
-              placeholder="请输入验证码" 
+            <b-input
+              v-model="loginForm.captcha"
+              placeholder="请输入验证码"
               @keydown="handleKeydown"
             ></b-input>
           </div>
-          <b-button 
-            @click="handleSendCaptcha" 
+          <b-button
+            @click="handleSendCaptcha"
             :disabled="isSendingCaptcha || countdown > 0"
             class="login-container-form-item-captcha-button"
           >
-            {{ countdown > 0 ? `${countdown}s后重发` : (isSendingCaptcha ? '发送中...' : '发送验证码') }}
+            {{
+              countdown > 0
+                ? `${countdown}s后重发`
+                : isSendingCaptcha
+                  ? "发送中..."
+                  : "发送验证码"
+            }}
           </b-button>
         </div>
       </div>
       <div class="login-container-form-item">
         <b-button @click="handleLogin" :disabled="isLoading">
-          {{ isLoading ? '登录中...' : '登录账号' }}
+          {{ isLoading ? "登录中..." : "登录账号" }}
         </b-button>
       </div>
       <div class="login-container-form-agree">
         <b-radio v-model="isAgreed"></b-radio>
-        <div class="login-container-form-agree-text">注册/登陆即代表同意《用户协议》和《隐私协议》</div>
+        <div class="login-container-form-agree-text">
+          注册/登陆即代表同意《用户协议》和《隐私协议》
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import {ref, computed, onMounted, onUnmounted} from "vue";
-import {useRouter} from "vue-router";
-import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
-import {LogicalSize} from "@tauri-apps/api/dpi";
-import {invoke} from "@tauri-apps/api/core";
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { LogicalSize } from "@tauri-apps/api/dpi";
+import { invoke } from "@tauri-apps/api/core";
 import BInput from "@/components/BInput.vue";
 import BButton from "@/components/BButton.vue";
 import BRadio from "@/components/BRadio.vue";
 import BTabs from "@/components/BTabs.vue";
-import {useStore} from "vuex";
-import {SystemApi} from "@/api";
+import { useStore } from "vuex";
+import { SystemApi } from "@/api";
 import toast from "@/utils/toast";
 
 const router = useRouter();
@@ -84,8 +105,8 @@ const isAgreed = ref(true);
 
 // 登录类型选项
 const loginTabs = [
-  { label: '密码登录', value: 'password' },
-  { label: '验证码登录', value: 'captcha' }
+  { label: "密码登录", value: "password" },
+  { label: "验证码登录", value: "captcha" },
 ];
 
 // 窗口大小管理
@@ -112,7 +133,7 @@ async function setLoginWindowSize() {
     await currentWindow.setResizable(false);
 
     // 使用 Rust 后端设置窗口大小并居中
-    await invoke('set_window_size_and_center', { width: 400, height: 600 });
+    await invoke("set_window_size_and_center", { width: 400, height: 600 });
 
     console.log("登录页面窗口大小已通过 Rust 后端调整为 400x600，并居中");
   } catch (error) {
@@ -141,12 +162,14 @@ async function restoreOriginalWindowSize() {
       await currentWindow.setResizable(originalResizable);
 
       // 使用 Rust 后端恢复原始窗口大小并居中
-      await invoke('set_window_size_and_center', { 
-        width: originalSize.width, 
-        height: originalSize.height 
+      await invoke("set_window_size_and_center", {
+        width: originalSize.width,
+        height: originalSize.height,
       });
 
-      console.log("窗口大小和可调整状态已通过 Rust 后端恢复为原始设置（保持标题不变）");
+      console.log(
+        "窗口大小和可调整状态已通过 Rust 后端恢复为原始设置（保持标题不变）",
+      );
     }
   } catch (error) {
     console.error("恢复窗口大小失败:", error);
@@ -154,7 +177,9 @@ async function restoreOriginalWindowSize() {
     if (originalSize) {
       try {
         const currentWindow = getCurrentWebviewWindow();
-        await currentWindow.setSize(new LogicalSize(originalSize.width, originalSize.height));
+        await currentWindow.setSize(
+          new LogicalSize(originalSize.width, originalSize.height),
+        );
         await currentWindow.center();
       } catch (fallbackError) {
         console.error("回退方法也失败:", fallbackError);
@@ -165,6 +190,13 @@ async function restoreOriginalWindowSize() {
 
 // 组件挂载时设置窗口大小
 onMounted(() => {
+  console.log("[Login] 页面已挂载，准备隐藏全局加载蒙版");
+  try {
+    store.dispatch("hideGlobalLoading");
+  } catch (error) {
+    console.warn("[Login] 隐藏全局加载蒙版失败:", error);
+  }
+
   // 添加短暂延迟确保路由跳转完成
   setTimeout(() => {
     setLoginWindowSize();
@@ -173,41 +205,49 @@ onMounted(() => {
 
 // 处理登录
 async function handleLogin() {
+  console.log("[Login] handleLogin invoked");
   // 表单验证
   if (!validateForm()) {
+    console.warn("[Login] 表单验证未通过, 阻止登录");
     return;
   }
 
   isLoading.value = true;
+  console.log("[Login] isLoading -> true");
 
   try {
     // 在开始登录前立即重置登出状态，确保可以发起API请求
-    const { setLoggingOut, setLoginTime, clearLoginTime } = await import('@/api/http');
+    const { setLoggingOut, setLoginTime, clearLoginTime } = await import(
+      "@/api/http"
+    );
+    console.log("[Login] 已加载 http 模块, 重置登出状态");
     setLoggingOut(false);
     clearLoginTime(); // 清除之前的登录时间
-    console.log('📝 已重置登出状态和登录时间，开始登录流程');
+    console.log("📝 已重置登出状态和登录时间，开始登录流程");
 
     let response;
-    
-    if (loginType.value === 'password') {
+
+    if (loginType.value === "password") {
       // 密码登录
+      console.log("[Login] 发起密码登录请求");
       response = await SystemApi.login({
         mobile: loginForm.value.phone,
         password: loginForm.value.password,
-        userDeviceId: Date.now()
+        userDeviceId: Date.now(),
       });
     } else {
       // 验证码登录
+      console.log("[Login] 发起验证码登录请求");
       response = await SystemApi.loginWithSMS({
         phone: loginForm.value.phone,
-        code: loginForm.value.captcha
+        code: loginForm.value.captcha,
       });
     }
 
     if (response.success && response.data) {
       // 登录成功，立即设置登录时间（在状态更新之前）
       setLoginTime();
-      console.log('⏰ 已设置登录时间戳');
+      console.log("⏰ 已设置登录时间戳");
 
       // 登录成功，保存用户信息和token到store
       // 将API返回的数据格式映射为Store期望的格式
@@ -216,12 +256,12 @@ async function handleLogin() {
         id: String(userInfo.id),
         username: userInfo.username,
         nickname: userInfo.nickname || userInfo.username,
-        avatar: userInfo.avatar || '',
+        avatar: userInfo.avatar || "",
         mobile: userInfo.mobile || userInfo.username,
-        email: userInfo.email || '',
+        email: userInfo.email || "",
         realName: userInfo.realName || userInfo.nickname || userInfo.username,
         chatNumber: userInfo.chatNumber || userInfo.username,
-        address: userInfo.address || '',
+        address: userInfo.address || "",
         createTime: userInfo.createTime || null,
         lastLoginTime: userInfo.lastLoginTime || null,
         activeStatus: userInfo.activeStatus ?? null,
@@ -230,80 +270,84 @@ async function handleLogin() {
         userDeviceId: userInfo.userDeviceId || null,
         userSign: userInfo.userSign || null,
         trcSdkAppId: userInfo.trcSdkAppId ?? null,
-        powerList: userInfo.powerList ?? null
+        powerList: userInfo.powerList ?? null,
       };
-      
-      console.log('📸 登录响应中的头像信息:', {
+
+      console.log("📸 登录响应中的头像信息:", {
         originalAvatar: userInfo.avatar,
         mappedAvatar: mappedUserInfo.avatar,
-        fullUserInfo: userInfo
+        fullUserInfo: userInfo,
       });
-      
+
       await store.dispatch("login", {
         token: response.data.token,
-        userInfo: mappedUserInfo
+        userInfo: mappedUserInfo,
       });
+      console.log("[Login] 首次 dispatch login 完成");
 
       console.log("登录成功:", response.data);
 
       // 等待更长时间确保状态完全同步，避免竞态条件
-      await new Promise(resolve => setTimeout(resolve, 800)); // 增加延迟
+      await new Promise((resolve) => setTimeout(resolve, 800)); // 增加延迟
 
       // 验证token是否正确设置到store中
       const verifyToken = store.state.token;
       const verifyLoggedIn = store.getters.isLoggedIn;
-      console.log('🔍 登录完成后状态验证:', {
+      console.log("🔍 登录完成后状态验证:", {
         storeTokenSet: !!verifyToken,
-        storeTokenPreview: verifyToken ? `${verifyToken.substring(0, 10)}...` : '无token',
+        storeTokenPreview: verifyToken
+          ? `${verifyToken.substring(0, 10)}...`
+          : "无token",
         isLoggedIn: verifyLoggedIn,
         tokenMatch: verifyToken === response.data.token,
         userInfo: mappedUserInfo,
-        currentTime: new Date().toISOString()
+        currentTime: new Date().toISOString(),
       });
 
       // 如果token验证失败，重新设置
       if (!verifyToken || verifyToken !== response.data.token) {
-        console.warn('⚠️ Token验证失败，重新设置...');
+        console.warn("⚠️ Token验证失败，重新设置...");
         await store.dispatch("login", {
           token: response.data.token,
-          userInfo: mappedUserInfo
+          userInfo: mappedUserInfo,
         });
         // 再次等待确保设置完成
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log("[Login] 第二次 dispatch login 完成");
       }
 
       // 更新窗口标题
       try {
-        console.log('🔄 准备更新窗口标题，用户信息:', mappedUserInfo);
-        const { updateWindowTitle } = await import('@/utils');
+        console.log("🔄 准备更新窗口标题，用户信息:", mappedUserInfo);
+        const { updateWindowTitle } = await import("@/utils");
         await updateWindowTitle(mappedUserInfo);
-        console.log('✅ 窗口标题更新完成');
+        console.log("✅ 窗口标题更新完成");
       } catch (error) {
-        console.error('❌ 更新窗口标题失败:', error);
+        console.error("❌ 更新窗口标题失败:", error);
       }
 
       // 最后等待确保所有异步操作完成
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // 登录成功跳转前的最终状态确认
       const finalToken = store.state.token;
       const finalLoggedIn = store.getters.isLoggedIn;
-      console.log('🏁 登录流程最终状态确认:', {
+      console.log("🏁 登录流程最终状态确认:", {
         hasToken: !!finalToken,
         isLoggedIn: finalLoggedIn,
         readyToNavigate: !!(finalToken && finalLoggedIn),
         currentPath: window.location.pathname,
-        targetPath: '/home'
+        targetPath: "/home",
       });
 
       // 只有在状态确认无误时才跳转
       if (finalToken && finalLoggedIn) {
-        console.log('✅ 状态验证通过，开始页面跳转...');
+        console.log("✅ 状态验证通过，开始页面跳转...");
         // 登录成功后，直接跳转到首页
-        router.replace({ name: 'Home' });
+        router.replace({ name: "Home" });
       } else {
-        console.error('❌ 登录状态验证失败，无法跳转');
-        toast.error('登录状态异常，请重试');
+        console.error("❌ 登录状态验证失败，无法跳转");
+        toast.error("登录状态异常，请重试");
       }
     } else {
       // 登录失败
@@ -314,6 +358,7 @@ async function handleLogin() {
     console.error("登录请求失败:", error);
     toast.error(error.message || "网络错误，请稍后重试");
   } finally {
+    console.log("[Login] handleLogin finally, isLoading -> false");
     isLoading.value = false;
   }
 }
@@ -335,7 +380,7 @@ const loginForm = ref({
 });
 
 // 登录类型：password 密码登录 | captcha 验证码登录
-const loginType = ref<'password' | 'captcha'>('password');
+const loginType = ref<"password" | "captcha">("password");
 
 // 表单状态
 const showPassword = ref(false);
@@ -346,31 +391,41 @@ const countdown = ref(0);
 let countdownTimer: NodeJS.Timeout | null = null;
 
 // 表单验证
-const primaryFieldLabel = computed(() => loginType.value === 'captcha' ? '账号' : '手机号');
-const primaryFieldPlaceholder = computed(() => loginType.value === 'captcha' ? '请输入账号' : '请输入手机号');
+const primaryFieldLabel = computed(() =>
+  loginType.value === "captcha" ? "账号" : "手机号",
+);
+const primaryFieldPlaceholder = computed(() =>
+  loginType.value === "captcha" ? "请输入账号" : "请输入手机号",
+);
 
 const isFormValid = computed(() => {
   const account = loginForm.value.phone.trim();
-  if (loginType.value === 'password') {
-    return account.length > 0 && loginForm.value.password.length >= 6 && isAgreed.value;
+  if (loginType.value === "password") {
+    return (
+      account.length > 0 &&
+      loginForm.value.password.length >= 6 &&
+      isAgreed.value
+    );
   }
-  return account.length > 0 && loginForm.value.captcha.length === 6 && isAgreed.value;
+  return (
+    account.length > 0 && loginForm.value.captcha.length === 6 && isAgreed.value
+  );
 });
 
 // 切换登录类型
 function handleLoginTypeChange(value: string | number) {
   // 切换登录类型时清空验证码
-  if (value === 'password') {
-    loginForm.value.captcha = '';
+  if (value === "password") {
+    loginForm.value.captcha = "";
   } else {
-    loginForm.value.password = '';
+    loginForm.value.password = "";
   }
 }
 
 // 表单验证函数
 function validateForm(): boolean {
   const account = loginForm.value.phone.trim();
-  const isCaptchaMode = loginType.value === 'captcha';
+  const isCaptchaMode = loginType.value === "captcha";
 
   if (!account) {
     toast.error(isCaptchaMode ? "请输入账号" : "请输入手机号");
@@ -381,13 +436,13 @@ function validateForm(): boolean {
     toast.error("请输入正确的手机号");
     return false;
   }
-  
-  if (loginType.value === 'password') {
+
+  if (loginType.value === "password") {
     if (!loginForm.value.password.trim()) {
       toast.error("请输入密码");
       return false;
     }
-    
+
     if (loginForm.value.password.length < 6) {
       toast.error("密码长度至少为6位");
       return false;
@@ -397,18 +452,18 @@ function validateForm(): boolean {
       toast.error("请输入验证码");
       return false;
     }
-    
+
     if (loginForm.value.captcha.length !== 6) {
       toast.error("验证码长度为6位");
       return false;
     }
   }
-  
+
   if (!isAgreed.value) {
     toast.error("请先同意用户协议和隐私协议");
     return false;
   }
-  
+
   return true;
 }
 
@@ -418,14 +473,14 @@ async function handleSendCaptcha() {
     toast.error("请输入账号");
     return;
   }
-  
+
   isSendingCaptcha.value = true;
-  
+
   try {
     const response = await SystemApi.sendLoginSMS({
-      phone: loginForm.value.phone
+      phone: loginForm.value.phone,
     });
-    
+
     if (response.success) {
       toast.success("验证码已发送");
       // 开始倒计时
@@ -455,7 +510,7 @@ async function handleSendCaptcha() {
 
 // 处理键盘事件（回车登录）
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter') {
+  if (event.key === "Enter") {
     event.preventDefault();
     handleLogin();
   }
@@ -490,7 +545,6 @@ function handleKeydown(event: KeyboardEvent) {
     }
 
     &-right {
-
       img {
         width: 115px;
         height: 24px;
@@ -528,7 +582,7 @@ function handleKeydown(event: KeyboardEvent) {
       &-captcha-input {
         flex: 1;
         min-width: 0;
-        
+
         :deep(.b-input) {
           width: 100%;
         }
@@ -538,7 +592,7 @@ function handleKeydown(event: KeyboardEvent) {
         flex-shrink: 0;
         min-width: 90px;
         width: auto;
-        
+
         :deep(.b-button) {
           width: 100%;
         }
@@ -548,7 +602,6 @@ function handleKeydown(event: KeyboardEvent) {
         margin-bottom: 24px;
       }
     }
-
 
     &-agree {
       margin-top: 17px;

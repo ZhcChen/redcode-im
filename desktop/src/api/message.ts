@@ -1,17 +1,26 @@
-import { del, get, post } from './http';
-import type { ApiResponse } from './http';
-import {
+import { del, get, post } from "./http";
+import type { ApiResponse } from "./http";
+import type {
   Message,
-  MessageType,
-  MessageStatus,
   ForwardInfo,
-  ForwardSourceType,
   QuotedMessage,
   MessageReader,
-} from '@/types/models';
+} from "@/types/models";
+import { MessageType, MessageStatus, ForwardSourceType } from "@/types/models";
 
-type BackendMessageType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'system';
-type BackendMessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+type BackendMessageType =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "file"
+  | "system";
+type BackendMessageStatus =
+  | "sending"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed";
 
 export interface BackendMessageInfo {
   id: string;
@@ -81,30 +90,30 @@ interface BackendEnsureChatResponse {
 
 export const parseMessageType = (value: string): MessageType => {
   switch (value) {
-    case 'image':
+    case "image":
       return MessageType.IMAGE;
-    case 'audio':
+    case "audio":
       return MessageType.VOICE;
-    case 'video':
+    case "video":
       return MessageType.VIDEO;
-    case 'file':
+    case "file":
       return MessageType.FILE;
-    case 'system':
+    case "system":
       return MessageType.SYSTEM;
-    case 'text':
+    case "text":
     default:
       return MessageType.TEXT;
   }
 };
 
 const parseForwardSourceType = (value?: string | null): ForwardSourceType => {
-  switch ((value || '').toLowerCase()) {
-    case 'user':
-    case 'single':
+  switch ((value || "").toLowerCase()) {
+    case "user":
+    case "single":
       return ForwardSourceType.USER;
-    case 'group':
+    case "group":
       return ForwardSourceType.GROUP;
-    case 'favorite':
+    case "favorite":
       return ForwardSourceType.FAVORITE;
     default:
       return ForwardSourceType.UNKNOWN;
@@ -113,15 +122,15 @@ const parseForwardSourceType = (value?: string | null): ForwardSourceType => {
 
 const parseMessageStatus = (value?: string | null): MessageStatus => {
   switch (value) {
-    case 'sending':
+    case "sending":
       return MessageStatus.SENDING;
-    case 'delivered':
+    case "delivered":
       return MessageStatus.DELIVERED;
-    case 'read':
+    case "read":
       return MessageStatus.READ;
-    case 'failed':
+    case "failed":
       return MessageStatus.FAILED;
-    case 'sent':
+    case "sent":
     default:
       return MessageStatus.SENT;
   }
@@ -138,7 +147,9 @@ const parseTimestamp = (value?: string | null): Date => {
   return parsed;
 };
 
-const mapQuotedMessage = (quoted?: BackendQuotedMessage | null): QuotedMessage | null => {
+const mapQuotedMessage = (
+  quoted?: BackendQuotedMessage | null,
+): QuotedMessage | null => {
   if (!quoted) {
     return null;
   }
@@ -157,25 +168,28 @@ const mapQuotedMessage = (quoted?: BackendQuotedMessage | null): QuotedMessage |
   };
 };
 
-const mapForwardMessage = (forward?: BackendForwardMessage | null): ForwardInfo | null => {
+const mapForwardMessage = (
+  forward?: BackendForwardMessage | null,
+): ForwardInfo | null => {
   if (!forward) {
     return null;
   }
 
   return {
     sourceType: parseForwardSourceType(forward.source_type),
-    sourceId: forward.source_id ?? forward.room_id ?? '',
+    sourceId: forward.source_id ?? forward.room_id ?? "",
     sourceName:
       forward.source_name ??
       forward.sender_nickname ??
       forward.sender_username ??
       forward.source_id ??
-      '',
+      "",
     sourceAvatar: forward.source_avatar ?? null,
     originMessageId: forward.message_id ?? null,
     originRoomId: forward.room_id ?? null,
     originSenderId: forward.sender_id ?? null,
-    originSenderName: forward.sender_nickname ?? forward.sender_username ?? null,
+    originSenderName:
+      forward.sender_nickname ?? forward.sender_username ?? null,
   };
 };
 
@@ -200,7 +214,9 @@ export const transformBackendMessage = (
     type: parseMessageType(message.message_type),
     status: parseMessageStatus(message.status),
     timestamp,
-    isSelf: currentUserId ? currentUserId.toString() === message.sender_id.toString() : false,
+    isSelf: currentUserId
+      ? currentUserId.toString() === message.sender_id.toString()
+      : false,
     extra: message.extra ?? null,
     quotedMessage: mapQuotedMessage(message.quoted_message),
     forwardInfo: mapForwardMessage(message.forward_message),
@@ -227,7 +243,9 @@ export interface GetMessageListParams {
   currentUserId?: string;
 }
 
-const buildMessageQuery = (params: GetMessageListParams): Record<string, string> => {
+const buildMessageQuery = (
+  params: GetMessageListParams,
+): Record<string, string> => {
   const query: Record<string, string> = {};
   const limit = params.limit ?? params.size;
   if (limit) {
@@ -260,7 +278,9 @@ export class MessageApi {
       };
     }
 
-    const mapped = response.data.map((item) => transformBackendMessage(item, params.currentUserId));
+    const mapped = response.data.map((item) =>
+      transformBackendMessage(item, params.currentUserId),
+    );
     return {
       ...response,
       data: mapped,
@@ -275,7 +295,7 @@ export class MessageApi {
   }): Promise<ApiResponse<Message>> {
     const payload: Record<string, unknown> = {
       content: params.content,
-      message_type: 'text',
+      message_type: "text",
     };
 
     if (params.replyToMessageId) {
@@ -308,7 +328,7 @@ export class MessageApi {
       return {
         code: 400,
         success: false,
-        message: '缺少消息 ID，无法标记为已读',
+        message: "缺少消息 ID，无法标记为已读",
         data: null,
       };
     }
@@ -318,11 +338,13 @@ export class MessageApi {
     });
   }
 
-  static async getUnreadMessageCount(params: { groupId?: string } = {}): Promise<ApiResponse<any>> {
+  static async getUnreadMessageCount(
+    params: { groupId?: string } = {},
+  ): Promise<ApiResponse<any>> {
     if (params.groupId) {
       return get(`/rooms/${params.groupId}/unread_count`);
     }
-    return get('/unread_counts');
+    return get("/unread_counts");
   }
 
   static async deleteMessage(params: {
@@ -370,7 +392,14 @@ export class MessageApi {
     groupId: string;
     messageId: string;
     currentUserId?: string;
-  }): Promise<ApiResponse<{ message: Message | null; isPinned: boolean; pinnedAt?: Date | null; pinnedBy?: string | null }>> {
+  }): Promise<
+    ApiResponse<{
+      message: Message | null;
+      isPinned: boolean;
+      pinnedAt?: Date | null;
+      pinnedBy?: string | null;
+    }>
+  > {
     const response = await post<BackendPinResponse>(
       `/rooms/${params.groupId}/messages/${params.messageId}/pin`,
       {},
@@ -392,7 +421,9 @@ export class MessageApi {
       data: {
         message: mappedMessage,
         isPinned: Boolean(response.data.is_pinned),
-        pinnedAt: response.data.pinned_at ? parseTimestamp(response.data.pinned_at) : null,
+        pinnedAt: response.data.pinned_at
+          ? parseTimestamp(response.data.pinned_at)
+          : null,
         pinnedBy: response.data.pinned_by ?? null,
       },
     };
@@ -442,8 +473,13 @@ export class MessageApi {
     };
   }
 
-  static async ensureChatRoom(params: { friendId: string }): Promise<ApiResponse<{ roomId: string }>> {
-    const response = await post<BackendEnsureChatResponse>(`/friends/${params.friendId}/chat`, {});
+  static async ensureChatRoom(params: {
+    friendId: string;
+  }): Promise<ApiResponse<{ roomId: string }>> {
+    const response = await post<BackendEnsureChatResponse>(
+      `/friends/${params.friendId}/chat`,
+      {},
+    );
     if (!response.success || !response.data) {
       return {
         ...response,

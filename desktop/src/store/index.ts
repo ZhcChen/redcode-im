@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {createStore} from 'vuex'
-import type { Message as DomainMessage } from '@/types/models'
+import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
+import { UserApi, VersionApi, apiConfig } from '@/api'
 
 // 辅助函数：格式化最后在线时间
 function formatLastSeen(timeStr: string): string {
@@ -106,6 +107,8 @@ export interface State {
         username: string | null
         nickname: string | null
         avatar: string | null
+        avatarObjectKey: string | null
+        avatarLocalPath: string | null
         mobile: string | null
         email: string | null
         isLoggedIn: boolean
@@ -122,6 +125,19 @@ export interface State {
         userSign?: string | null
         trcSdkAppId?: number | null
         powerList?: any[] | null
+    }
+    version: {
+        current: {
+            buildNumber: number
+            version: string
+            channel: string
+        }
+        latest: {
+            hasUpdate: boolean
+            info: AppVersionInfo | null
+            checking: boolean
+            error: string | null
+        }
     }
     theme: 'light' | 'dark'
     loading: boolean
@@ -169,6 +185,8 @@ export const store = createStore<State>({
             username: null,
             nickname: null,
             avatar: null,
+            avatarObjectKey: null,
+            avatarLocalPath: null,
             mobile: null,
             email: null,
             isLoggedIn: false,
@@ -183,8 +201,70 @@ export const store = createStore<State>({
             userDeviceId: null,
             userSign: null,
             trcSdkAppId: null,
-            powerList: null
+        powerList: null
+    },
+    version: {
+        current: {
+            buildNumber: apiConfig.version,
+            version: String(apiConfig.version),
+            channel: 'stable'
         },
+
+        async checkAppUpdate({ state, commit }: { state: State; commit: any }) {
+            commit('SET_VERSION_CHECKING', true)
+            commit('SET_VERSION_ERROR', null)
+            try {
+                const response = await VersionApi.getLatestVersion({
+                    platform: 'desktop',
+                    channel: state.version.current.channel,
+                    currentVersion: state.version.current.version
+                })
+                if (!response.success || !response.data) {
+                    throw new Error(response.message || '版本查询失败')
+                }
+                const { has_update, version } = response.data
+                commit('SET_VERSION_INFO', {
+                    hasUpdate: !!has_update && !!version,
+                    info: version || null
+                })
+            } catch (error: any) {
+                const message = error?.message || '检查更新失败'
+                console.warn('桌面端检查更新失败:', message)
+                commit('SET_VERSION_ERROR', message)
+                commit('SET_VERSION_INFO', { hasUpdate: false, info: null })
+            } finally {
+                commit('SET_VERSION_CHECKING', false)
+            }
+        },
+
+        async downloadLatestVersion({ state, commit }: { state: State; commit: any }) {
+            const latest = state.version.latest.info
+            if (!latest) {
+                commit('SET_VERSION_ERROR', '暂无可用更新')
+                return
+            }
+            try {
+                const response = await VersionApi.getDownloadUrl({
+                    id: latest.id,
+                    expiresInSeconds: 600
+                })
+                if (!response.success || !response.data || !response.data.download_url) {
+                    throw new Error(response.message || '获取下载链接失败')
+                }
+                window.open(response.data.download_url, '_blank', 'noopener')
+            } catch (error: any) {
+                const message = error?.message || '下载更新失败'
+                commit('SET_VERSION_ERROR', message)
+                throw error
+            }
+        },
+        latest: {
+            hasUpdate: false,
+            info: null,
+            checking: false,
+            error: null
+        }
+    },
         theme: 'light',
         loading: false,
         sidebarWidth: 300,
@@ -229,6 +309,8 @@ export const store = createStore<State>({
             username: string; 
             nickname: string; 
             avatar: string; 
+            avatarObjectKey?: string | null;
+            avatarLocalPath?: string | null;
             mobile: string; 
             email: string;
             realName?: string;
@@ -248,6 +330,8 @@ export const store = createStore<State>({
             state.user.username = userInfo.username
             state.user.nickname = userInfo.nickname
             state.user.avatar = userInfo.avatar
+            state.user.avatarObjectKey = userInfo.avatarObjectKey || null
+            state.user.avatarLocalPath = userInfo.avatarLocalPath || null
             state.user.mobile = userInfo.mobile
             state.user.email = userInfo.email
             state.user.isLoggedIn = true
@@ -271,6 +355,8 @@ export const store = createStore<State>({
             username: string;
             nickname: string;
             avatar: string;
+            avatarObjectKey: string | null;
+            avatarLocalPath: string | null;
             mobile: string;
             email: string;
         }>) {
@@ -278,8 +364,23 @@ export const store = createStore<State>({
             if (userInfo.username !== undefined) state.user.username = userInfo.username
             if (userInfo.nickname !== undefined) state.user.nickname = userInfo.nickname
             if (userInfo.avatar !== undefined) state.user.avatar = userInfo.avatar
+            if (userInfo.avatarObjectKey !== undefined) state.user.avatarObjectKey = userInfo.avatarObjectKey
+            if (userInfo.avatarLocalPath !== undefined) state.user.avatarLocalPath = userInfo.avatarLocalPath
             if (userInfo.mobile !== undefined) state.user.mobile = userInfo.mobile
             if (userInfo.email !== undefined) state.user.email = userInfo.email
+        },
+
+        SET_VERSION_CHECKING(state: State, checking: boolean) {
+            state.version.latest.checking = checking
+        },
+
+        SET_VERSION_ERROR(state: State, message: string | null) {
+            state.version.latest.error = message
+        },
+
+        SET_VERSION_INFO(state: State, payload: { hasUpdate: boolean; info: AppVersionInfo | null }) {
+            state.version.latest.hasUpdate = payload.hasUpdate
+            state.version.latest.info = payload.info
         },
 
         LOGOUT_USER(state: State) {
@@ -287,6 +388,8 @@ export const store = createStore<State>({
             state.user.username = null
             state.user.nickname = null
             state.user.avatar = null
+            state.user.avatarObjectKey = null
+            state.user.avatarLocalPath = null
             state.user.mobile = null
             state.user.email = null
             state.user.isLoggedIn = false
@@ -682,7 +785,7 @@ export const store = createStore<State>({
 
     actions: {
         // 登录
-        async login({commit, state, getters}: { commit: any; state: any; getters: any }, loginData: {
+        async login({commit, state, getters, dispatch}: { commit: any; state: any; getters: any; dispatch: any }, loginData: {
             token: string;
             userInfo: {
                 id: string;
@@ -754,6 +857,18 @@ export const store = createStore<State>({
                     throw userError;
                 }
 
+                try {
+                    await UserApi.syncAvatarCache(true);
+                } catch (cacheError) {
+                    console.warn('同步头像缓存失败:', cacheError);
+                }
+
+                try {
+                    await dispatch('checkAppUpdate');
+                } catch (versionError) {
+                    console.warn('版本检查失败:', versionError);
+                }
+
                 // 立即验证token是否正确设置
                 const verifyToken = state.token;
                 const verifyLoggedIn = getters.isLoggedIn;
@@ -776,8 +891,15 @@ export const store = createStore<State>({
         },
 
         // 登出 - 显示加载蒙版，快速清除客户端状态，立即关闭WebSocket防止账户混乱
-        logout({commit}: { commit: any }) {
+        logout({commit, state}: { commit: any; state: State }) {
             console.log('🔄 开始退出登录...')
+
+            // 如果已经处于未登录状态，立即收起蒙版并退出
+            if (!state.token && !state.user.isLoggedIn) {
+                console.log('⚠️ 已是未登录状态，跳过登出流程')
+                commit('HIDE_GLOBAL_LOADING')
+                return
+            }
 
             // 第一步：显示加载蒙版
             commit('SHOW_GLOBAL_LOADING', '正在退出登录...')
@@ -839,6 +961,9 @@ export const store = createStore<State>({
                     }
 
                     console.log('✅ 认证状态已清除，将触发路由跳转')
+
+                    // 确保全局加载蒙版被关闭
+                    commit('HIDE_GLOBAL_LOADING')
                 }
 
                 // 设置超时保护，确保1.5秒内必须清除token
@@ -1298,6 +1423,11 @@ export const store = createStore<State>({
         currentChatGroupId: (state: State) => state.currentChatGroupId,
         pendingFriendRequests: (state: State) => state.pendingFriendRequests,
         globalLoading: (state: State) => state.globalLoading,
+        appVersion: (state: State) => state.version,
+        latestVersionInfo: (state: State) => state.version.latest.info,
+        hasAppUpdate: (state: State) => state.version.latest.hasUpdate,
+        appUpdateError: (state: State) => state.version.latest.error,
+        appUpdateChecking: (state: State) => state.version.latest.checking,
         
         // 联系人相关 getters
         contacts: (state: State) => state.contacts.list,

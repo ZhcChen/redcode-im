@@ -331,6 +331,17 @@ class HttpClient {
           throw new Error('登录验证中，请稍后重试');
         }
 
+        if (!store.getters.isLoggedIn || !store.state.token) {
+          console.warn(`[${requestId}] 未登录状态收到401，跳过自动登出流程`);
+          this.setLoggingOut(false);
+          try {
+            store.dispatch('hideGlobalLoading');
+          } catch (dispatchError) {
+            console.warn('尝试隐藏全局加载蒙版失败:', dispatchError);
+          }
+          throw new Error('未登录，无需重复登出');
+        }
+
         if (!this.isLoggingOut) {
           console.error('🚫 认证失败，准备自动登出');
           this.setLoggingOut(true);

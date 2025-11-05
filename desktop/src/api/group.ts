@@ -1,14 +1,14 @@
-import { get, post } from './http';
-import type { ApiResponse } from './http';
-import {
+import { get, post } from "./http";
+import type { ApiResponse } from "./http";
+import type {
   Chat,
-  ChatType,
   RoomMember,
   RoomMemberRole,
   EnsureChatResult,
-} from '@/types/models';
+} from "@/types/models";
+import { ChatType } from "@/types/models";
 
-type BackendRoomType = 'private' | 'group' | 'public' | 'favorite';
+type BackendRoomType = "private" | "group" | "public" | "favorite";
 
 interface BackendChatMessagePreview {
   id: string;
@@ -52,7 +52,7 @@ interface BackendRoomMember {
   username: string;
   nickname?: string | null;
   avatar_url?: string | null;
-  role: 'owner' | 'admin' | 'member';
+  role: "owner" | "admin" | "member";
   joined_at?: string | null;
 }
 
@@ -71,12 +71,12 @@ interface CreateGroupResponse {
 
 const parseRoomType = (value: BackendRoomType): ChatType => {
   switch (value) {
-    case 'group':
+    case "group":
       return ChatType.GROUP;
-    case 'favorite':
+    case "favorite":
       return ChatType.FAVORITE;
-    case 'private':
-    case 'public':
+    case "private":
+    case "public":
     default:
       return ChatType.SINGLE;
   }
@@ -101,8 +101,11 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
     new Date().toISOString();
 
   const summaryExtra = summary.extra as Record<string, unknown> | null;
-  const memberCountRaw = summaryExtra ? summaryExtra['member_count'] : undefined;
-  const memberCount = typeof memberCountRaw === 'number' ? memberCountRaw : undefined;
+  const memberCountRaw = summaryExtra
+    ? summaryExtra["member_count"]
+    : undefined;
+  const memberCount =
+    typeof memberCountRaw === "number" ? memberCountRaw : undefined;
 
   return {
     id: summary.room_id,
@@ -110,21 +113,24 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
     name: summary.name,
     avatar: summary.avatar_url ?? null,
     type: parseRoomType(summary.room_type),
-    lastMessage: lastMessage?.content ?? '',
+    lastMessage: lastMessage?.content ?? "",
     lastMessageTime: parseTimestamp(lastTimestamp),
     lastMessageId: lastMessage?.id,
     unreadCount: summary.unread_count ?? 0,
     isPinned: Boolean(summary.is_pinned),
     isMuted: Boolean(summary.is_muted),
     memberCount,
-    extra: summary.extra ?? (summary.description ? { description: summary.description } : null),
+    extra:
+      summary.extra ??
+      (summary.description ? { description: summary.description } : null),
   };
 };
 
 const mapRoomInfo = (room: BackendRoomInfo): Chat => {
   const roomExtra = room.extra as Record<string, unknown> | null;
-  const memberCountRaw = roomExtra ? roomExtra['member_count'] : undefined;
-  const memberCount = typeof memberCountRaw === 'number' ? memberCountRaw : undefined;
+  const memberCountRaw = roomExtra ? roomExtra["member_count"] : undefined;
+  const memberCount =
+    typeof memberCountRaw === "number" ? memberCountRaw : undefined;
 
   return {
     id: room.id,
@@ -132,25 +138,27 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
     name: room.name,
     avatar: room.avatar_url ?? null,
     type: parseRoomType(room.room_type),
-    lastMessage: '',
+    lastMessage: "",
     lastMessageTime: parseTimestamp(room.created_at),
     lastMessageId: undefined,
     unreadCount: 0,
     isPinned: Boolean(room.is_pinned),
     isMuted: Boolean(room.is_muted),
     memberCount,
-    extra: room.extra ?? (room.description ? { description: room.description } : null),
+    extra:
+      room.extra ??
+      (room.description ? { description: room.description } : null),
   };
 };
 
 const mapRoomMemberRole = (role: string): RoomMemberRole => {
   switch (role) {
-    case 'owner':
-      return 'owner';
-    case 'admin':
-      return 'admin';
+    case "owner":
+      return "owner";
+    case "admin":
+      return "admin";
     default:
-      return 'member';
+      return "member";
   }
 };
 
@@ -165,7 +173,7 @@ const mapRoomMember = (member: BackendRoomMember): RoomMember => ({
 
 export class GroupApi {
   static async getMyChatGroupList(): Promise<ApiResponse<Chat[]>> {
-    const response = await get<BackendChatSummary[]>('/chats');
+    const response = await get<BackendChatSummary[]>("/chats");
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -180,7 +188,7 @@ export class GroupApi {
   }
 
   static async getMyJoinChatGroupList(): Promise<ApiResponse<Chat[]>> {
-    const response = await get<BackendRoomInfo[]>('/rooms');
+    const response = await get<BackendRoomInfo[]>("/rooms");
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -194,7 +202,9 @@ export class GroupApi {
     };
   }
 
-  static async getChatGroupInfo(params: { chatGroupId: string }): Promise<ApiResponse<Chat>> {
+  static async getChatGroupInfo(params: {
+    chatGroupId: string;
+  }): Promise<ApiResponse<Chat>> {
     const response = await get<BackendRoomInfo>(`/rooms/${params.chatGroupId}`);
     if (!response.success || !response.data) {
       return {
@@ -228,8 +238,13 @@ export class GroupApi {
     };
   }
 
-  static async createSingleChat(params: { friendId: string }): Promise<ApiResponse<EnsureChatResult>> {
-    const response = await post<BackendEnsureChatResponse>(`/friends/${params.friendId}/chat`, {});
+  static async createSingleChat(params: {
+    friendId: string;
+  }): Promise<ApiResponse<EnsureChatResult>> {
+    const response = await post<BackendEnsureChatResponse>(
+      `/friends/${params.friendId}/chat`,
+      {},
+    );
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -268,7 +283,7 @@ export class GroupApi {
       payload.avatar_url = params.avatarUrl;
     }
 
-    const response = await post<CreateGroupResponse>('/rooms', payload);
+    const response = await post<CreateGroupResponse>("/rooms", payload);
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -288,7 +303,7 @@ export class GroupApi {
     return {
       code: 501,
       success: false,
-      message: '当前后端暂未提供群设置更新能力',
+      message: "当前后端暂未提供群设置更新能力",
       data: null,
     };
   }

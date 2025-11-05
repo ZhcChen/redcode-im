@@ -1,14 +1,14 @@
-import { get, post } from './http';
-import type { ApiResponse } from './http';
-import {
+import { get, post } from "./http";
+import type { ApiResponse } from "./http";
+import type {
   AuthUser,
   FriendInfo,
   FriendRequestInfo,
-  FriendRequestStatus,
   EnsureChatResult,
-} from '@/types/models';
+} from "@/types/models";
+import { FriendRequestStatus } from "@/types/models";
 
-type BackendFriendRequestStatus = 'pending' | 'accepted' | 'declined';
+type BackendFriendRequestStatus = "pending" | "accepted" | "declined";
 
 interface BackendUserSummary {
   id: string;
@@ -62,13 +62,15 @@ const mapAuthUser = (user: BackendUserSummary): AuthUser => ({
   status: user.status ?? null,
 });
 
-const parseFriendRequestStatus = (status: BackendFriendRequestStatus): FriendRequestStatus => {
+const parseFriendRequestStatus = (
+  status: BackendFriendRequestStatus,
+): FriendRequestStatus => {
   switch (status) {
-    case 'accepted':
+    case "accepted":
       return FriendRequestStatus.ACCEPTED;
-    case 'declined':
+    case "declined":
       return FriendRequestStatus.DECLINED;
-    case 'pending':
+    case "pending":
     default:
       return FriendRequestStatus.PENDING;
   }
@@ -80,24 +82,30 @@ const mapFriendInfo = (info: BackendFriendInfo): FriendInfo => ({
   createdAt: parseTimestamp(info.created_at),
 });
 
-const mapFriendRequest = (request: BackendFriendRequestInfo): FriendRequestInfo => ({
+const mapFriendRequest = (
+  request: BackendFriendRequestInfo,
+): FriendRequestInfo => ({
   id: request.id,
   requester: mapAuthUser(request.requester),
   addressee: mapAuthUser(request.addressee),
   status: parseFriendRequestStatus(request.status),
   createdAt: parseTimestamp(request.created_at),
-  respondedAt: request.responded_at ? parseTimestamp(request.responded_at) : null,
+  respondedAt: request.responded_at
+    ? parseTimestamp(request.responded_at)
+    : null,
   message: request.message ?? null,
   isIncoming: Boolean(request.is_incoming),
 });
 
 export class FriendApi {
-  static async getMyFriendList(params: {
-    keyword?: string;
-    page?: number;
-    size?: number;
-  } = {}): Promise<ApiResponse<FriendInfo[]>> {
-    const response = await get<BackendFriendInfo[]>('/friends');
+  static async getMyFriendList(
+    params: {
+      keyword?: string;
+      page?: number;
+      size?: number;
+    } = {},
+  ): Promise<ApiResponse<FriendInfo[]>> {
+    const response = await get<BackendFriendInfo[]>("/friends");
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -105,22 +113,20 @@ export class FriendApi {
       };
     }
 
-    const keyword = params.keyword?.trim().toLowerCase() ?? '';
-    const mapped = response.data
-      .map(mapFriendInfo)
-      .filter((friend) => {
-        if (!keyword) {
-          return true;
-        }
-        const user = friend.user;
-        const nickname = user.nickname?.toLowerCase() ?? '';
-        const email = user.email?.toLowerCase() ?? '';
-        return (
-          user.username.toLowerCase().includes(keyword) ||
-          nickname.includes(keyword) ||
-          email.includes(keyword)
-        );
-      });
+    const keyword = params.keyword?.trim().toLowerCase() ?? "";
+    const mapped = response.data.map(mapFriendInfo).filter((friend) => {
+      if (!keyword) {
+        return true;
+      }
+      const user = friend.user;
+      const nickname = user.nickname?.toLowerCase() ?? "";
+      const email = user.email?.toLowerCase() ?? "";
+      return (
+        user.username.toLowerCase().includes(keyword) ||
+        nickname.includes(keyword) ||
+        email.includes(keyword)
+      );
+    });
 
     return {
       ...response,
@@ -137,7 +143,10 @@ export class FriendApi {
       message: params.description,
     };
 
-    const response = await post<BackendFriendRequestInfo>('/friends/requests', payload);
+    const response = await post<BackendFriendRequestInfo>(
+      "/friends/requests",
+      payload,
+    );
     if (!response.success || !response.data) {
       return {
         ...response,
@@ -151,35 +160,37 @@ export class FriendApi {
     };
   }
 
-  static async getFriendRequests(params: {
-    direction?: 'incoming' | 'outgoing';
-    status?: FriendRequestStatus;
-  } = {}): Promise<ApiResponse<FriendRequestInfo[]>> {
+  static async getFriendRequests(
+    params: {
+      direction?: "incoming" | "outgoing";
+      status?: FriendRequestStatus;
+    } = {},
+  ): Promise<ApiResponse<FriendRequestInfo[]>> {
     const query = new URLSearchParams();
-    query.set('direction', params.direction ?? 'incoming');
+    query.set("direction", params.direction ?? "incoming");
 
     if (params.status !== undefined) {
       let backendStatus: BackendFriendRequestStatus | null = null;
       switch (params.status) {
         case FriendRequestStatus.ACCEPTED:
-          backendStatus = 'accepted';
+          backendStatus = "accepted";
           break;
         case FriendRequestStatus.DECLINED:
-          backendStatus = 'declined';
+          backendStatus = "declined";
           break;
         case FriendRequestStatus.PENDING:
-          backendStatus = 'pending';
+          backendStatus = "pending";
           break;
         default:
           backendStatus = null;
       }
       if (backendStatus) {
-        query.set('status', backendStatus);
+        query.set("status", backendStatus);
       }
     }
 
     const response = await get<BackendFriendRequestInfo[]>(
-      `/friends/requests${query.toString() ? `?${query.toString()}` : ''}`,
+      `/friends/requests${query.toString() ? `?${query.toString()}` : ""}`,
     );
 
     if (!response.success || !response.data) {
@@ -197,7 +208,7 @@ export class FriendApi {
 
   static async getPendingFriendRequestCount(): Promise<ApiResponse<number>> {
     const response = await FriendApi.getFriendRequests({
-      direction: 'incoming',
+      direction: "incoming",
       status: FriendRequestStatus.PENDING,
     });
 
@@ -208,18 +219,20 @@ export class FriendApi {
       };
     }
 
-    const pendingCount = response.data.filter((request) => request.isIncoming).length;
+    const pendingCount = response.data.filter(
+      (request) => request.isIncoming,
+    ).length;
     return {
       code: 200,
       success: true,
-      message: 'ok',
+      message: "ok",
       data: pendingCount,
     };
   }
 
   static async handleFriendRequest(params: {
     requestId: string;
-    action: 'accept' | 'decline';
+    action: "accept" | "decline";
   }): Promise<ApiResponse<FriendRequestInfo>> {
     const response = await post<BackendFriendRequestInfo>(
       `/friends/requests/${params.requestId}/respond`,
@@ -241,8 +254,13 @@ export class FriendApi {
     };
   }
 
-  static async ensureChat(params: { friendId: string }): Promise<ApiResponse<EnsureChatResult>> {
-    const response = await post<BackendEnsureChatResponse>(`/friends/${params.friendId}/chat`, {});
+  static async ensureChat(params: {
+    friendId: string;
+  }): Promise<ApiResponse<EnsureChatResult>> {
+    const response = await post<BackendEnsureChatResponse>(
+      `/friends/${params.friendId}/chat`,
+      {},
+    );
     if (!response.success || !response.data) {
       return {
         ...response,
