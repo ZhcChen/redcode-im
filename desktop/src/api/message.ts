@@ -324,7 +324,11 @@ export class MessageApi {
     groupId: string;
     messageIds: string[];
   }): Promise<ApiResponse<unknown>> {
-    if (!params.messageIds.length) {
+    const normalizedIds = params.messageIds
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id && id.length));
+
+    if (!normalizedIds.length) {
       return {
         code: 400,
         success: false,
@@ -333,8 +337,13 @@ export class MessageApi {
       };
     }
 
-    return post(`/rooms/${params.groupId}/messages/read`, {
-      message_ids: params.messageIds,
+    const targetMessageId = normalizedIds[normalizedIds.length - 1];
+    const endpoint = normalizedIds.length > 1
+      ? `/rooms/${params.groupId}/messages/read_until`
+      : `/rooms/${params.groupId}/messages/read`;
+
+    return post(endpoint, {
+      message_id: targetMessageId,
     });
   }
 

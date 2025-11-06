@@ -357,7 +357,7 @@ class MessageService with ChangeNotifier {
       final updated = _messageFromResponse(
         response,
         session.user.id,
-        status: MessageStatus.sent,
+        overrideStatus: MessageStatus.sent,
       );
 
       if (_pendingMessages.containsKey(tempId)) {
@@ -407,7 +407,7 @@ class MessageService with ChangeNotifier {
       final updated = _messageFromResponse(
         response,
         session.user.id,
-        status: MessageStatus.sent,
+        overrideStatus: MessageStatus.sent,
       );
       _replaceMessage(messageId, updated);
       _pendingMessages.remove(messageId);
@@ -476,7 +476,7 @@ class MessageService with ChangeNotifier {
       var updated = _messageFromResponse(
         response,
         session.user.id,
-        status: MessageStatus.sent,
+        overrideStatus: MessageStatus.sent,
       );
 
       if (_pendingMessages.containsKey(tempId)) {
@@ -511,7 +511,7 @@ class MessageService with ChangeNotifier {
       final updated = _messageFromResponse(
         response.message!,
         session.user.id,
-        status: status,
+        overrideStatus: status,
       );
       _replaceMessage(updated.id, updated);
       unawaited(_hydrateAttachmentLocalPaths(updated));
@@ -609,7 +609,7 @@ class MessageService with ChangeNotifier {
     final updated = _messageFromResponse(
       response,
       session.user.id,
-      status: status,
+      overrideStatus: status,
     );
 
     _replaceMessage(response.id, updated);
@@ -848,13 +848,7 @@ class MessageService with ChangeNotifier {
         final newMessages = decoded
             .whereType<Map<String, dynamic>>()
             .map(MessageResponse.fromJson)
-            .map(
-              (msg) => _messageFromResponse(
-                msg,
-                session.user.id,
-                status: MessageStatus.sent,
-              ),
-            )
+            .map((msg) => _messageFromResponse(msg, session.user.id))
             .toList();
 
         for (final message in newMessages) {
@@ -2528,13 +2522,17 @@ class MessageService with ChangeNotifier {
   Message _messageFromResponse(
     MessageResponse response,
     String currentUserId, {
-    MessageStatus status = MessageStatus.sent,
+    MessageStatus? overrideStatus,
   }) {
     final type = _mapMessageType(response.messageType);
     final isSelf = response.senderId == currentUserId;
     final quoted = response.quotedMessage == null
         ? null
         : _quotedMessageFromResponse(response.quotedMessage!);
+    final computedStatus =
+        overrideStatus ??
+        response.status ??
+        (isSelf ? MessageStatus.sent : MessageStatus.delivered);
 
     final extra = <String, dynamic>{
       if (response.senderNickname != null &&
@@ -2579,7 +2577,7 @@ class MessageService with ChangeNotifier {
       senderAvatar: response.senderAvatarUrl,
       content: response.content,
       type: type,
-      status: status,
+      status: computedStatus,
       timestamp: response.createdAt,
       isSelf: isSelf,
       extra: extra.isEmpty ? null : extra,
@@ -2820,6 +2818,7 @@ class MessageResponse {
   final String content;
   final String messageType;
   final DateTime createdAt;
+  final MessageStatus? status;
   final QuotedMessageResponse? quotedMessage;
   final ForwardMessageResponse? forwardMessage;
   final bool isDeleted;
@@ -2839,6 +2838,7 @@ class MessageResponse {
     required this.content,
     required this.messageType,
     required this.createdAt,
+    required this.status,
     required this.quotedMessage,
     required this.forwardMessage,
     required this.isDeleted,
@@ -2912,6 +2912,7 @@ class MessageResponse {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
+      status: _parseMessageStatusFromApi(json['status']),
       quotedMessage: quoted,
       forwardMessage: forward,
       isDeleted: parseBool(json['is_deleted']),
@@ -3209,5 +3210,24 @@ class QuotedMessageResponse {
           : null,
       isDeleted: parseDeleted(json['is_deleted']),
     );
+  }
+}
+
+MessageStatus? _parseMessageStatusFromApi(dynamic raw) {
+  if (raw == null) return null;
+  final value = raw.toString().toLowerCase();
+  switch (value) {
+    case 'sending':
+      return MessageStatus.sending;
+    case 'delivered':
+      return MessageStatus.delivered;
+    case 'read':
+      return MessageStatus.read;
+    case 'failed':
+      return MessageStatus.failed;
+    case 'sent':
+      return MessageStatus.sent;
+    default:
+      return null;
   }
 }
