@@ -417,6 +417,7 @@ import DialogInput from '../components/DialogInput.vue'
 import MediaPreview from '../components/MediaPreview.vue'
 import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
 import { api, MessageApi } from '../api'
+import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
@@ -484,6 +485,289 @@ const messageTypeToContentType: Record<MessageType, number> = {
   [MessageType.SYSTEM]: MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE,
   [MessageType.MIXED]: MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE
 }
+
+type AttachmentMeta = {
+  partType: MessagePartPayloadInput['type'];
+  width?: number | null;
+  height?: number | null;
+  durationMs?: number | null;
+  mime: string;
+  summary: string;
+};
+
+const partTypeEnumMap: Record<MessagePartPayloadInput['type'], MessagePartType> = {
+  text: MessagePartType.TEXT,
+  image: MessagePartType.IMAGE,
+  video: MessagePartType.VIDEO,
+  audio: MessagePartType.AUDIO,
+  file: MessagePartType.FILE
+};
+
+const partTypeContentMap: Record<Exclude<MessagePartPayloadInput['type'], 'text'>, number> = {
+  image: MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE,
+  video: MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
+  audio: MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE,
+  file: MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
+};
+
+const buildAttachmentSummary = (type: MessagePartPayloadInput['type'], name: string): string => {
+  const safeName = name || '';
+  switch (type) {
+    case 'image':
+      return `[图片] ${safeName}`.trim();
+    case 'video':
+      return `[视频] ${safeName}`.trim();
+    case 'audio':
+      return `[语音] ${safeName}`.trim();
+    case 'file':
+      return `[文件] ${safeName}`.trim();
+    case 'text':
+    default:
+      return safeName || '';
+  }
+};
+
+const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = (error) => {
+      URL.revokeObjectURL(url);
+      reject(error);
+    };
+    img.src = url;
+  });
+};
+
+const getVideoMetadata = (file: File): Promise<{ width: number; height: number; durationMs: number }> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    const url = URL.createObjectURL(file);
+    video.onloadedmetadata = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      const durationMs = Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : 0;
+      URL.revokeObjectURL(url);
+      resolve({ width, height, durationMs });
+    };
+    video.onerror = (error) => {
+      URL.revokeObjectURL(url);
+      reject(error);
+    };
+    video.src = url;
+  });
+};
+
+const getAudioDuration = (file: File): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    const url = URL.createObjectURL(file);
+    audio.onloadedmetadata = () => {
+      const durationMs = Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 0;
+      URL.revokeObjectURL(url);
+      resolve(durationMs);
+    };
+    audio.onerror = (error) => {
+      URL.revokeObjectURL(url);
+      reject(error);
+    };
+    audio.src = url;
+  });
+};
+
+const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
+  const mime = file.type?.toLowerCase() || 'application/octet-stream';
+
+  if (mime.startsWith('image/')) {
+    try {
+      const { width, height } = await getImageDimensions(file);
+      return {
+        partType: 'image',
+        width,
+        height,
+        mime,
+        summary: buildAttachmentSummary('image', file.name)
+      };
+    } catch (error) {
+      console.warn('获取图片尺寸失败:', error);
+      return {
+        partType: 'image',
+        mime,
+        summary: buildAttachmentSummary('image', file.name)
+      };
+    }
+  }
+
+  if (mime.startsWith('video/')) {
+    try {
+      const { width, height, durationMs } = await getVideoMetadata(file);
+      return {
+        partType: 'video',
+        width,
+        height,
+        durationMs,
+        mime,
+        summary: buildAttachmentSummary('video', file.name)
+      };
+    } catch (error) {
+      console.warn('获取视频元数据失败:', error);
+      return {
+        partType: 'video',
+        mime,
+        summary: buildAttachmentSummary('video', file.name)
+      };
+    }
+  }
+
+  if (mime.startsWith('audio/')) {
+    try {
+      const durationMs = await getAudioDuration(file);
+      return {
+        partType: 'audio',
+        durationMs,
+        mime,
+        summary: buildAttachmentSummary('audio', file.name)
+      };
+    } catch (error) {
+      console.warn('获取音频时长失败:', error);
+      return {
+        partType: 'audio',
+        mime,
+        summary: buildAttachmentSummary('audio', file.name)
+      };
+    }
+  }
+
+  return {
+    partType: 'file',
+    mime,
+    summary: buildAttachmentSummary('file', file.name)
+  };
+};
+
+const updateAttachmentProgress = (messageId: string, attachmentKey: string, progress: number | null) => {
+  const index = messages.value.findIndex((msg) => msg.id === messageId);
+  if (index === -1) {
+    return;
+  }
+
+  const message = messages.value[index];
+  if (!Array.isArray(message.parts) || message.parts.length === 0) {
+    return;
+  }
+
+  const updatedParts = message.parts.map((part) => {
+    if (part.attachment?.key !== attachmentKey) {
+      return part;
+    }
+    return {
+      ...part,
+      attachment: {
+        ...part.attachment,
+        uploadProgress: progress,
+      }
+    };
+  });
+
+  messages.value[index] = {
+    ...message,
+    parts: updatedParts,
+  };
+};
+
+const buildAttachmentPartPayload = (
+  meta: AttachmentMeta,
+  key: string,
+  file: File,
+): MessagePartPayloadInput => {
+  if (meta.partType === 'text') {
+    return {
+      type: 'text',
+      text: file.name,
+    };
+  }
+
+  return {
+    type: meta.partType,
+    key,
+    name: file.name,
+    mime: meta.mime,
+    size: file.size,
+    width: meta.width ?? undefined,
+    height: meta.height ?? undefined,
+    durationMs: meta.durationMs ?? undefined,
+  };
+};
+
+const buildPlaceholderPart = (
+  meta: AttachmentMeta,
+  key: string,
+  file: File,
+  localUrl: string,
+): MessagePart => ({
+  position: 0,
+  type: partTypeEnumMap[meta.partType],
+  attachment: {
+    key,
+    name: file.name,
+    mime: meta.mime,
+    size: file.size,
+    width: meta.width ?? null,
+    height: meta.height ?? null,
+    durationMs: meta.durationMs ?? null,
+    thumbnailKey: null,
+    localPath: localUrl,
+    uploadProgress: 0,
+  },
+});
+
+const uploadWithSignature = (
+  signature: DirectUploadSignatureInfo,
+  file: File,
+  onProgress?: (progress: number) => void,
+) => {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(signature.method || 'PUT', signature.url, true);
+    const headers = signature.headers || {};
+    Object.entries(headers).forEach(([headerKey, headerValue]) => {
+      xhr.setRequestHeader(headerKey, headerValue);
+    });
+    if (!headers['Content-Type'] && file.type) {
+      xhr.setRequestHeader('Content-Type', file.type);
+    }
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const ratio = event.total > 0 ? event.loaded / event.total : 0;
+          onProgress(ratio);
+        }
+      };
+    }
+
+    xhr.onerror = () => {
+      reject(new Error('文件上传失败'));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`上传失败，状态码 ${xhr.status}`));
+      }
+    };
+
+    xhr.send(file);
+  });
+};
 
 
 interface ChatItem {
@@ -883,6 +1167,9 @@ const parseImageSrc = (message: Message): string => {
   if (Array.isArray(message.parts)) {
     const imagePart = message.parts.find((part) => part.type === MessagePartType.IMAGE)
     if (imagePart?.attachment) {
+      if (imagePart.attachment.localPath) {
+        return imagePart.attachment.localPath
+      }
       const fromThumb = resolveAttachmentUrl(imagePart.attachment.thumbnailKey)
       if (fromThumb) {
         return fromThumb
@@ -966,6 +1253,9 @@ const parseImageSrc = (message: Message): string => {
 const parseVideoScreenShotSrc = (message: Message): string => {
   if (Array.isArray(message.parts)) {
     const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
+    if (videoPart?.attachment?.localPath) {
+      return videoPart.attachment.localPath
+    }
     if (videoPart?.attachment?.thumbnailKey) {
       const url = resolveAttachmentUrl(videoPart.attachment.thumbnailKey)
       if (url) {
@@ -1005,6 +1295,9 @@ const parseVideoScreenShotSrc = (message: Message): string => {
 const parseVideoSrc = (message: Message): string => {
   if (Array.isArray(message.parts)) {
     const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
+    if (videoPart?.attachment?.localPath) {
+      return videoPart.attachment.localPath
+    }
     if (videoPart?.attachment?.key) {
       const url = resolveAttachmentUrl(videoPart.attachment.key)
       if (url) {
@@ -1402,104 +1695,63 @@ const sendMessage = async () => {
     return
   }
 
-  // 保留换行符，只去除首尾空白但保持内部换行
-  const content = newMessage.value.replace(/^[\s\n]*|[\s\n]*$/g, '')
+  const content = newMessage.value.trim()
   const groupId = selectedChat.value.groupId
-  
-  // 立即显示发送中的消息
   const timestamp = Date.now()
+  const tempId = `${timestamp}`
+  const user = store.getters.currentUser
+
   const tempMessage: Message = {
-    id: `${timestamp}`, // 使用时间戳作为ID，与bear-chat-uniapp保持一致
+    id: tempId,
     content,
     isSelf: true,
-    time: formatTime(getTimeStr(timestamp)), // 使用统一的时间格式
+    time: formatTime(getTimeStr(timestamp)),
     senderId: currentUserId.value || '',
-    senderName: store.getters.currentUser.nickname || '我',
-    senderAvatar: store.getters.currentUser.avatar,
+    senderName: user?.nickname || user?.username || '我',
+    senderAvatar: user?.avatar,
     messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
-    status: 1, // 发送中
-    createTime: getTimeStr(timestamp), // 添加原始创建时间
-    timestamp: timestamp // 添加时间戳
+    status: 1,
+    createTime: getTimeStr(timestamp),
+    timestamp
   }
-  
+
   messages.value.push(tempMessage)
   newMessage.value = ''
-
-  // 立即滚动到底部显示新发送的消息
   scrollToBottom()
 
   try {
-    console.log('🔄 通过WebSocket发送消息:', content, '到群组:', groupId)
+    const apiMessage = await webSocketManager.sendMessage({
+      roomId: groupId,
+      content,
+    }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
-    // 参考bear-chat-uniapp，使用纯WebSocket发送
-    // 因为后端没有提供HTTP API发送消息接口
-    await sendMessageViaWebSocket(content, groupId, tempMessage.id, timestamp)
+    if (apiMessage) {
+      const uiMessage = mapDomainMessageToUi(apiMessage)
+      const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
+      if (messageIndex !== -1) {
+        messages.value[messageIndex] = {
+          ...uiMessage,
+          status: 2
+        }
+      } else {
+        messages.value.push({
+          ...uiMessage,
+          status: 2
+        })
+      }
 
-    console.log('✅ 消息发送成功，等待实时推送同步...')
-
+      recentSentMessages.value.add(apiMessage.id)
+      setTimeout(() => {
+        recentSentMessages.value.delete(apiMessage.id)
+      }, 10000)
+    }
   } catch (error: any) {
-    // 发送异常，更新消息状态
-    const messageIndex = messages.value.findIndex(msg => msg.id === tempMessage.id)
+    const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
     if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3 // 发送失败
+      messages.value[messageIndex].status = 3
     }
     console.error('❌ 消息发送失败:', error)
     toast.error('消息发送失败: ' + (error.message || '网络错误'))
-  }
-}
-
-// 抽取WebSocket发送逻辑为独立函数
-const sendMessageViaWebSocket = async (content: string, groupId: string, messageId: string, timestamp?: number): Promise<void> => {
-  const msgTimestamp = timestamp || Date.now()
-  const user = store.getters.currentUser
-
-  console.log('🔍 构造消息对象时的用户信息:', {
-    currentUser: user,
-    userId: user?.id,
-    username: user?.username,
-    nickname: user?.nickname,
-    avatar: user?.avatar,
-    currentUserId: currentUserId.value
-  })
-
-  const messageObj = {
-    id: messageId,
-    chatGroupId: groupId,
-    userId: parseInt(user?.id || currentUserId.value) || 0,
-    meFlag: true,
-    userName: user?.username || user?.nickname || '未知用户',
-    userAvatar: user?.avatar || '/static/image/default/default-user/default-user.png',
-    messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
-    contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
-    content: {
-      text: content
-    },
-    createTime: getTimeStr(msgTimestamp),
-    timestamp: msgTimestamp,
-    platFrom: MESSAGE_CONSTANTS.PLATFORM.WEB,
-    showTimeFlag: false
-  }
-
-  console.log('📤 准备发送的完整消息对象:', messageObj)
-
-  const apiMessage = await webSocketManager.sendMessage(messageObj, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
-    if (success) {
-      recentSentMessages.value.add(messageId)
-      setTimeout(() => {
-        recentSentMessages.value.delete(messageId)
-      }, 10000)
-    }
-  })
-
-  if (apiMessage) {
-    const messageIndex = messages.value.findIndex(msg => msg.id === messageId)
-    if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 2
-      messages.value[messageIndex].id = apiMessage.id
-      messages.value[messageIndex].time = formatTime(apiMessage.createTime || new Date().toISOString())
-      messages.value[messageIndex].createTime = apiMessage.createTime || messages.value[messageIndex].createTime
-      messages.value[messageIndex].timestamp = apiMessage.timestamp || messages.value[messageIndex].timestamp
-    }
   }
 }
 
@@ -1511,42 +1763,54 @@ const resendMessage = async (message: Message) => {
 
   console.log('🔄 重发消息:', message.content)
 
-  // 更新消息状态为发送中
   const messageIndex = messages.value.findIndex(msg => msg.id === message.id)
   if (messageIndex !== -1) {
-    messages.value[messageIndex].status = 1 // 发送中
+    messages.value[messageIndex].status = 1
+  }
+
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    toast.error('文件消息暂不支持重发，请重新选择文件发送')
+    if (messageIndex !== -1) {
+      messages.value[messageIndex].status = 3
+    }
+    return
+  }
+
+  const messageContent = typeof message.content === 'string'
+    ? message.content
+    : (message.content as any)?.text || getTextContent(message)
+
+  if (!messageContent) {
+    toast.error('无法获取消息内容，重发失败')
+    if (messageIndex !== -1) {
+      messages.value[messageIndex].status = 3
+    }
+    return
   }
 
   try {
-    // 重发时使用原消息ID，但需要特殊处理以避免WebSocket回显重复
-    const resendId = `resend_${Date.now()}_${message.id}`
+    const apiMessage = await webSocketManager.sendMessage({
+      roomId: selectedChat.value.groupId,
+      content: messageContent,
+    }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
-    // 获取消息内容，支持字符串和对象格式
-    const messageContent = typeof message.content === 'string'
-      ? message.content
-      : (message.content as any)?.text || JSON.stringify(message.content)
+    if (apiMessage) {
+      const uiMessage = mapDomainMessageToUi(apiMessage)
+      if (messageIndex !== -1) {
+        messages.value[messageIndex] = {
+          ...uiMessage,
+          status: 2
+        }
+      }
 
-    // 参考bear-chat-uniapp，使用纯WebSocket重发
-    await sendMessageViaWebSocket(messageContent, selectedChat.value.groupId, resendId)
-
-    console.log('✅ WebSocket消息重发成功')
-
-    // 重发成功后立即更新状态，不等待WebSocket回显
-    if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 2 // 发送成功
-      console.log('✅ 重发消息状态已更新为成功')
+      recentSentMessages.value.add(apiMessage.id)
+      setTimeout(() => {
+        recentSentMessages.value.delete(apiMessage.id)
+      }, 10000)
     }
-
-    // 添加到跟踪集合，标记为重发消息（防止WebSocket回显时重复）
-    recentSentMessages.value.add(resendId)
-    setTimeout(() => {
-      recentSentMessages.value.delete(resendId)
-    }, 10000)
-
   } catch (error: any) {
-    // 重发失败
     if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3 // 发送失败
+      messages.value[messageIndex].status = 3
     }
     console.error('❌ 消息重发失败:', error)
     toast.error('消息重发失败: ' + (error.message || '网络错误'))
@@ -1752,226 +2016,129 @@ const uploadAndSendFile = async (file: File) => {
     return
   }
 
-  // 验证文件类型和大小
-  const isImage = file.type.startsWith('image/')
-  const isVideo = file.type.startsWith('video/')
-
-  if (!isImage && !isVideo) {
-    toast.error('只支持图片和视频文件')
-    return
-  }
-
-  // 文件大小限制：图片5MB，视频50MB
-  const maxSize = isImage ? 5 * 1024 * 1024 : 50 * 1024 * 1024
-  if (file.size > maxSize) {
-    toast.error(`文件大小不能超过${isImage ? '5MB' : '50MB'}`)
-    return
-  }
+  let tempId: string | null = null
+  let attachmentKey = ''
+  let localUrl: string | null = null
 
   try {
-    console.log('开始上传文件:', file.name)
+    const meta = await determineAttachmentMeta(file)
 
-    // 创建本地对象URL用于临时显示
-    const localUrl = URL.createObjectURL(file)
-    console.log('创建本地URL:', localUrl)
+    if (meta.partType === 'text') {
+      toast.error('当前文件类型暂不支持发送')
+      return
+    }
 
-    // 立即显示上传中的消息，使用本地URL
+    const sizeLimitMap: Record<Exclude<MessagePartPayloadInput['type'], 'text'>, number> = {
+      image: 5 * 1024 * 1024,
+      video: 50 * 1024 * 1024,
+      audio: 50 * 1024 * 1024,
+      file: 100 * 1024 * 1024,
+    }
+    const limit = sizeLimitMap[meta.partType] ?? 50 * 1024 * 1024
+    if (file.size > limit) {
+      toast.error(`文件大小不能超过${meta.partType === 'image' ? '5MB' : meta.partType === 'video' ? '50MB' : '100MB'}`)
+      return
+    }
+
+    const signatureResponse = await MessageApi.requestAttachmentSignature({
+      groupId: selectedChat.value.groupId,
+      partType: meta.partType,
+      fileName: file.name,
+      contentType: meta.mime,
+    })
+
+    if (!signatureResponse.success || !signatureResponse.data) {
+      throw new Error(signatureResponse.message || '获取上传签名失败')
+    }
+
+    attachmentKey = signatureResponse.data.key
+    localUrl = URL.createObjectURL(file)
     const timestamp = Date.now()
+    tempId = `upload_${timestamp}_${Math.random().toString(36).slice(2, 8)}`
+    const user = store.getters.currentUser
+    const placeholderPart = buildPlaceholderPart(meta, attachmentKey, file, localUrl)
+    const contentTypeCode = partTypeContentMap[meta.partType as keyof typeof partTypeContentMap] ?? MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
+
     const tempMessage: Message = {
-      id: `${timestamp}`,
-      content: {
-        url: '', // 初始为空，上传完成后设置服务器URL
-        localUrl: localUrl, // 保存本地URL供临时显示
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        isUploading: true // 标记为上传中
-      },
+      id: tempId,
+      content: meta.summary,
       isSelf: true,
       time: formatTime(getTimeStr(timestamp)),
       senderId: currentUserId.value || '',
-      senderName: store.getters.currentUser.nickname || '我',
-      senderAvatar: store.getters.currentUser.avatar,
+      senderName: user?.nickname || user?.username || '我',
+      senderAvatar: user?.avatar,
       messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
-      contentType: isImage ? MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE : MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
-      status: 1, // 发送中
+      contentType: contentTypeCode,
+      status: 1,
       createTime: getTimeStr(timestamp),
-      timestamp: timestamp
+      timestamp,
+      parts: [placeholderPart]
     }
 
     messages.value.push(tempMessage)
     scrollToBottom()
 
-    // 调用文件上传API
-    const { FileApi } = await import('../api/file')
-    const uploadResult = await FileApi.uploadFile({
-      file,
-      category: isImage ? 'image' : 'video',
-      isPublic: true,
-      description: `用户上传的${isImage ? '图片' : '视频'}`
+    await uploadWithSignature(signatureResponse.data.signature, file, (progress) => {
+      if (tempId) {
+        updateAttachmentProgress(tempId, attachmentKey, progress)
+      }
     })
 
-    if (uploadResult.code === 200 && uploadResult.data) {
-      const fileInfo = uploadResult.data
-      console.log('文件上传成功:', fileInfo)
+    if (tempId) {
+      updateAttachmentProgress(tempId, attachmentKey, null)
+    }
 
-      // 使用统一的URL构建函数，确保URL不为空
-      const fileUrl = FileApi.buildImageUrl(fileInfo)
-      console.log('构建的文件URL:', fileUrl)
+    const apiMessage = await webSocketManager.sendMessage({
+      roomId: selectedChat.value.groupId,
+      content: meta.summary,
+      parts: [buildAttachmentPartPayload(meta, attachmentKey, file)],
+    }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
-      // 验证URL是否有效
-      if (!fileUrl) {
-        console.error('❌ 构建的文件URL为空，检查文件信息:', fileInfo)
-        throw new Error('无法构建有效的文件URL')
-      }
-
-      // 如果是图片，预加载服务器URL
-      if (isImage && fileUrl) {
-        try {
-          await preloadImage(fileUrl)
-          console.log('✅ 服务器图片预加载完成，准备替换')
-        } catch (error) {
-          console.warn('⚠️ 服务器图片预加载失败，但继续替换:', error)
+    if (apiMessage) {
+      const uiMessage = mapDomainMessageToUi(apiMessage)
+      if (tempId) {
+        const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
+        if (messageIndex !== -1) {
+          messages.value[messageIndex] = {
+            ...uiMessage,
+            status: 2,
+          }
+        } else {
+          messages.value.push({
+            ...uiMessage,
+            status: 2,
+          })
         }
-      }
-
-      // 更新临时消息的URL和其他信息
-      const messageIndex = messages.value.findIndex(msg => msg.id === tempMessage.id)
-      if (messageIndex !== -1 && typeof messages.value[messageIndex].content === 'object') {
-        const content = messages.value[messageIndex].content as any
-
-        // 清理本地URL
-        if (content.localUrl) {
-          URL.revokeObjectURL(content.localUrl)
-        }
-
-        // 更新为服务器URL
-        content.url = fileUrl
-        content.fullPath = fileInfo.filePath
-        content.fileName = fileInfo.fileName
-        content.isUploading = false // 取消上传中标记
-        delete content.localUrl // 删除本地URL标记，确保后续使用服务器URL
-
-        console.log('✅ 图片URL已从本地替换为服务器地址:', {
-          oldLocalUrl: content.localUrl,
-          newServerUrl: fileUrl,
-          fullPath: fileInfo.filePath
+      } else {
+        messages.value.push({
+          ...mapDomainMessageToUi(apiMessage),
+          status: 2,
         })
       }
 
-      // 发送文件消息
-      await sendFileMessage(fileUrl, file, isImage, tempMessage.id, fileInfo)
+      recentSentMessages.value.add(apiMessage.id)
+      setTimeout(() => {
+        recentSentMessages.value.delete(apiMessage.id)
+      }, 10000)
+    }
 
-    } else {
-      // 上传失败，清理本地URL并更新消息状态
-      const messageIndex = messages.value.findIndex(msg => msg.id === tempMessage.id)
+    scrollToBottom()
+  } catch (error: any) {
+    console.error('文件上传或发送失败:', error)
+    if (tempId) {
+      const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
       if (messageIndex !== -1) {
-        const content = messages.value[messageIndex].content as any
-        if (content.localUrl) {
-          URL.revokeObjectURL(content.localUrl)
-        }
-        messages.value[messageIndex].status = 3 // 发送失败
-        messages.value[messageIndex].content = `${isImage ? '图片' : '视频'}上传失败`
+        messages.value[messageIndex].status = 3
+        updateAttachmentProgress(tempId, attachmentKey, null)
       }
-      toast.error(uploadResult.message || '文件上传失败')
     }
-
-  } catch (error: any) {
-    console.error('文件上传失败:', error)
-
-    // 更新消息状态为失败并清理本地URL
-    const messageIndex = messages.value.findIndex(msg => msg.id === tempMessage.id)
-    if (messageIndex !== -1) {
-      const content = messages.value[messageIndex].content as any
-      if (content && content.localUrl) {
-        URL.revokeObjectURL(content.localUrl)
-      }
-      messages.value[messageIndex].status = 3 // 发送失败
+    toast.error('文件发送失败: ' + (error.message || '网络错误'))
+  } finally {
+    if (localUrl) {
+      URL.revokeObjectURL(localUrl)
     }
-
-    toast.error('文件上传失败: ' + (error.message || '网络错误'))
   }
 }
-
-// 发送文件消息
-const sendFileMessage = async (fileUrl: string, file: File, isImage: boolean, messageId: string, fileInfo?: any) => {
-  if (!selectedChat.value) return
-
-  const groupId = selectedChat.value.groupId
-  const user = store.getters.currentUser
-  const timestamp = Date.now()
-
-  // 构造文件消息对象，参考bear-chat-uniapp
-  const messageObj = {
-    id: messageId,
-    chatGroupId: groupId,
-    userId: parseInt(user?.id || currentUserId.value) || 0,
-    meFlag: true,
-    userName: user?.username || user?.nickname || '未知用户',
-    userAvatar: user?.avatar || '/static/image/default/default-user/default-user.png',
-    messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
-    contentType: isImage ? MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE : MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
-    content: {
-      url: fileUrl,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      // 添加从上传API响应中获取的信息
-      fullPath: fileInfo?.filePath,
-      fileName: fileInfo?.fileName,
-      fileType: fileInfo?.fileType,
-      fileSaveTarget: 'local' // 根据配置设置
-    },
-    createTime: getTimeStr(timestamp),
-    timestamp: timestamp,
-    platFrom: MESSAGE_CONSTANTS.PLATFORM.WEB,
-    showTimeFlag: false
-  }
-
-  console.log('发送文件消息:', messageObj)
-
-  try {
-    // 通过WebSocket发送文件消息
-    await new Promise((resolve, reject) => {
-      webSocketManager.sendMessage(messageObj, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
-        if (success) {
-          console.log('文件消息发送成功')
-          // 立即更新本地消息状态
-          const messageIndex = messages.value.findIndex(msg => msg.id === messageId)
-          if (messageIndex !== -1) {
-            messages.value[messageIndex].status = 2 // 更新为成功
-            console.log('✅ 本地消息状态已更新为成功')
-          }
-
-          // 添加到最近发送的消息集合，用于识别WebSocket回显
-          recentSentMessages.value.add(messageId)
-          // 10秒后自动清理
-          setTimeout(() => {
-            recentSentMessages.value.delete(messageId)
-          }, 10000)
-
-          resolve(true)
-        } else {
-          console.error('文件消息发送失败')
-          reject(new Error('WebSocket发送失败'))
-        }
-      })
-    })
-
-  } catch (error: any) {
-    console.error('文件消息发送失败:', error)
-
-    // 更新消息状态为失败
-    const messageIndex = messages.value.findIndex(msg => msg.id === messageId)
-    if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3 // 发送失败
-    }
-
-    toast.error('消息发送失败: ' + (error.message || '网络错误'))
-  }
-}
-
-
 
 const handleCreateGroup = async () => {
   console.log('🔄 用户点击创建群组...')

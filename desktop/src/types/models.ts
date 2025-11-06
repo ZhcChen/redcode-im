@@ -77,6 +77,8 @@ export interface MessageAttachment {
   height?: number | null;
   durationMs?: number | null;
   thumbnailKey?: string | null;
+  localPath?: string | null;
+  uploadProgress?: number | null;
 }
 
 export interface MessagePart {

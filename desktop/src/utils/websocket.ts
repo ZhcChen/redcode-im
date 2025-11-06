@@ -11,6 +11,7 @@ import {
 import type { WebSocketParams } from '@/types/websocket';
 import { BUSINESS_CODE } from '@/types/websocket';
 import { MessageApi, transformBackendMessage } from '@/api/message';
+import type { MessagePartPayloadInput } from '@/api/message';
 import type { Message } from '@/types/models';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'authenticated';
@@ -800,10 +801,45 @@ class WebSocketManager {
     }
 
     try {
-      const response = await MessageApi.sendTextMessage({
-        groupId: payload.chatGroupId || payload.room_id || payload.groupId,
-        content: typeof payload.content === 'string' ? payload.content : payload.content?.text || '',
-        replyToMessageId: payload.quotedMessageId,
+      const roomId =
+        payload?.roomId ||
+        payload?.chatGroupId ||
+        payload?.groupId ||
+        payload?.room_id;
+
+      if (!roomId || typeof roomId !== 'string') {
+        callback?.(false);
+        throw new Error('缺少群组 ID，无法发送消息');
+      }
+
+      let content: string | undefined;
+      if (typeof payload?.content === 'string') {
+        content = payload.content;
+      } else if (payload?.content && typeof payload.content.text === 'string') {
+        content = payload.content.text;
+      } else if (typeof payload?.text === 'string') {
+        content = payload.text;
+      }
+
+      let parts: MessagePartPayloadInput[] | undefined;
+      if (Array.isArray(payload?.parts)) {
+        parts = payload.parts as MessagePartPayloadInput[];
+      } else if (Array.isArray(payload?.partsPayload)) {
+        parts = payload.partsPayload as MessagePartPayloadInput[];
+      }
+
+      const replyToMessageId =
+        payload?.replyToMessageId ||
+        payload?.quotedMessageId ||
+        payload?.quoted_message_id ||
+        undefined;
+
+      const response = await MessageApi.sendMessage({
+        groupId: roomId,
+        content,
+        parts,
+        replyToMessageId,
+        currentUserId: this.state.lastUserId ?? undefined,
       });
 
       if (response.success && response.data) {

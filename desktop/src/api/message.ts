@@ -43,6 +43,38 @@ interface BackendMessagePart {
   text?: string | null;
   attachment?: BackendMessageAttachment | null;
 }
+
+export type MessagePartTypeLiteral = "text" | "image" | "video" | "audio" | "file";
+
+export type MessagePartPayloadInput =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "image" | "video" | "audio" | "file";
+      key: string;
+      name?: string | null;
+      mime?: string | null;
+      size?: number | null;
+      width?: number | null;
+      height?: number | null;
+      durationMs?: number | null;
+      thumbnailKey?: string | null;
+    };
+
+export interface DirectUploadSignatureInfo {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  key: string;
+}
+
+export interface AttachmentSignatureResult {
+  key: string;
+  signature: DirectUploadSignatureInfo;
+  message?: string;
+}
 type BackendMessageStatus =
   | "sending"
   | "sent"
@@ -284,6 +316,46 @@ const mapMessageParts = (
     .sort((a, b) => a.position - b.position);
 };
 
+const mapPartPayloadInput = (
+  part: MessagePartPayloadInput,
+): Record<string, unknown> => {
+  if (part.type === "text") {
+    return {
+      type: "text",
+      text: part.text,
+    };
+  }
+
+  const payload: Record<string, unknown> = {
+    type: part.type,
+    key: part.key,
+  };
+
+  if (part.name) {
+    payload.name = part.name;
+  }
+  if (part.mime) {
+    payload.mime = part.mime;
+  }
+  if (typeof part.size === "number") {
+    payload.size = part.size;
+  }
+  if (typeof part.width === "number") {
+    payload.width = part.width;
+  }
+  if (typeof part.height === "number") {
+    payload.height = part.height;
+  }
+  if (typeof part.durationMs === "number") {
+    payload.duration_ms = part.durationMs;
+  }
+  if (part.thumbnailKey) {
+    payload.thumbnail_key = part.thumbnailKey;
+  }
+
+  return payload;
+};
+
 export const transformBackendMessage = (
   message: BackendMessageInfo,
   currentUserId?: string,
@@ -335,6 +407,14 @@ export interface GetMessageListParams {
   currentUserId?: string;
 }
 
+export interface SendMessageParams {
+  groupId: string;
+  content?: string;
+  parts?: MessagePartPayloadInput[];
+  replyToMessageId?: string;
+  currentUserId?: string;
+}
+
 const buildMessageQuery = (
   params: GetMessageListParams,
 ): Record<string, string> => {
@@ -379,22 +459,34 @@ export class MessageApi {
     };
   }
 
-  static async sendTextMessage(params: {
-    groupId: string;
-    content: string;
-    replyToMessageId?: string;
-    currentUserId?: string;
-  }): Promise<ApiResponse<Message>> {
-    const payload: Record<string, unknown> = {
-      content: params.content,
-      message_type: "text",
-    };
+  static async sendMessage(
+    params: SendMessageParams,
+  ): Promise<ApiResponse<Message>> {
+    const payload: Record<string, unknown> = {};
+
+    const trimmedContent = params.content?.trim();
+    if (trimmedContent) {
+      payload.content = trimmedContent;
+    }
+
+    if (params.parts && params.parts.length > 0) {
+      payload.parts = params.parts.map(mapPartPayloadInput);
+    }
 
     if (params.replyToMessageId) {
       payload.quoted_message_id = params.replyToMessageId;
     }
 
-    const response = await post<BackendMessageInfo>(
+    if (!payload.content && !payload.parts) {
+      return {
+        code: 400,
+        success: false,
+        message: "消息内容不能为空",
+        data: null,
+      };
+    }
+
+    const response = await post<BackendMessageInfo | { message: BackendMessageInfo }>(
       `/rooms/${params.groupId}/messages`,
       payload,
     );
@@ -406,9 +498,149 @@ export class MessageApi {
       };
     }
 
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+
+    if (!successFlag) {
+      return {
+        code: response.code,
+        success: false,
+        message: typeof rawData?.message === "string"
+          ? rawData.message
+          : response.message || "消息发送失败",
+        data: null,
+      };
+    }
+
+    const messagePayload: any =
+      rawData && typeof rawData === "object" && !Array.isArray(rawData)
+        ? (rawData.message && typeof rawData.message === "object"
+            ? rawData.message
+            : rawData)
+        : rawData;
+
+    if (!messagePayload || typeof messagePayload !== "object" || !messagePayload.id) {
+      return {
+        code: response.code,
+        success: false,
+        message: "消息发送结果不完整",
+        data: null,
+      };
+    }
+
     return {
-      ...response,
-      data: transformBackendMessage(response.data, params.currentUserId),
+      code: response.code,
+      success: true,
+      message: typeof rawData?.message === "string" ? rawData.message : response.message || "",
+      data: transformBackendMessage(messagePayload, params.currentUserId),
+    };
+  }
+
+  static async sendTextMessage(params: {
+    groupId: string;
+    content: string;
+    replyToMessageId?: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<Message>> {
+    return this.sendMessage({
+      groupId: params.groupId,
+      content: params.content,
+      replyToMessageId: params.replyToMessageId,
+      currentUserId: params.currentUserId,
+    });
+  }
+
+  static async requestAttachmentSignature(params: {
+    groupId: string;
+    partType: MessagePartTypeLiteral;
+    fileName?: string;
+    contentType?: string;
+  }): Promise<ApiResponse<AttachmentSignatureResult>> {
+    const payload: Record<string, unknown> = {
+      part_type: params.partType,
+    };
+
+    if (params.fileName) {
+      payload.filename = params.fileName;
+    }
+    if (params.contentType) {
+      payload.content_type = params.contentType;
+    }
+
+    const response = await post<Record<string, unknown>>(
+      `/rooms/${params.groupId}/messages/attachments/signature`,
+      payload,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+
+    if (!successFlag) {
+      return {
+        code: response.code,
+        success: false,
+        message: typeof rawData?.message === "string"
+          ? rawData.message
+          : response.message || "获取附件上传签名失败",
+        data: null,
+      };
+    }
+
+    const signaturePayload = rawData?.signature;
+    const key = rawData?.key ?? signaturePayload?.key;
+
+    if (
+      !signaturePayload ||
+      typeof signaturePayload !== "object" ||
+      !signaturePayload.url ||
+      !key
+    ) {
+      return {
+        code: response.code,
+        success: false,
+        message: "上传签名响应不完整",
+        data: null,
+      };
+    }
+
+    const headers: Record<string, string> = {};
+    if (signaturePayload.headers && typeof signaturePayload.headers === "object") {
+      Object.entries(signaturePayload.headers).forEach(([headerKey, headerValue]) => {
+        if (typeof headerKey === "string" && typeof headerValue === "string") {
+          headers[headerKey] = headerValue;
+        }
+      });
+    }
+
+    const methodRaw = typeof signaturePayload.method === "string"
+      ? signaturePayload.method.trim().toUpperCase()
+      : "PUT";
+
+    const signature: DirectUploadSignatureInfo = {
+      url: signaturePayload.url,
+      method: methodRaw || "PUT",
+      headers,
+      key: signaturePayload.key ?? key,
+    };
+
+    return {
+      code: response.code,
+      success: true,
+      message: typeof rawData?.message === "string" ? rawData.message : response.message || "",
+      data: {
+        key,
+        signature,
+        message: typeof rawData?.message === "string" ? rawData.message : undefined,
+      },
     };
   }
 
