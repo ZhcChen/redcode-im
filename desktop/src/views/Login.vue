@@ -373,10 +373,13 @@ onUnmounted(() => {
 });
 
 // 表单数据 - 默认填入账号信息
+const DEFAULT_CAPTCHA = "666666";
+
+// 默认填入测试账号，便于本地开发调试
 const loginForm = ref({
-  phone: "15888888802",
+  phone: "alice",
   password: "a123456",
-  captcha: "",
+  captcha: DEFAULT_CAPTCHA,
 });
 
 // 登录类型：password 密码登录 | captcha 验证码登录
@@ -392,10 +395,10 @@ let countdownTimer: NodeJS.Timeout | null = null;
 
 // 表单验证
 const primaryFieldLabel = computed(() =>
-  loginType.value === "captcha" ? "账号" : "手机号",
+  loginType.value === "captcha" ? "账号" : "账号 / 手机号",
 );
 const primaryFieldPlaceholder = computed(() =>
-  loginType.value === "captcha" ? "请输入账号" : "请输入手机号",
+  loginType.value === "captcha" ? "请输入账号" : "请输入账号或手机号",
 );
 
 const isFormValid = computed(() => {
@@ -414,11 +417,12 @@ const isFormValid = computed(() => {
 
 // 切换登录类型
 function handleLoginTypeChange(value: string | number) {
-  // 切换登录类型时清空验证码
+  // 切换登录类型时重置相关输入值
   if (value === "password") {
-    loginForm.value.captcha = "";
+    loginForm.value.captcha = DEFAULT_CAPTCHA;
   } else {
     loginForm.value.password = "";
+    loginForm.value.captcha = DEFAULT_CAPTCHA;
   }
 }
 
@@ -432,9 +436,13 @@ function validateForm(): boolean {
     return false;
   }
 
-  if (!isCaptchaMode && loginForm.value.phone.length !== 11) {
-    toast.error("请输入正确的手机号");
-    return false;
+  if (!isCaptchaMode) {
+    const phoneValue = loginForm.value.phone;
+    const isAllDigits = /^\d+$/.test(phoneValue);
+    if (isAllDigits && phoneValue.length !== 11) {
+      toast.error("请输入正确的手机号");
+      return false;
+    }
   }
 
   if (loginType.value === "password") {

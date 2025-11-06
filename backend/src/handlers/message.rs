@@ -4,11 +4,12 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::database::{
+    message_read_store::MessageReadStore,
     message_store::{MessageStore, NewMessagePart},
     models::{
         MessagePart, MessagePartType, MessageType, MessageWithSender, StorageProvider,
@@ -18,8 +19,8 @@ use crate::database::{
 };
 use crate::error::AppError;
 use crate::models::{
-    convert::db_message_to_api_message_info, MessageInfo, MessagePartPayload,
-    MessagePartType as ApiMessagePartType,
+    convert::db_message_to_api_message_info, MessageDeliveryStatus, MessageInfo,
+    MessagePartPayload, MessagePartType as ApiMessagePartType,
 };
 use crate::redis::models::{
     CacheKeys, CrossNodeMessage, ForwardMessagePayload, MessagePartEnvelope, MessagePriority,
@@ -569,7 +570,12 @@ pub async fn send_message(
         error!("广播消息失败: {}", e);
     }
 
-    let api_message = db_message_to_api_message_info(&enriched, &part_map, None);
+    let api_message = db_message_to_api_message_info(
+        &enriched,
+        &part_map,
+        None,
+        Some(crate::models::MessageDeliveryStatus::Sent),
+    );
     Ok(Json(SendMessageResponse {
         message: api_message,
     }))
@@ -632,7 +638,12 @@ pub async fn forward_message(
         error!("广播转发消息失败: {}", e);
     }
 
-    let api_message = db_message_to_api_message_info(&enriched, &parts_map, None);
+    let api_message = db_message_to_api_message_info(
+        &enriched,
+        &parts_map,
+        None,
+        Some(crate::models::MessageDeliveryStatus::Sent),
+    );
     Ok(Json(SendMessageResponse {
         message: api_message,
     }))
@@ -648,6 +659,7 @@ pub async fn list_messages(
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
     let store = MessageStore::new(state.database.pool());
+    let read_store = MessageReadStore::new(state.database.pool());
 
     let in_room = store.user_in_room(room_id, user_id).await?;
     if !in_room {
@@ -680,6 +692,20 @@ pub async fn list_messages(
     }
     let parts_map = store.get_message_parts_map(&part_query_ids).await?;
 
+    let self_message_ids: Vec<Uuid> = items
+        .iter()
+        .filter(|msg| msg.sender_id == user_id)
+        .map(|msg| msg.id)
+        .collect();
+
+    let read_message_ids: HashSet<Uuid> = if self_message_ids.is_empty() {
+        HashSet::new()
+    } else {
+        read_store
+            .message_ids_read_by_others(&self_message_ids, user_id)
+            .await?
+    };
+
     let messages = items
         .into_iter()
         .map(|msg| {
@@ -690,7 +716,18 @@ pub async fn list_messages(
                     None
                 }
             });
-            db_message_to_api_message_info(&msg, &parts_map, pin_ref)
+
+            let delivery_status = if msg.sender_id == user_id {
+                if read_message_ids.contains(&msg.id) {
+                    Some(MessageDeliveryStatus::Read)
+                } else {
+                    Some(MessageDeliveryStatus::Sent)
+                }
+            } else {
+                None
+            };
+
+            db_message_to_api_message_info(&msg, &parts_map, pin_ref, delivery_status)
         })
         .collect();
 
@@ -746,7 +783,16 @@ pub async fn pin_message(
         error!("广播置顶消息失败: {}", e);
     }
 
-    let api_message = db_message_to_api_message_info(&message, &part_map, Some(&pin));
+    let api_message = db_message_to_api_message_info(
+        &message,
+        &part_map,
+        Some(&pin),
+        if message.sender_id == user_id {
+            Some(MessageDeliveryStatus::Sent)
+        } else {
+            None
+        },
+    );
 
     Ok(Json(PinMessageResponse {
         room_id: room_id.to_string(),
@@ -809,7 +855,16 @@ pub async fn unpin_message(
 
     let message_info = if let Some(msg) = store.get_message_with_sender(message_id).await? {
         let parts_map = store.get_message_parts_map(&[msg.id]).await?;
-        Some(db_message_to_api_message_info(&msg, &parts_map, None))
+        Some(db_message_to_api_message_info(
+            &msg,
+            &parts_map,
+            None,
+            if msg.sender_id == user_id {
+                Some(MessageDeliveryStatus::Sent)
+            } else {
+                None
+            },
+        ))
     } else {
         None
     };
@@ -898,7 +953,16 @@ pub async fn delete_message(
     }
 
     let parts_map = store.get_message_parts_map(&[updated.id]).await?;
-    let api_message = db_message_to_api_message_info(&updated, &parts_map, None);
+    let api_message = db_message_to_api_message_info(
+        &updated,
+        &parts_map,
+        None,
+        if updated.sender_id == user_id {
+            Some(MessageDeliveryStatus::Sent)
+        } else {
+            None
+        },
+    );
     Ok(Json(api_message))
 }
 

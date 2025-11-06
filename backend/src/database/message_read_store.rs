@@ -1,6 +1,7 @@
 use crate::database::models::{MessageRead, User};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 pub struct MessageReadStore<'a> {
@@ -167,6 +168,29 @@ impl<'a> MessageReadStore<'a> {
             .collect();
 
         Ok(result)
+    }
+
+    pub async fn message_ids_read_by_others(
+        &self,
+        message_ids: &[Uuid],
+        sender_id: Uuid,
+    ) -> Result<HashSet<Uuid>, sqlx::Error> {
+        if message_ids.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let rows = sqlx::query_scalar::<_, Uuid>(
+            "SELECT DISTINCT message_id
+             FROM message_reads
+             WHERE message_id = ANY($1)
+               AND user_id != $2",
+        )
+        .bind(message_ids)
+        .bind(sender_id)
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(rows.into_iter().collect())
     }
 
     pub async fn get_unread_count(&self, room_id: Uuid, user_id: Uuid) -> Result<i64, sqlx::Error> {

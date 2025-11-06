@@ -302,6 +302,8 @@ pub struct MessageInfo {
     pub sender_avatar_url: Option<String>,
     pub content: String,
     pub message_type: MessageType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<MessageDeliveryStatus>,
     pub created_at: String, // ISO 8601 格式
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quoted_message: Option<QuotedMessageInfo>,
@@ -319,6 +321,14 @@ pub struct MessageInfo {
     pub pinned_by: Option<String>,
     #[serde(default)]
     pub parts: Vec<MessagePartInfo>,
+}
+
+/// 消息投递状态（相对当前请求用户）
+#[derive(Debug, Clone, Serialize, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageDeliveryStatus {
+    Sent,
+    Read,
 }
 
 /// 发送消息请求

@@ -146,6 +146,7 @@ pub fn db_message_to_api_message_info(
     db_msg: &crate::database::models::MessageWithSender,
     parts_lookup: &HashMap<uuid::Uuid, Vec<crate::database::models::MessagePart>>,
     room_pin: Option<&crate::database::models::RoomPin>,
+    delivery_status: Option<crate::models::MessageDeliveryStatus>,
 ) -> crate::models::MessageInfo {
     let is_pinned = room_pin
         .map(|pin| pin.message_id == db_msg.id)
@@ -194,6 +195,7 @@ pub fn db_message_to_api_message_info(
         sender_avatar_url: db_msg.sender_avatar_url.clone(),
         content: db_msg.content.clone(),
         message_type: db_message_type_to_api(&db_msg.message_type),
+        status: delivery_status,
         created_at: db_msg.created_at.to_rfc3339(),
         quoted_message: db_message_to_api_quoted_message(db_msg, parts_lookup),
         forward_message: forward,
