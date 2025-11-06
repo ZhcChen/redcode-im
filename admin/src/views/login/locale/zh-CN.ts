@@ -1,5 +1,6 @@
 export default {
-  'login.form.title': '登录 Arco Design Pro',
+  'login.form.title': '登录 Redcode 管理后台',
+  'login.form.subtitle': '一站式运营配置中心',
   'login.form.userName.errMsg': '用户名不能为空',
   'login.form.password.errMsg': '密码不能为空',
   'login.form.login.errMsg': '登录出错，轻刷新重试',
