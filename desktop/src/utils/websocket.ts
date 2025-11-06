@@ -115,13 +115,22 @@ const normalizeServerMessage = (message: any, currentUserId: string | null): Mes
     } as const;
   };
 
-  const normalizeParts = (parts: any): any[] => {
+  type NormalizedAttachment = ReturnType<typeof normalizeAttachment>;
+
+  type NormalizedPart = {
+    position: number;
+    part_type: string;
+    text: string | null;
+    attachment: NormalizedAttachment;
+  };
+
+  const normalizeParts = (parts: any): NormalizedPart[] => {
     if (!Array.isArray(parts) || parts.length === 0) {
       return [];
     }
 
     return parts
-      .map((part) => {
+      .map<NormalizedPart | null>((part) => {
         if (!part || typeof part !== 'object') {
           return null;
         }
@@ -137,13 +146,15 @@ const normalizeServerMessage = (message: any, currentUserId: string | null): Mes
           return null;
         }
 
-        const text = typeof part.text === 'string'
+        const text: string | null = typeof part.text === 'string'
           ? part.text
           : typeof part.content === 'string'
             ? part.content
             : null;
 
-        const attachment = normalizeAttachment(part.attachment ?? part.file ?? part.media);
+        const attachment: NormalizedAttachment = normalizeAttachment(
+          part.attachment ?? part.file ?? part.media,
+        );
 
         return {
           position,
@@ -152,7 +163,7 @@ const normalizeServerMessage = (message: any, currentUserId: string | null): Mes
           attachment,
         };
       })
-      .filter((part): part is { position: number; part_type: string; text?: string | null; attachment?: any } => Boolean(part))
+      .filter((part): part is NormalizedPart => part !== null)
       .sort((a, b) => a.position - b.position);
   };
 

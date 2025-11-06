@@ -111,17 +111,17 @@
                 <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
                   <div class="media-message image-message">
                     <img
-                      v-if="typeof message.content === 'object' && parseImageSrc(message)"
+                      v-if="parseImageSrc(message)"
                       :src="parseImageSrc(message)"
-                      :alt="(typeof message.content === 'object' && message.content.name) || '图片'"
+                      :alt="getImageAlt(message)"
                       class="message-image"
-                      :class="{ uploading: typeof message.content === 'object' && message.content.isUploading }"
+                      :class="{ uploading: isMessageUploading(message) }"
                       @click="handleImagePreview(parseImageSrc(message), message)"
                       @load="scrollToBottomAfterImageLoad"
                       @error="handleImageError"
                       loading="lazy"
                     />
-                    <div v-else-if="typeof message.content === 'object'" class="image-loading-placeholder">
+                    <div v-else class="image-loading-placeholder">
                       <div class="loading-text">图片加载中...</div>
                     </div>
                   </div>
@@ -179,20 +179,20 @@
               <!-- 图片消息 -->
               <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
                 <div class="media-message image-message">
-                  <img
-                    v-if="typeof message.content === 'object' && parseImageSrc(message)"
-                    :src="parseImageSrc(message)"
-                    :alt="(typeof message.content === 'object' && message.content.name) || '图片'"
-                    class="message-image"
-                    :class="{ uploading: typeof message.content === 'object' && message.content.isUploading }"
-                    @click="handleImagePreview(parseImageSrc(message), message)"
-                    @load="scrollToBottomAfterImageLoad"
-                    @error="handleImageError"
-                    loading="lazy"
-                  />
-                  <div v-else-if="typeof message.content === 'object'" class="image-loading-placeholder">
-                    <div class="loading-text">图片加载中...</div>
-                  </div>
+                    <img
+                      v-if="parseImageSrc(message)"
+                      :src="parseImageSrc(message)"
+                      :alt="getImageAlt(message)"
+                      class="message-image"
+                      :class="{ uploading: isMessageUploading(message) }"
+                      @click="handleImagePreview(parseImageSrc(message), message)"
+                      @load="scrollToBottomAfterImageLoad"
+                      @error="handleImageError"
+                      loading="lazy"
+                    />
+                    <div v-else class="image-loading-placeholder">
+                      <div class="loading-text">图片加载中...</div>
+                    </div>
                 </div>
               </template>
 
@@ -421,7 +421,7 @@ import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/
 import { GroupApi } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
-import type { Message as DomainMessage, Chat, RoomMember, MessagePart } from '@/types/models'
+import type { Message as DomainMessage, Chat, RoomMember, MessagePart, MessageAttachment } from '@/types/models'
 import { ChatType, MessageStatus, MessageType, MessagePartType } from '@/types/models'
 import { toast } from '../utils/toast'
 import { webSocketManager } from '../utils/websocket'
@@ -475,6 +475,30 @@ const messageStatusToUiStatus: Record<MessageStatus, number> = {
   [MessageStatus.READ]: 2,
   [MessageStatus.FAILED]: 3
 }
+
+const blobUrlRegistry = new Set<string>();
+
+const registerBlobUrl = (url: string | null) => {
+  if (typeof url === 'string' && url.startsWith('blob:')) {
+    blobUrlRegistry.add(url);
+  }
+};
+
+const releaseBlobUrl = (url: string | null) => {
+  if (typeof url === 'string' && url.startsWith('blob:') && blobUrlRegistry.has(url)) {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.warn('释放本地URL失败:', error);
+    }
+    blobUrlRegistry.delete(url);
+  }
+};
+
+const attachmentUrlCache = new Map<string, { localPath: string; expiresAt: number; downloadUrl?: string | null }>();
+const pendingAttachmentDownloads = new Map<string, Promise<{ localPath: string; downloadUrl: string | null } | null>>();
+const ATTACHMENT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 分钟
+const ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS = 600;
 
 const messageTypeToContentType: Record<MessageType, number> = {
   [MessageType.TEXT]: MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
@@ -663,10 +687,16 @@ const updateAttachmentProgress = (messageId: string, attachmentKey: string, prog
     return;
   }
 
+  let changed = false;
+
   const updatedParts = message.parts.map((part) => {
     if (part.attachment?.key !== attachmentKey) {
       return part;
     }
+    if (part.attachment.uploadProgress === progress) {
+      return part;
+    }
+    changed = true;
     return {
       ...part,
       attachment: {
@@ -676,9 +706,23 @@ const updateAttachmentProgress = (messageId: string, attachmentKey: string, prog
     };
   });
 
+  if (!changed) {
+    return;
+  }
+
+  let updatedContent = message.content;
+  if (typeof message.content === 'object' && message.content) {
+    updatedContent = {
+      ...message.content,
+      uploadProgress: progress,
+      isUploading: progress !== null && progress < 1,
+    };
+  }
+
   messages.value[index] = {
     ...message,
     parts: updatedParts,
+    content: updatedContent,
   };
 };
 
@@ -728,21 +772,96 @@ const buildPlaceholderPart = (
   },
 });
 
-const uploadWithSignature = (
+const isTauriRuntime = typeof window !== 'undefined'
+  && (Boolean((window as any).__TAURI__) || Boolean((window as any).__TAURI_INTERNALS__));
+
+const forbiddenDirectUploadHeaders = new Set([
+  'host',
+  'content-length',
+  'accept-encoding',
+  'user-agent',
+  'referer',
+  'origin',
+  'connection',
+]);
+
+const buildDirectUploadHeaders = (signatureHeaders: Record<string, string> | undefined, file: File) => {
+  const normalizedHeaders: Record<string, string> = {};
+  let hasContentTypeHeader = false;
+
+  if (signatureHeaders && typeof signatureHeaders === 'object') {
+    Object.entries(signatureHeaders).forEach(([rawKey, rawValue]) => {
+      const headerKey = typeof rawKey === 'string' ? rawKey.trim() : '';
+      if (!headerKey) return;
+      const lowerKey = headerKey.toLowerCase();
+      if (forbiddenDirectUploadHeaders.has(lowerKey)) {
+        return;
+      }
+      if (lowerKey === 'content-type') {
+        hasContentTypeHeader = true;
+      }
+      if (typeof rawValue !== 'string') {
+        return;
+      }
+      normalizedHeaders[headerKey] = rawValue;
+    });
+  }
+
+  if (!hasContentTypeHeader && file.type) {
+    normalizedHeaders['Content-Type'] = file.type;
+  }
+
+  return normalizedHeaders;
+};
+
+const uploadWithSignature = async (
   signature: DirectUploadSignatureInfo,
   file: File,
   onProgress?: (progress: number) => void,
 ) => {
+  const headers = buildDirectUploadHeaders(signature.headers, file);
+  const method = signature.method || 'PUT';
+
+  if (isTauriRuntime) {
+    try {
+      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+      const response = await tauriFetch(signature.url, {
+        method,
+        headers,
+        body: file,
+      });
+
+      if (!response.ok) {
+        let responseText = '';
+        try {
+          responseText = (await response.text())?.trim();
+        } catch (error) {
+          console.warn('读取上传响应失败:', error);
+        }
+        const extra = responseText ? `，响应：${responseText.slice(0, 200)}` : '';
+        throw new Error(`上传失败，状态码 ${response.status}${extra}`);
+      }
+
+      if (onProgress) {
+        onProgress(1);
+      }
+      return;
+    } catch (error: any) {
+      throw new Error(error?.message || '文件上传失败');
+    }
+  }
+
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open(signature.method || 'PUT', signature.url, true);
-    const headers = signature.headers || {};
+    xhr.open(method, signature.url, true);
+
     Object.entries(headers).forEach(([headerKey, headerValue]) => {
-      xhr.setRequestHeader(headerKey, headerValue);
+      try {
+        xhr.setRequestHeader(headerKey, headerValue);
+      } catch (error) {
+        console.warn(`跳过无法设置的上传头 ${headerKey}:`, error);
+      }
     });
-    if (!headers['Content-Type'] && file.type) {
-      xhr.setRequestHeader('Content-Type', file.type);
-    }
 
     if (xhr.upload && onProgress) {
       xhr.upload.onprogress = (event) => {
@@ -754,19 +873,224 @@ const uploadWithSignature = (
     }
 
     xhr.onerror = () => {
-      reject(new Error('文件上传失败'));
+      const status = xhr.status;
+      const statusText = xhr.statusText;
+      if (status >= 400) {
+        reject(new Error(`文件上传失败，状态码 ${status}${statusText ? ` ${statusText}` : ''}`));
+      } else {
+        reject(new Error('文件上传失败'));
+      }
+    };
+
+    xhr.onabort = () => {
+      reject(new Error('文件上传已取消'));
     };
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
-      } else {
-        reject(new Error(`上传失败，状态码 ${xhr.status}`));
+        return;
       }
+      const responseText = typeof xhr.responseText === 'string' ? xhr.responseText.trim() : '';
+      const extra = responseText ? `，响应：${responseText.slice(0, 200)}` : '';
+      reject(new Error(`上传失败，状态码 ${xhr.status}${extra}`));
     };
 
-    xhr.send(file);
+    try {
+      xhr.send(file);
+    } catch (error: any) {
+      reject(new Error(error?.message || '文件上传失败'));
+    }
   });
+};
+
+const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string | null): Promise<{ localPath: string; fromBlob: boolean }> => {
+  try {
+    if (isTauriRuntime) {
+      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+      const response = await tauriFetch(downloadUrl, { method: 'GET' });
+      if (!response.ok) {
+        throw new Error(`下载失败，状态码 ${response.status}`);
+      }
+      const buffer = await response.arrayBuffer();
+      const blob = new Blob([buffer], { type: mime || undefined });
+      const objectUrl = URL.createObjectURL(blob);
+      return { localPath: objectUrl, fromBlob: true };
+    }
+
+    const response = await fetch(downloadUrl, { method: 'GET' });
+    if (!response.ok) {
+      throw new Error(`下载失败，状态码 ${response.status}`);
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    return { localPath: objectUrl, fromBlob: true };
+  } catch (error) {
+    console.error('下载附件失败，回退至签名URL:', error);
+    return { localPath: downloadUrl, fromBlob: false };
+  }
+};
+
+const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localPath: string | null, extra: { downloadUrl?: string | null } = {}) => {
+  const index = messages.value.findIndex((msg) => msg.id === messageId);
+  if (index === -1) {
+    return;
+  }
+
+  const message = messages.value[index];
+  if (!Array.isArray(message.parts)) {
+    return;
+  }
+
+  let changed = false;
+
+  const updatedParts = message.parts.map((part) => {
+    if (!part.attachment || part.attachment.key !== attachmentKey) {
+      return part;
+    }
+
+    const previousPath = part.attachment.localPath || null;
+    if (previousPath && previousPath !== localPath) {
+      releaseBlobUrl(previousPath);
+    }
+
+    if (part.attachment.localPath === localPath && part.attachment.downloadUrl === (extra.downloadUrl ?? part.attachment.downloadUrl)) {
+      return part;
+    }
+
+    changed = true;
+    return {
+      ...part,
+      attachment: {
+        ...part.attachment,
+        localPath,
+        downloadUrl: extra.downloadUrl ?? part.attachment.downloadUrl ?? null,
+      },
+    };
+  });
+
+  if (!changed) {
+    return;
+  }
+
+  let updatedContent = message.content;
+  if (typeof message.content === 'object' && message.content) {
+    updatedContent = {
+      ...message.content,
+      localUrl: localPath ?? message.content.localUrl ?? null,
+      downloadUrl: extra.downloadUrl ?? message.content.downloadUrl ?? null,
+      isUploading: false,
+      uploadProgress: 1,
+    };
+  }
+
+  messages.value[index] = {
+    ...message,
+    parts: updatedParts,
+    content: updatedContent,
+    status: message.status === 1 ? 2 : message.status,
+  };
+};
+
+const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) => {
+  const attachment = part.attachment;
+  if (!attachment || attachment.localPath) {
+    return;
+  }
+
+  const { key } = attachment;
+  if (!key) {
+    return;
+  }
+
+  const cached = attachmentUrlCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    if (cached.localPath && cached.localPath.startsWith('blob:')) {
+      registerBlobUrl(cached.localPath);
+    }
+    setAttachmentLocalPath(message.id, key, cached.localPath, { downloadUrl: cached.downloadUrl ?? cached.localPath });
+    return;
+  }
+
+  const roomId = message.roomId || selectedChat.value?.groupId;
+  if (!roomId) {
+    return;
+  }
+
+  let pending = pendingAttachmentDownloads.get(key);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const response = await MessageApi.getAttachmentDownloadUrl({
+          groupId: roomId,
+          key,
+          expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
+        });
+
+        const payload = response.data;
+        if (!response.success || !payload || !payload.downloadUrl) {
+          throw new Error(payload?.message || response.message || '获取附件下载链接失败');
+        }
+
+        const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, attachment.mime ?? null);
+        if (fromBlob) {
+          registerBlobUrl(localPath);
+        }
+        attachmentUrlCache.set(key, {
+          localPath,
+          expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
+          downloadUrl: payload.downloadUrl,
+        });
+        return { localPath, downloadUrl: payload.downloadUrl };
+      } catch (error: any) {
+        console.error('获取附件本地缓存失败:', error);
+        toast.error(error?.message || '图片加载失败');
+        return null;
+      }
+    })();
+    pendingAttachmentDownloads.set(key, pending);
+  }
+
+  const result = await pending;
+  pendingAttachmentDownloads.delete(key);
+
+  if (result) {
+    attachmentUrlCache.set(key, {
+      localPath: result.localPath,
+      expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
+      downloadUrl: result.downloadUrl,
+    });
+    setAttachmentLocalPath(message.id, key, result.localPath, { downloadUrl: result.downloadUrl });
+  }
+};
+
+const isMessageUploading = (message: Message): boolean => {
+  if (message.status === 1) {
+    return true;
+  }
+  if (typeof message.content === 'object' && message.content) {
+    if (message.content.isUploading) {
+      return true;
+    }
+    if (typeof message.content.uploadProgress === 'number' && message.content.uploadProgress < 1) {
+      return true;
+    }
+  }
+  if (Array.isArray(message.parts)) {
+    return message.parts.some((part) => {
+      const progress = part.attachment?.uploadProgress;
+      return typeof progress === 'number' && progress < 1;
+    });
+  }
+  return false;
+};
+
+const getImageAlt = (message: Message): string => {
+  if (typeof message.content === 'object' && message.content) {
+    return message.content.name || '图片';
+  }
+  const text = getTextContent(message);
+  return text && text !== '[图片]' ? text : '图片';
 };
 
 
@@ -804,6 +1128,11 @@ interface Message {
     fullPath?: string;
     fileName?: string;
     fileSaveTarget?: string;
+    key?: string | null;
+    thumbnailKey?: string | null;
+    mime?: string | null;
+    uploadProgress?: number | null;
+    downloadUrl?: string | null;
   }
   isSelf: boolean
   time: string
@@ -817,6 +1146,7 @@ interface Message {
   contentType?: number // 内容类型：1=文本，2=图片，3=视频等
   isEdited?: boolean
   parts?: MessagePart[]
+  roomId?: string
 }
 
 const route = useRoute()
@@ -1164,37 +1494,30 @@ const resolveAttachmentUrl = (key?: string | null): string => {
 
 // 图片和视频URL构建工具函数
 const parseImageSrc = (message: Message): string => {
-  console.log('🔍 parseImageSrc 开始解析图片URL:', {
-    messageId: message.id,
-    status: message.status,
-    contentType: message.contentType,
-    hasParts: Array.isArray(message.parts) && message.parts.length > 0,
-    parts: message.parts?.map(p => ({
-      type: p.type,
-      hasLocalPath: !!p.attachment?.localPath,
-      hasKey: !!p.attachment?.key,
-      hasThumbnailKey: !!p.attachment?.thumbnailKey
-    }))
-  })
-
   if (Array.isArray(message.parts)) {
     const imagePart = message.parts.find((part) => part.type === MessagePartType.IMAGE)
     if (imagePart?.attachment) {
-      // 优先使用本地路径（发送中的消息或者有本地缓存的图片）
-      if (imagePart.attachment.localPath) {
-        console.log('✅ parseImageSrc - 使用本地路径:', imagePart.attachment.localPath)
-        return imagePart.attachment.localPath
+      const attachment = imagePart.attachment
+
+      if (attachment.localPath) {
+        return attachment.localPath
       }
-      // 使用缩略图
-      const fromThumb = resolveAttachmentUrl(imagePart.attachment.thumbnailKey)
+
+      if (attachment.key) {
+        void ensureAttachmentLocalPath(message, imagePart)
+      }
+
+      if (attachment.downloadUrl) {
+        return attachment.downloadUrl
+      }
+
+      const fromThumb = resolveAttachmentUrl(attachment.thumbnailKey)
       if (fromThumb) {
-        console.log('✅ parseImageSrc - 使用缩略图:', fromThumb)
         return fromThumb
       }
-      // 使用原图
-      const fromKey = resolveAttachmentUrl(imagePart.attachment.key)
+
+      const fromKey = resolveAttachmentUrl(attachment.key)
       if (fromKey) {
-        console.log('✅ parseImageSrc - 使用原图:', fromKey)
         return fromKey
       }
     }
@@ -1202,68 +1525,21 @@ const parseImageSrc = (message: Message): string => {
 
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
-
-    console.log('🔍 parseImageSrc - 解析图片URL:', {
-      messageId: message.id,
-      status: message.status, // 1-发送中，2-成功，3-失败
-      content: content,
-      localUrl: content.localUrl,
-      isUploading: content.isUploading,
-      url: content.url,
-      fullPath: content.fullPath
-    })
-
-    // 参考 bear-chat-uniapp 的核心逻辑：
-    // 发送阶段使用本地预览 → 服务器确认后切换为真实地址
-
-    // 1. 消息发送成功后，优先使用服务器地址
-    if (message.status === 2) {
-      // 使用 fullPath + fileSaveTarget 构建服务器地址
-      if (content.fullPath) {
-        const target = content.fileSaveTarget || 'local'
-        const serverUrl = target === 'local'
-          ? `${fileConfig.showFile}${content.fullPath}`
-          : content.fullPath
-        console.log('✅ 消息已成功，使用服务器地址:', serverUrl)
-        return serverUrl
-      }
-
-      // 备用：如果有完整的 HTTP URL
-      if (content.url && (content.url.startsWith('http://') || content.url.startsWith('https://'))) {
-        console.log('✅ 消息已成功，使用HTTP URL:', content.url)
-        return content.url
-      }
+    if (content.localUrl) {
+      return content.localUrl
     }
-
-    // 2. 发送中或失败时，使用本地预览图
-    if (message.status === 1 || message.status === 3) {
-      // 优先使用 localUrl（本地预览）
-      if (content.localUrl) {
-        console.log('🔄 消息发送中/失败，使用本地预览:', content.localUrl)
-        return content.localUrl
-      }
-
-      // 备用：blob URL 或 data URL
-      if (content.url && (content.url.startsWith('blob:') || content.url.startsWith('data:'))) {
-        console.log('🔄 消息发送中/失败，使用blob URL:', content.url)
-        return content.url
-      }
+    if (content.downloadUrl) {
+      return content.downloadUrl
     }
-
-    // 3. 通用备用逻辑：如果有完整的 HTTP URL，直接返回
-    if (content.url && (content.url.startsWith('http://') || content.url.startsWith('https://'))) {
-      console.log('✅ 使用完整HTTP URL:', content.url)
+    if (content.url) {
       return content.url
     }
-
-    // 4. 最后的备用方案：使用 FileApi.buildImageUrl 智能构建
-    const fallbackUrl = FileApi.buildImageUrl(content)
-    if (fallbackUrl) {
-      console.log('⚠️ 使用备用地址构建:', fallbackUrl)
-      return fallbackUrl
+    if (content.fullPath) {
+      const target = content.fileSaveTarget || 'local'
+      return target === 'local'
+        ? `${fileConfig.showFile}${content.fullPath}`
+        : content.fullPath
     }
-
-    console.warn('❌ 无法构建图片URL，缺少必要字段')
   }
 
   return ''
@@ -1452,36 +1728,209 @@ const formatTime = (timeStr: string) => {
   }
 }
 
+const cloneMessageParts = (parts?: MessagePart[]): MessagePart[] | undefined => {
+  if (!Array.isArray(parts)) {
+    return undefined
+  }
+  return parts.map((part) => {
+    let attachmentCopy = part.attachment ? { ...part.attachment } : part.attachment ?? null
+    if (attachmentCopy && attachmentCopy.key) {
+      const cached = attachmentUrlCache.get(attachmentCopy.key)
+      if (cached && cached.expiresAt > Date.now()) {
+        if (!attachmentCopy.localPath && cached.localPath) {
+          attachmentCopy.localPath = cached.localPath
+          if (cached.localPath.startsWith('blob:')) {
+            registerBlobUrl(cached.localPath)
+          }
+        }
+        if (!attachmentCopy.downloadUrl && cached.downloadUrl) {
+          attachmentCopy.downloadUrl = cached.downloadUrl
+        }
+      }
+    }
+    return {
+      ...part,
+      attachment: attachmentCopy,
+    }
+  })
+}
+
+const buildMessageContentFromParts = (
+  parts: MessagePart[] | undefined,
+  incomingContent: Message['content'],
+  existingContent?: Message['content'],
+): Message['content'] => {
+  const cloneContent = (value: Message['content']) => (
+    value && typeof value === 'object' ? { ...value } : value
+  )
+
+  const primaryAttachmentPart = parts?.find((part) =>
+    part.type !== MessagePartType.TEXT && part.attachment,
+  )
+
+  if (primaryAttachmentPart?.attachment) {
+    const attachment = primaryAttachmentPart.attachment
+    const base = (
+      (existingContent && typeof existingContent === 'object' ? { ...existingContent } : null)
+      ?? (incomingContent && typeof incomingContent === 'object' ? { ...incomingContent } : null)
+      ?? {}
+    ) as Record<string, any>
+
+    const uploadProgress = base.uploadProgress ?? attachment.uploadProgress ?? null
+
+    return {
+      ...base,
+      name: base.name ?? attachment.name ?? (typeof incomingContent === 'string' ? incomingContent : null),
+      size: base.size ?? attachment.size ?? null,
+      type: base.type ?? primaryAttachmentPart.type,
+      localUrl: base.localUrl ?? attachment.localPath ?? null,
+      key: base.key ?? attachment.key ?? null,
+      thumbnailKey: base.thumbnailKey ?? attachment.thumbnailKey ?? null,
+      mime: base.mime ?? attachment.mime ?? null,
+      downloadUrl: base.downloadUrl ?? attachment.downloadUrl ?? null,
+      uploadProgress,
+      isUploading: typeof uploadProgress === 'number' ? uploadProgress < 1 : Boolean(base.isUploading),
+    }
+  }
+
+  const textPart = parts?.find((part) => part.type === MessagePartType.TEXT && part.text)
+  if (textPart?.text) {
+    return textPart.text
+  }
+
+  if (incomingContent !== undefined) {
+    return cloneContent(incomingContent)
+  }
+
+  if (existingContent !== undefined) {
+    return cloneContent(existingContent)
+  }
+
+  return ''
+}
+
+const resolveContentTypeFromParts = (parts: MessagePart[] | undefined, fallback: number): number => {
+  if (!parts || parts.length === 0) {
+    return fallback
+  }
+
+  const typePriority: Array<{ type: MessagePartType; contentType: number }> = [
+    { type: MessagePartType.IMAGE, contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE },
+    { type: MessagePartType.VIDEO, contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE },
+    { type: MessagePartType.AUDIO, contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE },
+    { type: MessagePartType.FILE, contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE },
+  ]
+
+  for (const { type, contentType } of typePriority) {
+    if (parts.some((part) => part.type === type)) {
+      return contentType
+    }
+  }
+
+  return fallback
+}
+
 const mapDomainMessageToUi = (msg: DomainMessage): Message => {
   const timestamp = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)
   const messageType = msg.type === MessageType.SYSTEM
     ? MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG
     : MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG
-  const parts = Array.isArray(msg.parts) ? msg.parts : undefined
-  let displayContent = msg.content
-
-  if ((!displayContent || displayContent.trim() === '') && parts && parts.length > 0) {
-    const textPart = parts.find((part) => part.type === MessagePartType.TEXT && part.text)
-    if (textPart?.text) {
-      displayContent = textPart.text
-    }
-  }
+  const parts = cloneMessageParts(msg.parts)
+  const normalizedContent = buildMessageContentFromParts(parts, msg.content as any)
+  const baseContentType = messageTypeToContentType[msg.type] || MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE
+  const resolvedContentType = resolveContentTypeFromParts(parts, baseContentType)
 
   return {
     id: msg.id,
-    content: displayContent,
+    content: normalizedContent,
     isSelf: msg.isSelf,
     time: formatTime(timestamp.toISOString()),
     senderId: msg.senderId,
     senderName: msg.senderName,
     senderAvatar: msg.senderAvatar || '',
     messageType,
-    contentType: messageTypeToContentType[msg.type] || MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
+    contentType: resolvedContentType,
     status: messageStatusToUiStatus[msg.status] || 2,
     createTime: timestamp.toISOString(),
     timestamp: timestamp.getTime(),
     isEdited: !!(msg.extra && (msg.extra as Record<string, unknown>).edited),
     parts,
+    roomId: msg.roomId,
+  }
+}
+
+const mergeMessagePreservingLocalData = (existing: Message, incoming: Message): Message => {
+  const incomingParts = cloneMessageParts(incoming.parts)
+  const existingParts = cloneMessageParts(existing.parts)
+
+  const allParts = (incomingParts && incomingParts.length > 0 ? incomingParts : existingParts) ?? []
+
+  const identifyPart = (part: MessagePart) => {
+    if (part.attachment?.key) {
+      return `key:${part.attachment.key}`
+    }
+    return `type:${part.type}|pos:${part.position ?? 0}`
+  }
+
+  const mergedParts = allParts.length > 0
+    ? allParts.map((part) => {
+        if (!part.attachment) {
+          return part
+        }
+
+        const identity = identifyPart(part)
+        const incomingAttachment = incomingParts?.find((p) => identifyPart(p) === identity)?.attachment
+        const existingAttachment = existingParts?.find((p) => identifyPart(p) === identity)?.attachment
+
+        const localPath = existingAttachment?.localPath
+          ?? incomingAttachment?.localPath
+          ?? part.attachment.localPath
+          ?? null
+
+        const downloadUrl = existingAttachment?.downloadUrl
+          ?? incomingAttachment?.downloadUrl
+          ?? part.attachment.downloadUrl
+          ?? null
+
+        const uploadProgress = incomingAttachment?.uploadProgress
+          ?? existingAttachment?.uploadProgress
+          ?? part.attachment.uploadProgress
+          ?? null
+
+        return {
+          ...part,
+          attachment: {
+            ...part.attachment,
+            localPath,
+            downloadUrl,
+            uploadProgress,
+          },
+        }
+      })
+    : undefined
+
+  const mergedContent = buildMessageContentFromParts(
+    mergedParts,
+    incoming.content,
+    existing.content,
+  )
+
+  const fallbackContentType = existing.contentType
+    ?? incoming.contentType
+    ?? MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE
+
+  const mergedContentType = resolveContentTypeFromParts(
+    mergedParts,
+    fallbackContentType,
+  )
+
+  return {
+    ...existing,
+    ...incoming,
+    content: mergedContent,
+    contentType: mergedContentType,
+    parts: mergedParts,
+    roomId: incoming.roomId ?? existing.roomId,
   }
 }
 
@@ -2072,15 +2521,28 @@ const uploadAndSendFile = async (file: File) => {
 
     attachmentKey = signatureResponse.data.key
     localUrl = URL.createObjectURL(file)
+    registerBlobUrl(localUrl)
     const timestamp = Date.now()
     tempId = `upload_${timestamp}_${Math.random().toString(36).slice(2, 8)}`
     const user = store.getters.currentUser
     const placeholderPart = buildPlaceholderPart(meta, attachmentKey, file, localUrl)
     const contentTypeCode = partTypeContentMap[meta.partType as keyof typeof partTypeContentMap] ?? MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
 
+    const placeholderContent = {
+      name: file.name,
+      size: file.size,
+      type: meta.partType,
+      localUrl,
+      isUploading: true,
+      uploadProgress: 0,
+      key: attachmentKey,
+      thumbnailKey: placeholderPart.attachment?.thumbnailKey ?? null,
+      mime: meta.mime,
+    };
+
     const tempMessage: Message = {
       id: tempId,
-      content: meta.summary,
+      content: placeholderContent,
       isSelf: true,
       time: formatTime(getTimeStr(timestamp)),
       senderId: currentUserId.value || '',
@@ -2091,7 +2553,8 @@ const uploadAndSendFile = async (file: File) => {
       status: 1,
       createTime: getTimeStr(timestamp),
       timestamp,
-      parts: [placeholderPart]
+      parts: [placeholderPart],
+      roomId: selectedChat.value.groupId,
     }
 
     messages.value.push(tempMessage)
@@ -2119,27 +2582,15 @@ const uploadAndSendFile = async (file: File) => {
         const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
         if (messageIndex !== -1) {
           const localMessage = messages.value[messageIndex]
-          // 保留本地消息的图片路径信息
-          const preservedLocalPath = localMessage.parts?.find(part =>
-            part.type === MessagePartType.IMAGE && part.attachment?.localPath
-          )?.attachment?.localPath
-
-          // 合并服务器消息和本地图片路径
-          const mergedMessage = {
+          const mergedMessage = mergeMessagePreservingLocalData(localMessage, {
             ...uiMessage,
             status: 2,
-            parts: uiMessage.parts?.map(serverPart => {
-              if (serverPart.type === MessagePartType.IMAGE && preservedLocalPath) {
-                return {
-                  ...serverPart,
-                  attachment: {
-                    ...serverPart.attachment,
-                    localPath: preservedLocalPath
-                  }
-                }
-              }
-              return serverPart
-            }) || uiMessage.parts
+            roomId: uiMessage.roomId ?? selectedChat.value.groupId,
+          })
+
+          if (typeof mergedMessage.content === 'object' && mergedMessage.content) {
+            mergedMessage.content.isUploading = false
+            mergedMessage.content.uploadProgress = 1
           }
 
           messages.value[messageIndex] = mergedMessage
@@ -2147,12 +2598,14 @@ const uploadAndSendFile = async (file: File) => {
           messages.value.push({
             ...uiMessage,
             status: 2,
+            roomId: uiMessage.roomId ?? selectedChat.value.groupId,
           })
         }
       } else {
         messages.value.push({
-          ...mapDomainMessageToUi(apiMessage),
+          ...uiMessage,
           status: 2,
+          roomId: uiMessage.roomId ?? selectedChat.value.groupId,
         })
       }
 
@@ -2173,10 +2626,6 @@ const uploadAndSendFile = async (file: File) => {
       }
     }
     toast.error('文件发送失败: ' + (error.message || '网络错误'))
-  } finally {
-    if (localUrl) {
-      URL.revokeObjectURL(localUrl)
-    }
   }
 }
 
@@ -2997,29 +3446,17 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
     if (existingMessageIndex !== -1) {
       if (messageData.isSelf && messages.value[existingMessageIndex].status === 1) {
-        const localMessage = messages.value[existingMessageIndex]
-        // 保留本地消息的图片路径信息
-        const preservedLocalPath = localMessage.parts?.find(part =>
-          part.type === MessagePartType.IMAGE && part.attachment?.localPath
-        )?.attachment?.localPath
+        const mergedMessage = mergeMessagePreservingLocalData(
+          messages.value[existingMessageIndex],
+          {
+            ...uiMessage,
+            status: 2,
+          },
+        )
 
-        // 合并服务器消息和本地图片路径
-        const mergedMessage = {
-          ...localMessage,
-          ...uiMessage,
-          status: 2,
-          parts: uiMessage.parts?.map(serverPart => {
-            if (serverPart.type === MessagePartType.IMAGE && preservedLocalPath) {
-              return {
-                ...serverPart,
-                attachment: {
-                  ...serverPart.attachment,
-                  localPath: preservedLocalPath
-                }
-              }
-            }
-            return serverPart
-          }) || uiMessage.parts
+        if (typeof mergedMessage.content === 'object' && mergedMessage.content) {
+          mergedMessage.content.isUploading = false
+          mergedMessage.content.uploadProgress = 1
         }
 
         messages.value[existingMessageIndex] = mergedMessage
@@ -3051,12 +3488,24 @@ const handleWebSocketMessage = (event: CustomEvent) => {
       if (matchedLocalMessageId) {
         const localMessageIndex = messages.value.findIndex(msg => msg.id === matchedLocalMessageId)
         if (localMessageIndex !== -1) {
-          messages.value[localMessageIndex] = {
-            ...messages.value[localMessageIndex],
-            ...uiMessage,
-            id: uiMessage.id,
-            status: 2
+          const mergedMessage = mergeMessagePreservingLocalData(
+            {
+              ...messages.value[localMessageIndex],
+              id: matchedLocalMessageId,
+            },
+            {
+              ...uiMessage,
+              status: 2,
+            },
+          )
+
+          if (typeof mergedMessage.content === 'object' && mergedMessage.content) {
+            mergedMessage.content.isUploading = false
+            mergedMessage.content.uploadProgress = 1
           }
+
+          mergedMessage.id = uiMessage.id
+          messages.value[localMessageIndex] = mergedMessage
           recentSentMessages.value.delete(matchedLocalMessageId)
         }
       } else {
@@ -3114,11 +3563,12 @@ const handleWebSocketMessageUpdate = (event: CustomEvent) => {
         messages.value.splice(existingIndex, 1)
       }
     } else if (existingIndex !== -1) {
-      messages.value.splice(existingIndex, 1, {
-        ...messages.value[existingIndex],
-        ...uiMessage,
-        isEdited: true
-      })
+      const mergedMessage = mergeMessagePreservingLocalData(
+        messages.value[existingIndex],
+        uiMessage,
+      )
+      mergedMessage.isEdited = true
+      messages.value.splice(existingIndex, 1, mergedMessage)
     }
   }
 
@@ -3251,15 +3701,8 @@ onUnmounted(async () => {
     await updateReadTimeOnLeave(selectedChat.value)
   }
 
-  // 清理所有本地URL，避免内存泄漏
-  messages.value.forEach(message => {
-    if (typeof message.content === 'object' && message.content) {
-      const content = message.content as any
-      if (content.localUrl) {
-        URL.revokeObjectURL(content.localUrl)
-      }
-    }
-  })
+  // 清理所有临时本地URL，避免内存泄漏
+  Array.from(blobUrlRegistry).forEach((url) => releaseBlobUrl(url))
 
   // 清理图片预缓存
   imagePreloadCache.value.clear()

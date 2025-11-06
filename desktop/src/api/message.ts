@@ -75,6 +75,12 @@ export interface AttachmentSignatureResult {
   signature: DirectUploadSignatureInfo;
   message?: string;
 }
+
+export interface AttachmentDownloadResult {
+  success: boolean;
+  message: string;
+  downloadUrl?: string | null;
+}
 type BackendMessageStatus =
   | "sending"
   | "sent"
@@ -640,6 +646,64 @@ export class MessageApi {
         key,
         signature,
         message: typeof rawData?.message === "string" ? rawData.message : undefined,
+      },
+    };
+  }
+
+  static async getAttachmentDownloadUrl(params: {
+    groupId: string;
+    key: string;
+    expiresInSeconds?: number;
+  }): Promise<ApiResponse<AttachmentDownloadResult>> {
+    const query: Record<string, string | number> = {
+      key: params.key,
+    };
+
+    if (typeof params.expiresInSeconds === "number") {
+      query.expires_in_seconds = params.expiresInSeconds;
+    }
+
+    const response = await get<Record<string, unknown>>(
+      `/rooms/${params.groupId}/messages/attachments/download`,
+      query,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        code: response.code,
+        success: false,
+        message: response.message || "获取附件下载链接失败",
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag = typeof rawData?.success === "boolean"
+      ? rawData.success
+      : response.success;
+    const downloadUrl = rawData?.download_url ?? rawData?.downloadUrl ?? null;
+
+    if (!successFlag || typeof downloadUrl !== "string" || downloadUrl.length === 0) {
+      return {
+        code: response.code,
+        success: false,
+        message: typeof rawData?.message === "string"
+          ? rawData.message
+          : response.message || "附件下载链接无效",
+        data: null,
+      };
+    }
+
+    const message = typeof rawData?.message === "string" ? rawData.message : response.message || "";
+
+    return {
+      code: response.code,
+      success: true,
+      message,
+      data: {
+        success: true,
+        message,
+        downloadUrl,
       },
     };
   }
