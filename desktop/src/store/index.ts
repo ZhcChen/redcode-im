@@ -1057,7 +1057,7 @@ export const store = createStore<State>({
                 commit('SET_CONTACTS_ERROR', null)
 
                 if (!isSearchMode && state.contacts.list.length === 0 && !params.forceRefresh) {
-                    const cached = loadCache<Contact[]>(CACHE_KEYS.contacts)
+                    const cached = await loadCache<Contact[]>(CACHE_KEYS.contacts)
                     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
                         commit('SET_CONTACTS_LIST', cached.data)
                         console.log('💾 使用缓存的联系人列表，数量:', cached.data.length)
@@ -1122,7 +1122,7 @@ export const store = createStore<State>({
 
                     if (!isSearchMode) {
                         const snapshot = JSON.parse(JSON.stringify(contacts)) as Contact[]
-                        saveCache(CACHE_KEYS.contacts, snapshot)
+                        await saveCache(CACHE_KEYS.contacts, snapshot)
                     }
                 } else {
                     commit('SET_CONTACTS_ERROR', response.message || '加载联系人列表失败')
@@ -1162,7 +1162,7 @@ export const store = createStore<State>({
                 commit('SET_CHAT_LIST_ERROR', null)
 
                 if (!forceRefresh && state.chatList.list.length === 0) {
-                    const cached = loadCache<ChatItem[]>(CACHE_KEYS.chatList)
+                    const cached = await loadCache<ChatItem[]>(CACHE_KEYS.chatList)
                     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
                         commit('SET_CHAT_LIST', cached.data)
                         console.log('💾 使用缓存的聊天列表，数量:', cached.data.length)
@@ -1380,7 +1380,7 @@ export const store = createStore<State>({
                     }
 
                     const snapshot = JSON.parse(JSON.stringify(validChatList)) as ChatItem[]
-                    saveCache(CACHE_KEYS.chatList, snapshot)
+                    await saveCache(CACHE_KEYS.chatList, snapshot)
 
                     console.log('✅ 聊天列表加载成功:', validChatList.length, '个聊天')
                 } else {
@@ -1435,7 +1435,7 @@ export const store = createStore<State>({
                 commit('SET_FRIEND_REQUESTS_ERROR', null)
 
                 if (!forceRefresh && state.friendRequests.list.length === 0) {
-                    const cached = loadCache<FriendRequest[]>(CACHE_KEYS.friendRequests)
+                    const cached = await loadCache<FriendRequest[]>(CACHE_KEYS.friendRequests)
                     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
                         commit('SET_FRIEND_REQUESTS', cached.data)
                         console.log('💾 使用缓存的好友申请列表，数量:', cached.data.length)
@@ -1519,7 +1519,7 @@ export const store = createStore<State>({
                     }
 
                     const snapshot = JSON.parse(JSON.stringify(friendRequests)) as FriendRequest[]
-                    saveCache(CACHE_KEYS.friendRequests, snapshot)
+                    await saveCache(CACHE_KEYS.friendRequests, snapshot)
 
                     // 更新待处理好友申请数量
                     const pendingCount = friendRequests.filter(req => req.status === '待验证').length

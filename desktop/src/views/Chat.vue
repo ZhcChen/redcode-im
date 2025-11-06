@@ -589,10 +589,10 @@ const restoreMessageFromCache = (cached: Message): Message => {
   }
 }
 
-const persistMessagesCache = (groupId: string, messageList: Message[]) => {
+const persistMessagesCache = async (groupId: string, messageList: Message[]) => {
   if (!groupId) return
   const sliced = messageList.slice(-MESSAGES_CACHE_LIMIT).map((msg) => sanitizeMessageForCache(msg))
-  saveCache(CACHE_KEYS.messages(groupId), sliced)
+  await saveCache(CACHE_KEYS.messages(groupId), sliced)
 }
 
 let messageCachePersistTimer: ReturnType<typeof setTimeout> | null = null
@@ -605,7 +605,9 @@ const scheduleMessagesCachePersist = (groupId: string | null | undefined, messag
     clearTimeout(messageCachePersistTimer)
   }
   messageCachePersistTimer = setTimeout(() => {
-    persistMessagesCache(groupId, messageList)
+    persistMessagesCache(groupId, messageList).catch((error) => {
+      console.warn('[cache] 持久化消息缓存失败:', error)
+    })
   }, 400)
 }
 
@@ -1541,7 +1543,7 @@ const loadMessages = async (groupId: string) => {
       return
     }
 
-    const cached = loadCache<Message[]>(CACHE_KEYS.messages(groupId))
+    const cached = await loadCache<Message[]>(CACHE_KEYS.messages(groupId))
     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
       messages.value = cached.data.map((item) => restoreMessageFromCache(item))
       usedCache = true
@@ -1574,7 +1576,7 @@ const loadMessages = async (groupId: string) => {
       })
       
       messages.value = sortedMessages
-      persistMessagesCache(groupId, sortedMessages)
+      await persistMessagesCache(groupId, sortedMessages)
       
       console.log('✅ 消息加载成功:', messages.value.length, '条消息')
       console.log('📋 消息详情（按时间排序）:', messages.value.map(msg => ({

@@ -1,4 +1,6 @@
-use tauri::{Manager, Window, AppHandle, WindowEvent};
+use tauri::{AppHandle, Manager, Window, WindowEvent};
+
+mod cache;
 
 // 自定义命令：隐藏到系统托盘
 #[tauri::command]
@@ -33,8 +35,10 @@ async fn force_center_window(window: Window) -> Result<(), String> {
 #[tauri::command]
 async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> Result<(), String> {
     use tauri::LogicalSize;
-    
-    window.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+
+    window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|e| e.to_string())?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     window.center().map_err(|e| e.to_string())?;
     Ok(())
@@ -44,17 +48,17 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
 #[tauri::command]
 async fn app_ready(app: AppHandle) -> Result<(), String> {
     println!("应用已准备就绪，准备显示主窗口");
-    
+
     // 关闭启动画面并显示主窗口
     if let Some(splash_window) = app.get_webview_window("splashscreen") {
         let _ = splash_window.close();
     }
-    
+
     if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.show();
         let _ = main_window.set_focus();
     }
-    
+
     Ok(())
 }
 
@@ -62,16 +66,16 @@ async fn app_ready(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn close_splashscreen(app: AppHandle) -> Result<(), String> {
     println!("关闭启动画面");
-    
+
     if let Some(splash_window) = app.get_webview_window("splashscreen") {
         let _ = splash_window.close();
     }
-    
+
     if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.show();
         let _ = main_window.set_focus();
     }
-    
+
     Ok(())
 }
 
@@ -79,11 +83,11 @@ async fn close_splashscreen(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
     println!("设置窗口标题: {}", title);
-    
+
     if let Some(main_window) = app.get_webview_window("main") {
         main_window.set_title(&title).map_err(|e| e.to_string())?;
     }
-    
+
     Ok(())
 }
 
@@ -101,14 +105,17 @@ pub fn run() {
             set_window_title,
             hide_to_tray,
             show_from_tray,
-            quit_app
+            quit_app,
+            cache::cache_save_value,
+            cache::cache_load_value,
+            cache::cache_clear_value
         ])
         .setup(|app| {
             // 创建系统托盘
             let tray = app.tray_by_id("main-tray").unwrap();
 
             // 设置托盘菜单
-            use tauri::{menu::{MenuBuilder, MenuItemBuilder}};
+            use tauri::menu::{MenuBuilder, MenuItemBuilder};
             let show_item = MenuItemBuilder::with_id("show", "显示主窗口").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "退出").build(app)?;
             let menu = MenuBuilder::new(app)
@@ -121,19 +128,17 @@ pub fn run() {
 
             // 托盘菜单点击事件
             let app_handle = app.handle().clone();
-            tray.on_menu_event(move |app, event| {
-                match event.id().as_ref() {
-                    "show" => {
-                        if let Some(main_window) = app.get_webview_window("main") {
-                            let _ = main_window.show();
-                            let _ = main_window.set_focus();
-                        }
+            tray.on_menu_event(move |app, event| match event.id().as_ref() {
+                "show" => {
+                    if let Some(main_window) = app.get_webview_window("main") {
+                        let _ = main_window.show();
+                        let _ = main_window.set_focus();
                     }
-                    "quit" => {
-                        app_handle.exit(0);
-                    }
-                    _ => {}
                 }
+                "quit" => {
+                    app_handle.exit(0);
+                }
+                _ => {}
             });
 
             // 托盘双击事件
