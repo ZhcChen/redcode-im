@@ -2,6 +2,7 @@
 import {createStore} from 'vuex'
 import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
 import { UserApi, VersionApi, apiConfig } from '@/api'
+import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
 
 // 辅助函数：格式化最后在线时间
 function formatLastSeen(timeStr: string): string {
@@ -1049,14 +1050,26 @@ export const store = createStore<State>({
 
         // 加载联系人列表
         async loadContacts({commit, state}: { commit: any; state: State }, params: { keyword?: string; forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+            const isSearchMode = Boolean(params.keyword && params.keyword.trim().length > 0)
+            let shouldResetLoading = false
+
             try {
-                commit('SET_CONTACTS_LOADING', true)
                 commit('SET_CONTACTS_ERROR', null)
 
-                // 如果不强制刷新且store中已有数据，直接返回
-                if (!params.forceRefresh && state.contacts.list.length > 0 && !params.keyword) {
-                    console.log('✅ 直接使用store中的联系人数据:', state.contacts.list.length, '个联系人')
-                    return
+                if (!isSearchMode && state.contacts.list.length === 0 && !params.forceRefresh) {
+                    const cached = loadCache<Contact[]>(CACHE_KEYS.contacts)
+                    if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
+                        commit('SET_CONTACTS_LIST', cached.data)
+                        console.log('💾 使用缓存的联系人列表，数量:', cached.data.length)
+                    }
+                }
+
+                const shouldShowLoading = isSearchMode
+                    || state.contacts.list.length === 0
+                    || params.forceRefresh === true
+                if (shouldShowLoading) {
+                    commit('SET_CONTACTS_LOADING', true)
+                    shouldResetLoading = true
                 }
 
                 // 导入 FriendApi 并调用 API
@@ -1106,6 +1119,11 @@ export const store = createStore<State>({
                     }
 
                     console.log('✅ 联系人列表加载成功:', contacts.length, '个联系人')
+
+                    if (!isSearchMode) {
+                        const snapshot = JSON.parse(JSON.stringify(contacts)) as Contact[]
+                        saveCache(CACHE_KEYS.contacts, snapshot)
+                    }
                 } else {
                     commit('SET_CONTACTS_ERROR', response.message || '加载联系人列表失败')
                     console.warn('❌ 联系人列表API调用失败:', response.message)
@@ -1114,7 +1132,9 @@ export const store = createStore<State>({
                 console.error('❌ 加载联系人列表异常:', error)
                 commit('SET_CONTACTS_ERROR', error.message || '网络错误，请稍后重试')
             } finally {
-                commit('SET_CONTACTS_LOADING', false)
+                if (shouldResetLoading) {
+                    commit('SET_CONTACTS_LOADING', false)
+                }
             }
         },
 
@@ -1136,21 +1156,24 @@ export const store = createStore<State>({
         // 聊天列表相关 actions
         // 加载聊天列表
         async loadChatList({commit, state}: { commit: any; state: State }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+            const { forceRefresh = false, compareWithStore = false } = params
+            let shouldResetLoading = false
             try {
-                // 如果不强制刷新且store中已有数据，直接返回，不设置loading状态
-                if (!params.forceRefresh && state.chatList.list.length > 0) {
-                    console.log('✅ 直接使用store中的聊天列表数据:', state.chatList.list.length, '个聊天')
-                    return
+                commit('SET_CHAT_LIST_ERROR', null)
+
+                if (!forceRefresh && state.chatList.list.length === 0) {
+                    const cached = loadCache<ChatItem[]>(CACHE_KEYS.chatList)
+                    if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
+                        commit('SET_CHAT_LIST', cached.data)
+                        console.log('💾 使用缓存的聊天列表，数量:', cached.data.length)
+                    }
                 }
 
-                // 只有在真正需要加载数据时才设置loading状态
-                // 如果是后台刷新（有缓存数据的情况下），不显示loading
-                const shouldShowLoading = state.chatList.list.length === 0
+                const shouldShowLoading = forceRefresh || state.chatList.list.length === 0
                 if (shouldShowLoading) {
                     commit('SET_CHAT_LIST_LOADING', true)
+                    shouldResetLoading = true
                 }
-
-                commit('SET_CHAT_LIST_ERROR', null)
 
                 // 导入 GroupApi 并调用 API
                 const { GroupApi } = await import('../api/group')
@@ -1346,7 +1369,7 @@ export const store = createStore<State>({
                     const validChatList = chatList.filter(chat => !chat.isHidden && chat.groupId && chat.groupId.trim() !== '')
 
                     // 根据参数选择使用同步模式还是替换模式
-                    if (params.compareWithStore && state.chatList.list.length > 0) {
+                    if (compareWithStore && state.chatList.list.length > 0) {
                         // 使用智能同步，避免列表闪烁
                         commit('SYNC_CHAT_LIST', validChatList)
                         console.log('🔄 使用智能同步模式更新聊天列表')
@@ -1355,6 +1378,9 @@ export const store = createStore<State>({
                         commit('SET_CHAT_LIST', validChatList)
                         console.log('📝 使用替换模式设置聊天列表')
                     }
+
+                    const snapshot = JSON.parse(JSON.stringify(validChatList)) as ChatItem[]
+                    saveCache(CACHE_KEYS.chatList, snapshot)
 
                     console.log('✅ 聊天列表加载成功:', validChatList.length, '个聊天')
                 } else {
@@ -1365,7 +1391,9 @@ export const store = createStore<State>({
                 console.error('❌ 加载聊天列表异常:', error)
                 commit('SET_CHAT_LIST_ERROR', error.message || '网络错误，请稍后重试')
             } finally {
-                commit('SET_CHAT_LIST_LOADING', false)
+                if (shouldResetLoading) {
+                    commit('SET_CHAT_LIST_LOADING', false)
+                }
             }
         },
 
@@ -1401,21 +1429,24 @@ export const store = createStore<State>({
         // 好友申请相关 actions
         // 加载好友申请列表
         async loadFriendRequests({commit, state}: { commit: any; state: State }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+            const { forceRefresh = false, compareWithStore = false } = params
+            let shouldResetLoading = false
             try {
-                // 如果不强制刷新且store中已有数据，直接返回，不设置loading状态
-                if (!params.forceRefresh && state.friendRequests.list.length > 0) {
-                    console.log('✅ 直接使用store中的好友申请数据:', state.friendRequests.list.length, '个申请')
-                    return
+                commit('SET_FRIEND_REQUESTS_ERROR', null)
+
+                if (!forceRefresh && state.friendRequests.list.length === 0) {
+                    const cached = loadCache<FriendRequest[]>(CACHE_KEYS.friendRequests)
+                    if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
+                        commit('SET_FRIEND_REQUESTS', cached.data)
+                        console.log('💾 使用缓存的好友申请列表，数量:', cached.data.length)
+                    }
                 }
 
-                // 只有在真正需要加载数据时才设置loading状态
-                // 如果是后台刷新（有缓存数据的情况下），不显示loading
-                const shouldShowLoading = state.friendRequests.list.length === 0
+                const shouldShowLoading = forceRefresh || state.friendRequests.list.length === 0
                 if (shouldShowLoading) {
                     commit('SET_FRIEND_REQUESTS_LOADING', true)
+                    shouldResetLoading = true
                 }
-
-                commit('SET_FRIEND_REQUESTS_ERROR', null)
 
                 // 导入 FriendApi 并调用 API
                 const { FriendApi } = await import('../api/friend')
@@ -1477,7 +1508,7 @@ export const store = createStore<State>({
                     console.log('✅ 加载好友申请成功:', friendRequests.length, '条申请')
 
                     // 根据参数选择使用同步模式还是替换模式
-                    if (params.compareWithStore && state.friendRequests.list.length > 0) {
+                    if (compareWithStore && state.friendRequests.list.length > 0) {
                         // 使用智能同步，避免列表闪烁
                         commit('SYNC_FRIEND_REQUESTS_LIST', friendRequests)
                         console.log('🔄 使用智能同步模式更新好友申请列表')
@@ -1486,6 +1517,9 @@ export const store = createStore<State>({
                         commit('SET_FRIEND_REQUESTS_LIST', friendRequests)
                         console.log('📝 使用替换模式设置好友申请列表')
                     }
+
+                    const snapshot = JSON.parse(JSON.stringify(friendRequests)) as FriendRequest[]
+                    saveCache(CACHE_KEYS.friendRequests, snapshot)
 
                     // 更新待处理好友申请数量
                     const pendingCount = friendRequests.filter(req => req.status === '待验证').length
@@ -1504,7 +1538,9 @@ export const store = createStore<State>({
                 console.error('❌ 加载好友申请异常:', error)
                 commit('SET_FRIEND_REQUESTS_ERROR', error.message || '网络错误，请稍后重试')
             } finally {
-                commit('SET_FRIEND_REQUESTS_LOADING', false)
+                if (shouldResetLoading) {
+                    commit('SET_FRIEND_REQUESTS_LOADING', false)
+                }
             }
         },
 

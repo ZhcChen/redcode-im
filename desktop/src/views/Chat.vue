@@ -427,6 +427,7 @@ import { toast } from '../utils/toast'
 import { webSocketManager } from '../utils/websocket'
 import { eventManager } from '../utils/eventManager'
 import { fileConfig } from '../api/config'
+import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
 
 // 消息常量定义 - 与bear-chat-uniapp保持一致
 const MESSAGE_CONSTANTS = {
@@ -518,6 +519,95 @@ type AttachmentMeta = {
   mime: string;
   summary: string;
 };
+
+const MESSAGES_CACHE_LIMIT = 200;
+
+const sanitizeAttachmentForCache = (attachment: MessageAttachment | null | undefined): MessageAttachment | null => {
+  if (!attachment) {
+    return null
+  }
+  return {
+    ...attachment,
+    localPath: null,
+    downloadUrl: null,
+    uploadProgress: null,
+  }
+}
+
+const sanitizeMessageForCache = (message: Message): Message => {
+  const sanitizedParts = message.parts?.map((part) => ({
+    ...part,
+    attachment: sanitizeAttachmentForCache(part.attachment ?? undefined),
+  }))
+
+  let sanitizedContent: Message['content'] = message.content
+  if (typeof message.content === 'object' && message.content) {
+    sanitizedContent = {
+      ...message.content,
+      localUrl: null,
+      downloadUrl: null,
+      uploadProgress: null,
+      isUploading: false,
+    }
+  }
+
+  return {
+    ...message,
+    content: sanitizedContent,
+    parts: sanitizedParts,
+  }
+}
+
+const restoreMessageFromCache = (cached: Message): Message => {
+  const restoredParts = cached.parts?.map((part) => ({
+    ...part,
+    attachment: part.attachment
+      ? {
+          ...part.attachment,
+          localPath: null,
+          downloadUrl: null,
+          uploadProgress: null,
+        }
+      : part.attachment ?? null,
+  }))
+
+  let restoredContent: Message['content'] = cached.content
+  if (typeof cached.content === 'object' && cached.content) {
+    restoredContent = {
+      ...cached.content,
+      localUrl: null,
+      downloadUrl: null,
+      uploadProgress: null,
+      isUploading: false,
+    }
+  }
+
+  return {
+    ...cached,
+    content: restoredContent,
+    parts: restoredParts,
+  }
+}
+
+const persistMessagesCache = (groupId: string, messageList: Message[]) => {
+  if (!groupId) return
+  const sliced = messageList.slice(-MESSAGES_CACHE_LIMIT).map((msg) => sanitizeMessageForCache(msg))
+  saveCache(CACHE_KEYS.messages(groupId), sliced)
+}
+
+let messageCachePersistTimer: ReturnType<typeof setTimeout> | null = null
+
+const scheduleMessagesCachePersist = (groupId: string | null | undefined, messageList: Message[]) => {
+  if (!groupId) {
+    return
+  }
+  if (messageCachePersistTimer) {
+    clearTimeout(messageCachePersistTimer)
+  }
+  messageCachePersistTimer = setTimeout(() => {
+    persistMessagesCache(groupId, messageList)
+  }, 400)
+}
 
 const partTypeEnumMap: Record<MessagePartPayloadInput['type'], MessagePartType> = {
   text: MessagePartType.TEXT,
@@ -1205,6 +1295,17 @@ const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref(false)
 const currentUserId = computed(() => store.getters.currentUser.id)
 
+watch(
+  () => [selectedChat.value?.groupId, messages.value] as [string | undefined | null, Message[]],
+  ([groupId, messageList]) => {
+    if (!groupId) {
+      return
+    }
+    scheduleMessagesCachePersist(groupId, messageList)
+  },
+  { deep: true }
+)
+
 // 添加本地初始化状态，避免重复加载
 const isInitialized = ref(false)
 
@@ -1433,10 +1534,25 @@ const loadGroupDetailInfo = async (groupId: string) => {
 }
 
 const loadMessages = async (groupId: string) => {
+  let usedCache = false
   try {
-    messagesLoading.value = true
+    if (!groupId) {
+      messages.value = []
+      return
+    }
+
+    const cached = loadCache<Message[]>(CACHE_KEYS.messages(groupId))
+    if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
+      messages.value = cached.data.map((item) => restoreMessageFromCache(item))
+      usedCache = true
+      console.log('💾 使用缓存的消息列表，数量:', cached.data.length)
+    }
+
+    if (!usedCache) {
+      messagesLoading.value = true
+    }
+
     console.log('🔄 开始加载群聊消息:', groupId)
-    
     const response = await MessageApi.getMessageListByChatGroupId({
       groupId,
       limit: 50,
@@ -1458,6 +1574,7 @@ const loadMessages = async (groupId: string) => {
       })
       
       messages.value = sortedMessages
+      persistMessagesCache(groupId, sortedMessages)
       
       console.log('✅ 消息加载成功:', messages.value.length, '条消息')
       console.log('📋 消息详情（按时间排序）:', messages.value.map(msg => ({
