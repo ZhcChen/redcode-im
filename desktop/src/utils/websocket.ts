@@ -38,15 +38,14 @@ const MESSAGE_TYPE_CODE: Record<string, number> = {
   system: 9,
 };
 
-const arrayBufferFromData = async (data: Blob | ArrayBuffer | string): Promise<ArrayBuffer> => {
+const arrayBufferFromBinaryData = async (data: Blob | ArrayBuffer): Promise<ArrayBuffer> => {
   if (data instanceof ArrayBuffer) {
     return data;
   }
-  if (data instanceof Blob) {
-    return data.arrayBuffer();
-  }
+  return data.arrayBuffer();
+};
 
-  // 兼容后端偶尔返回的 JSON 文本，尝试解析 base64 或直接抛错
+const arrayBufferFromBase64 = (data: string): ArrayBuffer | null => {
   try {
     const binaryString = atob(data);
     const len = binaryString.length;
@@ -56,8 +55,7 @@ const arrayBufferFromData = async (data: Blob | ArrayBuffer | string): Promise<A
     }
     return bytes.buffer;
   } catch (error) {
-    console.error('无法解析 WebSocket 文本帧:', data);
-    throw error;
+    return null;
   }
 };
 
@@ -83,7 +81,130 @@ const mapNumericMessageTypeToString = (value: number | string | undefined | null
 };
 
 const normalizeServerMessage = (message: any, currentUserId: string | null): Message => {
+  const parseNumber = (value: any): number | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const normalizeAttachment = (attachment: any) => {
+    if (!attachment || typeof attachment !== 'object') {
+      return null;
+    }
+
+    const key = attachment.key ?? attachment.file_key ?? attachment.ossKey;
+    if (!key || typeof key !== 'string') {
+      return null;
+    }
+
+    return {
+      key,
+      name: attachment.name ?? null,
+      mime: attachment.mime ?? attachment.content_type ?? null,
+      size: parseNumber(attachment.size),
+      width: parseNumber(attachment.width),
+      height: parseNumber(attachment.height),
+      duration_ms: parseNumber(attachment.duration_ms ?? attachment.durationMs),
+      thumbnail_key: attachment.thumbnail_key ?? attachment.thumbnailKey ?? null,
+    } as const;
+  };
+
+  const normalizeParts = (parts: any): any[] => {
+    if (!Array.isArray(parts) || parts.length === 0) {
+      return [];
+    }
+
+    return parts
+      .map((part) => {
+        if (!part || typeof part !== 'object') {
+          return null;
+        }
+
+        const positionRaw = part.position ?? part.index ?? part.sort ?? 0;
+        const position = Number(positionRaw);
+        if (Number.isNaN(position)) {
+          return null;
+        }
+
+        const typeRaw = part.part_type ?? part.type ?? part.partType;
+        if (!typeRaw) {
+          return null;
+        }
+
+        const text = typeof part.text === 'string'
+          ? part.text
+          : typeof part.content === 'string'
+            ? part.content
+            : null;
+
+        const attachment = normalizeAttachment(part.attachment ?? part.file ?? part.media);
+
+        return {
+          position,
+          part_type: String(typeRaw).toLowerCase(),
+          text,
+          attachment,
+        };
+      })
+      .filter((part): part is { position: number; part_type: string; text?: string | null; attachment?: any } => Boolean(part))
+      .sort((a, b) => a.position - b.position);
+  };
+
+  const normalizeQuotedMessage = (quoted: any) => {
+    if (!quoted || typeof quoted !== 'object') {
+      return null;
+    }
+
+    const quotedType = mapNumericMessageTypeToString(
+      quoted.message_type ?? quoted.messageType ?? 'text',
+    );
+
+    let content = typeof quoted.content === 'string'
+      ? quoted.content
+      : quoted.content?.text || '';
+
+    const quotedParts = normalizeParts(quoted.parts);
+    if (!content && quotedParts.length > 0) {
+      const textPart = quotedParts.find(
+        (part) => part.part_type === 'text' && typeof part.text === 'string',
+      );
+      if (textPart?.text) {
+        content = textPart.text;
+      }
+    }
+
+    return {
+      id: quoted.message_id || quoted.id,
+      room_id: quoted.room_id,
+      sender_id: quoted.sender_id ?? quoted.user_id ?? '',
+      sender_username: quoted.sender_username ?? quoted.senderUsername ?? '',
+      sender_nickname: quoted.sender_nickname ?? quoted.senderNickname ?? null,
+      sender_avatar_url: quoted.sender_avatar_url ?? quoted.senderAvatarUrl ?? null,
+      content,
+      message_type: quotedType,
+      created_at: quoted.created_at || quoted.timestamp || null,
+      is_deleted: quoted.is_deleted ?? quoted.deleted ?? false,
+      parts: quotedParts,
+    };
+  };
+
+  const normalizedParts = normalizeParts(message.parts);
   const messageType = mapNumericMessageTypeToString(message.message_type ?? message.messageType ?? 'text');
+  let normalizedContent = typeof message.content === 'string'
+    ? message.content
+    : message.content?.text || '';
+
+  if (!normalizedContent && normalizedParts.length > 0) {
+    const textPart = normalizedParts.find((part) => part.part_type === 'text' && typeof part.text === 'string');
+    if (textPart?.text) {
+      normalizedContent = textPart.text;
+    }
+  }
   const backendMessage = {
     id: message.message_id || message.id,
     room_id: message.room_id,
@@ -91,11 +212,11 @@ const normalizeServerMessage = (message: any, currentUserId: string | null): Mes
     sender_username: message.sender_username || message.senderUsername || '',
     sender_nickname: message.sender_nickname || null,
     sender_avatar_url: message.sender_avatar_url || null,
-    content: typeof message.content === 'string' ? message.content : message.content?.text || '',
+    content: normalizedContent,
     message_type: messageType,
     status: message.status,
     created_at: message.timestamp || message.created_at || new Date().toISOString(),
-    quoted_message: message.quoted_message || null,
+    quoted_message: normalizeQuotedMessage(message.quoted_message),
     forward_message: message.forward_message || null,
     is_deleted: message.is_deleted || false,
     deleted_at: message.deleted_at || null,
@@ -103,6 +224,7 @@ const normalizeServerMessage = (message: any, currentUserId: string | null): Mes
     pinned_at: message.pinned_at || null,
     pinned_by: message.pinned_by || null,
     extra: message.extra || null,
+    parts: normalizedParts,
   } as any;
 
   return transformBackendMessage(backendMessage, currentUserId || undefined);
@@ -124,6 +246,8 @@ class WebSocketManager {
   private desiredRooms: Set<string> = new Set();
   private subscribedRooms: Set<string> = new Set();
   private pendingRooms: Set<string> = new Set();
+  private lastChatListRefreshAt = 0;
+  private lastContactRefreshAt = 0;
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
@@ -187,13 +311,46 @@ class WebSocketManager {
       };
 
       socket.onmessage = async (event) => {
-        try {
-          const buffer = await arrayBufferFromData(event.data);
-          const serverEvent = decodeServerEvent(new Uint8Array(buffer));
-          this.handleServerEvent(serverEvent);
-        } catch (error) {
-          console.error('解析服务器事件失败:', error);
+        const payload = event.data;
+
+        if (typeof payload === 'string') {
+          if (this.handleTextFrame(payload)) {
+            return;
+          }
+
+          const buffer = arrayBufferFromBase64(payload);
+          if (buffer) {
+            this.processBinaryFrame(buffer);
+            return;
+          }
+
+          console.warn('未能解析的 WebSocket 文本帧:', payload);
+          return;
         }
+
+        if (payload instanceof ArrayBuffer) {
+          this.processBinaryFrame(payload);
+          return;
+        }
+
+        if (ArrayBuffer.isView(payload)) {
+          const view = payload as ArrayBufferView;
+          const buffer = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+          this.processBinaryFrame(buffer);
+          return;
+        }
+
+        if (payload instanceof Blob) {
+          try {
+            const buffer = await arrayBufferFromBinaryData(payload);
+            this.processBinaryFrame(buffer);
+          } catch (error) {
+            console.error('解析 Blob 数据失败:', error);
+          }
+          return;
+        }
+
+        console.warn('收到未知类型的 WebSocket 消息:', payload);
       };
 
       socket.onerror = (error) => {
@@ -214,82 +371,250 @@ class WebSocketManager {
     }
   }
 
+  private processBinaryFrame(buffer: ArrayBuffer): void {
+    try {
+      const serverEvent = decodeServerEvent(new Uint8Array(buffer));
+      this.handleServerEvent(serverEvent);
+    } catch (error) {
+      console.error('解析服务器事件失败:', error);
+    }
+  }
+
+  private handleTextFrame(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return true;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.code) {
+          this.handleBusinessPayload(parsed);
+          return true;
+        }
+
+        if (parsed.type) {
+          this.handleLegacyPayload(parsed as Record<string, any>);
+          return true;
+        }
+      }
+    } catch (error) {
+      // 尝试将文本按 base64 处理，由调用方继续
+      return false;
+    }
+
+    return false;
+  }
+
+  private handleBusinessPayload(payload: any): void {
+    const code = String(payload?.code ?? '').trim();
+    const messageBody = payload?.message ?? payload?.data ?? null;
+
+    switch (code) {
+      case BUSINESS_CODE.chatting:
+        if (messageBody) {
+          this.emitChatMessage(messageBody);
+        }
+        break;
+      case BUSINESS_CODE.AI:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-ai-message', messageBody);
+        }
+        break;
+      case BUSINESS_CODE.FriendBindChange:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-friend-change', messageBody);
+          this.refreshContacts();
+          this.refreshChatList();
+        }
+        break;
+      case BUSINESS_CODE.DeleteFriend:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-delete-friend', messageBody);
+          this.refreshContacts();
+          this.refreshChatList();
+        }
+        break;
+      case BUSINESS_CODE.FriendCircle:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-friend-circle', messageBody);
+        }
+        break;
+      case BUSINESS_CODE.launchGroup:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-launch-group', messageBody);
+          this.refreshChatList();
+        }
+        break;
+      case BUSINESS_CODE.deleteGroup:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-delete-group', messageBody);
+          this.refreshChatList();
+        }
+        break;
+      case BUSINESS_CODE.Calling:
+        if (messageBody !== undefined) {
+          this.dispatchDomEvent('websocket-calling', messageBody);
+        }
+        break;
+      case BUSINESS_CODE.ping:
+        break;
+      default:
+        if (code) {
+          console.warn('未识别的 WebSocket 业务事件:', code, payload);
+        }
+        break;
+    }
+  }
+
+  private handleLegacyPayload(message: Record<string, any>): void {
+    const rawType = message?.type;
+    if (!rawType) {
+      return;
+    }
+
+    const type = String(rawType).toLowerCase();
+
+    switch (type) {
+      case 'authed': {
+        const userId = message.user_id ?? message.userId;
+        if (typeof userId === 'string' && userId.length > 0) {
+          this.state.lastUserId = userId;
+        }
+        const connectionId = message.conn_id ?? message.connId;
+        this.onAuthenticated(connectionId ?? null);
+        break;
+      }
+      case 'joined': {
+        const roomId = message.room_id ?? message.roomId;
+        if (typeof roomId === 'string' && roomId.length > 0) {
+          this.onRoomJoined(roomId);
+        }
+        break;
+      }
+      case 'left': {
+        const roomId = message.room_id ?? message.roomId;
+        if (typeof roomId === 'string' && roomId.length > 0) {
+          this.onRoomLeft(roomId);
+        }
+        break;
+      }
+      case 'message':
+        if (message.message) {
+          this.emitChatMessage(message.message);
+        } else {
+          this.emitChatMessage(message);
+        }
+        break;
+      case 'message_read':
+        this.emitMessageRead(message);
+        break;
+      case 'message_update':
+        this.emitMessageUpdate(message);
+        break;
+      case 'pin_update':
+        this.emitPinUpdate(message);
+        break;
+      case 'friend_request_update':
+        if (typeof message.pending_count === 'number') {
+          store.commit('SET_PENDING_FRIEND_REQUESTS', message.pending_count);
+        }
+        break;
+      case 'room_created':
+      case 'room.created':
+        this.dispatchDomEvent('websocket-room-created', message);
+        this.refreshChatList();
+        break;
+      case 'friendship.created':
+      case 'friendship_created':
+        this.dispatchDomEvent('websocket-friend-change', {
+          type: 'created',
+          payload: message.friend ?? message.user ?? null,
+        });
+        this.refreshContacts();
+        this.refreshChatList();
+        break;
+      case 'friendship.deleted':
+      case 'friendship_deleted':
+        this.dispatchDomEvent('websocket-friend-change', {
+          type: 'deleted',
+          payload: message.friend ?? message.user ?? null,
+        });
+        this.refreshContacts();
+        this.refreshChatList();
+        break;
+      case 'friend.updated':
+      case 'friend_profile_updated':
+        this.dispatchDomEvent('websocket-friend-change', {
+          type: 'updated',
+          payload: message,
+        });
+        this.refreshContacts();
+        break;
+      case 'friends.version':
+      case 'friends_version':
+        this.refreshContacts();
+        break;
+      case 'error':
+        if (message.message) {
+          console.error('WebSocket 错误:', message.message);
+          toast.error(message.message);
+        }
+        break;
+      case 'pong':
+        break;
+      default:
+        console.warn('未识别的 JSON 消息类型:', type, message);
+        break;
+    }
+  }
+
   private handleServerEvent(serverEvent: any) {
     const payload = serverEvent;
 
     if (payload.authed) {
-      this.state.status = 'authenticated';
-      this.flushPendingRooms();
+      const userId = payload.authed.user_id ?? payload.authed.userId ?? null;
+      if (typeof userId === 'string' && userId.length > 0) {
+        this.state.lastUserId = userId;
+      }
+      this.onAuthenticated(payload.authed.conn_id ?? payload.authed.connId ?? null);
       return;
     }
 
     if (payload.joined) {
-      const roomId = payload.joined.room_id;
-      this.pendingRooms.delete(roomId);
-      this.subscribedRooms.add(roomId);
+      const roomId = payload.joined.room_id ?? payload.joined.roomId;
+      if (typeof roomId === 'string' && roomId.length > 0) {
+        this.onRoomJoined(roomId);
+      }
       return;
     }
 
     if (payload.left) {
-      const roomId = payload.left.room_id;
-      this.pendingRooms.delete(roomId);
-      this.subscribedRooms.delete(roomId);
+      const roomId = payload.left.room_id ?? payload.left.roomId;
+      if (typeof roomId === 'string' && roomId.length > 0) {
+        this.onRoomLeft(roomId);
+      }
       return;
     }
 
     if (payload.message) {
-      const normalized = normalizeServerMessage(payload.message, this.state.lastUserId);
-      window.dispatchEvent(
-        new CustomEvent('websocket-chat-message', {
-          detail: {
-            message: normalized,
-            raw: payload.message,
-          },
-        }),
-      );
+      this.emitChatMessage(payload.message);
       return;
     }
 
     if (payload.message_read) {
-      window.dispatchEvent(
-        new CustomEvent('websocket-message-read', {
-          detail: payload.message_read,
-        }),
-      );
+      this.emitMessageRead(payload.message_read);
       return;
     }
 
     if (payload.message_update) {
-      const normalizedUpdate = { ...payload.message_update };
-      if (normalizedUpdate.message) {
-        normalizedUpdate.message = normalizeServerMessage(
-          normalizedUpdate.message,
-          this.state.lastUserId,
-        );
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('websocket-message-update', {
-          detail: normalizedUpdate,
-        }),
-      );
+      this.emitMessageUpdate(payload.message_update);
       return;
     }
 
     if (payload.pin_update) {
-      const normalizedPin = { ...payload.pin_update };
-      if (normalizedPin.message) {
-        normalizedPin.message = normalizeServerMessage(
-          normalizedPin.message,
-          this.state.lastUserId,
-        );
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('websocket-pin-update', {
-          detail: normalizedPin,
-        }),
-      );
+      this.emitPinUpdate(payload.pin_update);
       return;
     }
 
@@ -299,11 +624,8 @@ class WebSocketManager {
     }
 
     if (payload.room_created) {
-      window.dispatchEvent(
-        new CustomEvent('websocket-room-created', {
-          detail: payload.room_created,
-        }),
-      );
+      this.dispatchDomEvent('websocket-room-created', payload.room_created);
+      this.refreshChatList();
       return;
     }
 
@@ -312,6 +634,110 @@ class WebSocketManager {
       toast.error(payload.error.message || '消息服务错误');
       return;
     }
+  }
+
+  private dispatchDomEvent(eventName: string, detail: any): void {
+    window.dispatchEvent(
+      new CustomEvent(eventName, {
+        detail,
+      }),
+    );
+  }
+
+  private emitChatMessage(rawMessage: any): void {
+    let normalized: Message | null = null;
+    try {
+      normalized = normalizeServerMessage(rawMessage, this.state.lastUserId);
+    } catch (error) {
+      console.error('标准化聊天消息失败:', error, rawMessage);
+    }
+
+    this.dispatchDomEvent('websocket-chat-message', {
+      message: normalized ?? rawMessage,
+      raw: rawMessage,
+    });
+  }
+
+  private emitMessageRead(raw: any): void {
+    const detail = { ...raw };
+    delete (detail as Record<string, unknown>).type;
+    this.dispatchDomEvent('websocket-message-read', detail);
+  }
+
+  private emitMessageUpdate(raw: any): void {
+    const detail: any = { ...raw };
+    delete detail.type;
+    if (detail.message) {
+      try {
+        detail.message = normalizeServerMessage(detail.message, this.state.lastUserId);
+      } catch (error) {
+        console.error('标准化消息更新失败:', error, detail.message);
+      }
+    }
+    this.dispatchDomEvent('websocket-message-update', detail);
+  }
+
+  private emitPinUpdate(raw: any): void {
+    const detail: any = { ...raw };
+    delete detail.type;
+    if (detail.message) {
+      try {
+        detail.message = normalizeServerMessage(detail.message, this.state.lastUserId);
+      } catch (error) {
+        console.error('标准化置顶消息失败:', error, detail.message);
+      }
+    }
+    this.dispatchDomEvent('websocket-pin-update', detail);
+  }
+
+  private onAuthenticated(connectionId?: string | null): void {
+    this.state.status = 'authenticated';
+    this.flushPendingRooms();
+    this.refreshAfterAuthenticated();
+
+    if (connectionId) {
+      store.commit('SET_NETWORK_STATE', true);
+    }
+  }
+
+  private refreshAfterAuthenticated(): void {
+    this.refreshChatList(true);
+    this.refreshContacts(true);
+    void store
+      .dispatch('updatePendingFriendRequests')
+      .catch((error: unknown) => console.warn('更新待处理好友申请失败:', error));
+  }
+
+  private refreshChatList(force = false): void {
+    const now = Date.now();
+    if (!force && now - this.lastChatListRefreshAt < 1000) {
+      return;
+    }
+    this.lastChatListRefreshAt = now;
+    void store
+      .dispatch('loadChatList', { forceRefresh: true })
+      .catch((error: unknown) => console.warn('刷新聊天列表失败:', error));
+  }
+
+  private refreshContacts(force = false): void {
+    const now = Date.now();
+    if (!force && now - this.lastContactRefreshAt < 1000) {
+      return;
+    }
+    this.lastContactRefreshAt = now;
+    void store
+      .dispatch('loadContacts', { forceRefresh: true })
+      .catch((error: unknown) => console.warn('刷新联系人列表失败:', error));
+  }
+
+  private onRoomJoined(roomId: string): void {
+    this.pendingRooms.delete(roomId);
+    this.subscribedRooms.add(roomId);
+  }
+
+  private onRoomLeft(roomId: string): void {
+    this.pendingRooms.delete(roomId);
+    this.subscribedRooms.delete(roomId);
   }
 
   private flushPendingRooms() {

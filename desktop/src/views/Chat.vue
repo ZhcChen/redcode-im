@@ -420,8 +420,8 @@ import { api, MessageApi } from '../api'
 import { GroupApi } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
-import type { Message as DomainMessage, Chat, RoomMember } from '@/types/models'
-import { ChatType, MessageStatus, MessageType } from '@/types/models'
+import type { Message as DomainMessage, Chat, RoomMember, MessagePart } from '@/types/models'
+import { ChatType, MessageStatus, MessageType, MessagePartType } from '@/types/models'
 import { toast } from '../utils/toast'
 import { webSocketManager } from '../utils/websocket'
 import { eventManager } from '../utils/eventManager'
@@ -481,7 +481,8 @@ const messageTypeToContentType: Record<MessageType, number> = {
   [MessageType.VOICE]: MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE,
   [MessageType.VIDEO]: MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
   [MessageType.FILE]: MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE,
-  [MessageType.SYSTEM]: MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE
+  [MessageType.SYSTEM]: MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE,
+  [MessageType.MIXED]: MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE
 }
 
 
@@ -531,6 +532,7 @@ interface Message {
   timestamp?: number   // 时间戳
   contentType?: number // 内容类型：1=文本，2=图片，3=视频等
   isEdited?: boolean
+  parts?: MessagePart[]
 }
 
 const route = useRoute()
@@ -865,8 +867,33 @@ const loadMessages = async (groupId: string) => {
   }
 }
 
+const resolveAttachmentUrl = (key?: string | null): string => {
+  if (!key) return ''
+  const trimmed = key.trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed
+  }
+  const normalized = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed
+  return `${fileConfig.showFile}${normalized}`
+}
+
 // 图片和视频URL构建工具函数
 const parseImageSrc = (message: Message): string => {
+  if (Array.isArray(message.parts)) {
+    const imagePart = message.parts.find((part) => part.type === MessagePartType.IMAGE)
+    if (imagePart?.attachment) {
+      const fromThumb = resolveAttachmentUrl(imagePart.attachment.thumbnailKey)
+      if (fromThumb) {
+        return fromThumb
+      }
+      const fromKey = resolveAttachmentUrl(imagePart.attachment.key)
+      if (fromKey) {
+        return fromKey
+      }
+    }
+  }
+
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
 
@@ -937,6 +964,16 @@ const parseImageSrc = (message: Message): string => {
 }
 
 const parseVideoScreenShotSrc = (message: Message): string => {
+  if (Array.isArray(message.parts)) {
+    const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
+    if (videoPart?.attachment?.thumbnailKey) {
+      const url = resolveAttachmentUrl(videoPart.attachment.thumbnailKey)
+      if (url) {
+        return url
+      }
+    }
+  }
+
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
 
@@ -966,6 +1003,16 @@ const parseVideoScreenShotSrc = (message: Message): string => {
 
 // 视频URL解析函数 - 专门处理视频文件
 const parseVideoSrc = (message: Message): string => {
+  if (Array.isArray(message.parts)) {
+    const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
+    if (videoPart?.attachment?.key) {
+      const url = resolveAttachmentUrl(videoPart.attachment.key)
+      if (url) {
+        return url
+      }
+    }
+  }
+
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
 
@@ -1026,6 +1073,27 @@ const parseVideoSrc = (message: Message): string => {
 
 // 获取文本内容
 const getTextContent = (message: Message): string => {
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    const textPart = message.parts.find((part) => part.type === MessagePartType.TEXT && part.text && part.text.trim() !== '')
+    if (textPart?.text) {
+      return textPart.text
+    }
+
+    const firstPart = message.parts[0]
+    switch (firstPart.type) {
+      case MessagePartType.IMAGE:
+        return '[图片]'
+      case MessagePartType.VIDEO:
+        return '[视频]'
+      case MessagePartType.AUDIO:
+        return '[语音]'
+      case MessagePartType.FILE:
+        return '[文件]'
+      default:
+        break
+    }
+  }
+
   if (typeof message.content === 'string') {
     return message.content
   }
@@ -1077,10 +1145,19 @@ const mapDomainMessageToUi = (msg: DomainMessage): Message => {
   const messageType = msg.type === MessageType.SYSTEM
     ? MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG
     : MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG
+  const parts = Array.isArray(msg.parts) ? msg.parts : undefined
+  let displayContent = msg.content
+
+  if ((!displayContent || displayContent.trim() === '') && parts && parts.length > 0) {
+    const textPart = parts.find((part) => part.type === MessagePartType.TEXT && part.text)
+    if (textPart?.text) {
+      displayContent = textPart.text
+    }
+  }
 
   return {
     id: msg.id,
-    content: msg.content,
+    content: displayContent,
     isSelf: msg.isSelf,
     time: formatTime(timestamp.toISOString()),
     senderId: msg.senderId,
@@ -1091,7 +1168,8 @@ const mapDomainMessageToUi = (msg: DomainMessage): Message => {
     status: messageStatusToUiStatus[msg.status] || 2,
     createTime: timestamp.toISOString(),
     timestamp: timestamp.getTime(),
-    isEdited: !!(msg.extra && (msg.extra as Record<string, unknown>).edited)
+    isEdited: !!(msg.extra && (msg.extra as Record<string, unknown>).edited),
+    parts,
   }
 }
 
@@ -2786,9 +2864,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
       selectedChat.value.lastMessageId = updatedChat.lastMessageId ?? null
     }
 
-    if (shouldIncreaseUnread && !document.hasFocus()) {
-      toast.info(`${uiMessage.senderName}: ${getTextContent(uiMessage)}`)
-    }
   }
 }
 

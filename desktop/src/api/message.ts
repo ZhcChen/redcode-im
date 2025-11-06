@@ -5,8 +5,15 @@ import type {
   ForwardInfo,
   QuotedMessage,
   MessageReader,
+  MessagePart,
+  MessageAttachment,
 } from "@/types/models";
-import { MessageType, MessageStatus, ForwardSourceType } from "@/types/models";
+import {
+  MessageType,
+  MessageStatus,
+  ForwardSourceType,
+  MessagePartType,
+} from "@/types/models";
 
 type BackendMessageType =
   | "text"
@@ -14,7 +21,28 @@ type BackendMessageType =
   | "audio"
   | "video"
   | "file"
-  | "system";
+  | "system"
+  | "mixed";
+
+type BackendMessagePartType = "text" | "image" | "video" | "audio" | "file";
+
+interface BackendMessageAttachment {
+  key: string;
+  name?: string | null;
+  mime?: string | null;
+  size?: number | null;
+  width?: number | null;
+  height?: number | null;
+  duration_ms?: number | null;
+  thumbnail_key?: string | null;
+}
+
+interface BackendMessagePart {
+  position: number;
+  part_type: BackendMessagePartType;
+  text?: string | null;
+  attachment?: BackendMessageAttachment | null;
+}
 type BackendMessageStatus =
   | "sending"
   | "sent"
@@ -41,6 +69,7 @@ export interface BackendMessageInfo {
   pinned_at?: string | null;
   pinned_by?: string | null;
   extra?: Record<string, unknown> | null;
+  parts?: BackendMessagePart[];
 }
 
 interface BackendQuotedMessage {
@@ -54,6 +83,7 @@ interface BackendQuotedMessage {
   message_type: BackendMessageType;
   created_at?: string | null;
   is_deleted: boolean;
+  parts?: BackendMessagePart[];
 }
 
 interface BackendForwardMessage {
@@ -100,6 +130,8 @@ export const parseMessageType = (value: string): MessageType => {
       return MessageType.FILE;
     case "system":
       return MessageType.SYSTEM;
+    case "mixed":
+      return MessageType.MIXED;
     case "text":
     default:
       return MessageType.TEXT;
@@ -165,6 +197,7 @@ const mapQuotedMessage = (
     type: parseMessageType(quoted.message_type),
     createdAt: quoted.created_at ? parseTimestamp(quoted.created_at) : null,
     isDeleted: Boolean(quoted.is_deleted),
+    parts: mapMessageParts(quoted.parts),
   };
 };
 
@@ -191,6 +224,64 @@ const mapForwardMessage = (
     originSenderName:
       forward.sender_nickname ?? forward.sender_username ?? null,
   };
+};
+
+const mapMessagePartType = (value: BackendMessagePartType): MessagePartType => {
+  switch (value) {
+    case "image":
+      return MessagePartType.IMAGE;
+    case "video":
+      return MessagePartType.VIDEO;
+    case "audio":
+      return MessagePartType.AUDIO;
+    case "file":
+      return MessagePartType.FILE;
+    case "text":
+    default:
+      return MessagePartType.TEXT;
+  }
+};
+
+const mapMessageAttachment = (
+  attachment?: BackendMessageAttachment | null,
+): MessageAttachment | undefined => {
+  if (!attachment) {
+    return undefined;
+  }
+
+  return {
+    key: attachment.key,
+    name: attachment.name ?? null,
+    mime: attachment.mime ?? null,
+    size: attachment.size ?? null,
+    width: attachment.width ?? null,
+    height: attachment.height ?? null,
+    durationMs: attachment.duration_ms ?? null,
+    thumbnailKey: attachment.thumbnail_key ?? null,
+  };
+};
+
+const mapMessageParts = (
+  parts?: BackendMessagePart[] | null,
+): MessagePart[] | undefined => {
+  if (!parts || !Array.isArray(parts) || parts.length === 0) {
+    return undefined;
+  }
+
+  return parts
+    .map((part) => {
+      if (!part || typeof part.position !== "number") {
+        return null;
+      }
+      return {
+        position: part.position,
+        type: mapMessagePartType(part.part_type),
+        text: part.text ?? null,
+        attachment: mapMessageAttachment(part.attachment) ?? null,
+      } as MessagePart;
+    })
+    .filter((part): part is MessagePart => Boolean(part))
+    .sort((a, b) => a.position - b.position);
 };
 
 export const transformBackendMessage = (
@@ -222,6 +313,7 @@ export const transformBackendMessage = (
     forwardInfo: mapForwardMessage(message.forward_message),
     isDeleted: Boolean(message.is_deleted),
     pinnedAt: message.pinned_at ? parseTimestamp(message.pinned_at) : null,
+    parts: mapMessageParts(message.parts),
   };
 };
 

@@ -57,6 +57,33 @@ export enum MessageType {
   VIDEO = 'video',
   FILE = 'file',
   SYSTEM = 'system',
+  MIXED = 'mixed',
+}
+
+export enum MessagePartType {
+  TEXT = 'text',
+  IMAGE = 'image',
+  VIDEO = 'video',
+  AUDIO = 'audio',
+  FILE = 'file',
+}
+
+export interface MessageAttachment {
+  key: string;
+  name?: string | null;
+  mime?: string | null;
+  size?: number | null;
+  width?: number | null;
+  height?: number | null;
+  durationMs?: number | null;
+  thumbnailKey?: string | null;
+}
+
+export interface MessagePart {
+  position: number;
+  type: MessagePartType;
+  text?: string | null;
+  attachment?: MessageAttachment | null;
 }
 
 export enum ForwardSourceType {
@@ -88,6 +115,7 @@ export interface QuotedMessage {
   type: MessageType;
   createdAt?: Date | null;
   isDeleted: boolean;
+  parts?: MessagePart[];
 }
 
 export enum MessageStatus {
@@ -115,6 +143,7 @@ export interface Message {
   forwardInfo?: ForwardInfo | null;
   isDeleted: boolean;
   pinnedAt?: Date | null;
+  parts?: MessagePart[];
 }
 
 export interface MessageReader {
