@@ -11,7 +11,7 @@ use axum::{
     extract::{Extension, State},
     response::Json,
 };
-use rand::{thread_rng, Rng};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use redis::AsyncCommands;
 use serde::Serialize;
 use tracing::info;
@@ -206,10 +206,44 @@ pub async fn login_with_sms(
     }
 
     let store = UserStore::new(state.database.clone());
-    let db_user = store
-        .find_by_username(phone)
-        .await?
-        .ok_or_else(|| AppError::ValidationError("用户不存在，请先注册".to_string()))?;
+    let db_user = match store.find_by_username(phone).await? {
+        Some(user) => user,
+        None => {
+            let auto_request = build_auto_registration_request(phone);
+            let db_request = api_create_user_to_db(&auto_request);
+
+            match store.create_user(db_request).await {
+                Ok(user) => {
+                    info!("用户 {} 未注册，已通过验证码登录自动创建账号", phone);
+                    user
+                }
+                Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+                    info!(
+                        "检测到用户名 {} 正在并发注册或已存在，自动重试获取账号",
+                        phone
+                    );
+                    match store.find_by_username(phone).await? {
+                        Some(existing) => existing,
+                        None => {
+                            return Err(AppError::ValidationError(
+                                "该账号已存在但当前不可登录，请联系管理员".to_string(),
+                            ));
+                        }
+                    }
+                }
+                Err(err) => {
+                    tracing::error!(
+                        error = ?err,
+                        "通过验证码登录自动注册账号 {} 失败",
+                        phone
+                    );
+                    return Err(AppError::InternalError(
+                        "自动注册失败，请稍后重试".to_string(),
+                    ));
+                }
+            }
+        }
+    };
 
     if redis_matched {
         // 一次性验证码，使用后删除
@@ -303,6 +337,63 @@ pub async fn reset_password_with_sms(
         success: true,
         message: "密码已重置，请使用新密码登录",
     }))
+}
+
+fn build_auto_registration_request(username: &str) -> CreateUserRequest {
+    CreateUserRequest {
+        username: username.to_string(),
+        email: build_auto_registration_email(username),
+        password: build_auto_registration_password(username),
+        nickname: Some(username.to_string()),
+    }
+}
+
+fn build_auto_registration_email(username: &str) -> String {
+    let normalized: String = username
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase();
+
+    let local_part = if normalized.is_empty() {
+        crate::id::generate().to_string().replace('-', "")
+    } else {
+        normalized
+    };
+
+    format!("{}@auto.redcode-im", local_part)
+}
+
+fn build_auto_registration_password(username: &str) -> String {
+    let mut rng = thread_rng();
+    let mut prefix: String = username
+        .chars()
+        .filter(|c| c.is_ascii_digit())
+        .take(4)
+        .collect();
+
+    if prefix.is_empty() {
+        prefix.push_str("rcim");
+    } else if prefix.len() < 4 {
+        while prefix.len() < 4 {
+            prefix.push('0');
+        }
+    }
+
+    let mut password = prefix;
+    password.extend(rng.sample_iter(&Alphanumeric).take(8).map(char::from));
+
+    if !password.chars().any(|c| c.is_ascii_lowercase()) {
+        password.push('a');
+    }
+    if !password.chars().any(|c| c.is_ascii_uppercase()) {
+        password.push('A');
+    }
+    if !password.chars().any(|c| c.is_ascii_digit()) {
+        password.push('7');
+    }
+
+    password
 }
 
 pub async fn get_current_user(
