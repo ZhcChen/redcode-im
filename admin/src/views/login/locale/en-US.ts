@@ -1,5 +1,5 @@
 export default {
-  'login.form.title': 'Sign in to Redcode Admin',
+  'login.form.title': 'Sign in to the IM Admin Portal',
   'login.form.subtitle': 'Unified operations & configuration center',
   'login.form.userName.errMsg': 'Username cannot be empty',
   'login.form.password.errMsg': 'Password cannot be empty',
