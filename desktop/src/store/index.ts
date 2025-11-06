@@ -1160,6 +1160,124 @@ export const store = createStore<State>({
                     const groups = response.data
                     console.log('🔍 API响应的原始群组数据:', groups)
 
+                    const contactsMap = new Map<string, any>((state.contacts?.list || []).map((contact: any) => [String(contact.id), contact]))
+                    const currentNameSet = new Set<string>()
+                    const pushName = (value?: any) => {
+                        if (typeof value === 'string') {
+                            const trimmed = value.trim()
+                            if (trimmed.length > 0) {
+                                currentNameSet.add(trimmed)
+                            }
+                        }
+                    }
+
+                    pushName(state.user?.nickname)
+                    pushName(state.user?.username)
+                    pushName(state.user?.realName)
+                    pushName(state.user?.chatNumber)
+
+                    const normalizeString = (value: any): string | null => {
+                        if (typeof value !== 'string') return null
+                        const trimmed = value.trim()
+                        return trimmed.length > 0 ? trimmed : null
+                    }
+
+                    const resolvePrivateChatDisplay = (group: any): { name: string; friendName?: string | null; avatar?: string | null } => {
+                        const rawName = normalizeString(group.name) || '未命名会话'
+                        const extra = (group.extra && typeof group.extra === 'object') ? group.extra : {}
+
+                        const friendIdCandidates = [
+                            extra?.friend_id,
+                            extra?.friendId,
+                            extra?.friend_user_id,
+                            extra?.friendUserId,
+                            extra?.target_user_id,
+                            extra?.targetUserId,
+                            extra?.peer_user_id,
+                            extra?.peerUserId,
+                            extra?.user_id,
+                            extra?.userId,
+                        ]
+
+                        let friendId: string | null = null
+                        for (const candidate of friendIdCandidates) {
+                            const normalized = normalizeString(candidate)
+                            if (normalized) {
+                                friendId = normalized
+                                break
+                            }
+                        }
+
+                        const nameCandidates = [
+                            extra?.friend_remark,
+                            extra?.friendRemark,
+                            extra?.remark,
+                            extra?.friend_name,
+                            extra?.friendName,
+                            extra?.display_name,
+                            extra?.displayName,
+                            extra?.friend_nickname,
+                            extra?.friendNickname,
+                            extra?.nickname,
+                        ]
+
+                        let resolvedName: string | null = null
+                        for (const candidate of nameCandidates) {
+                            const normalized = normalizeString(candidate)
+                            if (normalized) {
+                                resolvedName = normalized
+                                break
+                            }
+                        }
+
+                        let avatar: string | null = null
+                        const avatarCandidates = [
+                            extra?.friend_avatar,
+                            extra?.friendAvatar,
+                            extra?.avatar_url,
+                            extra?.avatarUrl,
+                        ]
+                        for (const candidate of avatarCandidates) {
+                            const normalized = normalizeString(candidate)
+                            if (normalized) {
+                                avatar = normalized
+                                break
+                            }
+                        }
+
+                        if (!resolvedName && friendId && contactsMap.has(friendId)) {
+                            const contact = contactsMap.get(friendId)
+                            const remark = normalizeString(contact?.remark)
+                            const contactName = normalizeString(contact?.name)
+                            resolvedName = remark || contactName || resolvedName
+                            if (!avatar) {
+                                avatar = normalizeString(contact?.avatar)
+                            }
+                        }
+
+                        if (!resolvedName) {
+                            const segments = rawName.split('·').map((seg: string) => seg.trim()).filter((seg: string) => seg.length > 0)
+                            if (segments.length > 1) {
+                                const filtered = segments.filter((seg: string) => !currentNameSet.has(seg))
+                                if (filtered.length > 0) {
+                                    resolvedName = filtered[0]
+                                } else {
+                                    resolvedName = segments[segments.length - 1]
+                                }
+                            }
+                        }
+
+                        if (!resolvedName) {
+                            resolvedName = rawName
+                        }
+
+                        return {
+                            name: resolvedName,
+                            friendName: resolvedName,
+                            avatar,
+                        }
+                    }
+
                     const chatList: ChatItem[] = groups.map((group: any) => {
                         // 时间格式化函数
                         const formatTime = (timeValue: Date | string | null | undefined) => {
@@ -1195,13 +1313,18 @@ export const store = createStore<State>({
 
                         const extra = group.extra && typeof group.extra === 'object' ? group.extra : {}
 
+                        const isPrivateChat = group.type === 'single' || group.type === 'private'
+                        const privateDisplay = isPrivateChat ? resolvePrivateChatDisplay(group) : null
+
+                        const displayName = privateDisplay?.name || normalizeString(group.name) || '未命名会话'
+                        const displayAvatar = privateDisplay?.avatar || normalizeString(group.avatar) || ''
                         const groupNotice = typeof extra.description === 'string' ? extra.description : null
 
                         return {
                             id: group.id || group.roomId || '',
                             roomId: group.roomId || group.id || '',
-                            name: group.name || '未命名会话',
-                            avatar: group.avatar || '',
+                            name: displayName,
+                            avatar: displayAvatar,
                             lastMessage: group.lastMessage || '',
                             time: formatTime(lastMessageTime),
                             groupId: group.roomId || group.id || '',
@@ -1214,8 +1337,8 @@ export const store = createStore<State>({
                             chatStatus: group.isMuted ? 1 : 0,
                             groupNotice,
                             showNoticeFlag: !!(groupNotice && groupNotice.trim().length > 0),
-                            userAvatar: undefined,
-                            friendName: undefined
+                            userAvatar: isPrivateChat ? (displayAvatar || null) : undefined,
+                            friendName: privateDisplay?.friendName || null
                         }
                     })
 
