@@ -562,7 +562,7 @@ class MessageService with ChangeNotifier {
       final updated = _messageFromResponse(
         response.message!,
         session.user.id,
-        status: status,
+        overrideStatus: status,
       );
       _replaceMessage(updated.id, updated);
       unawaited(_hydrateAttachmentLocalPaths(updated));
