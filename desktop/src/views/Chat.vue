@@ -1505,10 +1505,10 @@ const parseImageSrc = (message: Message): string => {
 
       if (attachment.key) {
         void ensureAttachmentLocalPath(message, imagePart)
-      }
-
-      if (attachment.downloadUrl) {
-        return attachment.downloadUrl
+        if (attachment.downloadUrl) {
+          return attachment.downloadUrl
+        }
+        return ''
       }
 
       const fromThumb = resolveAttachmentUrl(attachment.thumbnailKey)
@@ -1516,9 +1516,9 @@ const parseImageSrc = (message: Message): string => {
         return fromThumb
       }
 
-      const fromKey = resolveAttachmentUrl(attachment.key)
-      if (fromKey) {
-        return fromKey
+      const fromUrl = attachment.downloadUrl
+      if (fromUrl) {
+        return fromUrl
       }
     }
   }
@@ -1528,13 +1528,23 @@ const parseImageSrc = (message: Message): string => {
     if (content.localUrl) {
       return content.localUrl
     }
+    if (content.key) {
+      const attachmentPart: MessagePart | undefined = message.parts?.find((part) => part.type === MessagePartType.IMAGE)
+      if (attachmentPart) {
+        void ensureAttachmentLocalPath(message, attachmentPart)
+      }
+      if (content.downloadUrl) {
+        return content.downloadUrl
+      }
+      return ''
+    }
     if (content.downloadUrl) {
       return content.downloadUrl
     }
     if (content.url) {
       return content.url
     }
-    if (content.fullPath) {
+    if (content.fullPath && !content.key) {
       const target = content.fileSaveTarget || 'local'
       return target === 'local'
         ? `${fileConfig.showFile}${content.fullPath}`
