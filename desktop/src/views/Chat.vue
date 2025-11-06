@@ -1164,18 +1164,37 @@ const resolveAttachmentUrl = (key?: string | null): string => {
 
 // 图片和视频URL构建工具函数
 const parseImageSrc = (message: Message): string => {
+  console.log('🔍 parseImageSrc 开始解析图片URL:', {
+    messageId: message.id,
+    status: message.status,
+    contentType: message.contentType,
+    hasParts: Array.isArray(message.parts) && message.parts.length > 0,
+    parts: message.parts?.map(p => ({
+      type: p.type,
+      hasLocalPath: !!p.attachment?.localPath,
+      hasKey: !!p.attachment?.key,
+      hasThumbnailKey: !!p.attachment?.thumbnailKey
+    }))
+  })
+
   if (Array.isArray(message.parts)) {
     const imagePart = message.parts.find((part) => part.type === MessagePartType.IMAGE)
     if (imagePart?.attachment) {
+      // 优先使用本地路径（发送中的消息或者有本地缓存的图片）
       if (imagePart.attachment.localPath) {
+        console.log('✅ parseImageSrc - 使用本地路径:', imagePart.attachment.localPath)
         return imagePart.attachment.localPath
       }
+      // 使用缩略图
       const fromThumb = resolveAttachmentUrl(imagePart.attachment.thumbnailKey)
       if (fromThumb) {
+        console.log('✅ parseImageSrc - 使用缩略图:', fromThumb)
         return fromThumb
       }
+      // 使用原图
       const fromKey = resolveAttachmentUrl(imagePart.attachment.key)
       if (fromKey) {
+        console.log('✅ parseImageSrc - 使用原图:', fromKey)
         return fromKey
       }
     }
@@ -2099,10 +2118,31 @@ const uploadAndSendFile = async (file: File) => {
       if (tempId) {
         const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
         if (messageIndex !== -1) {
-          messages.value[messageIndex] = {
+          const localMessage = messages.value[messageIndex]
+          // 保留本地消息的图片路径信息
+          const preservedLocalPath = localMessage.parts?.find(part =>
+            part.type === MessagePartType.IMAGE && part.attachment?.localPath
+          )?.attachment?.localPath
+
+          // 合并服务器消息和本地图片路径
+          const mergedMessage = {
             ...uiMessage,
             status: 2,
+            parts: uiMessage.parts?.map(serverPart => {
+              if (serverPart.type === MessagePartType.IMAGE && preservedLocalPath) {
+                return {
+                  ...serverPart,
+                  attachment: {
+                    ...serverPart.attachment,
+                    localPath: preservedLocalPath
+                  }
+                }
+              }
+              return serverPart
+            }) || uiMessage.parts
           }
+
+          messages.value[messageIndex] = mergedMessage
         } else {
           messages.value.push({
             ...uiMessage,
@@ -2957,11 +2997,32 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
     if (existingMessageIndex !== -1) {
       if (messageData.isSelf && messages.value[existingMessageIndex].status === 1) {
-        messages.value[existingMessageIndex] = {
-          ...messages.value[existingMessageIndex],
+        const localMessage = messages.value[existingMessageIndex]
+        // 保留本地消息的图片路径信息
+        const preservedLocalPath = localMessage.parts?.find(part =>
+          part.type === MessagePartType.IMAGE && part.attachment?.localPath
+        )?.attachment?.localPath
+
+        // 合并服务器消息和本地图片路径
+        const mergedMessage = {
+          ...localMessage,
           ...uiMessage,
-          status: 2
+          status: 2,
+          parts: uiMessage.parts?.map(serverPart => {
+            if (serverPart.type === MessagePartType.IMAGE && preservedLocalPath) {
+              return {
+                ...serverPart,
+                attachment: {
+                  ...serverPart.attachment,
+                  localPath: preservedLocalPath
+                }
+              }
+            }
+            return serverPart
+          }) || uiMessage.parts
         }
+
+        messages.value[existingMessageIndex] = mergedMessage
         recentSentMessages.value.delete(uiMessage.id)
       }
     } else {
