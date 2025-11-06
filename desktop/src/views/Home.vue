@@ -76,37 +76,28 @@ async function smartAdjustWindowSize() {
   }
 }
 
-// 登录后自动最大化窗口
-async function maximizeWindowOnLogin() {
+// 登录后窗口尺寸调整逻辑
+async function prepareWindowOnLogin() {
   try {
     const currentWindow = getCurrentWebviewWindow();
-    
-    // 检查当前窗口状态
+
     const isCurrentlyMaximized = await currentWindow.isMaximized();
-    
-    // 保存当前状态
     originalMaximized = isCurrentlyMaximized;
-    
+
     if (!originalMaximized) {
-      // 保存原始窗口大小
       const currentSize = await currentWindow.innerSize();
       originalSize = {
         width: currentSize.width,
         height: currentSize.height,
       };
     }
-    
-    // 直接最大化窗口
-    if (!isCurrentlyMaximized) {
-      await currentWindow.maximize();
-      console.log("登录后窗口已自动最大化");
-    } else {
-      console.log("窗口已处于最大化状态");
-    }
-    
+
+    // 只在窗口尺寸超过安全范围时收缩
+    await smartAdjustWindowSize();
+
     windowStateInitialized = true;
   } catch (error) {
-    console.error("自动最大化窗口失败:", error);
+    console.error("准备窗口尺寸失败:", error);
     windowStateInitialized = true;
   }
 }
@@ -203,7 +194,7 @@ async function setupWindowListeners() {
 // 组件挂载时自动最大化窗口并设置监听
 onMounted(() => {
   setTimeout(async () => {
-    await maximizeWindowOnLogin();
+    await prepareWindowOnLogin();
     await setupWindowListeners();
   }, 200);
 });

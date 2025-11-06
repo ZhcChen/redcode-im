@@ -76,29 +76,5 @@ router.beforeEach(async (to, from, next) => {
     return
   }
   
-  // 当导航到 Home 页面时，自动最大化窗口
-  if (to.name === 'Home') {
-    try {
-      const appWindow = getCurrentWindow()
-      
-      // 检查当前窗口状态
-      const isMaximized = await appWindow.isMaximized()
-      console.log('进入 Home 页面 - 当前窗口最大化状态:', isMaximized)
-      
-      if (!isMaximized) {
-        console.log('进入 Home 页面 - 开始最大化窗口...')
-        await appWindow.maximize()
-        
-        // 确认最大化是否成功
-        const newState = await appWindow.isMaximized()
-        console.log('进入 Home 页面 - 窗口最大化完成，新状态:', newState)
-      } else {
-        console.log('进入 Home 页面 - 窗口已经是最大化状态')
-      }
-    } catch (error) {
-      console.error('进入 Home 页面时窗口操作失败:', error)
-    }
-  }
-  
   next()
 })
