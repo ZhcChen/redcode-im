@@ -5,11 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
+    "dev:production": "vite --mode production",
     "build": "vite build",
+    "build:staging": "vite build --mode staging",
+    "build:production": "vite build --mode production",
     "type-check": "tsc --project tsconfig.loose.json --noEmit",
     "build-with-check": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:dev:staging": "tauri dev --config src-tauri/tauri.staging.json",
+    "tauri:build": "tauri build",
+    "tauri:build:staging": "tauri build --config src-tauri/tauri.staging.json",
+    "tauri:build:production": "tauri build --config src-tauri/tauri.production.json",
     "test:e2e": "playwright test"
   },
   "dependencies": {

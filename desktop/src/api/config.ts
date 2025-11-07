@@ -3,6 +3,8 @@
  * 统一读取 Vite 环境变量，并提供默认值，便于在不同环境部署。
  */
 
+import { getApiBaseUrl } from '../config/environment'
+
 const APP_VERSION = 103;
 
 const normalizeUrl = (value: string): string => {
@@ -16,7 +18,7 @@ const resolveEnv = (key: string, fallback?: string): string | undefined => {
   return metaEnv[key] ?? processEnv[key] ?? fallback;
 };
 
-const rawApiBase = resolveEnv('VITE_API_BASE_URL', 'http://localhost:8010');
+const rawApiBase = resolveEnv('VITE_API_BASE_URL', getApiBaseUrl());
 
 const apiBaseUrl = normalizeUrl(rawApiBase);
 

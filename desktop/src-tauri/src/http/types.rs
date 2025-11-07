@@ -33,14 +33,37 @@ pub struct HttpClientConfig {
 
 impl Default for HttpClientConfig {
     fn default() -> Self {
+        // 检测运行环境
+        let env = std::env::var("TAURI_ENV").unwrap_or_else(|_| {
+            if cfg!(debug_assertions) {
+                "development".to_string()
+            } else {
+                "production".to_string()
+            }
+        });
+
+        // 根据环境设置默认 API URL
+        let default_url = match env.as_str() {
+            "production" => "https://api.chatlyme.com",
+            "staging" => "https://staging-api.chatlyme.com",
+            _ => "http://localhost:8010",
+        };
+
         let base_url =
-            std::env::var("API_BASE_URL").unwrap_or_else(|_| "http://localhost:8010".to_string());
+            std::env::var("API_BASE_URL").unwrap_or_else(|_| default_url.to_string());
+
+        // 根据环境设置 SSL 验证
+        let verify_ssl = match env.as_str() {
+            "development" => false,  // 开发环境可以跳过 SSL 验证
+            _ => true,  // 其他环境都要验证 SSL
+        };
+
         Self {
             base_url,
             timeout_ms: 30_000,
             max_retries: 3,
             retry_delay_ms: 1_000,
-            verify_ssl: true,
+            verify_ssl,
             user_agent: format!("bear-chat-tauri/{}", env!("CARGO_PKG_VERSION")),
             connection_pool: ConnectionPoolConfig::default(),
         }
