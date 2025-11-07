@@ -971,6 +971,7 @@ pub struct MessageAttachmentSignatureRequest {
     pub part_type: ApiMessagePartType,
     pub filename: Option<String>,
     pub content_type: Option<String>,
+    pub file_size: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1017,6 +1018,30 @@ pub async fn generate_message_attachment_signature(
         return Err(AppError::ValidationError(
             "纯文本内容无需生成上传签名".to_string(),
         ));
+    }
+
+    // 验证文件类型
+    if let Some(content_type) = &req.content_type {
+        if !crate::constants::is_content_type_allowed(content_type) {
+            return Err(AppError::ValidationError(
+                format!("不支持的文件类型: {}", content_type),
+            ));
+        }
+    }
+
+    // 验证文件大小
+    if let Some(file_size) = req.file_size {
+        let max_size = if let Some(content_type) = &req.content_type {
+            crate::constants::get_max_size_by_content_type(content_type)
+        } else {
+            crate::constants::FILE_MAX_SIZE_BYTES
+        };
+
+        if file_size > max_size {
+            return Err(AppError::ValidationError(
+                format!("文件大小超出限制，最大允许{}MB", max_size / 1024 / 1024),
+            ));
+        }
     }
 
     let provider = load_default_storage_provider(&state).await?;

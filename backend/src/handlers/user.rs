@@ -25,6 +25,7 @@ use uuid::Uuid;
 #[derive(Debug, Deserialize)]
 pub struct AvatarDirectUploadRequest {
     pub content_type: Option<String>,
+    pub file_size: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -97,6 +98,30 @@ pub async fn generate_avatar_direct_upload(
 ) -> Result<Json<AvatarDirectUploadResponse>, AppError> {
     let user_id = string_to_uuid(&claims.sub)
         .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+
+    // 验证文件类型
+    if let Some(content_type) = &req.content_type {
+        if !crate::constants::AVATAR_ALLOWED_TYPES.contains(&content_type.as_str()) {
+            return Ok(Json(AvatarDirectUploadResponse {
+                success: false,
+                message: format!("不支持的文件类型: {}", content_type),
+                key: None,
+                signature: None,
+            }));
+        }
+    }
+
+    // 验证文件大小
+    if let Some(file_size) = req.file_size {
+        if file_size > crate::constants::AVATAR_MAX_SIZE_BYTES {
+            return Ok(Json(AvatarDirectUploadResponse {
+                success: false,
+                message: format!("文件大小超出限制，最大允许{}MB", crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024),
+                key: None,
+                signature: None,
+            }));
+        }
+    }
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
