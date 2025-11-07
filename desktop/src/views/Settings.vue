@@ -168,10 +168,12 @@ watch(versionError, (value) => {
   }
 })
 
-onMounted(() => {
-  store.dispatch('checkAppUpdate').catch((error: any) => {
+onMounted(async () => {
+  try {
+    await store.dispatch('checkAppUpdate')
+  } catch (error: any) {
     console.warn('初始化版本检查失败:', error)
-  })
+  }
 })
 
 // 用户显示名称（使用userName字段作为昵称）
@@ -200,7 +202,10 @@ const userAvatarSrc = computed(() => {
 
 // 处理更换头像
 const handleChangeAvatar = () => {
-  console.log('更换头像')
+  console.log('[Settings] 🖼️ 用户点击更换头像', {
+    userId: currentUser.value?.id,
+    username: currentUser.value?.userName || currentUser.value?.username
+  })
   // 触发文件选择
   const input = document.createElement('input')
   input.type = 'file'
@@ -213,13 +218,21 @@ const handleChangeAvatar = () => {
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  
+
   if (!file) {
+    console.warn('[Settings] ⚠️ 文件选择对话框被关闭，未获取到文件')
     return
   }
 
+  console.log('[Settings] 📥 捕获到待上传头像', {
+    name: file.name,
+    type: file.type,
+    size: file.size
+  })
+
   // 验证文件类型
   if (!file.type.startsWith('image/')) {
+    console.warn('[Settings] ⚠️ 非图片类型被拦截', { type: file.type })
     toast.warning('请选择图片文件')
     return
   }
@@ -227,6 +240,7 @@ const handleFileSelect = async (event: Event) => {
   // 验证文件大小（限制为5MB）
   const maxSize = 5 * 1024 * 1024
   if (file.size > maxSize) {
+    console.warn('[Settings] ⚠️ 图片超过大小限制', { size: file.size, maxSize })
     toast.warning('图片大小不能超过5MB')
     return
   }
@@ -234,20 +248,24 @@ const handleFileSelect = async (event: Event) => {
   // 创建预览URL并显示预览
   const previewUrl = URL.createObjectURL(file)
   previewImageUrl.value = previewUrl
+  console.log('[Settings] 🖥️ 生成头像预览 URL', previewUrl)
 
   try {
-    console.log('开始上传头像...')
+    console.log('[Settings] 🚀 准备调度头像上传流程')
     store.dispatch('showGlobalLoading', '正在上传头像...')
 
-   const uploadResult = await FileApi.uploadFile({
+    console.log('[Settings] 📤 调用 FileApi.uploadFile 提交头像...')
+    const uploadResult = await FileApi.uploadFile({
       file,
       category: 'avatar',
       isPublic: true,
       description: '用户头像'
     })
 
+    console.log('[Settings] 📦 FileApi 返回结果', uploadResult)
+
     if (uploadResult.code === 200 && uploadResult.data) {
-      console.log('头像上传响应结果:', uploadResult.data)
+      console.log('[Settings] ✅ 头像上传成功，服务器响应', uploadResult.data)
       toast.success('头像更新成功')
       // 清理预览URL，由 store 中的最新数据驱动界面
       if (previewImageUrl.value) {
@@ -256,15 +274,20 @@ const handleFileSelect = async (event: Event) => {
       }
     } else {
       toast.error(uploadResult.message || '头像上传失败')
-      console.error('头像上传失败:', uploadResult.message)
+      console.error('[Settings] ❌ 头像上传失败', {
+        message: uploadResult.message,
+        code: uploadResult.code
+      })
     }
   } catch (error) {
     toast.error('头像上传过程中发生错误')
-    console.error('头像上传过程中发生错误:', error)
+    console.error('[Settings] ❌ 头像上传过程中发生异常', error)
   } finally {
+    console.log('[Settings] 🧹 结束头像上传流程，隐藏全局 Loading')
     store.dispatch('hideGlobalLoading')
     // 如果上传失败，也要清理预览URL
     if (previewImageUrl.value) {
+      console.log('[Settings] ♻️ 清理未提交的头像预览资源')
       URL.revokeObjectURL(previewImageUrl.value)
       previewImageUrl.value = ''
     }
@@ -356,54 +379,26 @@ const handleCancelUpdateNickname = () => {
 }
 
 // 处理查看隐私政策
-const handleViewPrivacy = () => {
+const handleViewPrivacy = async () => {
   console.log('查看隐私政策')
-  // 导航到隐私协议页面
-  router.push('/home/privacy')
+  try {
+    await router.push('/home/privacy')
+  } catch (error) {
+    console.error('跳转隐私政策失败:', error)
+    toast.error('暂时无法打开隐私政策，请稍后重试')
+  }
 }
 
 // 处理退出登录
-const handleLogout = () => {
+const handleLogout = async () => {
   console.log('🔄 用户点击退出登录...')
-
-  // 调用 store 的 logout action
-  store.dispatch('logout')
-  console.log('✅ 退出登录请求已发送')
-
-  // 添加fallback机制，5秒后强制清除状态（防止死循环）
-  setTimeout(() => {
-    const currentToken = store.state.token
-    const loadingVisible = store.getters.globalLoading.visible
-
-    if (currentToken || loadingVisible) {
-      console.warn('⚠️ 检测到退出登录可能卡住，执行强制清除')
-
-      // 强制隐藏加载蒙版
-      if (loadingVisible) {
-        store.dispatch('hideGlobalLoading')
-      }
-
-      // 强制清除token
-      if (currentToken) {
-        store.commit('SET_TOKEN', null)
-        store.commit('LOGOUT_USER')
-
-        // 重置窗口标题
-        try {
-          import('@/utils').then(({ updateWindowTitle }) => {
-            updateWindowTitle() // 不传参数，显示默认标题
-          }).catch(error => {
-            console.warn('重置窗口标题失败:', error)
-          })
-        } catch (error) {
-          console.warn('无法加载utils模块:', error)
-        }
-      }
-
-      // 强制跳转到登录页
-      router.push('/login')
-    }
-  }, 5000) // 5秒后检查
+  try {
+    await store.dispatch('logout')
+    // 不需要手动跳转，App.vue 中的 watch token 会自动处理跳转
+  } catch (error: any) {
+    console.error('退出登录失败:', error)
+    toast.error(error?.message || '退出登录失败，请稍后再试')
+  }
 }
 
 const handleCheckUpdate = async () => {
@@ -435,20 +430,29 @@ const handleDownloadUpdate = async () => {
 </script>
 
 <style lang="scss" scoped>
+
 .settings {
   width: 100%;
   height: 100%;
+  padding: 32px 0 48px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   background-color: $bg-chat;
   flex-direction: column;
+  overflow-y: auto;
+  box-sizing: border-box;
+  pointer-events: auto;
 }
 
 .settings-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 360px;
+  align-items: center;
+  pointer-events: auto;
 }
 
 .username-section {
@@ -464,10 +468,13 @@ const handleDownloadUpdate = async () => {
   width: 100%;
   display: flex;
   justify-content: center;
+  padding: 0 24px;
+  box-sizing: border-box;
 }
 
 .version-container {
-  width: 343px;
+  width: 100%;
+  max-width: 360px;
   background-color: #fff;
   border-radius: 16px;
   padding: 16px;
@@ -512,6 +519,8 @@ const handleDownloadUpdate = async () => {
 .version-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .version-btn {
@@ -615,6 +624,7 @@ const handleDownloadUpdate = async () => {
   align-items: center;
   cursor: pointer;
   box-sizing: border-box;
+  pointer-events: auto;
 }
 
 .privacy-text {
@@ -639,6 +649,7 @@ const handleDownloadUpdate = async () => {
   align-items: center;
   justify-content: center;
   gap: 16px;
+  pointer-events: auto;
 }
 
 .logout-icon {

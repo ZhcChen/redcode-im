@@ -151,7 +151,15 @@ export class UserApi {
     avatarLocalPath: string;
   }>> {
     const currentUser = store.getters.currentUser as LegacyUserInfo | undefined;
+    console.log('[UserApi] 🧾 收到头像上传请求', {
+      hasUser: Boolean(currentUser?.id),
+      userId: currentUser?.id,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size
+    });
     if (!currentUser || !currentUser.id) {
+      console.warn('[UserApi] ⚠️ uploadAvatar 调用失败：当前未登录');
       return {
         code: 400,
         success: false,
@@ -161,6 +169,7 @@ export class UserApi {
     }
 
     const contentType = file.type || 'application/octet-stream';
+    console.log('[UserApi] 🔐 请求头像直传签名', { contentType });
     const directResp = await post<{
       success: boolean;
       message: string;
@@ -173,7 +182,18 @@ export class UserApi {
     }>('/users/me/avatar/direct-upload', { content_type: contentType });
 
     const directData = directResp.data;
+    console.log('[UserApi] 🔐 直传签名响应', {
+      success: directResp.success,
+      code: directResp.code,
+      key: directData?.key,
+      hasSignature: Boolean(directData?.signature)
+    });
     if (!directResp.success || !directData || !directData.success || !directData.key || !directData.signature) {
+      console.error('[UserApi] ❌ 获取上传签名失败', {
+        code: directResp.code,
+        message: directResp.message,
+        payload: directData
+      });
       return {
         code: directResp.code,
         success: false,
@@ -189,21 +209,45 @@ export class UserApi {
     }
 
     const fileBuffer = new Uint8Array(await file.arrayBuffer());
+    console.log('[UserApi] ☁️ 准备执行对象存储上传', {
+      url: signature.url,
+      method: signature.method || 'PUT',
+      headerKeys: Array.from(headers.keys())
+    });
     const uploadResponse = await fetch(signature.url, {
       method: signature.method || 'PUT',
       headers,
+      mode: 'cors',
       body: fileBuffer
     });
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
+
+      // 针对 CORS 错误提供更友好的错误信息
+      let errorMessage = errorText || '上传失败，请稍后重试';
+      if (uploadResponse.status === 403) {
+        errorMessage = '上传配置错误：可能存在跨域访问问题，请联系管理员检查存储配置';
+      } else if (uploadResponse.status === 0) {
+        errorMessage = '网络连接失败，请检查网络设置';
+      }
+
+      console.error('[UserApi] ❌ 对象存储上传失败', {
+        status: uploadResponse.status,
+        errorText
+      });
       return {
         code: uploadResponse.status,
         success: false,
-        message: errorText || '上传失败，请稍后重试',
+        message: errorMessage,
         data: null
       };
     }
+
+    console.log('[UserApi] ✅ 对象存储上传成功，等待提交', {
+      status: uploadResponse.status,
+      key
+    });
 
     const commitResp = await post<{
       success: boolean;
@@ -216,7 +260,18 @@ export class UserApi {
     });
 
     const commitData = commitResp.data;
+    console.log('[UserApi] 📝 提交头像配置响应', {
+      success: commitResp.success,
+      code: commitResp.code,
+      message: commitResp.message,
+      payloadSuccess: commitData?.success
+    });
     if (!commitResp.success || !commitData || !commitData.success) {
+      console.error('[UserApi] ❌ 提交头像配置失败', {
+        code: commitResp.code,
+        message: commitResp.message,
+        payload: commitData
+      });
       return {
         code: commitResp.code,
         success: false,
@@ -225,6 +280,7 @@ export class UserApi {
       };
     }
 
+    console.log('[UserApi] 💾 保存头像缓存文件', { key });
     const saved = await AvatarCache.save({
       userId: currentUser.id,
       objectKey: key,
@@ -232,14 +288,21 @@ export class UserApi {
       filename: file.name,
       contentType
     });
+    console.log('[UserApi] 💾 头像缓存完成', { webPath: saved.webPath });
 
     const avatarUrl = commitData.download_url || currentUser.avatar || '';
+    console.log('[UserApi] 🔁 同步头像信息到 store', {
+      avatarUrl,
+      avatarObjectKey: key,
+      avatarLocalPath: saved.webPath
+    });
     store.commit('UPDATE_USER_INFO', {
       avatar: avatarUrl,
       avatarObjectKey: key,
       avatarLocalPath: saved.webPath
     });
 
+    console.log('[UserApi] 🎉 头像上传流程完成');
     return {
       code: commitResp.code,
       success: true,

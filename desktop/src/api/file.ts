@@ -92,9 +92,22 @@ export class FileApi {
   static async uploadFile(params: FileUploadParams): Promise<ApiResponse<FileUploadResult>> {
     const { file, category } = params;
 
+    console.log('[FileApi] 📁 接收到文件上传请求', {
+      category,
+      name: file.name,
+      type: file.type,
+      size: file.size
+    });
+
     if (category === 'avatar') {
+      console.log('[FileApi] 🧷 走头像上传流程，调用 UserApi.uploadAvatar')
       const response = await UserApi.uploadAvatar(file);
+      console.log('[FileApi] 📨 UserApi.uploadAvatar 响应', response);
       if (!response.success || !response.data) {
+        console.error('[FileApi] ❌ 头像上传失败', {
+          code: response.code,
+          message: response.message
+        });
         return {
           code: response.code ?? 500,
           message: response.message || '头像上传失败，请稍后重试',
@@ -123,6 +136,7 @@ export class FileApi {
       };
     }
 
+    console.warn('[FileApi] ⚠️ 当前分类暂不支持上传', category);
     return {
       code: 501,
       message: '当前版本暂不支持文件上传，请稍后再试',
