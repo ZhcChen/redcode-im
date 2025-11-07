@@ -5,20 +5,19 @@
   >
     <div class="layout-container relative z-10 flex h-full grow flex-col">
       <header
-        class="flex flex-wrap items-center gap-4 border-b border-solid border-b-[#f0f3f4] px-5 py-3 sm:px-8 md:flex-nowrap md:gap-8 md:px-10"
+        class="flex flex-wrap items-center gap-4 px-5 py-3 sm:px-8 md:flex-nowrap md:gap-8 md:px-10"
       >
         <div class="flex items-center gap-3 text-[#111618]">
-          <div class="size-4">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M24 4H6V17.3333V30.6667H24V44H42V30.6667V17.3333H24V4Z"
-                fill="currentColor"
-              />
-            </svg>
-          </div>
-          <h2 class="text-[#111618] text-lg font-bold leading-tight tracking-[-0.015em]">即时通</h2>
+          <img
+            src="/logo.svg"
+            alt="Chatly logo"
+            width="32"
+            height="32"
+            loading="lazy"
+            decoding="async"
+            class="h-8 w-8"
+          />
+          <h2 class="text-[#111618] text-lg font-bold leading-tight tracking-[-0.015em]">Chatly</h2>
         </div>
         <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end md:w-auto md:flex-1 md:gap-6">
           <div class="flex items-center justify-between gap-4 text-sm font-medium text-[#111618] sm:justify-end md:gap-9">
@@ -47,12 +46,12 @@
                   <h1
                     class="text-white text-3xl font-black leading-tight tracking-[-0.03em] sm:text-4xl md:text-5xl"
                   >
-                    即时通：为每个人打造的即时通讯
+                    Chatly：为每个人打造的实时沟通体验
                   </h1>
                   <h2
                     class="text-white text-sm font-normal leading-relaxed sm:text-base"
                   >
-                    体验即时通带来的无缝沟通。与朋友、家人和同事即时连接，跨越所有设备。
+                    体验 Chatly 带来的无缝沟通。与朋友、家人和同事即时连接，跨越所有设备。
                   </h2>
                 </div>
                 <button
@@ -73,10 +72,10 @@
               <h1
                 class="text-[28px] font-bold leading-tight tracking-[-0.02em] text-[#111618] @[480px]:text-4xl @[480px]:font-black @[480px]:leading-tight @[480px]:tracking-[-0.033em] max-w-[720px]"
               >
-                即时通功能
+                Chatly 功能
               </h1>
               <p class="text-base font-normal leading-relaxed text-[#111618] max-w-[720px]">
-                即时通提供一系列旨在增强您的沟通体验的功能。
+                Chatly 提供一系列旨在增强您的沟通体验的功能。
               </p>
             </div>
 
@@ -92,7 +91,7 @@
                 <div class="flex flex-col gap-1">
                   <h2 class="text-[#111618] text-base font-bold leading-tight">即时消息</h2>
                   <p class="text-[#617c89] text-sm font-normal leading-normal">
-                    使用即时通的闪电般快速的消息服务，即时发送和接收消息。
+                    使用 Chatly 的闪电般快速的消息服务，即时发送和接收消息。
                   </p>
                 </div>
               </div>
@@ -164,7 +163,7 @@
           </div>
 
           <h2 class="px-5 pb-3 pt-5 text-[22px] font-bold leading-tight tracking-[-0.015em] text-[#111618] sm:px-4">
-            下载即时通
+            下载 Chatly
           </h2>
 
           <div class="px-5 pb-10 sm:px-4">
@@ -283,7 +282,7 @@
               <a class="text-[#617c89] text-base font-normal leading-normal min-w-40" href="#">服务条款</a>
               <a class="text-[#617c89] text-base font-normal leading-normal min-w-40" href="#">联系我们</a>
             </div>
-            <p class="text-[#617c89] text-base font-normal leading-normal">© 2023 即时通。保留所有权利。</p>
+            <p class="text-[#617c89] text-base font-normal leading-normal">© 2023 Chatly。保留所有权利。</p>
           </footer>
         </div>
       </footer>
@@ -324,7 +323,7 @@ const desktopDownloads = [
 ]
 
 useHead({
-  title: '即时通',
+  title: 'Chatly',
   link: [
     {
       rel: 'preconnect',

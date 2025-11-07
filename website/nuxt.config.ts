@@ -5,5 +5,15 @@ export default defineNuxtConfig({
   devServer: {
     port: 8015
   },
+  app: {
+    head: {
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/png', sizes: '64x64', href: '/logo-64.png' },
+        { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/logo-192.png' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/logo-192.png' }
+      ]
+    }
+  },
   modules: ['@nuxtjs/tailwindcss']
 })
