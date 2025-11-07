@@ -1,0 +1,326 @@
+# 文件上传架构文档
+
+## 概述
+
+本项目使用腾讯云对象存储（COS）作为文件存储后端，采用前端直传的方式进行文件上传。这种架构可以减少服务器负载，提高上传效率。
+
+## 整体架构
+
+```
+前端应用 → 获取上传签名 → 直接上传到腾讯COS → 通知后端保存文件信息
+    ↓              ↓                     ↓                    ↓
+  用户选择    →  请求签名API    →  PUT文件到COS     →  提交上传完成
+```
+
+## 核心组件
+
+### 1. 后端存储服务 (`backend/src/storage/`)
+
+#### 1.1 腾讯COS服务实现 (`backend/src/storage/cos.rs`)
+- **文件**: `backend/src/storage/cos.rs` (970+ 行)
+- **功能**: 完整的腾讯云COS API实现
+- **主要方法**:
+  - `upload_file()` - 直接上传文件到COS
+  - `generate_direct_upload_signature()` - 生成直传签名
+  - `delete_file()` - 删除COS文件
+  - `file_exists()` - 检查文件是否存在
+  - `generate_download_url()` - 生成下载链接
+
+#### 1.2 存储服务抽象 (`backend/src/storage/mod.rs`)
+```rust
+pub trait StorageService {
+    async fn upload_file(&self, key: &str, content: Bytes, content_type: Option<&str>) -> Result<String, AppError>;
+    async fn generate_direct_upload_signature(&self, key: &str, content_type: Option<&str>) -> Result<DirectUploadSignature, AppError>;
+    // ... 其他方法
+}
+```
+
+### 2. 文件类型验证 (`backend/src/constants/file_types.rs`)
+
+#### 2.1 支持的文件类型
+```rust
+// 头像文件类型
+pub const AVATAR_ALLOWED_TYPES: &[&str] = &[
+    "image/png", "image/jpeg", "image/jpg", "image/webp",
+    "image/gif", "image/heic", "image/heif", "image/svg+xml",
+];
+
+// 音频文件类型
+pub const AUDIO_ALLOWED_TYPES: &[&str] = &[
+    "audio/webm", "audio/ogg", "audio/wav", "audio/mp3",
+    "audio/mpeg", "audio/mp4", "audio/m4a", "audio/aac", "audio/flac",
+];
+
+// 图片文件类型
+pub const IMAGE_ALLOWED_TYPES: &[&str] = &[
+    // 包含头像类型 + 更多格式
+    "image/bmp", "image/tiff",
+];
+
+// 视频文件类型
+pub const VIDEO_ALLOWED_TYPES: &[&str] = &[
+    "video/mp4", "video/webm", "video/ogg",
+    "video/quicktime", "video/x-msvideo", "video/x-matroska",
+];
+```
+
+#### 2.2 文件大小限制
+```rust
+pub const AVATAR_MAX_SIZE_BYTES: usize = 5 * 1024 * 1024;      // 5MB
+pub const IMAGE_MAX_SIZE_BYTES: usize = 10 * 1024 * 1024;     // 10MB
+pub const AUDIO_MAX_SIZE_BYTES: usize = 20 * 1024 * 1024;     // 20MB
+pub const VIDEO_MAX_SIZE_BYTES: usize = 100 * 1024 * 1024;    // 100MB
+pub const FILE_MAX_SIZE_BYTES: usize = 50 * 1024 * 1024;      // 50MB
+```
+
+### 3. 上传流程API
+
+#### 3.1 头像上传API
+
+**获取上传签名**
+- **端点**: `POST /users/me/avatar/direct-upload`
+- **请求体**:
+```json
+{
+  "content_type": "image/jpeg",
+  "file_size": 1024000
+}
+```
+- **响应**:
+```json
+{
+  "success": true,
+  "message": "生成头像直传签名成功",
+  "key": "avatars/uuid/20241107123456_abc12345.jpg",
+  "signature": {
+    "url": "https://bucket-name.cos.region.myqcloud.com/avatars/uuid/20241107123456_abc12345.jpg",
+    "method": "PUT",
+    "headers": {
+      "Authorization": "q-sign-algorithm=sha1;...",
+      "Host": "bucket-name.cos.region.myqcloud.com"
+    }
+  }
+}
+```
+
+**提交上传完成**
+- **端点**: `POST /users/me/avatar/commit`
+- **请求体**:
+```json
+{
+  "key": "avatars/uuid/20241107123456_abc12345.jpg",
+  "expires_in_seconds": 3600,
+  "delete_previous": true
+}
+```
+
+#### 3.2 消息附件上传API
+
+**获取上传签名**
+- **端点**: `POST /rooms/{room_id}/messages/attachments/signature`
+- **请求体**:
+```json
+{
+  "part_type": 4,  // AUDIO_CONTENT_TYPE
+  "filename": "voice_123456789.webm",
+  "content_type": "audio/webm",
+  "file_size": 1048576
+}
+```
+
+### 4. 前端直传实现
+
+#### 4.1 头像上传流程 (`desktop/src/api/user.ts`)
+```typescript
+// 1. 获取上传签名
+const directResp = await post<AvatarDirectUploadResponse>(
+  '/users/me/avatar/direct-upload',
+  { content_type, file_size }
+);
+
+// 2. 直接上传到COS
+const uploadResponse = await fetch(signature.url, {
+  method: signature.method || 'PUT',
+  headers: signature.headers,
+  body: fileBuffer
+});
+
+// 3. 提交上传完成
+const commitResp = await post<AvatarDownloadUrlResponse>(
+  '/users/me/avatar/commit',
+  { key, delete_previous: true }
+);
+```
+
+#### 4.2 语音消息上传流程 (`desktop/src/views/Chat.vue`)
+```typescript
+const handleVoiceSend = async (recording: any) => {
+  // 1. 获取语音上传签名
+  const signatureResponse = await MessageApi.generateMessageAttachmentSignature({
+    roomId: selectedChat.value.id,
+    partType: 4, // AUDIO_CONTENT_TYPE
+    filename: `voice_${recording.id}.webm`,
+    contentType: 'audio/webm',
+    fileSize: recording.blob.size,
+  });
+
+  // 2. 直接上传到COS
+  const uploadResponse = await fetch(signature.url, {
+    method: signature.method || 'PUT',
+    headers: { 'Content-Type': 'audio/webm' },
+    body: recording.blob,
+  });
+
+  // 3. 创建语音消息
+  const messageResponse = await MessageApi.sendMessage({
+    groupId: selectedChat.value.id,
+    content: '',
+    parts: [{
+      partType: 4,
+      objectKey: key,
+      originalName: `voice_${recording.id}.webm`,
+      mimeType: 'audio/webm',
+      duration: Math.round(recording.duration),
+    }],
+  });
+};
+```
+
+## 错误处理场景
+
+### 1. 文件类型验证错误
+```json
+{
+  "success": false,
+  "message": "不支持的文件类型: application/pdf"
+}
+```
+
+### 2. 文件大小超限错误
+```json
+{
+  "success": false,
+  "message": "文件大小超出限制，最大允许5MB"
+}
+```
+
+### 3. COS上传错误
+- 网络超时
+- 签名过期
+- COS服务异常
+- 权限不足
+
+### 4. 签名生成错误
+- 存储提供商配置错误
+- 用户权限不足
+- 房间权限验证失败
+
+## 配置要求
+
+### 1. 环境变量
+```bash
+# 腾讯云COS配置
+COS_SECRET_ID=your_secret_id
+COS_SECRET_KEY=your_secret_key
+COS_REGION=ap-shanghai
+COS_BUCKET=your_bucket_name
+COS_ENDPOINT=cos.ap-shanghai.myqcloud.com
+```
+
+### 2. 存储提供商配置
+需要通过管理后台配置默认的存储提供商，包括：
+- 访问密钥
+- 区域和桶名称
+- 端点地址
+
+## 安全考虑
+
+### 1. 文件验证
+- **类型验证**: 严格验证MIME类型，使用白名单机制
+- **大小限制**: 根据文件类型设置合理的大小限制
+- **危险文件**: 拒绝可执行文件和脚本文件
+- **路径验证**: 防止目录遍历攻击
+
+### 2. 签名安全
+- **时效性**: 签名包含有效期，通常为1小时
+- **权限控制**: 签名只能用于指定的文件和操作
+- **访问控制**: 用户只能上传到自己的目录
+
+### 3. 数据隔离
+- **用户隔离**: 每个用户有独立的文件目录
+- **房间隔离**: 消息附件按房间分类存储
+- **路径安全**: 使用UUID和随机字符防止路径猜测
+
+## 性能优化
+
+### 1. 前端优化
+- **分片上传**: 大文件可以分片上传（当前未实现）
+- **进度显示**: 实时显示上传进度
+- **重试机制**: 网络失败时自动重试
+- **并发控制**: 限制同时上传的文件数量
+
+### 2. 后端优化
+- **签名缓存**: 短时间内重复请求使用缓存签名
+- **异步处理**: 文件上传不阻塞主流程
+- **存储优化**: 使用CDN加速文件访问
+
+## 监控和日志
+
+### 1. 关键指标
+- 文件上传成功率
+- 平均上传时间
+- 文件大小分布
+- 错误类型统计
+
+### 2. 日志记录
+```rust
+// 上传签名生成
+debug!("生成文件上传签名: key={}, user_id={}", key, user_id);
+
+// 文件验证
+warn!("文件类型验证失败: type={}, user_id={}", content_type, user_id);
+
+// COS上传结果
+debug!("COS上传结果: key={}, status={}", key, status);
+```
+
+## 故障排查
+
+### 1. 常见错误
+- **403 Forbidden**: 检查COS权限配置和访问密钥
+- **404 Not Found**: 检查桶名称和区域配置
+- **403 SignatureDoesNotMatch**: 检查签名算法和时间同步
+- **400 Bad Request**: 检查文件路径和参数格式
+
+### 2. 调试步骤
+1. 检查环境变量配置
+2. 验证COS控制台权限设置
+3. 检查网络连接和防火墙
+4. 验证签名生成逻辑
+5. 测试文件访问权限
+
+## 未来扩展
+
+### 1. 功能扩展
+- 支持更多文件格式
+- 实现文件压缩和转换
+- 添加文件预览功能
+- 支持批量上传
+
+### 2. 性能扩展
+- 实现分片上传
+- 添加断点续传
+- 优化大文件处理
+- 实现CDN加速
+
+### 3. 安全扩展
+- 添加文件病毒扫描
+- 实现文件加密存储
+- 增强访问控制
+- 添加审计日志
+
+---
+
+**文档版本**: v1.0
+**更新时间**: 2024-11-07
+**维护者**: 开发团队
