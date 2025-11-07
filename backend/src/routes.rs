@@ -35,10 +35,64 @@ pub fn create_routes() -> Router<AppState> {
         // admin APIs
         .route("/api/dashboard/stats", get(admin::get_dashboard_stats))
         .route("/api/dashboard/monitor", get(admin::get_system_monitor))
+        .route("/api/dashboard/statistics", get(admin::get_data_statistics))
         .route("/api/admin/users", get(admin::get_user_list))
+        .route("/api/admin/users", post(admin::create_user))
+        .route(
+            "/api/admin/users/:user_id",
+            get(admin::get_user_detail)
+                .patch(admin::update_user)
+                .delete(admin::delete_user),
+        )
+        .route(
+            "/api/admin/users/:user_id/password/reset",
+            post(admin::reset_user_password),
+        )
         .route(
             "/api/admin/users/:user_id/status",
             patch(admin::update_user_status),
+        )
+        .route(
+            "/api/admin/users/:user_id/roles",
+            get(admin::get_user_roles),
+        )
+        // 权限管理API
+        .route("/api/admin/permissions", get(admin::get_permissions))
+        .route("/api/admin/roles", get(admin::get_roles))
+        .route("/api/admin/roles", post(admin::create_role))
+        .route(
+            "/api/admin/roles/:role_id",
+            patch(admin::update_role)
+                .delete(admin::delete_role),
+        )
+        .route(
+            "/api/admin/roles/assign",
+            post(admin::assign_role_to_user),
+        )
+        .route(
+            "/api/admin/users/:user_id/roles/:role_id",
+            delete(admin::revoke_role_from_user),
+        )
+        .route(
+            "/api/admin/permissions/check",
+            post(admin::check_user_permission),
+        )
+        // 文件管理和存储统计API
+        .route(
+            "/api/admin/files/stats",
+            get(admin::get_file_management_stats),
+        )
+        .route(
+            "/api/admin/files",
+            get(admin::get_file_list),
+        )
+        .route(
+            "/api/admin/files/:file_id",
+            delete(admin::delete_file),
+        )
+        .route(
+            "/api/admin/files/batch-delete",
+            post(admin::delete_files_batch),
         )
         .route(
             "/api/admin/settings/captcha",

@@ -39,6 +39,93 @@ impl Default for UserStatus {
     }
 }
 
+/// 权限表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Permission {
+    pub id: Uuid,
+    pub name: String,
+    pub code: String,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 角色表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Role {
+    pub id: Uuid,
+    pub name: String,
+    pub code: String,
+    pub description: Option<String>,
+    pub is_system: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 用户角色关联表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserRole {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub role_id: Uuid,
+    pub assigned_by: Uuid,
+    pub assigned_at: DateTime<Utc>,
+}
+
+/// 角色权限关联表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RolePermission {
+    pub id: Uuid,
+    pub role_id: Uuid,
+    pub permission_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+/// 用户权限枚举（简化版，实际应该从数据库获取）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum UserPermission {
+    // 用户管理
+    UserView,
+    UserCreate,
+    UserUpdate,
+    UserDelete,
+    // 角色管理
+    RoleView,
+    RoleCreate,
+    RoleUpdate,
+    RoleDelete,
+    // 系统管理
+    SystemMonitor,
+    SystemStats,
+    SettingsManage,
+    // 文件管理
+    FileView,
+    FileManage,
+    StorageManage,
+}
+
+impl fmt::Display for UserPermission {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = match self {
+            UserPermission::UserView => "user:view",
+            UserPermission::UserCreate => "user:create",
+            UserPermission::UserUpdate => "user:update",
+            UserPermission::UserDelete => "user:delete",
+            UserPermission::RoleView => "role:view",
+            UserPermission::RoleCreate => "role:create",
+            UserPermission::RoleUpdate => "role:update",
+            UserPermission::RoleDelete => "role:delete",
+            UserPermission::SystemMonitor => "system:monitor",
+            UserPermission::SystemStats => "system:stats",
+            UserPermission::SettingsManage => "settings:manage",
+            UserPermission::FileView => "file:view",
+            UserPermission::FileManage => "file:manage",
+            UserPermission::StorageManage => "storage:manage",
+        };
+        f.write_str(code)
+    }
+}
+
 impl fmt::Display for UserStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {
