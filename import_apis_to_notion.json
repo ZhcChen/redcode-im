@@ -1,0 +1,58 @@
+[
+  {
+    "name": "标记单条消息已读",
+    "path": "POST /rooms/:room_id/messages/read",
+    "method": "POST",
+    "module": "消息已读 API",
+    "permission": "需要认证",
+    "desc": "标记指定消息为已读"
+  },
+  {
+    "name": "标记消息已读至",
+    "path": "POST /rooms/:room_id/messages/read_until",
+    "method": "POST",
+    "module": "消息已读 API",
+    "permission": "需要认证",
+    "desc": "标记从某条消息之前的所有消息为已读"
+  },
+  {
+    "name": "获取房间未读数",
+    "path": "GET /rooms/:room_id/unread_count",
+    "method": "GET",
+    "module": "消息已读 API",
+    "permission": "需要认证",
+    "desc": "获取指定房间的未读消息数量"
+  },
+  {
+    "name": "获取所有未读数",
+    "path": "GET /unread_counts",
+    "method": "GET",
+    "module": "消息已读 API",
+    "permission": "需要认证",
+    "desc": "获取所有房间的未读消息数量"
+  },
+  {
+    "name": "获取消息已读列表",
+    "path": "GET /rooms/:room_id/messages/:message_id/reads",
+    "method": "GET",
+    "module": "消息已读 API",
+    "permission": "需要认证",
+    "desc": "获取消息的已读用户列表"
+  },
+  {
+    "name": "获取搜索建议",
+    "path": "GET /messages/search/suggestions",
+    "method": "GET",
+    "module": "消息搜索 API",
+    "permission": "需要认证",
+    "desc": "根据输入获取搜索关键词建议"
+  },
+  {
+    "name": "获取热门关键词",
+    "path": "GET /messages/search/trending",
+    "method": "GET",
+    "module": "消息搜索 API",
+    "permission": "需要认证",
+    "desc": "获取当前热门搜索关键词"
+  }
+]
