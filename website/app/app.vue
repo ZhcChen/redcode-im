@@ -1,11 +1,13 @@
 <template>
   <div
-    class="relative flex h-auto min-h-screen w-full flex-col bg-white group/design-root overflow-x-hidden"
+    class="page-shell relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden"
     style='font-family: "Space Grotesk", "Noto Sans", sans-serif;'
   >
-    <div class="layout-container flex h-full grow flex-col">
-      <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f0f3f4] px-10 py-3">
-        <div class="flex items-center gap-4 text-[#111618]">
+    <div class="layout-container relative z-10 flex h-full grow flex-col">
+      <header
+        class="flex flex-wrap items-center gap-4 border-b border-solid border-b-[#f0f3f4] px-5 py-3 sm:px-8 md:flex-nowrap md:gap-8 md:px-10"
+      >
+        <div class="flex items-center gap-3 text-[#111618]">
           <div class="size-4">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path
@@ -18,43 +20,43 @@
           </div>
           <h2 class="text-[#111618] text-lg font-bold leading-tight tracking-[-0.015em]">即时通</h2>
         </div>
-        <div class="flex flex-1 justify-end gap-8">
-          <div class="flex items-center gap-9">
-            <a class="text-[#111618] text-sm font-medium leading-normal" href="#">功能</a>
-            <a class="text-[#111618] text-sm font-medium leading-normal" href="#">支持</a>
+        <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end md:w-auto md:flex-1 md:gap-6">
+          <div class="flex items-center justify-between gap-4 text-sm font-medium text-[#111618] sm:justify-end md:gap-9">
+            <a href="#">功能</a>
+            <a href="#">支持</a>
           </div>
           <button
-            class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#13a4ec] text-white text-sm font-bold leading-normal tracking-[0.015em]"
+            class="flex h-11 w-full min-w-[120px] cursor-pointer items-center justify-center rounded-xl px-4 text-sm font-bold tracking-[0.015em] text-white bg-[#13a4ec] sm:w-auto"
           >
             <span class="truncate">下载</span>
           </button>
         </div>
       </header>
 
-      <div class="px-40 flex flex-1 justify-center py-5">
+      <div class="flex flex-1 justify-center px-5 py-6 sm:px-8 md:px-20 md:py-10 lg:px-40">
         <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
           <div class="@container">
-            <div class="@[480px]:p-4">
+            <div class="p-3 @[480px]:p-4">
               <div
-                class="flex min-h-[480px] flex-col gap-6 bg-cover bg-center bg-no-repeat @[480px]:gap-8 @[480px]:rounded-xl items-center justify-center p-4"
+                class="flex min-h-[360px] flex-col items-center justify-center gap-5 rounded-2xl bg-cover bg-center bg-no-repeat p-4 text-center @[480px]:min-h-[480px] @[480px]:gap-8 @[480px]:rounded-[32px]"
                 :style="{
                   backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.4) 100%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuAdh1y3LMLnfPmOUIy3XlbstCsn9NWdcPUxPjof996Az5CQE7CG_lkWO0JghDDZboScdNrONcwon85uZwyPmrwrD2YGlIJcnmXKXTg9XyUBli1-yCb3arjHiBAOgF_cG1vpTwfEzW1DsJKwU7wx3qj8GrNhLNr9Y6soRH0dMLDUtiLGy-xiIY8_RCwO-RUOesGRplMLrRGdAJH76U74y-tpxdhv7SOsGHcIM1ZU4x8kuRqBKFE0FrkOfiWQ9JxDYi2iJkFh2s37vPYw')`
                 }"
               >
                 <div class="flex flex-col gap-2 text-center">
                   <h1
-                    class="text-white text-4xl font-black leading-tight tracking-[-0.033em] @[480px]:text-5xl @[480px]:font-black @[480px]:leading-tight @[480px]:tracking-[-0.033em]"
+                    class="text-white text-3xl font-black leading-tight tracking-[-0.03em] sm:text-4xl md:text-5xl"
                   >
                     即时通：为每个人打造的即时通讯
                   </h1>
                   <h2
-                    class="text-white text-sm font-normal leading-normal @[480px]:text-base @[480px]:font-normal @[480px]:leading-normal"
+                    class="text-white text-sm font-normal leading-relaxed sm:text-base"
                   >
                     体验即时通带来的无缝沟通。与朋友、家人和同事即时连接，跨越所有设备。
                   </h2>
                 </div>
                 <button
-                  class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 @[480px]:h-12 @[480px]:px-5 bg-[#13a4ec] text-white text-sm font-bold leading-normal tracking-[0.015em] @[480px]:text-base @[480px]:font-bold @[480px]:leading-normal @[480px]:tracking-[0.015em]"
+                  class="flex h-12 w-full min-w-[180px] max-w-[320px] cursor-pointer items-center justify-center rounded-xl bg-[#13a4ec] px-5 text-base font-bold leading-normal tracking-[0.015em] text-white sm:w-auto"
                 >
                   <span class="truncate">立即下载</span>
                 </button>
@@ -62,24 +64,24 @@
             </div>
           </div>
 
-          <h2 class="text-[#111618] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
+          <h2 class="px-5 pb-3 pt-6 text-[22px] font-bold leading-tight tracking-[-0.015em] text-[#111618] sm:px-4">
             核心功能
           </h2>
 
-          <div class="flex flex-col gap-10 px-4 py-10 @container">
+          <div class="@container flex flex-col gap-8 px-5 py-8 sm:gap-10 sm:px-4 sm:py-10">
             <div class="flex flex-col gap-4">
               <h1
-                class="text-[#111618] tracking-light text-[32px] font-bold leading-tight @[480px]:text-4xl @[480px]:font-black @[480px]:leading-tight @[480px]:tracking-[-0.033em] max-w-[720px]"
+                class="text-[28px] font-bold leading-tight tracking-[-0.02em] text-[#111618] @[480px]:text-4xl @[480px]:font-black @[480px]:leading-tight @[480px]:tracking-[-0.033em] max-w-[720px]"
               >
                 即时通功能
               </h1>
-              <p class="text-[#111618] text-base font-normal leading-normal max-w-[720px]">
+              <p class="text-base font-normal leading-relaxed text-[#111618] max-w-[720px]">
                 即时通提供一系列旨在增强您的沟通体验的功能。
               </p>
             </div>
 
-            <div class="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-3 p-0">
-              <div class="flex flex-1 gap-3 rounded-lg border border-[#dbe2e6] bg-white p-4 flex-col">
+            <div class="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-4 p-0 sm:gap-5">
+              <div class="flex flex-1 flex-col gap-3 rounded-xl border border-[#dbe2e6] bg-white p-4">
                 <div class="text-[#111618]" data-icon="ChatCircleDots" data-size="24px" data-weight="regular">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
                     <path
@@ -127,7 +129,7 @@
                 </div>
               </div>
 
-              <div class="flex flex-1 gap-3 rounded-lg border border-[#dbe2e6] bg-white p-4 flex-col">
+              <div class="flex flex-1 flex-col gap-3 rounded-xl border border-[#dbe2e6] bg-white p-4">
                 <div class="text-[#111618]" data-icon="Desktop" data-size="24px" data-weight="regular">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
                     <path
@@ -138,12 +140,12 @@
                 <div class="flex flex-col gap-1">
                   <h2 class="text-[#111618] text-base font-bold leading-tight">桌面应用</h2>
                   <p class="text-[#617c89] text-sm font-normal leading-normal">
-                    通过适用于Windows和macOS的本地应用程序在桌面上保持连接。
+                    Tauri 桌面客户端覆盖 Windows（含 Windows 7）和 macOS，保持消息无缝同步。
                   </p>
                 </div>
               </div>
 
-              <div class="flex flex-1 gap-3 rounded-lg border border-[#dbe2e6] bg-white p-4 flex-col">
+              <div class="flex flex-1 flex-col gap-3 rounded-xl border border-[#dbe2e6] bg-white p-4">
                 <div class="text-[#111618]" data-icon="DeviceMobile" data-size="24px" data-weight="regular">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
                     <path
@@ -161,37 +163,113 @@
             </div>
           </div>
 
-          <h2 class="text-[#111618] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
+          <h2 class="px-5 pb-3 pt-5 text-[22px] font-bold leading-tight tracking-[-0.015em] text-[#111618] sm:px-4">
             下载即时通
           </h2>
 
-          <div class="flex justify-center">
-            <div class="flex flex-1 gap-3 flex-wrap px-4 py-3 max-w-[480px] justify-center">
-              <button
-                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#13a4ec] text-white text-sm font-bold leading-normal tracking-[0.015em] grow"
-              >
-                <span class="truncate">下载 iOS 版</span>
-              </button>
-              <button
-                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#13a4ec] text-white text-sm font-bold leading-normal tracking-[0.015em] grow"
-              >
-                <span class="truncate">下载 Android 版</span>
-              </button>
-            </div>
-          </div>
+          <div class="px-5 pb-10 sm:px-4">
+            <div class="grid gap-5 rounded-3xl border border-[#dbe2e6] bg-[#f8fbfc] p-5 shadow-sm sm:gap-6 sm:p-6 md:grid-cols-2">
+              <section class="flex flex-col gap-4">
+                <div class="flex items-start gap-3">
+                  <div class="rounded-2xl bg-white p-3 text-[#13a4ec] shadow-sm">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      width="28"
+                      height="28"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M184,16H72A24,24,0,0,0,48,40V216a24,24,0,0,0,24,24H184a24,24,0,0,0,24-24V40A24,24,0,0,0,184,16ZM72,32H184a8,8,0,0,1,8,8V64H64V40A8,8,0,0,1,72,32ZM192,216a8,8,0,0,1-8,8H72a8,8,0,0,1-8-8V80H192Z"
+                      />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <p class="text-lg font-bold text-[#111618]">移动端</p>
+                    <p class="text-sm text-[#617c89]">
+                      原生 iOS 与 Android 应用保持消息实时同步，具备完整通知与系统分享体验。
+                    </p>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                  <a
+                    v-for="item in mobileDownloads"
+                    :key="item.label"
+                    :href="item.href"
+                    class="flex min-w-[160px] flex-1 cursor-pointer items-center justify-between rounded-2xl bg-[#13a4ec] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0f7bcf] hover:shadow-lg"
+                  >
+                    <div class="flex flex-col">
+                      <span class="text-sm font-bold text-white">{{ item.label }}</span>
+                      <span v-if="item.subLabel" class="text-xs font-medium text-[#d7ecfb]">{{ item.subLabel }}</span>
+                    </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="14"
+                    >
+                      <path d="M104 64l64 64-64 64" />
+                      <path d="M168 128H48" />
+                    </svg>
+                  </a>
+                </div>
+              </section>
 
-          <div class="flex justify-center">
-            <div class="flex flex-1 gap-3 flex-wrap px-4 py-3 max-w-[480px] justify-center">
-              <button
-                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#13a4ec] text-white text-sm font-bold leading-normal tracking-[0.015em] grow"
-              >
-                <span class="truncate">下载 Windows 版</span>
-              </button>
-              <button
-                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-10 px-4 bg-[#13a4ec] text-white text-sm font-bold leading-normal tracking-[0.015em] grow"
-              >
-                <span class="truncate">下载 macOS 版</span>
-              </button>
+              <section class="flex flex-col gap-4">
+                <div class="flex items-start gap-3">
+                  <div class="rounded-2xl bg-white p-3 text-[#13a4ec] shadow-sm">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      width="28"
+                      height="28"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M208,48H48A16,16,0,0,0,32,64V192a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V64A16,16,0,0,0,208,48Zm0,16V96H48V64ZM48,192V112H208v80Z"
+                      />
+                    </svg>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <p class="text-lg font-bold text-[#111618]">桌面端</p>
+                    <p class="text-sm text-[#617c89]">
+                      提供 Windows 7+、macOS 双架构安装包，支持原生通知、托盘与多窗口体验。
+                    </p>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-3">
+                  <a
+                    v-for="item in desktopDownloads"
+                    :key="item.label"
+                    :href="item.href"
+                    class="flex w-full items-center justify-between rounded-2xl bg-[#111618] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0b1114] hover:shadow-lg"
+                  >
+                    <div class="flex flex-col">
+                      <span class="text-sm font-bold text-white">{{ item.label }}</span>
+                      <span class="text-xs font-medium text-[#d9dde0]">{{ item.subLabel }}</span>
+                    </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="14"
+                    >
+                      <path d="M104 64l64 64-64 64" />
+                      <path d="M168 128H48" />
+                    </svg>
+                  </a>
+                </div>
+              </section>
             </div>
           </div>
         </div>
@@ -214,6 +292,37 @@
 </template>
 
 <script setup>
+const mobileDownloads = [
+  {
+    label: '下载 iOS 版',
+    subLabel: 'App Store 安装',
+    href: '#'
+  },
+  {
+    label: '下载 Android 版',
+    subLabel: '应用商店 / APK 包',
+    href: '#'
+  }
+]
+
+const desktopDownloads = [
+  {
+    label: '下载 Windows 版',
+    subLabel: '适配 Windows 7 及以上',
+    href: '#'
+  },
+  {
+    label: '下载 macOS 版 (Intel)',
+    subLabel: 'x64 处理器专用安装包',
+    href: '#'
+  },
+  {
+    label: '下载 macOS 版 (Apple 芯片)',
+    subLabel: '适配 Apple Silicon (M 系列)',
+    href: '#'
+  }
+]
+
 useHead({
   title: '即时通',
   link: [
@@ -229,3 +338,52 @@ useHead({
   ]
 })
 </script>
+
+<style scoped>
+.page-shell {
+  background:
+    radial-gradient(circle at top right, rgba(19, 164, 236, 0.15), transparent 45%),
+    radial-gradient(circle at 20% 20%, rgba(94, 202, 248, 0.2), transparent 40%),
+    #f5f8fb;
+}
+
+.page-shell::before,
+.page-shell::after {
+  content: '';
+  position: fixed;
+  width: 520px;
+  height: 520px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(19, 164, 236, 0.12), transparent 60%);
+  filter: blur(60px);
+  animation: float 18s ease-in-out infinite;
+  z-index: 0;
+}
+
+.page-shell::before {
+  top: -140px;
+  right: -120px;
+}
+
+.page-shell::after {
+  width: 400px;
+  height: 400px;
+  bottom: -120px;
+  left: -80px;
+  background: radial-gradient(circle, rgba(17, 22, 24, 0.12), transparent 60%);
+  animation-duration: 22s;
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(20px, -30px, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-10px, 10px, 0) scale(1);
+  }
+}
+</style>
