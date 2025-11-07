@@ -73,7 +73,7 @@ class HttpPerformanceBenchmark {
         }
       } else {
         // TypeScript 实现
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010'
         const response = await fetch(`${baseUrl}${path}`, {
           method,
           headers: {

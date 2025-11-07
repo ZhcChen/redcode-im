@@ -64,7 +64,7 @@ const isRustEnabled = (feature: keyof typeof FEATURE_FLAGS): boolean => {
 class RustHttpClient {
   private isInitialized = false
   private config: RustHttpConfig = {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010',
     timeout: 30000,
     maxRetries: 3,
     retryDelay: 1000,

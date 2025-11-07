@@ -234,7 +234,7 @@ npm run tauri build
 ```bash
 # 基础配置
 VITE_USE_RUST_BACKEND=true          # 启用 Rust 后端
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8010
 
 # 模块开关
 VITE_RUST_USER_API=true

@@ -34,7 +34,7 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         let base_url =
-            std::env::var("API_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+            std::env::var("API_BASE_URL").unwrap_or_else(|_| "http://localhost:8010".to_string());
         Self {
             base_url,
             timeout_ms: 30_000,
