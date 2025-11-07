@@ -1,7 +1,13 @@
 use tauri::{AppHandle, Manager, Window, WindowEvent};
 
+// 导入 HTTP 模块
 mod cache;
+mod http;
 mod message_search;
+
+use http::client::create_http_client;
+use http::commands::*;
+use http::types::HttpClientConfig;
 
 // 自定义命令：隐藏到系统托盘
 #[tauri::command]
@@ -94,11 +100,20 @@ async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 创建 HTTP 客户端配置
+    let http_config = HttpClientConfig::default();
+
+    // 初始化 HTTP 客户端
+    let http_client_state = create_http_client(http_config).expect("Failed to create HTTP client");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
+        // 注册 HTTP 客户端状态
+        .manage(http_client_state)
         .invoke_handler(tauri::generate_handler![
+            // 窗口相关命令
             force_center_window,
             set_window_size_and_center,
             app_ready,
@@ -107,9 +122,11 @@ pub fn run() {
             hide_to_tray,
             show_from_tray,
             quit_app,
+            // 缓存相关命令
             cache::cache_save_value,
             cache::cache_load_value,
             cache::cache_clear_value,
+            // 消息搜索相关命令
             message_search::index_message,
             message_search::index_messages,
             message_search::remove_message_index,
@@ -117,7 +134,22 @@ pub fn run() {
             message_search::search_messages,
             message_search::get_search_suggestions,
             message_search::get_search_stats,
-            message_search::optimize_search_db
+            message_search::optimize_search_db,
+            // HTTP 相关命令
+            http_initialize,
+            http_set_token,
+            http_clear_token,
+            http_get,
+            http_post,
+            http_put,
+            http_patch,
+            http_delete,
+            http_upload,
+            http_download,
+            http_request,
+            http_health,
+            http_stats,
+            http_batch
         ])
         .setup(|app| {
             // 创建系统托盘
