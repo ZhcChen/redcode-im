@@ -8,15 +8,15 @@
       />
     </div>
     <div class="menu-items">
-      <div 
-        v-for="item in menuItems" 
+      <div
+        v-for="item in menuItems"
         :key="item.name"
         class="menu-item"
         :class="{ active: isMenuItemActive(item.path) }"
-        @click="$router.push(item.path)"
+        @click="handleMenuClick(item)"
       >
-        <img 
-          :src="isMenuItemActive(item.path) ? item.iconSelected : item.icon" 
+        <img
+          :src="isMenuItemActive(item.path) ? item.iconSelected : item.icon"
           :alt="item.label"
           class="menu-icon"
         />
@@ -133,6 +133,12 @@ const menuItems = ref<MenuItem[]>([
 // 判断菜单项是否激活的逻辑
 const isMenuItemActive = (itemPath: string) => {
   return route.path === itemPath
+}
+
+// 处理菜单项点击
+const handleMenuClick = (item: MenuItem) => {
+  console.log('菜单项被点击:', item.label, item.path)
+  router.push(item.path)
 }
 
 
@@ -254,7 +260,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  position: relative;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  z-index: 20;
+  pointer-events: auto;
 }
 
 .user-avatar {

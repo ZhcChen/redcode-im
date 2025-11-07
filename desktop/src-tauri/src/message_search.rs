@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, OptionalExtension, Result as SqlResult};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::Manager;
@@ -15,7 +15,7 @@ pub struct MessageSearchResult {
     pub message_type: String,
     pub timestamp: i64,
     pub matched_text: Option<String>, // 匹配的文本片段
-    pub relevance_score: f64,        // 相关性评分
+    pub relevance_score: f64,         // 相关性评分
 }
 
 // 搜索参数
@@ -115,10 +115,7 @@ fn open_search_connection(db_path: &PathBuf) -> Result<Connection, String> {
 
 // 索引单个消息
 #[tauri::command]
-pub async fn index_message(
-    app: tauri::AppHandle,
-    message: IndexMessage,
-) -> Result<(), String> {
+pub async fn index_message(app: tauri::AppHandle, message: IndexMessage) -> Result<(), String> {
     let db_path = resolve_search_db_path(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let conn = open_search_connection(&db_path)?;
@@ -137,7 +134,8 @@ pub async fn index_message(
                 message.message_type,
                 message.timestamp
             ],
-        ).map_err(|e| format!("failed to index message: {e}"))?;
+        )
+        .map_err(|e| format!("failed to index message: {e}"))?;
 
         Ok::<(), String>(())
     })
@@ -159,8 +157,10 @@ pub async fn index_messages(
 
     let db_path = resolve_search_db_path(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let conn = open_search_connection(&db_path)?;
-        let tx = conn.transaction().map_err(|e| format!("failed to begin transaction: {e}"))?;
+        let mut conn = open_search_connection(&db_path)?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("failed to begin transaction: {e}"))?;
 
         for message in messages {
             tx.execute(
@@ -177,10 +177,12 @@ pub async fn index_messages(
                     message.message_type,
                     message.timestamp
                 ],
-            ).map_err(|e| format!("failed to index message: {e}"))?;
+            )
+            .map_err(|e| format!("failed to index message: {e}"))?;
         }
 
-        tx.commit().map_err(|e| format!("failed to commit transaction: {e}"))?;
+        tx.commit()
+            .map_err(|e| format!("failed to commit transaction: {e}"))?;
         Ok::<(), String>(())
     })
     .await
@@ -191,15 +193,15 @@ pub async fn index_messages(
 
 // 删除索引
 #[tauri::command]
-pub async fn remove_message_index(
-    app: tauri::AppHandle,
-    message_id: String,
-) -> Result<(), String> {
+pub async fn remove_message_index(app: tauri::AppHandle, message_id: String) -> Result<(), String> {
     let db_path = resolve_search_db_path(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let conn = open_search_connection(&db_path)?;
-        conn.execute("DELETE FROM message_search WHERE id = ?1", params![message_id])
-            .map_err(|e| format!("failed to remove message index: {e}"))?;
+        conn.execute(
+            "DELETE FROM message_search WHERE id = ?1",
+            params![message_id],
+        )
+        .map_err(|e| format!("failed to remove message index: {e}"))?;
         Ok::<(), String>(())
     })
     .await
@@ -296,7 +298,8 @@ fn process_search_query(query: &str) -> String {
     let query = query.trim();
 
     // 如果查询包含高级语法，直接返回
-    if query.contains('"') || query.contains("AND") || query.contains("OR") || query.contains("NOT") {
+    if query.contains('"') || query.contains("AND") || query.contains("OR") || query.contains("NOT")
+    {
         return query.to_string();
     }
 
@@ -325,26 +328,31 @@ pub async fn search_messages(
 
     let results = tauri::async_runtime::spawn_blocking(move || {
         let conn = open_search_connection(&db_path)?;
-        let mut stmt = conn.prepare(&sql)
+        let mut stmt = conn
+            .prepare(&sql)
             .map_err(|e| format!("failed to prepare search statement: {e}"))?;
 
-        let param_refs: Vec<&dyn rusqlite::ToSql> = bind_params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> = bind_params
+            .iter()
+            .map(|p| p as &dyn rusqlite::ToSql)
+            .collect();
 
-        let rows = stmt.query_map(&*param_refs, |row| {
-            Ok(MessageSearchResult {
-                id: row.get(0)?,
-                room_id: row.get(1)?,
-                room_name: row.get(2)?,
-                sender_id: row.get(3)?,
-                sender_name: row.get(4)?,
-                matched_text: row.get(5)?,
-                content: row.get(6)?,
-                message_type: row.get(7)?,
-                timestamp: row.get(8)?,
-                relevance_score: row.get::<_, f64>(9)?,
+        let rows = stmt
+            .query_map(&*param_refs, |row| {
+                Ok(MessageSearchResult {
+                    id: row.get(0)?,
+                    room_id: row.get(1)?,
+                    room_name: row.get(2)?,
+                    sender_id: row.get(3)?,
+                    sender_name: row.get(4)?,
+                    matched_text: row.get(5)?,
+                    content: row.get(6)?,
+                    message_type: row.get(7)?,
+                    timestamp: row.get(8)?,
+                    relevance_score: row.get::<_, f64>(9)?,
+                })
             })
-        })
-        .map_err(|e| format!("failed to execute search query: {e}"))?;
+            .map_err(|e| format!("failed to execute search query: {e}"))?;
 
         let mut results = Vec::new();
         for row in rows {
@@ -391,14 +399,16 @@ pub async fn get_search_suggestions(
             LIMIT ?
         ";
 
-        let mut stmt = conn.prepare(sql)
+        let mut stmt = conn
+            .prepare(sql)
             .map_err(|e| format!("failed to prepare suggestion query: {e}"))?;
 
-        let rows = stmt.query_map(params![prefix, limit], |row| {
-            let suggestion: String = row.get(0)?;
-            Ok(suggestion)
-        })
-        .map_err(|e| format!("failed to execute suggestion query: {e}"))?;
+        let rows = stmt
+            .query_map(params![prefix, limit], |row| {
+                let suggestion: String = row.get(0)?;
+                Ok(suggestion)
+            })
+            .map_err(|e| format!("failed to execute suggestion query: {e}"))?;
 
         let mut suggestions = Vec::new();
         for row in rows {
@@ -422,25 +432,33 @@ pub async fn get_search_stats(app: tauri::AppHandle) -> Result<serde_json::Value
         let conn = open_search_connection(&db_path)?;
 
         // 获取索引的消息总数
-        let total_messages: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM message_search",
-            [],
-            |row| row.get(0)
-        ).optional()?.unwrap_or(0);
+        let total_messages: i64 = conn
+            .query_row("SELECT COUNT(*) FROM message_search", [], |row| row.get(0))
+            .optional()
+            .map_err(|e| format!("failed to count messages: {e}"))?
+            .unwrap_or(0);
 
         // 获取房间数量
-        let total_rooms: i64 = conn.query_row(
-            "SELECT COUNT(DISTINCT room_id) FROM message_search",
-            [],
-            |row| row.get(0)
-        ).optional()?.unwrap_or(0);
+        let total_rooms: i64 = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT room_id) FROM message_search",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| format!("failed to count rooms: {e}"))?
+            .unwrap_or(0);
 
         // 获取发送者数量
-        let total_senders: i64 = conn.query_row(
-            "SELECT COUNT(DISTINCT sender_id) FROM message_search",
-            [],
-            |row| row.get(0)
-        ).optional()?.unwrap_or(0);
+        let total_senders: i64 = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT sender_id) FROM message_search",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| format!("failed to count senders: {e}"))?
+            .unwrap_or(0);
 
         // 获取数据库大小
         let db_size = std::fs::metadata(&db_path)
@@ -470,8 +488,11 @@ pub async fn optimize_search_db(app: tauri::AppHandle) -> Result<(), String> {
         let conn = open_search_connection(&db_path)?;
 
         // 优化FTS5表
-        conn.execute("INSERT INTO message_search(message_search) VALUES('optimize')", [])
-            .map_err(|e| format!("failed to optimize search db: {e}"))?;
+        conn.execute(
+            "INSERT INTO message_search(message_search) VALUES('optimize')",
+            [],
+        )
+        .map_err(|e| format!("failed to optimize search db: {e}"))?;
 
         // 分析表以更新统计信息
         conn.execute("ANALYZE", [])

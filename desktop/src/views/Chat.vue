@@ -425,19 +425,17 @@
         @voice-cancel="closeVoiceRecorder"
       />
     </Dialog>
-  </div>
-  </div>
 
-    <!-- 搜索对话框 -->
-    <SearchDialog
-      :visible="showSearchDialog"
-      :current-room-id="selectedChat?.groupId"
-      :available-rooms="availableRoomsForSearch"
-      :available-senders="availableSendersForSearch"
-      @close="showSearchDialog = false"
-      @result-click="handleSearchResultClick"
-    />
-  </div>
+  <!-- 搜索对话框 -->
+  <SearchDialog
+    :visible="showSearchDialog"
+    :current-room-id="selectedChat?.groupId"
+    :available-rooms="availableRoomsForSearch"
+    :available-senders="availableSendersForSearch"
+    @close="showSearchDialog = false"
+    @result-click="handleSearchResultClick"
+  />
+</div>
 </template>
 
 <script setup lang="ts">

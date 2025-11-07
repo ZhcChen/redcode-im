@@ -38,8 +38,10 @@ import { ref, watch } from 'vue'
 interface Props {
   /** 弹窗标题 */
   title?: string
-  /** 是否显示弹窗 */
-  modelValue: boolean
+  /** 是否显示弹窗（v-model） */
+  modelValue?: boolean
+  /** 是否显示弹窗（替代 modelValue） */
+  visible?: boolean
   /** 是否可以通过点击蒙版关闭弹窗 */
   closeOnOverlay?: boolean
   /** 是否显示底部按钮 */
@@ -68,16 +70,36 @@ const emits = defineEmits<{
   'confirm': []
 }>()
 
-const visible = ref(props.modelValue)
+// 获取实际可见性值（优先使用 modelValue，如果没有则使用 visible）
+const getActualVisible = () => {
+  if (props.modelValue !== undefined) {
+    return props.modelValue
+  }
+  return props.visible ?? false
+}
+
+const visible = ref(getActualVisible())
 
 // 监听 modelValue 变化
 watch(() => props.modelValue, (newValue) => {
-  visible.value = newValue
+  if (newValue !== undefined) {
+    visible.value = newValue
+  }
+})
+
+// 监听 visible 变化
+watch(() => props.visible, (newValue) => {
+  if (newValue !== undefined) {
+    visible.value = newValue
+  }
 })
 
 // 监听 visible 变化，同步到父组件
 watch(visible, (newValue) => {
-  emits('update:modelValue', newValue)
+  // 只有当原始 prop 是 modelValue 时才发射 update 事件
+  if (props.modelValue !== undefined) {
+    emits('update:modelValue', newValue)
+  }
 })
 
 // 处理蒙版点击

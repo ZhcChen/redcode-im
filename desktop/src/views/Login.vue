@@ -130,7 +130,11 @@ async function setLoginWindowSize() {
     await currentWindow.setTitle("Chatly");
 
     // 禁止调整窗口大小
-    await currentWindow.setResizable(false);
+    try {
+      await currentWindow.setResizable(false);
+    } catch (error) {
+      console.warn('设置窗口可调整状态失败:', error);
+    }
 
     // 使用 Rust 后端设置窗口大小并居中
     await invoke("set_window_size_and_center", { width: 400, height: 600 });
@@ -159,7 +163,11 @@ async function restoreOriginalWindowSize() {
       // await currentWindow.setTitle("Chatly"); // 注释掉这行，避免覆盖登录后的标题
 
       // 恢复窗口可调整状态
-      await currentWindow.setResizable(originalResizable);
+      try {
+        await currentWindow.setResizable(originalResizable);
+      } catch (error) {
+        console.warn('恢复窗口可调整状态失败:', error);
+      }
 
       // 使用 Rust 后端恢复原始窗口大小并居中
       await invoke("set_window_size_and_center", {
