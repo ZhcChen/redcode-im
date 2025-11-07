@@ -365,7 +365,7 @@ fn build_auto_registration_email(username: &str) -> String {
 }
 
 fn build_auto_registration_password(username: &str) -> String {
-    let mut rng = thread_rng();
+    let rng = thread_rng();
     let mut prefix: String = username
         .chars()
         .filter(|c| c.is_ascii_digit())

@@ -332,6 +332,28 @@ impl<'a> RoomStore<'a> {
 
         Ok(rows)
     }
+
+    pub async fn update_notification_settings(
+        &self,
+        room_id: Uuid,
+        user_id: Uuid,
+        notification_settings: crate::database::models::NotificationSetting,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE room_members
+            SET notification_settings = $1
+            WHERE room_id = $2 AND user_id = $3 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(notification_settings)
+        .bind(room_id)
+        .bind(user_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 async fn upsert_member_conn(
@@ -392,26 +414,4 @@ async fn upsert_member_conn(
     .await?;
 
     Ok(inserted)
-}
-
-pub async fn update_notification_settings(
-    &self,
-    room_id: Uuid,
-    user_id: Uuid,
-    notification_settings: crate::database::models::NotificationSetting,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        r#"
-        UPDATE room_members
-        SET notification_settings = $1
-        WHERE room_id = $2 AND user_id = $3 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(notification_settings)
-    .bind(room_id)
-    .bind(user_id)
-    .execute(&self.pool)
-    .await?;
-
-    Ok(())
 }
