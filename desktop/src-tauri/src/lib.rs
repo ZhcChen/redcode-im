@@ -1,6 +1,7 @@
 use tauri::{AppHandle, Manager, Window, WindowEvent};
 
 mod cache;
+mod message_search;
 
 // 自定义命令：隐藏到系统托盘
 #[tauri::command]
@@ -108,7 +109,15 @@ pub fn run() {
             quit_app,
             cache::cache_save_value,
             cache::cache_load_value,
-            cache::cache_clear_value
+            cache::cache_clear_value,
+            message_search::index_message,
+            message_search::index_messages,
+            message_search::remove_message_index,
+            message_search::clear_all_indices,
+            message_search::search_messages,
+            message_search::get_search_suggestions,
+            message_search::get_search_stats,
+            message_search::optimize_search_db
         ])
         .setup(|app| {
             // 创建系统托盘

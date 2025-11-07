@@ -23,10 +23,11 @@
             </div>
           </template>
         </Popover>
-        <SearchInput 
+        <SearchInput
           v-model="searchText"
           placeholder="搜索聊天..."
           @search="handleSearch"
+          @focus="handleSearchFocus"
         />
         
       </div>
@@ -89,7 +90,7 @@
           <div v-if="messages.length === 0" class="empty-container">
             <div class="empty-text">暂无消息，开始聊天吧</div>
           </div>
-          <div v-else class="message" v-for="message in messages" :key="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 3, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }">
+          <div v-else class="message" v-for="message in messages" :key="message.id" :data-message-id="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 3, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }">
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -425,6 +426,18 @@
       />
     </Dialog>
   </div>
+  </div>
+
+    <!-- 搜索对话框 -->
+    <SearchDialog
+      :visible="showSearchDialog"
+      :current-room-id="selectedChat?.groupId"
+      :available-rooms="availableRoomsForSearch"
+      :available-senders="availableSendersForSearch"
+      @close="showSearchDialog = false"
+      @result-click="handleSearchResultClick"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -434,6 +447,8 @@ import { useStore } from 'vuex'
 import Avatar from '../components/Avatar.vue'
 import SearchInput from '../components/SearchInput.vue'
 import Popover from '../components/Popover.vue'
+import SearchDialog from '../components/SearchDialog.vue'
+import { messageSearchService } from '../services/messageSearchService'
 import EmojiPicker from '../components/EmojiPicker.vue'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
 import Dialog from '../components/Dialog.vue'
@@ -1276,6 +1291,11 @@ const isResizing = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
 
+// 搜索功能状态
+const showSearchDialog = ref(false)
+const availableRoomsForSearch = ref<Array<{ id: string; name: string }>>([])
+const availableSendersForSearch = ref<Array<{ id: string; name: string }>>([])
+
 // 表情选择器状态
 const showEmojiPicker = ref(false)
 
@@ -1615,6 +1635,13 @@ const loadMessages = async (groupId: string) => {
         time: msg.time,
         createTime: msg.createTime
       })))
+
+      // 初始化消息搜索索引
+      if (messages.value.length > 0 && selectedChat.value) {
+        messageSearchService.initializeSearchIndex(messages.value, selectedChat.value.name).catch(error => {
+          console.warn('⚠️ 搜索索引初始化失败:', error)
+        })
+      }
     } else {
       console.warn('❌ 消息加载失败:', response.message)
       messages.value = []
@@ -2444,7 +2471,61 @@ const resendMessage = async (message: Message) => {
 
 const handleSearch = (value: string) => {
   console.log('搜索聊天:', value)
-  // 这里可以添加搜索逻辑
+  if (value.trim()) {
+    showSearchDialog.value = true
+  }
+}
+
+const handleSearchFocus = () => {
+  // 准备搜索数据
+  prepareSearchData()
+}
+
+const handleSearchResultClick = (result: any) => {
+  // 点击搜索结果时，切换到对应的聊天
+  if (result.roomId && result.roomId !== selectedChat.value?.groupId) {
+    const chat = chatList.value.find(c => c.groupId === result.roomId)
+    if (chat) {
+      selectChat(chat)
+    }
+  }
+
+  // 滚动到对应的消息
+  setTimeout(() => {
+    const messageElement = document.querySelector(`[data-message-id="${result.id}"]`)
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // 高亮显示
+      messageElement.classList.add('search-highlighted')
+      setTimeout(() => {
+        messageElement.classList.remove('search-highlighted')
+      }, 2000)
+    }
+  }, 100)
+}
+
+const prepareSearchData = () => {
+  // 准备可用的房间列表
+  availableRoomsForSearch.value = chatList.value.map(chat => ({
+    id: chat.groupId,
+    name: chat.name
+  }))
+
+  // 准备可用的发送者列表（从当前消息中提取）
+  const senders = new Set<string>()
+  const senderMap = new Map<string, string>()
+
+  messages.value.forEach(msg => {
+    if (!senders.has(msg.senderId)) {
+      senders.add(msg.senderId)
+      senderMap.set(msg.senderId, msg.senderName || msg.senderUsername)
+    }
+  })
+
+  availableSendersForSearch.value = Array.from(senders).map(senderId => ({
+    id: senderId,
+    name: senderMap.get(senderId) || senderId
+  }))
 }
 
 // 处理表情点击
@@ -3683,6 +3764,14 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         if (messageData.isSelf) {
           recentSentMessages.value.delete(uiMessage.id)
         }
+
+        // 索引新消息
+        if (selectedChat.value) {
+          messageSearchService.indexMessageAsync(uiMessage, selectedChat.value.name).catch(error => {
+            console.warn('⚠️ 消息索引失败:', error)
+          })
+        }
+
         scrollToBottom()
       }
     }
@@ -4972,6 +5061,25 @@ const handleVoiceSend = async (recording: any) => {
     border-radius: 8px;
     color: #dc2626;
     font-size: 14px;
+  }
+}
+
+// 搜索高亮样式
+.search-highlighted {
+  background-color: #fef3c7 !important;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px #f59e0b;
+  animation: highlight-fade 2s ease-in-out;
+}
+
+@keyframes highlight-fade {
+  0% {
+    background-color: #f59e0b;
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: #fef3c7;
+    transform: scale(1);
   }
 }
 </style>

@@ -6,7 +6,7 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, feedback, friend, group_management, healthz, message, message_read, room, root, settings, user,
+    admin, auth, feedback, friend, group_management, healthz, message, message_read, message_search, room, root, settings, user,
     version, ws,
 };
 use crate::AppState;
@@ -252,6 +252,19 @@ pub fn create_routes() -> Router<AppState> {
             get(message_read::get_unread_count),
         )
         .route("/unread_counts", get(message_read::get_all_unread_counts))
+        // 消息搜索 API
+        .route(
+            "/messages/search",
+            get(message_search::search_messages),
+        )
+        .route(
+            "/messages/search/suggestions",
+            get(message_search::get_search_suggestions),
+        )
+        .route(
+            "/messages/search/trending",
+            get(message_search::get_trending_keywords),
+        )
         // 群聊管理 API
         .route(
             "/rooms/:room_id/settings",
