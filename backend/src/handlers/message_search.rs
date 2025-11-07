@@ -70,12 +70,12 @@ pub async fn search_messages(
     }
 
     // 构建SQL查询
-    let mut query_conditions = vec!["m.deleted_at IS NULL"];
+    let mut query_conditions: Vec<String> = vec!["m.deleted_at IS NULL".to_string()];
     let mut bind_params: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send>> = Vec::new();
 
     // 添加搜索条件（使用全文搜索）
     if !params.query.trim().is_empty() {
-        query_conditions.push("(m.content ILIKE $1 OR u.username ILIKE $1 OR u.nickname ILIKE $1)");
+        query_conditions.push("(m.content ILIKE $1 OR u.username ILIKE $1 OR u.nickname ILIKE $1)".to_string());
         bind_params.push(Box::new(format!("%{}%", params.query.trim())));
     }
 
@@ -170,13 +170,13 @@ pub async fn search_messages(
     let search_results = search_query
         .fetch_all(pool)
         .await
-        .map_err(|e| AppError::InternalServerError(format!("搜索失败: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("搜索失败: {}", e)))?;
 
     // 获取总数
     let total_count: i64 = sqlx::query_scalar(&count_sql)
         .fetch_one(pool)
         .await
-        .map_err(|e| AppError::InternalServerError(format!("获取总数失败: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("获取总数失败: {}", e)))?;
 
     // 转换结果
     let results: Vec<MessageSearchResult> = search_results
@@ -238,7 +238,7 @@ pub async fn get_search_suggestions(
     Query(params): Query<SearchSuggestionsParams>,
 ) -> Result<Json<Vec<String>>, AppError> {
     if params.prefix.trim().is_empty() || params.prefix.trim().len() < 2 {
-        return Ok(Vec::new());
+        return Ok(Json(Vec::new()));
     }
 
     let limit = params.limit.unwrap_or(10).min(20);
@@ -257,7 +257,7 @@ pub async fn get_search_suggestions(
         .bind(limit as i64)
         .fetch_all(&state.database.pool)
         .await
-        .map_err(|e| AppError::InternalServerError(format!("获取建议失败: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("获取建议失败: {}", e)))?;
 
     Ok(Json(suggestions))
 }
@@ -293,7 +293,7 @@ pub async fn get_trending_keywords(
     let keywords = sqlx::query_as::<_, TrendingKeywordRow>(sql)
         .fetch_all(&state.database.pool)
         .await
-        .map_err(|e| AppError::InternalServerError(format!("获取热门关键词失败: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("获取热门关键词失败: {}", e)))?;
 
     let results: Vec<TrendingKeyword> = keywords
         .into_iter()

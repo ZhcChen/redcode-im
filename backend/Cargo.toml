@@ -17,7 +17,7 @@ bcrypt = "0.15"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.7", features = ["v4", "v7", "serde"] }
 lazy_static = "1.4"
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate"], default-features = false }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate", "bigdecimal"], default-features = false }
 dotenvy = "0.15"
 redis = { version = "0.24", features = ["tokio-comp", "json", "cluster"] }
 tokio-stream = "0.1"
@@ -36,7 +36,22 @@ urlencoding = "2.1"
 async-trait = "0.1"
 regex = "1.10"
 md5 = "0.7"
+argon2 = "0.6.0-rc.2"
+bigdecimal = "0.4"
 
 [build-dependencies]
 prost-build = "0.12"
 protoc-bin-vendored = "3"
+
+[dev-dependencies]
+# Testing
+tokio-test = "0.4"
+mockall = "0.12"
+# Test containers
+testcontainers = "0.25"
+# HTTP testing
+wiremock = "0.6"
+# JSON testing
+jsonpath-rust = "0.6"
+# Mocking
+mockall_derive = "0.12"
