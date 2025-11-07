@@ -4,8 +4,6 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { BaseDirectory, create, writeFile, removeFile } from '@tauri-apps/api/fs'
-import { appDataDir, join } from '@tauri-apps/api/path'
 import type { ApiResponse } from './http.types'
 
 // 配置接口
@@ -342,42 +340,34 @@ class RustHttpClient {
     try {
       let filePath: string
       let contentType: string | undefined
-      let tempFileName: string | null = null
 
       if (typeof file === 'string') {
         // 如果是路径（已在 Rust 端）
         filePath = file
         contentType = 'application/octet-stream'
       } else {
-        // 如果是 File 对象，需要先写入临时文件
-        const appData = await appDataDir()
-        const tempDir = await join(appData, 'temp')
-
-        // 确保 temp 目录存在
-        try {
-          await create('', {
-            dir: BaseDirectory.AppData,
-            path: 'temp'
-          })
-        } catch (e) {
-          // 忽略目录已存在的错误
-        }
-
-        tempFileName = `upload_${Date.now()}_${file.name}`
-
-        // 写入文件
+        // 如果是 File 对象，转换为 base64 传给 Rust
         const fileBuffer = await file.arrayBuffer()
-        await writeFile({
-          path: `temp/${tempFileName}`,
-          contents: new Uint8Array(fileBuffer),
-          dir: BaseDirectory.AppData
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)))
+
+        // 调用 Rust 上传（传入 base64 编码的文件内容）
+        const result = await invoke<string>('http_upload_base64', {
+          path,
+          fileData: base64,
+          fileName: file.name,
+          contentType: file.type
         })
 
-        filePath = `temp/${tempFileName}`
-        contentType = file.type
+        const response: HttpResponseData = JSON.parse(result)
+        return {
+          code: response.code,
+          message: response.message,
+          data: response.data,
+          success: response.success
+        }
       }
 
-      // 调用 Rust 上传
+      // 调用 Rust 上传（文件路径方式）
       const result = await invoke<string>('http_upload', {
         path,
         filePath,
@@ -385,19 +375,6 @@ class RustHttpClient {
       })
 
       const response: HttpResponseData = JSON.parse(result)
-
-      // 如果是 File 对象，清理临时文件
-      if (!(typeof file === 'string') && tempFileName) {
-        try {
-          await removeFile({
-            path: `temp/${tempFileName}`,
-            dir: BaseDirectory.AppData
-          })
-        } catch (e) {
-          console.warn('清理临时文件失败:', e)
-        }
-      }
-
       return {
         code: response.code,
         message: response.message,
@@ -451,27 +428,10 @@ class RustHttpClient {
     }
 
     try {
-      const downloadDir = await join(
-        await appDataDir(),
-        'downloads'
-      )
-
-      // 确保下载目录存在
-      try {
-        await create('', {
-          dir: BaseDirectory.AppData,
-          path: 'downloads'
-        })
-      } catch (e) {
-        // 忽略目录已存在的错误
-      }
-
-      const savePath = await join(downloadDir, filename)
-
-      // 调用 Rust 下载
+      // 调用 Rust 下载（让 Rust 端处理文件保存路径）
       const result = await invoke<string>('http_download', {
         url,
-        savePath
+        filename
       })
 
       const response: HttpResponseData = JSON.parse(result)
