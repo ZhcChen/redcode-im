@@ -6,7 +6,7 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, feedback, friend, healthz, message, message_read, room, root, settings, user,
+    admin, auth, feedback, friend, group_management, healthz, message, message_read, room, root, settings, user,
     version, ws,
 };
 use crate::AppState;
@@ -252,6 +252,75 @@ pub fn create_routes() -> Router<AppState> {
             get(message_read::get_unread_count),
         )
         .route("/unread_counts", get(message_read::get_all_unread_counts))
+        // 群聊管理 API
+        .route(
+            "/rooms/:room_id/settings",
+            get(group_management::get_group_settings)
+                .patch(group_management::update_group_settings),
+        )
+        .route(
+            "/rooms/:room_id/announcements",
+            get(group_management::list_announcements)
+                .post(group_management::create_announcement),
+        )
+        .route(
+            "/rooms/:room_id/announcements/:announcement_id",
+            patch(group_management::update_announcement)
+                .delete(group_management::delete_announcement),
+        )
+        .route(
+            "/rooms/:room_id/rules",
+            get(group_management::list_rules)
+                .post(group_management::create_rule),
+        )
+        .route(
+            "/rooms/:room_id/rules/:rule_id",
+            patch(group_management::update_rule)
+                .delete(group_management::delete_rule),
+        )
+        .route(
+            "/rooms/:room_id/join-requests",
+            get(group_management::list_join_requests)
+                .post(group_management::create_join_request),
+        )
+        .route(
+            "/rooms/:room_id/join-requests/:request_id/review",
+            patch(group_management::review_join_request),
+        )
+        .route(
+            "/rooms/:room_id/invitations",
+            post(group_management::create_invitations),
+        )
+        .route(
+            "/rooms/:room_id/invitations/:invitation_id/respond",
+            patch(group_management::respond_to_invitation),
+        )
+        .route(
+            "/rooms/:room_id/admins",
+            get(group_management::list_admins)
+                .post(group_management::appoint_admin),
+        )
+        .route(
+            "/rooms/:room_id/admins/:admin_id",
+            delete(group_management::remove_admin),
+        )
+        .route(
+            "/rooms/:room_id/mutes",
+            post(group_management::mute_user)
+                .get(group_management::list_muted_users),
+        )
+        .route(
+            "/rooms/:room_id/mutes/:muted_user_id",
+            delete(group_management::unmute_user),
+        )
+        .route(
+            "/rooms/:room_id/operation-logs",
+            get(group_management::list_operation_logs),
+        )
+        .route(
+            "/rooms/:room_id/detail",
+            get(group_management::get_group_detail),
+        )
         .layer(middleware::from_fn(auth_middleware));
 
     // 合并所有路由

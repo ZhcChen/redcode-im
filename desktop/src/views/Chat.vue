@@ -4015,21 +4015,54 @@ const handleVoiceSend = async (recording: any) => {
   try {
     console.log('发送语音消息:', recording)
 
-    // 转换语音文件为可上传的格式
-    const formData = new FormData()
-    formData.append('file', recording.blob, `voice_${recording.id}.webm`)
-    formData.append('type', 'audio')
+    // 1. 获取语音上传签名
+    const signatureResponse = await MessageApi.generateMessageAttachmentSignature({
+      roomId: selectedChat.value.id,
+      partType: 4, // AUDIO_CONTENT_TYPE
+      filename: `voice_${recording.id}.webm`,
+      contentType: 'audio/webm',
+      fileSize: recording.blob.size,
+    })
 
-    // 这里应该调用文件上传API，暂时用模拟实现
-    toast.info('语音消息上传功能开发中...')
+    if (!signatureResponse.success || !signatureResponse.data) {
+      throw new Error(signatureResponse.message || '获取上传签名失败')
+    }
 
-    // TODO: 实现语音文件上传和发送逻辑
-    // 1. 上传语音文件到服务器
-    // 2. 获取文件URL
-    // 3. 发送语音消息
-    // 4. 关闭录音弹窗
+    // 2. 直接上传到COS
+    const { key, signature } = signatureResponse.data
+    const headers = new Headers(signature.headers || {})
+    headers.set('Content-Type', 'audio/webm')
 
-    closeVoiceRecorder()
+    const uploadResponse = await fetch(signature.url, {
+      method: signature.method || 'PUT',
+      headers,
+      body: recording.blob,
+    })
+
+    if (!uploadResponse.ok) {
+      throw new Error('文件上传失败')
+    }
+
+    // 3. 创建语音消息
+    const messageResponse = await MessageApi.sendMessage({
+      groupId: selectedChat.value.id,
+      content: '', // 语音消息通常不包含文字内容
+      parts: [{
+        partType: 4, // AUDIO_CONTENT_TYPE
+        objectKey: key,
+        originalName: `voice_${recording.id}.webm`,
+        mimeType: 'audio/webm',
+        duration: Math.round(recording.duration),
+      }],
+    })
+
+    if (messageResponse.success && messageResponse.data) {
+      toast.success('语音消息发送成功')
+      // 关闭录音弹窗
+      closeVoiceRecorder()
+    } else {
+      throw new Error(messageResponse.message || '发送消息失败')
+    }
   } catch (error: any) {
     console.error('发送语音消息失败:', error)
     toast.error('发送失败: ' + (error.message || '网络错误'))

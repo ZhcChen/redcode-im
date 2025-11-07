@@ -3,6 +3,7 @@ use std::env;
 
 pub mod document_store;
 pub mod friend_store;
+pub mod group_management_store;
 pub mod message_read_store;
 pub mod message_store;
 pub mod models;

@@ -2,6 +2,7 @@ pub mod admin;
 pub mod auth;
 pub mod feedback;
 pub mod friend;
+pub mod group_management;
 pub mod message;
 pub mod message_read;
 pub mod room;

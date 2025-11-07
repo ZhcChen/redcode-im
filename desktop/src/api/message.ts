@@ -440,6 +440,39 @@ const buildMessageQuery = (
 };
 
 export class MessageApi {
+  static async generateMessageAttachmentSignature(params: {
+    roomId: string;
+    partType: number;
+    filename?: string;
+    contentType?: string;
+    fileSize?: number;
+  }): Promise<ApiResponse<{ key: string; signature: any }>> {
+    const response = await post<{ key: string; signature: any }>(
+      `/rooms/${params.roomId}/messages/attachments/signature`,
+      {
+        part_type: params.partType,
+        filename: params.filename,
+        content_type: params.contentType,
+        file_size: params.fileSize,
+      },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        key: response.data.key,
+        signature: response.data.signature,
+      },
+    };
+  }
+
   static async updateNotificationSettings(params: {
     roomId: string;
     notificationSettings: number; // 0 = all, 1 = mentions only, 2 = muted

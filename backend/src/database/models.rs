@@ -590,3 +590,258 @@ pub struct StorageProvider {
     pub updated_at: DateTime<Utc>,
     pub updated_by: Option<Uuid>,
 }
+
+// ===== 群聊管理相关模型 =====
+
+/// 群聊设置
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupSettings {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub join_approval_required: bool,
+    pub member_can_invite: bool,
+    pub member_can_add_friends: bool,
+    pub require_admin_to_add_friends: bool,
+    pub max_members: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 群公告
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupAnnouncement {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub title: String,
+    pub content: String,
+    pub publisher_id: Uuid,
+    pub is_pinned: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 群规
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupRule {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub title: String,
+    pub content: String,
+    pub creator_id: Uuid,
+    pub order_index: i32,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 入群申请状态
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i32)]
+#[sqlx(type_name = "int4")]
+pub enum JoinRequestStatus {
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2,
+}
+
+impl fmt::Display for JoinRequestStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            JoinRequestStatus::Pending => "pending",
+            JoinRequestStatus::Approved => "approved",
+            JoinRequestStatus::Rejected => "rejected",
+        };
+        f.write_str(text)
+    }
+}
+
+/// 入群申请
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct JoinRequest {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub applicant_id: Uuid,
+    pub message: Option<String>,
+    pub status: JoinRequestStatus,
+    pub reviewer_id: Option<Uuid>,
+    pub review_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+}
+
+/// 群聊邀请状态
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i32)]
+#[sqlx(type_name = "int4")]
+pub enum InvitationStatus {
+    Pending = 0,
+    Accepted = 1,
+    Declined = 2,
+    Expired = 3,
+}
+
+impl fmt::Display for InvitationStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            InvitationStatus::Pending => "pending",
+            InvitationStatus::Accepted => "accepted",
+            InvitationStatus::Declined => "declined",
+            InvitationStatus::Expired => "expired",
+        };
+        f.write_str(text)
+    }
+}
+
+/// 群聊邀请
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupInvitation {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub inviter_id: Uuid,
+    pub invitee_id: Uuid,
+    pub message: Option<String>,
+    pub status: InvitationStatus,
+    pub invited_at: DateTime<Utc>,
+    pub responded_at: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// 群聊管理员
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupAdmin {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub admin_id: Uuid,
+    pub appointed_by: Uuid,
+    pub role: String,
+    pub permissions: Option<Vec<String>>,
+    pub appointed_at: DateTime<Utc>,
+}
+
+/// 群聊操作日志
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupOperationLog {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub operator_id: Uuid,
+    pub target_user_id: Option<Uuid>,
+    pub operation_type: String,
+    pub operation_data: Option<Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// 群聊禁言
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupMute {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub user_id: Uuid,
+    pub muted_by: Uuid,
+    pub reason: Option<String>,
+    pub mute_duration_hours: i32,
+    pub muted_at: DateTime<Utc>,
+    pub unmuted_at: Option<DateTime<Utc>>,
+    pub is_active: bool,
+}
+
+// ===== 群聊管理请求结构体 =====
+
+/// 创建群公告请求
+#[derive(Debug, Deserialize)]
+pub struct CreateAnnouncementRequest {
+    pub title: String,
+    pub content: String,
+    pub is_pinned: Option<bool>,
+}
+
+/// 更新群公告请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateAnnouncementRequest {
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub is_pinned: Option<bool>,
+}
+
+/// 创建群规请求
+#[derive(Debug, Deserialize)]
+pub struct CreateRuleRequest {
+    pub title: String,
+    pub content: String,
+    pub order_index: Option<i32>,
+}
+
+/// 更新群规请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateRuleRequest {
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub order_index: Option<i32>,
+    pub is_active: Option<bool>,
+}
+
+/// 更新群设置请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateGroupSettingsRequest {
+    pub join_approval_required: Option<bool>,
+    pub member_can_invite: Option<bool>,
+    pub member_can_add_friends: Option<bool>,
+    pub require_admin_to_add_friends: Option<bool>,
+    pub max_members: Option<i32>,
+}
+
+/// 申请加入群聊请求
+#[derive(Debug, Deserialize)]
+pub struct JoinGroupRequest {
+    pub message: Option<String>,
+}
+
+/// 审批入群申请请求
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReviewJoinRequestRequest {
+    pub status: JoinRequestStatus,
+    pub review_message: Option<String>,
+}
+
+/// 邀请用户加入群聊请求
+#[derive(Debug, Deserialize)]
+pub struct InviteToGroupRequest {
+    pub user_ids: Vec<String>,
+    pub message: Option<String>,
+}
+
+/// 任命管理员请求
+#[derive(Debug, Deserialize)]
+pub struct AppointAdminRequest {
+    pub user_id: String,
+    pub role: String,
+    pub permissions: Option<Vec<String>>,
+}
+
+/// 禁言用户请求
+#[derive(Debug, Deserialize)]
+pub struct MuteUserRequest {
+    pub user_id: String,
+    pub reason: Option<String>,
+    pub mute_duration_hours: Option<i32>,
+}
+
+/// 群聊详细信息（用于管理后台）
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct GroupDetailInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub avatar_url: Option<String>,
+    pub room_type: RoomType,
+    pub owner_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub join_approval_required: bool,
+    pub member_can_invite: bool,
+    pub member_can_add_friends: bool,
+    pub require_admin_to_add_friends: bool,
+    pub max_members: i32,
+    pub current_member_count: i64,
+    pub announcement_count: i64,
+    pub pending_request_count: i64,
+}
