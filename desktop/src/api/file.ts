@@ -5,7 +5,7 @@
 
 import { fileConfig } from './config';
 import type { ApiResponse } from './http';
-import { UserApi } from './user';
+import { RustUserApi } from './rust-user';
 
 /**
  * 文件信息接口
@@ -100,9 +100,9 @@ export class FileApi {
     });
 
     if (category === 'avatar') {
-      console.log('[FileApi] 🧷 走头像上传流程，调用 UserApi.uploadAvatar')
-      const response = await UserApi.uploadAvatar(file);
-      console.log('[FileApi] 📨 UserApi.uploadAvatar 响应', response);
+      console.log('[FileApi] 🧷 走头像上传流程，调用 RustUserApi.uploadAvatar')
+      const response = await RustUserApi.uploadAvatar(file);
+      console.log('[FileApi] 📨 RustUserApi.uploadAvatar 响应', response);
       if (!response.success || !response.data) {
         console.error('[FileApi] ❌ 头像上传失败', {
           code: response.code,

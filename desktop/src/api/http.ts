@@ -4,16 +4,85 @@
  */
 
 import { apiConfig, requestConfig } from './config';
+import type { ApiResponse } from './http.types';
+import { rustHttp } from './rust-http';
+import type { HttpRequestParams } from './rust-http';
+import { store } from '../store';
 
-/**
- * HTTP 响应接口
- */
-export interface ApiResponse<T = any> {
-  code: number;
-  message: string;
-  data: T | null;
-  success: boolean;
-}
+export type { ApiResponse } from './http.types';
+
+const rustEnvValue = import.meta.env.VITE_USE_RUST_BACKEND;
+const USE_RUST_BACKEND = rustEnvValue === undefined || rustEnvValue === '' ? true : rustEnvValue === 'true';
+
+const isTauriEnvironment = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const win = window as typeof window & { __TAURI_IPC__?: unknown; __TAURI_INTERNALS__?: unknown };
+  return Boolean(win.__TAURI_IPC__ || win.__TAURI_INTERNALS__);
+};
+
+let rustInitialized = false;
+let rustInitPromise: Promise<boolean> | null = null;
+let rustDisabled = false;
+let rustTokenSnapshot: string | null = null;
+
+const canUseRustBridge = () => USE_RUST_BACKEND && isTauriEnvironment() && !rustDisabled;
+
+const syncRustToken = async (token: string | null) => {
+  if (!canUseRustBridge()) {
+    return;
+  }
+  if (token && token !== rustTokenSnapshot) {
+    await rustHttp.setToken(token);
+    rustTokenSnapshot = token;
+  } else if (!token && rustTokenSnapshot) {
+    await rustHttp.clearToken();
+    rustTokenSnapshot = null;
+  }
+};
+
+const ensureRustBridgeReady = async (token?: string | null): Promise<boolean> => {
+  if (!canUseRustBridge()) {
+    return false;
+  }
+
+  if (rustInitialized) {
+    await syncRustToken(token ?? null);
+    return true;
+  }
+
+  if (!rustInitPromise) {
+    rustInitPromise = rustHttp
+      .initialize(token ?? undefined)
+      .then(() => {
+        rustInitialized = true;
+        return true;
+      })
+      .catch((error) => {
+        console.warn('[HTTP] Rust 客户端初始化失败，回退到 fetch:', error);
+        rustDisabled = true;
+        return false;
+      })
+      .finally(() => {
+        rustInitPromise = null;
+      });
+  }
+
+  const ok = await rustInitPromise;
+  if (ok) {
+    await syncRustToken(token ?? null);
+  }
+  return ok;
+};
+
+export const syncRustBackendToken = async (token: string | null) => {
+  if (!USE_RUST_BACKEND) {
+    rustTokenSnapshot = token ?? null;
+    return;
+  }
+  await ensureRustBridgeReady(token);
+};
 
 /**
  * 请求参数接口
@@ -139,6 +208,20 @@ class HttpClient {
       // 登出时取消所有pending请求
       this.cancelAllPendingRequests();
     }
+  }
+
+  private supportsRustBridge(options: RequestOptions): boolean {
+    if (!canUseRustBridge()) {
+      return false;
+    }
+    const body = options.body;
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      return false;
+    }
+    if (typeof Blob !== 'undefined' && body instanceof Blob) {
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -285,6 +368,24 @@ class HttpClient {
       }
     }
 
+    const normalizedOptions: RequestOptions = {
+      ...options,
+      method,
+      headers: requestHeaders,
+      body
+    };
+
+    if (this.supportsRustBridge(options)) {
+      const rustReady = await ensureRustBridgeReady(store.state.token);
+      if (rustReady) {
+        try {
+          return await this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
+        } catch (rustError) {
+          console.warn(`[${requestId}] ⚠️ Rust HTTP 请求失败，回退到 fetch:`, rustError);
+        }
+      }
+    }
+
     try {
       // 创建超时和abort控制器
       const controller = new AbortController();
@@ -416,6 +517,33 @@ class HttpClient {
     }
   }
 
+  private async executeRustRequest<T>(
+    requestId: string,
+    originalUrl: string,
+    fullUrl: string,
+    options: RequestOptions,
+    headers: Record<string, string>
+  ): Promise<ApiResponse<T>> {
+    const method = (options.method || 'GET').toUpperCase() as HttpRequestParams['method'];
+    const timeout = options.timeout ?? requestConfig.timeout;
+    const retryCount = options.retryTimes ?? requestConfig.retryTimes;
+    const body = options.body instanceof URLSearchParams ? options.body.toString() : options.body;
+    const path = originalUrl.startsWith('http') ? originalUrl : originalUrl;
+
+    console.log(`[${requestId}] 🦀 使用 Rust HTTP 发送请求:`, method, fullUrl);
+
+    const response = await rustHttp.requestRaw<T>({
+      path,
+      method,
+      body,
+      headers,
+      timeout,
+      retryCount
+    });
+
+    return this.executeResponseInterceptors<T>(response);
+  }
+
   /**
    * 发送请求（公共接口）
    * @param url 请求地址
@@ -525,9 +653,6 @@ class HttpClient {
     });
   }
 }
-
-// 导入 store 来获取 token
-import { store } from '../store';
 
 // 创建 HTTP 客户端实例
 export const httpClient = new HttpClient(apiConfig.API_BASE_URL);

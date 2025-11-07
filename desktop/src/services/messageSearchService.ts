@@ -85,7 +85,12 @@ export class MessageSearchService {
     limit?: number;
     offset?: number;
   }) {
-    return SearchApi.searchMessages(params);
+    const payload = {
+      ...params,
+      dateFrom: params.dateFrom ? params.dateFrom.getTime() : undefined,
+      dateTo: params.dateTo ? params.dateTo.getTime() : undefined
+    };
+    return SearchApi.searchMessages(payload);
   }
 
   /**

@@ -850,6 +850,13 @@ export const store = createStore<State>({
                 }
 
                 try {
+                    const { syncRustBackendToken } = await import('../api/http');
+                    await syncRustBackendToken(loginData.token);
+                } catch (syncError) {
+                    console.warn('同步 Rust HTTP token 失败:', syncError);
+                }
+
+                try {
                     commit('SET_USER', loginData.userInfo);
                     console.log('✅ 用户信息设置成功');
                 } catch (userError) {
@@ -906,9 +913,10 @@ export const store = createStore<State>({
             commit('SHOW_GLOBAL_LOADING', '正在退出登录...')
 
             // 第二步：立即设置登出状态，取消所有pending请求
-            import('../api/http').then(({ setLoggingOut, cancelAllPendingRequests }) => {
+            import('../api/http').then(({ setLoggingOut, cancelAllPendingRequests, syncRustBackendToken }) => {
                 setLoggingOut(true);
                 cancelAllPendingRequests();
+                syncRustBackendToken(null).catch(() => {});
                 console.log('⚡ 所有待完成请求已取消')
             }).catch((error) => {
                 console.warn('⚠️ 设置登出状态失败:', error)
