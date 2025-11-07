@@ -153,6 +153,10 @@ pub fn create_routes() -> Router<AppState> {
         .route("/rooms/:room_id/leave", post(room::leave_room))
         .route("/rooms/:room_id/members", get(room::list_members))
         .route(
+            "/rooms/:room_id/notification-settings",
+            post(room::update_notification_settings),
+        )
+        .route(
             "/rooms/:room_id/messages",
             post(message::send_message).get(message::list_messages),
         )

@@ -264,6 +264,12 @@
                 class="action-icon upload-icon"
                 @click="handleUploadClick"
               />
+              <img
+                src="@/assets/image/icon-voice.svg"
+                alt="语音"
+                class="action-icon voice-icon"
+                @click="handleVoiceClick"
+              />
             </div>
             <textarea
               v-model="newMessage"
@@ -399,7 +405,25 @@
       @edit-group-notice="handleEditGroupNotice"
       @toggle-mute="handleToggleMute"
       @toggle-top="handleToggleTop"
+      @add-member="handleAddMember"
+      @remove-member="handleRemoveMember"
+      @clear-history="handleClearHistory"
+      @report-group="handleReportGroup"
+      @leave-group="handleLeaveGroup"
     />
+
+    <!-- 语音录制弹窗 -->
+    <Dialog
+      :visible="showVoiceRecorder"
+      title="语音消息"
+      @close="closeVoiceRecorder"
+    >
+      <VoiceMessage
+        :show-recorder="true"
+        @voice-send="handleVoiceSend"
+        @voice-cancel="closeVoiceRecorder"
+      />
+    </Dialog>
   </div>
 </template>
 
@@ -416,6 +440,7 @@ import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 import MediaPreview from '../components/MediaPreview.vue'
 import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
+import VoiceMessage from '../components/VoiceMessage.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
@@ -1285,6 +1310,9 @@ const isUpdatingGroupName = ref(false)
 const showEditGroupNoticeDialog = ref(false)
 const editingGroupNotice = ref('')
 const isUpdatingGroupNotice = ref(false)
+
+// 语音相关状态
+const showVoiceRecorder = ref(false)
 
 // 聊天消息容器引用
 const chatMessagesRef = ref<HTMLElement | null>(null)
@@ -2943,18 +2971,31 @@ const handleCancelEditGroupNotice = () => {
 const handleToggleMute = async (value: boolean) => {
   if (!selectedChat.value) return
 
+  const oldValue = selectedChat.value.chatStatus
+
   try {
     console.log('🔄 切换消息免打扰:', value)
-    toast.warning('当前版本暂未实现消息免打扰设置，功能将在后续版本提供')
-    // 回滚本地状态
-    selectedChat.value.chatStatus = value ? 0 : 1
+
+    // 调用API更新通知设置
+    const response = await MessageApi.updateNotificationSettings({
+      roomId: selectedChat.value.id,
+      notificationSettings: value ? 2 : 0, // 2 = 完全静音, 0 = 全部通知
+    })
+
+    if (response.success) {
+      // 更新本地状态
+      selectedChat.value.chatStatus = value ? 2 : 0
+      toast.success(value ? '已开启消息免打扰' : '已关闭消息免打扰')
+    } else {
+      throw new Error(response.message || '设置失败')
+    }
   } catch (error: any) {
     console.error('❌ 免打扰设置异常:', error)
     toast.error('设置失败: ' + (error.message || '网络错误'))
 
     // 回滚本地状态
     if (selectedChat.value) {
-      selectedChat.value.chatStatus = value ? 0 : 1
+      selectedChat.value.chatStatus = oldValue
     }
   }
 }
@@ -3872,6 +3913,128 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
     console.error('❌ 已读时间更新异常:', error)
   }
 }
+
+// 群组管理功能
+const handleAddMember = () => {
+  console.log('打开添加成员对话框')
+  // TODO: 实现添加成员对话框
+  toast.info('添加成员功能开发中...')
+}
+
+const handleRemoveMember = () => {
+  console.log('打开删除成员对话框')
+  // TODO: 实现删除成员对话框
+  toast.info('删除成员功能开发中...')
+}
+
+const handleClearHistory = async () => {
+  if (!selectedChat.value) return
+
+  try {
+    const confirmed = confirm('确定要清除该群聊的所有聊天记录吗？此操作不可撤销。')
+    if (!confirmed) return
+
+    console.log('清除聊天记录:', selectedChat.value.id)
+    const response = await MessageApi.clearGroupHistory({
+      roomId: selectedChat.value.id,
+    })
+
+    if (response.success) {
+      toast.success('聊天记录已清除')
+      // 清空本地消息列表
+      messageList.value = []
+      // 重新加载消息
+      if (selectedChat.value) {
+        await loadMessageList(selectedChat.value.groupId)
+      }
+    } else {
+      throw new Error(response.message || '清除失败')
+    }
+  } catch (error: any) {
+    console.error('清除聊天记录失败:', error)
+    toast.error('清除失败: ' + (error.message || '网络错误'))
+  }
+}
+
+const handleReportGroup = () => {
+  console.log('举报群聊')
+  const reason = prompt('请输入举报原因:')
+  if (!reason || !reason.trim()) return
+
+  // TODO: 实现举报功能
+  toast.info('举报功能开发中...')
+}
+
+const handleLeaveGroup = async () => {
+  if (!selectedChat.value) return
+
+  try {
+    const confirmed = confirm('确定要退出该群聊吗？')
+    if (!confirmed) return
+
+    console.log('退出群聊:', selectedChat.value.id)
+    const response = await MessageApi.leaveGroup({
+      roomId: selectedChat.value.id,
+    })
+
+    if (response.success) {
+      toast.success('已退出群聊')
+      // 从聊天列表中移除
+      const index = chatList.value.findIndex(chat => chat.id === selectedChat.value?.id)
+      if (index > -1) {
+        chatList.value.splice(index, 1)
+      }
+      // 清空选中状态
+      selectedChat.value = null
+      messageList.value = []
+      // 关闭群设置
+      showGroupSettings.value = false
+    } else {
+      throw new Error(response.message || '退出失败')
+    }
+  } catch (error: any) {
+    console.error('退出群聊失败:', error)
+    toast.error('退出失败: ' + (error.message || '网络错误'))
+  }
+}
+
+// 语音功能
+const handleVoiceClick = () => {
+  console.log('打开语音录制')
+  showVoiceRecorder.value = true
+}
+
+const closeVoiceRecorder = () => {
+  console.log('关闭语音录制')
+  showVoiceRecorder.value = false
+}
+
+const handleVoiceSend = async (recording: any) => {
+  if (!selectedChat.value) return
+
+  try {
+    console.log('发送语音消息:', recording)
+
+    // 转换语音文件为可上传的格式
+    const formData = new FormData()
+    formData.append('file', recording.blob, `voice_${recording.id}.webm`)
+    formData.append('type', 'audio')
+
+    // 这里应该调用文件上传API，暂时用模拟实现
+    toast.info('语音消息上传功能开发中...')
+
+    // TODO: 实现语音文件上传和发送逻辑
+    // 1. 上传语音文件到服务器
+    // 2. 获取文件URL
+    // 3. 发送语音消息
+    // 4. 关闭录音弹窗
+
+    closeVoiceRecorder()
+  } catch (error: any) {
+    console.error('发送语音消息失败:', error)
+    toast.error('发送失败: ' + (error.message || '网络错误'))
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -4318,6 +4481,13 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
 
     .upload-icon {
       // 上传图标特殊样式
+    }
+
+    .voice-icon {
+      // 语音图标特殊样式
+      &:hover {
+        transform: scale(1.05);
+      }
     }
 
     .send-icon {

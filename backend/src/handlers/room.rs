@@ -243,3 +243,42 @@ pub async fn list_chat_summaries(
 
     Ok(Json(summaries))
 }
+
+#[derive(Deserialize)]
+pub struct UpdateNotificationSettingsPayload {
+    pub notification_settings: i32,
+}
+
+#[derive(Serialize)]
+pub struct UpdateNotificationSettingsResponse {
+    pub notification_settings: i32,
+}
+
+pub async fn update_notification_settings(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+    Json(payload): Json<UpdateNotificationSettingsPayload>,
+) -> Result<Json<UpdateNotificationSettingsResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    // 验证通知设置值
+    let notification_setting = match payload.notification_settings {
+        0 => crate::database::models::NotificationSetting::All,
+        1 => crate::database::models::NotificationSetting::MentionsOnly,
+        2 => crate::database::models::NotificationSetting::Muted,
+        _ => return Err(AppError::ValidationError(
+            "Invalid notification settings value. Must be 0 (all), 1 (mentions only), or 2 (muted)".to_string(),
+        )),
+    };
+
+    let store = RoomStore::new(state.database.pool());
+    store
+        .update_notification_settings(room_id, user_id, notification_setting)
+        .await?;
+
+    Ok(Json(UpdateNotificationSettingsResponse {
+        notification_settings: payload.notification_settings,
+    }))
+}

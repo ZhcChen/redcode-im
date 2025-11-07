@@ -298,6 +298,35 @@ pub struct RoomMember {
     pub last_read_at: Option<DateTime<Utc>>,
     #[sqlx(default)]
     pub last_read_message_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub notification_settings: NotificationSetting,
+}
+
+/// 通知设置枚举
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+#[repr(i32)]
+#[sqlx(type_name = "int4")]
+pub enum NotificationSetting {
+    All = 0,        // 接收所有通知
+    MentionsOnly = 1, // 只接收@通知
+    Muted = 2,      // 完全静音（免打扰）
+}
+
+impl Default for NotificationSetting {
+    fn default() -> Self {
+        NotificationSetting::All
+    }
+}
+
+impl fmt::Display for NotificationSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            NotificationSetting::All => "all",
+            NotificationSetting::MentionsOnly => "mentions_only",
+            NotificationSetting::Muted => "muted",
+        };
+        f.write_str(text)
+    }
 }
 
 /// 成员角色枚举

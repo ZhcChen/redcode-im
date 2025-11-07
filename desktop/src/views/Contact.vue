@@ -699,12 +699,35 @@ const handleCancelAddContact = () => {
 // 处理选择用户
 const handleSelectUser = async (user: UserInfo) => {
   console.log('选择用户:', user)
-  
+
   if (user.isFriend) {
     // 如果已经是好友，跳转到聊天
     console.log('用户已是好友，可以直接聊天')
-    // TODO: 实现跳转到聊天功能
-    closeAddContactDialog()
+    try {
+      const response = await FriendApi.ensureChat({
+        friendId: user.id,
+      })
+
+      if (response.success && response.data) {
+        console.log('✅ 获取聊天房间成功:', response.data)
+        // 跳转到聊天页面
+        await router.push({
+          name: 'Chat',
+          params: {
+            groupId: response.data.roomId,
+          },
+          query: {
+            // 可以添加额外的查询参数
+          },
+        })
+        closeAddContactDialog()
+      } else {
+        throw new Error(response.message || '获取聊天房间失败')
+      }
+    } catch (error: any) {
+      console.error('跳转到聊天失败:', error)
+      toast.error('跳转失败: ' + (error.message || '网络错误'))
+    }
     return
   }
 
@@ -843,8 +866,26 @@ const startChatWithFriendRequest = (request: FriendRequest) => {
 
 // 撤销我发起的好友申请
 const cancelMyFriendRequest = async (request: FriendRequest) => {
-  console.log('撤销好友申请（暂未实现接口）:', request)
-  toast.info('撤销好友申请功能将在桌面端后续版本提供，请暂时使用移动端处理')
+  try {
+    const confirmed = confirm(`确定要撤销向 ${request.addressee.nickname || request.addressee.username} 发送的好友申请吗？`)
+    if (!confirmed) return
+
+    console.log('撤销好友申请:', request)
+    const response = await FriendApi.cancelFriendRequest({
+      requestId: request.id,
+    })
+
+    if (response.success) {
+      toast.success('已撤销好友申请')
+      // 重新加载好友申请列表
+      await loadFriendRequests()
+    } else {
+      throw new Error(response.message || '撤销失败')
+    }
+  } catch (error: any) {
+    console.error('撤销好友申请失败:', error)
+    toast.error('撤销失败: ' + (error.message || '网络错误'))
+  }
 }
 
 // 拖拽调整宽度相关函数

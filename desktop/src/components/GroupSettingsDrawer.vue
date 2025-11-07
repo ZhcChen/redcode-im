@@ -220,12 +220,14 @@ const handleEditGroupNotice = () => {
 
 const handleAddMember = () => {
   console.log('添加成员')
-  // TODO: 实现添加成员功能
+  // 显示添加成员对话框
+  emit('add-member')
 }
 
 const handleRemoveMember = () => {
   console.log('删除成员')
-  // TODO: 实现删除成员功能
+  // 显示删除成员对话框
+  emit('remove-member')
 }
 
 const toggleMemberExpansion = () => {
@@ -250,17 +252,17 @@ const handleTopChange = (value: boolean) => {
 
 const handleClearHistory = () => {
   console.log('清除聊天记录')
-  // TODO: 实现清除聊天记录功能
+  emit('clear-history')
 }
 
 const handleReport = () => {
   console.log('举报群聊')
-  // TODO: 实现举报群聊功能
+  emit('report-group')
 }
 
 const handleLeaveGroup = () => {
   console.log('退出群聊')
-  // TODO: 实现退出群聊功能
+  emit('leave-group')
 }
 </script>
 

@@ -1,4 +1,4 @@
-import { get, post } from "./http";
+import { del, get, post } from "./http";
 import type { ApiResponse } from "./http";
 import type {
   AuthUser,
@@ -251,6 +251,16 @@ export class FriendApi {
     return {
       ...response,
       data: mapFriendRequest(response.data),
+    };
+  }
+
+  static async cancelFriendRequest(params: {
+    requestId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del(`/friends/requests/${params.requestId}`);
+    return {
+      ...response,
+      data: null,
     };
   }
 

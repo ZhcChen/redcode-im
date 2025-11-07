@@ -440,6 +440,30 @@ const buildMessageQuery = (
 };
 
 export class MessageApi {
+  static async updateNotificationSettings(params: {
+    roomId: string;
+    notificationSettings: number; // 0 = all, 1 = mentions only, 2 = muted
+  }): Promise<ApiResponse<{ notificationSettings: number }>> {
+    const response = await post<{ notificationSettings: number }>(
+      `/rooms/${params.roomId}/notification-settings`,
+      { notification_settings: params.notificationSettings },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        notificationSettings: response.data.notificationSettings,
+      },
+    };
+  }
+
   static async getMessageListByChatGroupId(
     params: GetMessageListParams,
   ): Promise<ApiResponse<Message[]>> {
@@ -889,6 +913,64 @@ export class MessageApi {
       data: {
         roomId: response.data.room_id,
       },
+    };
+  }
+
+  // 群组管理API
+  static async addGroupMembers(params: {
+    roomId: string;
+    userIds: string[];
+  }): Promise<ApiResponse<null>> {
+    const response = await post(`/rooms/${params.roomId}/members/add`, {
+      user_ids: params.userIds,
+    });
+    return {
+      ...response,
+      data: null,
+    };
+  }
+
+  static async removeGroupMember(params: {
+    roomId: string;
+    userId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del(`/rooms/${params.roomId}/members/${params.userId}`);
+    return {
+      ...response,
+      data: null,
+    };
+  }
+
+  static async clearGroupHistory(params: {
+    roomId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del(`/rooms/${params.roomId}/messages`);
+    return {
+      ...response,
+      data: null,
+    };
+  }
+
+  static async leaveGroup(params: {
+    roomId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await post(`/rooms/${params.roomId}/leave`);
+    return {
+      ...response,
+      data: null,
+    };
+  }
+
+  static async reportGroup(params: {
+    roomId: string;
+    reason: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await post(`/rooms/${params.roomId}/report`, {
+      reason: params.reason,
+    });
+    return {
+      ...response,
+      data: null,
     };
   }
 }
