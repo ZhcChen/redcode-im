@@ -390,15 +390,15 @@ function enableContextMenu() {
 onMounted(async () => {
   console.log('App 组件已挂载');
 
-  // 初始化 Rust HTTP 客户端
-  try {
-    console.log('🔄 初始化 Rust HTTP 客户端...');
-    await rustHttpClient.initialize(token.value || undefined);
-    console.log('✅ Rust HTTP 客户端初始化完成');
-  } catch (error) {
-    console.error('❌ Rust HTTP 客户端初始化失败:', error);
-    toast.error('网络初始化失败，请重启应用');
-  }
+  // 初始化 Rust HTTP 客户端 (不阻塞其他初始化)
+  rustHttpClient.initialize(token.value || undefined)
+    .then(() => {
+      console.log('✅ Rust HTTP 客户端初始化完成');
+    })
+    .catch((error) => {
+      console.error('❌ Rust HTTP 客户端初始化失败:', error);
+      // 不显示错误提示,因为可能是正常的未连接状态
+    });
 
   // 设置 WebSocket 事件监听
   console.log('设置全局 WebSocket 事件监听');
