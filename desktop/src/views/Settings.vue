@@ -266,9 +266,25 @@ const handleFileSelect = async (event: Event) => {
 
     if (uploadResult.code === 200 && uploadResult.data) {
       console.log('[Settings] ✅ 头像上传成功，服务器响应', uploadResult.data)
+      console.log('[Settings] 📊 检查返回的数据:', {
+        avatarUrl: uploadResult.data.fileUrl,
+        objectKey: uploadResult.data.objectKey,
+        localPath: uploadResult.data.localPath
+      })
+      console.log('[Settings] 📊 检查 currentUser 状态:', {
+        avatar: currentUser.value.avatar,
+        avatarObjectKey: currentUser.value.avatarObjectKey,
+        avatarLocalPath: currentUser.value.avatarLocalPath
+      })
       // 不显示成功提示，让用户看到头像直接更新
       // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
       await nextTick()
+      console.log('[Settings] 📊 nextTick 后检查 currentUser 状态:', {
+        avatar: currentUser.value.avatar,
+        avatarObjectKey: currentUser.value.avatarObjectKey,
+        avatarLocalPath: currentUser.value.avatarLocalPath
+      })
+      console.log('[Settings] 📊 userAvatarSrc 计算值:', userAvatarSrc.value)
       if (previewImageUrl.value) {
         URL.revokeObjectURL(previewImageUrl.value)
         previewImageUrl.value = ''
