@@ -1,5 +1,5 @@
 /**
- * WebSocket 管理器
+ * WebSocket 管理器 (Rust 层版本)
  *
  * 架构说明：
  * ┌─────────────────────────────────────────────────────────────┐
@@ -11,9 +11,11 @@
  * │    ✅ 已实现 (desktop/src-tauri/src/http/)                  │
  * │                                                             │
  * │  WebSocket 连接：                                            │
- * │    TypeScript → WebSocket (当前) → Backend                  │
- * │    ⚠️ 待重构：应通过 Rust 层处理                             │
- * │    🔜 未来：TypeScript → Tauri Command → Rust WS → Backend  │
+ * │    TypeScript → Tauri Command → Rust WS Client → Backend   │
+ * │    ✅ 已实现 (desktop/src-tauri/src/websocket/)             │
+ * │                                                             │
+ * │  事件流：                                                    │
+ * │    Backend → Rust WS Client → Tauri Event → TypeScript     │
  * │                                                             │
  * └─────────────────────────────────────────────────────────────┘
  *
@@ -26,270 +28,38 @@
  * 2. 服务器处理 → 数据库更新
  * 3. 服务器推送 → WebSocket 通知
  * 4. 客户端接收 → 更新UI状态
- *
- * @see docs/桌面端/桌面端剩余工作.md - WebSocket 能力
  */
 
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { apiConfig } from '@/api/config';
 import { store } from '@/store';
 import { toast } from '@/utils/toast';
-import {
-  encodeClientAuth,
-  encodeClientJoin,
-  encodeClientLeave,
-  encodeClientPing,
-  decodeServerEvent,
-} from '@/proto';
+import { WebSocketApi } from '@/api/websocket';
 import type { WebSocketParams } from '@/types/websocket';
 import { BUSINESS_CODE } from '@/types/websocket';
 import { MessageApi, transformBackendMessage } from '@/api/message';
 import type { MessagePartPayloadInput } from '@/api/message';
 import type { Message } from '@/types/models';
+import type { ConnectionStatus } from '@/api/websocket';
 
-type ConnectionStatus = 'disconnected' | 'connecting' | 'authenticated';
-
-interface InternalState {
-  socket: WebSocket | null;
-  status: ConnectionStatus;
-  reconnectAttempts: number;
-  pingTimer: number | null;
-  reconnectTimer: number | null;
-  lastAuthToken: string | null;
-  lastUserId: string | null;
+/**
+ * Tauri 事件负载类型
+ */
+interface TauriEventPayload {
+  type: string;
+  payload?: any;
 }
 
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 3000;
-const PING_INTERVAL = 30000;
-
-const MESSAGE_TYPE_CODE: Record<string, number> = {
-  text: 1,
-  image: 2,
-  audio: 3,
-  video: 4,
-  file: 5,
-  system: 9,
-};
-
-const arrayBufferFromBinaryData = async (data: Blob | ArrayBuffer): Promise<ArrayBuffer> => {
-  if (data instanceof ArrayBuffer) {
-    return data;
-  }
-  return data.arrayBuffer();
-};
-
-const arrayBufferFromBase64 = (data: string): ArrayBuffer | null => {
-  try {
-    const binaryString = atob(data);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i += 1) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  } catch (error) {
-    return null;
-  }
-};
-
-const mapNumericMessageTypeToString = (value: number | string | undefined | null): string => {
-  if (typeof value === 'string') {
-    return value;
-  }
-  switch (value) {
-    case 2:
-      return 'image';
-    case 3:
-      return 'audio';
-    case 4:
-      return 'video';
-    case 5:
-      return 'file';
-    case 9:
-      return 'system';
-    case 1:
-    default:
-      return 'text';
-  }
-};
-
-const normalizeServerMessage = (message: any, currentUserId: string | null): Message => {
-  const parseNumber = (value: any): number | null => {
-    if (value === null || value === undefined) {
-      return null;
-    }
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
-
-  const normalizeAttachment = (attachment: any) => {
-    if (!attachment || typeof attachment !== 'object') {
-      return null;
-    }
-
-    const key = attachment.key ?? attachment.file_key ?? attachment.ossKey;
-    if (!key || typeof key !== 'string') {
-      return null;
-    }
-
-    return {
-      key,
-      name: attachment.name ?? null,
-      mime: attachment.mime ?? attachment.content_type ?? null,
-      size: parseNumber(attachment.size),
-      width: parseNumber(attachment.width),
-      height: parseNumber(attachment.height),
-      duration_ms: parseNumber(attachment.duration_ms ?? attachment.durationMs),
-      thumbnail_key: attachment.thumbnail_key ?? attachment.thumbnailKey ?? null,
-    } as const;
-  };
-
-  type NormalizedAttachment = ReturnType<typeof normalizeAttachment>;
-
-  type NormalizedPart = {
-    position: number;
-    part_type: string;
-    text: string | null;
-    attachment: NormalizedAttachment;
-  };
-
-  const normalizeParts = (parts: any): NormalizedPart[] => {
-    if (!Array.isArray(parts) || parts.length === 0) {
-      return [];
-    }
-
-    return parts
-      .map<NormalizedPart | null>((part) => {
-        if (!part || typeof part !== 'object') {
-          return null;
-        }
-
-        const positionRaw = part.position ?? part.index ?? part.sort ?? 0;
-        const position = Number(positionRaw);
-        if (Number.isNaN(position)) {
-          return null;
-        }
-
-        const typeRaw = part.part_type ?? part.type ?? part.partType;
-        if (!typeRaw) {
-          return null;
-        }
-
-        const text: string | null = typeof part.text === 'string'
-          ? part.text
-          : typeof part.content === 'string'
-            ? part.content
-            : null;
-
-        const attachment: NormalizedAttachment = normalizeAttachment(
-          part.attachment ?? part.file ?? part.media,
-        );
-
-        return {
-          position,
-          part_type: String(typeRaw).toLowerCase(),
-          text,
-          attachment,
-        };
-      })
-      .filter((part): part is NormalizedPart => part !== null)
-      .sort((a, b) => a.position - b.position);
-  };
-
-  const normalizeQuotedMessage = (quoted: any) => {
-    if (!quoted || typeof quoted !== 'object') {
-      return null;
-    }
-
-    const quotedType = mapNumericMessageTypeToString(
-      quoted.message_type ?? quoted.messageType ?? 'text',
-    );
-
-    let content = typeof quoted.content === 'string'
-      ? quoted.content
-      : quoted.content?.text || '';
-
-    const quotedParts = normalizeParts(quoted.parts);
-    if (!content && quotedParts.length > 0) {
-      const textPart = quotedParts.find(
-        (part) => part.part_type === 'text' && typeof part.text === 'string',
-      );
-      if (textPart?.text) {
-        content = textPart.text;
-      }
-    }
-
-    return {
-      id: quoted.message_id || quoted.id,
-      room_id: quoted.room_id,
-      sender_id: quoted.sender_id ?? quoted.user_id ?? '',
-      sender_username: quoted.sender_username ?? quoted.senderUsername ?? '',
-      sender_nickname: quoted.sender_nickname ?? quoted.senderNickname ?? null,
-      sender_avatar_url: quoted.sender_avatar_url ?? quoted.senderAvatarUrl ?? null,
-      content,
-      message_type: quotedType,
-      created_at: quoted.created_at || quoted.timestamp || null,
-      is_deleted: quoted.is_deleted ?? quoted.deleted ?? false,
-      parts: quotedParts,
-    };
-  };
-
-  const normalizedParts = normalizeParts(message.parts);
-  const messageType = mapNumericMessageTypeToString(message.message_type ?? message.messageType ?? 'text');
-  let normalizedContent = typeof message.content === 'string'
-    ? message.content
-    : message.content?.text || '';
-
-  if (!normalizedContent && normalizedParts.length > 0) {
-    const textPart = normalizedParts.find((part) => part.part_type === 'text' && typeof part.text === 'string');
-    if (textPart?.text) {
-      normalizedContent = textPart.text;
-    }
-  }
-  const backendMessage = {
-    id: message.message_id || message.id,
-    room_id: message.room_id,
-    sender_id: message.sender_id || message.senderId,
-    sender_username: message.sender_username || message.senderUsername || '',
-    sender_nickname: message.sender_nickname || null,
-    sender_avatar_url: message.sender_avatar_url || null,
-    content: normalizedContent,
-    message_type: messageType,
-    status: message.status,
-    created_at: message.timestamp || message.created_at || new Date().toISOString(),
-    quoted_message: normalizeQuotedMessage(message.quoted_message),
-    forward_message: message.forward_message || null,
-    is_deleted: message.is_deleted || false,
-    deleted_at: message.deleted_at || null,
-    is_pinned: message.is_pinned || false,
-    pinned_at: message.pinned_at || null,
-    pinned_by: message.pinned_by || null,
-    extra: message.extra || null,
-    parts: normalizedParts,
-  } as any;
-
-  return transformBackendMessage(backendMessage, currentUserId || undefined);
-};
-
+/**
+ * WebSocket 管理器 - 通过 Rust 层处理
+ */
 class WebSocketManager {
   private static instance: WebSocketManager;
 
-  private readonly state: InternalState = {
-    socket: null,
-    status: 'disconnected',
-    reconnectAttempts: 0,
-    pingTimer: null,
-    reconnectTimer: null,
-    lastAuthToken: null,
-    lastUserId: null,
-  };
-
+  private lastAuthToken: string | null = null;
+  private lastUserId: string | null = null;
   private desiredRooms: Set<string> = new Set();
-  private subscribedRooms: Set<string> = new Set();
-  private pendingRooms: Set<string> = new Set();
+  private eventUnlisteners: UnlistenFn[] = [];
   private lastChatListRefreshAt = 0;
   private lastContactRefreshAt = 0;
 
@@ -300,450 +70,172 @@ class WebSocketManager {
     return WebSocketManager.instance;
   }
 
+  /**
+   * 初始化 WebSocket 连接
+   */
   public async initWebSocketSafely(params: WebSocketParams): Promise<void> {
     if (!params?.userId || !params?.token) {
       console.warn('WebSocket 参数缺失，跳过连接');
       return;
     }
 
-    // 已连接且认证用户一致时直接返回
+    // 检查是否需要重新连接
+    const currentStatus = await WebSocketApi.getStatus();
     if (
-      this.state.status === 'authenticated' &&
-      this.state.lastUserId === params.userId &&
-      this.state.lastAuthToken === params.token &&
-      this.state.socket
+      currentStatus === 'authenticated' &&
+      this.lastUserId === params.userId &&
+      this.lastAuthToken === params.token
     ) {
+      console.log('WebSocket 已连接，跳过重复连接');
       return;
     }
 
+    // 保存认证信息
+    this.lastAuthToken = params.token;
+    this.lastUserId = params.userId;
+
+    // 清空房间订阅
     this.desiredRooms.clear();
-    this.subscribedRooms.clear();
-    this.pendingRooms.clear();
 
-    this.state.lastAuthToken = params.token;
-    this.state.lastUserId = params.userId;
+    // 设置事件监听器
+    await this.setupEventListeners();
 
-    await this.createConnection(params);
+    // 连接 WebSocket
+    try {
+      await WebSocketApi.connect(params, apiConfig.WS_URL);
+      console.log('WebSocket 连接成功');
+    } catch (error) {
+      console.error('WebSocket 连接失败:', error);
+      toast.error('消息服务连接失败');
+      throw error;
+    }
   }
 
   public initWebSocket(params: WebSocketParams): void {
     void this.initWebSocketSafely(params);
   }
 
-  private async createConnection(params: WebSocketParams): Promise<void> {
-    this.clearReconnectTimer();
-    this.closeWebSocket();
+  /**
+   * 设置 Tauri 事件监听器
+   */
+  private async setupEventListeners(): Promise<void> {
+    // 清理旧的监听器
+    this.eventUnlisteners.forEach((unlisten) => unlisten());
+    this.eventUnlisteners = [];
 
-    try {
-      this.state.status = 'connecting';
-      store.commit('SET_NETWORK_STATE', false);
+    // 监听 WebSocket 事件
+    const websocketUnlisten = await listen<TauriEventPayload>('websocket-event', (event) => {
+      this.handleTauriEvent(event.payload);
+    });
+    this.eventUnlisteners.push(websocketUnlisten);
 
-      const wsUrl = new URL(apiConfig.WS_URL);
-      wsUrl.searchParams.set('format', 'proto');
-
-      const socket = new WebSocket(wsUrl.toString());
-      socket.binaryType = 'arraybuffer';
-      this.state.socket = socket;
-
-      socket.onopen = () => {
-        this.state.status = 'connecting';
-        this.state.reconnectAttempts = 0;
-        store.commit('SET_WEBSOCKET', socket);
-        store.commit('SET_NETWORK_STATE', true);
-        this.sendBinary(encodeClientAuth(params.token));
-        this.startPing();
-      };
-
-      socket.onmessage = async (event) => {
-        const payload = event.data;
-
-        if (typeof payload === 'string') {
-          if (this.handleTextFrame(payload)) {
-            return;
-          }
-
-          const buffer = arrayBufferFromBase64(payload);
-          if (buffer) {
-            this.processBinaryFrame(buffer);
-            return;
-          }
-
-          console.warn('未能解析的 WebSocket 文本帧:', payload);
-          return;
-        }
-
-        if (payload instanceof ArrayBuffer) {
-          this.processBinaryFrame(payload);
-          return;
-        }
-
-        if (ArrayBuffer.isView(payload)) {
-          const view = payload as ArrayBufferView;
-          const buffer = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
-          this.processBinaryFrame(buffer);
-          return;
-        }
-
-        if (payload instanceof Blob) {
-          try {
-            const buffer = await arrayBufferFromBinaryData(payload);
-            this.processBinaryFrame(buffer);
-          } catch (error) {
-            console.error('解析 Blob 数据失败:', error);
-          }
-          return;
-        }
-
-        console.warn('收到未知类型的 WebSocket 消息:', payload);
-      };
-
-      socket.onerror = (error) => {
-        console.error('WebSocket 发生错误:', error);
-        this.scheduleReconnect();
-      };
-
-      socket.onclose = (event) => {
-        console.warn('WebSocket 连接关闭:', event.code, event.reason);
-        if (this.state.status === 'authenticated') {
-          toast.warning('消息服务连接已断开，正在尝试重连');
-        }
-        this.scheduleReconnect();
-      };
-    } catch (error) {
-      console.error('创建 WebSocket 连接失败:', error);
-      this.scheduleReconnect();
-    }
-  }
-
-  private processBinaryFrame(buffer: ArrayBuffer): void {
-    try {
-      const serverEvent = decodeServerEvent(new Uint8Array(buffer));
-      this.handleServerEvent(serverEvent);
-    } catch (error) {
-      console.error('解析服务器事件失败:', error);
-    }
-  }
-
-  private handleTextFrame(text: string): boolean {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return true;
-    }
-
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && typeof parsed === 'object') {
-        if (parsed.code) {
-          this.handleBusinessPayload(parsed);
-          return true;
-        }
-
-        if (parsed.type) {
-          this.handleLegacyPayload(parsed as Record<string, any>);
-          return true;
-        }
+    // 监听网络状态事件
+    const networkUnlisten = await listen<boolean>('network-state', (event) => {
+      const isConnected = event.payload;
+      store.commit('SET_NETWORK_STATE', isConnected);
+      if (!isConnected) {
+        console.warn('网络连接已断开');
       }
-    } catch (error) {
-      // 尝试将文本按 base64 处理，由调用方继续
-      return false;
-    }
-
-    return false;
+    });
+    this.eventUnlisteners.push(networkUnlisten);
   }
 
-  private handleBusinessPayload(payload: any): void {
-    const code = String(payload?.code ?? '').trim();
-    const messageBody = payload?.message ?? payload?.data ?? null;
+  /**
+   * 处理 Rust 层发送的 Tauri 事件
+   */
+  private handleTauriEvent(payload: TauriEventPayload): void {
+    const eventType = payload.type?.toLowerCase();
 
-    switch (code) {
-      case BUSINESS_CODE.chatting:
-        if (messageBody) {
-          this.emitChatMessage(messageBody);
-        }
-        break;
-      case BUSINESS_CODE.AI:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-ai-message', messageBody);
-        }
-        break;
-      case BUSINESS_CODE.FriendBindChange:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-friend-change', messageBody);
-          this.refreshContacts();
-          this.refreshChatList();
-        }
-        break;
-      case BUSINESS_CODE.DeleteFriend:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-delete-friend', messageBody);
-          this.refreshContacts();
-          this.refreshChatList();
-        }
-        break;
-      case BUSINESS_CODE.FriendCircle:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-friend-circle', messageBody);
-        }
-        break;
-      case BUSINESS_CODE.launchGroup:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-launch-group', messageBody);
-          this.refreshChatList();
-        }
-        break;
-      case BUSINESS_CODE.deleteGroup:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-delete-group', messageBody);
-          this.refreshChatList();
-        }
-        break;
-      case BUSINESS_CODE.Calling:
-        if (messageBody !== undefined) {
-          this.dispatchDomEvent('websocket-calling', messageBody);
-        }
-        break;
-      case BUSINESS_CODE.ping:
-        break;
-      default:
-        if (code) {
-          console.warn('未识别的 WebSocket 业务事件:', code, payload);
-        }
-        break;
-    }
-  }
-
-  private handleLegacyPayload(message: Record<string, any>): void {
-    const rawType = message?.type;
-    if (!rawType) {
-      return;
-    }
-
-    const type = String(rawType).toLowerCase();
-
-    switch (type) {
+    switch (eventType) {
       case 'authed': {
-        const userId = message.user_id ?? message.userId;
-        if (typeof userId === 'string' && userId.length > 0) {
-          this.state.lastUserId = userId;
-        }
-        const connectionId = message.conn_id ?? message.connId;
-        this.onAuthenticated(connectionId ?? null);
+        const data = payload.payload as { user_id: string; conn_id: string };
+        console.log('WebSocket 认证成功:', data);
+        store.commit('SET_NETWORK_STATE', true);
+        this.onAuthenticated();
         break;
       }
+
       case 'joined': {
-        const roomId = message.room_id ?? message.roomId;
-        if (typeof roomId === 'string' && roomId.length > 0) {
-          this.onRoomJoined(roomId);
-        }
+        const data = payload.payload as { room_id: string };
+        console.log('已加入房间:', data.room_id);
         break;
       }
+
       case 'left': {
-        const roomId = message.room_id ?? message.roomId;
-        if (typeof roomId === 'string' && roomId.length > 0) {
-          this.onRoomLeft(roomId);
-        }
+        const data = payload.payload as { room_id: string };
+        console.log('已离开房间:', data.room_id);
         break;
       }
-      case 'message':
-        if (message.message) {
-          this.emitChatMessage(message.message);
-        } else {
+
+      case 'message': {
+        const message = payload.payload;
+        if (message) {
           this.emitChatMessage(message);
         }
         break;
-      case 'message_read':
-        this.emitMessageRead(message);
+      }
+
+      case 'messageread': {
+        this.emitMessageRead(payload.payload);
         break;
-      case 'message_update':
-        this.emitMessageUpdate(message);
+      }
+
+      case 'messageupdate': {
+        this.emitMessageUpdate(payload.payload);
         break;
-      case 'pin_update':
-        this.emitPinUpdate(message);
+      }
+
+      case 'pinupdate': {
+        this.emitPinUpdate(payload.payload);
         break;
-      case 'friend_request_update':
-        if (typeof message.pending_count === 'number') {
-          store.commit('SET_PENDING_FRIEND_REQUESTS', message.pending_count);
+      }
+
+      case 'friendrequestupdate': {
+        const data = payload.payload as { pending_count: number };
+        if (typeof data.pending_count === 'number') {
+          store.commit('SET_PENDING_FRIEND_REQUESTS', data.pending_count);
         }
         break;
-      case 'room_created':
-      case 'room.created':
-        this.dispatchDomEvent('websocket-room-created', message);
+      }
+
+      case 'roomcreated': {
+        this.dispatchDomEvent('websocket-room-created', payload.payload);
         this.refreshChatList();
         break;
-      case 'friendship.created':
-      case 'friendship_created':
-        this.dispatchDomEvent('websocket-friend-change', {
-          type: 'created',
-          payload: message.friend ?? message.user ?? null,
-        });
-        this.refreshContacts();
-        this.refreshChatList();
+      }
+
+      case 'error': {
+        const data = payload.payload as { message: string };
+        console.error('WebSocket 错误:', data.message);
+        toast.error(data.message || '消息服务错误');
         break;
-      case 'friendship.deleted':
-      case 'friendship_deleted':
-        this.dispatchDomEvent('websocket-friend-change', {
-          type: 'deleted',
-          payload: message.friend ?? message.user ?? null,
-        });
-        this.refreshContacts();
-        this.refreshChatList();
+      }
+
+      case 'pong': {
+        // 心跳响应，忽略
         break;
-      case 'friend.updated':
-      case 'friend_profile_updated':
-        this.dispatchDomEvent('websocket-friend-change', {
-          type: 'updated',
-          payload: message,
-        });
-        this.refreshContacts();
-        break;
-      case 'friends.version':
-      case 'friends_version':
-        this.refreshContacts();
-        break;
-      case 'error':
-        if (message.message) {
-          console.error('WebSocket 错误:', message.message);
-          toast.error(message.message);
-        }
-        break;
-      case 'pong':
-        break;
+      }
+
       default:
-        console.warn('未识别的 JSON 消息类型:', type, message);
+        console.warn('未识别的 WebSocket 事件类型:', eventType, payload);
         break;
     }
   }
 
-  private handleServerEvent(serverEvent: any) {
-    const payload = serverEvent;
-
-    if (payload.authed) {
-      const userId = payload.authed.user_id ?? payload.authed.userId ?? null;
-      if (typeof userId === 'string' && userId.length > 0) {
-        this.state.lastUserId = userId;
-      }
-      this.onAuthenticated(payload.authed.conn_id ?? payload.authed.connId ?? null);
-      return;
-    }
-
-    if (payload.joined) {
-      const roomId = payload.joined.room_id ?? payload.joined.roomId;
-      if (typeof roomId === 'string' && roomId.length > 0) {
-        this.onRoomJoined(roomId);
-      }
-      return;
-    }
-
-    if (payload.left) {
-      const roomId = payload.left.room_id ?? payload.left.roomId;
-      if (typeof roomId === 'string' && roomId.length > 0) {
-        this.onRoomLeft(roomId);
-      }
-      return;
-    }
-
-    if (payload.message) {
-      this.emitChatMessage(payload.message);
-      return;
-    }
-
-    if (payload.message_read) {
-      this.emitMessageRead(payload.message_read);
-      return;
-    }
-
-    if (payload.message_update) {
-      this.emitMessageUpdate(payload.message_update);
-      return;
-    }
-
-    if (payload.pin_update) {
-      this.emitPinUpdate(payload.pin_update);
-      return;
-    }
-
-    if (payload.friend_request_update) {
-      store.commit('SET_PENDING_FRIEND_REQUESTS', payload.friend_request_update.pending_count);
-      return;
-    }
-
-    if (payload.room_created) {
-      this.dispatchDomEvent('websocket-room-created', payload.room_created);
-      this.refreshChatList();
-      return;
-    }
-
-    if (payload.error) {
-      console.error('WebSocket 错误:', payload.error.message);
-      toast.error(payload.error.message || '消息服务错误');
-      return;
-    }
-  }
-
-  private dispatchDomEvent(eventName: string, detail: any): void {
-    window.dispatchEvent(
-      new CustomEvent(eventName, {
-        detail,
-      }),
-    );
-  }
-
-  private emitChatMessage(rawMessage: any): void {
-    let normalized: Message | null = null;
-    try {
-      normalized = normalizeServerMessage(rawMessage, this.state.lastUserId);
-    } catch (error) {
-      console.error('标准化聊天消息失败:', error, rawMessage);
-    }
-
-    this.dispatchDomEvent('websocket-chat-message', {
-      message: normalized ?? rawMessage,
-      raw: rawMessage,
-    });
-  }
-
-  private emitMessageRead(raw: any): void {
-    const detail = { ...raw };
-    delete (detail as Record<string, unknown>).type;
-    this.dispatchDomEvent('websocket-message-read', detail);
-  }
-
-  private emitMessageUpdate(raw: any): void {
-    const detail: any = { ...raw };
-    delete detail.type;
-    if (detail.message) {
-      try {
-        detail.message = normalizeServerMessage(detail.message, this.state.lastUserId);
-      } catch (error) {
-        console.error('标准化消息更新失败:', error, detail.message);
-      }
-    }
-    this.dispatchDomEvent('websocket-message-update', detail);
-  }
-
-  private emitPinUpdate(raw: any): void {
-    const detail: any = { ...raw };
-    delete detail.type;
-    if (detail.message) {
-      try {
-        detail.message = normalizeServerMessage(detail.message, this.state.lastUserId);
-      } catch (error) {
-        console.error('标准化置顶消息失败:', error, detail.message);
-      }
-    }
-    this.dispatchDomEvent('websocket-pin-update', detail);
-  }
-
-  private onAuthenticated(connectionId?: string | null): void {
-    this.state.status = 'authenticated';
-    this.flushPendingRooms();
+  /**
+   * 认证成功后的处理
+   */
+  private onAuthenticated(): void {
+    // 刷新数据
     this.refreshAfterAuthenticated();
 
-    if (connectionId) {
-      store.commit('SET_NETWORK_STATE', true);
-    }
+    // 订阅待加入的房间
+    this.flushPendingRooms();
   }
 
+  /**
+   * 认证后刷新数据
+   */
   private refreshAfterAuthenticated(): void {
     this.refreshChatList(true);
     this.refreshContacts(true);
@@ -752,6 +244,9 @@ class WebSocketManager {
       .catch((error: unknown) => console.warn('更新待处理好友申请失败:', error));
   }
 
+  /**
+   * 刷新聊天列表
+   */
   private refreshChatList(force = false): void {
     const now = Date.now();
     if (!force && now - this.lastChatListRefreshAt < 1000) {
@@ -763,6 +258,9 @@ class WebSocketManager {
       .catch((error: unknown) => console.warn('刷新聊天列表失败:', error));
   }
 
+  /**
+   * 刷新联系人列表
+   */
   private refreshContacts(force = false): void {
     const now = Date.now();
     if (!force && now - this.lastContactRefreshAt < 1000) {
@@ -774,107 +272,165 @@ class WebSocketManager {
       .catch((error: unknown) => console.warn('刷新联系人列表失败:', error));
   }
 
-  private onRoomJoined(roomId: string): void {
-    this.pendingRooms.delete(roomId);
-    this.subscribedRooms.add(roomId);
-  }
-
-  private onRoomLeft(roomId: string): void {
-    this.pendingRooms.delete(roomId);
-    this.subscribedRooms.delete(roomId);
-  }
-
-  private flushPendingRooms() {
-    if (!this.state.socket || this.state.status !== 'authenticated') {
+  /**
+   * 订阅待加入的房间
+   */
+  private flushPendingRooms(): void {
+    if (this.desiredRooms.size === 0) {
       return;
     }
-    this.desiredRooms.forEach((roomId) => {
-      if (!this.subscribedRooms.has(roomId) && !this.pendingRooms.has(roomId)) {
-        this.pendingRooms.add(roomId);
-        this.sendBinary(encodeClientJoin(roomId));
-      }
+
+    const roomIds = Array.from(this.desiredRooms);
+    WebSocketApi.joinRooms(roomIds).catch((error) => {
+      console.error('批量加入房间失败:', error);
     });
   }
 
-  public ensureRoomsSubscribed(roomIds: Iterable<string>, pruneMissing = false) {
+  /**
+   * 发送 DOM 事件
+   */
+  private dispatchDomEvent(eventName: string, detail: any): void {
+    window.dispatchEvent(
+      new CustomEvent(eventName, {
+        detail,
+      }),
+    );
+  }
+
+  /**
+   * 发送聊天消息事件
+   */
+  private emitChatMessage(rawMessage: any): void {
+    let normalized: Message | null = null;
+    try {
+      // 使用现有的消息转换函数
+      normalized = transformBackendMessage(rawMessage, this.lastUserId ?? undefined);
+    } catch (error) {
+      console.error('标准化聊天消息失败:', error, rawMessage);
+    }
+
+    this.dispatchDomEvent('websocket-chat-message', {
+      message: normalized ?? rawMessage,
+      raw: rawMessage,
+    });
+  }
+
+  /**
+   * 发送消息已读事件
+   */
+  private emitMessageRead(raw: any): void {
+    const detail = { ...raw };
+    delete (detail as Record<string, unknown>).type;
+    this.dispatchDomEvent('websocket-message-read', detail);
+  }
+
+  /**
+   * 发送消息更新事件
+   */
+  private emitMessageUpdate(raw: any): void {
+    const detail: any = { ...raw };
+    delete detail.type;
+    if (detail.message) {
+      try {
+        detail.message = transformBackendMessage(detail.message, this.lastUserId ?? undefined);
+      } catch (error) {
+        console.error('标准化消息更新失败:', error, detail.message);
+      }
+    }
+    this.dispatchDomEvent('websocket-message-update', detail);
+  }
+
+  /**
+   * 发送置顶更新事件
+   */
+  private emitPinUpdate(raw: any): void {
+    const detail: any = { ...raw };
+    delete detail.type;
+    if (detail.message) {
+      try {
+        detail.message = transformBackendMessage(detail.message, this.lastUserId ?? undefined);
+      } catch (error) {
+        console.error('标准化置顶消息失败:', error, detail.message);
+      }
+    }
+    this.dispatchDomEvent('websocket-pin-update', detail);
+  }
+
+  /**
+   * 确保房间已订阅
+   */
+  public ensureRoomsSubscribed(roomIds: Iterable<string>, pruneMissing = false): void {
     const normalized = new Set(
       Array.from(roomIds)
         .map((roomId) => roomId.trim())
         .filter((roomId) => roomId.length > 0),
     );
 
+    // 添加到期望订阅列表
     normalized.forEach((roomId) => this.desiredRooms.add(roomId));
 
-    if (pruneMissing) {
-      Array.from(this.subscribedRooms).forEach((roomId) => {
-        if (!normalized.has(roomId)) {
-          this.leaveRoom(roomId);
-        }
+    // 立即加入房间
+    if (normalized.size > 0) {
+      WebSocketApi.joinRooms(Array.from(normalized)).catch((error) => {
+        console.error('批量加入房间失败:', error);
       });
     }
 
-    this.flushPendingRooms();
+    // TODO: 实现 pruneMissing 逻辑
+    if (pruneMissing) {
+      WebSocketApi.getSubscribedRooms()
+        .then((subscribedRooms) => {
+          subscribedRooms.forEach((roomId) => {
+            if (!normalized.has(roomId)) {
+              this.leaveRoom(roomId);
+            }
+          });
+        })
+        .catch((error) => {
+          console.error('获取已订阅房间列表失败:', error);
+        });
+    }
   }
 
-  public joinRoom(roomId: string) {
+  /**
+   * 加入房间
+   */
+  public joinRoom(roomId: string): void {
     if (!roomId) return;
     this.desiredRooms.add(roomId);
-    this.flushPendingRooms();
+    WebSocketApi.joinRoom(roomId).catch((error) => {
+      console.error(`加入房间 ${roomId} 失败:`, error);
+    });
   }
 
-  public leaveRoom(roomId: string) {
+  /**
+   * 离开房间
+   */
+  public leaveRoom(roomId: string): void {
     if (!roomId) return;
     this.desiredRooms.delete(roomId);
-    if (this.subscribedRooms.has(roomId)) {
-      this.sendBinary(encodeClientLeave(roomId));
-      this.subscribedRooms.delete(roomId);
-    }
-    this.pendingRooms.delete(roomId);
+    WebSocketApi.leaveRoom(roomId).catch((error) => {
+      console.error(`离开房间 ${roomId} 失败:`, error);
+    });
   }
 
+  /**
+   * 发送消息
+   */
   public async sendMessage(
     payload: any,
     code: string = BUSINESS_CODE.chatting,
     callback?: (success: boolean) => void,
   ): Promise<any> {
-    // 支持的消息类型
-    const supportedCodes = [
-      BUSINESS_CODE.chatting,
-      BUSINESS_CODE.launchGroup,
-      BUSINESS_CODE.deleteGroup,
-      BUSINESS_CODE.DeleteFriend,
-      BUSINESS_CODE.FriendBindChange,
-    ];
-
-    if (!supportedCodes.includes(code as any)) {
-      console.warn('暂未实现该类型的发送:', code);
+    // 只支持聊天消息发送
+    if (code !== BUSINESS_CODE.chatting) {
+      console.error('❌ 错误：该操作应通过 HTTP API 调用，而非 WebSocket');
       callback?.(false);
-      throw new Error('暂未实现的消息类型');
+      throw new Error('该操作应通过 HTTP API 调用');
     }
 
     try {
-      // 根据不同的消息类型处理
-      switch (code) {
-        case BUSINESS_CODE.chatting:
-          return await this._sendChatMessage(payload, callback);
-
-        // NOTE: 以下操作应通过 HTTP API 完成，而非 WebSocket
-        // - 群聊创建/删除 → 使用 RoomApi
-        // - 好友删除/状态变更 → 使用 FriendApi
-        // WebSocket 只负责接收服务器推送的通知事件
-        case BUSINESS_CODE.launchGroup:
-        case BUSINESS_CODE.deleteGroup:
-        case BUSINESS_CODE.DeleteFriend:
-        case BUSINESS_CODE.FriendBindChange:
-          console.error('❌ 错误：该操作应通过 HTTP API 调用，而非 WebSocket');
-          callback?.(false);
-          throw new Error('该操作应通过 HTTP API 调用');
-
-        default:
-          console.warn('未知消息类型:', code);
-          callback?.(false);
-          throw new Error('未知的消息类型');
-      }
+      return await this._sendChatMessage(payload, callback);
     } catch (error: any) {
       console.error('发送消息失败:', error);
       callback?.(false);
@@ -882,13 +438,12 @@ class WebSocketManager {
     }
   }
 
-  // 发送聊天消息
+  /**
+   * 发送聊天消息
+   */
   private async _sendChatMessage(payload: any, callback?: (success: boolean) => void) {
     const roomId =
-      payload?.roomId ||
-      payload?.chatGroupId ||
-      payload?.groupId ||
-      payload?.room_id;
+      payload?.roomId || payload?.chatGroupId || payload?.groupId || payload?.room_id;
 
     if (!roomId || typeof roomId !== 'string') {
       callback?.(false);
@@ -922,7 +477,7 @@ class WebSocketManager {
       content,
       parts,
       replyToMessageId,
-      currentUserId: this.state.lastUserId ?? undefined,
+      currentUserId: this.lastUserId ?? undefined,
     });
 
     if (response.success && response.data) {
@@ -931,92 +486,31 @@ class WebSocketManager {
     }
   }
 
-  private sendBinary(data: Uint8Array) {
-    if (!this.state.socket || this.state.socket.readyState !== WebSocket.OPEN) {
-      return;
-    }
-    this.state.socket.send(data);
-  }
+  /**
+   * 关闭 WebSocket 连接
+   */
+  public async closeWebSocket(): Promise<void> {
+    // 清理事件监听器
+    this.eventUnlisteners.forEach((unlisten) => unlisten());
+    this.eventUnlisteners = [];
 
-  private startPing() {
-    this.clearPingTimer();
-    this.state.pingTimer = window.setInterval(() => {
-      this.sendBinary(encodeClientPing());
-    }, PING_INTERVAL);
-  }
+    // 断开 WebSocket
+    await WebSocketApi.disconnect();
 
-  private clearPingTimer() {
-    if (this.state.pingTimer) {
-      clearInterval(this.state.pingTimer);
-      this.state.pingTimer = null;
-    }
-  }
+    // 清空状态
+    this.desiredRooms.clear();
+    this.lastAuthToken = null;
+    this.lastUserId = null;
 
-  private scheduleReconnect() {
-    this.clearPingTimer();
-
-    if (this.state.socket) {
-      try {
-        this.state.socket.close();
-      } catch (error) {
-        console.warn('关闭 WebSocket 失败:', error);
-      }
-    }
-    this.state.socket = null;
-    store.commit('SET_WEBSOCKET', null);
-    store.commit('SET_NETWORK_STATE', false);
-    this.state.status = 'disconnected';
-
-    if (this.state.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('WebSocket 重连超过最大次数');
-      toast.error('消息服务连接失败，请检查网络或稍后再试');
-      return;
-    }
-
-    this.state.reconnectAttempts += 1;
-    this.clearReconnectTimer();
-    this.state.reconnectTimer = window.setTimeout(() => {
-      if (this.state.lastAuthToken && this.state.lastUserId) {
-        this.createConnection({
-          token: this.state.lastAuthToken,
-          userId: this.state.lastUserId,
-        });
-      }
-    }, RECONNECT_DELAY * this.state.reconnectAttempts);
-  }
-
-  private clearReconnectTimer() {
-    if (this.state.reconnectTimer) {
-      clearTimeout(this.state.reconnectTimer);
-      this.state.reconnectTimer = null;
-    }
-  }
-
-  public closeWebSocket(): void {
-    this.clearPingTimer();
-    this.clearReconnectTimer();
-
-    if (this.state.socket) {
-      try {
-        this.state.socket.close();
-      } catch (error) {
-        console.warn('关闭 WebSocket 失败:', error);
-      }
-    }
-
-    this.state.socket = null;
-    this.state.status = 'disconnected';
-    this.state.reconnectAttempts = 0;
-    store.commit('SET_WEBSOCKET', null);
     store.commit('SET_NETWORK_STATE', false);
   }
 
-  private get isConnected(): boolean {
-    return this.state.status === 'authenticated' && !!this.state.socket;
-  }
-
-  public getConnectionState(): boolean {
-    return this.isConnected;
+  /**
+   * 获取连接状态
+   */
+  public async getConnectionState(): Promise<boolean> {
+    const status = await WebSocketApi.getStatus();
+    return status === 'authenticated';
   }
 }
 
