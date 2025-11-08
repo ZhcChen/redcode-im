@@ -149,7 +149,7 @@ impl UserStore {
         query.push(" AND status = ");
         query.push_bind(UserStatus::Active);
         query.push(" AND deleted_at IS NULL");
-        query.push(" RETURNING id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status as \"status: _\", created_at, updated_at, deleted_at");
+        query.push(" RETURNING id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at");
 
         let user = query
             .build_query_as::<User>()
