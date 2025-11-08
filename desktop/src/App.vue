@@ -4,7 +4,7 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { webSocketManager } from './utils/websocket'
-import { rustHttpClient } from './api/rust-http'
+import { rustHttp } from './api/rust-http'
 import { toast } from './utils/toast'
 import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
@@ -397,7 +397,7 @@ onMounted(async () => {
   }
 
   // 初始化 Rust HTTP 客户端 (不阻塞其他初始化)
-  rustHttpClient.initialize(token.value || undefined)
+  rustHttp.initialize(token.value || undefined)
     .then(() => {
       console.log('✅ Rust HTTP 客户端初始化完成');
     })
