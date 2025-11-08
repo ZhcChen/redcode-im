@@ -34,6 +34,7 @@ type InternalRequestOptions = RequestOptions & {
   serializedBody?: string;
   binaryBodyBase64?: string;
   injectToken?: boolean;
+  forceStreaming?: boolean;
 };
 
 const isFormDataBody = (value: unknown): value is FormData =>
@@ -123,6 +124,7 @@ export interface RequestOptions {
   retryDelay?: number; // 重试延迟
   responseType?: 'json' | 'binary';
   injectToken?: boolean;
+  forceStreaming?: boolean;
 }
 
 /**
@@ -399,7 +401,8 @@ class HttpClient {
       headers: requestHeaders,
       body,
       serializedBody,
-      binaryBodyBase64
+      binaryBodyBase64,
+      forceStreaming: options.forceStreaming === true
     };
 
     if (!this.supportsRustBridge()) {
@@ -437,7 +440,8 @@ class HttpClient {
       timeout,
       retryCount,
       responseType: options.responseType,
-      injectToken: options.injectToken !== false
+      injectToken: options.injectToken !== false,
+      forceStreaming: options.forceStreaming === true
     });
 
     if (response.code === 401) {

@@ -108,6 +108,7 @@ pub struct HttpRequestOptions {
     pub retry_count: Option<u32>,
     pub expect_binary: bool,
     pub inject_token: bool,
+    pub force_streaming_body: bool,
 }
 
 impl HttpRequestOptions {
@@ -123,6 +124,7 @@ impl HttpRequestOptions {
             retry_count: None,
             expect_binary: false,
             inject_token: true,
+            force_streaming_body: false,
         }
     }
 }

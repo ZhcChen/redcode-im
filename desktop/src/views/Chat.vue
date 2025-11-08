@@ -951,6 +951,9 @@ const uploadWithSignature = async (
 ) => {
   const headers = buildDirectUploadHeaders(signature.headers, file);
   const method = (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'];
+  if (!headers['Content-Length']) {
+    headers['Content-Length'] = String(file.size);
+  }
   const fileBuffer = new Uint8Array(await file.arrayBuffer());
 
   const response = await rustHttp.requestRaw({
@@ -958,7 +961,8 @@ const uploadWithSignature = async (
     method,
     headers,
     binaryBody: fileBuffer,
-    injectToken: false
+    injectToken: false,
+    forceStreaming: true
   });
 
   if (!response.success) {
@@ -4053,6 +4057,9 @@ const handleVoiceSend = async (recording: any) => {
     const { key, signature } = signatureResponse.data
     const headers = new Headers(signature.headers || {})
     headers.set('Content-Type', 'audio/webm')
+    if (!headers.has('Content-Length')) {
+      headers.set('Content-Length', String(recording.blob.size))
+    }
 
     const voiceBuffer = new Uint8Array(await recording.blob.arrayBuffer())
     const uploadResponse = await rustHttp.requestRaw({
@@ -4060,7 +4067,8 @@ const handleVoiceSend = async (recording: any) => {
       method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
       headers,
       binaryBody: voiceBuffer,
-      injectToken: false
+      injectToken: false,
+      forceStreaming: true
     })
 
     if (!uploadResponse.success) {

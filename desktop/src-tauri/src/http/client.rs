@@ -4,6 +4,8 @@ use crate::http::types::{
     HttpRequestOptions, HttpRequestOutcome,
 };
 use base64::{engine::general_purpose, Engine as _};
+use bytes::Bytes;
+use futures_util::stream;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, Method};
 use serde_json::Value;
@@ -50,6 +52,7 @@ impl HttpClientState {
 
     fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
         let mut builder = Client::builder()
+            .http1_only()
             .timeout(Duration::from_millis(config.timeout_ms))
             .pool_max_idle_per_host(config.connection_pool.max_idle_per_host)
             .user_agent(config.user_agent.clone());
@@ -165,7 +168,19 @@ impl HttpClientState {
             }
 
             if let Some(bytes) = &options.body_bytes {
-                builder = builder.body(bytes.clone());
+                if options.force_streaming_body {
+                    if !Self::has_content_length(&headers) {
+                        builder = builder.header("Content-Length", bytes.len().to_string());
+                    }
+                    let chunk = bytes.clone();
+                    let stream_body =
+                        stream::once(
+                            async move { Ok::<Bytes, std::io::Error>(Bytes::from(chunk)) },
+                        );
+                    builder = builder.body(reqwest::Body::wrap_stream(stream_body));
+                } else {
+                    builder = builder.body(bytes.clone());
+                }
             } else if let Some(body_str) = &body {
                 if !Self::has_content_type(&headers) {
                     builder = builder.header("Content-Type", "application/json");
@@ -399,6 +414,16 @@ impl HttpClientState {
             .unwrap_or(false)
     }
 
+    fn has_content_length(headers: &Option<HashMap<String, String>>) -> bool {
+        headers
+            .as_ref()
+            .map(|map| {
+                map.keys()
+                    .any(|key| key.eq_ignore_ascii_case("content-length"))
+            })
+            .unwrap_or(false)
+    }
+
     fn apply_headers(
         mut builder: reqwest::RequestBuilder,
         headers: &HashMap<String, String>,
@@ -528,20 +553,22 @@ impl HttpClientState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http::types::ConnectionPoolConfig;
     use hyper::service::{make_service_fn, service_fn};
     use hyper::{Body, Request, Response, Server, StatusCode};
     use serde_json::json;
     use std::convert::Infallible;
     use std::net::SocketAddr;
     use tokio::sync::oneshot;
-    use crate::http::types::ConnectionPoolConfig;
 
-    async fn start_mock_server() -> (SocketAddr, oneshot::Sender<()>) {
+    async fn start_body_echo_server() -> (SocketAddr, oneshot::Sender<()>) {
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
         let make_svc = make_service_fn(|_| async {
             Ok::<_, Infallible>(service_fn(|req: Request<Body>| async move {
                 let has_auth = req.headers().contains_key("authorization");
-                let bytes = hyper::body::to_bytes(req.into_body()).await.unwrap_or_default();
+                let bytes = hyper::body::to_bytes(req.into_body())
+                    .await
+                    .unwrap_or_default();
                 let payload = json!({
                     "success": true,
                     "code": 200,
@@ -556,6 +583,38 @@ mod tests {
                         .status(StatusCode::OK)
                         .header("content-type", "application/json")
                         .body(Body::from(payload.to_string()))
+                        .unwrap(),
+                )
+            }))
+        });
+
+        let server = Server::bind(&([127, 0, 0, 1], 0).into()).serve(make_svc);
+        let addr = server.local_addr();
+        tokio::spawn(async move {
+            server
+                .with_graceful_shutdown(async {
+                    let _ = shutdown_rx.await;
+                })
+                .await
+                .ok();
+        });
+
+        (addr, shutdown_tx)
+    }
+
+    async fn start_expect_guard_server() -> (SocketAddr, oneshot::Sender<()>) {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let make_svc = make_service_fn(|_| async {
+            Ok::<_, Infallible>(service_fn(|req: Request<Body>| async move {
+                let status = if req.headers().contains_key("expect") {
+                    StatusCode::EXPECTATION_FAILED
+                } else {
+                    StatusCode::OK
+                };
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(status)
+                        .body(Body::empty())
                         .unwrap(),
                 )
             }))
@@ -592,7 +651,7 @@ mod tests {
 
     #[tokio::test]
     async fn binary_request_respects_inject_token_flag() {
-        let (addr, shutdown) = start_mock_server().await;
+        let (addr, shutdown) = start_body_echo_server().await;
         let config = test_client_config(format!("http://{}", addr));
         let state = create_http_client(config).unwrap();
         state
@@ -622,10 +681,31 @@ mod tests {
             .get("data")
             .expect("data payload with token");
         assert_eq!(
-            data_with_token
-                .get("hasAuth")
-                .and_then(|v| v.as_bool()),
+            data_with_token.get("hasAuth").and_then(|v| v.as_bool()),
             Some(true)
+        );
+
+        let _ = shutdown.send(());
+    }
+
+    #[tokio::test]
+    async fn disables_expect_header_for_large_uploads() {
+        let (addr, shutdown) = start_expect_guard_server().await;
+        let config = test_client_config(format!("http://{}", addr));
+        let state = create_http_client(config).unwrap();
+        state
+            .initialize(None, None, None, None, None, None)
+            .await
+            .unwrap();
+
+        let mut opts = HttpRequestOptions::new(Method::PUT, "/upload".into());
+        opts.body_bytes = Some(vec![0u8; 800_000]);
+        opts.force_streaming_body = true;
+        let outcome = state.execute_request(opts).await.unwrap();
+        assert!(
+            outcome.success,
+            "server rejected request: {:?}",
+            outcome.payload
         );
 
         let _ = shutdown.send(());

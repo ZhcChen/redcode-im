@@ -224,10 +224,15 @@ export class UserApi {
     }
 
     const fileBuffer = new Uint8Array(await file.arrayBuffer());
+    const contentLength = fileBuffer.length.toString();
     const finalHeaders: Record<string, string> = {};
     headers.forEach((value, key) => {
       finalHeaders[key] = value;
     });
+    if (!headers.has('Content-Length')) {
+      headers.set('Content-Length', contentLength);
+    }
+    finalHeaders['Content-Length'] = headers.get('Content-Length') || contentLength;
     console.log('[UserApi] ☁️ 准备执行对象存储上传', {
       url: signature.url,
       method: signature.method || 'PUT',
@@ -239,7 +244,8 @@ export class UserApi {
       method: (signature.method || 'PUT') as HttpRequestParams['method'],
       headers: finalHeaders,
       binaryBody: fileBuffer,
-      injectToken: false
+      injectToken: false,
+      forceStreaming: true
     });
 
     if (!uploadResponse.success) {
