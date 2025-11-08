@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { get, patch, post } from './http';
+import { rustHttp } from './rust-http';
 import type { ApiResponse } from './http';
 import type { LegacyUserInfo } from './system';
 import { AvatarCache } from '../utils/avatar-cache';
@@ -295,7 +296,8 @@ export class UserApi {
       key
     });
 
-    const commitResp = await post<{
+    console.log('[UserApi] 🔄 提交头像配置', { key, delete_previous: true });
+    const commitResp = await rustHttp.post<{
       success: boolean;
       message: string;
       download_url?: string;
@@ -310,7 +312,8 @@ export class UserApi {
       success: commitResp.success,
       code: commitResp.code,
       message: commitResp.message,
-      payloadSuccess: commitData?.success
+      dataSuccess: commitData?.success,
+      downloadUrl: commitData?.download_url
     });
     if (!commitResp.success || !commitData || !commitData.success) {
       console.error('[UserApi] ❌ 提交头像配置失败', {
