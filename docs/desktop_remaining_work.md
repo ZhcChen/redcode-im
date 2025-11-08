@@ -18,6 +18,13 @@
 - ✅ 处理 `message_update`、`message_read`、`pin_update` 等推送事件，未读数实时同步。
 - ✅ 完成基础测试脚本（API/E2E）并写入 CI。
 
+## 进度更新（2025-11-08）
+
+- [x] 桌面端头像直传诊断完善：在 `UserApi.uploadAvatar`、`rust-http` 中加入 `client_debug`，并通过 `app.log` 轮转保存参数、响应、错误。
+- [x] 自动化 E2E：`VITE_AUTO_UPLOAD_TEST=true` 时自动登录 `alice` 并触发头像上传，便于复现 COS 400 问题。
+- [x] 后端配套修复：`backend/sql/all.sql` 整合所有迁移，`UserStore::update_user` 返回列补全 `avatar_object_key` / `status`，消除 `ColumnNotFound`。
+- [ ] 将文件上传调试脚本扩展到多媒体消息（待产品确认范围）。
+
 ## 工作拆解
 
 ### 1. 前置准备
