@@ -3320,7 +3320,18 @@ const handleCancelAddMembers = () => {
 }
 
 // 发送群组创建的系统消息（与bear-chat-uniapp保持一致）
+// NOTE: 此功能已废弃 - 系统消息应由服务器自动生成并通过 WebSocket 推送
+// 群聊创建流程：
+// 1. 调用 HTTP API 创建群聊 (RoomApi.createRoom)
+// 2. 服务器创建群聊并生成系统消息
+// 3. 服务器通过 WebSocket 推送消息给所有成员
+// 4. 客户端接收 'message' 事件并显示
 const sendGroupCreationSystemMessage = async (groupId: string, groupName: string) => {
+  // 功能已废弃，保留函数以避免调用处报错
+  console.warn('⚠️ sendGroupCreationSystemMessage 已废弃：系统消息应由服务器生成');
+  return;
+
+  /* 原实现已注释
   try {
     const user = store.getters.currentUser
     const timestamp = Date.now()
@@ -3399,6 +3410,7 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
     console.error('❌ 发送群组创建系统消息失败:', error)
     // 静默处理错误，不影响用户体验
   }
+  */
 }
 
 // 拖拽调整宽度相关函数

@@ -1,3 +1,35 @@
+/**
+ * WebSocket 管理器
+ *
+ * 架构说明：
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │ Desktop 端网络请求架构（Tauri 应用）                          │
+ * ├─────────────────────────────────────────────────────────────┤
+ * │                                                             │
+ * │  HTTP 请求：                                                 │
+ * │    TypeScript → Tauri Command → Rust HTTP Client → Backend │
+ * │    ✅ 已实现 (desktop/src-tauri/src/http/)                  │
+ * │                                                             │
+ * │  WebSocket 连接：                                            │
+ * │    TypeScript → WebSocket (当前) → Backend                  │
+ * │    ⚠️ 待重构：应通过 Rust 层处理                             │
+ * │    🔜 未来：TypeScript → Tauri Command → Rust WS → Backend  │
+ * │                                                             │
+ * └─────────────────────────────────────────────────────────────┘
+ *
+ * WebSocket 职责：
+ * - ✅ 接收服务器推送的实时通知（消息、好友变更、群聊事件等）
+ * - ❌ 不应用于主动操作（创建群聊、删除好友等应通过 HTTP API）
+ *
+ * 正确的操作流程：
+ * 1. 客户端操作 → HTTP API (通过 Rust)
+ * 2. 服务器处理 → 数据库更新
+ * 3. 服务器推送 → WebSocket 通知
+ * 4. 客户端接收 → 更新UI状态
+ *
+ * @see docs/桌面端/桌面端剩余工作.md - WebSocket 能力
+ */
+
 import { apiConfig } from '@/api/config';
 import { store } from '@/store';
 import { toast } from '@/utils/toast';
@@ -826,17 +858,17 @@ class WebSocketManager {
         case BUSINESS_CODE.chatting:
           return await this._sendChatMessage(payload, callback);
 
+        // NOTE: 以下操作应通过 HTTP API 完成，而非 WebSocket
+        // - 群聊创建/删除 → 使用 RoomApi
+        // - 好友删除/状态变更 → 使用 FriendApi
+        // WebSocket 只负责接收服务器推送的通知事件
         case BUSINESS_CODE.launchGroup:
-          return await this._sendLaunchGroupMessage(payload, callback);
-
         case BUSINESS_CODE.deleteGroup:
-          return await this._sendDeleteGroupMessage(payload, callback);
-
         case BUSINESS_CODE.DeleteFriend:
-          return await this._sendDeleteFriendMessage(payload, callback);
-
         case BUSINESS_CODE.FriendBindChange:
-          return await this._sendFriendChangeMessage(payload, callback);
+          console.error('❌ 错误：该操作应通过 HTTP API 调用，而非 WebSocket');
+          callback?.(false);
+          throw new Error('该操作应通过 HTTP API 调用');
 
         default:
           console.warn('未知消息类型:', code);
@@ -897,38 +929,6 @@ class WebSocketManager {
       callback?.(true);
       return response.data;
     }
-  }
-
-  // 发起群聊消息
-  private async _sendLaunchGroupMessage(payload: any, callback?: (success: boolean) => void) {
-    console.log('发起群聊:', payload);
-    // TODO: 实现群聊创建逻辑
-    callback?.(true);
-    return { success: true, message: '群聊创建成功' };
-  }
-
-  // 删除群聊消息
-  private async _sendDeleteGroupMessage(payload: any, callback?: (success: boolean) => void) {
-    console.log('删除群聊:', payload);
-    // TODO: 实现群聊删除逻辑
-    callback?.(true);
-    return { success: true, message: '群聊删除成功' };
-  }
-
-  // 删除好友消息
-  private async _sendDeleteFriendMessage(payload: any, callback?: (success: boolean) => void) {
-    console.log('删除好友:', payload);
-    // TODO: 实现删除好友逻辑
-    callback?.(true);
-    return { success: true, message: '好友删除成功' };
-  }
-
-  // 好友状态变更消息
-  private async _sendFriendChangeMessage(payload: any, callback?: (success: boolean) => void) {
-    console.log('好友状态变更:', payload);
-    // TODO: 实现好友状态变更逻辑
-    callback?.(true);
-    return { success: true, message: '好友状态变更成功' };
   }
 
   private sendBinary(data: Uint8Array) {
