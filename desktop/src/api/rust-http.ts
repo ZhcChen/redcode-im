@@ -31,6 +31,7 @@ export interface HttpRequestParams {
   retryCount?: number
   binaryBody?: ArrayBuffer | ArrayBufferView | Blob | string
   responseType?: 'json' | 'binary'
+  injectToken?: boolean
 }
 
 // 响应数据接口
@@ -218,7 +219,8 @@ class RustHttpClient {
         query_params: queryParams ?? null,
         timeout,
         retry_count: retryCount,
-        expect_binary: responseType === 'binary'
+        expect_binary: responseType === 'binary',
+        inject_token: params.injectToken !== false
       })
 
       const response: HttpResponseData = JSON.parse(result)

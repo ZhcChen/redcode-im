@@ -42,6 +42,7 @@ fn build_options(
     body: Option<String>,
     binary_body: Option<String>,
     expect_binary: Option<bool>,
+    inject_token: Option<bool>,
 ) -> Result<HttpRequestOptions, HttpError> {
     let mut opts = HttpRequestOptions::new(method, path);
     opts.body = body;
@@ -52,6 +53,7 @@ fn build_options(
         opts.body_bytes = Some(bytes);
     }
     opts.expect_binary = expect_binary.unwrap_or(false);
+    opts.inject_token = inject_token.unwrap_or(true);
     Ok(opts)
 }
 
@@ -138,8 +140,16 @@ pub async fn http_post(
     body: Option<String>,
     binary_body: Option<String>,
     expect_binary: Option<bool>,
+    inject_token: Option<bool>,
 ) -> Result<String, String> {
-    let opts = match build_options(Method::POST, path, body, binary_body, expect_binary) {
+    let opts = match build_options(
+        Method::POST,
+        path,
+        body,
+        binary_body,
+        expect_binary,
+        inject_token,
+    ) {
         Ok(opts) => opts,
         Err(err) => return serialize_error(err),
     };
@@ -156,8 +166,16 @@ pub async fn http_put(
     body: Option<String>,
     binary_body: Option<String>,
     expect_binary: Option<bool>,
+    inject_token: Option<bool>,
 ) -> Result<String, String> {
-    let opts = match build_options(Method::PUT, path, body, binary_body, expect_binary) {
+    let opts = match build_options(
+        Method::PUT,
+        path,
+        body,
+        binary_body,
+        expect_binary,
+        inject_token,
+    ) {
         Ok(opts) => opts,
         Err(err) => return serialize_error(err),
     };
@@ -174,8 +192,16 @@ pub async fn http_patch(
     body: Option<String>,
     binary_body: Option<String>,
     expect_binary: Option<bool>,
+    inject_token: Option<bool>,
 ) -> Result<String, String> {
-    let opts = match build_options(Method::PATCH, path, body, binary_body, expect_binary) {
+    let opts = match build_options(
+        Method::PATCH,
+        path,
+        body,
+        binary_body,
+        expect_binary,
+        inject_token,
+    ) {
         Ok(opts) => opts,
         Err(err) => return serialize_error(err),
     };
@@ -197,9 +223,17 @@ pub async fn http_request(
     timeout: Option<u64>,
     retry_count: Option<u32>,
     expect_binary: Option<bool>,
+    inject_token: Option<bool>,
 ) -> Result<String, String> {
     let parsed_method = method.parse::<Method>().unwrap_or_else(|_| Method::GET);
-    let mut opts = match build_options(parsed_method, path, body, binary_body, expect_binary) {
+    let mut opts = match build_options(
+        parsed_method,
+        path,
+        body,
+        binary_body,
+        expect_binary,
+        inject_token,
+    ) {
         Ok(opts) => opts,
         Err(err) => return serialize_error(err),
     };

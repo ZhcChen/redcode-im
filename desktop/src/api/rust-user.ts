@@ -339,7 +339,8 @@ export class RustUserApi {
         const downloadResponse = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
           path: payload.download_url,
           method: 'GET',
-          responseType: 'binary'
+          responseType: 'binary',
+          injectToken: false
         })
         if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
           throw new Error(`下载头像失败: HTTP ${downloadResponse.code}`)

@@ -33,6 +33,7 @@ const canUseRustBridge = () => USE_RUST_BACKEND && isTauriEnvironment() && !rust
 type InternalRequestOptions = RequestOptions & {
   serializedBody?: string;
   binaryBodyBase64?: string;
+  injectToken?: boolean;
 };
 
 const isFormDataBody = (value: unknown): value is FormData =>
@@ -121,6 +122,7 @@ export interface RequestOptions {
   retryTimes?: number; // 重试次数
   retryDelay?: number; // 重试延迟
   responseType?: 'json' | 'binary';
+  injectToken?: boolean;
 }
 
 /**
@@ -434,7 +436,8 @@ class HttpClient {
       headers,
       timeout,
       retryCount,
-      responseType: options.responseType
+      responseType: options.responseType,
+      injectToken: options.injectToken !== false
     });
 
     if (response.code === 401) {

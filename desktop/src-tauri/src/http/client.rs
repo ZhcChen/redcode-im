@@ -154,8 +154,10 @@ impl HttpClientState {
             let mut builder = client.request(method.clone(), &url);
             builder = builder.timeout(Duration::from_millis(timeout));
 
-            if let Some(token_value) = &token {
-                builder = builder.header("Authorization", format!("Bearer {}", token_value));
+            if options.inject_token {
+                if let Some(token_value) = &token {
+                    builder = builder.header("Authorization", format!("Bearer {}", token_value));
+                }
             }
 
             if let Some(header_map) = &headers {

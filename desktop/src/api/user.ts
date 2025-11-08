@@ -238,7 +238,8 @@ export class UserApi {
       path: signature.url,
       method: (signature.method || 'PUT') as HttpRequestParams['method'],
       headers: finalHeaders,
-      binaryBody: fileBuffer
+      binaryBody: fileBuffer,
+      injectToken: false
     });
 
     if (!uploadResponse.success) {
@@ -365,7 +366,8 @@ export class UserApi {
       const downloadResponse = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
         path: payload.download_url,
         method: 'GET',
-        responseType: 'binary'
+        responseType: 'binary',
+        injectToken: false
       });
 
       if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {

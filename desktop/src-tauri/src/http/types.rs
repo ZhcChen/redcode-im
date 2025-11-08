@@ -49,13 +49,12 @@ impl Default for HttpClientConfig {
             _ => "http://localhost:8010",
         };
 
-        let base_url =
-            std::env::var("API_BASE_URL").unwrap_or_else(|_| default_url.to_string());
+        let base_url = std::env::var("API_BASE_URL").unwrap_or_else(|_| default_url.to_string());
 
         // 根据环境设置 SSL 验证
         let verify_ssl = match env.as_str() {
-            "development" => false,  // 开发环境可以跳过 SSL 验证
-            _ => true,  // 其他环境都要验证 SSL
+            "development" => false, // 开发环境可以跳过 SSL 验证
+            _ => true,              // 其他环境都要验证 SSL
         };
 
         Self {
@@ -108,6 +107,7 @@ pub struct HttpRequestOptions {
     pub timeout_ms: Option<u64>,
     pub retry_count: Option<u32>,
     pub expect_binary: bool,
+    pub inject_token: bool,
 }
 
 impl HttpRequestOptions {
@@ -122,6 +122,7 @@ impl HttpRequestOptions {
             timeout_ms: None,
             retry_count: None,
             expect_binary: false,
+            inject_token: true,
         }
     }
 }

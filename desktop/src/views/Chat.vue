@@ -957,7 +957,8 @@ const uploadWithSignature = async (
     path: signature.url,
     method,
     headers,
-    binaryBody: fileBuffer
+    binaryBody: fileBuffer,
+    injectToken: false
   });
 
   if (!response.success) {
@@ -975,7 +976,8 @@ const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string |
     const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
       path: downloadUrl,
       method: 'GET',
-      responseType: 'binary'
+      responseType: 'binary',
+      injectToken: false
     });
 
     if (!response.success || !response.data || !response.data.base64) {
@@ -4057,7 +4059,8 @@ const handleVoiceSend = async (recording: any) => {
       path: signature.url,
       method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
       headers,
-      binaryBody: voiceBuffer
+      binaryBody: voiceBuffer,
+      injectToken: false
     })
 
     if (!uploadResponse.success) {
