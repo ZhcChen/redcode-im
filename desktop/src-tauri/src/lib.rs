@@ -1,14 +1,17 @@
 use tauri::{AppHandle, Manager, Window, WindowEvent};
 
-// 导入 HTTP 模块
+// 导入模块
 mod cache;
 mod http;
 mod logger;
 mod message_search;
+mod websocket;
 
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
+use websocket::commands::*;
+use websocket::WebSocketManager;
 
 // 自定义命令：隐藏到系统托盘
 #[tauri::command]
@@ -107,12 +110,16 @@ pub fn run() {
     // 初始化 HTTP 客户端
     let http_client_state = create_http_client(http_config).expect("Failed to create HTTP client");
 
+    // 初始化 WebSocket 管理器
+    let ws_manager = WebSocketManager::new();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
-        // 注册 HTTP 客户端状态
+        // 注册状态
         .manage(http_client_state)
+        .manage(ws_manager)
         .invoke_handler(tauri::generate_handler![
             // 窗口相关命令
             force_center_window,
@@ -151,7 +158,15 @@ pub fn run() {
             http_request,
             http_health,
             http_stats,
-            http_batch
+            http_batch,
+            // WebSocket 相关命令
+            ws_connect,
+            ws_disconnect,
+            ws_join_room,
+            ws_leave_room,
+            ws_join_rooms,
+            ws_get_status,
+            ws_get_subscribed_rooms
         ])
         .setup(|app| {
             let log_path = logger::init_logger(&app.handle())
