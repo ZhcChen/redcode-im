@@ -220,19 +220,44 @@ class RustHttpClient {
         forceStreaming: params.forceStreaming === true
       })
 
-      const result = await invoke<string>('http_request', {
+      try {
+        await invoke('client_debug', {
+          payload: {
+            tag: 'requestRawArgs',
+            method: methodUpper,
+            path,
+            hasBinaryBody: Boolean(binaryBodyEncoded),
+            injectToken: params.injectToken !== false,
+            forceStreaming: params.forceStreaming === true,
+            bodyLength: bodyStr ? bodyStr.length : 0,
+            binaryLength: binaryBodyEncoded ? binaryBodyEncoded.length : 0
+          }
+        })
+      } catch (debugError) {
+        console.warn('[RustHTTP] client_debug 调用失败:', debugError)
+      }
+
+      const args = {
         method: methodUpper,
         path,
         body: bodyStr,
-        binary_body: binaryBodyEncoded,
+        binaryBody: binaryBodyEncoded,
         headers,
-        query_params: queryParams ?? null,
+        queryParams: queryParams ?? null,
         timeout,
-        retry_count: retryCount,
-        expect_binary: responseType === 'binary',
-        inject_token: params.injectToken !== false,
-        force_streaming: params.forceStreaming === true
-      })
+        retryCount,
+        expectBinary: responseType === 'binary',
+        injectToken: params.injectToken !== false,
+        forceStreaming: params.forceStreaming === true
+      }
+
+      try {
+        await invoke('client_debug', { payload: { tag: 'requestRawArgsFull', args } })
+      } catch (debugError) {
+        console.warn('[RustHTTP] client_debug(Full) 失败:', debugError)
+      }
+
+      const result = await invoke<string>('http_request', args)
 
       const response: HttpResponseData = JSON.parse(result)
       console.log('[RustHTTP] ⇠ response', {

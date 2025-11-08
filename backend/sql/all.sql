@@ -55,6 +55,11 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     message_type SMALLINT NOT NULL DEFAULT 0,      -- 0=text,1=image,2=file,3=system
     quoted_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
+    forward_from_message_id UUID,
+    forward_from_room_id UUID,
+    forward_from_sender_id UUID,
+    forward_from_sender_username TEXT,
+    forward_from_sender_nickname TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
@@ -68,6 +73,19 @@ CREATE INDEX IF NOT EXISTS idx_messages_room_created_at
     ON messages(room_id, created_at)
     WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_messages_quoted_message_id ON messages(quoted_message_id);
+CREATE INDEX IF NOT EXISTS idx_messages_forward_from_message
+    ON messages(forward_from_message_id)
+    WHERE forward_from_message_id IS NOT NULL;
+
+-- 房间置顶表
+CREATE TABLE IF NOT EXISTS room_pins (
+    room_id UUID PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    pinned_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_room_pins_message_id ON room_pins(message_id);
 
 -- 房间成员表
 CREATE TABLE IF NOT EXISTS room_members (
@@ -78,7 +96,8 @@ CREATE TABLE IF NOT EXISTS room_members (
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
     last_read_at TIMESTAMPTZ,
-    last_read_message_id UUID REFERENCES messages(id)
+    last_read_message_id UUID REFERENCES messages(id),
+    notification_settings INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_room_members_room_id ON room_members(room_id);
@@ -93,6 +112,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_room_members_unique_active
 CREATE INDEX IF NOT EXISTS idx_room_members_user_active
     ON room_members(user_id)
     WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_room_members_notification_settings
+    ON room_members(notification_settings);
+COMMENT ON COLUMN room_members.notification_settings IS '通知设置：0=全部通知，1=仅@通知，2=完全静音';
 
 -- 版本管理表
 CREATE TABLE IF NOT EXISTS app_versions (
@@ -144,6 +166,28 @@ CREATE INDEX IF NOT EXISTS idx_message_reads_room_user_message
 -- 加速 “按 message_id 查询已读用户并按 read_at 排序” 的路径
 CREATE INDEX IF NOT EXISTS idx_message_reads_message_read_at
     ON message_reads(message_id, read_at);
+
+-- 消息分片表
+CREATE TABLE IF NOT EXISTS message_parts (
+    id UUID PRIMARY KEY,
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    position SMALLINT NOT NULL,
+    part_type SMALLINT NOT NULL,
+    text_content TEXT,
+    attachment_key TEXT,
+    attachment_name TEXT,
+    attachment_mime TEXT,
+    attachment_size BIGINT,
+    width INTEGER,
+    height INTEGER,
+    duration_ms INTEGER,
+    thumbnail_key TEXT,
+    extra JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_parts_message_id_position
+    ON message_parts(message_id, position);
 
 -- 好友请求表
 CREATE TABLE IF NOT EXISTS friend_requests (
@@ -241,6 +285,262 @@ CREATE INDEX IF NOT EXISTS idx_storage_providers_default ON storage_providers(is
 CREATE UNIQUE INDEX IF NOT EXISTS idx_storage_providers_unique_default
     ON storage_providers(is_default)
     WHERE is_default = TRUE;
+
+-- ===== 权限与角色体系 =====
+CREATE TABLE IF NOT EXISTS permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    is_system BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(role_id, permission_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    assigned_by UUID REFERENCES users(id),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, role_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_permissions_code ON permissions(code);
+CREATE INDEX IF NOT EXISTS idx_roles_code ON roles(code);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_permission_id ON role_permissions(permission_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role_id ON user_roles(role_id);
+
+-- 更新时间触发器
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_permissions_updated_at
+    BEFORE UPDATE ON permissions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_roles_updated_at
+    BEFORE UPDATE ON roles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ===== 群聊管理扩展 =====
+CREATE TABLE IF NOT EXISTS group_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    join_approval_required BOOLEAN DEFAULT FALSE,
+    member_can_invite BOOLEAN DEFAULT TRUE,
+    member_can_add_friends BOOLEAN DEFAULT TRUE,
+    require_admin_to_add_friends BOOLEAN DEFAULT FALSE,
+    max_members INTEGER DEFAULT 500,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(room_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_announcements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    publisher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_pinned BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS group_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    content TEXT NOT NULL,
+    creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS join_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    applicant_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT,
+    status INTEGER NOT NULL DEFAULT 0,
+    reviewer_id UUID REFERENCES users(id),
+    review_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reviewed_at TIMESTAMPTZ,
+    UNIQUE(room_id, applicant_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_invitations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    inviter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invitee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT,
+    status INTEGER NOT NULL DEFAULT 0,
+    invited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    responded_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '7 days'),
+    UNIQUE(room_id, invitee_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_admins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    admin_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    appointed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'admin',
+    permissions TEXT[],
+    appointed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(room_id, admin_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_operation_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    operator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_user_id UUID REFERENCES users(id),
+    operation_type VARCHAR(50) NOT NULL,
+    operation_data JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS group_mutes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    muted_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT,
+    mute_duration_hours INTEGER DEFAULT 24,
+    muted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    unmuted_at TIMESTAMPTZ,
+    is_active BOOLEAN DEFAULT TRUE,
+    UNIQUE(room_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_settings_room_id ON group_settings(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_announcements_room_id ON group_announcements(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_announcements_pinned ON group_announcements(is_pinned);
+CREATE INDEX IF NOT EXISTS idx_group_rules_room_id ON group_rules(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_rules_active ON group_rules(is_active);
+CREATE INDEX IF NOT EXISTS idx_join_requests_room_id ON join_requests(room_id);
+CREATE INDEX IF NOT EXISTS idx_join_requests_status ON join_requests(status);
+CREATE INDEX IF NOT EXISTS idx_group_invitations_room_id ON group_invitations(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_invitations_status ON group_invitations(status);
+CREATE INDEX IF NOT EXISTS idx_group_admins_room_id ON group_admins(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_admins_admin_id ON group_admins(admin_id);
+CREATE INDEX IF NOT EXISTS idx_group_operation_logs_room_id ON group_operation_logs(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_operation_logs_created_at ON group_operation_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_group_mutes_room_id ON group_mutes(room_id);
+CREATE INDEX IF NOT EXISTS idx_group_mutes_user_id ON group_mutes(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_mutes_active ON group_mutes(is_active);
+
+CREATE TRIGGER update_group_settings_updated_at
+    BEFORE UPDATE ON group_settings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_group_announcements_updated_at
+    BEFORE UPDATE ON group_announcements
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_group_rules_updated_at
+    BEFORE UPDATE ON group_rules
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE VIEW group_detail_view AS
+SELECT
+    r.id,
+    r.name,
+    r.description,
+    r.avatar_url,
+    r.room_type,
+    r.owner_id,
+    r.created_at,
+    r.updated_at,
+    gs.join_approval_required,
+    gs.member_can_invite,
+    gs.member_can_add_friends,
+    gs.require_admin_to_add_friends,
+    gs.max_members,
+    (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id AND rm.deleted_at IS NULL) AS current_member_count,
+    (SELECT COUNT(*) FROM group_announcements ga WHERE ga.room_id = r.id) AS announcement_count,
+    (SELECT COUNT(*) FROM join_requests jr WHERE jr.room_id = r.id AND jr.status = 0) AS pending_request_count
+FROM rooms r
+LEFT JOIN group_settings gs ON r.id = gs.room_id
+WHERE r.room_type = 1 AND r.deleted_at IS NULL;
+
+-- 默认群设置
+INSERT INTO group_settings (room_id)
+SELECT id FROM rooms
+WHERE room_type = 1 AND deleted_at IS NULL
+ON CONFLICT (room_id) DO NOTHING;
+
+-- 默认权限与角色
+INSERT INTO permissions (name, code, description) VALUES
+('查看用户', 'user:view', '查看用户列表和详情'),
+('创建用户', 'user:create', '创建新用户'),
+('更新用户', 'user:update', '更新用户信息'),
+('删除用户', 'user:delete', '删除用户'),
+('查看角色', 'role:view', '查看角色列表和权限'),
+('创建角色', 'role:create', '创建新角色'),
+('更新角色', 'role:update', '更新角色信息和权限'),
+('删除角色', 'role:delete', '删除角色'),
+('系统监控', 'system:monitor', '查看系统监控数据'),
+('系统统计', 'system:stats', '查看系统统计信息'),
+('设置管理', 'settings:manage', '管理系统设置'),
+('文件查看', 'file:view', '查看文件列表和统计'),
+('文件管理', 'file:manage', '管理文件（删除等操作）'),
+('存储管理', 'storage:manage', '管理存储提供商和设置')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO roles (name, code, description, is_system) VALUES
+('超级管理员', 'super_admin', '拥有所有权限的超级管理员', TRUE),
+('管理员', 'admin', '拥有大部分管理权限的管理员', TRUE),
+('审计员', 'auditor', '只能查看数据，不能修改', TRUE),
+('普通用户', 'user', '普通用户角色', TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT (SELECT id FROM roles WHERE code = 'super_admin'), id FROM permissions
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT (SELECT id FROM roles WHERE code = 'admin'), id
+FROM permissions
+WHERE code NOT IN ('user:delete', 'role:create', 'role:update', 'role:delete')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT (SELECT id FROM roles WHERE code = 'auditor'), id
+FROM permissions
+WHERE code IN ('user:view', 'role:view', 'system:monitor', 'system:stats', 'file:view')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- 基础数据
 INSERT INTO users (id, username, email, password_hash, nickname, status)

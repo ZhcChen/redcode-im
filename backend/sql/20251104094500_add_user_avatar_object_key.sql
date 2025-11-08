@@ -1,2 +1,0 @@
-ALTER TABLE users
-ADD COLUMN avatar_object_key TEXT;

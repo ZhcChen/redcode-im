@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { get, patch, post } from './http';
 import type { ApiResponse } from './http';
 import type { LegacyUserInfo } from './system';
@@ -27,6 +28,14 @@ export interface UserInfo {
   avatar?: string | null;
   isFriend: boolean;
 }
+
+const emitClientDebug = async (tag: string, payload: Record<string, unknown>) => {
+  try {
+    await invoke('client_debug', { payload: { tag, ...payload } });
+  } catch (error) {
+    console.warn('[UserApi] client_debug 调用失败', { tag, error });
+  }
+};
 
 const mapBackendToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   id: user.id,
@@ -233,11 +242,16 @@ export class UserApi {
       headers.set('Content-Length', contentLength);
     }
     finalHeaders['Content-Length'] = headers.get('Content-Length') || contentLength;
-    console.log('[UserApi] ☁️ 准备执行对象存储上传', {
+    const uploadMeta = {
       url: signature.url,
       method: signature.method || 'PUT',
-      headers: finalHeaders
-    });
+      headers: finalHeaders,
+      injectToken: false,
+      forceStreaming: true,
+      contentLength
+    };
+    console.log('[UserApi] ☁️ 准备执行对象存储上传', uploadMeta);
+    await emitClientDebug('avatarUploadPrepared', uploadMeta);
 
     const uploadResponse = await rustHttp.requestRaw<{ base64?: string }>({
       path: signature.url,
@@ -246,6 +260,11 @@ export class UserApi {
       binaryBody: fileBuffer,
       injectToken: false,
       forceStreaming: true
+    });
+    await emitClientDebug('avatarUploadRawResponse', {
+      code: uploadResponse.code,
+      success: uploadResponse.success,
+      message: uploadResponse.message
     });
 
     if (!uploadResponse.success) {
