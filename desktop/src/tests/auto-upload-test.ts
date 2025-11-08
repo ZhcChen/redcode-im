@@ -67,15 +67,49 @@ const runAutoUploadTest = async () => {
       userInfo: loginResp.data.userInfo
     })
 
-    console.info('[AutoUploadTest] 登录成功，开始头像上传流程')
+    console.info('[AutoUploadTest] 登录成功，等待2秒确保状态同步')
+    await sleep(2000)
 
+    console.info('[AutoUploadTest] 📊 登录后检查 currentUser 状态:', {
+      avatar: store.getters.currentUser?.avatar,
+      avatarObjectKey: store.getters.currentUser?.avatarObjectKey,
+      avatarLocalPath: store.getters.currentUser?.avatarLocalPath
+    })
+
+    console.info('[AutoUploadTest] 开始头像上传流程')
     const file = createTestFile()
+    console.info('[AutoUploadTest] 📦 准备上传文件:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    })
+
     const uploadResp = await UserApi.uploadAvatar(file)
 
-    if (uploadResp.success) {
-      console.info('[AutoUploadTest] 头像上传成功')
+    console.info('[AutoUploadTest] 📨 上传响应:', {
+      success: uploadResp.success,
+      code: uploadResp.code,
+      message: uploadResp.message,
+      data: uploadResp.data
+    })
+
+    if (uploadResp.success && uploadResp.data) {
+      console.info('[AutoUploadTest] ✅ 头像上传成功')
+      console.info('[AutoUploadTest] 📊 上传后检查返回数据:', {
+        avatarUrl: uploadResp.data.avatarUrl,
+        avatarObjectKey: uploadResp.data.avatarObjectKey,
+        avatarLocalPath: uploadResp.data.avatarLocalPath
+      })
+
+      await sleep(500)
+
+      console.info('[AutoUploadTest] 📊 上传后检查 currentUser 状态:', {
+        avatar: store.getters.currentUser?.avatar,
+        avatarObjectKey: store.getters.currentUser?.avatarObjectKey,
+        avatarLocalPath: store.getters.currentUser?.avatarLocalPath
+      })
     } else {
-      console.error('[AutoUploadTest] 头像上传失败', uploadResp)
+      console.error('[AutoUploadTest] ❌ 头像上传失败', uploadResp)
     }
 
     await sleep(1000)
