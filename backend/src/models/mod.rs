@@ -68,12 +68,6 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
-/// 上传头像响应
-#[derive(Debug, Serialize)]
-pub struct UploadAvatarResponse {
-    pub avatar_url: String,
-}
-
 // ==================== 版本管理模型 ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

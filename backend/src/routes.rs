@@ -177,7 +177,6 @@ pub fn create_routes() -> Router<AppState> {
             patch(user::update_me).delete(user::deactivate_me),
         )
         .route("/users/me/password", post(user::change_password))
-        .route("/users/me/avatar", post(user::upload_avatar))
         .route(
             "/users/me/avatar/direct-upload",
             post(user::generate_avatar_direct_upload),

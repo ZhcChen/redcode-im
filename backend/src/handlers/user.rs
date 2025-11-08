@@ -7,7 +7,7 @@ use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{
-    ChangePasswordRequest, Claims, UpdateUserRequest, UploadAvatarResponse, UserInfo,
+    ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo,
 };
 use crate::storage;
 use crate::storage::DirectUploadSignature;
@@ -374,28 +374,6 @@ pub async fn search_users(
     Ok(Json(infos))
 }
 
-/// 上传头像（占位接口）
-pub async fn upload_avatar(
-    State(_state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    // TODO: 接收 multipart/form-data 文件上传
-) -> Result<Json<UploadAvatarResponse>, AppError> {
-    // 占位实现：返回示例 URL
-    // 实际应该：
-    // 1. 接收上传的文件
-    // 2. 验证文件类型和大小
-    // 3. 上传到对象存储（S3/MinIO/OSS）
-    // 4. 返回文件访问 URL
-
-    let mock_avatar_url = format!(
-        "https://api.dicebear.com/7.x/avataaars/svg?seed={}",
-        claims.sub
-    );
-
-    Ok(Json(UploadAvatarResponse {
-        avatar_url: mock_avatar_url,
-    }))
-}
 
 async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
