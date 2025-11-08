@@ -296,15 +296,27 @@ export class UserApi {
     });
 
     console.log('[UserApi] 🔄 提交头像配置', { key, delete_previous: true });
-    const commitResp = await rustHttp.post<{
-      success: boolean;
-      message: string;
-      download_url?: string;
-    }>('/users/me/avatar/commit', {
-      key,
-      delete_previous: true,
-      expires_in_seconds: 600
-    });
+    let commitResp;
+    try {
+      commitResp = await rustHttp.post<{
+        success: boolean;
+        message: string;
+        download_url?: string;
+      }>('/users/me/avatar/commit', {
+        key,
+        delete_previous: true,
+        expires_in_seconds: 600
+      });
+      console.log('[UserApi] ✅ commit请求完成,开始处理响应');
+    } catch (commitError) {
+      console.error('[UserApi] ❌ commit请求异常:', commitError);
+      return {
+        code: 500,
+        success: false,
+        message: `提交头像配置异常: ${commitError}`,
+        data: null
+      };
+    }
 
     const commitData = commitResp.data;
     console.log('[UserApi] 📝 提交头像配置响应', {
