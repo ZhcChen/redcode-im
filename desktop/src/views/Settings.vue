@@ -284,11 +284,12 @@ const handleFileSelect = async (event: Event) => {
         avatarObjectKey: currentUser.value.avatarObjectKey,
         avatarLocalPath: currentUser.value.avatarLocalPath
       })
-      console.log('[Settings] 📊 userAvatarSrc 计算值:', userAvatarSrc.value)
+      // 先清理预览URL，让 computed 属性重新计算
       if (previewImageUrl.value) {
         URL.revokeObjectURL(previewImageUrl.value)
         previewImageUrl.value = ''
       }
+      console.log('[Settings] 📊 清理预览后 userAvatarSrc 计算值:', userAvatarSrc.value)
     } else {
       toast.error(uploadResult.message || '头像上传失败')
       console.error('[Settings] ❌ 头像上传失败', {
