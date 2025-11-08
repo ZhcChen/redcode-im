@@ -203,11 +203,14 @@ export class UserApi {
     }
 
     const { key, signature } = directData;
+    console.log('[UserApi] 📋 服务端返回的签名 headers:', signature.headers);
+
     const headers = new Headers();
     // 过滤掉 Host 头，避免浏览器 CORS 限制
     Object.entries(signature.headers || {}).forEach(
       ([headerKey, headerValue]) => {
         if (headerKey.toLowerCase() === 'host') {
+          console.log('[UserApi] 🚫 已过滤 Host 头:', headerValue);
           return;
         }
         headers.set(headerKey, headerValue);
@@ -218,10 +221,14 @@ export class UserApi {
     }
 
     const fileBuffer = new Uint8Array(await file.arrayBuffer());
+    const finalHeaders: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      finalHeaders[key] = value;
+    });
     console.log('[UserApi] ☁️ 准备执行对象存储上传', {
       url: signature.url,
       method: signature.method || 'PUT',
-      headerKeys: Array.from(headers.keys())
+      headers: finalHeaders
     });
     const uploadResponse = await fetch(signature.url, {
       method: signature.method || 'PUT',
