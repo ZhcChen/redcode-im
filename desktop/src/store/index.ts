@@ -369,9 +369,6 @@ export const store = createStore<State>({
             if (userInfo.avatarLocalPath !== undefined) state.user.avatarLocalPath = userInfo.avatarLocalPath
             if (userInfo.mobile !== undefined) state.user.mobile = userInfo.mobile
             if (userInfo.email !== undefined) state.user.email = userInfo.email
-
-            // 强制触发响应式更新
-            state.user = { ...state.user }
         },
 
         SET_VERSION_CHECKING(state: State, checking: boolean) {
