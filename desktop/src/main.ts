@@ -68,6 +68,14 @@ fallbackTimer = window.setTimeout(async () => {
 // 应用挂载完成后，通知后端关闭启动画面
 setTimeout(async () => {
   try {
+    // 在关闭 splashscreen 之前，先确保 globalLoading 是隐藏状态
+    console.log("[Main] 准备关闭启动画面，先隐藏全局加载蒙版");
+    try {
+      store.dispatch("hideGlobalLoading");
+    } catch (error) {
+      console.warn("[Main] 隐藏全局加载蒙版失败:", error);
+    }
+
     console.log("[Main] 调用 app_ready 关闭启动画面...");
     await invoke("app_ready");
     console.log("[Main] ✅ 启动画面已关闭，主应用已显示");
