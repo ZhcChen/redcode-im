@@ -10,6 +10,7 @@
     "build": "vite build",
     "build:staging": "vite build --mode staging",
     "build:production": "vite build --mode production",
+    "rust:rebuild": "cd src-tauri && cargo clean && cargo build",
     "type-check": "tsc --project tsconfig.loose.json --noEmit",
     "build-with-check": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",

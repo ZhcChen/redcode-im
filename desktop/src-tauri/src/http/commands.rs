@@ -234,6 +234,17 @@ pub async fn http_request(
     inject_token: Option<bool>,
     force_streaming: Option<bool>,
 ) -> Result<String, String> {
+    crate::logger::log_event(
+        "HTTP_REQUEST_COMMAND",
+        serde_json::json!({
+            "method": method,
+            "path": path,
+            "hasBody": body.as_ref().map(|b| b.len()).unwrap_or(0),
+            "hasBinary": binary_body.as_ref().map(|b| b.len()).unwrap_or(0),
+            "injectToken": inject_token,
+            "forceStreaming": force_streaming
+        }),
+    );
     let parsed_method = method.parse::<Method>().unwrap_or_else(|_| Method::GET);
     let mut opts = match build_options(
         parsed_method,

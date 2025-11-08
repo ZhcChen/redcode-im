@@ -123,6 +123,7 @@ pub fn run() {
             hide_to_tray,
             show_from_tray,
             quit_app,
+            client_debug,
             // 缓存相关命令
             cache::cache_save_value,
             cache::cache_load_value,
@@ -249,4 +250,9 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+#[tauri::command]
+async fn client_debug(payload: serde_json::Value) -> Result<(), String> {
+    logger::log_event("CLIENT_DEBUG", payload);
+    Ok(())
 }
