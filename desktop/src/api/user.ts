@@ -314,6 +314,7 @@ export class UserApi {
       console.log('[UserApi] 🔍 commitResp 完整结构:', JSON.stringify(commitResp, null, 2));
     } catch (commitError) {
       console.error('[UserApi] ❌ commit请求异常:', commitError);
+      await emitClientDebug('USER_AVATAR_COMMIT_ERROR', { error: String(commitError) });
       return {
         code: 500,
         success: false,
@@ -323,6 +324,13 @@ export class UserApi {
     }
 
     const commitData = commitResp.data;
+    await emitClientDebug('USER_AVATAR_COMMIT_DATA', {
+      success: commitResp.success,
+      hasData: Boolean(commitData),
+      dataType: typeof commitData,
+      dataKeys: commitData ? Object.keys(commitData) : null,
+      dataSuccess: commitData?.success
+    });
     console.log('[UserApi] 📝 提交头像配置响应', {
       success: commitResp.success,
       code: commitResp.code,
@@ -339,6 +347,11 @@ export class UserApi {
         message: commitResp.message,
         payload: commitData
       });
+      await emitClientDebug('USER_AVATAR_VALIDATION_FAILED', {
+        respSuccess: commitResp.success,
+        hasData: Boolean(commitData),
+        dataSuccess: commitData?.success
+      });
       return {
         code: commitResp.code,
         success: false,
@@ -347,6 +360,7 @@ export class UserApi {
       };
     }
 
+    await emitClientDebug('USER_AVATAR_SAVING_CACHE', { key });
     console.log('[UserApi] 💾 保存头像缓存文件', { key });
     const saved = await AvatarCache.save({
       userId: currentUser.id,
@@ -355,10 +369,16 @@ export class UserApi {
       filename: file.name,
       contentType
     });
+    await emitClientDebug('USER_AVATAR_CACHE_SAVED', { webPath: saved.webPath });
     console.log('[UserApi] 💾 头像缓存完成', { webPath: saved.webPath });
 
     const avatarUrl = commitData.download_url || currentUser.avatar || '';
     console.log('[UserApi] 🔁 同步头像信息到 store', {
+      avatarUrl,
+      avatarObjectKey: key,
+      avatarLocalPath: saved.webPath
+    });
+    await emitClientDebug('USER_AVATAR_UPDATING_STORE', {
       avatarUrl,
       avatarObjectKey: key,
       avatarLocalPath: saved.webPath
@@ -368,8 +388,10 @@ export class UserApi {
       avatarObjectKey: key,
       avatarLocalPath: saved.webPath
     });
+    await emitClientDebug('USER_AVATAR_STORE_UPDATED', { success: true });
 
     console.log('[UserApi] 🎉 头像上传流程完成');
+    await emitClientDebug('USER_AVATAR_UPLOAD_COMPLETE', { success: true });
     return {
       code: commitResp.code,
       success: true,
