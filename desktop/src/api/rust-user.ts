@@ -286,50 +286,13 @@ export class RustUserApi {
   }
 
   /**
-   * 上传头像 - 使用 Rust 解决 CORS 问题
+   * 上传头像 - 使用腾讯 COS 直传
+   * 注意: 头像上传使用直传流程(获取签名 -> 上传到 COS -> 提交),不走常规 HTTP upload
    */
   static async uploadAvatar(file: File): Promise<ApiResponse<AvatarUploadResult>> {
-    if (this.useRust()) {
-      try {
-        console.log('🚀 使用 Rust 上传头像 (解决 CORS 问题)...')
-        const response = await rustHttp.upload('/users/me/avatar/direct-upload', file)
-
-        if (response.success && response.data) {
-          // 解析响应
-          const uploadResult: AvatarUploadResult = {
-            avatarUrl: response.data.avatarUrl || '',
-            avatarObjectKey: response.data.avatarObjectKey || '',
-            avatarLocalPath: response.data.avatarLocalPath || ''
-          }
-
-          // 更新 store 中的用户信息
-          store.commit('UPDATE_USER_INFO', {
-            avatar: uploadResult.avatarUrl,
-            avatarObjectKey: uploadResult.avatarObjectKey,
-            avatarLocalPath: uploadResult.avatarLocalPath
-          })
-
-          return {
-            code: 200,
-            message: '头像上传成功',
-            data: uploadResult,
-            success: true
-          }
-        } else {
-          return {
-            code: response.code,
-            message: response.message,
-            data: null,
-            success: false
-          }
-        }
-      } catch (error: any) {
-        console.warn('⚠️ Rust 上传头像失败，回退到 TypeScript:', error)
-        return await this.uploadAvatarWithTs(file)
-      }
-    } else {
-      return await this.uploadAvatarWithTs(file)
-    }
+    // 头像上传使用 TypeScript 实现的完整流程
+    // 包括: 1. 获取直传签名 2. 上传到 COS 3. 提交头像配置 4. 缓存头像
+    return await this.uploadAvatarWithTs(file)
   }
 
   /**
