@@ -39,21 +39,21 @@ pub fn create_routes() -> Router<AppState> {
         .route("/api/admin/users", get(admin::get_user_list))
         .route("/api/admin/users", post(admin::create_user))
         .route(
-            "/api/admin/users/:user_id",
+            "/api/admin/users/{user_id}",
             get(admin::get_user_detail)
                 .patch(admin::update_user)
                 .delete(admin::delete_user),
         )
         .route(
-            "/api/admin/users/:user_id/password/reset",
+            "/api/admin/users/{user_id}/password/reset",
             post(admin::reset_user_password),
         )
         .route(
-            "/api/admin/users/:user_id/status",
+            "/api/admin/users/{user_id}/status",
             patch(admin::update_user_status),
         )
         .route(
-            "/api/admin/users/:user_id/roles",
+            "/api/admin/users/{user_id}/roles",
             get(admin::get_user_roles),
         )
         // 权限管理API
@@ -61,7 +61,7 @@ pub fn create_routes() -> Router<AppState> {
         .route("/api/admin/roles", get(admin::get_roles))
         .route("/api/admin/roles", post(admin::create_role))
         .route(
-            "/api/admin/roles/:role_id",
+            "/api/admin/roles/{role_id}",
             patch(admin::update_role)
                 .delete(admin::delete_role),
         )
@@ -70,7 +70,7 @@ pub fn create_routes() -> Router<AppState> {
             post(admin::assign_role_to_user),
         )
         .route(
-            "/api/admin/users/:user_id/roles/:role_id",
+            "/api/admin/users/{user_id}/roles/{role_id}",
             delete(admin::revoke_role_from_user),
         )
         .route(
@@ -87,7 +87,7 @@ pub fn create_routes() -> Router<AppState> {
             get(admin::get_file_list),
         )
         .route(
-            "/api/admin/files/:file_id",
+            "/api/admin/files/{file_id}",
             delete(admin::delete_file),
         )
         .route(
@@ -111,7 +111,7 @@ pub fn create_routes() -> Router<AppState> {
             get(admin::get_default_storage_provider),
         )
         .route(
-            "/api/admin/storage-providers/:provider_id",
+            "/api/admin/storage-providers/{provider_id}",
             axum::routing::patch(admin::update_storage_provider)
                 .delete(admin::delete_storage_provider),
         )
@@ -160,13 +160,13 @@ pub fn create_routes() -> Router<AppState> {
             get(version::list_app_versions).post(version::create_app_version),
         )
         .route(
-            "/api/admin/app-versions/:id",
+            "/api/admin/app-versions/{id}",
             get(version::get_app_version)
                 .patch(version::update_app_version)
                 .delete(version::delete_app_version),
         )
         .route(
-            "/api/admin/app-versions/:id/deactivate",
+            "/api/admin/app-versions/{id}/deactivate",
             post(version::deactivate_app_version),
         )
         .route("/feedbacks", post(feedback::submit_feedback))
@@ -183,7 +183,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/users/me/avatar/commit", post(user::commit_avatar_upload))
         .route("/users/me/avatar/url", get(user::get_avatar_download_url))
-        .route("/users/:user_id", get(user::get_user_by_id))
+        .route("/users/{user_id}", get(user::get_user_by_id))
         // friends
         .route(
             "/friends/requests",
@@ -191,63 +191,63 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/friends", get(friend::list_friends))
         .route(
-            "/friends/requests/:request_id/respond",
+            "/friends/requests/{request_id}/respond",
             post(friend::respond_friend_request),
         )
         .route(
-            "/friends/:friend_user_id/chat",
+            "/friends/{friend_user_id}/chat",
             post(friend::ensure_private_chat),
         )
         // chats
         .route("/chats", get(room::list_chat_summaries))
         // rooms
         .route("/rooms", post(room::create_room).get(room::list_my_rooms))
-        .route("/rooms/:room_id/join", post(room::join_room))
-        .route("/rooms/:room_id/leave", post(room::leave_room))
-        .route("/rooms/:room_id/members", get(room::list_members))
+        .route("/rooms/{room_id}/join", post(room::join_room))
+        .route("/rooms/{room_id}/leave", post(room::leave_room))
+        .route("/rooms/{room_id}/members", get(room::list_members))
         .route(
-            "/rooms/:room_id/notification-settings",
+            "/rooms/{room_id}/notification-settings",
             post(room::update_notification_settings),
         )
         .route(
-            "/rooms/:room_id/messages",
+            "/rooms/{room_id}/messages",
             post(message::send_message).get(message::list_messages),
         )
         .route(
-            "/rooms/:room_id/messages/attachments/signature",
+            "/rooms/{room_id}/messages/attachments/signature",
             post(message::generate_message_attachment_signature),
         )
         .route(
-            "/rooms/:room_id/messages/attachments/download",
+            "/rooms/{room_id}/messages/attachments/download",
             get(message::generate_message_attachment_download_url),
         )
         .route(
-            "/rooms/:room_id/messages/forward",
+            "/rooms/{room_id}/messages/forward",
             post(message::forward_message),
         )
         // message reads
         .route(
-            "/rooms/:room_id/messages/read",
+            "/rooms/{room_id}/messages/read",
             post(message_read::mark_message_read),
         )
         .route(
-            "/rooms/:room_id/messages/read_until",
+            "/rooms/{room_id}/messages/read_until",
             post(message_read::mark_messages_read_until),
         )
         .route(
-            "/rooms/:room_id/messages/:message_id/pin",
+            "/rooms/{room_id}/messages/{message_id}/pin",
             post(message::pin_message).delete(message::unpin_message),
         )
         .route(
-            "/rooms/:room_id/messages/:message_id",
+            "/rooms/{room_id}/messages/{message_id}",
             delete(message::delete_message),
         )
         .route(
-            "/rooms/:room_id/messages/:message_id/reads",
+            "/rooms/{room_id}/messages/{message_id}/reads",
             get(message_read::get_message_read_list),
         )
         .route(
-            "/rooms/:room_id/unread_count",
+            "/rooms/{room_id}/unread_count",
             get(message_read::get_unread_count),
         )
         .route("/unread_counts", get(message_read::get_all_unread_counts))
@@ -266,71 +266,71 @@ pub fn create_routes() -> Router<AppState> {
         )
         // 群聊管理 API
         .route(
-            "/rooms/:room_id/settings",
+            "/rooms/{room_id}/settings",
             get(group_management::get_group_settings)
                 .patch(group_management::update_group_settings),
         )
         .route(
-            "/rooms/:room_id/announcements",
+            "/rooms/{room_id}/announcements",
             get(group_management::list_announcements)
                 .post(group_management::create_announcement),
         )
         .route(
-            "/rooms/:room_id/announcements/:announcement_id",
+            "/rooms/{room_id}/announcements/{announcement_id}",
             patch(group_management::update_announcement)
                 .delete(group_management::delete_announcement),
         )
         .route(
-            "/rooms/:room_id/rules",
+            "/rooms/{room_id}/rules",
             get(group_management::list_rules)
                 .post(group_management::create_rule),
         )
         .route(
-            "/rooms/:room_id/rules/:rule_id",
+            "/rooms/{room_id}/rules/{rule_id}",
             patch(group_management::update_rule)
                 .delete(group_management::delete_rule),
         )
         .route(
-            "/rooms/:room_id/join-requests",
+            "/rooms/{room_id}/join-requests",
             get(group_management::list_join_requests)
                 .post(group_management::create_join_request),
         )
         .route(
-            "/rooms/:room_id/join-requests/:request_id/review",
+            "/rooms/{room_id}/join-requests/{request_id}/review",
             patch(group_management::review_join_request),
         )
         .route(
-            "/rooms/:room_id/invitations",
+            "/rooms/{room_id}/invitations",
             post(group_management::create_invitations),
         )
         .route(
-            "/rooms/:room_id/invitations/:invitation_id/respond",
+            "/rooms/{room_id}/invitations/{invitation_id}/respond",
             patch(group_management::respond_to_invitation),
         )
         .route(
-            "/rooms/:room_id/admins",
+            "/rooms/{room_id}/admins",
             get(group_management::list_admins)
                 .post(group_management::appoint_admin),
         )
         .route(
-            "/rooms/:room_id/admins/:admin_id",
+            "/rooms/{room_id}/admins/{admin_id}",
             delete(group_management::remove_admin),
         )
         .route(
-            "/rooms/:room_id/mutes",
+            "/rooms/{room_id}/mutes",
             post(group_management::mute_user)
                 .get(group_management::list_muted_users),
         )
         .route(
-            "/rooms/:room_id/mutes/:muted_user_id",
+            "/rooms/{room_id}/mutes/{muted_user_id}",
             delete(group_management::unmute_user),
         )
         .route(
-            "/rooms/:room_id/operation-logs",
+            "/rooms/{room_id}/operation-logs",
             get(group_management::list_operation_logs),
         )
         .route(
-            "/rooms/:room_id/detail",
+            "/rooms/{room_id}/detail",
             get(group_management::get_group_detail),
         )
         .layer(middleware::from_fn(auth_middleware));
