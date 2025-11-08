@@ -390,6 +390,12 @@ function enableContextMenu() {
 onMounted(async () => {
   console.log('App 组件已挂载');
 
+  // 确保全局加载蒙版是隐藏状态
+  if (globalLoading.value.visible) {
+    console.warn('检测到全局加载蒙版意外显示,立即隐藏');
+    store.dispatch('hideGlobalLoading');
+  }
+
   // 初始化 Rust HTTP 客户端 (不阻塞其他初始化)
   rustHttpClient.initialize(token.value || undefined)
     .then(() => {
