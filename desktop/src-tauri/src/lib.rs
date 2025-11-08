@@ -3,6 +3,7 @@ use tauri::{AppHandle, Manager, Window, WindowEvent};
 // 导入 HTTP 模块
 mod cache;
 mod http;
+mod logger;
 mod message_search;
 
 use http::client::create_http_client;
@@ -152,6 +153,10 @@ pub fn run() {
             http_batch
         ])
         .setup(|app| {
+            let log_path = logger::init_logger(&app.handle())
+                .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
+            logger::log_message(&format!("日志输出: {}", log_path.display()));
+
             // 创建系统托盘
             let tray = app.tray_by_id("main-tray").unwrap();
 
@@ -223,6 +228,7 @@ pub fn run() {
                 }
             });
 
+            logger::log_message("Tauri setup 完成");
             Ok(())
         })
         .on_window_event(|window, event| {

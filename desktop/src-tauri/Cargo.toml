@@ -34,6 +34,7 @@ serde_urlencoded = "0.7"
 base64 = "0.22"
 bytes = "1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 hyper = { version = "0.14", features = ["full"] }

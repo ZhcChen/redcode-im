@@ -211,6 +211,15 @@ class RustHttpClient {
             : null
       const binaryBodyEncoded = await this.encodeBinaryBody(binaryBody)
 
+      console.log('[RustHTTP] ⇢ request', {
+        method: methodUpper,
+        path,
+        headers: headers ? Object.keys(headers) : [],
+        hasBinaryBody: Boolean(binaryBodyEncoded),
+        injectToken: params.injectToken !== false,
+        forceStreaming: params.forceStreaming === true
+      })
+
       const result = await invoke<string>('http_request', {
         method: methodUpper,
         path,
@@ -226,6 +235,13 @@ class RustHttpClient {
       })
 
       const response: HttpResponseData = JSON.parse(result)
+      console.log('[RustHTTP] ⇠ response', {
+        method: methodUpper,
+        path,
+        success: response.success,
+        code: response.code,
+        message: response.message
+      })
       return {
         code: response.code,
         message: response.message,

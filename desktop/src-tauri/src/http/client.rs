@@ -3,12 +3,13 @@ use crate::http::types::{
     BatchRequestPayload, BatchResponsePayload, HttpClientConfig, HttpClientStats,
     HttpRequestOptions, HttpRequestOutcome,
 };
+use crate::logger;
 use base64::{engine::general_purpose, Engine as _};
 use bytes::Bytes;
 use futures_util::stream;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, Method};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -188,9 +189,52 @@ impl HttpClientState {
                 builder = builder.body(body_str.clone());
             }
 
+            let header_keys: Vec<String> = headers
+                .as_ref()
+                .map(|map| map.keys().cloned().collect())
+                .unwrap_or_default();
+
+            logger::log_event(
+                "HTTP_REQUEST",
+                json!({
+                    "method": method.to_string(),
+                    "url": url,
+                    "attempt": attempt,
+                    "injectToken": options.inject_token,
+                    "expectBinary": options.expect_binary,
+                    "forceStreaming": options.force_streaming_body,
+                    "contentLength": options.body_bytes.as_ref().map(|b| b.len()),
+                    "headers": header_keys
+                }),
+            );
+
+            let send_started = Instant::now();
             match self.send(builder, options.expect_binary).await {
-                Ok(outcome) => return Ok(outcome),
+                Ok(outcome) => {
+                    logger::log_event(
+                        "HTTP_RESPONSE",
+                        json!({
+                            "method": method.to_string(),
+                            "url": url,
+                            "attempt": attempt,
+                            "success": outcome.success,
+                            "message": outcome.message,
+                            "elapsedMs": send_started.elapsed().as_millis()
+                        }),
+                    );
+                    return Ok(outcome);
+                }
                 Err(err) => {
+                    logger::log_event(
+                        "HTTP_RESPONSE_ERROR",
+                        json!({
+                            "method": method.to_string(),
+                            "url": url,
+                            "attempt": attempt,
+                            "error": err.to_string(),
+                            "elapsedMs": send_started.elapsed().as_millis()
+                        }),
+                    );
                     if attempt >= retries || !err.is_retryable() {
                         return Err(err);
                     }

@@ -67,3 +67,8 @@ Rust 模块遵循 `cargo fmt --all` 与 `cargo clippy --all-targets -- -D warnin
 - 产品文档：补齐桌面端使用手册、变更记录，与后端/Flutter 平台信息同步。
 
 > 详细拆解与子任务请参见 `docs/desktop_remaining_work.md`，所有新增功能优先对齐后端能力与产品需求。
+
+## 桌面端日志策略
+- Desktop/Tauri 进程启动时必须在 `app_data_dir/logs/app.log` 创建新的日志文件，若已存在上一轮的 `app.log` 需立即重命名为 `app_YYYYMMDDHHMMSS.log` 做归档。
+- 所有关键系统事件（启动、窗口管理、HTTP 请求/响应、直传上传等）都要通过统一的 logger 写入 `app.log`；即使控制台关闭也能依赖日志复现问题。
+- 出现错误或用户反馈异常时，第一步先检查并分析最近的 `app.log`，必要时将日志随同复现步骤一并输出，减少重复排查。
