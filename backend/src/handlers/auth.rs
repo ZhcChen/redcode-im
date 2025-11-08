@@ -149,7 +149,7 @@ pub async fn send_login_sms(
     let mut conn = state
         .redis
         .get_cache_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await
         .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
 
@@ -182,7 +182,7 @@ pub async fn login_with_sms(
     let mut conn = state
         .redis
         .get_cache_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await
         .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
 
@@ -301,7 +301,7 @@ pub async fn reset_password_with_sms(
     let mut conn = state
         .redis
         .get_cache_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await
         .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
 

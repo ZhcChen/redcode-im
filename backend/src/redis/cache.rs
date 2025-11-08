@@ -28,7 +28,7 @@ impl CacheManager {
 
     /// 缓存用户信息
     pub async fn cache_user(&self, user: &User) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::user_cache(&user.id);
 
         let user_json = serde_json::to_string(user).map_err(|e| {
@@ -44,7 +44,7 @@ impl CacheManager {
 
     /// 获取缓存的用户信息
     pub async fn get_cached_user(&self, user_id: &Uuid) -> RedisResult<Option<User>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::user_cache(user_id);
 
         let user_json: Option<String> = conn.get(&key).await?;
@@ -69,7 +69,7 @@ impl CacheManager {
 
     /// 删除用户缓存
     pub async fn delete_user_cache(&self, user_id: &Uuid) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::user_cache(user_id);
 
         let deleted: i32 = conn.del(&key).await?;
@@ -84,7 +84,7 @@ impl CacheManager {
 
     /// 缓存房间信息
     pub async fn cache_room(&self, room: &Room) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::room_cache(&room.id);
 
         let room_json = serde_json::to_string(room).map_err(|e| {
@@ -100,7 +100,7 @@ impl CacheManager {
 
     /// 获取缓存的房间信息
     pub async fn get_cached_room(&self, room_id: &Uuid) -> RedisResult<Option<Room>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::room_cache(room_id);
 
         let room_json: Option<String> = conn.get(&key).await?;
@@ -129,7 +129,7 @@ impl CacheManager {
         room_id: &Uuid,
         members: &[RoomMemberCache],
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
         // 先清除现有的成员列表
@@ -161,7 +161,7 @@ impl CacheManager {
         &self,
         room_id: &Uuid,
     ) -> RedisResult<Vec<RoomMemberCache>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
         let members_json: Vec<String> = conn.smembers(&key).await?;
@@ -183,7 +183,7 @@ impl CacheManager {
         room_id: &Uuid,
         member: &RoomMemberCache,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
         let member_json = serde_json::to_string(member).map_err(|e| {
@@ -204,7 +204,7 @@ impl CacheManager {
         room_id: &Uuid,
         user_id: &Uuid,
     ) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::room_members(room_id);
 
         // 获取当前成员列表
@@ -225,7 +225,7 @@ impl CacheManager {
 
     /// 缓存用户在线状态
     pub async fn cache_user_online_status(&self, status: &UserOnlineStatus) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::user_online_status(&status.user_id);
 
         let status_json = serde_json::to_string(status).map_err(|e| {
@@ -247,7 +247,7 @@ impl CacheManager {
         &self,
         user_id: &Uuid,
     ) -> RedisResult<Option<UserOnlineStatus>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::user_online_status(user_id);
 
         let status_json: Option<String> = conn.get(&key).await?;
@@ -275,7 +275,7 @@ impl CacheManager {
 
     /// 设置用户离线状态
     pub async fn set_user_offline(&self, user_id: &Uuid) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let key = CacheKeys::user_online_status(user_id);
 
         conn.del::<_, ()>(&key).await?;
@@ -291,7 +291,7 @@ impl CacheManager {
         value: &T,
         ttl_seconds: Option<u64>,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         let value_json = serde_json::to_string(value).map_err(|e| {
             redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
@@ -305,7 +305,7 @@ impl CacheManager {
 
     /// 通用缓存获取
     pub async fn get<T: serde::de::DeserializeOwned>(&self, key: &str) -> RedisResult<Option<T>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         let value_json: Option<String> = conn.get(key).await?;
 
@@ -323,42 +323,42 @@ impl CacheManager {
 
     /// 删除缓存
     pub async fn delete(&self, key: &str) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let deleted: i32 = conn.del(key).await?;
         Ok(deleted > 0)
     }
 
     /// 检查缓存是否存在
     pub async fn exists(&self, key: &str) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let exists: bool = conn.exists(key).await?;
         Ok(exists)
     }
 
     /// 设置缓存过期时间
     pub async fn expire(&self, key: &str, ttl_seconds: u64) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let result: bool = conn.expire(key, ttl_seconds.try_into().unwrap()).await?;
         Ok(result)
     }
 
     /// 获取缓存剩余过期时间
     pub async fn ttl(&self, key: &str) -> RedisResult<i64> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let ttl: i64 = conn.ttl(key).await?;
         Ok(ttl)
     }
 
     /// 批量删除缓存
     pub async fn delete_multiple(&self, keys: &[&str]) -> RedisResult<i32> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let deleted: i32 = conn.del(keys).await?;
         Ok(deleted)
     }
 
     /// 清空所有缓存（危险操作）
     pub async fn flush_all(&self) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let _: () = redis::cmd("FLUSHALL").query_async(&mut conn).await?;
         warn!("清空所有 Redis 缓存");
         Ok(())

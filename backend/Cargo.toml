@@ -4,54 +4,81 @@
  edition = "2021"
 
  [dependencies]
- axum = { version = "0.7", features = ["ws", "json"] }
- tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
-tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-jsonwebtoken = "9.2"
-bcrypt = "0.15"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.7", features = ["v4", "v7", "serde"] }
-lazy_static = "1.4"
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate", "bigdecimal"], default-features = false }
-dotenvy = "0.15"
-redis = { version = "0.24", features = ["tokio-comp", "json", "cluster"] }
-tokio-stream = "0.1"
-futures-util = "0.3"
-base64 = "0.22"
-rand = "0.8"
-prost = "0.12"
-prost-types = "0.12"
-bytes = "1.6"
-reqwest = { version = "0.11", features = ["json", "multipart"] }
-sha1 = "0.10"
-hmac = "0.12"
-hex = "0.4"
-time = { version = "0.3", features = ["formatting", "parsing"] }
-urlencoding = "2.1"
-async-trait = "0.1"
-regex = "1.10"
-md5 = "0.7"
-argon2 = "0.6.0-rc.2"
-bigdecimal = "0.4"
+ # Web 框架
+ axum = { version = "0.8.6", features = ["ws", "json"] }
+ tokio = { version = "1.44", features = ["full"] }
+ tower-http = { version = "0.6.6", features = ["cors", "trace", "fs"] }
 
-[build-dependencies]
-prost-build = "0.12"
-protoc-bin-vendored = "3"
+ # 日志和追踪
+ tracing = "0.1"
+ tracing-appender = "0.2"
+ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
-[dev-dependencies]
-# Testing
-tokio-test = "0.4"
-mockall = "0.12"
-# Test containers
-testcontainers = "0.25"
-# HTTP testing
-wiremock = "0.6"
-# JSON testing
-jsonpath-rust = "0.6"
-# Mocking
-mockall_derive = "0.12"
+ # 序列化
+ serde = { version = "1.0", features = ["derive"] }
+ serde_json = "1.0"
+
+ # 认证和加密
+ jsonwebtoken = "9.3"
+ bcrypt = "0.16"
+ argon2 = "0.5.3"  # 升级到最新稳定版本，修复 RC 版本问题
+
+ # 时间处理
+ chrono = { version = "0.4", features = ["serde"] }
+ time = { version = "0.3", features = ["formatting", "parsing"] }
+
+ # ID 生成
+ uuid = { version = "1.11", features = ["v4", "v7", "serde"] }
+
+ # 数据库
+ sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate", "bigdecimal"], default-features = false }
+ bigdecimal = "0.4"
+
+ # 缓存
+ redis = { version = "0.32.7", features = ["tokio-comp", "json", "cluster"] }
+
+ # 环境变量
+ dotenvy = "0.15"
+
+ # 异步工具
+ tokio-stream = "0.1"
+ futures-util = "0.3"
+ async-trait = "0.1"
+
+ # 编码和加密
+ base64 = "0.22"
+ sha1 = "0.10"
+ hmac = "0.12"
+ hex = "0.4"
+ md5 = "0.7"
+ urlencoding = "2.1"
+
+ # HTTP 客户端
+ reqwest = { version = "0.12", features = ["json", "multipart"] }
+
+ # Protocol Buffers
+ prost = "0.14.1"
+ prost-types = "0.14.1"
+ bytes = "1.9"
+
+ # 工具库
+ lazy_static = "1.5"
+ rand = "0.8"
+ regex = "1.11"
+
+ [build-dependencies]
+ prost-build = "0.14.1"
+ protoc-bin-vendored = "3.0"
+
+ [dev-dependencies]
+ # 测试框架
+ tokio-test = "0.4"
+ # Mock 工具
+ mockall = "0.13"
+ mockall_derive = "0.13"
+ # 容器测试
+ testcontainers = "0.25"
+ # HTTP 测试
+ wiremock = "0.6"
+ # JSON 测试
+ jsonpath-rust = "1.0"

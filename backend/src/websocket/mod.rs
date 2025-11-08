@@ -396,8 +396,8 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
     let send_task = tokio::spawn(async move {
         while let Some(frame) = out_rx.recv().await {
             let result = match frame {
-                OutboundFrame::Text(text) => ws_sender.send(Message::Text(text)).await,
-                OutboundFrame::Binary(bytes) => ws_sender.send(Message::Binary(bytes)).await,
+                OutboundFrame::Text(text) => ws_sender.send(Message::Text(text.into())).await,
+                OutboundFrame::Binary(bytes) => ws_sender.send(Message::Binary(bytes.into())).await,
             };
             if let Err(err) = result {
                 tracing::debug!("WebSocket发送失败: {}", err);
@@ -410,8 +410,8 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
     let conn_id_clone = conn_id.clone();
     let format_for_pubsub = format;
     let forward_task = tokio::spawn(async move {
-        let conn = match pubsub_client.get_async_connection().await {
-            Ok(c) => c,
+        let mut pubsub = match pubsub_client.get_async_pubsub().await {
+            Ok(ps) => ps,
             Err(e) => {
                 error!("Redis PubSub 连接失败: {}", e);
                 let _ = out_tx_clone.send(
@@ -423,7 +423,6 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
                 return;
             }
         };
-        let mut pubsub = conn.into_pubsub();
         let mut subscribed_channels: std::collections::HashSet<String> =
             std::collections::HashSet::new();
 
@@ -431,9 +430,8 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
             client: &redis::Client,
             current_channels: &std::collections::HashSet<String>,
         ) -> Option<redis::aio::PubSub> {
-            match client.get_async_connection().await {
-                Ok(conn) => {
-                    let mut new_pubsub = conn.into_pubsub();
+            match client.get_async_pubsub().await {
+                Ok(mut new_pubsub) => {
                     for ch in current_channels {
                         if let Err(e) = new_pubsub.subscribe(&ch).await {
                             tracing::error!("重建后订阅频道失败 {}: {}", ch, e);

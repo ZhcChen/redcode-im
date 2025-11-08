@@ -454,7 +454,7 @@ pub async fn send_message(
         let mut conn = state
             .redis
             .get_session_client()
-            .get_async_connection()
+            .get_multiplexed_async_connection()
             .await
             .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
 
@@ -1148,7 +1148,7 @@ pub async fn broadcast_message_to_room(
     let mut conn = state
         .redis
         .get_pubsub_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await?;
     let subscriber_count: i64 = conn.publish(&channel, encoded).await?;
 
@@ -1170,7 +1170,7 @@ pub async fn broadcast_message_update(
     let mut conn = state
         .redis
         .get_pubsub_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await?;
     let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
 
@@ -1192,7 +1192,7 @@ pub async fn broadcast_pin_update(
     let mut conn = state
         .redis
         .get_pubsub_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await?;
     let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
 

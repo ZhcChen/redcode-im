@@ -51,16 +51,16 @@ impl RedisManager {
     /// 测试连接
     pub async fn test_connections(&self) -> Result<(), Box<dyn std::error::Error>> {
         // 测试各个专用连接
-        let mut pubsub_conn = self.pubsub_client.get_connection()?;
-        let _: String = redis::cmd("PING").query(&mut pubsub_conn)?;
+        let mut pubsub_conn = self.pubsub_client.get_multiplexed_async_connection().await?;
+        let _: String = redis::cmd("PING").query_async(&mut pubsub_conn).await?;
         info!("Redis Pub/Sub 连接测试成功");
 
-        let mut cache_conn = self.cache_client.get_connection()?;
-        let _: String = redis::cmd("PING").query(&mut cache_conn)?;
+        let mut cache_conn = self.cache_client.get_multiplexed_async_connection().await?;
+        let _: String = redis::cmd("PING").query_async(&mut cache_conn).await?;
         info!("Redis Cache 连接测试成功");
 
-        let mut session_conn = self.session_client.get_connection()?;
-        let _: String = redis::cmd("PING").query(&mut session_conn)?;
+        let mut session_conn = self.session_client.get_multiplexed_async_connection().await?;
+        let _: String = redis::cmd("PING").query_async(&mut session_conn).await?;
         info!("Redis Session 连接测试成功");
 
         Ok(())

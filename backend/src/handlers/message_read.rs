@@ -195,7 +195,7 @@ async fn publish_read_receipt(
     let mut conn = state
         .redis
         .get_pubsub_client()
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await?;
     let _: i64 = conn.publish(&channel, serialized).await?;
 

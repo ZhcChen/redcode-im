@@ -36,7 +36,7 @@ impl SessionManager {
         socket_id: String,
         rooms: Vec<Uuid>,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         let session_info = SessionInfo {
             user_id,
@@ -72,7 +72,7 @@ impl SessionManager {
 
     /// 获取用户会话信息
     pub async fn get_user_session(&self, user_id: &Uuid) -> RedisResult<Option<SessionInfo>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let session_key = CacheKeys::user_session(user_id);
 
         let session_json: Option<String> = conn.get(&session_key).await?;
@@ -100,7 +100,7 @@ impl SessionManager {
 
     /// 更新会话心跳
     pub async fn update_session_heartbeat(&self, user_id: &Uuid) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let session_key = CacheKeys::user_session(user_id);
 
         // 获取现有会话信息
@@ -127,7 +127,7 @@ impl SessionManager {
 
     /// 更新用户房间列表
     pub async fn update_user_rooms(&self, user_id: &Uuid, rooms: Vec<Uuid>) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let session_key = CacheKeys::user_session(user_id);
 
         // 获取现有会话信息
@@ -154,7 +154,7 @@ impl SessionManager {
 
     /// 删除用户会话
     pub async fn delete_user_session(&self, user_id: &Uuid) -> RedisResult<bool> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         // 获取会话信息（用于确定节点ID）
         let session_info = self.get_user_session(user_id).await?;
@@ -181,7 +181,7 @@ impl SessionManager {
 
     /// 获取节点的所有会话
     pub async fn get_node_sessions(&self, node_id: &str) -> RedisResult<Vec<Uuid>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let node_sessions_key = CacheKeys::node_sessions(node_id);
 
         let user_ids: Vec<String> = conn.smembers(&node_sessions_key).await?;
@@ -250,7 +250,7 @@ impl SessionManager {
         connected_users: usize,
         active_rooms: usize,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         let heartbeat = NodeHeartbeat {
             node_id: self.node_id.clone(),
@@ -285,7 +285,7 @@ impl SessionManager {
 
     /// 获取所有活跃节点
     pub async fn get_active_nodes(&self) -> RedisResult<Vec<NodeHeartbeat>> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let active_nodes_key = CacheKeys::active_nodes();
 
         let node_ids: Vec<String> = conn.smembers(&active_nodes_key).await?;
@@ -306,7 +306,7 @@ impl SessionManager {
     /// 检查节点是否活跃
     pub async fn is_node_active(&self, node_id: &str) -> RedisResult<bool> {
         let heartbeat_key = CacheKeys::node_heartbeat(node_id);
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
 
         let exists: bool = conn.exists(&heartbeat_key).await?;
         Ok(exists)
@@ -326,7 +326,7 @@ impl SessionManager {
             session.last_heartbeat = Utc::now();
 
             // 保存更新的会话信息
-            let mut conn = self.client.get_async_connection().await?;
+            let mut conn = self.client.get_multiplexed_async_connection().await?;
             let session_key = CacheKeys::user_session(user_id);
             let session_json = serde_json::to_string(&session).map_err(|e| {
                 redis::RedisError::from((

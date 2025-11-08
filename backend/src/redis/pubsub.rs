@@ -37,7 +37,7 @@ impl PubSubManager {
 
     /// 订阅房间频道
     pub async fn subscribe_to_room(&self, room_id: &Uuid) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let channel = CacheKeys::pubsub_channel(room_id);
 
         conn.subscribe(&channel).await?;
@@ -52,7 +52,7 @@ impl PubSubManager {
 
     /// 取消订阅房间频道
     pub async fn unsubscribe_from_room(&self, room_id: &Uuid) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let channel = CacheKeys::pubsub_channel(room_id);
 
         conn.unsubscribe(&channel).await?;
@@ -67,7 +67,7 @@ impl PubSubManager {
 
     /// 发布消息到房间频道
     pub async fn publish_to_room(&self, room_id: &Uuid, payload: &PubSubPayload) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let channel = CacheKeys::pubsub_channel(room_id);
 
         let encoded = payload.encode_protobuf();
@@ -109,7 +109,7 @@ impl PubSubManager {
         node_id: String,
         message_sender: mpsc::UnboundedSender<PubSubPayload>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut conn = client.get_async_connection().await?;
+        let mut conn = client.get_multiplexed_async_connection().await?;
         let mut pubsub = conn.into_pubsub();
 
         // 订阅系统控制频道
@@ -241,7 +241,7 @@ impl PubSubManager {
 
     /// 广播系统消息
     pub async fn broadcast_system_message(&self, message: &str) -> RedisResult<()> {
-        let mut conn = self.client.get_async_connection().await?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
         let subscriber_count: i32 = conn.publish("system:control", message).await?;
 
         info!("系统消息广播: {} 个节点收到", subscriber_count);
