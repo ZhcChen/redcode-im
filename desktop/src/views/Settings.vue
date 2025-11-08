@@ -126,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import Avatar from '../components/Avatar.vue'
@@ -266,8 +266,9 @@ const handleFileSelect = async (event: Event) => {
 
     if (uploadResult.code === 200 && uploadResult.data) {
       console.log('[Settings] ✅ 头像上传成功，服务器响应', uploadResult.data)
-      toast.success('头像更新成功')
-      // 清理预览URL，由 store 中的最新数据驱动界面
+      // 不显示成功提示，让用户看到头像直接更新
+      // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
+      await nextTick()
       if (previewImageUrl.value) {
         URL.revokeObjectURL(previewImageUrl.value)
         previewImageUrl.value = ''
