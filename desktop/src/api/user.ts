@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { get, patch, post } from './http';
 import type { ApiResponse } from './http';
 import type { LegacyUserInfo } from './system';
 import { AvatarCache } from '../utils/avatar-cache';
@@ -81,7 +80,7 @@ const mapBackendToSearchUser = (user: BackendUserInfo): UserInfo => ({
 export class UserApi {
   static async getUserAccountInfo(params: { userId?: string } = {}): Promise<ApiResponse<LegacyUserInfo>> {
     const endpoint = params.userId && params.userId !== 'me' ? `/users/${params.userId}` : '/auth/me';
-    const response = await get<BackendUserInfo>(endpoint);
+    const response = await rustHttp.get<BackendUserInfo>(endpoint);
     if (!response.success || !response.data) {
       return { ...response, data: null };
     }
@@ -94,7 +93,7 @@ export class UserApi {
     download_url?: string;
   }>> {
     const query = params.expiresInSeconds ? { expires_in_seconds: params.expiresInSeconds } : undefined;
-    return get('/users/me/avatar/url', query);
+    return rustHttp.get('/users/me/avatar/url', query);
   }
 
   static async updateUserInfo(params: Partial<UserInfo & LegacyUserInfo>): Promise<ApiResponse<LegacyUserInfo>> {
@@ -115,7 +114,7 @@ export class UserApi {
       };
     }
 
-    const response = await patch<BackendUserInfo>('/users/me', payload);
+    const response = await rustHttp.patch<BackendUserInfo>('/users/me', payload);
     if (!response.success || !response.data) {
       return { ...response, data: null };
     }
@@ -139,7 +138,7 @@ export class UserApi {
       query.set('limit', params.limit.toString());
     }
 
-    const response = await get<BackendUserInfo[]>(`/users/search?${query.toString()}`);
+    const response = await rustHttp.get<BackendUserInfo[]>(`/users/search?${query.toString()}`);
     if (!response.success || !response.data) {
       return { ...response, data: [] };
     }
@@ -151,7 +150,7 @@ export class UserApi {
   }
 
   static async updateUserPassword(params: { oldPwd: string; newPwd: string }): Promise<ApiResponse<{ success: boolean }>> {
-    return post<{ success: boolean }>('/users/me/password', {
+    return rustHttp.post<{ success: boolean }>('/users/me/password', {
       current_password: params.oldPwd,
       new_password: params.newPwd
     });
@@ -182,7 +181,7 @@ export class UserApi {
 
     const contentType = file.type || 'application/octet-stream';
     console.log('[UserApi] 🔐 请求头像直传签名', { contentType });
-    const directResp = await post<{
+    const directResp = await rustHttp.post<{
       success: boolean;
       message: string;
       key?: string;
