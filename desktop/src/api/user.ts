@@ -33,7 +33,7 @@ const emitClientDebug = async (tag: string, payload: Record<string, unknown>) =>
   try {
     await invoke('client_debug', { payload: { tag, ...payload } });
   } catch (error) {
-    console.warn('[UserApi] client_debug 调用失败', { tag, error });
+    // Suppress error
   }
 };
 
@@ -296,8 +296,10 @@ export class UserApi {
     });
 
     console.log('[UserApi] 🔄 提交头像配置', { key, delete_previous: true });
+    await emitClientDebug('USER_AVATAR_COMMIT_START', { key });
     let commitResp;
     try {
+      await emitClientDebug('USER_AVATAR_CALLING_POST', { path: '/users/me/avatar/commit' });
       console.log('[UserApi] ⏳ 准备调用 rustHttp.post...');
       commitResp = await rustHttp.post<{
         success: boolean;
@@ -308,6 +310,7 @@ export class UserApi {
         delete_previous: true,
         expires_in_seconds: 600
       });
+      await emitClientDebug('USER_AVATAR_POST_COMPLETE', { success: commitResp.success });
       console.log('[UserApi] ✅ commit请求完成,开始处理响应');
       console.log('[UserApi] 🔍 commitResp 完整结构:', JSON.stringify(commitResp, null, 2));
     } catch (commitError) {

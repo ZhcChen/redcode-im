@@ -257,10 +257,25 @@ class RustHttpClient {
         console.warn('[RustHTTP] client_debug(Full) 失败:', debugError)
       }
 
-      const result = await invoke<string>('http_request', args)
-      console.log('[RustHTTP] 📥 Raw result from Rust:', result.substring(0, 500))
+      const emitDebug = async (msg: string, data: any) => {
+        try {
+          await invoke('client_debug', { payload: { tag: 'JSLOG', message: msg, data } })
+        } catch {}
+        console.log(msg, data)
+      }
 
-      const response: HttpResponseData = JSON.parse(result)
+      await emitDebug('[RustHTTP] 🔵 开始调用 Tauri invoke...', { method: methodUpper, path });
+      const result = await invoke<string>('http_request', args)
+      await emitDebug('[RustHTTP] 📥 Raw result from Rust', { result: result.substring(0, 500) });
+
+      let response: HttpResponseData
+      try {
+        response = JSON.parse(result)
+        await emitDebug('[RustHTTP] ✅ JSON.parse 成功', {});
+      } catch (parseError) {
+        await emitDebug('[RustHTTP] ❌ JSON.parse 失败', { error: String(parseError) });
+        throw parseError;
+      }
       console.log('[RustHTTP] ⇠ response', {
         method: methodUpper,
         path,
