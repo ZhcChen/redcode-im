@@ -524,3 +524,110 @@ impl HttpClientState {
         inner.stats.last_error = Some(error.to_string());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyper::service::{make_service_fn, service_fn};
+    use hyper::{Body, Request, Response, Server, StatusCode};
+    use serde_json::json;
+    use std::convert::Infallible;
+    use std::net::SocketAddr;
+    use tokio::sync::oneshot;
+    use crate::http::types::ConnectionPoolConfig;
+
+    async fn start_mock_server() -> (SocketAddr, oneshot::Sender<()>) {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let make_svc = make_service_fn(|_| async {
+            Ok::<_, Infallible>(service_fn(|req: Request<Body>| async move {
+                let has_auth = req.headers().contains_key("authorization");
+                let bytes = hyper::body::to_bytes(req.into_body()).await.unwrap_or_default();
+                let payload = json!({
+                    "success": true,
+                    "code": 200,
+                    "message": "OK",
+                    "data": {
+                        "hasAuth": has_auth,
+                        "bodyBase64": general_purpose::STANDARD.encode(&bytes)
+                    }
+                });
+                Ok::<_, Infallible>(
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header("content-type", "application/json")
+                        .body(Body::from(payload.to_string()))
+                        .unwrap(),
+                )
+            }))
+        });
+
+        let server = Server::bind(&([127, 0, 0, 1], 0).into()).serve(make_svc);
+        let addr = server.local_addr();
+        tokio::spawn(async move {
+            server
+                .with_graceful_shutdown(async {
+                    let _ = shutdown_rx.await;
+                })
+                .await
+                .ok();
+        });
+
+        (addr, shutdown_tx)
+    }
+
+    fn test_client_config(base_url: String) -> HttpClientConfig {
+        HttpClientConfig {
+            base_url,
+            timeout_ms: 5_000,
+            max_retries: 1,
+            retry_delay_ms: 100,
+            verify_ssl: false,
+            user_agent: "bear-chat-tauri/test".into(),
+            connection_pool: ConnectionPoolConfig {
+                max_idle_per_host: 4,
+                idle_timeout_secs: 30,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn binary_request_respects_inject_token_flag() {
+        let (addr, shutdown) = start_mock_server().await;
+        let config = test_client_config(format!("http://{}", addr));
+        let state = create_http_client(config).unwrap();
+        state
+            .initialize(None, Some("secret-token".into()), None, None, None, None)
+            .await
+            .unwrap();
+
+        // Request with inject_token disabled should not forward Authorization header
+        let mut opts = HttpRequestOptions::new(Method::PUT, "/upload".into());
+        opts.inject_token = false;
+        opts.body_bytes = Some(vec![1, 2, 3, 4]);
+        let outcome = state.execute_request(opts).await.unwrap();
+        let data = outcome.payload.get("data").expect("data payload");
+        let expected_body = general_purpose::STANDARD.encode([1u8, 2, 3, 4]);
+        assert_eq!(data.get("hasAuth").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(
+            data.get("bodyBase64").and_then(|v| v.as_str()),
+            Some(expected_body.as_str())
+        );
+
+        // Default behavior should include Authorization header
+        let mut opts_with_token = HttpRequestOptions::new(Method::PUT, "/upload".into());
+        opts_with_token.body_bytes = Some(vec![5, 6, 7]);
+        let outcome_with_token = state.execute_request(opts_with_token).await.unwrap();
+        let data_with_token = outcome_with_token
+            .payload
+            .get("data")
+            .expect("data payload with token");
+        assert_eq!(
+            data_with_token
+                .get("hasAuth")
+                .and_then(|v| v.as_bool()),
+            Some(true)
+        );
+
+        let _ = shutdown.send(());
+    }
+}

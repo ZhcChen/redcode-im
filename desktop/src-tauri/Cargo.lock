@@ -291,6 +291,7 @@ name = "bear-chat-tauri"
 version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
+ "hyper 0.14.32",
  "once_cell",
  "reqwest 0.11.27",
  "rusqlite",
