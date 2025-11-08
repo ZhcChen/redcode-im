@@ -203,7 +203,16 @@ export class UserApi {
     }
 
     const { key, signature } = directData;
-    const headers = new Headers(signature.headers || {});
+    const headers = new Headers();
+    // 过滤掉 Host 头，避免浏览器 CORS 限制
+    Object.entries(signature.headers || {}).forEach(
+      ([headerKey, headerValue]) => {
+        if (headerKey.toLowerCase() === 'host') {
+          return;
+        }
+        headers.set(headerKey, headerValue);
+      }
+    );
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', contentType);
     }
