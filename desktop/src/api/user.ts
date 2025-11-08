@@ -203,7 +203,15 @@ export class UserApi {
     }
 
     const { key, signature } = directData;
-    const headers = new Headers(signature.headers || {});
+    const headers = new Headers();
+    Object.entries(signature.headers || {}).forEach(
+      ([headerKey, headerValue]) => {
+        if (headerKey.toLowerCase() === 'host') {
+          return;
+        }
+        headers.set(headerKey, headerValue);
+      }
+    );
     if (!headers.has('Content-Type')) {
       headers.set('Content-Type', contentType);
     }
