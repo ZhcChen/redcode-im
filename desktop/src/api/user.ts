@@ -298,6 +298,7 @@ export class UserApi {
     console.log('[UserApi] 🔄 提交头像配置', { key, delete_previous: true });
     let commitResp;
     try {
+      console.log('[UserApi] ⏳ 准备调用 rustHttp.post...');
       commitResp = await rustHttp.post<{
         success: boolean;
         message: string;
@@ -308,6 +309,7 @@ export class UserApi {
         expires_in_seconds: 600
       });
       console.log('[UserApi] ✅ commit请求完成,开始处理响应');
+      console.log('[UserApi] 🔍 commitResp 完整结构:', JSON.stringify(commitResp, null, 2));
     } catch (commitError) {
       console.error('[UserApi] ❌ commit请求异常:', commitError);
       return {
@@ -323,6 +325,9 @@ export class UserApi {
       success: commitResp.success,
       code: commitResp.code,
       message: commitResp.message,
+      hasData: Boolean(commitData),
+      dataType: typeof commitData,
+      dataKeys: commitData ? Object.keys(commitData) : null,
       dataSuccess: commitData?.success,
       downloadUrl: commitData?.download_url
     });

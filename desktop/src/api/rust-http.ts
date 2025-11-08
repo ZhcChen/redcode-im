@@ -258,6 +258,7 @@ class RustHttpClient {
       }
 
       const result = await invoke<string>('http_request', args)
+      console.log('[RustHTTP] 📥 Raw result from Rust:', result.substring(0, 500))
 
       const response: HttpResponseData = JSON.parse(result)
       console.log('[RustHTTP] ⇠ response', {
@@ -265,7 +266,8 @@ class RustHttpClient {
         path,
         success: response.success,
         code: response.code,
-        message: response.message
+        message: response.message,
+        dataKeys: response.data ? Object.keys(response.data) : null
       })
       return {
         code: response.code,
