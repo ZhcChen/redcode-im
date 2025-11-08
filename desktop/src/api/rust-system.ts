@@ -5,6 +5,7 @@
  */
 
 import { rustHttp, isRustEnabled, FEATURE_FLAGS } from './rust-http'
+import { get } from './http'
 import type { ApiResponse } from './http'
 import type { LegacyUserInfo } from './system'
 
@@ -307,14 +308,13 @@ export class RustSystemApi {
   static async healthCheck(): Promise<boolean> {
     if (this.useRust()) {
       return await rustHttp.healthCheck()
-    } else {
-      // TypeScript 版本
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/health`)
-        return response.ok
-      } catch {
-        return false
-      }
+    }
+    try {
+      const response = await get('/health')
+      return response.success
+    } catch (error) {
+      console.warn('TypeScript 健康检查失败:', error)
+      return false
     }
   }
 

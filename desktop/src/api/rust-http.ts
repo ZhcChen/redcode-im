@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { arrayBufferToBase64, blobToBase64, uint8ArrayToBase64 } from '../utils/binary'
 import type { ApiResponse } from './http.types'
 
 // 配置接口
@@ -28,6 +29,8 @@ export interface HttpRequestParams {
   queryParams?: Record<string, string>
   timeout?: number
   retryCount?: number
+  binaryBody?: ArrayBuffer | ArrayBufferView | Blob | string
+  responseType?: 'json' | 'binary'
 }
 
 // 响应数据接口
@@ -45,12 +48,19 @@ interface RustHttpError {
   errorType: string
 }
 
+const resolveFlag = (value: string | undefined, fallback: boolean) => {
+  if (value === undefined || value === '') {
+    return fallback
+  }
+  return value === 'true'
+}
+
 // 功能开关
 const FEATURE_FLAGS = {
-  USE_RUST_BACKEND: import.meta.env.VITE_USE_RUST_BACKEND === 'true',
-  RUST_FILE_UPLOAD: import.meta.env.VITE_RUST_FILE_UPLOAD === 'true',
-  RUST_BATCH_REQUESTS: import.meta.env.VITE_RUST_BATCH_REQUESTS === 'true',
-  RUST_CONNECTION_POOL: import.meta.env.VITE_RUST_CONNECTION_POOL === 'true',
+  USE_RUST_BACKEND: resolveFlag(import.meta.env.VITE_USE_RUST_BACKEND, true),
+  RUST_FILE_UPLOAD: resolveFlag(import.meta.env.VITE_RUST_FILE_UPLOAD, true),
+  RUST_BATCH_REQUESTS: resolveFlag(import.meta.env.VITE_RUST_BATCH_REQUESTS, true),
+  RUST_CONNECTION_POOL: resolveFlag(import.meta.env.VITE_RUST_CONNECTION_POOL, true),
 }
 
 // 检查是否启用 Rust 后端
@@ -147,6 +157,28 @@ class RustHttpClient {
     console.log('🗑️ Token 清除成功')
   }
 
+  private async encodeBinaryBody(input?: ArrayBuffer | ArrayBufferView | Blob | string): Promise<string | undefined> {
+    if (!input) {
+      return undefined
+    }
+    if (typeof input === 'string') {
+      return input
+    }
+    if (input instanceof Blob) {
+      return await blobToBase64(input)
+    }
+    if (input instanceof ArrayBuffer) {
+      return arrayBufferToBase64(input)
+    }
+    if (ArrayBuffer.isView(input)) {
+      const view = new Uint8Array(
+        input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength)
+      )
+      return uint8ArrayToBase64(view)
+    }
+    throw new Error('不支持的二进制请求体类型')
+  }
+
   /**
    * 通用请求方法
    */
@@ -155,69 +187,40 @@ class RustHttpClient {
       await this.initialize()
     }
 
-    const { path, method = 'GET', body, headers, queryParams, timeout, retryCount } = params
+    const {
+      path,
+      method = 'GET',
+      body,
+      headers,
+      queryParams,
+      timeout,
+      retryCount,
+      binaryBody,
+      responseType
+    } = params
     const methodUpper = method.toUpperCase()
 
     try {
-      let result: string
+      const bodyStr =
+        typeof body === 'string'
+          ? body
+          : body !== undefined && body !== null
+            ? JSON.stringify(body)
+            : null
+      const binaryBodyEncoded = await this.encodeBinaryBody(binaryBody)
 
-      switch (methodUpper) {
-        case 'GET': {
-          const queryString = queryParams
-            ? '?' + new URLSearchParams(queryParams).toString()
-            : ''
-          result = await invoke('http_get', {
-            path: path + queryString
-          })
-          break
-        }
+      const result = await invoke<string>('http_request', {
+        method: methodUpper,
+        path,
+        body: bodyStr,
+        binary_body: binaryBodyEncoded,
+        headers,
+        query_params: queryParams ?? null,
+        timeout,
+        retry_count: retryCount,
+        expect_binary: responseType === 'binary'
+      })
 
-        case 'POST': {
-          const bodyStr = typeof body === 'string' ? body : body ? JSON.stringify(body) : null
-          result = await invoke('http_post', {
-            path,
-            body: bodyStr
-          })
-          break
-        }
-
-        case 'PUT': {
-          const bodyStr = typeof body === 'string' ? body : body ? JSON.stringify(body) : null
-          result = await invoke('http_put', {
-            path,
-            body: bodyStr
-          })
-          break
-        }
-
-        case 'PATCH': {
-          const bodyStr = typeof body === 'string' ? body : body ? JSON.stringify(body) : null
-          result = await invoke('http_patch', {
-            path,
-            body: bodyStr
-          })
-          break
-        }
-
-        case 'DELETE': {
-          result = await invoke('http_delete', { path })
-          break
-        }
-
-        default: {
-          // 使用通用 request 方法
-          const bodyStr = typeof body === 'string' ? body : body ? JSON.stringify(body) : null
-          result = await invoke('http_request', {
-            method: methodUpper,
-            path,
-            body: bodyStr,
-            headers
-          })
-          break
-        }
-      }
-
-      // 解析响应 JSON
       const response: HttpResponseData = JSON.parse(result)
       return {
         code: response.code,
@@ -328,9 +331,7 @@ class RustHttpClient {
    */
   async upload<T = any>(path: string, file: File | string): Promise<ApiResponse<T>> {
     if (!isRustEnabled('RUST_FILE_UPLOAD')) {
-      console.warn('Rust 文件上传功能未启用，使用 TypeScript 模式')
-      // 回退到 TypeScript 实现
-      return await this.uploadWithTs(path, file as File)
+      throw new Error('Rust 文件上传功能未启用，请开启 VITE_RUST_FILE_UPLOAD')
     }
 
     if (!this.isInitialized) {
@@ -346,25 +347,7 @@ class RustHttpClient {
         filePath = file
         contentType = 'application/octet-stream'
       } else {
-        // 如果是 File 对象，转换为 base64 传给 Rust
-        const fileBuffer = await file.arrayBuffer()
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)))
-
-        // 调用 Rust 上传（传入 base64 编码的文件内容）
-        const result = await invoke<string>('http_upload_base64', {
-          path,
-          fileData: base64,
-          fileName: file.name,
-          contentType: file.type
-        })
-
-        const response: HttpResponseData = JSON.parse(result)
-        return {
-          code: response.code,
-          message: response.message,
-          data: response.data,
-          success: response.success
-        }
+        throw new Error('Rust 上传目前仅支持传入已保存的文件路径')
       }
 
       // 调用 Rust 上传（文件路径方式）
@@ -389,33 +372,6 @@ class RustHttpClient {
         data: null,
         success: false
       }
-    }
-  }
-
-  /**
-   * TypeScript 模式文件上传（回退方案）
-   */
-  private async uploadWithTs<T = any>(path: string, file: File): Promise<ApiResponse<T>> {
-    // 创建 FormData
-    const formData = new FormData()
-    formData.append('file', file)
-
-    // 使用 fetch 上传
-    const response = await fetch(`${this.config.baseUrl}${path}`, {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return {
-      code: response.status,
-      message: data.message || 'Upload successful',
-      data: data.data || data,
-      success: response.ok
     }
   }
 

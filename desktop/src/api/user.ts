@@ -3,6 +3,9 @@ import type { ApiResponse } from './http';
 import type { LegacyUserInfo } from './system';
 import { AvatarCache } from '../utils/avatar-cache';
 import { store } from '../store';
+import { rustHttp } from './rust-http';
+import type { HttpRequestParams } from './rust-http';
+import { base64ToUint8Array } from '../utils/binary';
 
 interface BackendUserInfo {
   id: string;
@@ -230,30 +233,31 @@ export class UserApi {
       method: signature.method || 'PUT',
       headers: finalHeaders
     });
-    const uploadResponse = await fetch(signature.url, {
-      method: signature.method || 'PUT',
-      headers,
-      mode: 'cors',
-      body: fileBuffer
+
+    const uploadResponse = await rustHttp.requestRaw<{ base64?: string }>({
+      path: signature.url,
+      method: (signature.method || 'PUT') as HttpRequestParams['method'],
+      headers: finalHeaders,
+      binaryBody: fileBuffer
     });
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
+    if (!uploadResponse.success) {
+      const status = uploadResponse.code;
 
       // 针对 CORS 错误提供更友好的错误信息
-      let errorMessage = errorText || '上传失败，请稍后重试';
-      if (uploadResponse.status === 403) {
+      let errorMessage = uploadResponse.message || '上传失败，请稍后重试';
+      if (status === 403) {
         errorMessage = '上传配置错误：可能存在跨域访问问题，请联系管理员检查存储配置';
-      } else if (uploadResponse.status === 0) {
+      } else if (status === 0) {
         errorMessage = '网络连接失败，请检查网络设置';
       }
 
       console.error('[UserApi] ❌ 对象存储上传失败', {
-        status: uploadResponse.status,
-        errorText
+        status,
+        message: uploadResponse.message
       });
       return {
-        code: uploadResponse.status,
+        code: status,
         success: false,
         message: errorMessage,
         data: null
@@ -261,7 +265,7 @@ export class UserApi {
     }
 
     console.log('[UserApi] ✅ 对象存储上传成功，等待提交', {
-      status: uploadResponse.status,
+      status: uploadResponse.code,
       key
     });
 
@@ -358,12 +362,18 @@ export class UserApi {
         return;
       }
 
-      const response = await fetch(payload.download_url);
-      if (!response.ok) {
-        throw new Error(`下载头像失败: HTTP ${response.status}`);
+      const downloadResponse = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
+        path: payload.download_url,
+        method: 'GET',
+        responseType: 'binary'
+      });
+
+      if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
+        throw new Error(`下载头像失败: HTTP ${downloadResponse.code}`);
       }
-      const buffer = new Uint8Array(await response.arrayBuffer());
-      const contentType = response.headers.get('content-type') || undefined;
+
+      const buffer = base64ToUint8Array(downloadResponse.data.base64);
+      const contentType = downloadResponse.data.headers?.['content-type'] || undefined;
       const saved = await AvatarCache.save({
         userId: currentUser.id,
         objectKey: currentUser.avatarObjectKey,

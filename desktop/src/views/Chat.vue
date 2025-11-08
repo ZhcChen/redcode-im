@@ -466,6 +466,9 @@ import { webSocketManager } from '../utils/websocket'
 import { eventManager } from '../utils/eventManager'
 import { fileConfig } from '../api/config'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
+import { rustHttp } from '../api/rust-http'
+import type { HttpRequestParams } from '../api/rust-http'
+import { base64ToUint8Array } from '../utils/binary'
 
 // 消息常量定义 - 与bear-chat-uniapp保持一致
 const MESSAGE_CONSTANTS = {
@@ -902,9 +905,6 @@ const buildPlaceholderPart = (
   },
 });
 
-const isTauriRuntime = typeof window !== 'undefined'
-  && (Boolean((window as any).__TAURI__) || Boolean((window as any).__TAURI_INTERNALS__));
-
 const forbiddenDirectUploadHeaders = new Set([
   'host',
   'content-length',
@@ -950,109 +950,41 @@ const uploadWithSignature = async (
   onProgress?: (progress: number) => void,
 ) => {
   const headers = buildDirectUploadHeaders(signature.headers, file);
-  const method = signature.method || 'PUT';
+  const method = (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'];
+  const fileBuffer = new Uint8Array(await file.arrayBuffer());
 
-  if (isTauriRuntime) {
-    try {
-      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-      const response = await tauriFetch(signature.url, {
-        method,
-        headers,
-        body: file,
-      });
+  const response = await rustHttp.requestRaw({
+    path: signature.url,
+    method,
+    headers,
+    binaryBody: fileBuffer
+  });
 
-      if (!response.ok) {
-        let responseText = '';
-        try {
-          responseText = (await response.text())?.trim();
-        } catch (error) {
-          console.warn('读取上传响应失败:', error);
-        }
-        const extra = responseText ? `，响应：${responseText.slice(0, 200)}` : '';
-        throw new Error(`上传失败，状态码 ${response.status}${extra}`);
-      }
-
-      if (onProgress) {
-        onProgress(1);
-      }
-      return;
-    } catch (error: any) {
-      throw new Error(error?.message || '文件上传失败');
-    }
+  if (!response.success) {
+    const extra = response.message ? `，响应：${response.message.slice(0, 200)}` : '';
+    throw new Error(`上传失败，状态码 ${response.code}${extra}`);
   }
 
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open(method, signature.url, true);
-
-    Object.entries(headers).forEach(([headerKey, headerValue]) => {
-      try {
-        xhr.setRequestHeader(headerKey, headerValue);
-      } catch (error) {
-        console.warn(`跳过无法设置的上传头 ${headerKey}:`, error);
-      }
-    });
-
-    if (xhr.upload && onProgress) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const ratio = event.total > 0 ? event.loaded / event.total : 0;
-          onProgress(ratio);
-        }
-      };
-    }
-
-    xhr.onerror = () => {
-      const status = xhr.status;
-      const statusText = xhr.statusText;
-      if (status >= 400) {
-        reject(new Error(`文件上传失败，状态码 ${status}${statusText ? ` ${statusText}` : ''}`));
-      } else {
-        reject(new Error('文件上传失败'));
-      }
-    };
-
-    xhr.onabort = () => {
-      reject(new Error('文件上传已取消'));
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-        return;
-      }
-      const responseText = typeof xhr.responseText === 'string' ? xhr.responseText.trim() : '';
-      const extra = responseText ? `，响应：${responseText.slice(0, 200)}` : '';
-      reject(new Error(`上传失败，状态码 ${xhr.status}${extra}`));
-    };
-
-    try {
-      xhr.send(file);
-    } catch (error: any) {
-      reject(new Error(error?.message || '文件上传失败'));
-    }
-  });
+  if (onProgress) {
+    onProgress(1);
+  }
 };
 
 const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string | null): Promise<{ localPath: string; fromBlob: boolean }> => {
   try {
-    if (isTauriRuntime) {
-      const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-      const response = await tauriFetch(downloadUrl, { method: 'GET' });
-      if (!response.ok) {
-        throw new Error(`下载失败，状态码 ${response.status}`);
-      }
-      const buffer = await response.arrayBuffer();
-      const blob = new Blob([buffer], { type: mime || undefined });
-      const objectUrl = URL.createObjectURL(blob);
-      return { localPath: objectUrl, fromBlob: true };
+    const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
+      path: downloadUrl,
+      method: 'GET',
+      responseType: 'binary'
+    });
+
+    if (!response.success || !response.data || !response.data.base64) {
+      throw new Error(`下载失败，状态码 ${response.code}`);
     }
 
-    const response = await fetch(downloadUrl, { method: 'GET' });
-    if (!response.ok) {
-      throw new Error(`下载失败，状态码 ${response.status}`);
-    }
-    const blob = await response.blob();
+    const bytes = base64ToUint8Array(response.data.base64);
+    const contentType = mime || response.data.headers?.['content-type'] || undefined;
+    const blob = new Blob([bytes], { type: contentType });
     const objectUrl = URL.createObjectURL(blob);
     return { localPath: objectUrl, fromBlob: true };
   } catch (error) {
@@ -4120,14 +4052,16 @@ const handleVoiceSend = async (recording: any) => {
     const headers = new Headers(signature.headers || {})
     headers.set('Content-Type', 'audio/webm')
 
-    const uploadResponse = await fetch(signature.url, {
-      method: signature.method || 'PUT',
+    const voiceBuffer = new Uint8Array(await recording.blob.arrayBuffer())
+    const uploadResponse = await rustHttp.requestRaw({
+      path: signature.url,
+      method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
       headers,
-      body: recording.blob,
+      binaryBody: voiceBuffer
     })
 
-    if (!uploadResponse.ok) {
-      throw new Error('文件上传失败')
+    if (!uploadResponse.success) {
+      throw new Error(uploadResponse.message || '文件上传失败')
     }
 
     // 3. 创建语音消息

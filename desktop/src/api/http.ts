@@ -8,6 +8,7 @@ import type { ApiResponse } from './http.types';
 import { rustHttp } from './rust-http';
 import type { HttpRequestParams } from './rust-http';
 import { store } from '../store';
+import { arrayBufferToBase64, blobToBase64 } from '../utils/binary';
 
 export type { ApiResponse } from './http.types';
 
@@ -28,6 +29,30 @@ let rustDisabled = false;
 let rustTokenSnapshot: string | null = null;
 
 const canUseRustBridge = () => USE_RUST_BACKEND && isTauriEnvironment() && !rustDisabled;
+
+type InternalRequestOptions = RequestOptions & {
+  serializedBody?: string;
+  binaryBodyBase64?: string;
+};
+
+const isFormDataBody = (value: unknown): value is FormData =>
+  typeof FormData !== 'undefined' && value instanceof FormData;
+
+const isBlobBody = (value: unknown): value is Blob =>
+  typeof Blob !== 'undefined' && value instanceof Blob;
+
+const serializeFormData = async (formData: FormData) => {
+  if (typeof Response === 'undefined') {
+    throw new Error('当前环境不支持 FormData 转换，请在桌面端运行');
+  }
+  const response = new Response(formData);
+  const contentType = response.headers.get('content-type') || 'multipart/form-data';
+  const buffer = await response.arrayBuffer();
+  return {
+    base64: arrayBufferToBase64(buffer),
+    contentType
+  };
+};
 
 const syncRustToken = async (token: string | null) => {
   if (!canUseRustBridge()) {
@@ -95,6 +120,7 @@ export interface RequestOptions {
   retry?: boolean; // 是否启用重试
   retryTimes?: number; // 重试次数
   retryDelay?: number; // 重试延迟
+  responseType?: 'json' | 'binary';
 }
 
 /**
@@ -210,18 +236,8 @@ class HttpClient {
     }
   }
 
-  private supportsRustBridge(options: RequestOptions): boolean {
-    if (!canUseRustBridge()) {
-      return false;
-    }
-    const body = options.body;
-    if (typeof FormData !== 'undefined' && body instanceof FormData) {
-      return false;
-    }
-    if (typeof Blob !== 'undefined' && body instanceof Blob) {
-      return false;
-    }
-    return true;
+  private supportsRustBridge(): boolean {
+    return canUseRustBridge();
   }
 
   /**
@@ -338,8 +354,7 @@ class HttpClient {
     const {
       method = 'GET',
       headers = {},
-      body,
-      timeout = requestConfig.timeout
+      body
     } = options;
 
     const fullUrl = url.startsWith('http') ? url : `${this.baseURL}${url}`;
@@ -351,183 +366,62 @@ class HttpClient {
       ...this.defaultHeaders,
       ...headers
     };
+    let serializedBody: string | undefined;
+    let binaryBodyBase64: string | undefined;
 
-    const requestOptions: RequestInit = {
-      method,
-      headers: requestHeaders
-    };
-
-    // 处理请求体
     if (body && method !== 'GET') {
-      if (body instanceof FormData) {
-        // FormData 不需要设置 Content-Type，浏览器会自动设置
+      if (isFormDataBody(body)) {
         delete requestHeaders['Content-Type'];
-        requestOptions.body = body;
+        const formPayload = await serializeFormData(body);
+        requestHeaders['Content-Type'] = formPayload.contentType;
+        binaryBodyBase64 = formPayload.base64;
+      } else if (isBlobBody(body)) {
+        delete requestHeaders['Content-Type'];
+        binaryBodyBase64 = await blobToBase64(body);
+        if (body.type) {
+          requestHeaders['Content-Type'] = body.type;
+        }
+      } else if (body instanceof URLSearchParams) {
+        serializedBody = body.toString();
+        requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+      } else if (typeof body === 'string') {
+        serializedBody = body;
       } else {
-        requestOptions.body = JSON.stringify(body);
+        serializedBody = JSON.stringify(body);
       }
     }
 
-    const normalizedOptions: RequestOptions = {
+    const normalizedOptions: InternalRequestOptions = {
       ...options,
       method,
       headers: requestHeaders,
-      body
+      body,
+      serializedBody,
+      binaryBodyBase64
     };
 
-    if (this.supportsRustBridge(options)) {
-      const rustReady = await ensureRustBridgeReady(store.state.token);
-      if (rustReady) {
-        try {
-          return await this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
-        } catch (rustError) {
-          console.warn(`[${requestId}] ⚠️ Rust HTTP 请求失败，回退到 fetch:`, rustError);
-        }
-      }
+    if (!this.supportsRustBridge()) {
+      throw new Error('当前环境不支持 Rust HTTP 客户端，请在桌面端运行');
     }
 
-    try {
-      // 创建超时和abort控制器
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      // 将请求控制器添加到pending请求列表
-      this.pendingRequests.set(requestId, controller);
-
-      requestOptions.signal = controller.signal;
-
-      const response = await fetch(fullUrl, requestOptions);
-      clearTimeout(timeoutId);
-
-      // 请求成功，从 pending 列表中移除
-      this.pendingRequests.delete(requestId);
-
-      // 处理 HTTP 状态码
-      if (response.status === 401) {
-        // 401 认证失败的特殊处理 - 防止重复登出
-        const authorizationHeader = requestHeaders['Authorization'] || '';
-        console.error(`🚫 [${requestId}] 401认证失败:`, {
-          url: fullUrl,
-          method,
-          hasAuthorization: !!authorizationHeader,
-          tokenPreview: authorizationHeader ? `${authorizationHeader.slice(0, 20)}...` : '无token',
-          isLoggingOut: this.isLoggingOut,
-          storeToken: store.state.token ? `${store.state.token.substring(0, 10)}...` : '无token',
-          isLoggedIn: store.getters.isLoggedIn,
-          currentPath: window.location.pathname,
-          lastLoginTime: this.lastLoginTime,
-          timeSinceLogin: this.lastLoginTime ? Date.now() - this.lastLoginTime : 'unknown'
-        });
-
-        // 检查是否在登录后的宽容期内（30秒）
-        const isInLoginGracePeriod = this.lastLoginTime && (Date.now() - this.lastLoginTime) < 30000;
-
-        // 检查是否在登录页面或刚完成登录
-        const isLoginRelated = window.location.pathname === '/login' ||
-                               window.location.pathname === '/home' ||
-                               isInLoginGracePeriod;
-
-        if (isLoginRelated && isInLoginGracePeriod) {
-          console.warn(`⚠️ [${requestId}] 登录后宽容期内的401错误，跳过自动登出处理`);
-          throw new Error('登录验证中，请稍后重试');
-        }
-
-        if (!store.getters.isLoggedIn || !store.state.token) {
-          console.warn(`[${requestId}] 未登录状态收到401，跳过自动登出流程`);
-          this.setLoggingOut(false);
-          try {
-            store.dispatch('hideGlobalLoading');
-          } catch (dispatchError) {
-            console.warn('尝试隐藏全局加载蒙版失败:', dispatchError);
-          }
-          throw new Error('未登录，无需重复登出');
-        }
-
-        if (!this.isLoggingOut) {
-          console.error('🚫 认证失败，准备自动登出');
-          this.setLoggingOut(true);
-
-          // 增加延迟时间，给用户操作留更多时间
-          setTimeout(() => {
-            // 再次检查登录状态，避免误操作
-            if (store.getters.isLoggedIn && store.state.token) {
-              console.log("===============最终确认：身份验证失效，执行自动登出===========");
-              store.dispatch('logout');
-              if (window.location.pathname !== '/login') {
-                window.location.href = '/login';
-              }
-            } else {
-              console.log("用户已手动登出，取消自动登出操作");
-              this.setLoggingOut(false);
-            }
-          }, 3000); // 增加到3秒，给更多反应时间
-        } else {
-          console.log(`[${requestId}] 已在登出状态，跳过重复401处理`);
-        }
-        throw new Error('身份验证失效，请重新登录');
-      }
-
-      const contentType = response.headers.get('content-type') || '';
-      const rawText = await response.text();
-      let parsedBody: any = null;
-
-      if (rawText) {
-        if (contentType.includes('application/json')) {
-          try {
-            parsedBody = JSON.parse(rawText);
-          } catch (parseError) {
-            console.warn(`响应JSON解析失败，返回原始文本:`, parseError);
-            parsedBody = rawText;
-          }
-        } else {
-          parsedBody = rawText;
-        }
-      }
-
-      if (!response.ok) {
-        const errorMessage =
-          (parsedBody && typeof parsedBody === 'object' && parsedBody !== null && (parsedBody.message || parsedBody.error)) ||
-          response.statusText ||
-          '请求失败';
-        throw new Error(`HTTP ${response.status}: ${errorMessage}`);
-      }
-
-      const apiResponse: ApiResponse<T> = {
-        code: response.status,
-        success: true,
-        message:
-          (parsedBody && typeof parsedBody === 'object' && parsedBody !== null && (parsedBody.message || parsedBody.error)) ||
-          '',
-        data: (parsedBody ?? null) as T | null
-      };
-
-      // 执行响应拦截器
-      return await this.executeResponseInterceptors<T>(apiResponse);
-    } catch (error) {
-      // 请求失败，从 pending 列表中移除
-      this.pendingRequests.delete(requestId);
-
-      // 如果是取消操作且正在登出，不记录错误
-      if (error instanceof Error && error.name === 'AbortError' && this.isLoggingOut) {
-        throw new Error('请求已取消（登出中）');
-      }
-
-      console.error('Request failed:', error);
-      throw error;
+    const rustReady = await ensureRustBridgeReady(store.state.token);
+    if (!rustReady) {
+      throw new Error('Rust HTTP 客户端初始化失败');
     }
+
+    return this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
   }
 
   private async executeRustRequest<T>(
     requestId: string,
     originalUrl: string,
     fullUrl: string,
-    options: RequestOptions,
+    options: InternalRequestOptions,
     headers: Record<string, string>
   ): Promise<ApiResponse<T>> {
     const method = (options.method || 'GET').toUpperCase() as HttpRequestParams['method'];
     const timeout = options.timeout ?? requestConfig.timeout;
     const retryCount = options.retryTimes ?? requestConfig.retryTimes;
-    const body = options.body instanceof URLSearchParams ? options.body.toString() : options.body;
     const path = originalUrl.startsWith('http') ? originalUrl : originalUrl;
 
     console.log(`[${requestId}] 🦀 使用 Rust HTTP 发送请求:`, method, fullUrl);
@@ -535,13 +429,84 @@ class HttpClient {
     const response = await rustHttp.requestRaw<T>({
       path,
       method,
-      body,
+      body: options.serializedBody,
+      binaryBody: options.binaryBodyBase64,
       headers,
       timeout,
-      retryCount
+      retryCount,
+      responseType: options.responseType
     });
 
+    if (response.code === 401) {
+      this.handleUnauthorizedResponse(requestId, fullUrl, method, headers, response.message);
+    }
+
     return this.executeResponseInterceptors<T>(response);
+  }
+
+  private handleUnauthorizedResponse(
+    requestId: string,
+    fullUrl: string,
+    method: string,
+    requestHeaders: Record<string, string>,
+    responseMessage?: string
+  ): never {
+    const authorizationHeader = requestHeaders['Authorization'] || '';
+    console.error(`🚫 [${requestId}] 401认证失败:`, {
+      url: fullUrl,
+      method,
+      hasAuthorization: !!authorizationHeader,
+      tokenPreview: authorizationHeader ? `${authorizationHeader.slice(0, 20)}...` : '无token',
+      isLoggingOut: this.isLoggingOut,
+      storeToken: store.state.token ? `${store.state.token.substring(0, 10)}...` : '无token',
+      isLoggedIn: store.getters.isLoggedIn,
+      currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+      lastLoginTime: this.lastLoginTime,
+      timeSinceLogin: this.lastLoginTime ? Date.now() - this.lastLoginTime : 'unknown',
+      responseMessage: responseMessage || '无'
+    });
+
+    const isInLoginGracePeriod = this.lastLoginTime && (Date.now() - this.lastLoginTime) < 30000;
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isLoginRelated = currentPath === '/login' || currentPath === '/home' || Boolean(isInLoginGracePeriod);
+
+    if (isLoginRelated && isInLoginGracePeriod) {
+      console.warn(`⚠️ [${requestId}] 登录后宽容期内的401错误，跳过自动登出处理`);
+      throw new Error('登录验证中，请稍后重试');
+    }
+
+    if (!store.getters.isLoggedIn || !store.state.token) {
+      console.warn(`[${requestId}] 未登录状态收到401，跳过自动登出流程`);
+      this.setLoggingOut(false);
+      try {
+        store.dispatch('hideGlobalLoading');
+      } catch (dispatchError) {
+        console.warn('尝试隐藏全局加载蒙版失败:', dispatchError);
+      }
+      throw new Error('未登录，无需重复登出');
+    }
+
+    if (!this.isLoggingOut) {
+      console.error('🚫 认证失败，准备自动登出');
+      this.setLoggingOut(true);
+
+      setTimeout(() => {
+        if (store.getters.isLoggedIn && store.state.token) {
+          console.log('===============最终确认：身份验证失效，执行自动登出===========');
+          store.dispatch('logout');
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        } else {
+          console.log('用户已手动登出，取消自动登出操作');
+          this.setLoggingOut(false);
+        }
+      }, 3000);
+    } else {
+      console.log(`[${requestId}] 已在登出状态，跳过重复401处理`);
+    }
+
+    throw new Error('身份验证失效，请重新登录');
   }
 
   /**

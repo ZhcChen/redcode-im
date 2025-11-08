@@ -4,6 +4,7 @@
  */
 
 import { rustHttp } from '../api/rust-http'
+import { get as httpGet, post as httpPost, put as httpPut, patch as httpPatch, del as httpDelete } from '../api/http'
 import type { ApiResponse } from '../api/http'
 
 interface BenchmarkResult {
@@ -53,7 +54,6 @@ class HttpPerformanceBenchmark {
 
     try {
       if (useRust) {
-        // Rust 实现
         switch (method) {
           case 'GET':
             await rustHttp.get(path)
@@ -72,20 +72,23 @@ class HttpPerformanceBenchmark {
             break
         }
       } else {
-        // TypeScript 实现
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010'
-        const response = await fetch(`${baseUrl}${path}`, {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: body ? JSON.stringify(body) : undefined
-        })
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
+        switch (method) {
+          case 'GET':
+            await httpGet(path)
+            break
+          case 'POST':
+            await httpPost(path, body)
+            break
+          case 'PUT':
+            await httpPut(path, body)
+            break
+          case 'PATCH':
+            await httpPatch(path, body)
+            break
+          case 'DELETE':
+            await httpDelete(path)
+            break
         }
-        await response.json()
       }
 
       return performance.now() - start

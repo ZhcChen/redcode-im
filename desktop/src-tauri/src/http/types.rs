@@ -102,10 +102,12 @@ pub struct HttpRequestOptions {
     pub method: Method,
     pub path: String,
     pub body: Option<String>,
+    pub body_bytes: Option<Vec<u8>>,
     pub headers: Option<HashMap<String, String>>,
     pub query: Option<HashMap<String, String>>,
     pub timeout_ms: Option<u64>,
     pub retry_count: Option<u32>,
+    pub expect_binary: bool,
 }
 
 impl HttpRequestOptions {
@@ -114,10 +116,12 @@ impl HttpRequestOptions {
             method,
             path,
             body: None,
+            body_bytes: None,
             headers: None,
             query: None,
             timeout_ms: None,
             retry_count: None,
+            expect_binary: false,
         }
     }
 }

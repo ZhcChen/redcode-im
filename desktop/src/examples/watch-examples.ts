@@ -18,6 +18,7 @@ import {
   createWatcherChain,
   watchPatterns
 } from '@/utils/watch';
+import { get } from '../api/http';
 
 // 示例数据
 const searchQuery = ref('');
@@ -192,18 +193,20 @@ export function asyncWatchExample() {
         console.log(`加载用户 ${newUserId} 的数据`);
         
         // 模拟 API 调用
-        const controller = new AbortController();
-        onCleanup(() => controller.abort());
+        const cancellation = { cancelled: false };
+        onCleanup(() => {
+          cancellation.cancelled = true;
+        });
 
         try {
-          const response = await fetch(`/api/users/${newUserId}`, {
-            signal: controller.signal
-          });
-          const userData = await response.json();
-          apiData.value = userData;
-          console.log('用户数据加载完成:', userData);
+          const response = await get(`/api/users/${newUserId}`);
+          if (cancellation.cancelled) {
+            return;
+          }
+          apiData.value = response.data;
+          console.log('用户数据加载完成:', response.data);
         } catch (error) {
-          if (error.name !== 'AbortError') {
+          if (!cancellation.cancelled) {
             console.error('加载用户数据失败:', error);
           }
         }

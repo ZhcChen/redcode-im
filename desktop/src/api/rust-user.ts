@@ -7,6 +7,7 @@ import { rustHttp, isRustEnabled } from './rust-http'
 import type { ApiResponse } from './http'
 import type { LegacyUserInfo } from './system'
 import { store } from '../store'
+import { base64ToUint8Array } from '../utils/binary'
 
 // 后端用户信息接口
 interface BackendUserInfo {
@@ -335,12 +336,16 @@ export class RustUserApi {
         }
 
         // 下载并保存头像
-        const response = await fetch(payload.download_url)
-        if (!response.ok) {
-          throw new Error(`下载头像失败: HTTP ${response.status}`)
+        const downloadResponse = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
+          path: payload.download_url,
+          method: 'GET',
+          responseType: 'binary'
+        })
+        if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
+          throw new Error(`下载头像失败: HTTP ${downloadResponse.code}`)
         }
-        const buffer = new Uint8Array(await response.arrayBuffer())
-        const contentType = response.headers.get('content-type') || undefined
+        const buffer = base64ToUint8Array(downloadResponse.data.base64)
+        const contentType = downloadResponse.data.headers?.['content-type'] || undefined
 
         // 这里可以使用 Rust 的文件 API
         // 但为了简化，先使用 TypeScript 实现

@@ -1,6 +1,7 @@
 use super::client::HttpClientState;
 use super::error::HttpError;
 use super::types::{ApiResponse, BatchRequestPayload, HttpClientStats, HttpRequestOptions};
+use base64::{engine::general_purpose, Engine as _};
 use reqwest::Method;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -35,10 +36,23 @@ fn resolve_path(app: &AppHandle, input: &str) -> Result<PathBuf, HttpError> {
     Ok(base)
 }
 
-fn build_options(method: Method, path: String, body: Option<String>) -> HttpRequestOptions {
+fn build_options(
+    method: Method,
+    path: String,
+    body: Option<String>,
+    binary_body: Option<String>,
+    expect_binary: Option<bool>,
+) -> Result<HttpRequestOptions, HttpError> {
     let mut opts = HttpRequestOptions::new(method, path);
     opts.body = body;
-    opts
+    if let Some(encoded) = binary_body {
+        let bytes = general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|err| HttpError::InvalidConfig(format!("二进制 body 解码失败: {err}")))?;
+        opts.body_bytes = Some(bytes);
+    }
+    opts.expect_binary = expect_binary.unwrap_or(false);
+    Ok(opts)
 }
 
 #[tauri::command]
@@ -122,11 +136,14 @@ pub async fn http_post(
     state: State<'_, HttpClientState>,
     path: String,
     body: Option<String>,
+    binary_body: Option<String>,
+    expect_binary: Option<bool>,
 ) -> Result<String, String> {
-    match state
-        .execute_request(build_options(Method::POST, path, body))
-        .await
-    {
+    let opts = match build_options(Method::POST, path, body, binary_body, expect_binary) {
+        Ok(opts) => opts,
+        Err(err) => return serialize_error(err),
+    };
+    match state.execute_request(opts).await {
         Ok(outcome) => serialize_value(outcome.payload),
         Err(err) => serialize_error(err),
     }
@@ -137,11 +154,14 @@ pub async fn http_put(
     state: State<'_, HttpClientState>,
     path: String,
     body: Option<String>,
+    binary_body: Option<String>,
+    expect_binary: Option<bool>,
 ) -> Result<String, String> {
-    match state
-        .execute_request(build_options(Method::PUT, path, body))
-        .await
-    {
+    let opts = match build_options(Method::PUT, path, body, binary_body, expect_binary) {
+        Ok(opts) => opts,
+        Err(err) => return serialize_error(err),
+    };
+    match state.execute_request(opts).await {
         Ok(outcome) => serialize_value(outcome.payload),
         Err(err) => serialize_error(err),
     }
@@ -152,11 +172,14 @@ pub async fn http_patch(
     state: State<'_, HttpClientState>,
     path: String,
     body: Option<String>,
+    binary_body: Option<String>,
+    expect_binary: Option<bool>,
 ) -> Result<String, String> {
-    match state
-        .execute_request(build_options(Method::PATCH, path, body))
-        .await
-    {
+    let opts = match build_options(Method::PATCH, path, body, binary_body, expect_binary) {
+        Ok(opts) => opts,
+        Err(err) => return serialize_error(err),
+    };
+    match state.execute_request(opts).await {
         Ok(outcome) => serialize_value(outcome.payload),
         Err(err) => serialize_error(err),
     }
@@ -168,13 +191,18 @@ pub async fn http_request(
     method: String,
     path: String,
     body: Option<String>,
+    binary_body: Option<String>,
     headers: Option<HashMap<String, String>>,
     query_params: Option<HashMap<String, String>>,
     timeout: Option<u64>,
     retry_count: Option<u32>,
+    expect_binary: Option<bool>,
 ) -> Result<String, String> {
     let parsed_method = method.parse::<Method>().unwrap_or_else(|_| Method::GET);
-    let mut opts = build_options(parsed_method, path, body);
+    let mut opts = match build_options(parsed_method, path, body, binary_body, expect_binary) {
+        Ok(opts) => opts,
+        Err(err) => return serialize_error(err),
+    };
     opts.headers = headers;
     opts.query = query_params;
     opts.timeout_ms = timeout;

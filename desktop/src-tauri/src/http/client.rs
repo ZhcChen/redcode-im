@@ -3,7 +3,8 @@ use crate::http::types::{
     BatchRequestPayload, BatchResponsePayload, HttpClientConfig, HttpClientStats,
     HttpRequestOptions, HttpRequestOutcome,
 };
-use reqwest::header::{HeaderName, HeaderValue};
+use base64::{engine::general_purpose, Engine as _};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, Method};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -161,14 +162,16 @@ impl HttpClientState {
                 builder = Self::apply_headers(builder, header_map)?;
             }
 
-            if let Some(body_str) = &body {
+            if let Some(bytes) = &options.body_bytes {
+                builder = builder.body(bytes.clone());
+            } else if let Some(body_str) = &body {
                 if !Self::has_content_type(&headers) {
                     builder = builder.header("Content-Type", "application/json");
                 }
                 builder = builder.body(body_str.clone());
             }
 
-            match self.send(builder).await {
+            match self.send(builder, options.expect_binary).await {
                 Ok(outcome) => return Ok(outcome),
                 Err(err) => {
                     if attempt >= retries || !err.is_retryable() {
@@ -222,7 +225,7 @@ impl HttpClientState {
                 builder = builder.header("Authorization", format!("Bearer {}", token_value));
             }
 
-            match self.send(builder).await {
+            match self.send(builder, false).await {
                 Ok(outcome) => return Ok(outcome),
                 Err(err) => {
                     if attempt >= retries || !err.is_retryable() {
@@ -411,15 +414,53 @@ impl HttpClientState {
     async fn send(
         &self,
         builder: reqwest::RequestBuilder,
+        expect_binary: bool,
     ) -> Result<HttpRequestOutcome, HttpError> {
         let start = Instant::now();
         match builder.send().await {
             Ok(response) => {
-                let status = response.status().as_u16();
-                let text = response.text().await.unwrap_or_default();
-                let outcome = HttpRequestOutcome::from_http(status, text);
-                self.record_outcome(&outcome, start.elapsed()).await;
-                Ok(outcome)
+                if expect_binary {
+                    let status = response.status();
+                    let headers = Self::headers_to_map(response.headers());
+                    match response.bytes().await {
+                        Ok(bytes) => {
+                            let base64_body = general_purpose::STANDARD.encode(&bytes);
+                            let success = status.is_success();
+                            let message = if success {
+                                "OK".to_string()
+                            } else {
+                                format!("HTTP {} 请求失败", status.as_u16())
+                            };
+                            let payload = serde_json::json!({
+                                "success": success,
+                                "code": status.as_u16(),
+                                "message": message,
+                                "data": {
+                                    "base64": base64_body,
+                                    "headers": headers
+                                }
+                            });
+                            let outcome = HttpRequestOutcome {
+                                success,
+                                message,
+                                payload,
+                            };
+                            self.record_outcome(&outcome, start.elapsed()).await;
+                            Ok(outcome)
+                        }
+                        Err(err) => {
+                            let http_error = HttpError::from(err);
+                            self.record_error(start.elapsed(), &http_error).await;
+                            Err(http_error)
+                        }
+                    }
+                } else {
+                    let status = response.status().as_u16();
+                    let text = response.text().await.unwrap_or_default();
+                    let outcome = HttpRequestOutcome::from_http(status, text);
+                    self.record_outcome(&outcome, start.elapsed()).await;
+                    Ok(outcome)
+                }
             }
             Err(err) => {
                 let http_error = HttpError::from(err);
@@ -427,6 +468,18 @@ impl HttpClientState {
                 Err(http_error)
             }
         }
+    }
+
+    fn headers_to_map(headers: &HeaderMap) -> HashMap<String, String> {
+        headers
+            .iter()
+            .filter_map(|(key, value)| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|v| (key.to_string(), v.to_string()))
+            })
+            .collect()
     }
 
     async fn record_outcome(&self, outcome: &HttpRequestOutcome, elapsed: Duration) {
