@@ -30,7 +30,8 @@
  * 4. 客户端接收 → 更新UI状态
  */
 
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { apiConfig } from '@/api/config';
 import { store } from '@/store';
 import { toast } from '@/utils/toast';
