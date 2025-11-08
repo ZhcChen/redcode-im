@@ -32,16 +32,17 @@ router.isReady().then(() => {
 // 注册全局 Toast API
 app.config.globalProperties.$toast = toast;
 
+// 挂载应用前先移除预加载指示器，避免在 splashscreen 关闭后还显示
+const loadingElement = document.getElementById("app-loading");
+if (loadingElement) {
+  loadingElement.remove();
+  console.log("[Main] 预加载指示器已移除");
+}
+
 // 挂载应用
 app.mount("#app");
 
 console.log("[Main] 应用挂载完成");
-
-// 移除预加载指示器
-const loadingElement = document.getElementById("app-loading");
-if (loadingElement) {
-  loadingElement.remove();
-}
 
 fallbackTimer = window.setTimeout(async () => {
   console.warn("[Main] Fallback: 强制隐藏加载蒙版并跳转登录页");
