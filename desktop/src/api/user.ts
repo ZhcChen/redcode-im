@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { get, patch, post } from './http';
-import { rustHttp } from './rust-http';
 import type { ApiResponse } from './http';
 import type { LegacyUserInfo } from './system';
 import { AvatarCache } from '../utils/avatar-cache';
