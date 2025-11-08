@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import defaultAvatarSvg from '../assets/image/default-avatar.svg'
 
 interface Props {
@@ -68,6 +68,14 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const imageError = ref(false)
+
+// 当 src 变化时,重置错误状态
+watch(() => props.src, (newSrc, oldSrc) => {
+  if (newSrc !== oldSrc) {
+    console.log('[Avatar] 📸 src 属性变化,重置 imageError', { oldSrc, newSrc })
+    imageError.value = false
+  }
+})
 
 // 处理尺寸
 const sizeValue = computed(() => {

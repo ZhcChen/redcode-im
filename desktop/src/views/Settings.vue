@@ -200,6 +200,24 @@ const userAvatarSrc = computed(() => {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(firstChar)}&background=6366f1&color=ffffff&size=96&rounded=true`
 })
 
+// 监听 avatarLocalPath 变化
+watch(
+  () => currentUser.value.avatarLocalPath,
+  (newPath, oldPath) => {
+    console.log('[Settings] 👀 avatarLocalPath 变化:', { oldPath, newPath })
+    console.log('[Settings] 👀 userAvatarSrc 重新计算:', userAvatarSrc.value)
+  },
+  { immediate: true }
+)
+
+// 监听 userAvatarSrc 变化
+watch(
+  userAvatarSrc,
+  (newSrc, oldSrc) => {
+    console.log('[Settings] 👀 userAvatarSrc 变化:', { oldSrc, newSrc })
+  }
+)
+
 // 处理更换头像
 const handleChangeAvatar = () => {
   console.log('[Settings] 🖼️ 用户点击更换头像', {
