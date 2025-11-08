@@ -4,6 +4,7 @@ import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { webSocketManager } from './utils/websocket'
+import { rustHttpClient } from './api/rust-http'
 import { toast } from './utils/toast'
 import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
@@ -387,7 +388,20 @@ function enableContextMenu() {
 
 // 组件挂载时设置事件监听
 onMounted(async () => {
-  console.log('App 组件已挂载，设置全局 WebSocket 事件监听');
+  console.log('App 组件已挂载');
+
+  // 初始化 Rust HTTP 客户端
+  try {
+    console.log('🔄 初始化 Rust HTTP 客户端...');
+    await rustHttpClient.initialize(token.value || undefined);
+    console.log('✅ Rust HTTP 客户端初始化完成');
+  } catch (error) {
+    console.error('❌ Rust HTTP 客户端初始化失败:', error);
+    toast.error('网络初始化失败，请重启应用');
+  }
+
+  // 设置 WebSocket 事件监听
+  console.log('设置全局 WebSocket 事件监听');
   setupWebSocketEventListeners();
   
   // 使用事件管理器添加监听器
