@@ -377,12 +377,20 @@
       </div>
     </Dialog>
 
-    <!-- 添加群成员对话框 -->
+    <!-- 添加群成员对话框 (创建新群时) -->
     <AddGroupMemberDialog
       v-model:visible="showAddMemberDialog"
       :contacts="contacts"
       @confirm="handleConfirmAddMembers"
       @close="handleCancelAddMembers"
+    />
+
+    <!-- 添加成员到现有群聊对话框 -->
+    <AddGroupMemberDialog
+      v-model:visible="showAddExistingGroupMemberDialog"
+      :contacts="availableContactsForGroup"
+      @confirm="handleConfirmAddExistingGroupMembers"
+      @close="showAddExistingGroupMemberDialog = false"
     />
 
     <!-- 媒体预览组件 -->
@@ -1256,6 +1264,19 @@ const showGroupSettings = ref(false)
 
 // 群成员数据
 const groupMembers = ref<RoomMember[]>([])
+
+// 可添加到群的联系人列表(排除已在群里的成员)
+const availableContactsForGroup = computed(() => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    return contacts.value
+  }
+
+  // 获取已在群里的成员 ID 列表
+  const existingMemberIds = new Set(groupMembers.value.map(member => member.userId))
+
+  // 过滤掉已在群里的联系人
+  return contacts.value.filter(contact => !existingMemberIds.has(contact.id))
+})
 
 // 群名修改相关状态
 const showEditGroupNameDialog = ref(false)
@@ -3952,10 +3973,65 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
 }
 
 // 群组管理功能
+// 添加成员到现有群聊
+const showAddExistingGroupMemberDialog = ref(false)
+const isAddingMembers = ref(false)
+
 const handleAddMember = () => {
-  console.log('打开添加成员对话框')
-  // TODO: 实现添加成员对话框
-  toast.info('添加成员功能开发中...')
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    toast.error('请先选择一个群聊')
+    return
+  }
+  console.log('打开添加成员对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
+  showAddExistingGroupMemberDialog.value = true
+}
+
+// 确认向现有群聊添加成员
+const handleConfirmAddExistingGroupMembers = async (selectedMemberIds: string[]) => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    toast.error('请先选择一个群聊')
+    return
+  }
+
+  if (selectedMemberIds.length === 0) {
+    toast.warning('请至少选择一位成员')
+    return
+  }
+
+  console.log('🔄 添加成员到群聊:', {
+    groupId: selectedChat.value.id,
+    groupName: selectedChat.value.name,
+    memberCount: selectedMemberIds.length,
+    memberIds: selectedMemberIds
+  })
+
+  try {
+    isAddingMembers.value = true
+
+    // 调用添加成员 API
+    const response = await MessageApi.addGroupMembers({
+      roomId: selectedChat.value.id,
+      userIds: selectedMemberIds
+    })
+
+    if (response.success) {
+      console.log('✅ 成员添加成功')
+      toast.success(`成功添加 ${selectedMemberIds.length} 位成员`)
+
+      // 刷新群成员列表
+      await loadGroupMembers(selectedChat.value.id)
+
+      // 关闭对话框
+      showAddExistingGroupMemberDialog.value = false
+    } else {
+      throw new Error(response.message || '添加成员失败')
+    }
+  } catch (error: any) {
+    console.error('❌ 添加成员失败:', error)
+    toast.error('添加成员失败: ' + (error.message || '网络错误'))
+  } finally {
+    isAddingMembers.value = false
+  }
 }
 
 const handleRemoveMember = () => {
