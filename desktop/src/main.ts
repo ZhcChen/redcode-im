@@ -5,6 +5,7 @@ import { store } from "./store";
 import "./styles/global.css";
 import { invoke } from "@tauri-apps/api/core";
 import toast from "./utils/toast";
+import { disableNavigationShortcuts } from "./utils/keyboardShortcuts";
 import { setupAutoUploadTest } from "./tests/auto-upload-test";
 import { runAvatarUploadTest } from "./tests/avatar-upload-test";
 
@@ -44,6 +45,9 @@ if (loadingElement) {
 app.mount("#app");
 
 console.log("[Main] 应用挂载完成");
+
+// 禁用浏览器前进后退快捷键，防止用户意外触发
+disableNavigationShortcuts();
 
 fallbackTimer = window.setTimeout(async () => {
   console.warn("[Main] Fallback: 强制隐藏加载蒙版并跳转登录页");
