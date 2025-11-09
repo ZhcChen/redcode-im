@@ -401,6 +401,13 @@
       @close="showRemoveMemberDialog = false"
     />
 
+    <!-- 举报群聊对话框 -->
+    <ReportDialog
+      v-model:visible="showReportDialog"
+      @confirm="handleConfirmReport"
+      @close="showReportDialog = false"
+    />
+
     <!-- 媒体预览组件 -->
     <MediaPreview
       :visible="showMediaPreview"
@@ -466,6 +473,7 @@ import { messageSearchService } from '../services/messageSearchService'
 import EmojiPicker from '../components/EmojiPicker.vue'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
 import RemoveGroupMemberDialog from '../components/RemoveGroupMemberDialog.vue'
+import ReportDialog from '../components/ReportDialog.vue'
 import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 import MediaPreview from '../components/MediaPreview.vue'
@@ -3990,6 +3998,10 @@ const isAddingMembers = ref(false)
 const showRemoveMemberDialog = ref(false)
 const isRemovingMembers = ref(false)
 
+// 举报群聊
+const showReportDialog = ref(false)
+const isReportingGroup = ref(false)
+
 const handleAddMember = () => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
     toast.error('请先选择一个群聊')
@@ -4144,12 +4156,56 @@ const handleClearHistory = async () => {
 }
 
 const handleReportGroup = () => {
-  console.log('举报群聊')
-  const reason = prompt('请输入举报原因:')
-  if (!reason || !reason.trim()) return
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    toast.error('请先选择一个群聊')
+    return
+  }
+  console.log('打开举报群聊对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
+  showReportDialog.value = true
+}
 
-  // TODO: 实现举报功能
-  toast.info('举报功能开发中...')
+// 确认举报群聊
+const handleConfirmReport = async (reason: string) => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    toast.error('请先选择一个群聊')
+    return
+  }
+
+  if (!reason || !reason.trim()) {
+    toast.error('请输入举报原因')
+    return
+  }
+
+  console.log('🔄 举报群聊:', {
+    groupId: selectedChat.value.id,
+    groupName: selectedChat.value.name,
+    reason
+  })
+
+  try {
+    isReportingGroup.value = true
+
+    // 调用举报 API
+    const response = await MessageApi.reportGroup({
+      roomId: selectedChat.value.id,
+      reason: reason.trim()
+    })
+
+    if (response.success) {
+      console.log('✅ 举报成功')
+      toast.success('举报已提交，感谢您的反馈')
+
+      // 关闭对话框
+      showReportDialog.value = false
+    } else {
+      throw new Error(response.message || '举报失败')
+    }
+  } catch (error: any) {
+    console.error('❌ 举报失败:', error)
+    toast.error('举报失败: ' + (error.message || '网络错误'))
+  } finally {
+    isReportingGroup.value = false
+  }
 }
 
 const handleLeaveGroup = async () => {
