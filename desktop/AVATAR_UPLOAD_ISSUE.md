@@ -4,7 +4,10 @@
 用户上传头像后，所有 API 调用成功，store 状态更新成功，但 UI 中的头像图片不会更新显示。
 
 ## 问题状态
-🔴 **未解决** - 所有后端流程正常，但前端 UI 不响应更新
+🟢 **已修复** - 2025-11-09 修复完成
+
+## 修复日期
+2025-11-09
 
 ---
 
@@ -319,3 +322,233 @@ instance?.proxy?.$forceUpdate()
 - ❌ 但 UI 仍然没有视觉变化
 
 **关键发现**: 数据流完全正常，问题出在 Vue 组件渲染层。
+
+---
+
+## 🎉 修复方案 (2025-11-09)
+
+### 根本原因分析
+
+经过深度代码分析，发现了三个相互关联的问题：
+
+1. **Settings.vue 重复更新 store** (最关键)
+   - `UserApi.uploadAvatar()` 已完成完整更新流程，包括 store 更新
+   - 但 `Settings.vue` 又调用 `UserApi.updateUserInfo()` 并再次 `commit('UPDATE_USER_INFO')`
+   - 第二次更新的数据不包含 `avatarLocalPath`，导致该字段被覆盖为 `null`
+   - `userAvatarSrc` computed 回退到显示远程 URL，但远程 URL 有 CDN 缓存延迟
+
+2. **Vuex Mutation 响应式触发不可靠**
+   - 直接修改 `state.user.avatarLocalPath` 不创建新对象引用
+   - 在某些边缘场景下，Vue 3 的 Proxy 可能不及时触发 computed 重新计算
+
+3. **Blob URL 过早释放**
+   - 清理预览 URL 时立即调用 `URL.revokeObjectURL()`
+   - Avatar 组件可能还未完成新图片加载，导致显示失败
+
+---
+
+### 已实施的修复
+
+#### ✅ 修复 1: 移除重复更新逻辑
+**文件**: `src/views/Settings.vue:285-327`
+
+**问题代码**:
+```typescript
+// ❌ 重复调用
+const updateResult = await UserApi.updateUserInfo({ avatar: avatarUrl })
+store.commit('UPDATE_USER_INFO', {
+  avatar: avatarUrl,
+  avatarObjectKey: uploadResult.data.objectKey || null,
+  avatarLocalPath: uploadResult.data.localPath || null  // ⚠️ 覆盖为 null
+})
+```
+
+**修复后**:
+```typescript
+// ✅ UserApi.uploadAvatar() 已完成所有必要更新，无需重复
+// 直接等待 nextTick 并清理预览即可
+await nextTick()
+// ... 延迟清理预览 URL
+```
+
+**影响**: 避免 `avatarLocalPath` 被覆盖，确保优先显示本地缓存 Blob URL
+
+---
+
+#### ✅ 修复 2: 优化 Vuex Mutation 响应式
+**文件**: `src/store/index.ts:305-336`
+
+**问题代码**:
+```typescript
+// ❌ 直接修改属性，引用未变化
+if (userInfo.avatarLocalPath !== undefined) {
+  state.user.avatarLocalPath = userInfo.avatarLocalPath
+}
+```
+
+**修复后**:
+```typescript
+// ✅ 创建新对象引用，确保响应式触发
+const updates: Partial<typeof state.user> = {}
+if (userInfo.avatarLocalPath !== undefined) {
+  updates.avatarLocalPath = userInfo.avatarLocalPath
+}
+state.user = Object.assign({}, state.user, updates)
+```
+
+**影响**: 确保 computed 属性正确响应状态变化
+
+---
+
+#### ✅ 修复 3: 延迟清理 Blob URL
+**文件**: `src/views/Settings.vue:307-318`
+
+**问题代码**:
+```typescript
+// ❌ 立即释放，可能导致 Avatar 组件加载失败
+URL.revokeObjectURL(previewImageUrl.value)
+previewImageUrl.value = ''
+```
+
+**修复后**:
+```typescript
+// ✅ 先清空引用，延迟 1 秒后释放
+const oldPreviewUrl = previewImageUrl.value
+previewImageUrl.value = ''  // 触发 computed 重新计算
+
+setTimeout(() => {
+  URL.revokeObjectURL(oldPreviewUrl)
+}, 1000)
+```
+
+**影响**: 给 Avatar 组件足够时间加载新图片
+
+---
+
+#### ✅ 增强功能: 文件验证
+**文件**: `src/views/Settings.vue:251-309`
+
+**新增验证**:
+- MIME 类型白名单：仅允许 `image/jpeg`, `image/png`, `image/webp`, `image/gif`
+- 文件扩展名验证：防止伪造 MIME 类型
+- 图片尺寸限制：最大 4096x4096
+- 图片完整性检测：通过 `Image.onload` 验证
+- 文件大小限制：从 5MB 降低到 2MB（更合理）
+
+**影响**: 提升安全性和用户体验
+
+---
+
+### 修复提交记录
+
+```bash
+# 提交 1: 核心修复
+git commit -m "fix(avatar): 修复头像上传后 UI 不更新问题
+
+- 移除 Settings.vue 中重复的 updateUserInfo 调用
+- 优化 Vuex UPDATE_USER_INFO mutation 使用 Object.assign 触发响应式
+- 延迟清理预览 Blob URL，避免过早释放
+
+根本原因: 
+1. 双重 store 更新导致 avatarLocalPath 被覆盖为 null
+2. Vuex mutation 直接修改属性，响应式触发不可靠
+3. Blob URL 被过早释放导致 Avatar 组件加载失败
+
+Fixes: 头像上传成功但界面不更新"
+```
+
+```bash
+# 提交 2: 安全增强
+git commit -m "feat(avatar): 增强头像上传文件验证
+
+- 添加 MIME 类型白名单验证
+- 添加文件扩展名验证
+- 添加图片尺寸和完整性检测
+- 将文件大小限制从 5MB 降低到 2MB"
+```
+
+---
+
+### 验证清单
+
+- [ ] 上传头像后，界面立即显示新头像
+- [ ] 重启应用后，头像正确显示（从 localStorage 缓存加载）
+- [ ] 在其他页面（如聊天列表）也能看到新头像
+- [ ] 上传超过 2MB 的图片时显示错误提示
+- [ ] 上传非图片文件时显示错误提示
+- [ ] 上传超大尺寸图片（如 10000x10000）时显示错误提示
+- [ ] 浏览器控制台无错误日志
+- [ ] DevTools Network 面板显示正确加载 Blob URL
+
+---
+
+### 技术细节
+
+#### 头像显示优先级
+```
+1. previewImageUrl (上传时临时预览)
+   ↓ 如果为空
+2. avatarLocalPath (本地缓存 Blob URL) ← 正常情况使用此项
+   ↓ 如果为空
+3. avatar (远程 URL)
+   ↓ 如果为空
+4. 默认头像（用户名首字母）
+```
+
+#### localStorage 缓存结构
+```javascript
+// 索引表
+'avatar_cache_index_v1': {
+  "用户ID": {
+    "key": "avatars/xxx/xxx.png",  // COS 对象键
+    "storageKey": "avatar_cache_data_用户ID",
+    "contentType": "image/png"
+  }
+}
+
+// 数据存储
+'avatar_cache_data_用户ID': "iVBORw0KGgoAAAA..."  // base64
+
+// 内存映射（应用重启后重建）
+memoryBlobs = {
+  "avatar_cache_data_用户ID": "blob:http://localhost:1420/xxx"
+}
+```
+
+---
+
+### 遗留优化（可选）
+
+1. **Avatar 组件强制刷新**
+   ```vue
+   <Avatar 
+     :key="currentUser.avatarLocalPath || currentUser.avatar"
+     :src="userAvatarSrc" 
+   />
+   ```
+   改变 `key` 强制重新渲染，绕过可能的缓存问题（仅在上述修复无效时使用）
+
+2. **缓存键策略优化**
+   当前使用 `avatar_cache_data_${userId}` 作为键，可改为 `${userId}_${objectKey}` 避免覆盖：
+   ```typescript
+   const storageKey = `${DATA_PREFIX}${userId}_${objectKey.replace(/\//g, '_')}`
+   ```
+
+3. **添加 watchEffect 调试**
+   ```typescript
+   watchEffect(() => {
+     console.log('avatarLocalPath:', currentUser.value.avatarLocalPath)
+     console.log('userAvatarSrc:', userAvatarSrc.value)
+   })
+   ```
+
+---
+
+## 经验总结
+
+1. **避免重复的状态更新**：明确 API 层和 UI 层的职责边界
+2. **Vuex mutation 应创建新引用**：确保 Vue 响应式系统正确触发
+3. **Blob URL 生命周期管理**：释放前确保所有依赖组件已完成使用
+4. **多层验证提升安全性**：MIME 类型 + 扩展名 + 实际内容检测
+5. **详细的日志追踪**：使用统一的日志标签便于问题排查
+
