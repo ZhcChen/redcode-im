@@ -6,8 +6,6 @@ import "./styles/global.css";
 import { invoke } from "@tauri-apps/api/core";
 import toast from "./utils/toast";
 import { disableNavigationShortcuts } from "./utils/keyboardShortcuts";
-import { setupAutoUploadTest } from "./tests/auto-upload-test";
-import { runAvatarUploadTest } from "./tests/avatar-upload-test";
 
 console.log("[Main] 应用初始化开始");
 
@@ -100,44 +98,3 @@ setTimeout(async () => {
     fallbackTimer = undefined;
   }
 }, 800); // 减少延迟到800ms
-
-// 自动化头像上传测试（仅当同时开启两个开关时自动执行）
-const shouldEnableAutoUploadTest = import.meta.env.VITE_AUTO_UPLOAD_TEST === 'true';
-const shouldAutoStartUploadTest = import.meta.env.VITE_AUTO_UPLOAD_AUTOSTART === 'true';
-
-if (shouldEnableAutoUploadTest) {
-  if (import.meta.env.DEV) {
-    (window as typeof window & { __runAutoUploadTest?: () => void }).__runAutoUploadTest = setupAutoUploadTest;
-    console.info('[AutoUploadTest] 已在开发者工具中暴露 window.__runAutoUploadTest() 手动触发。');
-  }
-  if (shouldAutoStartUploadTest) {
-    setupAutoUploadTest();
-  } else {
-    console.info('[AutoUploadTest] 自动执行已关闭，可在控制台调用 window.__runAutoUploadTest() 手动运行。');
-  }
-}
-
-// 头像上传测试 - 在开发模式下可以手动调用
-if (import.meta.env.DEV) {
-  (window as any).runAvatarUploadTest = runAvatarUploadTest;
-  console.log('✅ 头像上传测试已加载');
-  console.log('💡 在控制台运行: window.runAvatarUploadTest()');
-
-  // 临时：监听 store 中的登录状态，登录成功后自动运行测试
-  let testHasRun = false;
-  store.watch(
-    (state: any) => state.token,
-    (newToken: string | null) => {
-      if (newToken && !testHasRun) {
-        console.log('🧪 检测到登录成功(token已设置)，5秒后自动运行头像上传测试...');
-        testHasRun = true;
-        setTimeout(() => {
-          console.log('🧪 开始运行头像上传测试');
-          runAvatarUploadTest().catch(err => {
-            console.error('🧪 测试执行失败:', err);
-          });
-        }, 5000);
-      }
-    }
-  );
-}
