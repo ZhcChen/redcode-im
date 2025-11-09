@@ -393,6 +393,14 @@
       @close="showAddExistingGroupMemberDialog = false"
     />
 
+    <!-- 删除群成员对话框 -->
+    <RemoveGroupMemberDialog
+      v-model:visible="showRemoveMemberDialog"
+      :members="groupMembers"
+      @confirm="handleConfirmRemoveMembers"
+      @close="showRemoveMemberDialog = false"
+    />
+
     <!-- 媒体预览组件 -->
     <MediaPreview
       :visible="showMediaPreview"
@@ -457,6 +465,7 @@ import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
 import EmojiPicker from '../components/EmojiPicker.vue'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
+import RemoveGroupMemberDialog from '../components/RemoveGroupMemberDialog.vue'
 import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 import MediaPreview from '../components/MediaPreview.vue'
@@ -3977,6 +3986,10 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
 const showAddExistingGroupMemberDialog = ref(false)
 const isAddingMembers = ref(false)
 
+// 删除群成员
+const showRemoveMemberDialog = ref(false)
+const isRemovingMembers = ref(false)
+
 const handleAddMember = () => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
     toast.error('请先选择一个群聊')
@@ -4035,9 +4048,70 @@ const handleConfirmAddExistingGroupMembers = async (selectedMemberIds: string[])
 }
 
 const handleRemoveMember = () => {
-  console.log('打开删除成员对话框')
-  // TODO: 实现删除成员对话框
-  toast.info('删除成员功能开发中...')
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    toast.error('请先选择一个群聊')
+    return
+  }
+  console.log('打开删除成员对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
+  showRemoveMemberDialog.value = true
+}
+
+// 确认删除群成员
+const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    toast.error('请先选择一个群聊')
+    return
+  }
+
+  if (selectedMemberIds.length === 0) {
+    toast.warning('请至少选择一位成员')
+    return
+  }
+
+  console.log('🔄 从群聊中删除成员:', {
+    groupId: selectedChat.value.id,
+    groupName: selectedChat.value.name,
+    memberCount: selectedMemberIds.length,
+    memberIds: selectedMemberIds
+  })
+
+  try {
+    isRemovingMembers.value = true
+
+    // 批量删除成员
+    const results = await Promise.allSettled(
+      selectedMemberIds.map(userId =>
+        MessageApi.removeGroupMember({
+          roomId: selectedChat.value!.id,
+          userId
+        })
+      )
+    )
+
+    // 统计成功和失败数量
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+    const failedCount = results.length - successCount
+
+    if (successCount > 0) {
+      console.log(`✅ 成功删除 ${successCount} 位成员`)
+      toast.success(`成功删除 ${successCount} 位成员${failedCount > 0 ? `，${failedCount} 位失败` : ''}`)
+
+      // 刷新群成员列表
+      if (selectedChat.value) {
+        await loadGroupDetailInfo(selectedChat.value.groupId)
+      }
+
+      // 关闭对话框
+      showRemoveMemberDialog.value = false
+    } else {
+      throw new Error('所有成员删除失败')
+    }
+  } catch (error: any) {
+    console.error('❌ 删除成员失败:', error)
+    toast.error('删除成员失败: ' + (error.message || '网络错误'))
+  } finally {
+    isRemovingMembers.value = false
+  }
 }
 
 const handleClearHistory = async () => {
