@@ -210,55 +210,6 @@ export const store = createStore<State>({
             version: String(apiConfig.version),
             channel: 'stable'
         },
-
-        async checkAppUpdate({ state, commit }: { state: State; commit: any }) {
-            commit('SET_VERSION_CHECKING', true)
-            commit('SET_VERSION_ERROR', null)
-            try {
-                const response = await VersionApi.getLatestVersion({
-                    platform: 'desktop',
-                    channel: state.version.current.channel,
-                    currentVersion: state.version.current.version
-                })
-                if (!response.success || !response.data) {
-                    throw new Error(response.message || '版本查询失败')
-                }
-                const { has_update, version } = response.data
-                commit('SET_VERSION_INFO', {
-                    hasUpdate: !!has_update && !!version,
-                    info: version || null
-                })
-            } catch (error: any) {
-                const message = error?.message || '检查更新失败'
-                console.warn('桌面端检查更新失败:', message)
-                commit('SET_VERSION_ERROR', message)
-                commit('SET_VERSION_INFO', { hasUpdate: false, info: null })
-            } finally {
-                commit('SET_VERSION_CHECKING', false)
-            }
-        },
-
-        async downloadLatestVersion({ state, commit }: { state: State; commit: any }) {
-            const latest = state.version.latest.info
-            if (!latest) {
-                commit('SET_VERSION_ERROR', '暂无可用更新')
-                return
-            }
-            try {
-                const response = await VersionApi.getDownloadUrl({
-                    id: latest.id,
-                    expiresInSeconds: 600
-                })
-                if (!response.success || !response.data || !response.data.download_url) {
-                    throw new Error(response.message || '获取下载链接失败')
-                }
-                window.open(response.data.download_url, '_blank', 'noopener')
-            } catch (error: any) {
-                const message = error?.message || '下载更新失败'
-                commit('SET_VERSION_ERROR', message)
-                throw error
-            }
-        },
         latest: {
             hasUpdate: false,
             info: null,
@@ -1054,6 +1005,57 @@ export const store = createStore<State>({
         // 更新全局加载文字
         updateGlobalLoadingText({commit}: { commit: any }, text: string) {
             commit('SET_GLOBAL_LOADING_TEXT', text)
+        },
+
+        // 检查应用更新
+        async checkAppUpdate({ state, commit }: { state: State; commit: any }) {
+            commit('SET_VERSION_CHECKING', true)
+            commit('SET_VERSION_ERROR', null)
+            try {
+                const response = await VersionApi.getLatestVersion({
+                    platform: 'desktop',
+                    channel: state.version.current.channel,
+                    currentVersion: state.version.current.version
+                })
+                if (!response.success || !response.data) {
+                    throw new Error(response.message || '版本查询失败')
+                }
+                const { has_update, version } = response.data
+                commit('SET_VERSION_INFO', {
+                    hasUpdate: !!has_update && !!version,
+                    info: version || null
+                })
+            } catch (error: any) {
+                const message = error?.message || '检查更新失败'
+                console.warn('桌面端检查更新失败:', message)
+                commit('SET_VERSION_ERROR', message)
+                commit('SET_VERSION_INFO', { hasUpdate: false, info: null })
+            } finally {
+                commit('SET_VERSION_CHECKING', false)
+            }
+        },
+
+        // 下载最新版本
+        async downloadLatestVersion({ state, commit }: { state: State; commit: any }) {
+            const latest = state.version.latest.info
+            if (!latest) {
+                commit('SET_VERSION_ERROR', '暂无可用更新')
+                return
+            }
+            try {
+                const response = await VersionApi.getDownloadUrl({
+                    id: latest.id,
+                    expiresInSeconds: 600
+                })
+                if (!response.success || !response.data || !response.data.download_url) {
+                    throw new Error(response.message || '获取下载链接失败')
+                }
+                window.open(response.data.download_url, '_blank', 'noopener')
+            } catch (error: any) {
+                const message = error?.message || '下载更新失败'
+                commit('SET_VERSION_ERROR', message)
+                throw error
+            }
         },
 
         // 加载联系人列表
