@@ -284,30 +284,51 @@ const handleFileSelect = async (event: Event) => {
 
     if (uploadResult.code === 200 && uploadResult.data) {
       console.log('[Settings] ✅ 头像上传成功，服务器响应', uploadResult.data)
+      const avatarUrl = uploadResult.data.fileUrl
+
       console.log('[Settings] 📊 检查返回的数据:', {
-        avatarUrl: uploadResult.data.fileUrl,
+        avatarUrl,
         objectKey: uploadResult.data.objectKey,
         localPath: uploadResult.data.localPath
       })
-      console.log('[Settings] 📊 检查 currentUser 状态:', {
-        avatar: currentUser.value.avatar,
-        avatarObjectKey: currentUser.value.avatarObjectKey,
-        avatarLocalPath: currentUser.value.avatarLocalPath
+
+      // 🔧 关键修复：调用后端 API 更新数据库中的用户头像信息
+      console.log('[Settings] 🔄 调用后端 API 更新数据库中的用户头像...')
+      const updateResult = await UserApi.updateUserInfo({
+        avatar: avatarUrl
       })
-      // 不显示成功提示，让用户看到头像直接更新
-      // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
-      await nextTick()
-      console.log('[Settings] 📊 nextTick 后检查 currentUser 状态:', {
-        avatar: currentUser.value.avatar,
-        avatarObjectKey: currentUser.value.avatarObjectKey,
-        avatarLocalPath: currentUser.value.avatarLocalPath
-      })
-      // 先清理预览URL，让 computed 属性重新计算
-      if (previewImageUrl.value) {
-        URL.revokeObjectURL(previewImageUrl.value)
-        previewImageUrl.value = ''
+
+      if (updateResult.success) {
+        console.log('[Settings] ✅ 后端用户信息更新成功')
+
+        // 更新 store 中的用户头像信息
+        console.log('[Settings] 🔄 更新 store 中的用户头像信息')
+        store.commit('UPDATE_USER_INFO', {
+          avatar: avatarUrl,
+          avatarObjectKey: uploadResult.data.objectKey || null,
+          avatarLocalPath: uploadResult.data.localPath || null
+        })
+
+        // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
+        await nextTick()
+        console.log('[Settings] 📊 nextTick 后检查 currentUser 状态:', {
+          avatar: currentUser.value.avatar,
+          avatarObjectKey: currentUser.value.avatarObjectKey,
+          avatarLocalPath: currentUser.value.avatarLocalPath
+        })
+
+        // 先清理预览URL，让 computed 属性重新计算
+        if (previewImageUrl.value) {
+          URL.revokeObjectURL(previewImageUrl.value)
+          previewImageUrl.value = ''
+        }
+        console.log('[Settings] 📊 清理预览后 userAvatarSrc 计算值:', userAvatarSrc.value)
+
+        toast.success('头像更新成功')
+      } else {
+        console.error('[Settings] ❌ 后端用户信息更新失败:', updateResult.message)
+        toast.error('头像上传成功但更新失败，请重试')
       }
-      console.log('[Settings] 📊 清理预览后 userAvatarSrc 计算值:', userAvatarSrc.value)
     } else {
       toast.error(uploadResult.message || '头像上传失败')
       console.error('[Settings] ❌ 头像上传失败', {
