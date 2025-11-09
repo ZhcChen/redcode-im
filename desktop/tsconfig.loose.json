@@ -22,7 +22,6 @@
   "exclude": [
     "src/**/*.vue",
     "src/examples",
-    "src/utils/__tests__",
     "node_modules",
     "dist"
   ]

@@ -428,15 +428,8 @@ onMounted(async () => {
     console.warn('初始化窗口标题失败:', error);
   }
   
-  // 加载测试功能（开发模式）
+  // 开发模式下启用调试工具
   if (import.meta.env.DEV) {
-    try {
-      await import('@/utils/test-title');
-      console.log('🔧 窗口标题测试功能已加载');
-    } catch (error) {
-      console.warn('加载测试功能失败:', error);
-    }
-    
     // 启动内存监控
     memoryMonitor.startMonitoring();
     console.log('🔍 内存监控已启动');

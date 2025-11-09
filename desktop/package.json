@@ -19,8 +19,7 @@
     "tauri:dev:staging": "tauri dev --config src-tauri/tauri.staging.json",
     "tauri:build": "tauri build",
     "tauri:build:staging": "tauri build --config src-tauri/tauri.staging.json",
-    "tauri:build:production": "tauri build --config src-tauri/tauri.production.json",
-    "test:e2e": "playwright test"
+    "tauri:build:production": "tauri build --config src-tauri/tauri.production.json"
   },
   "dependencies": {
     "@tauri-apps/api": "2.8.0",
@@ -37,7 +36,6 @@
     "@vue/runtime-core": "^3.5.21",
     "@vue/tsconfig": "^0.5.1",
     "@vue/typescript-plugin": "^2.1.10",
-    "@playwright/test": "^1.47.2",
     "sass-embedded": "^1.92.1",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
