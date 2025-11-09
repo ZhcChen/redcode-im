@@ -248,18 +248,63 @@ const handleFileSelect = async (event: Event) => {
     size: file.size
   })
 
-  // 验证文件类型
-  if (!file.type.startsWith('image/')) {
-    console.warn('[Settings] ⚠️ 非图片类型被拦截', { type: file.type })
-    toast.warning('请选择图片文件')
+  // ✅ 增强文件类型验证
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+
+  // 验证 MIME 类型
+  if (!allowedTypes.includes(file.type)) {
+    console.warn('[Settings] ⚠️ 不支持的 MIME 类型被拦截', { type: file.type })
+    toast.warning('仅支持 JPG、PNG、WebP、GIF 格式的图片')
     return
   }
 
-  // 验证文件大小（限制为5MB）
-  const maxSize = 5 * 1024 * 1024
+  // 验证文件扩展名
+  const fileName = file.name.toLowerCase()
+  const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext))
+  if (!hasValidExtension) {
+    console.warn('[Settings] ⚠️ 非法文件扩展名被拦截', { fileName })
+    toast.warning('文件扩展名不合法')
+    return
+  }
+
+  // 验证文件大小（限制为 10MB）
+  const maxSize = 10 * 1024 * 1024
   if (file.size > maxSize) {
     console.warn('[Settings] ⚠️ 图片超过大小限制', { size: file.size, maxSize })
-    toast.warning('图片大小不能超过5MB')
+    toast.warning('图片大小不能超过 10MB')
+    return
+  }
+
+  // ✅ 新增：验证图片尺寸和完整性
+  try {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+
+        // 限制图片尺寸（防止上传超大图片）
+        const maxDimension = 4096
+        if (img.width > maxDimension || img.height > maxDimension) {
+          reject(new Error(`图片尺寸不能超过 ${maxDimension}x${maxDimension}`))
+          return
+        }
+
+        resolve()
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error('图片文件已损坏或格式不正确'))
+      }
+
+      img.src = objectUrl
+    })
+  } catch (error: any) {
+    console.warn('[Settings] ⚠️ 图片验证失败', error)
+    toast.warning(error.message || '图片文件无效')
     return
   }
 
@@ -284,51 +329,40 @@ const handleFileSelect = async (event: Event) => {
 
     if (uploadResult.code === 200 && uploadResult.data) {
       console.log('[Settings] ✅ 头像上传成功，服务器响应', uploadResult.data)
-      const avatarUrl = uploadResult.data.fileUrl
 
       console.log('[Settings] 📊 检查返回的数据:', {
-        avatarUrl,
+        avatarUrl: uploadResult.data.fileUrl,
         objectKey: uploadResult.data.objectKey,
         localPath: uploadResult.data.localPath
       })
 
-      // 🔧 关键修复：调用后端 API 更新数据库中的用户头像信息
-      console.log('[Settings] 🔄 调用后端 API 更新数据库中的用户头像...')
-      const updateResult = await UserApi.updateUserInfo({
-        avatar: avatarUrl
+      // ✅ 修复：UserApi.uploadAvatar() 已完成所有必要的更新（包括 store 更新）
+      // 无需再次调用 updateUserInfo() 和 UPDATE_USER_INFO
+      // 避免覆盖 avatarLocalPath 为 null
+
+      // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
+      await nextTick()
+      console.log('[Settings] 📊 nextTick 后检查 currentUser 状态:', {
+        avatar: currentUser.value.avatar,
+        avatarObjectKey: currentUser.value.avatarObjectKey,
+        avatarLocalPath: currentUser.value.avatarLocalPath
       })
 
-      if (updateResult.success) {
-        console.log('[Settings] ✅ 后端用户信息更新成功')
+      // 延迟清理预览URL，确保 Avatar 组件已加载新图片
+      if (previewImageUrl.value) {
+        const oldPreviewUrl = previewImageUrl.value
+        previewImageUrl.value = '' // 先清空引用，触发 computed 重新计算
 
-        // 更新 store 中的用户头像信息
-        console.log('[Settings] 🔄 更新 store 中的用户头像信息')
-        store.commit('UPDATE_USER_INFO', {
-          avatar: avatarUrl,
-          avatarObjectKey: uploadResult.data.objectKey || null,
-          avatarLocalPath: uploadResult.data.localPath || null
-        })
-
-        // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
-        await nextTick()
-        console.log('[Settings] 📊 nextTick 后检查 currentUser 状态:', {
-          avatar: currentUser.value.avatar,
-          avatarObjectKey: currentUser.value.avatarObjectKey,
-          avatarLocalPath: currentUser.value.avatarLocalPath
-        })
-
-        // 先清理预览URL，让 computed 属性重新计算
-        if (previewImageUrl.value) {
-          URL.revokeObjectURL(previewImageUrl.value)
-          previewImageUrl.value = ''
-        }
         console.log('[Settings] 📊 清理预览后 userAvatarSrc 计算值:', userAvatarSrc.value)
 
-        toast.success('头像更新成功')
-      } else {
-        console.error('[Settings] ❌ 后端用户信息更新失败:', updateResult.message)
-        toast.error('头像上传成功但更新失败，请重试')
+        // 延迟释放 Blob URL，给 Avatar 组件足够时间加载新图片
+        setTimeout(() => {
+          URL.revokeObjectURL(oldPreviewUrl)
+          console.log('[Settings] ♻️ 已释放预览 Blob URL')
+        }, 1000)
       }
+
+      toast.success('头像更新成功')
     } else {
       toast.error(uploadResult.message || '头像上传失败')
       console.error('[Settings] ❌ 头像上传失败', {

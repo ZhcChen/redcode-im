@@ -312,14 +312,27 @@ export const store = createStore<State>({
             mobile: string;
             email: string;
         }>) {
-            if (userInfo.id !== undefined) state.user.id = userInfo.id
-            if (userInfo.username !== undefined) state.user.username = userInfo.username
-            if (userInfo.nickname !== undefined) state.user.nickname = userInfo.nickname
-            if (userInfo.avatar !== undefined) state.user.avatar = userInfo.avatar
-            if (userInfo.avatarObjectKey !== undefined) state.user.avatarObjectKey = userInfo.avatarObjectKey
-            if (userInfo.avatarLocalPath !== undefined) state.user.avatarLocalPath = userInfo.avatarLocalPath
-            if (userInfo.mobile !== undefined) state.user.mobile = userInfo.mobile
-            if (userInfo.email !== undefined) state.user.email = userInfo.email
+            // ✅ 优化：使用 Object.assign 创建新对象引用，确保 Vue 响应式系统正确触发
+            const updates: Partial<typeof state.user> = {}
+
+            if (userInfo.id !== undefined) updates.id = userInfo.id
+            if (userInfo.username !== undefined) updates.username = userInfo.username
+            if (userInfo.nickname !== undefined) updates.nickname = userInfo.nickname
+            if (userInfo.avatar !== undefined) updates.avatar = userInfo.avatar
+            if (userInfo.avatarObjectKey !== undefined) updates.avatarObjectKey = userInfo.avatarObjectKey
+            if (userInfo.avatarLocalPath !== undefined) updates.avatarLocalPath = userInfo.avatarLocalPath
+            if (userInfo.mobile !== undefined) updates.mobile = userInfo.mobile
+            if (userInfo.email !== undefined) updates.email = userInfo.email
+
+            // 创建新对象引用，触发响应式更新
+            state.user = Object.assign({}, state.user, updates)
+
+            console.log('[Store] ✅ UPDATE_USER_INFO 完成:', {
+                hasUpdates: Object.keys(updates).length > 0,
+                updatedFields: Object.keys(updates),
+                avatar: state.user.avatar,
+                avatarLocalPath: state.user.avatarLocalPath
+            })
         },
 
         SET_VERSION_CHECKING(state: State, checking: boolean) {
