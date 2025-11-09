@@ -377,7 +377,7 @@ class WebSocketManager {
       });
     }
 
-    // TODO: 实现 pruneMissing 逻辑
+    // 清理不需要的房间订阅
     if (pruneMissing) {
       WebSocketApi.getSubscribedRooms()
         .then((subscribedRooms) => {
