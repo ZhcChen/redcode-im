@@ -39,5 +39,8 @@ prost = "0.13"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
+# Backend 依赖
+redcode-im-backend = { path = "../../../backend" }
+
 [dev-dependencies]
 hyper = { version = "0.14", features = ["full"] }

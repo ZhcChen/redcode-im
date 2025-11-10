@@ -4,6 +4,7 @@
 
 pub mod auth;
 pub mod constants;
+pub mod crypto;
 pub mod database;
 pub mod error;
 pub mod handlers;

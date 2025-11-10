@@ -31,7 +31,7 @@
  uuid = { version = "1.11", features = ["v4", "v7", "serde"] }
 
  # 数据库
- sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros", "migrate", "bigdecimal"], default-features = false }
+ sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "sqlite", "chrono", "uuid", "macros", "migrate", "bigdecimal"], default-features = false }
  bigdecimal = "0.4"
 
  # 缓存
@@ -52,6 +52,9 @@
  hex = "0.4"
  md5 = "0.7"
  urlencoding = "2.1"
+sha2 = "0.10"
+aes-gcm = "0.10"
+machine-uid = "0.3"
 
  # HTTP 客户端
  reqwest = { version = "0.12", features = ["json", "multipart"] }

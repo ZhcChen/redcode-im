@@ -1,12 +1,15 @@
 use tauri::{AppHandle, Manager, Window, WindowEvent};
 
 // 导入模块
+mod account;
 mod cache;
 mod http;
 mod logger;
 mod message_search;
 mod websocket;
 
+use account::commands::*;
+use account::AccountManager;
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
@@ -113,6 +116,9 @@ pub fn run() {
     // 初始化 WebSocket 管理器
     let ws_manager = WebSocketManager::new();
 
+    // 初始化账号管理器
+    let account_manager = AccountManager::new();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
@@ -120,6 +126,7 @@ pub fn run() {
         // 注册状态
         .manage(http_client_state)
         .manage(ws_manager)
+        .manage(account_manager)
         .invoke_handler(tauri::generate_handler![
             // 窗口相关命令
             force_center_window,
@@ -131,6 +138,15 @@ pub fn run() {
             show_from_tray,
             quit_app,
             client_debug,
+            // 账号管理命令
+            account_init,
+            account_add,
+            account_get_all,
+            account_get_current,
+            account_set_current,
+            account_remove,
+            account_update_unread,
+            account_get_settings,
             // 缓存相关命令
             cache::cache_save_value,
             cache::cache_load_value,
