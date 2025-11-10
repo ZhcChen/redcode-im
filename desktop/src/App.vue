@@ -497,20 +497,37 @@ function enableContextMenu() {
 onMounted(async () => {
   console.log('App 组件已挂载');
 
-  // 从本地存储恢复账号列表
+  // 检查是否是独立登录窗口
+  let isLoginWindow = false;
   try {
-    await store.dispatch('accounts/loadAccountsFromStorage');
-    console.log('✅ 账号列表已从本地存储恢复');
-
-    // 如果有当前账号，恢复其状态
-    const currentAccount = store.getters['accounts/currentAccount'];
-    if (currentAccount) {
-      store.commit('SET_TOKEN', currentAccount.token);
-      store.commit('SET_USER', currentAccount.userInfo);
-      console.log('✅ 已恢复当前账号状态:', currentAccount.userInfo.nickname);
-    }
+    const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+    const currentWindow = getCurrentWebviewWindow();
+    const windowLabel = currentWindow.label;
+    isLoginWindow = windowLabel.startsWith('login-');
+    console.log('当前窗口:', windowLabel, '是否为登录窗口:', isLoginWindow);
   } catch (error) {
-    console.error('❌ 恢复账号列表失败:', error);
+    console.warn('检测窗口类型失败:', error);
+  }
+
+  // 独立登录窗口不恢复账号状态，保持干净的登录环境
+  if (!isLoginWindow) {
+    // 从本地存储恢复账号列表
+    try {
+      await store.dispatch('accounts/loadAccountsFromStorage');
+      console.log('✅ 账号列表已从本地存储恢复');
+
+      // 如果有当前账号，恢复其状态
+      const currentAccount = store.getters['accounts/currentAccount'];
+      if (currentAccount) {
+        store.commit('SET_TOKEN', currentAccount.token);
+        store.commit('SET_USER', currentAccount.userInfo);
+        console.log('✅ 已恢复当前账号状态:', currentAccount.userInfo.nickname);
+      }
+    } catch (error) {
+      console.error('❌ 恢复账号列表失败:', error);
+    }
+  } else {
+    console.log('🔕 独立登录窗口，跳过账号恢复');
   }
 
   // 确保全局加载蒙版是隐藏状态
