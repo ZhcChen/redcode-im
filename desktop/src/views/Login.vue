@@ -384,7 +384,32 @@ async function handleLogin() {
       // 只有在状态确认无误时才跳转
       if (finalToken && finalLoggedIn) {
         console.log("✅ 状态验证通过，开始页面跳转...");
-        // 登录成功后，直接跳转到首页
+
+        // 检查是否在独立的登录窗口中（通过窗口label判断）
+        try {
+          const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+          const currentWindow = getCurrentWebviewWindow();
+          const windowLabel = currentWindow.label;
+
+          console.log('当前窗口label:', windowLabel);
+
+          // 如果是独立的登录窗口（label以'login-'开头）
+          if (windowLabel.startsWith('login-')) {
+            console.log('✅ 在独立登录窗口中，账号已添加，关闭窗口');
+
+            // 通知主窗口刷新账号列表（可选）
+            // TODO: 可以通过事件系统通知主窗口
+
+            // 延迟关闭窗口，让用户看到成功提示
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await currentWindow.close();
+            return;
+          }
+        } catch (error) {
+          console.warn('检查窗口类型失败:', error);
+        }
+
+        // 主窗口登录，跳转到首页
         router.replace({ name: "Home" });
       } else {
         console.error("❌ 登录状态验证失败，无法跳转");

@@ -166,7 +166,7 @@ const handleSettings = () => {
 }
 
 // 处理添加账号点击
-const handleAddAccount = () => {
+const handleAddAccount = async () => {
   console.log('添加账号被点击')
 
   // 检查是否可以添加新账号
@@ -174,12 +174,38 @@ const handleAddAccount = () => {
   if (!canAdd) {
     const maxAccounts = store.state.accounts.maxAccounts
     console.warn(`已达到最大账号数量限制: ${maxAccounts}`)
-    // 可以显示提示
+    // TODO: 显示提示
     return
   }
 
-  // 跳转到登录页面添加新账号
-  router.push('/login')
+  try {
+    // 使用 Tauri API 打开新的登录窗口
+    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+
+    // 创建一个新的登录窗口
+    const loginWindow = new WebviewWindow('login-' + Date.now(), {
+      url: '/login',
+      title: '添加账号',
+      width: 400,
+      height: 600,
+      resizable: false,
+      center: true,
+      alwaysOnTop: false,
+      skipTaskbar: false
+    })
+
+    // 监听窗口创建完成
+    loginWindow.once('tauri://created', () => {
+      console.log('登录窗口已创建')
+    })
+
+    // 监听窗口创建错误
+    loginWindow.once('tauri://error', (error) => {
+      console.error('创建登录窗口失败:', error)
+    })
+  } catch (error) {
+    console.error('打开登录窗口失败:', error)
+  }
 }
 
 // 处理退出登录点击
