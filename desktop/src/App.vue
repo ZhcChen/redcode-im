@@ -26,7 +26,8 @@ const globalLoading = computed(() => store.getters.globalLoading);
 const accounts = computed(() => store.getters['accounts/allAccounts']);
 const currentAccountId = computed(() => store.state.accounts.currentAccountId);
 const isLoggedIn = computed(() => store.getters.isLoggedIn);
-const showAccountTabs = computed(() => accounts.value.length > 0 && isLoggedIn.value);
+// 只有多个账号时才显示切换标签
+const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.value);
 
 // 账号切换处理
 async function handleAccountSwitch(accountId: string) {
@@ -553,13 +554,13 @@ onUnmounted(() => {
 
 <template>
   <div id="app">
-    <!-- 多账号切换标签（仅在有账号且已登录时显示） -->
+    <!-- 多账号切换标签（仅在多账号时显示） -->
     <AccountTabs
       v-if="showAccountTabs"
       :accounts="accounts"
       :current-account-id="currentAccountId"
+      :show-add-button="false"
       @switch="handleAccountSwitch"
-      @add="handleAddAccount"
       @remove="handleRemoveAccount"
     />
 
@@ -580,23 +581,29 @@ onUnmounted(() => {
 body {
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 #app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
 }
 
 /* 账号标签区域 */
-#app > .account-tabs {
+.account-tabs {
   flex-shrink: 0;
+  z-index: 100;
 }
 
-/* 主内容区域 */
-#app > div:not(.account-tabs):not(.loading-mask) {
+/* 主内容区域 - router-view */
+#app > div:not(.loading-mask) {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>

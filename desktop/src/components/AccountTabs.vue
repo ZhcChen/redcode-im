@@ -39,7 +39,7 @@
 
       <!-- 添加账号按钮 -->
       <button
-        v-if="accounts.length < maxAccounts"
+        v-if="showAddButton && accounts.length < maxAccounts"
         class="add-account-btn"
         @click="handleAddAccount"
         title="添加账号"
@@ -49,7 +49,7 @@
       </button>
 
       <!-- 账号数量限制提示 -->
-      <div v-else class="max-accounts-tip">
+      <div v-else-if="showAddButton" class="max-accounts-tip">
         最多支持 {{ maxAccounts }} 个账号
       </div>
     </div>
@@ -65,10 +65,12 @@ interface Props {
   accounts: AccountInfo[]
   currentAccountId: string | null
   maxAccounts?: number
+  showAddButton?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  maxAccounts: 10
+  maxAccounts: 10,
+  showAddButton: true
 })
 
 // Emits
@@ -103,9 +105,9 @@ function handleRemoveAccount(accountId: string) {
 <style scoped lang="scss">
 .account-tabs {
   width: 100%;
-  background: #f5f5f5;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 8px 12px;
+  background: var(--bg-color, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  padding: 6px 12px;
   box-sizing: border-box;
 }
 
@@ -122,7 +124,7 @@ function handleRemoveAccount(accountId: string) {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #ccc;
+    background: #00C2B3;
     border-radius: 2px;
   }
 
@@ -133,26 +135,26 @@ function handleRemoveAccount(accountId: string) {
 
 .account-tab {
   flex-shrink: 0;
-  min-width: 180px;
-  max-width: 220px;
-  height: 48px;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 8px 12px;
+  min-width: 160px;
+  max-width: 200px;
+  height: 40px;
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  padding: 6px 10px;
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: #409eff;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: #00C2B3;
+    background: var(--bg-color, #ffffff);
+    box-shadow: 0 1px 4px rgba(0, 194, 179, 0.15);
   }
 
   &.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-color: #667eea;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    background: #00C2B3;
+    border-color: #00C2B3;
+    box-shadow: 0 2px 8px rgba(0, 194, 179, 0.25);
 
     .tab-content {
       .nickname {
@@ -184,18 +186,17 @@ function handleRemoveAccount(accountId: string) {
 }
 
 .avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 .nickname {
   flex: 1;
-  font-size: 14px;
-  color: #333;
+  font-size: 13px;
+  color: var(--text-primary, #333);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -244,31 +245,30 @@ function handleRemoveAccount(accountId: string) {
 
 .add-account-btn {
   flex-shrink: 0;
-  min-width: 120px;
-  height: 48px;
-  background: #fff;
-  border: 2px dashed #409eff;
-  border-radius: 8px;
-  padding: 8px 16px;
+  min-width: 100px;
+  height: 40px;
+  background: var(--bg-color, #ffffff);
+  border: 1.5px dashed #00C2B3;
+  border-radius: 6px;
+  padding: 6px 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  color: #409eff;
-  font-size: 14px;
+  gap: 6px;
+  color: #00C2B3;
+  font-size: 13px;
   font-weight: 500;
 
   &:hover {
-    background: #ecf5ff;
-    border-color: #66b1ff;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+    background: rgba(0, 194, 179, 0.05);
+    border-color: #00C2B3;
+    box-shadow: 0 1px 4px rgba(0, 194, 179, 0.15);
   }
 
   .add-icon {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: bold;
   }
 }
