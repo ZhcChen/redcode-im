@@ -23,14 +23,14 @@ impl AccountManager {
 
     /// 初始化账号存储
     pub async fn init(&self, app_handle: &AppHandle) -> Result<(), String> {
-        let store = AccountStore::new(app_handle)
-            .await
-            .map_err(|e| format!("初始化账号数据库失败: {}", e))?;
-
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
             .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+
+        let store = AccountStore::new(&app_data_dir)
+            .await
+            .map_err(|e| format!("初始化账号数据库失败: {}", e))?;
 
         let crypto = TokenCrypto::new(&app_data_dir)
             .map_err(|e| format!("初始化加密器失败: {}", e))?;

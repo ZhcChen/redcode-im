@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::path::PathBuf;
-use tauri::AppHandle;
 
 /// 账号信息
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -32,13 +31,7 @@ pub struct AccountStore {
 
 impl AccountStore {
     /// 创建或打开账号数据库
-    pub async fn new(app_handle: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
-        // 获取应用数据目录
-        let app_data_dir = app_handle
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-
+    pub async fn new(app_data_dir: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         // 确保目录存在
         std::fs::create_dir_all(&app_data_dir)?;
 
