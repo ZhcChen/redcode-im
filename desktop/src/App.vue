@@ -511,10 +511,31 @@ onMounted(async () => {
 
   // 独立登录窗口不恢复账号状态，保持干净的登录环境
   if (!isLoginWindow) {
-    // 从本地存储恢复账号列表
+    // 检查是否需要迁移 localStorage 数据
+    try {
+      const { needsMigration, migrateAccounts } = await import('./utils/accountMigration');
+      const shouldMigrate = await needsMigration();
+
+      if (shouldMigrate) {
+        console.log('🔄 检测到需要迁移账号数据...');
+        const result = await migrateAccounts();
+
+        if (result.success) {
+          console.log(`✅ ${result.message}`);
+          toast.success(result.message);
+        } else {
+          console.error(`❌ ${result.message}`);
+          toast.error(result.message);
+        }
+      }
+    } catch (error) {
+      console.error('❌ 账号数据迁移失败:', error);
+    }
+
+    // 从 Rust SQLite 恢复账号列表
     try {
       await store.dispatch('accounts/loadAccountsFromStorage');
-      console.log('✅ 账号列表已从本地存储恢复');
+      console.log('✅ 账号列表已从 SQLite 恢复');
 
       // 如果有当前账号，恢复其状态
       const currentAccount = store.getters['accounts/currentAccount'];
