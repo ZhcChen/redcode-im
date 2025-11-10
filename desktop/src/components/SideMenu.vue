@@ -60,7 +60,11 @@
             class="popover-item"
             @click="handleAddAccount"
           >
-            <span class="popover-icon add-icon">+</span>
+            <img
+              src="/assets/image/icon-add-user.svg"
+              alt="添加账号"
+              class="popover-icon"
+            />
             <span class="popover-label">添加账号</span>
           </div>
           <div
@@ -392,17 +396,6 @@ onUnmounted(() => {
     height: 24px;
     margin-right: 8px;
     flex-shrink: 0;
-
-    &.add-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      font-weight: bold;
-      color: #00C2B3;
-      border: 2px solid #00C2B3;
-      border-radius: 4px;
-    }
   }
 
   .popover-label {
