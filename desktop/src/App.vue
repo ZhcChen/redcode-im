@@ -371,38 +371,55 @@ watch(token, async (val, oldVal) => {
   });
 
   if (val) {
-    // 有token时跳转到主页（但避免在登录页面时重复跳转）
-    if (router.currentRoute.value.path === '/login') {
+    // 检查是否在独立的登录窗口中
+    let isLoginWindow = false;
+    try {
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const currentWindow = getCurrentWebviewWindow();
+      const windowLabel = currentWindow.label;
+      isLoginWindow = windowLabel.startsWith('login-');
+      console.log('当前窗口:', windowLabel, '是否为登录窗口:', isLoginWindow);
+    } catch (error) {
+      console.warn('检测窗口类型失败:', error);
+    }
+
+    // 有token时跳转到主页（但独立登录窗口不跳转）
+    if (router.currentRoute.value.path === '/login' && !isLoginWindow) {
       console.log('🔄 从登录页面跳转到主页');
       router.push('/home');
     }
 
-    // 登录成功后延迟初始化 WebSocket 连接，确保用户状态完全同步
-    createSafeTimeout(() => {
-      // 再次验证登录状态
-      if (store.getters.isLoggedIn && store.state.token === val) {
-        console.log('🔄 Token变化触发WebSocket连接初始化');
-        initWebSocketConnection();
-      } else {
-        console.warn('⚠️ 用户状态未同步，跳过WebSocket初始化');
-      }
-    }, 800); // 增加延迟确保状态同步
-
-    // 更新窗口标题（添加更长延迟确保用户信息已更新）
-    createSafeTimeout(async () => {
-      try {
-        // 验证用户信息是否已正确设置
-        if (user.value.id && user.value.username) {
-          console.log('🔄 App.vue token watch - 准备更新窗口标题，当前用户信息:', user.value);
-          const { updateWindowTitle } = await import('@/utils');
-          await updateWindowTitle(user.value);
+    // 独立登录窗口不需要初始化 WebSocket 和更新标题
+    if (!isLoginWindow) {
+      // 登录成功后延迟初始化 WebSocket 连接，确保用户状态完全同步
+      createSafeTimeout(() => {
+        // 再次验证登录状态
+        if (store.getters.isLoggedIn && store.state.token === val) {
+          console.log('🔄 Token变化触发WebSocket连接初始化');
+          initWebSocketConnection();
         } else {
-          console.warn('⚠️ 用户信息不完整，跳过窗口标题更新');
+          console.warn('⚠️ 用户状态未同步，跳过WebSocket初始化');
         }
-      } catch (error) {
-        console.warn('更新窗口标题失败:', error);
-      }
-    }, 300); // 增加延迟确保用户信息已同步
+      }, 800); // 增加延迟确保状态同步
+
+      // 更新窗口标题（添加更长延迟确保用户信息已更新）
+      createSafeTimeout(async () => {
+        try {
+          // 验证用户信息是否已正确设置
+          if (user.value.id && user.value.username) {
+            console.log('🔄 App.vue token watch - 准备更新窗口标题，当前用户信息:', user.value);
+            const { updateWindowTitle } = await import('@/utils');
+            await updateWindowTitle(user.value);
+          } else {
+            console.warn('⚠️ 用户信息不完整，跳过窗口标题更新');
+          }
+        } catch (error) {
+          console.warn('更新窗口标题失败:', error);
+        }
+      }, 300); // 增加延迟确保用户信息已同步
+    } else {
+      console.log('🔕 独立登录窗口，跳过 WebSocket 初始化和窗口标题更新');
+    }
   } else {
     // 无token时立即执行退出逻辑
     console.log('⚡ 检测到token清除，立即执行退出操作');
