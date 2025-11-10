@@ -80,11 +80,25 @@ async function handleAddAccount() {
 async function handleRemoveAccount(accountId: string) {
   console.log('移除账号:', accountId);
 
+  // 获取账号信息用于确认提示
+  const account = store.getters['accounts/getAccountById'](accountId);
+  if (!account) {
+    toast.error('账号不存在');
+    return;
+  }
+
+  // 确认对话框
+  const confirmed = confirm(`确定要移除账号 "${account.userInfo.nickname}" 吗？`);
+  if (!confirmed) {
+    console.log('用户取消移除账号');
+    return;
+  }
+
   try {
     // 登出该账号
     await store.dispatch('accounts/logoutAccount', accountId);
 
-    toast.success('账号已移除');
+    toast.success(`账号 ${account.userInfo.nickname} 已移除`);
 
     // 如果移除后没有账号了，跳转到登录页
     if (accounts.value.length === 0) {
@@ -546,6 +560,23 @@ onMounted(async () => {
 
   // 禁用浏览器右键菜单
   disableContextMenu();
+
+  // 监听新账号添加事件（来自独立登录窗口）
+  let unlistenAccountAdded: (() => void) | null = null;
+  (async () => {
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlistenAccountAdded = await listen('account-added', (event) => {
+        console.log('🔔 收到新账号添加事件:', event.payload);
+        // 账号已经在 Login.vue 中添加到 store，这里只需要显示提示
+        const payload = event.payload as { accountId: string; nickname: string };
+        toast.success(`账号 ${payload.nickname} 已添加`);
+      });
+      console.log('✅ 已注册账号添加事件监听');
+    } catch (error) {
+      console.warn('注册账号添加事件监听失败:', error);
+    }
+  })();
 });
 
 // 组件卸载时清理

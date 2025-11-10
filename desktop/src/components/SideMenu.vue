@@ -173,8 +173,12 @@ const handleAddAccount = async () => {
   const canAdd = store.getters['accounts/canAddAccount']
   if (!canAdd) {
     const maxAccounts = store.state.accounts.maxAccounts
+    const currentCount = store.state.accounts.accounts.length
     console.warn(`已达到最大账号数量限制: ${maxAccounts}`)
-    // TODO: 显示提示
+
+    // 导入 toast 提示
+    const { toast } = await import('@/utils/toast')
+    toast.warning(`已达到最大账号数量限制（${currentCount}/${maxAccounts}）`)
     return
   }
 

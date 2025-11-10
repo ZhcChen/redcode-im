@@ -397,8 +397,17 @@ async function handleLogin() {
           if (windowLabel.startsWith('login-')) {
             console.log('✅ 在独立登录窗口中，账号已添加，关闭窗口');
 
-            // 通知主窗口刷新账号列表（可选）
-            // TODO: 可以通过事件系统通知主窗口
+            // 通知主窗口刷新账号列表
+            try {
+              const { emit } = await import('@tauri-apps/api/event');
+              await emit('account-added', {
+                accountId: mappedUserInfo.id,
+                nickname: mappedUserInfo.nickname
+              });
+              console.log('✅ 已通知主窗口刷新账号列表');
+            } catch (error) {
+              console.warn('通知主窗口失败:', error);
+            }
 
             // 延迟关闭窗口，让用户看到成功提示
             await new Promise(resolve => setTimeout(resolve, 500));
