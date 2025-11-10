@@ -9,6 +9,8 @@ import { toast } from './utils/toast'
 import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
 import LoadingMask from './components/LoadingMask.vue'
+import AccountTabs from './components/AccountTabs.vue'
+import type { AccountInfo } from './store/modules/accounts'
 
 const store = useStore();
 const router = useRouter();
@@ -19,6 +21,79 @@ const user = computed(() => store.getters.currentUser);
 const websocket = computed(() => store.state.websocket);
 const networkState = computed(() => store.state.networkState);
 const globalLoading = computed(() => store.getters.globalLoading);
+
+// 多账号相关计算属性
+const accounts = computed(() => store.getters['accounts/allAccounts']);
+const currentAccountId = computed(() => store.state.accounts.currentAccountId);
+const isLoggedIn = computed(() => store.getters.isLoggedIn);
+const showAccountTabs = computed(() => accounts.value.length > 0 && isLoggedIn.value);
+
+// 账号切换处理
+async function handleAccountSwitch(accountId: string) {
+  console.log('切换账号:', accountId);
+
+  try {
+    // 1. 切换当前账号
+    await store.dispatch('accounts/switchAccount', accountId);
+
+    // 2. 切换 Vuex store 中的 token 和用户信息
+    const account = store.getters['accounts/getAccountById'](accountId);
+    if (account) {
+      store.commit('SET_TOKEN', account.token);
+      store.commit('SET_USER', account.userInfo);
+
+      // 3. 同步 Rust 后端 token
+      const { syncRustBackendToken } = await import('./api/http');
+      await syncRustBackendToken(account.token);
+
+      // 4. 重新初始化 WebSocket 连接
+      await initWebSocketConnection();
+
+      // 5. 刷新数据（联系人、聊天列表等）
+      store.dispatch('loadChatList', { forceRefresh: true });
+      store.dispatch('loadContacts', { forceRefresh: true });
+
+      console.log('✅ 账号切换成功');
+    }
+  } catch (error) {
+    console.error('❌ 账号切换失败:', error);
+    toast.error('账号切换失败');
+  }
+}
+
+// 添加账号处理
+async function handleAddAccount() {
+  console.log('添加新账号');
+
+  // 检查是否可以添加新账号
+  if (!store.getters['accounts/canAddAccount']) {
+    toast.warning(`最多支持 ${store.state.accounts.maxAccounts} 个账号`);
+    return;
+  }
+
+  // 跳转到登录页面添加新账号
+  router.push('/login');
+}
+
+// 移除账号处理
+async function handleRemoveAccount(accountId: string) {
+  console.log('移除账号:', accountId);
+
+  try {
+    // 登出该账号
+    await store.dispatch('accounts/logoutAccount', accountId);
+
+    toast.success('账号已移除');
+
+    // 如果移除后没有账号了，跳转到登录页
+    if (accounts.value.length === 0) {
+      router.push('/login');
+    }
+  } catch (error) {
+    console.error('❌ 移除账号失败:', error);
+    toast.error('移除账号失败');
+  }
+}
 
 // 使用 Rust 后端强制窗口居中
 async function forceWindowCenter() {
@@ -462,11 +537,25 @@ onUnmounted(() => {
 
 <template>
   <div id="app">
-    <router-view />
+    <!-- 多账号切换标签（仅在有账号且已登录时显示） -->
+    <AccountTabs
+      v-if="showAccountTabs"
+      :accounts="accounts"
+      :current-account-id="currentAccountId"
+      @switch="handleAccountSwitch"
+      @add="handleAddAccount"
+      @remove="handleRemoveAccount"
+    />
+
+    <!-- 使用 keep-alive 保持页面状态，key 为当前账号 ID -->
+    <keep-alive :include="['Home', 'Chat', 'Contacts', 'Settings']">
+      <router-view :key="currentAccountId || 'default'" />
+    </keep-alive>
+
     <!-- 全局加载蒙版 -->
-    <LoadingMask 
-      :visible="globalLoading.visible" 
-      :text="globalLoading.text" 
+    <LoadingMask
+      :visible="globalLoading.visible"
+      :text="globalLoading.text"
     />
   </div>
 </template>
@@ -475,5 +564,23 @@ onUnmounted(() => {
 body {
   margin: 0;
   padding: 0;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 账号标签区域 */
+#app > .account-tabs {
+  flex-shrink: 0;
+}
+
+/* 主内容区域 */
+#app > div:not(.account-tabs):not(.loading-mask) {
+  flex: 1;
+  overflow: auto;
 }
 </style>
