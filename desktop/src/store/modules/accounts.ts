@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core'
+
 /**
  * 账号信息接口
  */
@@ -240,9 +242,11 @@ const accountsModule = {
      * 登出账号
      */
     async logoutAccount({ dispatch }, accountId: string) {
-      // 通知 Rust 后端断开该账号的连接
+      // 通知 Rust 后端断开该账号的连接（如果后端有此命令）
       try {
-        await window.ipc.invoke('logout_account', { account_id: accountId })
+        // 目前 Rust 后端可能没有此命令，暂时注释
+        // await invoke('logout_account', { account_id: accountId })
+        console.log('登出账号:', accountId)
       } catch (error) {
         console.error('登出账号失败:', error)
       }
