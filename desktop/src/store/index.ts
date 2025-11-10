@@ -3,6 +3,7 @@ import {createStore} from 'vuex'
 import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
 import { UserApi, VersionApi, apiConfig } from '@/api'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
+import accountsModule, { AccountsState } from './modules/accounts'
 
 // 辅助函数：格式化最后在线时间
 function formatLastSeen(timeStr: string): string {
@@ -102,6 +103,7 @@ export interface ChatItem {
 
 // 定义状态接口
 export interface State {
+    accounts: AccountsState // 多账号管理模块
     token: string | null,
     user: {
         id: string | null
@@ -179,6 +181,9 @@ export interface State {
 
 // 创建 store
 export const store = createStore<State>({
+    modules: {
+        accounts: accountsModule
+    },
     state: {
         token: null,
         user: {
