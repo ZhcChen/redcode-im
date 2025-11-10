@@ -293,6 +293,39 @@ async function handleLogin() {
       });
       console.log("[Login] 首次 dispatch login 完成");
 
+      // 将账号添加到 accounts 模块（支持多账号）
+      try {
+        const accountInfo = {
+          id: mappedUserInfo.id,
+          token: response.data.token,
+          userInfo: mappedUserInfo,
+          unreadCount: 0,
+          createdAt: Date.now()
+        };
+
+        // 检查账号是否已存在
+        const existingAccount = store.getters['accounts/getAccountById'](mappedUserInfo.id);
+        if (existingAccount) {
+          // 更新现有账号信息
+          await store.commit('accounts/UPDATE_ACCOUNT', {
+            accountId: mappedUserInfo.id,
+            data: accountInfo
+          });
+          console.log('✅ 账号已存在，已更新账号信息');
+        } else {
+          // 添加新账号
+          await store.dispatch('accounts/addAccount', accountInfo);
+          console.log('✅ 新账号已添加到 accounts 模块');
+        }
+
+        // 设置为当前账号
+        await store.dispatch('accounts/switchAccount', mappedUserInfo.id);
+        console.log('✅ 已切换到当前账号');
+      } catch (accountError) {
+        console.error('❌ 添加账号到 accounts 模块失败:', accountError);
+        // 不阻断登录流程，只记录错误
+      }
+
       console.log("登录成功:", response.data);
 
       // 等待更长时间确保状态完全同步，避免竞态条件
