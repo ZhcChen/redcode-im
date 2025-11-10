@@ -45,7 +45,7 @@
         </template>
         
         <template #content>
-          <div 
+          <div
             class="popover-item"
             @click="handleSettings"
           >
@@ -56,7 +56,18 @@
             />
             <span class="popover-label">设置</span>
           </div>
-          <div 
+          <div
+            class="popover-item"
+            @click="handleAddAccount"
+          >
+            <img
+              src="/assets/image/icon-add-user.svg"
+              alt="添加账号"
+              class="popover-icon"
+            />
+            <span class="popover-label">添加账号</span>
+          </div>
+          <div
             class="popover-item"
             @click="handleLogout"
           >
@@ -152,6 +163,23 @@ const handleAvatarClick = () => {
 const handleSettings = () => {
   console.log('设置被点击')
   router.push('/home/settings')
+}
+
+// 处理添加账号点击
+const handleAddAccount = () => {
+  console.log('添加账号被点击')
+
+  // 检查是否可以添加新账号
+  const canAdd = store.getters['accounts/canAddAccount']
+  if (!canAdd) {
+    const maxAccounts = store.state.accounts.maxAccounts
+    console.warn(`已达到最大账号数量限制: ${maxAccounts}`)
+    // 可以显示提示
+    return
+  }
+
+  // 跳转到登录页面添加新账号
+  router.push('/login')
 }
 
 // 处理退出登录点击
