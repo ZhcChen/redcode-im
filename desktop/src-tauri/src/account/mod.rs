@@ -41,30 +41,22 @@ impl AccountManager {
         Ok(())
     }
 
-    /// 获取存储实例
-    async fn get_store(&self) -> Result<AccountStore, String> {
-        self.store
-            .lock()
-            .await
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| "账号管理器未初始化".to_string())
-    }
-
-    /// 获取加密器
-    async fn get_crypto(&self) -> Result<TokenCrypto, String> {
-        self.crypto
-            .lock()
-            .await
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| "加密器未初始化".to_string())
+    /// 检查是否已初始化
+    async fn is_initialized(&self) -> bool {
+        self.store.lock().await.is_some() && self.crypto.lock().await.is_some()
     }
 
     /// 添加账号（加密 token）
     pub async fn add_account(&self, account: AccountInput) -> Result<(), String> {
-        let store = self.get_store().await?;
-        let crypto = self.get_crypto().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
+        let crypto_guard = self.crypto.lock().await;
+        let crypto = crypto_guard.as_ref().unwrap();
 
         // 加密 token
         let encrypted_token = crypto
@@ -100,8 +92,15 @@ impl AccountManager {
 
     /// 获取所有账号（解密 token）
     pub async fn get_all_accounts(&self) -> Result<Vec<AccountOutput>, String> {
-        let store = self.get_store().await?;
-        let crypto = self.get_crypto().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
+        let crypto_guard = self.crypto.lock().await;
+        let crypto = crypto_guard.as_ref().unwrap();
 
         let accounts = store
             .get_all_accounts()
@@ -139,8 +138,15 @@ impl AccountManager {
 
     /// 获取当前账号
     pub async fn get_current_account(&self) -> Result<Option<AccountOutput>, String> {
-        let store = self.get_store().await?;
-        let crypto = self.get_crypto().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
+        let crypto_guard = self.crypto.lock().await;
+        let crypto = crypto_guard.as_ref().unwrap();
 
         let account = store
             .get_current_account()
@@ -178,7 +184,13 @@ impl AccountManager {
 
     /// 设置当前账号
     pub async fn set_current_account(&self, account_id: String) -> Result<(), String> {
-        let store = self.get_store().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
         store
             .set_current_account(&account_id)
             .await
@@ -188,7 +200,13 @@ impl AccountManager {
 
     /// 移除账号
     pub async fn remove_account(&self, account_id: String) -> Result<(), String> {
-        let store = self.get_store().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
         store
             .remove_account(&account_id)
             .await
@@ -198,7 +216,13 @@ impl AccountManager {
 
     /// 更新账号未读数
     pub async fn update_unread_count(&self, account_id: String, count: i32) -> Result<(), String> {
-        let store = self.get_store().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
         store
             .update_unread_count(&account_id, count)
             .await
@@ -208,7 +232,13 @@ impl AccountManager {
 
     /// 获取账号设置
     pub async fn get_account_settings(&self, account_id: String) -> Result<Option<AccountSettings>, String> {
-        let store = self.get_store().await?;
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
         store
             .get_account_settings(&account_id)
             .await
