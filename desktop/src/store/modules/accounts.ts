@@ -192,39 +192,46 @@ const accountsModule = {
         throw new Error(`已达到最大账号数量限制: ${state.maxAccounts}`)
       }
 
-      commit('ADD_ACCOUNT', account)
+      // 添加到 Rust SQLite
+      await addAccountToRust(account)
 
-      // 保存到本地存储
-      await saveAccountsToStorage(state.accounts)
+      // 更新本地状态
+      commit('ADD_ACCOUNT', account)
     },
 
     /**
      * 移除账号（异步）
      */
     async removeAccount({ commit, state }, accountId: string) {
-      commit('REMOVE_ACCOUNT', accountId)
+      // 从 Rust SQLite 移除
+      await removeAccountFromRust(accountId)
 
-      // 保存到本地存储
-      await saveAccountsToStorage(state.accounts)
+      // 更新本地状态
+      commit('REMOVE_ACCOUNT', accountId)
     },
 
     /**
      * 切换账号（异步）
      */
     async switchAccount({ commit, state }, accountId: string) {
-      commit('SET_CURRENT_ACCOUNT', accountId)
+      // 设置到 Rust SQLite
+      await setCurrentAccountInRust(accountId)
 
-      // 保存当前账号 ID 到本地存储
-      await saveCurrentAccountId(accountId)
+      // 更新本地状态
+      commit('SET_CURRENT_ACCOUNT', accountId)
     },
 
     /**
-     * 从本地存储恢复账号列表
+     * 从 Rust SQLite 恢复账号列表
      */
     async loadAccountsFromStorage({ commit }) {
       try {
-        const accounts = await loadAccountsFromStorage()
-        const currentAccountId = await loadCurrentAccountId()
+        // 初始化账号管理器
+        await invoke('account_init')
+
+        // 加载所有账号
+        const accounts = await loadAccountsFromRust()
+        const currentAccountId = await loadCurrentAccountFromRust()
 
         accounts.forEach(account => {
           commit('ADD_ACCOUNT', account)
@@ -258,59 +265,113 @@ const accountsModule = {
 }
 
 /**
- * 保存账号列表到本地存储
+ * Rust 账号输入类型
  */
-async function saveAccountsToStorage(accounts: AccountInfo[]): Promise<void> {
-  try {
-    const accountsData = accounts.map(acc => ({
-      id: acc.id,
-      token: acc.token,
-      userInfo: acc.userInfo,
-      unreadCount: acc.unreadCount,
-      createdAt: acc.createdAt
-    }))
+interface RustAccountInput {
+  id: string
+  username: string
+  nickname: string
+  avatar: string | null
+  mobile: string | null
+  email: string | null
+  token: string
+}
 
-    localStorage.setItem('im_accounts', JSON.stringify(accountsData))
+/**
+ * Rust 账号输出类型
+ */
+interface RustAccountOutput {
+  id: string
+  username: string
+  nickname: string
+  avatar: string | null
+  mobile: string | null
+  email: string | null
+  token: string
+  created_at: number
+  updated_at: number
+}
+
+/**
+ * 添加账号到 Rust SQLite
+ */
+async function addAccountToRust(account: AccountInfo): Promise<void> {
+  try {
+    const rustAccount: RustAccountInput = {
+      id: account.id,
+      username: account.userInfo.username,
+      nickname: account.userInfo.nickname,
+      avatar: account.userInfo.avatar || null,
+      mobile: null,
+      email: null,
+      token: account.token
+    }
+
+    await invoke('account_add', { account: rustAccount })
   } catch (error) {
-    console.error('保存账号列表失败:', error)
+    console.error('添加账号到 Rust 失败:', error)
+    throw error
   }
 }
 
 /**
- * 从本地存储加载账号列表
+ * 从 Rust SQLite 加载所有账号
  */
-async function loadAccountsFromStorage(): Promise<AccountInfo[]> {
+async function loadAccountsFromRust(): Promise<AccountInfo[]> {
   try {
-    const data = localStorage.getItem('im_accounts')
-    if (!data) return []
-
-    return JSON.parse(data)
+    const accounts = await invoke<RustAccountOutput[]>('account_get_all')
+    return accounts.map(acc => ({
+      id: acc.id,
+      token: acc.token,
+      userInfo: {
+        id: acc.id,
+        username: acc.username,
+        nickname: acc.nickname,
+        avatar: acc.avatar || ''
+      },
+      unreadCount: 0, // 暂时设为 0，后续可以从设置中加载
+      createdAt: acc.created_at
+    }))
   } catch (error) {
-    console.error('加载账号列表失败:', error)
+    console.error('从 Rust 加载账号列表失败:', error)
     return []
   }
 }
 
 /**
- * 保存当前账号 ID 到本地存储
+ * 设置当前账号到 Rust SQLite
  */
-async function saveCurrentAccountId(accountId: string): Promise<void> {
+async function setCurrentAccountInRust(accountId: string): Promise<void> {
   try {
-    localStorage.setItem('im_current_account_id', accountId)
+    await invoke('account_set_current', { accountId })
   } catch (error) {
-    console.error('保存当前账号 ID 失败:', error)
+    console.error('设置当前账号失败:', error)
+    throw error
   }
 }
 
 /**
- * 从本地存储加载当前账号 ID
+ * 从 Rust SQLite 加载当前账号
  */
-async function loadCurrentAccountId(): Promise<string | null> {
+async function loadCurrentAccountFromRust(): Promise<string | null> {
   try {
-    return localStorage.getItem('im_current_account_id')
+    const account = await invoke<RustAccountOutput | null>('account_get_current')
+    return account ? account.id : null
   } catch (error) {
-    console.error('加载当前账号 ID 失败:', error)
+    console.error('加载当前账号失败:', error)
     return null
+  }
+}
+
+/**
+ * 从 Rust SQLite 移除账号
+ */
+async function removeAccountFromRust(accountId: string): Promise<void> {
+  try {
+    await invoke('account_remove', { accountId })
+  } catch (error) {
+    console.error('移除账号失败:', error)
+    throw error
   }
 }
 
