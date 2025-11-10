@@ -1,5 +1,3 @@
-import { Module } from 'vuex'
-
 /**
  * 账号信息接口
  */
@@ -25,7 +23,7 @@ export interface AccountsState {
   maxAccounts: number // 最大账号数量限制
 }
 
-const accountsModule: Module<AccountsState, any> = {
+const accountsModule = {
   namespaced: true,
 
   state: (): AccountsState => ({
