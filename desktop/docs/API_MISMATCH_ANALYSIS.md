@@ -8,6 +8,11 @@
 
 ## 📝 更新记录
 
+**2025-11-10 00:15** - ✅ 修正文档错误描述
+- ✅ 验证聊天附件上传功能已完整实现（图片/视频/文件）
+- ✅ 确认 file.ts 和 message.ts 分工明确，无误用问题
+- ✅ 删除关于"file.ts 误用 admin API"的错误描述
+
 **2025-11-09 23:59** - ✅ 已清理无后端支持的 API
 - ✅ 删除 4 个无后端支持的 API 文件：
   - `desktop/src/api/account.ts` (账户/钱包系统)
@@ -18,7 +23,7 @@
 - ✅ 验证项目中无其他代码引用这些模块
 - ✅ 项目代码清理完成，问题已解决
 
-**当前状态**: 所有前端 API 模块均有后端支持，无遗留问题 ✅
+**当前状态**: 所有前端 API 模块均有后端支持，API 对接完整，无遗留问题 ✅
 
 ---
 
@@ -26,22 +31,26 @@
 
 ### Desktop 前端 API 模块（19 个文件 - 已清理）
 ```
-✅ 已对接后端:
-1. auth (system.ts)   → ✅ Backend: auth.rs
-2. config.ts          → ⚠️ 配置文件（非 API）
-3. file.ts            → ⚠️ 依赖 admin.rs (storage)
-4. friend.ts          → ✅ Backend: friend.rs
-5. group.ts           → ✅ Backend: room.rs + group_management.rs
-6. http.ts            → ⚠️ HTTP 客户端（非 API）
-7. message.ts         → ✅ Backend: message.rs + message_read.rs
-8. search.ts          → ✅ Backend: message_search.rs
-9. system.ts          → ✅ Backend: auth.rs (部分)
-10. user.ts           → ✅ Backend: user.rs
-11. version.ts        → ✅ Backend: version.rs
-12. websocket.ts      → ✅ Backend: websocket (WebSocket 处理)
-13. rust-http.ts      → ⚠️ Rust 集成层
-14. rust-system.ts    → ⚠️ Rust 集成层
-15. rust-user.ts      → ⚠️ Rust 集成层
+✅ 已对接后端（核心功能）:
+1. system.ts          → ✅ Backend: auth.rs (认证登录)
+2. user.ts            → ✅ Backend: user.rs (用户信息)
+3. friend.ts          → ✅ Backend: friend.rs (好友管理)
+4. group.ts           → ✅ Backend: room.rs + group_management.rs (群组)
+5. message.ts         → ✅ Backend: message.rs + message_read.rs (消息+附件)
+6. search.ts          → ✅ Backend: message_search.rs (消息搜索)
+7. version.ts         → ✅ Backend: version.rs (版本管理)
+8. websocket.ts       → ✅ Backend: websocket (WebSocket)
+
+✅ 已对接后端（辅助功能）:
+9. file.ts            → ✅ Backend: user.rs (头像上传)
+10. rust-http.ts      → ⚠️ Rust 集成层
+11. rust-system.ts    → ⚠️ Rust 集成层
+12. rust-user.ts      → ⚠️ Rust 集成层
+
+⚠️ 非 API 模块（工具类）:
+13. config.ts         → 配置文件
+14. http.ts           → HTTP 客户端
+15. http.types.ts     → TypeScript 类型定义
 
 ❌ 已删除（无后端支持）:
 ❌ account.ts         - 账户/钱包系统（已删除）
@@ -52,19 +61,23 @@
 
 ### Backend 提供的 API 模块（12 个）
 ```
-✅ 前端已对接:
-1. admin.rs              → ⚠️ 部分对接（file.ts）
-2. auth.rs               → ✅ system.ts
-3. feedback.rs           → ❌ 前端无对应
-4. friend.rs             → ✅ friend.ts
-5. group_management.rs   → ✅ group.ts
-6. message.rs            → ✅ message.ts
-7. message_read.rs       → ✅ message.ts
-8. message_search.rs     → ✅ search.ts
-9. room.rs               → ✅ group.ts
-10. settings.rs          → ⚠️ 部分使用（隐私政策）
-11. user.rs              → ✅ user.ts
-12. version.rs           → ✅ version.ts
+✅ 前端已完整对接:
+1. auth.rs               → ✅ system.ts (认证登录)
+2. user.rs               → ✅ user.ts + file.ts (用户+头像)
+3. friend.rs             → ✅ friend.ts (好友管理)
+4. room.rs               → ✅ group.ts (群组基础)
+5. group_management.rs   → ✅ group.ts (群组管理)
+6. message.rs            → ✅ message.ts (消息+附件上传)
+7. message_read.rs       → ✅ message.ts (已读状态)
+8. message_search.rs     → ✅ search.ts (消息搜索)
+9. version.rs            → ✅ version.ts (版本管理)
+
+⚠️ 前端部分使用:
+10. settings.rs          → ⚠️ 仅隐私政策接口被使用
+
+❌ 前端未使用:
+11. admin.rs             → ❌ 管理后台专用（admin 前端使用）
+12. feedback.rs          → ❌ 前端未实现反馈功能
 ```
 
 ---
@@ -486,30 +499,33 @@ Backend: backend/src/handlers/settings.rs
 
 ---
 
-#### 2. **Desktop 误用 Admin API**
-**问题**: `desktop/src/api/file.ts` 调用了管理后台的 API
+#### 2. **✅ 文件上传功能完整**（之前误判）
 
-**修复方案**:
+**说明**: 之前文档中提到"file.ts 误用 admin API"是**错误的**。
+
+**实际情况**:
+- `file.ts` - 专门处理**头像上传**（用户头像、群头像）
+  - 路由: `POST /users/me/avatar/direct-upload`（user.rs）
+  - 功能完整，无误用问题
+
+- `message.ts` - 专门处理**聊天附件上传**（图片/视频/文件）
+  - 路由: `POST /rooms/{id}/messages/attachments/signature`（message.rs）
+  - 功能完整，包含上传进度显示
+
+**验证结果**:
 ```typescript
-// 错误：调用 admin API
-request.post('/api/admin/storage-providers/test/upload', data)
+// Chat.vue 第 2723 行 - 聊天附件上传
+const signatureResponse = await MessageApi.requestAttachmentSignature({
+  groupId, partType, fileName, contentType
+})
 
-// 正确：应该有独立的用户文件上传 API
-request.post('/api/files/upload', data)
+// 支持的文件类型：
+- 图片: 最大 5MB
+- 视频: 最大 50MB
+- 文件: 最大 100MB
 ```
 
-**需要后端添加**:
-```rust
-// backend/src/handlers/file.rs (新建)
-pub async fn upload_user_file() { ... }
-pub async fn download_user_file() { ... }
-pub async fn delete_user_file() { ... }
-
-// backend/src/routes.rs
-.route("/files/upload", post(file::upload_user_file))
-.route("/files/{file_id}", get(file::download_user_file))
-.route("/files/{file_id}", delete(file::delete_user_file))
-```
+✅ **前后端对接完整，功能正常工作**
 
 ---
 
@@ -532,29 +548,23 @@ export function submitFeedback(data: {
 
 ---
 
-## 💡 立即行动计划
+## 💡 当前待办事项
 
-### Week 1: 清理和修正
-- [ ] **Day 1**: 确认产品需求，决定是否删除无后端支持的 API
-  - 与产品经理确认：是否需要账户/AI/音乐/朋友圈功能
-  - 如果不需要，删除对应的 .ts 文件
+### ✅ 已完成
+- [x] 删除 4 个无后端支持的 API 文件
+- [x] 更新 src/api/index.ts
+- [x] 验证所有API对接完整性
+- [x] 修正文档错误描述
 
-- [ ] **Day 2-3**: 修复 file.ts 的 Admin API 误用
-  - 后端添加用户文件上传 API
-  - 前端重构 file.ts
-
-- [ ] **Day 4**: 添加反馈功能
+### ⚠️ 可选任务（按需）
+- [ ] **添加反馈功能**（后端已有 feedback.rs）
   - 前端添加 feedback.ts
-  - 设置页面添加反馈入口
+  - 设置页面添加"意见反馈"入口
+  - 工作量: 0.5 天
 
-- [ ] **Day 5**: 文档更新
-  - 更新 API 文档
-  - 更新 CLAUDE.md
-
-### Week 2: 测试验证
-- [ ] 验证所有 API 对接正确性
-- [ ] 清理未使用的代码
-- [ ] 更新 README
+- [ ] **完善设置功能**（后端已有 settings.rs）
+  - 除隐私政策外，还有其他设置接口未使用
+  - 可按需对接
 
 ---
 
@@ -581,23 +591,27 @@ export function submitFeedback(data: {
 
 ## 总结
 
-### 关键发现
+### 关键发现（已更新）
 1. ✅ **核心 IM 功能 API 对接完整**（认证、用户、好友、群聊、消息）
-2. ❌ **4 个前端 API 完全没有后端支持**（account、chatgpt、music、friendCircle）
-3. ⚠️ **1 个 API 误用**（file.ts 调用 admin API）
-4. ⚠️ **1 个后端 API 未使用**（feedback.rs）
+2. ✅ **文件上传功能完整**（头像上传 + 聊天附件上传）
+3. ✅ **4 个无后端 API 已删除**（account、chatgpt、music、friendCircle）
+4. ⚠️ **1 个后端 API 未使用**（feedback.rs - 可选）
 
-### 优先级建议
-**P0（本周）**:
-1. 确认产品需求，删除无后端的 API 文件
-2. 修复 file.ts 的 admin API 误用
+### 当前状态
+**✅ 所有问题已解决**:
+- 无后端支持的 API 已清理
+- 所有保留的 API 均有后端支持
+- 前后端对接完整，无遗留问题
 
-**P1（2 周内）**:
-3. 添加反馈功能前端
-4. 更新文档
+**⚠️ 可选优化**:
+- 添加反馈功能（后端已实现，前端可按需对接）
+- 完善设置功能（后端已实现部分接口）
 
-**P2（按需）**:
-5. 如需要账户/AI/音乐/朋友圈功能，由后端团队实现
+### 修正说明
+本文档之前版本中提到的"file.ts 误用 admin API"是**错误的**描述，实际情况：
+- `file.ts` 负责头像上传，使用 `/users/me/avatar/*` 路由（正确）
+- `message.ts` 负责聊天附件，使用 `/rooms/{id}/messages/attachments/*` 路由（正确）
+- 两者分工明确，均有后端支持，功能正常
 
 ---
 
