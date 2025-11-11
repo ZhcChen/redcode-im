@@ -4326,7 +4326,7 @@ const handleVoiceSend = async (recording: any) => {
 // Variables are now globally imported via vite.config.ts
 
 .chat-page {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }

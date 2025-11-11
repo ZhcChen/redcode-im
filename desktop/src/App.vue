@@ -839,6 +839,12 @@ body {
   overflow: hidden;
 }
 
+/* 确保 router-view 及其内部组件正确继承高度 */
+.app-main :deep(> *) {
+  height: 100%;
+  min-height: 0;
+}
+
 /* 移除固定高度，让 flexbox 自动处理高度分配 */
 .app-main--with-tabs {
   /* height 属性已移除，使用 flex: 1 自动计算高度 */

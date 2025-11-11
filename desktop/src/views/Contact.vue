@@ -1003,7 +1003,7 @@ onUnmounted(() => {
 // Variables are now globally imported via vite.config.ts
 
 .contact-page {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
