@@ -725,7 +725,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         height: size,
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(size / 2),
         ),
         child: widget.entry.assetIcon != null
             ? Padding(
@@ -743,7 +743,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         height: size,
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(size / 2),
         ),
         padding: const EdgeInsets.all(8),
         child: SvgPicture.asset(widget.entry.avatarAsset!),
@@ -752,7 +752,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
 
     if (widget.entry.avatarAsset != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(size / 2),
         child: Image.asset(
           widget.entry.avatarAsset!,
           width: size,
@@ -767,7 +767,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
       final file = File(_cachedAvatarPath!);
       if (file.existsSync()) {
         return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(size / 2),
           child: Image.file(
             file,
             width: size,
@@ -791,7 +791,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         height: size,
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(size / 2),
         ),
         child: const Center(
           child: SizedBox(
@@ -816,7 +816,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
       height: size,
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(size / 2),
       ),
       child: const Icon(Icons.person_outline, color: AppColors.textQuaternary),
     );
