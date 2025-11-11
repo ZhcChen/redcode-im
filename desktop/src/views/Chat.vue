@@ -2355,6 +2355,24 @@ const sendMessage = async () => {
 
     if (apiMessage) {
       const uiMessage = mapDomainMessageToUi(apiMessage)
+      
+      // 先检查是否已经存在真实消息（可能 WebSocket 先到达）
+      const existingRealMessageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
+      if (existingRealMessageIndex !== -1) {
+        // 如果真实消息已存在，更新状态即可，不需要重复添加
+        messages.value[existingRealMessageIndex] = {
+          ...messages.value[existingRealMessageIndex],
+          status: 2
+        }
+        // 添加到 recentSentMessages 用于去重
+        recentSentMessages.value.add(apiMessage.id)
+        setTimeout(() => {
+          recentSentMessages.value.delete(apiMessage.id)
+        }, 10000)
+        return // 消息已存在，直接返回
+      }
+      
+      // 查找临时消息并替换
       const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
       if (messageIndex !== -1) {
         messages.value[messageIndex] = {
@@ -2362,10 +2380,14 @@ const sendMessage = async () => {
           status: 2
         }
       } else {
-        messages.value.push({
-          ...uiMessage,
-          status: 2
-        })
+        // 如果临时消息也不存在，检查是否应该添加
+        // 只有在 recentSentMessages 中没有时才添加（避免 WebSocket 消息已添加的情况）
+        if (!recentSentMessages.value.has(apiMessage.id)) {
+          messages.value.push({
+            ...uiMessage,
+            status: 2
+          })
+        }
       }
 
       recentSentMessages.value.add(apiMessage.id)
@@ -3732,6 +3754,21 @@ const handleWebSocketMessage = (event: CustomEvent) => {
       }
 
       if (matchedLocalMessageId) {
+        // 如果匹配到的就是真实消息 ID，说明消息已存在，直接更新
+        if (matchedLocalMessageId === uiMessage.id) {
+          const existingIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
+          if (existingIndex !== -1) {
+            messages.value[existingIndex] = {
+              ...messages.value[existingIndex],
+              ...uiMessage,
+              status: 2
+            }
+            recentSentMessages.value.delete(uiMessage.id)
+            return
+          }
+        }
+        
+        // 否则，替换临时消息为真实消息
         const localMessageIndex = messages.value.findIndex(msg => msg.id === matchedLocalMessageId)
         if (localMessageIndex !== -1) {
           const mergedMessage = mergeMessagePreservingLocalData(
@@ -3755,6 +3792,13 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           recentSentMessages.value.delete(matchedLocalMessageId)
         }
       } else {
+        // 如果没有匹配到临时消息，检查是否应该添加
+        // 对于自己发送的消息，如果已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
+        if (messageData.isSelf && recentSentMessages.value.has(uiMessage.id)) {
+          // 消息已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
+          return
+        }
+        
         messages.value.push(uiMessage)
         if (messageData.isSelf) {
           recentSentMessages.value.delete(uiMessage.id)
