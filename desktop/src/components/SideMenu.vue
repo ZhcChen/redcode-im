@@ -313,7 +313,7 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 .side-menu {
   width: 100px;
-  height: 100vh;
+  height: 100%;
   background-color: $side-menu-bg; // 使用全局变量 #F5F4F5
   display: flex;
   flex-direction: column;
