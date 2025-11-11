@@ -2373,14 +2373,22 @@ const sendMessage = async () => {
       }
       
       // 查找临时消息并替换
-      const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
+      // 注意：临时消息可能已经被 WebSocket 替换为真实消息 ID，所以需要同时检查 tempId 和真实消息 ID
+      let messageIndex = messages.value.findIndex(msg => msg.id === tempId)
+      
+      // 如果找不到 tempId，可能是已经被 WebSocket 替换了，检查真实消息 ID
+      if (messageIndex === -1) {
+        messageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
+      }
+      
       if (messageIndex !== -1) {
+        // 找到消息，更新为真实消息（确保状态为2，移除转圈圈）
         messages.value[messageIndex] = {
           ...uiMessage,
           status: 2
         }
       } else {
-        // 如果临时消息也不存在，检查是否应该添加
+        // 如果消息不存在，检查是否应该添加
         // 只有在 recentSentMessages 中没有时才添加（避免 WebSocket 消息已添加的情况）
         if (!recentSentMessages.value.has(apiMessage.id)) {
           messages.value.push({
@@ -3790,6 +3798,11 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           mergedMessage.id = uiMessage.id
           messages.value[localMessageIndex] = mergedMessage
           recentSentMessages.value.delete(matchedLocalMessageId)
+          // 将真实消息 ID 添加到 recentSentMessages，防止 API 返回时重复添加
+          recentSentMessages.value.add(uiMessage.id)
+          setTimeout(() => {
+            recentSentMessages.value.delete(uiMessage.id)
+          }, 10000)
         }
       } else {
         // 如果没有匹配到临时消息，检查是否应该添加
