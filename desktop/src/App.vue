@@ -93,16 +93,44 @@ async function ensureAvatarCacheConsistency(reason: string, forceDownload = fals
       return
     }
 
-    // 如果 backendKey 和 localKey 一致，但 localPath 存在，先尝试使用它
-    // 只有在 localPath 不存在或无效时才触发下载
+    // 如果 backendKey 和 localKey 一致，尝试从缓存中恢复
+    // 注意：blob URL 在页面刷新后会失效，需要通过 AvatarCache.resolve 重新创建
     if (backendKey && backendKey === localKey) {
       if (localPath) {
         console.log(`[${logId}] 本地缓存路径存在: ${localPath}`)
-        // 验证本地路径是否有效（检查是否是有效的 blob URL 或文件路径）
-        if (localPath.startsWith('blob:') || localPath.startsWith('http://') || localPath.startsWith('https://')) {
-          console.log(`[${logId}] 本地缓存路径有效，直接使用现有缓存，不触发下载`)
-          // localPath 存在且有效，直接使用，不需要下载
-          // store 中已经有 avatarLocalPath，组件会自动使用它
+        // 如果是 blob URL，页面刷新后会失效，需要通过 AvatarCache.resolve 重新创建
+        if (localPath.startsWith('blob:')) {
+          console.log(`[${logId}] 检测到 blob URL，需要通过 AvatarCache.resolve 重新创建`)
+          try {
+            const { AvatarCache } = await import('./utils/avatar-cache')
+            const cached = await AvatarCache.resolve(currentUser.id, backendKey)
+            if (cached) {
+              console.log(`[${logId}] 成功从缓存恢复 blob URL: ${cached.webPath}`)
+              store.commit('UPDATE_USER_INFO', { avatarLocalPath: cached.webPath })
+              // 同步到账号存储
+              try {
+                await store.dispatch('accounts/syncAccountProfile', {
+                  accountId: currentUser.id,
+                  userInfo: {
+                    avatarLocalPath: cached.webPath,
+                    avatarObjectKey: backendKey
+                  }
+                })
+              } catch (syncError) {
+                console.warn(`[${logId}] 同步账号资料失败`, syncError)
+              }
+              return
+            } else {
+              console.log(`[${logId}] AvatarCache.resolve 返回 null，缓存索引可能丢失，需要重新下载`)
+              shouldDownload = true
+            }
+          } catch (error) {
+            console.warn(`[${logId}] 恢复 blob URL 失败，准备重新下载`, error)
+            shouldDownload = true
+          }
+        } else if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
+          // HTTP/HTTPS URL 可以直接使用
+          console.log(`[${logId}] HTTP/HTTPS URL，直接使用: ${localPath}`)
           return
         } else {
           console.log(`[${logId}] 本地缓存路径格式异常，准备重新下载`)
