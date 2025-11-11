@@ -680,8 +680,8 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty) {
       print('[ContactAvatar] 🔍 尝试在 initState 中快速检查缓存...');
-      // 使用 addPostFrameCallback 在第一次 build 之后立即检查缓存
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 使用 microtask 立即检查缓存，尽可能在第一次 build 之前完成
+      Future.microtask(() async {
         if (!mounted) return;
         try {
           final cachedPath = await AvatarCache.instance.resolveLocalPath(
