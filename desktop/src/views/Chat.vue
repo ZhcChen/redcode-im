@@ -2426,21 +2426,25 @@ const sendMessage = async () => {
         console.log('✅ [sendMessage] 消息已替换，添加到 recentSentMessages:', apiMessage.id)
         return // 消息已更新，直接返回，避免后续重复处理
       } else {
-        console.log('⚠️ [sendMessage] 消息不存在，检查 recentSentMessages:', { 
+        // 临时消息不存在，检查真实消息是否已经在列表中（WebSocket可能已经替换了）
+        const realMessageExists = messages.value.some((msg) => msg.id === apiMessage.id)
+        console.log('⚠️ [sendMessage] 消息不存在，检查真实消息:', { 
+          realMessageExists,
           hasInRecent: recentSentMessages.value.has(apiMessage.id),
           recentSentMessages: Array.from(recentSentMessages.value)
         })
-        // 如果消息不存在，检查是否应该添加
-        // 只有在 recentSentMessages 中没有时才添加（避免 WebSocket 消息已添加的情况）
-        if (!recentSentMessages.value.has(apiMessage.id)) {
+        
+        if (!realMessageExists) {
+          // 真实消息也不存在，才添加新消息
           console.log('➕ [sendMessage] 添加新消息到列表')
           messages.value.push({
             ...uiMessage,
             status: 2
           })
         } else {
-          console.log('⏭️ [sendMessage] recentSentMessages 中已有，跳过添加')
+          console.log('✅ [sendMessage] 真实消息已存在（WebSocket已替换），跳过添加:', apiMessage.id)
         }
+        
         // 删除临时消息ID，添加真实消息ID到 recentSentMessages 用于去重
         recentSentMessages.value.delete(tempId)
         recentSentMessages.value.add(apiMessage.id)
@@ -2891,11 +2895,19 @@ const uploadAndSendFile = async (file: File) => {
           // 删除临时消息ID，添加真实消息ID
           recentSentMessages.value.delete(tempId)
         } else {
-          messages.value.push({
-            ...uiMessage,
-            status: 2,
-            roomId: uiMessage.roomId ?? selectedChat.value.groupId,
-          })
+          // 临时消息不存在，检查真实消息是否已经在列表中（WebSocket可能已经替换了）
+          const realMessageExists = messages.value.some((msg) => msg.id === apiMessage.id)
+          if (!realMessageExists) {
+            // 真实消息也不存在，才添加新消息
+            messages.value.push({
+              ...uiMessage,
+              status: 2,
+              roomId: uiMessage.roomId ?? selectedChat.value.groupId,
+            })
+            console.log('📝 [API] 临时消息和真实消息都不存在，添加新消息:', apiMessage.id)
+          } else {
+            console.log('✅ [API] 真实消息已存在（WebSocket已替换），跳过添加:', apiMessage.id)
+          }
           // 消息不存在，可能已被WebSocket替换，删除临时ID
           recentSentMessages.value.delete(tempId)
         }
