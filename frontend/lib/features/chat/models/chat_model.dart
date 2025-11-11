@@ -11,6 +11,8 @@ class Chat {
   final String roomId;
   final String name;
   final String? avatar;
+  final String? avatarObjectKey;
+  final String? localAvatarPath;
   final ChatType type;
   final String lastMessage;
   final DateTime lastMessageTime;
@@ -24,6 +26,8 @@ class Chat {
     required this.roomId,
     required this.name,
     this.avatar,
+    this.avatarObjectKey,
+    this.localAvatarPath,
     required this.type,
     required this.lastMessage,
     required this.lastMessageTime,
@@ -39,6 +43,8 @@ class Chat {
     String? roomId,
     String? name,
     String? avatar,
+    String? avatarObjectKey,
+    String? localAvatarPath,
     ChatType? type,
     String? lastMessage,
     DateTime? lastMessageTime,
@@ -52,6 +58,8 @@ class Chat {
       roomId: roomId ?? this.roomId,
       name: name ?? this.name,
       avatar: avatar ?? this.avatar,
+      avatarObjectKey: avatarObjectKey ?? this.avatarObjectKey,
+      localAvatarPath: localAvatarPath ?? this.localAvatarPath,
       type: type ?? this.type,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,

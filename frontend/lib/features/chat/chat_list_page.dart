@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/user_avatar_service.dart';
 import '../contacts/add_friend_page.dart';
 import 'chat_detail_page_v2.dart';
 import 'create_group_page.dart';
@@ -60,32 +62,11 @@ class _ChatListView extends StatelessWidget {
                       final chat = chats[index];
                       final isFavorite = chat.type == ChatType.favorite;
 
-                      Widget buildAvatar(String? avatar) {
-                        if (isFavorite) {
-                          return _FavoriteAvatar();
-                        }
-                        if (avatar == null || avatar.isEmpty) {
-                          return SvgPicture.asset(AppAssets.defaultAvatar);
-                        }
-                        if (avatar.endsWith('.svg')) {
-                          return SvgPicture.asset(avatar);
-                        }
-                        if (avatar.startsWith('http://') ||
-                            avatar.startsWith('https://')) {
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(48),
-                            child: Image.network(avatar, fit: BoxFit.cover),
-                          );
-                        }
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(48),
-                          child: Image.asset(avatar, fit: BoxFit.cover),
-                        );
-                      }
-
                       final item = ChatListItem(
                         chat: chat,
-                        avatarBuilder: buildAvatar,
+                        avatarBuilder: (avatar) => _ChatAvatar(
+                          chat: chat,
+                        ),
                         showBottomDivider: index != chats.length - 1,
                         onTap: () {
                           Navigator.of(context).push(
@@ -629,6 +610,148 @@ class _MenuArrow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ChatAvatar extends StatefulWidget {
+  const _ChatAvatar({required this.chat});
+
+  final Chat chat;
+
+  @override
+  State<_ChatAvatar> createState() => _ChatAvatarState();
+}
+
+class _ChatAvatarState extends State<_ChatAvatar> {
+  String? _cachedAvatarPath;
+  bool _isLoading = false;
+  final _avatarService = UserAvatarService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedAvatarPath = widget.chat.localAvatarPath;
+    // 如果有avatarObjectKey但没有本地缓存，异步加载
+    if (widget.chat.avatarObjectKey != null &&
+        widget.chat.avatarObjectKey!.isNotEmpty &&
+        _cachedAvatarPath == null &&
+        widget.chat.type == ChatType.single) {
+      _loadAvatar();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ChatAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果avatarObjectKey变化，重新加载
+    if (widget.chat.avatarObjectKey != oldWidget.chat.avatarObjectKey) {
+      _cachedAvatarPath = widget.chat.localAvatarPath;
+      if (widget.chat.avatarObjectKey != null &&
+          widget.chat.avatarObjectKey!.isNotEmpty &&
+          _cachedAvatarPath == null &&
+          widget.chat.type == ChatType.single) {
+        _loadAvatar();
+      }
+    }
+  }
+
+  Future<void> _loadAvatar() async {
+    if (_isLoading) return;
+    if (widget.chat.avatarObjectKey == null ||
+        widget.chat.avatarObjectKey!.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 从extra中获取用户ID
+      final userId = widget.chat.extra?['friend_user_id'] as String? ??
+          widget.chat.extra?['friendUserId'] as String? ??
+          widget.chat.roomId;
+
+      final cachedPath = await _avatarService.loadAndCacheAvatar(
+        userId: userId,
+        avatarObjectKey: widget.chat.avatarObjectKey,
+      );
+      if (mounted) {
+        setState(() {
+          _cachedAvatarPath = cachedPath;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isFavorite = widget.chat.type == ChatType.favorite;
+    if (isFavorite) {
+      return _FavoriteAvatar();
+    }
+
+    // 优先使用本地缓存路径
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(48),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // 如果文件读取失败，显示默认头像
+              return SvgPicture.asset(AppAssets.defaultAvatar);
+            },
+          ),
+        );
+      }
+    }
+
+    // 如果有avatarObjectKey但还在加载中，显示加载指示器
+    if (_isLoading &&
+        widget.chat.avatarObjectKey != null &&
+        widget.chat.avatarObjectKey!.isNotEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(48),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    // 处理其他类型的头像（asset、svg等）
+    final avatar = widget.chat.avatar;
+    if (avatar != null && avatar.isNotEmpty) {
+      if (avatar.endsWith('.svg')) {
+        return SvgPicture.asset(avatar);
+      }
+      // asset头像
+      if (!avatar.startsWith('http://') && !avatar.startsWith('https://')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(48),
+          child: Image.asset(avatar, fit: BoxFit.cover),
+        );
+      }
+    }
+
+    // 默认头像
+    return SvgPicture.asset(AppAssets.defaultAvatar);
   }
 }
 
