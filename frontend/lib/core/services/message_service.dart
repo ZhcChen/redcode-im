@@ -2112,21 +2112,9 @@ class MessageService with ChangeNotifier {
         body: jsonEncode({'message_id': lastMessageId}),
       );
 
-      // 更新本地消息状态
-      final messages = _messagesByRoom[roomId];
-      if (messages != null) {
-        var changed = false;
-        for (final msg in messages) {
-          if (!msg.isSelf && msg.status != MessageStatus.read) {
-            final index = messages.indexOf(msg);
-            messages[index] = msg.copyWith(status: MessageStatus.read);
-            changed = true;
-          }
-        }
-        if (changed) {
-          unawaited(_persistMessages(roomId));
-        }
-      }
+      // 注意：本地消息状态的更新应该由 WebSocket 的 handleReadReceipt 来处理
+      // 因为已读回执影响的是"自己发送的消息"的状态，而不是"接收到的消息"的状态
+      // 服务器会广播已读回执事件，然后 handleReadReceipt 会更新自己发送的消息为已读状态
 
       markChatAsRead(roomId);
     } catch (e) {
