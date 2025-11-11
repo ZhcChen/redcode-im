@@ -3,8 +3,10 @@
     <div class="tabs-container">
       <!-- 账号标签列表 -->
       <div
-        v-for="account in accounts"
+        v-for="(account, index) in accounts"
         :key="account.id"
+        :data-account-id="account.id"
+        :data-index="index"
         class="account-tab"
         :class="{ 
           active: account.id === currentAccountId,
@@ -14,19 +16,10 @@
         }"
         role="button"
         tabindex="0"
-        draggable="true"
         @click.stop="handleSwitchAccount(account.id)"
-        @dragstart="handleDragStart($event, account.id)"
-        @dragend="handleDragEnd"
-        @dragover.prevent.stop="handleDragOver($event, account.id)"
-        @dragenter.prevent="handleDragEnter($event, account.id)"
-        @dragleave="handleDragLeave($event, account.id)"
-        @drop.prevent.stop="handleDrop($event, account.id)"
+        @mousedown="handleMouseDown($event, account.id, index)"
       >
-        <div 
-          class="tab-content"
-          @dragover.prevent
-        >
+        <div class="tab-content">
           <!-- 昵称 -->
           <span class="nickname">{{ account.userInfo.nickname || '未命名' }}</span>
 
@@ -93,6 +86,9 @@ const store = useStore()
 const draggedAccountId = ref<string | null>(null)
 const dragOverAccountId = ref<string | null>(null)
 const isDragging = ref(false)
+const dragStartIndex = ref<number>(-1)
+const dragStartX = ref<number>(0)
+const dragStartY = ref<number>(0)
 
 // 检查账号是否有未读消息（消息未读数 + 好友申请未读数）
 function hasUnreadMessages(account: AccountInfo): boolean {
@@ -126,133 +122,130 @@ function handleRemoveAccount(accountId: string) {
   emit('remove', accountId)
 }
 
-// 拖拽开始
-function handleDragStart(event: DragEvent, accountId: string) {
-  console.log('🚀 开始拖拽账号:', accountId)
-  isDragging.value = true
+// 鼠标按下开始拖拽
+function handleMouseDown(event: MouseEvent, accountId: string, index: number) {
+  // 如果点击的是关闭按钮，不触发拖拽
+  if ((event.target as HTMLElement).closest('.close-btn')) {
+    return
+  }
+
+  // 记录初始位置
+  dragStartX.value = event.clientX
+  dragStartY.value = event.clientY
+  dragStartIndex.value = index
   draggedAccountId.value = accountId
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', accountId)
-    // 设置拖拽图像
-    if (event.target instanceof HTMLElement) {
-      event.dataTransfer.setDragImage(event.target, 0, 0)
-      event.target.style.opacity = '0.5'
-    }
-  }
+  isDragging.value = false // 先设为 false，移动一定距离后才算拖拽
+
+  console.log('🖱️ 鼠标按下:', { accountId, index, x: dragStartX.value, y: dragStartY.value })
+
+  // 添加全局事件监听
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+
+  // 阻止默认行为
+  event.preventDefault()
 }
 
-// 拖拽结束
-function handleDragEnd(event: DragEvent) {
-  console.log('拖拽结束')
-  // 如果已经处理过 drop，这里不需要再处理
-  if (!isDragging.value) {
+// 鼠标移动
+function handleMouseMove(event: MouseEvent) {
+  if (!draggedAccountId.value) return
+
+  const deltaX = Math.abs(event.clientX - dragStartX.value)
+  const deltaY = Math.abs(event.clientY - dragStartY.value)
+
+  // 移动超过 5px 才算拖拽
+  if (!isDragging.value && (deltaX > 5 || deltaY > 5)) {
+    isDragging.value = true
+    console.log('🚀 开始拖拽账号:', draggedAccountId.value)
+  }
+
+  if (!isDragging.value) return
+
+  // 查找鼠标下方的元素
+  const elementBelow = document.elementFromPoint(event.clientX, event.clientY)
+  if (!elementBelow) return
+
+  // 查找最近的 account-tab 元素
+  const tabElement = elementBelow.closest('.account-tab') as HTMLElement
+  if (!tabElement) {
+    dragOverAccountId.value = null
     return
   }
-  // 延迟重置，确保 drop 事件先执行
-  setTimeout(() => {
-    isDragging.value = false
+
+  const targetAccountId = tabElement.dataset.accountId
+  if (targetAccountId && targetAccountId !== draggedAccountId.value) {
+    dragOverAccountId.value = targetAccountId
+  }
+}
+
+// 鼠标释放完成拖拽
+async function handleMouseUp(event: MouseEvent) {
+  // 移除全局事件监听
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+
+  if (!isDragging.value || !draggedAccountId.value) {
+    // 如果没有拖拽，可能是点击，重置状态
     draggedAccountId.value = null
     dragOverAccountId.value = null
-  }, 100)
-  // 恢复样式
-  if (event.target instanceof HTMLElement) {
-    event.target.style.opacity = '1'
+    dragStartIndex.value = -1
+    return
   }
-}
 
-// 拖拽悬停
-function handleDragOver(event: DragEvent, accountId: string) {
-  event.preventDefault()
-  event.stopPropagation()
-  
-  if (draggedAccountId.value && draggedAccountId.value !== accountId) {
-    dragOverAccountId.value = accountId
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move'
-    }
-  }
-}
+  console.log('🎯 鼠标释放，完成拖拽')
 
-// 拖拽进入
-function handleDragEnter(event: DragEvent, accountId: string) {
-  event.preventDefault()
-  if (draggedAccountId.value && draggedAccountId.value !== accountId) {
-    dragOverAccountId.value = accountId
+  // 查找鼠标下方的元素
+  const elementBelow = document.elementFromPoint(event.clientX, event.clientY)
+  if (!elementBelow) {
+    resetDragState()
+    return
   }
-}
 
-// 拖拽离开
-function handleDragLeave(event: DragEvent, accountId: string) {
-  // 只有当真正离开元素时才清除 drag-over 状态
-  // 检查 relatedTarget 是否是当前元素的子元素
-  const relatedTarget = event.relatedTarget as HTMLElement | null
-  if (relatedTarget && event.currentTarget instanceof HTMLElement) {
-    if (event.currentTarget.contains(relatedTarget)) {
-      return // 仍在元素内部，不处理
-    }
+  const tabElement = elementBelow.closest('.account-tab') as HTMLElement
+  if (!tabElement) {
+    resetDragState()
+    return
   }
-  
-  if (dragOverAccountId.value === accountId) {
-    dragOverAccountId.value = null
-  }
-}
 
-// 放置
-async function handleDrop(event: DragEvent, targetAccountId: string) {
-  event.preventDefault()
-  event.stopPropagation()
-  
-  console.log('🎯 放置账号事件触发:', { 
+  const targetAccountId = tabElement.dataset.accountId
+  const targetIndex = parseInt(tabElement.dataset.index || '-1')
+
+  console.log('🎯 放置账号:', { 
     targetAccountId, 
+    targetIndex,
     draggedAccountId: draggedAccountId.value,
-    eventType: event.type,
-    timestamp: Date.now()
+    dragStartIndex: dragStartIndex.value
   })
-  
+
   const sourceAccountId = draggedAccountId.value
-  if (!sourceAccountId) {
-    console.warn('⚠️ 源账号ID为空')
-    dragOverAccountId.value = null
-    isDragging.value = false
-    return
-  }
-  
-  if (sourceAccountId === targetAccountId) {
-    console.log('ℹ️ 跳过放置: 源账号和目标账号相同')
-    dragOverAccountId.value = null
-    isDragging.value = false
-    draggedAccountId.value = null
+  if (!sourceAccountId || !targetAccountId || sourceAccountId === targetAccountId) {
+    console.log('ℹ️ 跳过放置: 源账号和目标账号相同或无效')
+    resetDragState()
     return
   }
 
   // 获取当前账号顺序
   const currentOrder = props.accounts.map(acc => acc.id)
   const sourceIndex = currentOrder.indexOf(sourceAccountId)
-  const targetIndex = currentOrder.indexOf(targetAccountId)
+  const finalTargetIndex = targetIndex >= 0 ? targetIndex : currentOrder.indexOf(targetAccountId)
 
   console.log('📊 当前顺序:', currentOrder)
-  console.log('📍 源索引:', sourceIndex, '目标索引:', targetIndex)
+  console.log('📍 源索引:', sourceIndex, '目标索引:', finalTargetIndex)
 
-  if (sourceIndex === -1 || targetIndex === -1) {
-    console.error('❌ 索引无效:', { sourceIndex, targetIndex })
-    dragOverAccountId.value = null
-    isDragging.value = false
-    draggedAccountId.value = null
+  if (sourceIndex === -1 || finalTargetIndex === -1) {
+    console.error('❌ 索引无效:', { sourceIndex, finalTargetIndex })
+    resetDragState()
     return
   }
 
   // 重新排序
   const newOrder = [...currentOrder]
   newOrder.splice(sourceIndex, 1)
-  newOrder.splice(targetIndex, 0, sourceAccountId)
+  newOrder.splice(finalTargetIndex, 0, sourceAccountId)
 
   console.log('🔄 新顺序:', newOrder)
 
-  // 先清空拖拽状态，避免 dragend 事件再次清空
-  isDragging.value = false
-  draggedAccountId.value = null
-  dragOverAccountId.value = null
+  resetDragState()
 
   try {
     console.log('💾 开始保存账号顺序...')
@@ -261,10 +254,15 @@ async function handleDrop(event: DragEvent, targetAccountId: string) {
     console.log('✅ 账号顺序已更新成功')
   } catch (error) {
     console.error('❌ 重新排序账号失败:', error)
-    // 恢复状态以便重试
-    draggedAccountId.value = sourceAccountId
-    isDragging.value = true
   }
+}
+
+// 重置拖拽状态
+function resetDragState() {
+  isDragging.value = false
+  draggedAccountId.value = null
+  dragOverAccountId.value = null
+  dragStartIndex.value = -1
 }
 </script>
 
