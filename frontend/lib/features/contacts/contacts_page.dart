@@ -623,7 +623,7 @@ class _ContactListTile extends StatelessWidget {
 }
 
 class _ContactAvatar extends StatefulWidget {
-  const _ContactAvatar({required this.entry});
+  const _ContactAvatar({super.key, required this.entry});
 
   final ContactEntry entry;
 
