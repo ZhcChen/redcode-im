@@ -63,25 +63,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
     message_type UNINDEXED,
     timestamp UNINDEXED
 );
-
--- 创建触发器，当消息表更新时自动更新搜索索引
-CREATE TRIGGER IF NOT EXISTS message_search_insert AFTER INSERT ON messages
-BEGIN
-    INSERT INTO message_search(id, room_id, room_name, sender_id, sender_name, content, message_type, timestamp)
-    VALUES (NEW.id, NEW.room_id, NEW.room_name, NEW.sender_id, NEW.sender_name, NEW.content, NEW.message_type, NEW.timestamp);
-END;
-
-CREATE TRIGGER IF NOT EXISTS message_search_delete AFTER DELETE ON messages
-BEGIN
-    DELETE FROM message_search WHERE id = OLD.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS message_search_update AFTER UPDATE ON messages
-BEGIN
-    DELETE FROM message_search WHERE id = OLD.id;
-    INSERT INTO message_search(id, room_id, room_name, sender_id, sender_name, content, message_type, timestamp)
-    VALUES (NEW.id, NEW.room_id, NEW.room_name, NEW.sender_id, NEW.sender_name, NEW.content, NEW.message_type, NEW.timestamp);
-END;
 ";
 
 fn resolve_search_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
