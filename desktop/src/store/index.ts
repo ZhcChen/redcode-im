@@ -1445,6 +1445,12 @@ export const store = createStore<State>({
                         console.log('📝 使用替换模式设置聊天列表')
                     }
 
+                    // 同步更新当前账号的未读数
+                    const currentAccountId = state.accounts?.currentAccountId
+                    if (currentAccountId) {
+                        dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+                    }
+
                     const snapshot = JSON.parse(JSON.stringify(validChatList)) as ChatItem[]
                     await saveCache(CACHE_KEYS.chatList, snapshot)
 
@@ -1478,8 +1484,14 @@ export const store = createStore<State>({
             commit('UPDATE_CHAT_ITEM', chatItem)
         },
 
-        setChatUnreadCount({commit}: { commit: any }, payload: { groupId: string; unreadCount: number }) {
+        setChatUnreadCount({commit, dispatch, state}: { commit: any; dispatch: any; state: State }, payload: { groupId: string; unreadCount: number }) {
             commit('SET_CHAT_UNREAD_COUNT', payload)
+            
+            // 同步更新当前账号的未读数
+            const currentAccountId = state.accounts?.currentAccountId
+            if (currentAccountId) {
+                dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+            }
         },
 
         // 添加聊天项

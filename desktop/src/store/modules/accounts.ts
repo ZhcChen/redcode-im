@@ -358,6 +358,23 @@ const accountsModule = {
         console.error('重新排序账号失败:', error)
         throw error
       }
+    },
+
+    /**
+     * 同步账号未读数（根据聊天列表计算）
+     */
+    syncAccountUnreadCount({ commit, state, rootGetters }, accountId: string) {
+      // 获取聊天列表的总未读数
+      const chatList = rootGetters.chatList || []
+      const totalUnread = chatList.reduce((sum: number, chat: any) => {
+        return sum + (chat.unreadCount || 0)
+      }, 0)
+
+      // 更新账号未读数
+      commit('UPDATE_UNREAD_COUNT', {
+        accountId,
+        count: totalUnread
+      })
     }
   }
 }

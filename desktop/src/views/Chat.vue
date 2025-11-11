@@ -4062,6 +4062,12 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
     store.dispatch('updateChatItem', updatedChat)
     store.dispatch('setChatUnreadCount', { groupId: messageGroupId, unreadCount })
+    
+    // 同步更新当前账号的未读数
+    const currentAccountId = store.state.accounts.currentAccountId
+    if (currentAccountId && shouldIncreaseUnread) {
+      store.dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+    }
 
     if (isCurrentRoom && selectedChat.value) {
       selectedChat.value.unreadCount = 0
