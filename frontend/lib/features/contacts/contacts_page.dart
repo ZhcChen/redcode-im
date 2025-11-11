@@ -751,6 +751,27 @@ class _ContactAvatarState extends State<_ContactAvatar> {
       );
     }
 
+    // 优先使用本地缓存路径（与聊天列表保持一致，避免闪烁）
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(size / 2),
+          child: Image.file(
+            file,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // 如果文件读取失败，显示默认头像
+              return _buildDefaultAvatar(size);
+            },
+          ),
+        );
+      }
+    }
+
+    // 处理其他类型的头像（asset、svg等）
     if (widget.entry.avatarAsset != null &&
         widget.entry.avatarAsset!.endsWith('.svg')) {
       return Container(
@@ -775,26 +796,6 @@ class _ContactAvatarState extends State<_ContactAvatar> {
           fit: BoxFit.cover,
         ),
       );
-    }
-
-    // 优先使用本地缓存路径
-    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
-      final file = File(_cachedAvatarPath!);
-      if (file.existsSync()) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(size / 2),
-          child: Image.file(
-            file,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              // 如果文件读取失败，显示默认头像
-              return _buildDefaultAvatar(size);
-            },
-          ),
-        );
-      }
     }
 
     // 如果有avatarObjectKey但还在加载中，显示加载指示器
