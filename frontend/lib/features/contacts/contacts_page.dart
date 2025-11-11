@@ -61,11 +61,37 @@ class ContactsPageState extends State<ContactsPage> {
     final cachedFriends = await _friendStore.loadCachedFriends();
     if (cachedFriends.isNotEmpty && mounted) {
       _hasLoadedCache = true;
-      _friends = cachedFriends;
+      // 为缓存的好友填充 localAvatarPath
+      final friendsWithAvatar = await Future.wait(
+        cachedFriends.map((friend) async {
+          if (friend.user.avatarObjectKey != null &&
+              friend.user.avatarObjectKey!.isNotEmpty &&
+              (friend.user.localAvatarPath == null ||
+                  friend.user.localAvatarPath!.isEmpty)) {
+            try {
+              final cachedPath = await AvatarCache.instance.resolveLocalPath(
+                userId: friend.user.id,
+                objectKey: friend.user.avatarObjectKey!,
+              );
+              if (cachedPath != null) {
+                return FriendInfo(
+                  id: friend.id,
+                  user: friend.user.copyWith(localAvatarPath: cachedPath),
+                  createdAt: friend.createdAt,
+                );
+              }
+            } catch (e) {
+              print('[ContactsPage] 填充缓存头像失败: ${friend.user.id}, $e');
+            }
+          }
+          return friend;
+        }),
+      );
+      _friends = friendsWithAvatar;
       _friendMap
         ..clear()
         ..addEntries(
-          cachedFriends.map((friend) => MapEntry(friend.user.id, friend)),
+          friendsWithAvatar.map((friend) => MapEntry(friend.user.id, friend)),
         );
       _updateSections();
       setState(() {
@@ -110,12 +136,42 @@ class ContactsPageState extends State<ContactsPage> {
 
       if (!mounted) return;
 
+      // 为每个好友填充 localAvatarPath
+      final friendsWithAvatar = await Future.wait(
+        friends.map((friend) async {
+          if (friend.user.avatarObjectKey != null &&
+              friend.user.avatarObjectKey!.isNotEmpty &&
+              (friend.user.localAvatarPath == null ||
+                  friend.user.localAvatarPath!.isEmpty)) {
+            try {
+              final cachedPath = await AvatarCache.instance.resolveLocalPath(
+                userId: friend.user.id,
+                objectKey: friend.user.avatarObjectKey!,
+              );
+              if (cachedPath != null) {
+                // 创建新的 FriendInfo，更新 user 的 localAvatarPath
+                return FriendInfo(
+                  id: friend.id,
+                  user: friend.user.copyWith(localAvatarPath: cachedPath),
+                  createdAt: friend.createdAt,
+                );
+              }
+            } catch (e) {
+              print('[ContactsPage] 填充头像缓存失败: ${friend.user.id}, $e');
+            }
+          }
+          return friend;
+        }),
+      );
+
       _friendMap
         ..clear()
-        ..addEntries(friends.map((friend) => MapEntry(friend.user.id, friend)));
+        ..addEntries(
+          friendsWithAvatar.map((friend) => MapEntry(friend.user.id, friend)),
+        );
 
       setState(() {
-        _friends = friends;
+        _friends = friendsWithAvatar;
         _pendingRequests = pending.length;
         _isLoading = false;
         _loadFailed = false;
@@ -123,7 +179,7 @@ class ContactsPageState extends State<ContactsPage> {
         _updateSections();
       });
       // 同步到全局 Store，后续增量由 WS 维护（会自动保存到缓存）
-      _friendStore.setFriends(friends);
+      _friendStore.setFriends(friendsWithAvatar);
       _friendStore.setPendingIncoming(pending.length);
     } catch (error) {
       if (!mounted) return;
