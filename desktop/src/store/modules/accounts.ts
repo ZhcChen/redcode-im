@@ -292,15 +292,8 @@ const accountsModule = {
           commit('SET_CURRENT_ACCOUNT', currentAccountId)
         }
 
-        // 如果有当前账号，同步头像缓存
-        if (currentAccountId) {
-          try {
-            const { UserApi } = await import('../../api/user')
-            await UserApi.syncAvatarCache(false)
-          } catch (error) {
-            console.warn('同步头像缓存失败:', error)
-          }
-        }
+        // 注意：头像缓存同步在 App.vue 的 ensureAvatarCacheConsistency 中处理
+        // 这里不调用 syncAvatarCache，因为此时 SET_USER 还没有执行，currentUser 可能还没有正确的数据
       } catch (error) {
         console.error('加载账号列表失败:', error)
       }

@@ -93,9 +93,28 @@ async function ensureAvatarCacheConsistency(reason: string, forceDownload = fals
       return
     }
 
-    if (backendKey && !localPath) {
-      console.log(`[${logId}] 本地缓存缺失，准备重新下载`, { backendKey })
-      shouldDownload = true
+    // 如果 backendKey 和 localKey 一致，但 localPath 存在，先尝试使用它
+    // 只有在 localPath 不存在或无效时才触发下载
+    if (backendKey && backendKey === localKey) {
+      if (localPath) {
+        console.log(`[${logId}] 本地缓存路径存在: ${localPath}`)
+        // 验证本地路径是否有效（检查是否是有效的 blob URL 或文件路径）
+        if (localPath.startsWith('blob:') || localPath.startsWith('http://') || localPath.startsWith('https://')) {
+          console.log(`[${logId}] 本地缓存路径有效，直接使用现有缓存，不触发下载`)
+          // localPath 存在且有效，直接使用，不需要下载
+          // store 中已经有 avatarLocalPath，组件会自动使用它
+          return
+        } else {
+          console.log(`[${logId}] 本地缓存路径格式异常，准备重新下载`)
+          shouldDownload = true
+        }
+      } else {
+        console.log(`[${logId}] 本地缓存路径缺失，准备重新下载`, { backendKey })
+        shouldDownload = true
+      }
+    } else if (backendKey && backendKey !== localKey) {
+      // backendKey 和 localKey 不一致的情况已经在上面处理了
+      shouldDownload = !!backendKey
     }
 
     if (shouldDownload) {
