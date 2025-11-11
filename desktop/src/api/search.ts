@@ -48,17 +48,35 @@ export interface IndexMessage {
 // 搜索API
 export class SearchApi {
   /**
+   * 将前端消息格式转换为 Rust 后端期望的格式（驼峰转下划线）
+   */
+  private static toRustFormat(message: IndexMessage): any {
+    return {
+      id: message.id,
+      room_id: message.roomId,  // 转换为下划线格式
+      room_name: message.roomName,
+      sender_id: message.senderId,
+      sender_name: message.senderName,
+      content: message.content,
+      message_type: message.messageType,
+      timestamp: message.timestamp
+    };
+  }
+
+  /**
    * 索引单个消息
    */
   static async indexMessage(message: IndexMessage): Promise<void> {
-    return invoke('index_message', { message });
+    const rustMessage = this.toRustFormat(message);
+    return invoke('index_message', { message: rustMessage });
   }
 
   /**
    * 批量索引消息
    */
   static async indexMessages(messages: IndexMessage[]): Promise<void> {
-    return invoke('index_messages', { messages });
+    const rustMessages = messages.map(m => this.toRustFormat(m));
+    return invoke('index_messages', { messages: rustMessages });
   }
 
   /**
