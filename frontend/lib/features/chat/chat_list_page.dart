@@ -631,12 +631,28 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   void initState() {
     super.initState();
     _cachedAvatarPath = widget.chat.localAvatarPath;
+    print('[ChatAvatar] ========== 初始化聊天头像 ==========');
+    print('[ChatAvatar] roomId: ${widget.chat.roomId}');
+    print('[ChatAvatar] name: ${widget.chat.name}');
+    print('[ChatAvatar] type: ${widget.chat.type}');
+    print('[ChatAvatar] avatarObjectKey: ${widget.chat.avatarObjectKey}');
+    print('[ChatAvatar] localAvatarPath: ${widget.chat.localAvatarPath}');
+    print('[ChatAvatar] avatar: ${widget.chat.avatar}');
+    print('[ChatAvatar] extra: ${widget.chat.extra}');
+    
     // 如果有avatarObjectKey但没有本地缓存，异步加载
     if (widget.chat.avatarObjectKey != null &&
         widget.chat.avatarObjectKey!.isNotEmpty &&
         _cachedAvatarPath == null &&
         widget.chat.type == ChatType.single) {
+      print('[ChatAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
+    } else if (_cachedAvatarPath != null) {
+      print('[ChatAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+    } else if (widget.chat.type != ChatType.single) {
+      print('[ChatAvatar] ℹ️ 非单聊，使用默认逻辑');
+    } else {
+      print('[ChatAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
     }
   }
 
@@ -656,9 +672,14 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   }
 
   Future<void> _loadAvatar() async {
-    if (_isLoading) return;
+    print('[ChatAvatar] _loadAvatar 被调用');
+    if (_isLoading) {
+      print('[ChatAvatar] ⚠️ 正在加载中，跳过');
+      return;
+    }
     if (widget.chat.avatarObjectKey == null ||
         widget.chat.avatarObjectKey!.isEmpty) {
+      print('[ChatAvatar] ⚠️ avatarObjectKey为空，跳过');
       return;
     }
 
@@ -671,18 +692,25 @@ class _ChatAvatarState extends State<_ChatAvatar> {
       final userId = widget.chat.extra?['friend_user_id'] as String? ??
           widget.chat.extra?['friendUserId'] as String? ??
           widget.chat.roomId;
+      
+      print('[ChatAvatar] 使用userId: $userId');
+      print('[ChatAvatar] 开始加载头像...');
 
       final cachedPath = await _avatarService.loadAndCacheAvatar(
         userId: userId,
         avatarObjectKey: widget.chat.avatarObjectKey,
       );
+      print('[ChatAvatar] 加载结果: $cachedPath');
       if (mounted) {
         setState(() {
           _cachedAvatarPath = cachedPath;
           _isLoading = false;
         });
+        print('[ChatAvatar] ✅ 状态已更新');
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      print('[ChatAvatar] ❌ 加载异常: $e');
+      print('[ChatAvatar] 堆栈: $stackTrace');
       if (mounted) {
         setState(() {
           _isLoading = false;

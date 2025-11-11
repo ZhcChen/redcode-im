@@ -640,11 +640,23 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   void initState() {
     super.initState();
     _cachedAvatarPath = widget.entry.localAvatarPath;
+    print('[ContactAvatar] ========== 初始化联系人头像 ==========');
+    print('[ContactAvatar] userId: ${widget.entry.id}');
+    print('[ContactAvatar] name: ${widget.entry.name}');
+    print('[ContactAvatar] avatarObjectKey: ${widget.entry.avatarObjectKey}');
+    print('[ContactAvatar] localAvatarPath: ${widget.entry.localAvatarPath}');
+    print('[ContactAvatar] avatarUrl: ${widget.entry.avatarUrl}');
+    
     // 如果有avatarObjectKey但没有本地缓存，异步加载
     if (widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty &&
         _cachedAvatarPath == null) {
+      print('[ContactAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
+    } else if (_cachedAvatarPath != null) {
+      print('[ContactAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+    } else {
+      print('[ContactAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
     }
   }
 
@@ -663,12 +675,18 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   }
 
   Future<void> _loadAvatar() async {
-    if (_isLoading) return;
+    print('[ContactAvatar] _loadAvatar 被调用');
+    if (_isLoading) {
+      print('[ContactAvatar] ⚠️ 正在加载中，跳过');
+      return;
+    }
     if (widget.entry.avatarObjectKey == null ||
         widget.entry.avatarObjectKey!.isEmpty) {
+      print('[ContactAvatar] ⚠️ avatarObjectKey为空，跳过');
       return;
     }
 
+    print('[ContactAvatar] 开始加载头像...');
     setState(() {
       _isLoading = true;
     });
@@ -678,13 +696,17 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         userId: widget.entry.id,
         avatarObjectKey: widget.entry.avatarObjectKey,
       );
+      print('[ContactAvatar] 加载结果: $cachedPath');
       if (mounted) {
         setState(() {
           _cachedAvatarPath = cachedPath;
           _isLoading = false;
         });
+        print('[ContactAvatar] ✅ 状态已更新');
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      print('[ContactAvatar] ❌ 加载异常: $e');
+      print('[ContactAvatar] 堆栈: $stackTrace');
       if (mounted) {
         setState(() {
           _isLoading = false;
