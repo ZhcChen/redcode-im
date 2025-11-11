@@ -6,7 +6,10 @@
         v-for="account in accounts"
         :key="account.id"
         class="account-tab"
-        :class="{ active: account.id === currentAccountId }"
+        :class="{ 
+          active: account.id === currentAccountId,
+          'has-unread': hasUnreadMessages(account)
+        }"
         role="button"
         tabindex="0"
         @click="handleSwitchAccount(account.id)"
@@ -48,6 +51,7 @@
 </template>
 
 <script setup lang="ts">
+import { useStore } from 'vuex'
 import type { AccountInfo } from '@/store/modules/accounts'
 
 // Props
@@ -64,13 +68,24 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // Emits
-interface Emits {
+const emit = defineEmits<{
   (e: 'switch', accountId: string): void
   (e: 'add'): void
   (e: 'remove', accountId: string): void
-}
+}>()
 
-const emit = defineEmits<Emits>()
+const store = useStore()
+
+// 检查账号是否有未读消息（消息未读数 + 好友申请未读数）
+function hasUnreadMessages(account: AccountInfo): boolean {
+  // 如果是当前账号，检查好友申请数量
+  if (account.id === props.currentAccountId) {
+    const pendingFriendRequests = store.getters.pendingFriendRequests || 0
+    return account.unreadCount > 0 || pendingFriendRequests > 0
+  }
+  // 非当前账号只检查消息未读数
+  return account.unreadCount > 0
+}
 
 // 切换账号
 function handleSwitchAccount(accountId: string) {
@@ -134,6 +149,7 @@ function handleRemoveAccount(accountId: string) {
   font: inherit;
   display: flex;
   align-items: center;
+  position: relative;
 
   &:hover {
     background: rgba(0, 194, 179, 0.08);
@@ -157,6 +173,21 @@ function handleRemoveAccount(accountId: string) {
         }
       }
     }
+  }
+
+  // 有未读消息时的闪烁效果
+  &.has-unread:not(.active) {
+    animation: blink-orange 1.5s ease-in-out infinite;
+  }
+}
+
+// 橙色背景闪烁动画
+@keyframes blink-orange {
+  0%, 100% {
+    background-color: rgba(255, 152, 0, 0.15);
+  }
+  50% {
+    background-color: rgba(255, 152, 0, 0.35);
   }
 }
 
