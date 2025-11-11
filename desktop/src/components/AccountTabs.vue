@@ -18,9 +18,10 @@
         @click.stop="handleSwitchAccount(account.id)"
         @dragstart="handleDragStart($event, account.id)"
         @dragend="handleDragEnd"
-        @dragover.prevent="handleDragOver($event, account.id)"
-        @dragleave="handleDragLeave(account.id)"
-        @drop.prevent="handleDrop($event, account.id)"
+        @dragover.prevent.stop="handleDragOver($event, account.id)"
+        @dragenter.prevent="handleDragEnter($event, account.id)"
+        @dragleave="handleDragLeave($event, account.id)"
+        @drop.prevent.stop="handleDrop($event, account.id)"
       >
         <div 
           class="tab-content"
@@ -127,17 +128,18 @@ function handleRemoveAccount(accountId: string) {
 
 // 拖拽开始
 function handleDragStart(event: DragEvent, accountId: string) {
+  console.log('🚀 开始拖拽账号:', accountId)
   isDragging.value = true
   draggedAccountId.value = accountId
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', accountId)
+    // 设置拖拽图像
+    if (event.target instanceof HTMLElement) {
+      event.dataTransfer.setDragImage(event.target, 0, 0)
+      event.target.style.opacity = '0.5'
+    }
   }
-  // 设置拖拽时的样式
-  if (event.target instanceof HTMLElement) {
-    event.target.style.opacity = '0.5'
-  }
-  console.log('开始拖拽账号:', accountId)
 }
 
 // 拖拽结束
@@ -161,6 +163,9 @@ function handleDragEnd(event: DragEvent) {
 
 // 拖拽悬停
 function handleDragOver(event: DragEvent, accountId: string) {
+  event.preventDefault()
+  event.stopPropagation()
+  
   if (draggedAccountId.value && draggedAccountId.value !== accountId) {
     dragOverAccountId.value = accountId
     if (event.dataTransfer) {
@@ -169,8 +174,25 @@ function handleDragOver(event: DragEvent, accountId: string) {
   }
 }
 
+// 拖拽进入
+function handleDragEnter(event: DragEvent, accountId: string) {
+  event.preventDefault()
+  if (draggedAccountId.value && draggedAccountId.value !== accountId) {
+    dragOverAccountId.value = accountId
+  }
+}
+
 // 拖拽离开
-function handleDragLeave(accountId: string) {
+function handleDragLeave(event: DragEvent, accountId: string) {
+  // 只有当真正离开元素时才清除 drag-over 状态
+  // 检查 relatedTarget 是否是当前元素的子元素
+  const relatedTarget = event.relatedTarget as HTMLElement | null
+  if (relatedTarget && event.currentTarget instanceof HTMLElement) {
+    if (event.currentTarget.contains(relatedTarget)) {
+      return // 仍在元素内部，不处理
+    }
+  }
+  
   if (dragOverAccountId.value === accountId) {
     dragOverAccountId.value = null
   }
@@ -181,11 +203,23 @@ async function handleDrop(event: DragEvent, targetAccountId: string) {
   event.preventDefault()
   event.stopPropagation()
   
-  console.log('放置账号:', { targetAccountId, draggedAccountId: draggedAccountId.value })
+  console.log('🎯 放置账号事件触发:', { 
+    targetAccountId, 
+    draggedAccountId: draggedAccountId.value,
+    eventType: event.type,
+    timestamp: Date.now()
+  })
   
   const sourceAccountId = draggedAccountId.value
-  if (!sourceAccountId || sourceAccountId === targetAccountId) {
-    console.log('跳过放置: 源账号和目标账号相同或源账号为空')
+  if (!sourceAccountId) {
+    console.warn('⚠️ 源账号ID为空')
+    dragOverAccountId.value = null
+    isDragging.value = false
+    return
+  }
+  
+  if (sourceAccountId === targetAccountId) {
+    console.log('ℹ️ 跳过放置: 源账号和目标账号相同')
     dragOverAccountId.value = null
     isDragging.value = false
     draggedAccountId.value = null
@@ -197,11 +231,11 @@ async function handleDrop(event: DragEvent, targetAccountId: string) {
   const sourceIndex = currentOrder.indexOf(sourceAccountId)
   const targetIndex = currentOrder.indexOf(targetAccountId)
 
-  console.log('当前顺序:', currentOrder)
-  console.log('源索引:', sourceIndex, '目标索引:', targetIndex)
+  console.log('📊 当前顺序:', currentOrder)
+  console.log('📍 源索引:', sourceIndex, '目标索引:', targetIndex)
 
   if (sourceIndex === -1 || targetIndex === -1) {
-    console.error('索引无效')
+    console.error('❌ 索引无效:', { sourceIndex, targetIndex })
     dragOverAccountId.value = null
     isDragging.value = false
     draggedAccountId.value = null
@@ -213,7 +247,7 @@ async function handleDrop(event: DragEvent, targetAccountId: string) {
   newOrder.splice(sourceIndex, 1)
   newOrder.splice(targetIndex, 0, sourceAccountId)
 
-  console.log('新顺序:', newOrder)
+  console.log('🔄 新顺序:', newOrder)
 
   // 先清空拖拽状态，避免 dragend 事件再次清空
   isDragging.value = false
@@ -221,11 +255,15 @@ async function handleDrop(event: DragEvent, targetAccountId: string) {
   dragOverAccountId.value = null
 
   try {
+    console.log('💾 开始保存账号顺序...')
     // 调用 store action 保存顺序
     await store.dispatch('accounts/reorderAccounts', newOrder)
-    console.log('✅ 账号顺序已更新')
+    console.log('✅ 账号顺序已更新成功')
   } catch (error) {
-    console.error('重新排序账号失败:', error)
+    console.error('❌ 重新排序账号失败:', error)
+    // 恢复状态以便重试
+    draggedAccountId.value = sourceAccountId
+    isDragging.value = true
   }
 }
 </script>
