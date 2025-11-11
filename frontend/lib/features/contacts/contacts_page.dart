@@ -675,12 +675,36 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     print('[ContactAvatar] 🔍 _cachedAvatarPath = $_cachedAvatarPath');
     print('[ContactAvatar] 🔍 avatarObjectKey = ${widget.entry.avatarObjectKey}');
     
-    // 如果没有有效的本地缓存，但有avatarObjectKey，异步加载
+    // 如果没有有效的本地缓存，但有avatarObjectKey，先尝试快速检查缓存
     if (needsLoad &&
         widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty) {
-      print('[ContactAvatar] ⚠️ 需要异步加载头像，调用 _loadAvatar()');
-      _loadAvatar();
+      print('[ContactAvatar] 🔍 尝试在 initState 中快速检查缓存...');
+      // 使用 addPostFrameCallback 在第一次 build 之后立即检查缓存
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        try {
+          final cachedPath = await AvatarCache.instance.resolveLocalPath(
+            userId: widget.entry.id,
+            objectKey: widget.entry.avatarObjectKey!,
+          );
+          if (cachedPath != null && mounted && _cachedAvatarPath == null) {
+            print('[ContactAvatar] ⚡ initState 中找到缓存: $cachedPath');
+            setState(() {
+              _cachedAvatarPath = cachedPath;
+            });
+            print('[ContactAvatar] ✅ 快速设置缓存路径');
+            return; // 找到缓存，不需要加载
+          }
+        } catch (e) {
+          print('[ContactAvatar] ⚠️ 快速检查缓存异常: $e');
+        }
+        // 如果没找到缓存，再调用异步加载
+        if (mounted && _cachedAvatarPath == null) {
+          print('[ContactAvatar] ⚠️ 缓存未找到，调用异步加载');
+          _loadAvatar();
+        }
+      });
     } else if (!needsLoad) {
       print('[ContactAvatar] ✅ 已有本地缓存，不需要加载');
     } else {
@@ -879,10 +903,14 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     }
 
     // 如果有avatarObjectKey但还在加载中，显示加载指示器
-    if (_isLoading &&
+    // 或者如果有avatarObjectKey但_cachedAvatarPath为空，也显示加载指示器（避免闪烁）
+    if ((_isLoading ||
+            (_cachedAvatarPath == null &&
+                widget.entry.avatarObjectKey != null &&
+                widget.entry.avatarObjectKey!.isNotEmpty)) &&
         widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty) {
-      print('[ContactAvatar] ⏳ 返回加载指示器');
+      print('[ContactAvatar] ⏳ 返回加载指示器（避免闪烁）');
       return Container(
         width: size,
         height: size,
