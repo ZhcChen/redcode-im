@@ -3769,6 +3769,10 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
   const messageData = detail.message
   const uiMessage = mapDomainMessageToUi(messageData)
+  // 确保消息有 roomId
+  if (!uiMessage.roomId && messageData.roomId) {
+    uiMessage.roomId = messageData.roomId
+  }
   const messageGroupId = messageData.roomId
   const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === messageGroupId
 
@@ -3862,12 +3866,35 @@ const handleWebSocketMessage = (event: CustomEvent) => {
               found: !!localMessage,
               localContent: localMessage?.content,
               localContentType: localMessage?.contentType,
-              wsContent: uiMessage.content
+              localParts: localMessage?.parts,
+              wsContent: uiMessage.content,
+              wsParts: uiMessage.parts
             })
-            if (localMessage && isContentMatch(localMessage.content, uiMessage.content)) {
-              matchedLocalMessageId = sentId as string
-              console.log('✅ [WebSocket] 匹配到临时消息:', matchedLocalMessageId)
-              break
+            
+            // 优先通过 parts 匹配（对于附件消息）
+            let isMatch = false
+            if (localMessage) {
+              // 如果两个消息都有 parts，通过 attachment.key 匹配
+              const localAttachment = localMessage.parts?.find(p => p.attachment?.key)?.attachment
+              const wsAttachment = uiMessage.parts?.find(p => p.attachment?.key)?.attachment
+              
+              if (localAttachment?.key && wsAttachment?.key) {
+                isMatch = localAttachment.key === wsAttachment.key
+                console.log('🔑 [WebSocket] 通过 attachment.key 匹配:', { 
+                  match: isMatch, 
+                  localKey: localAttachment.key, 
+                  wsKey: wsAttachment.key 
+                })
+              } else {
+                // 没有 parts 或 attachment，回退到 content 匹配
+                isMatch = isContentMatch(localMessage.content, uiMessage.content)
+              }
+              
+              if (isMatch) {
+                matchedLocalMessageId = sentId as string
+                console.log('✅ [WebSocket] 匹配到临时消息:', matchedLocalMessageId)
+                break
+              }
             }
           }
         }
