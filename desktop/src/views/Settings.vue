@@ -523,7 +523,7 @@ const handleDownloadUpdate = async () => {
   height: 100%;
   padding: 32px 0 48px;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   background-color: $bg-chat;
   flex-direction: column;
