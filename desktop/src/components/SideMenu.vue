@@ -81,15 +81,21 @@
         </template>
       </Popover>
     </div>
+
+    <AccountLoginModal
+      :visible="showAccountLoginModal"
+      @close="showAccountLoginModal = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import Avatar from './Avatar.vue'
 import Popover from './Popover.vue'
+import AccountLoginModal from './AccountLoginModal.vue'
 
 interface MenuItem {
   name: string
@@ -102,9 +108,11 @@ interface MenuItem {
 const route = useRoute()
 const router = useRouter()
 const store = useStore()
+const showAccountLoginModal = ref(false)
 
 // 用于管理退出登录的超时检查
 let logoutTimeoutId: number | null = null
+let isLoggingOut = false // 添加标志位，标记是否正在退出登录
 
 // 获取当前用户信息
 const currentUser = computed(() => store.getters.currentUser)
@@ -114,11 +122,13 @@ const userDisplayName = computed(() => {
   return currentUser.value.nickname || currentUser.value.username || '用户'
 })
 
-// 用户头像地址（如果没有头像则使用默认头像）
+// 用户头像地址（优先使用本地缓存）
 const userAvatarSrc = computed(() => {
-  if (currentUser.value.avatar && currentUser.value.avatar.trim()) {
-    return currentUser.value.avatar
+  const localPath = currentUser.value.avatarLocalPath
+  if (localPath && localPath.trim()) {
+    return localPath
   }
+
   // 使用用户名的首字符生成默认头像
   const firstChar = userDisplayName.value.charAt(0).toUpperCase()
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(firstChar)}&background=6366f1&color=ffffff&size=96&rounded=true`
@@ -182,39 +192,15 @@ const handleAddAccount = async () => {
     return
   }
 
-  try {
-    // 使用 Tauri API 打开新的登录窗口
-    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
-
-    // 创建一个新的登录窗口
-    const loginWindow = new WebviewWindow('login-' + Date.now(), {
-      url: '/login',
-      title: '添加账号',
-      width: 400,
-      height: 600,
-      resizable: false,
-      center: true,
-      alwaysOnTop: false,
-      skipTaskbar: false
-    })
-
-    // 监听窗口创建完成
-    loginWindow.once('tauri://created', () => {
-      console.log('登录窗口已创建')
-    })
-
-    // 监听窗口创建错误
-    loginWindow.once('tauri://error', (error) => {
-      console.error('创建登录窗口失败:', error)
-    })
-  } catch (error) {
-    console.error('打开登录窗口失败:', error)
-  }
+  showAccountLoginModal.value = true
 }
 
 // 处理退出登录点击
 const handleLogout = () => {
   console.log('🔄 用户点击退出登录...')
+
+  // 设置退出登录标志
+  isLoggingOut = true
 
   // 清除之前的超时检查（如果存在）
   if (logoutTimeoutId !== null) {
@@ -247,11 +233,12 @@ const handleLogout = () => {
       isLoggedIn,
       loadingVisible,
       currentPath: window.location.pathname,
-      timeoutId: logoutTimeoutId
+      timeoutId: logoutTimeoutId,
+      isLoggingOut // 添加标志位到日志
     });
 
-    // 只有当前确实还在登录状态时才执行强制清除
-    if ((currentToken || loadingVisible || isLoggedIn) && window.location.pathname !== '/login') {
+    // 只有在退出登录过程中，且确实还在登录状态时才执行强制清除
+    if (isLoggingOut && (currentToken || loadingVisible || isLoggedIn) && window.location.pathname !== '/login') {
       console.warn('⚠️ 检测到退出登录可能卡住，执行强制清除')
 
       // 强制隐藏加载蒙版
@@ -295,16 +282,29 @@ const handleLogout = () => {
       console.log('✅ 退出登录状态正常或已在登录页，无需强制处理')
     }
 
-    // 清除超时器引用
+    // 清除超时器引用和标志位
     logoutTimeoutId = null
+    isLoggingOut = false
   }, 5000) as unknown as number // 保持5秒检查
 }
+
+// 组件激活时清理超时器（用于 keep-alive）
+onActivated(() => {
+  // 如果有遗留的定时器，清除它
+  if (logoutTimeoutId !== null) {
+    clearTimeout(logoutTimeoutId)
+    logoutTimeoutId = null
+    isLoggingOut = false
+    console.log('🧹 组件激活时清除遗留的退出检查超时器')
+  }
+})
 
 // 组件卸载时清理超时器
 onUnmounted(() => {
   if (logoutTimeoutId !== null) {
     clearTimeout(logoutTimeoutId)
     logoutTimeoutId = null
+    isLoggingOut = false
     console.log('🧹 组件卸载时清除退出检查超时器')
   }
 })

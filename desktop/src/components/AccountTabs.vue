@@ -7,23 +7,13 @@
         :key="account.id"
         class="account-tab"
         :class="{ active: account.id === currentAccountId }"
+        role="button"
+        tabindex="0"
         @click="handleSwitchAccount(account.id)"
       >
         <div class="tab-content">
-          <!-- 头像 -->
-          <img
-            :src="account.userInfo.avatar || '/default-avatar.png'"
-            class="avatar"
-            :alt="account.userInfo.nickname"
-          />
-
           <!-- 昵称 -->
           <span class="nickname">{{ account.userInfo.nickname || '未命名' }}</span>
-
-          <!-- 未读角标 -->
-          <span v-if="account.unreadCount > 0" class="badge">
-            {{ account.unreadCount > 99 ? '99+' : account.unreadCount }}
-          </span>
 
           <!-- 关闭按钮 -->
           <button
@@ -31,6 +21,7 @@
             class="close-btn"
             @click.stop="handleRemoveAccount(account.id)"
             title="退出登录"
+            type="button"
           >
             ×
           </button>
@@ -95,35 +86,31 @@ function handleAddAccount() {
 
 // 移除账号
 function handleRemoveAccount(accountId: string) {
-  if (confirm('确定要退出此账号吗？')) {
-    emit('remove', accountId)
-  }
+  emit('remove', accountId)
 }
 </script>
 
 <style scoped lang="scss">
 .account-tabs {
   width: 100%;
-  background: var(--bg-color, #ffffff);
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
-  padding: 6px 12px;
+  padding: 0;
   box-sizing: border-box;
 }
 
 .tabs-container {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
+  height: 42px;
 
-  /* 自定义滚动条 */
   &::-webkit-scrollbar {
     height: 4px;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #00C2B3;
+    background: #00c2b3;
     border-radius: 2px;
   }
 
@@ -134,35 +121,32 @@ function handleRemoveAccount(accountId: string) {
 
 .account-tab {
   flex-shrink: 0;
-  min-width: 160px;
+  min-width: 110px;
   max-width: 200px;
-  height: 40px;
-  background: var(--bg-secondary, #f9fafb);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
-  padding: 6px 10px;
+  height: 100%;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 0 12px;
   cursor: pointer;
   transition: all 0.2s ease;
+  color: inherit;
+  font: inherit;
+  display: flex;
+  align-items: center;
 
   &:hover {
-    border-color: #00C2B3;
-    background: var(--bg-color, #ffffff);
-    box-shadow: 0 1px 4px rgba(0, 194, 179, 0.15);
+    background: rgba(0, 194, 179, 0.08);
   }
 
   &.active {
-    background: #00C2B3;
-    border-color: #00C2B3;
-    box-shadow: 0 2px 8px rgba(0, 194, 179, 0.25);
+    background: #00c2b3;
+    border-bottom-color: #00c2b3;
 
     .tab-content {
       .nickname {
         color: #fff;
         font-weight: 600;
-      }
-
-      .badge {
-        background: #ff4757;
       }
 
       .close-btn {
@@ -179,103 +163,70 @@ function handleRemoveAccount(accountId: string) {
 .tab-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   height: 100%;
 }
-
-.avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
 .nickname {
   flex: 1;
-  font-size: 13px;
-  color: var(--text-primary, #333);
+  font-size: 12px;
+  color: var(--text-primary, #334155);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
 }
 
-.badge {
-  flex-shrink: 0;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  background: #f56c6c;
-  color: #fff;
-  font-size: 12px;
-  font-weight: bold;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(245, 108, 108, 0.4);
-}
-
 .close-btn {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
   border: none;
   background: transparent;
-  color: #999;
-  font-size: 20px;
-  line-height: 1;
+  color: #94a3b8;
+  font-size: 14px;
   cursor: pointer;
+  padding: 2px 4px;
   border-radius: 4px;
   transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #f56c6c;
-    transform: rotate(90deg);
+    background: rgba(148, 163, 184, 0.25);
+    color: #0f172a;
   }
 }
 
 .add-account-btn {
   flex-shrink: 0;
-  min-width: 100px;
-  height: 40px;
-  background: var(--bg-color, #ffffff);
-  border: 1.5px dashed #00C2B3;
-  border-radius: 6px;
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px dashed #00c2b3;
+  border-radius: 16px;
+  background: rgba(0, 194, 179, 0.12);
+  color: #006d65;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: #00C2B3;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
 
   &:hover {
-    background: rgba(0, 194, 179, 0.05);
-    border-color: #00C2B3;
-    box-shadow: 0 1px 4px rgba(0, 194, 179, 0.15);
+    background: rgba(0, 194, 179, 0.18);
+    border-style: solid;
   }
 
   .add-icon {
-    font-size: 18px;
-    font-weight: bold;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .add-text {
+    font-weight: 500;
   }
 }
 
 .max-accounts-tip {
   flex-shrink: 0;
-  padding: 12px 16px;
-  color: #999;
+  padding: 10px 16px;
+  color: #94a3b8;
   font-size: 12px;
   white-space: nowrap;
 }

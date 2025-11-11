@@ -15,6 +15,7 @@
             class="avatar-edit-icon"
           />
         </div>
+
       </div>
     </div>
 
@@ -183,7 +184,6 @@ const userDisplayName = computed(() => {
 
 // 用户头像地址（如果有预览图则显示预览图，否则使用用户头像或默认头像）
 const userAvatarSrc = computed(() => {
-  // 如果有预览图，优先显示预览图
   if (previewImageUrl.value) {
     return previewImageUrl.value
   }
@@ -191,11 +191,7 @@ const userAvatarSrc = computed(() => {
   if (currentUser.value.avatarLocalPath && currentUser.value.avatarLocalPath.trim()) {
     return currentUser.value.avatarLocalPath
   }
-  
-  if (currentUser.value.avatar && currentUser.value.avatar.trim()) {
-    return currentUser.value.avatar
-  }
-  // 使用用户名的首字符生成默认头像
+
   const firstChar = userDisplayName.value.charAt(0).toUpperCase()
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(firstChar)}&background=6366f1&color=ffffff&size=96&rounded=true`
 })

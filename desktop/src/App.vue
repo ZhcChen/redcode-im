@@ -28,6 +28,86 @@ const currentAccountId = computed(() => store.state.accounts.currentAccountId);
 const isLoggedIn = computed(() => store.getters.isLoggedIn);
 // 只有多个账号时才显示切换标签
 const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.value);
+const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
+
+async function ensureAvatarCacheConsistency(reason: string, forceDownload = false) {
+  const logId = `AVATAR_VERIFY_${Date.now()}_${reason}`
+  const currentUser = store.getters.currentUser
+  if (!currentUser?.id) {
+    return
+  }
+
+  try {
+    console.log(`[${logId}] 开始校验头像缓存`, {
+      userId: currentUser.id,
+      avatarObjectKey: currentUser.avatarObjectKey,
+      avatarLocalPath: currentUser.avatarLocalPath,
+      forceDownload
+    })
+
+    const { UserApi } = await import('./api/user')
+    const profileResp = await UserApi.getUserAccountInfo({ userId: 'me' })
+    if (!profileResp.success || !profileResp.data) {
+      console.warn(`[${logId}] 获取用户信息失败`, profileResp.message)
+      return
+    }
+
+    const backendUser = profileResp.data
+    const backendKey = backendUser.avatarObjectKey ?? null
+    const localKey = currentUser.avatarObjectKey ?? null
+    const localPath = currentUser.avatarLocalPath ?? null
+
+    let shouldDownload = forceDownload
+
+    if (backendKey !== localKey) {
+      console.log(`[${logId}] 发现 avatar_object_key 变更`, { backendKey, localKey })
+      store.commit('UPDATE_USER_INFO', {
+        avatarObjectKey: backendKey,
+        avatarLocalPath: null
+      })
+      try {
+        await store.dispatch('accounts/syncAccountProfile', {
+          accountId: currentUser.id,
+          userInfo: {
+            avatarObjectKey: backendKey,
+            avatarLocalPath: null
+          }
+        })
+      } catch (syncError) {
+        console.warn(`[${logId}] 同步账号资料失败`, syncError)
+      }
+      shouldDownload = !!backendKey
+    }
+
+    if (!backendKey) {
+      if (localKey || localPath) {
+        await store.dispatch('accounts/syncAccountProfile', {
+          accountId: currentUser.id,
+          userInfo: {
+            avatarObjectKey: null,
+            avatarLocalPath: null
+          }
+        }).catch((err) => console.warn(`[${logId}] 清空账号缓存失败`, err))
+      }
+      console.log(`[${logId}] 后端未配置头像，结束校验`)
+      return
+    }
+
+    if (backendKey && !localPath) {
+      console.log(`[${logId}] 本地缓存缺失，准备重新下载`, { backendKey })
+      shouldDownload = true
+    }
+
+    if (shouldDownload) {
+      console.log(`[${logId}] 触发头像缓存刷新`)
+      await UserApi.syncAvatarCache(true)
+    } else {
+      console.log(`[${logId}] 缓存与后端一致，跳过下载`)
+    }
+  } catch (error) {
+    console.warn(`[${logId}] 校验头像缓存出现异常`, error)
+  }
+}
 
 // 账号切换处理
 async function handleAccountSwitch(accountId: string) {
@@ -47,10 +127,13 @@ async function handleAccountSwitch(accountId: string) {
       const { syncRustBackendToken } = await import('./api/http');
       await syncRustBackendToken(account.token);
 
-      // 4. 重新初始化 WebSocket 连接
+      // 4. 检查头像缓存
+      await ensureAvatarCacheConsistency('switch-account');
+
+      // 5. 重新初始化 WebSocket 连接
       await initWebSocketConnection();
 
-      // 5. 刷新数据（联系人、聊天列表等）
+      // 6. 刷新数据（联系人、聊天列表等）
       store.dispatch('loadChatList', { forceRefresh: true });
       store.dispatch('loadContacts', { forceRefresh: true });
 
@@ -77,36 +160,74 @@ async function handleAddAccount() {
 }
 
 // 移除账号处理
-async function handleRemoveAccount(accountId: string) {
-  console.log('移除账号:', accountId);
+async function handleRemoveAccount(accountId: string, skipConfirm = false) {
+  console.log('移除账号:', accountId, 'skipConfirm:', skipConfirm);
 
-  // 获取账号信息用于确认提示
   const account = store.getters['accounts/getAccountById'](accountId);
   if (!account) {
     toast.error('账号不存在');
     return;
   }
 
-  // 确认对话框
-  const confirmed = confirm(`确定要移除账号 "${account.userInfo.nickname}" 吗？`);
-  if (!confirmed) {
-    console.log('用户取消移除账号');
-    return;
+  if (!skipConfirm) {
+    const confirmed = confirm(`确定要移除账号 "${account.userInfo.nickname}" 吗？`);
+    if (!confirmed) {
+      console.log('用户取消移除账号');
+      return;
+    }
+  }
+
+  const isCurrentAccount = currentAccountId.value === accountId;
+
+  if (isCurrentAccount) {
+    try {
+      await webSocketManager.closeWebSocket();
+      console.log('✅ 已关闭当前账号 WebSocket 连接');
+    } catch (error) {
+      console.warn('⚠️ 关闭 WebSocket 连接失败:', error);
+    }
+
+    try {
+      const { syncRustBackendToken } = await import('./api/http');
+      await syncRustBackendToken(null);
+      console.log('✅ 已同步清除 Rust 端 token');
+    } catch (error) {
+      console.warn('⚠️ 清除 Rust token 失败:', error);
+    }
   }
 
   try {
-    // 登出该账号
     await store.dispatch('accounts/logoutAccount', accountId);
-
-    toast.success(`账号 ${account.userInfo.nickname} 已移除`);
-
-    // 如果移除后没有账号了，跳转到登录页
-    if (accounts.value.length === 0) {
-      router.push('/login');
-    }
   } catch (error) {
     console.error('❌ 移除账号失败:', error);
     toast.error('移除账号失败');
+    return;
+  }
+
+  const remainingAccounts: AccountInfo[] = store.getters['accounts/allAccounts'];
+
+  if (remainingAccounts.length === 0) {
+    try {
+      const { syncRustBackendToken } = await import('./api/http');
+      await syncRustBackendToken(null);
+    } catch (error) {
+      console.warn('⚠️ 最终清空 Rust token 失败:', error);
+    }
+
+    store.commit('SET_TOKEN', null);
+    store.commit('LOGOUT_USER');
+    toast.success(`账号 ${account.userInfo.nickname} 已移除`);
+    router.push('/login');
+    return;
+  }
+
+  toast.success(`账号 ${account.userInfo.nickname} 已移除`);
+
+  if (isCurrentAccount) {
+    const nextAccountId = store.state.accounts.currentAccountId || remainingAccounts[0].id;
+    if (nextAccountId) {
+      await handleAccountSwitch(nextAccountId);
+    }
   }
 }
 
@@ -377,11 +498,14 @@ watch(token, async (val, oldVal) => {
   // 先清理所有定时器，防止累积
   clearAllTimers();
 
-  console.log('🔄 Token变化监听:', {
+  const watchId = `WATCH_${Date.now()}`;
+  console.log(`[${watchId}] ========== TOKEN WATCH 触发 ==========`);
+  console.log(`[${watchId}] 🔄 Token变化监听:`, {
     newToken: val ? `${val.substring(0, 10)}...` : '无token',
     oldToken: oldVal ? `${oldVal.substring(0, 10)}...` : '无token',
     isLoggedIn: user.value.isLoggedIn,
-    currentPath: router.currentRoute.value.path
+    currentPath: router.currentRoute.value.path,
+    callStack: new Error().stack?.split('\n').slice(2, 5).join('\n')
   });
 
   if (val) {
@@ -436,7 +560,8 @@ watch(token, async (val, oldVal) => {
     }
   } else {
     // 无token时立即执行退出逻辑
-    console.log('⚡ 检测到token清除，立即执行退出操作');
+    console.log(`[${watchId}] ⚡ 检测到token清除，立即执行退出操作`);
+    console.log(`[${watchId}] 调用栈:`, new Error().stack);
     
     // 立即关闭 WebSocket 连接
     closeWebSocketConnection();
@@ -444,13 +569,16 @@ watch(token, async (val, oldVal) => {
     // 隐藏加载蒙版
     if (globalLoading.value.visible) {
       store.dispatch('hideGlobalLoading');
-      console.log('🔄 token已清除，隐藏加载蒙版');
+      console.log(`[${watchId}] 🔄 token已清除，隐藏加载蒙版`);
     }
     
     // 立即跳转到登录页面（但避免重复跳转）
     if (router.currentRoute.value.path !== '/login') {
-      console.log('🔄 跳转到登录页面');
+      console.log(`[${watchId}] 🔄 准备跳转到登录页面，当前路径: ${router.currentRoute.value.path}`);
       router.push('/login');
+      console.log(`[${watchId}] ✅ 已执行跳转到登录页面`);
+    } else {
+      console.log(`[${watchId}] ⏭️ 已在登录页，跳过跳转`);
     }
     
     // 跳转到登录页面时强制窗口居中
@@ -458,9 +586,19 @@ watch(token, async (val, oldVal) => {
       await forceWindowCenter();
     }, 50);  // 减少延迟
   }
+  
+  console.log(`[${watchId}] ========== TOKEN WATCH 结束 ==========`);
 }, {
   immediate: true
 });
+
+watch(isLoggedIn, (loggedIn) => {
+  if (loggedIn) {
+    ensureAvatarCacheConsistency('login-state').catch((error) => {
+      console.warn('[App] login-state avatar校验失败:', error)
+    })
+  }
+})
 
 // 监听 WebSocket 连接状态变化
 watch(websocket, (newWebSocket) => {
@@ -543,6 +681,8 @@ onMounted(async () => {
         store.commit('SET_TOKEN', currentAccount.token);
         store.commit('SET_USER', currentAccount.userInfo);
         console.log('✅ 已恢复当前账号状态:', currentAccount.userInfo.nickname);
+
+        await ensureAvatarCacheConsistency('app-initial-load');
       }
     } catch (error) {
       console.error('❌ 恢复账号列表失败:', error);
@@ -641,19 +781,24 @@ onUnmounted(() => {
 <template>
   <div id="app">
     <!-- 多账号切换标签（仅在多账号时显示） -->
-    <AccountTabs
-      v-if="showAccountTabs"
-      :accounts="accounts"
-      :current-account-id="currentAccountId"
-      :show-add-button="false"
-      @switch="handleAccountSwitch"
-      @remove="handleRemoveAccount"
-    />
+    <div v-if="showAccountTabs" class="account-tabs-wrapper">
+      <AccountTabs
+        :accounts="accounts"
+        :current-account-id="currentAccountId"
+        :show-add-button="false"
+        @switch="handleAccountSwitch"
+        @remove="(accountId) => handleRemoveAccount(accountId, true)"
+      />
+    </div>
 
-    <!-- 使用 keep-alive 保持页面状态，key 为当前账号 ID -->
-    <keep-alive :include="['Home', 'Chat', 'Contacts', 'Settings']">
-      <router-view :key="currentAccountId || 'default'" />
-    </keep-alive>
+    <div :class="['app-main', { 'app-main--with-tabs': showAccountTabs }]">
+      <!-- keep-alive 仅缓存视图，保持单一组件实例 -->
+      <router-view v-slot="{ Component }">
+        <keep-alive :include="keepAliveViews">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
+    </div>
 
     <!-- 全局加载蒙版 -->
     <LoadingMask
@@ -678,18 +823,23 @@ body {
   overflow: hidden;
 }
 
-/* 账号标签区域 */
-.account-tabs {
+.account-tabs-wrapper {
   flex-shrink: 0;
+  height: 42px;
   z-index: 100;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--bg-color, #fff);
 }
 
-/* 主内容区域 - router-view */
-#app > div:not(.loading-mask) {
+.app-main {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.app-main--with-tabs {
+  height: calc(100vh - 42px);
 }
 </style>
