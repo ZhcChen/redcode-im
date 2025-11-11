@@ -72,3 +72,12 @@ pub async fn account_get_settings(
 ) -> Result<Option<AccountSettings>, String> {
     manager.get_account_settings(account_id).await
 }
+
+/// 更新账号顺序
+#[tauri::command]
+pub async fn account_update_order(
+    manager: State<'_, AccountManager>,
+    account_orders: Vec<(String, i64)>,
+) -> Result<(), String> {
+    manager.update_account_order(account_orders).await
+}

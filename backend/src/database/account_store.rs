@@ -16,6 +16,8 @@ pub struct Account {
     pub token: String, // 加密存储
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(default)]
+    pub sort_order: Option<i64>, // 排序顺序
 }
 
 /// 账号设置
@@ -117,6 +119,8 @@ impl AccountStore {
             .await?;
         self.ensure_account_column("avatar_local_path", "TEXT")
             .await?;
+        self.ensure_account_column("sort_order", "INTEGER")
+            .await?;
 
         tracing::info!("账号数据库表初始化完成");
         Ok(())
@@ -146,10 +150,13 @@ impl AccountStore {
 
     /// 添加账号
     pub async fn add_account(&self, account: &Account) -> Result<(), sqlx::Error> {
+        // 如果没有设置 sort_order，使用 created_at 作为默认值
+        let sort_order = account.sort_order.unwrap_or(account.created_at);
+        
         sqlx::query(
             r#"
-            INSERT INTO accounts (id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO accounts (id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 username = excluded.username,
                 nickname = excluded.nickname,
@@ -159,7 +166,8 @@ impl AccountStore {
                 mobile = excluded.mobile,
                 email = excluded.email,
                 token = excluded.token,
-                updated_at = excluded.updated_at
+                updated_at = excluded.updated_at,
+                sort_order = COALESCE(excluded.sort_order, accounts.sort_order)
             "#,
         )
         .bind(&account.id)
@@ -173,6 +181,7 @@ impl AccountStore {
         .bind(&account.token)
         .bind(account.created_at)
         .bind(account.updated_at)
+        .bind(sort_order)
         .execute(&self.pool)
         .await?;
 
@@ -196,9 +205,9 @@ impl AccountStore {
     pub async fn get_all_accounts(&self) -> Result<Vec<Account>, sqlx::Error> {
         let accounts = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at
+            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order
             FROM accounts
-            ORDER BY created_at ASC
+            ORDER BY COALESCE(sort_order, created_at) ASC
             "#,
         )
         .fetch_all(&self.pool)
@@ -214,7 +223,7 @@ impl AccountStore {
     ) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at
+            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order
             FROM accounts
             WHERE id = ?
             "#,
@@ -258,7 +267,7 @@ impl AccountStore {
     pub async fn get_current_account(&self) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT a.id, a.username, a.nickname, a.avatar, a.avatar_object_key, a.avatar_local_path, a.mobile, a.email, a.token, a.created_at, a.updated_at
+            SELECT a.id, a.username, a.nickname, a.avatar, a.avatar_object_key, a.avatar_local_path, a.mobile, a.email, a.token, a.created_at, a.updated_at, a.sort_order
             FROM accounts a
             INNER JOIN current_account c ON a.id = c.account_id
             WHERE c.id = 1
@@ -334,6 +343,32 @@ impl AccountStore {
         .execute(&self.pool)
         .await?;
 
+        Ok(())
+    }
+
+    /// 更新账号顺序
+    pub async fn update_account_order(
+        &self,
+        account_orders: &[(String, i64)],
+    ) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        for (account_id, sort_order) in account_orders {
+            sqlx::query(
+                r#"
+                UPDATE accounts
+                SET sort_order = ?, updated_at = ?
+                WHERE id = ?
+                "#,
+            )
+            .bind(sort_order)
+            .bind(chrono::Utc::now().timestamp())
+            .bind(account_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 }

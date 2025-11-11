@@ -80,6 +80,7 @@ impl AccountManager {
             token: encrypted_token_base64,
             created_at: now,
             updated_at: now,
+            sort_order: Some(now), // 使用创建时间作为默认排序
         };
 
         store
@@ -130,6 +131,7 @@ impl AccountManager {
                 token: decrypted_token,
                 created_at: account.created_at,
                 updated_at: account.updated_at,
+                sort_order: account.sort_order,
             });
         }
 
@@ -178,6 +180,7 @@ impl AccountManager {
                     token: decrypted_token,
                     created_at: account.created_at,
                     updated_at: account.updated_at,
+                    sort_order: account.sort_order,
                 }))
             }
             None => Ok(None),
@@ -249,6 +252,25 @@ impl AccountManager {
             .await
             .map_err(|e| format!("获取账号设置失败: {}", e))
     }
+
+    /// 更新账号顺序
+    pub async fn update_account_order(
+        &self,
+        account_orders: Vec<(String, i64)>,
+    ) -> Result<(), String> {
+        if !self.is_initialized().await {
+            return Err("账号管理器未初始化".to_string());
+        }
+
+        let store_guard = self.store.lock().await;
+        let store = store_guard.as_ref().unwrap();
+
+        store
+            .update_account_order(&account_orders)
+            .await
+            .map_err(|e| format!("更新账号顺序失败: {}", e))?;
+        Ok(())
+    }
 }
 
 /// 账号输入（添加账号时）
@@ -281,6 +303,8 @@ pub struct AccountOutput {
     pub token: String, // 解密后的 token
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(default)]
+    pub sort_order: Option<i64>, // 排序顺序
 }
 
 pub mod commands;

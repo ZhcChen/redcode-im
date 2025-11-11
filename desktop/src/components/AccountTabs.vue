@@ -8,11 +8,19 @@
         class="account-tab"
         :class="{ 
           active: account.id === currentAccountId,
-          'has-unread': hasUnreadMessages(account)
+          'has-unread': hasUnreadMessages(account),
+          'dragging': draggedAccountId === account.id,
+          'drag-over': dragOverAccountId === account.id
         }"
         role="button"
         tabindex="0"
+        draggable="true"
         @click="handleSwitchAccount(account.id)"
+        @dragstart="handleDragStart($event, account.id)"
+        @dragend="handleDragEnd"
+        @dragover.prevent="handleDragOver($event, account.id)"
+        @dragleave="handleDragLeave(account.id)"
+        @drop="handleDrop($event, account.id)"
       >
         <div class="tab-content">
           <!-- 昵称 -->
@@ -51,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useStore } from 'vuex'
 import type { AccountInfo } from '@/store/modules/accounts'
 
@@ -75,6 +84,10 @@ const emit = defineEmits<{
 }>()
 
 const store = useStore()
+
+// 拖拽相关状态
+const draggedAccountId = ref<string | null>(null)
+const dragOverAccountId = ref<string | null>(null)
 
 // 检查账号是否有未读消息（消息未读数 + 好友申请未读数）
 function hasUnreadMessages(account: AccountInfo): boolean {
@@ -102,6 +115,82 @@ function handleAddAccount() {
 // 移除账号
 function handleRemoveAccount(accountId: string) {
   emit('remove', accountId)
+}
+
+// 拖拽开始
+function handleDragStart(event: DragEvent, accountId: string) {
+  draggedAccountId.value = accountId
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', accountId)
+  }
+  // 设置拖拽时的样式
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '0.5'
+  }
+}
+
+// 拖拽结束
+function handleDragEnd(event: DragEvent) {
+  draggedAccountId.value = null
+  dragOverAccountId.value = null
+  // 恢复样式
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '1'
+  }
+}
+
+// 拖拽悬停
+function handleDragOver(event: DragEvent, accountId: string) {
+  if (draggedAccountId.value && draggedAccountId.value !== accountId) {
+    dragOverAccountId.value = accountId
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move'
+    }
+  }
+}
+
+// 拖拽离开
+function handleDragLeave(accountId: string) {
+  if (dragOverAccountId.value === accountId) {
+    dragOverAccountId.value = null
+  }
+}
+
+// 放置
+async function handleDrop(event: DragEvent, targetAccountId: string) {
+  event.preventDefault()
+  
+  const sourceAccountId = draggedAccountId.value
+  if (!sourceAccountId || sourceAccountId === targetAccountId) {
+    dragOverAccountId.value = null
+    return
+  }
+
+  // 获取当前账号顺序
+  const currentOrder = props.accounts.map(acc => acc.id)
+  const sourceIndex = currentOrder.indexOf(sourceAccountId)
+  const targetIndex = currentOrder.indexOf(targetAccountId)
+
+  if (sourceIndex === -1 || targetIndex === -1) {
+    dragOverAccountId.value = null
+    return
+  }
+
+  // 重新排序
+  const newOrder = [...currentOrder]
+  newOrder.splice(sourceIndex, 1)
+  newOrder.splice(targetIndex, 0, sourceAccountId)
+
+  try {
+    // 调用 store action 保存顺序
+    await store.dispatch('accounts/reorderAccounts', newOrder)
+  } catch (error) {
+    console.error('重新排序账号失败:', error)
+  }
+
+  draggedAccountId.value = null
+  dragOverAccountId.value = null
 }
 </script>
 
@@ -143,13 +232,14 @@ function handleRemoveAccount(accountId: string) {
   border-bottom: 2px solid transparent;
   background: transparent;
   padding: 0 12px;
-  cursor: pointer;
+  cursor: move; // 拖拽时显示移动光标
   transition: all 0.2s ease;
   color: inherit;
   font: inherit;
   display: flex;
   align-items: center;
   position: relative;
+  user-select: none; // 防止拖拽时选中文本
 
   &:hover {
     background: rgba(0, 194, 179, 0.08);
@@ -158,6 +248,7 @@ function handleRemoveAccount(accountId: string) {
   &.active {
     background: #00c2b3;
     border-bottom-color: #00c2b3;
+    cursor: pointer; // 激活状态使用指针光标
 
     .tab-content {
       .nickname {
@@ -178,6 +269,16 @@ function handleRemoveAccount(accountId: string) {
   // 有未读消息时的闪烁效果
   &.has-unread:not(.active) {
     animation: blink-orange 1.5s ease-in-out infinite;
+  }
+
+  // 拖拽状态样式
+  &.dragging {
+    opacity: 0.5;
+  }
+
+  &.drag-over {
+    background: rgba(0, 194, 179, 0.15);
+    border-left: 2px solid #00c2b3;
   }
 }
 

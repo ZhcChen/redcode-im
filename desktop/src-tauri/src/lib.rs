@@ -165,6 +165,7 @@ pub fn run() {
             account_remove,
             account_update_unread,
             account_get_settings,
+            account_update_order,
             // 缓存相关命令
             cache::cache_save_value,
             cache::cache_load_value,

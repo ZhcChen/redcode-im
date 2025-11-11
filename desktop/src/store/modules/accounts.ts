@@ -191,6 +191,17 @@ const accountsModule = {
      */
     SET_MAX_ACCOUNTS(state, max: number) {
       state.maxAccounts = max
+    },
+
+    /**
+     * 重新排序账号
+     */
+    REORDER_ACCOUNTS(state, accountIds: string[]) {
+      // 按照新的顺序重新排列账号
+      const accountMap = new Map(state.accounts.map(acc => [acc.id, acc]))
+      state.accounts = accountIds
+        .map(id => accountMap.get(id))
+        .filter((acc): acc is AccountInfo => acc !== undefined)
     }
   },
 
@@ -314,6 +325,39 @@ const accountsModule = {
 
       // 移除账号
       await dispatch('removeAccount', accountId)
+    },
+
+    /**
+     * 重新排序账号（异步）
+     */
+    async reorderAccounts({ commit, state }, accountIds: string[]) {
+      // 验证所有账号 ID 都存在
+      const validIds = accountIds.filter(id => 
+        state.accounts.some(acc => acc.id === id)
+      )
+
+      if (validIds.length !== state.accounts.length) {
+        console.warn('重新排序失败: 账号 ID 不匹配')
+        return
+      }
+
+      // 生成排序值（使用时间戳）
+      const now = Date.now()
+      const accountOrders: [string, number][] = validIds.map((id, index) => [
+        id,
+        now + index
+      ])
+
+      try {
+        // 保存到 Rust SQLite
+        await invoke('account_update_order', { accountOrders })
+        
+        // 更新本地状态
+        commit('REORDER_ACCOUNTS', validIds)
+      } catch (error) {
+        console.error('重新排序账号失败:', error)
+        throw error
+      }
     }
   }
 }
@@ -348,6 +392,7 @@ interface RustAccountOutput {
   token: string
   created_at: number
   updated_at: number
+  sort_order?: number | null
 }
 
 /**
