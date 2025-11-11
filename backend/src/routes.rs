@@ -174,6 +174,10 @@ pub fn create_routes() -> Router<AppState> {
         .route("/users/me/avatar/commit", post(user::commit_avatar_upload))
         .route("/users/me/avatar/url", get(user::get_avatar_download_url))
         .route("/users/{user_id}", get(user::get_user_by_id))
+        .route(
+            "/users/{user_id}/avatar/url",
+            get(user::get_user_avatar_download_url),
+        )
         // friends
         .route(
             "/friends/requests",

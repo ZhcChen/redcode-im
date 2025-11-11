@@ -250,6 +250,46 @@ pub async fn get_avatar_download_url(
     }))
 }
 
+/// 获取指定用户的头像下载地址（用于显示好友/聊天列表中的头像）
+pub async fn get_user_avatar_download_url(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(target_user_id): Path<String>,
+    Query(params): Query<AvatarDownloadUrlRequest>,
+) -> Result<Json<AvatarDownloadUrlResponse>, AppError> {
+    let user_id = string_to_uuid(&target_user_id)
+        .map_err(|e| AppError::ValidationError(format!("Invalid user ID: {}", e)))?;
+
+    let user_store = UserStore::new(state.database.clone());
+    let user = user_store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+
+    let key = match user.avatar_object_key {
+        Some(ref key) => key.clone(),
+        None => {
+            return Ok(Json(AvatarDownloadUrlResponse {
+                success: false,
+                message: "该用户尚未设置头像".to_string(),
+                download_url: None,
+            }));
+        }
+    };
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+    let download_url = storage_service
+        .generate_download_url(&key, params.expires_in_seconds)
+        .await?;
+
+    Ok(Json(AvatarDownloadUrlResponse {
+        success: true,
+        message: "生成下载链接成功".to_string(),
+        download_url: Some(download_url),
+    }))
+}
+
 /// 修改密码
 pub async fn change_password(
     State(state): State<AppState>,
