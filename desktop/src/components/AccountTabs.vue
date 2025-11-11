@@ -23,6 +23,14 @@
           <!-- 昵称 -->
           <span class="nickname">{{ account.userInfo.nickname || '未命名' }}</span>
 
+          <!-- 角标 -->
+          <span 
+            v-if="getUnreadCount(account) > 0" 
+            class="badge"
+          >
+            {{ formatBadgeCount(getUnreadCount(account)) }}
+          </span>
+
           <!-- 关闭按钮 -->
           <button
             v-if="accounts.length > 1"
@@ -92,13 +100,28 @@ const dragStartY = ref<number>(0)
 
 // 检查账号是否有未读消息（消息未读数 + 好友申请未读数）
 function hasUnreadMessages(account: AccountInfo): boolean {
-  // 如果是当前账号，检查好友申请数量
+  return getUnreadCount(account) > 0
+}
+
+// 获取账号的未读总数（消息未读数 + 好友申请未读数）
+function getUnreadCount(account: AccountInfo): number {
+  let count = account.unreadCount || 0
+  
+  // 如果是当前账号，加上好友申请数量
   if (account.id === props.currentAccountId) {
     const pendingFriendRequests = store.getters.pendingFriendRequests || 0
-    return account.unreadCount > 0 || pendingFriendRequests > 0
+    count += pendingFriendRequests
   }
-  // 非当前账号只检查消息未读数
-  return account.unreadCount > 0
+  
+  return count
+}
+
+// 格式化角标数字显示
+function formatBadgeCount(count: number): string {
+  if (count > 99) {
+    return '99+'
+  }
+  return count.toString()
 }
 
 // 切换账号
@@ -428,6 +451,30 @@ function resetDragState() {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  background: #ff4757;
+  color: #fff;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(255, 71, 87, 0.3);
+  
+  // 激活状态下的角标样式
+  .account-tab.active & {
+    background: #fff;
+    color: #00c2b3;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
 }
 
 .close-btn {
