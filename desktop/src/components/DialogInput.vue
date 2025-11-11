@@ -2,6 +2,10 @@
   <input
     v-model="localValue"
     class="dialog-input"
+    autocapitalize="none"
+    autocorrect="off"
+    autocomplete="off"
+    spellcheck="false"
     v-bind="$attrs"
     @input="handleInput"
     @blur="handleBlur"
