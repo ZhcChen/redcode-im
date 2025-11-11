@@ -2345,6 +2345,8 @@ const sendMessage = async () => {
 
   console.log('📤 [sendMessage] 添加临时消息:', { tempId, content })
   messages.value.push(tempMessage)
+  // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
+  recentSentMessages.value.add(tempId)
   newMessage.value = ''
   scrollToBottom()
 
@@ -2373,7 +2375,9 @@ const sendMessage = async () => {
           ...messages.value[existingRealMessageIndex],
           status: 2
         }
-        // 添加到 recentSentMessages 用于去重
+        // 删除临时消息ID（如果WebSocket先到达并替换了临时消息）
+        recentSentMessages.value.delete(tempId)
+        // 添加真实消息ID到 recentSentMessages 用于去重
         recentSentMessages.value.add(apiMessage.id)
         setTimeout(() => {
           recentSentMessages.value.delete(apiMessage.id)
@@ -2399,7 +2403,8 @@ const sendMessage = async () => {
           ...uiMessage,
           status: 2
         }
-        // 立即添加到 recentSentMessages，防止 WebSocket 消息重复添加
+        // 删除临时消息ID，添加真实消息ID到 recentSentMessages
+        recentSentMessages.value.delete(tempId)
         recentSentMessages.value.add(apiMessage.id)
         setTimeout(() => {
           recentSentMessages.value.delete(apiMessage.id)
@@ -2422,7 +2427,8 @@ const sendMessage = async () => {
         } else {
           console.log('⏭️ [sendMessage] recentSentMessages 中已有，跳过添加')
         }
-        // 添加到 recentSentMessages 用于去重
+        // 删除临时消息ID，添加真实消息ID到 recentSentMessages 用于去重
+        recentSentMessages.value.delete(tempId)
         recentSentMessages.value.add(apiMessage.id)
         setTimeout(() => {
           recentSentMessages.value.delete(apiMessage.id)
@@ -2434,6 +2440,8 @@ const sendMessage = async () => {
     if (messageIndex !== -1) {
       messages.value[messageIndex].status = 3
     }
+    // 发送失败时，从 recentSentMessages 中删除临时消息ID
+    recentSentMessages.value.delete(tempId)
     console.error('❌ 消息发送失败:', error)
     toast.error('消息发送失败: ' + (error.message || '网络错误'))
   }
