@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
 import '../../core/services/friend_store.dart';
+import '../../core/services/user_avatar_service.dart';
 import '../../core/widgets/app_badge.dart';
 import '../../core/services/websocket_service.dart';
 import 'add_friend_page.dart';
@@ -210,6 +212,8 @@ class ContactsPageState extends State<ContactsPage> {
               ? friend.user.email
               : '账号：${friend.user.username}',
           avatarUrl: friend.user.avatarUrl,
+          avatarObjectKey: friend.user.avatarObjectKey,
+          localAvatarPath: friend.user.localAvatarPath,
         ),
       );
     }
@@ -618,14 +622,80 @@ class _ContactListTile extends StatelessWidget {
   }
 }
 
-class _ContactAvatar extends StatelessWidget {
+class _ContactAvatar extends StatefulWidget {
   const _ContactAvatar({required this.entry});
 
   final ContactEntry entry;
 
   @override
+  State<_ContactAvatar> createState() => _ContactAvatarState();
+}
+
+class _ContactAvatarState extends State<_ContactAvatar> {
+  String? _cachedAvatarPath;
+  bool _isLoading = false;
+  final _avatarService = UserAvatarService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedAvatarPath = widget.entry.localAvatarPath;
+    // 如果有avatarObjectKey但没有本地缓存，异步加载
+    if (widget.entry.avatarObjectKey != null &&
+        widget.entry.avatarObjectKey!.isNotEmpty &&
+        _cachedAvatarPath == null) {
+      _loadAvatar();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ContactAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果avatarObjectKey变化，重新加载
+    if (widget.entry.avatarObjectKey != oldWidget.entry.avatarObjectKey) {
+      _cachedAvatarPath = widget.entry.localAvatarPath;
+      if (widget.entry.avatarObjectKey != null &&
+          widget.entry.avatarObjectKey!.isNotEmpty &&
+          _cachedAvatarPath == null) {
+        _loadAvatar();
+      }
+    }
+  }
+
+  Future<void> _loadAvatar() async {
+    if (_isLoading) return;
+    if (widget.entry.avatarObjectKey == null ||
+        widget.entry.avatarObjectKey!.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final cachedPath = await _avatarService.loadAndCacheAvatar(
+        userId: widget.entry.id,
+        avatarObjectKey: widget.entry.avatarObjectKey,
+      );
+      if (mounted) {
+        setState(() {
+          _cachedAvatarPath = cachedPath;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isSpecial = entry.type == ContactEntryType.special;
+    final isSpecial = widget.entry.type == ContactEntryType.special;
     final size = isSpecial ? 44.0 : 48.0;
     if (isSpecial) {
       return Container(
@@ -635,16 +705,17 @@ class _ContactAvatar extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: entry.assetIcon != null
+        child: widget.entry.assetIcon != null
             ? Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: SvgPicture.asset(entry.assetIcon!),
+                child: SvgPicture.asset(widget.entry.assetIcon!),
               )
             : const Icon(Icons.group_outlined, color: AppColors.primary),
       );
     }
 
-    if (entry.avatarAsset != null && entry.avatarAsset!.endsWith('.svg')) {
+    if (widget.entry.avatarAsset != null &&
+        widget.entry.avatarAsset!.endsWith('.svg')) {
       return Container(
         width: size,
         height: size,
@@ -653,15 +724,15 @@ class _ContactAvatar extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         padding: const EdgeInsets.all(8),
-        child: SvgPicture.asset(entry.avatarAsset!),
+        child: SvgPicture.asset(widget.entry.avatarAsset!),
       );
     }
 
-    if (entry.avatarAsset != null) {
+    if (widget.entry.avatarAsset != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Image.asset(
-          entry.avatarAsset!,
+          widget.entry.avatarAsset!,
           width: size,
           height: size,
           fit: BoxFit.cover,
@@ -669,18 +740,55 @@ class _ContactAvatar extends StatelessWidget {
       );
     }
 
-    if (entry.avatarUrl != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          entry.avatarUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
+    // 优先使用本地缓存路径
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.file(
+            file,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // 如果文件读取失败，显示默认头像
+              return _buildDefaultAvatar(size);
+            },
+          ),
+        );
+      }
+    }
+
+    // 如果有avatarObjectKey但还在加载中，显示加载指示器
+    if (_isLoading &&
+        widget.entry.avatarObjectKey != null &&
+        widget.entry.avatarObjectKey!.isNotEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       );
     }
 
+    // 注意：不再直接使用avatarUrl，因为COS是私有读
+    // 如果后端返回了临时下载地址（avatarUrl），可以考虑使用
+    // 但根据文档，应该优先使用avatarObjectKey获取临时下载地址
+
+    return _buildDefaultAvatar(size);
+  }
+
+  Widget _buildDefaultAvatar(double size) {
     return Container(
       width: size,
       height: size,
@@ -716,6 +824,8 @@ class ContactEntry {
     this.assetIcon,
     this.avatarAsset,
     this.avatarUrl,
+    this.avatarObjectKey,
+    this.localAvatarPath,
     this.badgeCount,
   });
 
@@ -738,6 +848,8 @@ class ContactEntry {
     String? detail,
     String? avatarAsset,
     String? avatarUrl,
+    String? avatarObjectKey,
+    String? localAvatarPath,
   }) : this._(
          id: id,
          name: name,
@@ -745,6 +857,8 @@ class ContactEntry {
          detail: detail,
          avatarAsset: avatarAsset,
          avatarUrl: avatarUrl,
+         avatarObjectKey: avatarObjectKey,
+         localAvatarPath: localAvatarPath,
        );
 
   final String id;
@@ -754,6 +868,8 @@ class ContactEntry {
   final String? assetIcon;
   final String? avatarAsset;
   final String? avatarUrl;
+  final String? avatarObjectKey;
+  final String? localAvatarPath;
   final int? badgeCount;
 }
 
