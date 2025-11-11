@@ -24,18 +24,18 @@ export class MessageSearchService {
   /**
    * 索引单个消息
    */
-  async indexMessage(message: Message, roomName: string): Promise<void> {
-    const indexMessage = SearchUtils.messageToIndex(message, roomName);
+  async indexMessage(message: Message, roomName: string, roomId?: string): Promise<void> {
+    const indexMessage = SearchUtils.messageToIndex(message, roomName, roomId);
     await SearchApi.indexMessage(indexMessage);
   }
 
   /**
    * 批量索引消息（优化性能）
    */
-  async indexMessages(messages: Message[], roomName: string): Promise<void> {
+  async indexMessages(messages: Message[], roomName: string, roomId?: string): Promise<void> {
     if (messages.length === 0) return;
 
-    const indexMessages = messages.map(msg => SearchUtils.messageToIndex(msg, roomName));
+    const indexMessages = messages.map(msg => SearchUtils.messageToIndex(msg, roomName, roomId));
 
     // 分批处理，避免一次性索引太多消息
     for (let i = 0; i < indexMessages.length; i += this.batchSize) {
@@ -52,8 +52,8 @@ export class MessageSearchService {
   /**
    * 异步索引消息（不阻塞主线程）
    */
-  async indexMessageAsync(message: Message, roomName: string): Promise<void> {
-    this.indexQueue.push(SearchUtils.messageToIndex(message, roomName));
+  async indexMessageAsync(message: Message, roomName: string, roomId?: string): Promise<void> {
+    this.indexQueue.push(SearchUtils.messageToIndex(message, roomName, roomId));
     this.scheduleIndexing();
   }
 
@@ -169,7 +169,7 @@ export class MessageSearchService {
   /**
    * 初始化消息搜索索引
    */
-  async initializeSearchIndex(messages: Message[], roomName: string): Promise<void> {
+  async initializeSearchIndex(messages: Message[], roomName: string, roomId?: string): Promise<void> {
     if (messages.length === 0) return;
 
     console.log(`🔍 初始化搜索索引，消息数量: ${messages.length}`);
@@ -179,7 +179,7 @@ export class MessageSearchService {
       // await this.clearAllIndices();
 
       // 批量索引所有消息
-      await this.indexMessages(messages, roomName);
+      await this.indexMessages(messages, roomName, roomId);
 
       console.log('✅ 搜索索引初始化完成');
     } catch (error) {
@@ -193,14 +193,15 @@ export class MessageSearchService {
   async updateMessageIndex(
     oldMessage: Message | null,
     newMessage: Message,
-    roomName: string
+    roomName: string,
+    roomId?: string
   ): Promise<void> {
     if (oldMessage && oldMessage.id === newMessage.id) {
       // 更新现有消息
-      await this.indexMessage(newMessage, roomName);
+      await this.indexMessage(newMessage, roomName, roomId);
     } else {
       // 新消息
-      await this.indexMessageAsync(newMessage, roomName);
+      await this.indexMessageAsync(newMessage, roomName, roomId);
     }
   }
 

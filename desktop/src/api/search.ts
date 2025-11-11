@@ -120,7 +120,7 @@ export class SearchUtils {
   /**
    * 从Message对象创建IndexMessage
    */
-  static messageToIndex(message: any, roomName: string): IndexMessage {
+  static messageToIndex(message: any, roomName: string, roomId?: string): IndexMessage {
     // 处理 timestamp：可能是 Date 对象或数字
     let timestamp: number
     if (message.timestamp instanceof Date) {
@@ -134,12 +134,18 @@ export class SearchUtils {
       timestamp = Date.now()
     }
     
+    // 确保 roomId 存在
+    const finalRoomId = message.roomId || roomId || ''
+    if (!finalRoomId) {
+      console.warn('⚠️ 消息缺少 roomId:', { id: message.id, roomName })
+    }
+    
     return {
       id: message.id,
-      roomId: message.roomId,
+      roomId: finalRoomId,
       roomName,
-      senderId: message.senderId,
-      senderName: message.senderName || message.senderUsername,
+      senderId: message.senderId || '',
+      senderName: message.senderName || message.senderUsername || '',
       content: typeof message.content === 'string' ? message.content : (message.content?.text || ''),
       messageType: message.messageType || message.type || 'text',
       timestamp,

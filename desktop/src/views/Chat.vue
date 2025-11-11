@@ -1628,7 +1628,7 @@ const loadMessages = async (groupId: string) => {
 
       // 初始化消息搜索索引
       if (messages.value.length > 0 && selectedChat.value) {
-        messageSearchService.initializeSearchIndex(messages.value, selectedChat.value.name).catch(error => {
+        messageSearchService.initializeSearchIndex(messages.value, selectedChat.value.name, selectedChat.value.groupId).catch(error => {
           console.warn('⚠️ 搜索索引初始化失败:', error)
         })
       }
@@ -3768,7 +3768,23 @@ const handleWebSocketMessage = (event: CustomEvent) => {
   }
 
   const messageData = detail.message
+  console.log('📨 [WebSocket] 原始消息数据:', { 
+    id: messageData.id,
+    roomId: messageData.roomId,
+    parts: messageData.parts,
+    partsLength: messageData.parts?.length,
+    content: messageData.content
+  })
+  
   const uiMessage = mapDomainMessageToUi(messageData)
+  console.log('📨 [WebSocket] 转换后的UI消息:', {
+    id: uiMessage.id,
+    roomId: uiMessage.roomId,
+    parts: uiMessage.parts,
+    partsLength: uiMessage.parts?.length,
+    content: uiMessage.content
+  })
+  
   // 确保消息有 roomId
   if (!uiMessage.roomId && messageData.roomId) {
     uiMessage.roomId = messageData.roomId
@@ -3954,7 +3970,7 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
         // 索引新消息
         if (selectedChat.value) {
-          messageSearchService.indexMessageAsync(uiMessage, selectedChat.value.name).catch(error => {
+          messageSearchService.indexMessageAsync(uiMessage, selectedChat.value.name, selectedChat.value.groupId).catch(error => {
             console.warn('⚠️ 消息索引失败:', error)
           })
         }
