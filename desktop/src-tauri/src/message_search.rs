@@ -99,12 +99,17 @@ fn open_search_connection(db_path: &PathBuf) -> Result<Connection, String> {
     let conn = Connection::open(db_path).map_err(|e| format!("failed to open search db: {e}"))?;
 
     // 优化SQLite设置
-    // PRAGMA 语句返回结果，需要使用 query_row 而不是 execute
-    conn.query_row("PRAGMA journal_mode = WAL", [], |_| Ok(()))
-        .map_err(|e| format!("failed to set WAL mode: {e}"))?;
-    conn.query_row("PRAGMA synchronous = NORMAL", [], |_| Ok(()))
+    // PRAGMA journal_mode = WAL 返回结果，需要使用 query_row
+    conn.query_row("PRAGMA journal_mode = WAL", [], |row| {
+        let mode: String = row.get(0)?;
+        Ok(mode)
+    })
+    .map_err(|e| format!("failed to set WAL mode: {e}"))?;
+    
+    // PRAGMA synchronous 和 cache_size 不返回结果，使用 execute
+    conn.execute("PRAGMA synchronous = NORMAL", [])
         .map_err(|e| format!("failed to set synchronous mode: {e}"))?;
-    conn.query_row("PRAGMA cache_size = -10000", [], |_| Ok(())) // 10MB cache
+    conn.execute("PRAGMA cache_size = -10000", []) // 10MB cache
         .map_err(|e| format!("failed to set cache size: {e}"))?;
 
     // 初始化FTS5表
