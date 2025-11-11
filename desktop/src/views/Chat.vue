@@ -2741,7 +2741,11 @@ const handleUploadClick = () => {
   input.type = 'file'
   input.accept = 'image/*,video/*'
   input.multiple = true
-  input.onchange = handleFileUpload
+  
+  // 使用 addEventListener 而不是 onchange，确保事件正确绑定
+  input.addEventListener('change', handleFileUpload, { once: true })
+  
+  console.log('📂 打开文件选择对话框')
   input.click()
 }
 
@@ -2762,11 +2766,17 @@ const handleFileUpload = async (event: Event) => {
     return
   }
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    console.log(`📤 开始上传文件 ${i + 1}/${files.length}:`, file.name)
+  // 创建文件数组的副本，因为 FileList 在处理后可能会被清空
+  const fileArray = Array.from(files)
+  
+  for (let i = 0; i < fileArray.length; i++) {
+    const file = fileArray[i]
+    console.log(`📤 开始上传文件 ${i + 1}/${fileArray.length}:`, file.name)
     await uploadAndSendFile(file)
   }
+  
+  // 清理 input 元素
+  target.value = ''
 }
 
 // 图片预缓存管理
