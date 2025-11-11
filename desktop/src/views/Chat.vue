@@ -3901,6 +3901,30 @@ const handleWebSocketMessage = (event: CustomEvent) => {
                   localKey: localAttachment.key, 
                   wsKey: wsAttachment.key 
                 })
+              } else if (localAttachment?.key && !wsAttachment) {
+                // WebSocket 消息没有 parts，但有 content 字符串
+                // 尝试从 WebSocket content 中提取文件名，与临时消息的 attachment.key 匹配
+                if (typeof uiMessage.content === 'string' && uiMessage.content.includes(']')) {
+                  // 提取文件名： "[图片] filename.jpg [图片]" -> "filename.jpg"
+                  const fileNameMatch = uiMessage.content.match(/\]\s*(.+?)\s*\[/)
+                  const wsFileName = fileNameMatch ? fileNameMatch[1].trim() : null
+                  const localFileName = localAttachment.name || localAttachment.key.split('/').pop()
+                  
+                  if (wsFileName && localFileName) {
+                    isMatch = wsFileName === localFileName || localFileName.includes(wsFileName) || wsFileName.includes(localFileName)
+                    console.log('📝 [WebSocket] 通过文件名匹配:', { 
+                      match: isMatch, 
+                      wsFileName, 
+                      localFileName,
+                      localKey: localAttachment.key
+                    })
+                  }
+                }
+                
+                // 如果文件名匹配失败，回退到 content 匹配
+                if (!isMatch) {
+                  isMatch = isContentMatch(localMessage.content, uiMessage.content)
+                }
               } else {
                 // 没有 parts 或 attachment，回退到 content 匹配
                 isMatch = isContentMatch(localMessage.content, uiMessage.content)

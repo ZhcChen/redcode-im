@@ -36,6 +36,12 @@ export class MessageSearchService {
     if (messages.length === 0) return;
 
     const indexMessages = messages.map(msg => SearchUtils.messageToIndex(msg, roomName, roomId));
+    
+    // 调试：检查是否有消息缺少 roomId
+    const missingRoomId = indexMessages.filter(m => !m.roomId);
+    if (missingRoomId.length > 0) {
+      console.error('⚠️ 发现缺少 roomId 的消息:', missingRoomId.map(m => ({ id: m.id, roomName: m.roomName })));
+    }
 
     // 分批处理，避免一次性索引太多消息
     for (let i = 0; i < indexMessages.length; i += this.batchSize) {
