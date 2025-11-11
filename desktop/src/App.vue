@@ -839,7 +839,8 @@ body {
   overflow: hidden;
 }
 
+/* 移除固定高度，让 flexbox 自动处理高度分配 */
 .app-main--with-tabs {
-  height: calc(100vh - 42px);
+  /* height 属性已移除，使用 flex: 1 自动计算高度 */
 }
 </style>
