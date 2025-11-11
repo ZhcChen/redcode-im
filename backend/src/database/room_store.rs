@@ -290,7 +290,9 @@ impl<'a> RoomStore<'a> {
                 lm.sender_nickname AS last_message_sender_nickname,
                 COALESCE(uc.unread_count, 0) AS unread_count,
                 rm.last_read_message_id AS last_read_message_id,
-                rm.last_read_at AS last_read_at
+                rm.last_read_at AS last_read_at,
+                fu.friend_user_id AS friend_user_id,
+                fu.friend_avatar_object_key AS friend_avatar_object_key
             FROM room_members rm
             JOIN rooms r ON rm.room_id = r.id
             LEFT JOIN LATERAL (
@@ -317,6 +319,18 @@ impl<'a> RoomStore<'a> {
                   AND m2.sender_id != rm.user_id
                   AND (rm.last_read_at IS NULL OR m2.created_at > rm.last_read_at)
             ) uc ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    rm2.user_id AS friend_user_id,
+                    u2.avatar_object_key AS friend_avatar_object_key
+                FROM room_members rm2
+                JOIN users u2 ON u2.id = rm2.user_id
+                WHERE rm2.room_id = r.id
+                  AND rm2.user_id != $1
+                  AND rm2.deleted_at IS NULL
+                  AND r.room_type = $3
+                LIMIT 1
+            ) fu ON TRUE
             WHERE rm.user_id = $1
               AND rm.deleted_at IS NULL
               AND r.deleted_at IS NULL
@@ -327,6 +341,7 @@ impl<'a> RoomStore<'a> {
         )
         .bind(user_id)
         .bind(RoomType::Favorite)
+        .bind(RoomType::Private)
         .fetch_all(self.pool)
         .await?;
 

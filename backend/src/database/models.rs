@@ -471,6 +471,8 @@ pub struct ChatSummaryRow {
     pub unread_count: i64,
     pub last_read_message_id: Option<Uuid>,
     pub last_read_at: Option<DateTime<Utc>>,
+    pub friend_user_id: Option<Uuid>,
+    pub friend_avatar_object_key: Option<String>,
 }
 
 /// 好友请求状态

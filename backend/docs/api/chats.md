@@ -33,10 +33,16 @@
       "sender_id": "e1b2c3d4-5f67-8901-2345-67890abcde01",
       "sender_username": "alice",
       "sender_nickname": "Alice 昵称"
-    }
+    },
+    "friend_user_id": "e1b2c3d4-5f67-8901-2345-67890abcde01",
+    "friend_avatar_object_key": "avatars/e1b2c3d4-5f67-8901-2345-67890abcde01/avatar.png"
   }
 ]
 ```
+
+**注意**：对于单聊（`room_type: "private"`），会额外返回以下字段（群聊和收藏夹不返回）：
+- `friend_user_id`：对方用户的 ID
+- `friend_avatar_object_key`：对方用户的头像对象键（COS 存储路径）
 
 #### HTTP 401
 未授权

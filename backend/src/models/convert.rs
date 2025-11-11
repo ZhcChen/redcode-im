@@ -276,6 +276,8 @@ pub fn db_chat_summary_to_api(
         last_read_message_id: row.last_read_message_id.map(|id| id.to_string()),
         last_read_at: row.last_read_at.map(|dt| dt.to_rfc3339()),
         last_message,
+        friend_user_id: row.friend_user_id.map(|id| id.to_string()),
+        friend_avatar_object_key: row.friend_avatar_object_key.clone(),
     }
 }
 

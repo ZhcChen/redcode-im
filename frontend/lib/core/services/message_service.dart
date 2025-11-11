@@ -2208,6 +2208,14 @@ class MessageService with ChangeNotifier {
       'avatarUrl',
       'avatar',
     ]);
+    
+    // 解析对方用户的头像信息（单聊）
+    final avatarObjectKey = _readString(json, const [
+      'friend_avatar_object_key',
+      'friendAvatarObjectKey',
+      'avatar_object_key',
+      'avatarObjectKey',
+    ]);
 
     final lastMessage = _readMap(json, const ['last_message', 'lastMessage']);
     final lastMessageTime =
@@ -2250,6 +2258,10 @@ class MessageService with ChangeNotifier {
       ]),
       'last_read_at': _readString(json, const ['last_read_at', 'lastReadAt']),
       // 可能由后端返回的对端信息/备注，用于聊天列表标题显示
+      'friend_user_id': _readString(json, const [
+        'friend_user_id',
+        'friendUserId',
+      ]),
       'friend_username': _readString(json, const [
         'friend_username',
         'friendUsername',
@@ -2288,6 +2300,7 @@ class MessageService with ChangeNotifier {
       roomId: roomId,
       name: name,
       avatar: effectiveAvatar,
+      avatarObjectKey: avatarObjectKey,
       type: chatType,
       lastMessage: lastMessageText,
       lastMessageTime: lastMessageTime,

@@ -486,6 +486,10 @@ pub struct ChatSummary {
     pub last_read_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message: Option<ChatMessagePreview>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friend_user_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friend_avatar_object_key: Option<String>,
 }
 
 // ==================== 文档配置模型 ====================
