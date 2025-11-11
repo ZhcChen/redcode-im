@@ -2836,6 +2836,8 @@ const uploadAndSendFile = async (file: File) => {
     }
 
     messages.value.push(tempMessage)
+    // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
+    recentSentMessages.value.add(tempId)
     scrollToBottom()
 
     await uploadWithSignature(signatureResponse.data.signature, file, (progress) => {
@@ -2872,12 +2874,16 @@ const uploadAndSendFile = async (file: File) => {
           }
 
           messages.value[messageIndex] = mergedMessage
+          // 删除临时消息ID，添加真实消息ID
+          recentSentMessages.value.delete(tempId)
         } else {
           messages.value.push({
             ...uiMessage,
             status: 2,
             roomId: uiMessage.roomId ?? selectedChat.value.groupId,
           })
+          // 消息不存在，可能已被WebSocket替换，删除临时ID
+          recentSentMessages.value.delete(tempId)
         }
       } else {
         messages.value.push({
@@ -2902,6 +2908,8 @@ const uploadAndSendFile = async (file: File) => {
         messages.value[messageIndex].status = 3
         updateAttachmentProgress(tempId, attachmentKey, null)
       }
+      // 上传失败时，从 recentSentMessages 中删除临时消息ID
+      recentSentMessages.value.delete(tempId)
     }
     toast.error('文件发送失败: ' + (error.message || '网络错误'))
   }
