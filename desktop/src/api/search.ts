@@ -121,15 +121,28 @@ export class SearchUtils {
    * 从Message对象创建IndexMessage
    */
   static messageToIndex(message: any, roomName: string): IndexMessage {
+    // 处理 timestamp：可能是 Date 对象或数字
+    let timestamp: number
+    if (message.timestamp instanceof Date) {
+      timestamp = message.timestamp.getTime()
+    } else if (typeof message.timestamp === 'number') {
+      timestamp = message.timestamp
+    } else if (message.createTime) {
+      // 如果没有 timestamp，使用 createTime
+      timestamp = new Date(message.createTime).getTime()
+    } else {
+      timestamp = Date.now()
+    }
+    
     return {
       id: message.id,
       roomId: message.roomId,
       roomName,
       senderId: message.senderId,
       senderName: message.senderName || message.senderUsername,
-      content: message.content,
-      messageType: message.type,
-      timestamp: message.timestamp.getTime(),
+      content: typeof message.content === 'string' ? message.content : (message.content?.text || ''),
+      messageType: message.messageType || message.type || 'text',
+      timestamp,
     };
   }
 

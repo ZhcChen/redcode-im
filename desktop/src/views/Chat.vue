@@ -2203,7 +2203,7 @@ watch(messages, () => {
 
 const selectChat = async (chat: ChatItem) => {
   selectedChat.value = chat
-  store.dispatch('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
+  store.commit('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
   webSocketManager.joinRoom(chat.groupId)
 
   // 如果是群聊，获取群组详细信息和成员列表
