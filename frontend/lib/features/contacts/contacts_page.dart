@@ -9,6 +9,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
 import '../../core/services/friend_store.dart';
 import '../../core/services/user_avatar_service.dart';
+import '../../core/storage/avatar_cache.dart';
 import '../../core/widgets/app_badge.dart';
 import '../../core/services/websocket_service.dart';
 import 'add_friend_page.dart';
@@ -735,6 +736,24 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         widget.entry.avatarObjectKey!.isEmpty) {
       print('[ContactAvatar] ⚠️ avatarObjectKey为空，跳过');
       return;
+    }
+
+    // 先快速检查缓存，如果找到了就不显示加载指示器
+    try {
+      final cachedPath = await AvatarCache.instance.resolveLocalPath(
+        userId: widget.entry.id,
+        objectKey: widget.entry.avatarObjectKey!,
+      );
+      if (cachedPath != null && mounted) {
+        print('[ContactAvatar] ⚡ 在加载前找到缓存: $cachedPath');
+        setState(() {
+          _cachedAvatarPath = cachedPath;
+        });
+        print('[ContactAvatar] ✅ 直接使用缓存，跳过加载');
+        return;
+      }
+    } catch (e) {
+      print('[ContactAvatar] ⚠️ 快速检查缓存异常: $e');
     }
 
     print('[ContactAvatar] 📥 开始加载头像...');
