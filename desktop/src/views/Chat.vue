@@ -2723,7 +2723,19 @@ const handleVideoPlay = (message: Message) => {
 
 // 处理上传点击
 const handleUploadClick = () => {
-  console.log('点击上传按钮')
+  console.log('点击上传按钮', {
+    hasSelectedChat: !!selectedChat.value,
+    chatId: selectedChat.value?.groupId,
+    chatName: selectedChat.value?.name
+  })
+  
+  // 检查是否有选中的聊天
+  if (!selectedChat.value || !selectedChat.value.groupId) {
+    console.error('❌ 无法上传：selectedChat 未初始化', selectedChat.value)
+    toast.error('请先选择聊天对象')
+    return
+  }
+  
   // 创建文件输入元素
   const input = document.createElement('input')
   input.type = 'file'
@@ -2738,12 +2750,21 @@ const handleFileUpload = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const files = target.files
 
+  console.log('📎 handleFileUpload 被调用', {
+    filesCount: files?.length || 0,
+    hasFiles: !!files,
+    hasSelectedChat: !!selectedChat.value,
+    chatId: selectedChat.value?.groupId
+  })
+
   if (!files || files.length === 0) {
+    console.log('⚠️ 没有选择文件')
     return
   }
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
+    console.log(`📤 开始上传文件 ${i + 1}/${files.length}:`, file.name)
     await uploadAndSendFile(file)
   }
 }
