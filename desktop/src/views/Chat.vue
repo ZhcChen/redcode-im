@@ -3684,12 +3684,14 @@ const handleWebSocketMessage = (event: CustomEvent) => {
     const existingMessageIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
 
     if (existingMessageIndex !== -1) {
-      if (messageData.isSelf && messages.value[existingMessageIndex].status === 1) {
+      // 如果消息已存在，检查是否需要更新
+      if (messageData.isSelf) {
+        // 如果是自己发送的消息，无论状态如何都应该合并（避免重复）
         const mergedMessage = mergeMessagePreservingLocalData(
           messages.value[existingMessageIndex],
           {
             ...uiMessage,
-            status: 2,
+            status: messages.value[existingMessageIndex].status === 1 ? 2 : messages.value[existingMessageIndex].status,
           },
         )
 
@@ -3700,6 +3702,11 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
         messages.value[existingMessageIndex] = mergedMessage
         recentSentMessages.value.delete(uiMessage.id)
+        // 消息已存在且已更新，直接返回，避免重复添加
+        return
+      } else {
+        // 如果是他人发送的消息且已存在，说明可能是重复推送，直接返回
+        return
       }
     } else {
       let matchedLocalMessageId: string | null = null
