@@ -640,15 +640,30 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     print('[ChatAvatar] avatar: ${widget.chat.avatar}');
     print('[ChatAvatar] extra: ${widget.chat.extra}');
     
-    // 如果有avatarObjectKey但没有本地缓存，异步加载
-    if (widget.chat.avatarObjectKey != null &&
+    // 验证本地缓存文件是否真的存在
+    bool needsLoad = false;
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (!file.existsSync()) {
+        print('[ChatAvatar] ⚠️ 本地文件不存在: $_cachedAvatarPath');
+        _cachedAvatarPath = null;
+        needsLoad = true;
+      } else {
+        print('[ChatAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+      }
+    } else {
+      needsLoad = true;
+    }
+    
+    // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
+    if (needsLoad &&
+        widget.chat.avatarObjectKey != null &&
         widget.chat.avatarObjectKey!.isNotEmpty &&
-        _cachedAvatarPath == null &&
         widget.chat.type == ChatType.single) {
       print('[ChatAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
-    } else if (_cachedAvatarPath != null) {
-      print('[ChatAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+    } else if (!needsLoad) {
+      // 已有本地缓存，不需要加载
     } else if (widget.chat.type != ChatType.single) {
       print('[ChatAvatar] ℹ️ 非单聊，使用默认逻辑');
     } else {

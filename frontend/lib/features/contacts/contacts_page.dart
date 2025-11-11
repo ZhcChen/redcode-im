@@ -647,14 +647,29 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     print('[ContactAvatar] localAvatarPath: ${widget.entry.localAvatarPath}');
     print('[ContactAvatar] avatarUrl: ${widget.entry.avatarUrl}');
     
-    // 如果有avatarObjectKey但没有本地缓存，异步加载
-    if (widget.entry.avatarObjectKey != null &&
-        widget.entry.avatarObjectKey!.isNotEmpty &&
-        _cachedAvatarPath == null) {
+    // 验证本地缓存文件是否真的存在
+    bool needsLoad = false;
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (!file.existsSync()) {
+        print('[ContactAvatar] ⚠️ 本地文件不存在: $_cachedAvatarPath');
+        _cachedAvatarPath = null;
+        needsLoad = true;
+      } else {
+        print('[ContactAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+      }
+    } else {
+      needsLoad = true;
+    }
+    
+    // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
+    if (needsLoad &&
+        widget.entry.avatarObjectKey != null &&
+        widget.entry.avatarObjectKey!.isNotEmpty) {
       print('[ContactAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
-    } else if (_cachedAvatarPath != null) {
-      print('[ContactAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+    } else if (!needsLoad) {
+      // 已有本地缓存，不需要加载
     } else {
       print('[ContactAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
     }
