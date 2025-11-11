@@ -6,9 +6,7 @@ use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
-use crate::models::{
-    ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo,
-};
+use crate::models::{ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo};
 use crate::storage;
 use crate::storage::DirectUploadSignature;
 use crate::AppState;
@@ -116,7 +114,10 @@ pub async fn generate_avatar_direct_upload(
         if file_size > crate::constants::AVATAR_MAX_SIZE_BYTES {
             return Ok(Json(AvatarDirectUploadResponse {
                 success: false,
-                message: format!("文件大小超出限制，最大允许{}MB", crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024),
+                message: format!(
+                    "文件大小超出限制，最大允许{}MB",
+                    crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024
+                ),
                 key: None,
                 signature: None,
             }));
@@ -373,7 +374,6 @@ pub async fn search_users(
 
     Ok(Json(infos))
 }
-
 
 async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
     let store = StorageProviderStore::new(state.database.clone());

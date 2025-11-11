@@ -394,9 +394,9 @@ pub struct RoomMember {
 #[repr(i32)]
 #[sqlx(type_name = "int4")]
 pub enum NotificationSetting {
-    All = 0,        // 接收所有通知
+    All = 0,          // 接收所有通知
     MentionsOnly = 1, // 只接收@通知
-    Muted = 2,      // 完全静音（免打扰）
+    Muted = 2,        // 完全静音（免打扰）
 }
 
 impl Default for NotificationSetting {

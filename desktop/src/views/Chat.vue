@@ -67,7 +67,9 @@
               <div class="chat-name">
                 {{ chat.name }}
                 <span v-if="chat.isTop" class="top-indicator">📌</span>
-                <span class="chat-type">{{ chat.groupType === 0 ? '[单聊]' : '[群聊]' }}</span>
+                <span class="chat-type">
+                  {{ chat.groupType === 1 ? '[群聊]' : chat.groupType === 2 ? '[收藏夹]' : '[单聊]' }}
+                </span>
               </div>
               <div class="chat-time">{{ chat.time }}</div>
             </div>
@@ -4330,9 +4332,12 @@ const handleVoiceSend = async (recording: any) => {
 }
 
 .chat-header {
-  padding: 20px 20px 20px 0; // 上 右 下 左，左侧设为0
+  padding: 16px 20px 16px 0; // 上 右 下 左，左侧设为0
   display: flex;
   align-items: center;
+  height: 76px;
+  box-sizing: border-box;
+  flex-shrink: 0;
   
   .header-left {
     min-width: 300px;
@@ -4374,11 +4379,14 @@ const handleVoiceSend = async (recording: any) => {
     align-items: center;
     gap: 12px;
     flex: 1;
+    height: 100%;
+    overflow: hidden;
 
     .chat-info {
       display: flex;
       flex-direction: column;
       justify-content: center;
+      gap: 2px;
       flex: 1; /* 让chat-info占用剩余空间，但为按钮留出位置 */
 
       .chat-title {
@@ -4392,7 +4400,6 @@ const handleVoiceSend = async (recording: any) => {
       .chat-member-count {
         font-size: 12px;
         color: $settings-label-color; /* 使用全局变量 #686A8A */
-        margin-top: 8px;
         line-height: 1;
       }
     }

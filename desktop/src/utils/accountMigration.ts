@@ -13,6 +13,8 @@ interface LegacyAccountData {
     username: string
     nickname: string
     avatar: string
+    avatarObjectKey?: string | null
+    avatarLocalPath?: string | null
   }
   unreadCount: number
   createdAt: number
@@ -23,6 +25,8 @@ interface RustAccountInput {
   username: string
   nickname: string
   avatar: string | null
+  avatar_object_key: string | null
+  avatar_local_path: string | null
   mobile: string | null
   email: string | null
   token: string
@@ -89,6 +93,8 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
           username: account.userInfo.username,
           nickname: account.userInfo.nickname,
           avatar: account.userInfo.avatar || null,
+          avatar_object_key: account.userInfo.avatarObjectKey ?? null,
+          avatar_local_path: account.userInfo.avatarLocalPath ?? null,
           mobile: null,
           email: null,
           token: account.token

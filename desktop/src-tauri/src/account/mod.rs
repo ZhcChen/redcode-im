@@ -32,8 +32,8 @@ impl AccountManager {
             .await
             .map_err(|e| format!("初始化账号数据库失败: {}", e))?;
 
-        let crypto = TokenCrypto::new(&app_data_dir)
-            .map_err(|e| format!("初始化加密器失败: {}", e))?;
+        let crypto =
+            TokenCrypto::new(&app_data_dir).map_err(|e| format!("初始化加密器失败: {}", e))?;
 
         *self.store.lock().await = Some(store);
         *self.crypto.lock().await = Some(crypto);
@@ -64,10 +64,8 @@ impl AccountManager {
             .map_err(|e| format!("加密 token 失败: {}", e))?;
 
         // 转换为 base64 便于存储
-        let encrypted_token_base64 = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &encrypted_token,
-        );
+        let encrypted_token_base64 =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &encrypted_token);
 
         let now = chrono::Utc::now().timestamp();
         let db_account = Account {
@@ -75,6 +73,8 @@ impl AccountManager {
             username: account.username,
             nickname: account.nickname,
             avatar: account.avatar,
+            avatar_object_key: account.avatar_object_key,
+            avatar_local_path: account.avatar_local_path,
             mobile: account.mobile,
             email: account.email,
             token: encrypted_token_base64,
@@ -110,11 +110,9 @@ impl AccountManager {
         let mut result = Vec::new();
         for account in accounts {
             // 解密 token
-            let encrypted_bytes = base64::Engine::decode(
-                &base64::engine::general_purpose::STANDARD,
-                &account.token,
-            )
-            .map_err(|e| format!("解码 token 失败: {}", e))?;
+            let encrypted_bytes =
+                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &account.token)
+                    .map_err(|e| format!("解码 token 失败: {}", e))?;
 
             let decrypted_token = crypto
                 .decrypt(&encrypted_bytes)
@@ -125,6 +123,8 @@ impl AccountManager {
                 username: account.username,
                 nickname: account.nickname,
                 avatar: account.avatar,
+                avatar_object_key: account.avatar_object_key,
+                avatar_local_path: account.avatar_local_path,
                 mobile: account.mobile,
                 email: account.email,
                 token: decrypted_token,
@@ -171,6 +171,8 @@ impl AccountManager {
                     username: account.username,
                     nickname: account.nickname,
                     avatar: account.avatar,
+                    avatar_object_key: account.avatar_object_key,
+                    avatar_local_path: account.avatar_local_path,
                     mobile: account.mobile,
                     email: account.email,
                     token: decrypted_token,
@@ -231,7 +233,10 @@ impl AccountManager {
     }
 
     /// 获取账号设置
-    pub async fn get_account_settings(&self, account_id: String) -> Result<Option<AccountSettings>, String> {
+    pub async fn get_account_settings(
+        &self,
+        account_id: String,
+    ) -> Result<Option<AccountSettings>, String> {
         if !self.is_initialized().await {
             return Err("账号管理器未初始化".to_string());
         }
@@ -253,6 +258,10 @@ pub struct AccountInput {
     pub username: String,
     pub nickname: String,
     pub avatar: Option<String>,
+    #[serde(default)]
+    pub avatar_object_key: Option<String>,
+    #[serde(default)]
+    pub avatar_local_path: Option<String>,
     pub mobile: Option<String>,
     pub email: Option<String>,
     pub token: String, // 明文 token
@@ -265,6 +274,8 @@ pub struct AccountOutput {
     pub username: String,
     pub nickname: String,
     pub avatar: Option<String>,
+    pub avatar_object_key: Option<String>,
+    pub avatar_local_path: Option<String>,
     pub mobile: Option<String>,
     pub email: Option<String>,
     pub token: String, // 解密后的 token

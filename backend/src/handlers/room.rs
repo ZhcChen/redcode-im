@@ -269,7 +269,8 @@ pub async fn update_notification_settings(
         1 => crate::database::models::NotificationSetting::MentionsOnly,
         2 => crate::database::models::NotificationSetting::Muted,
         _ => return Err(AppError::ValidationError(
-            "Invalid notification settings value. Must be 0 (all), 1 (mentions only), or 2 (muted)".to_string(),
+            "Invalid notification settings value. Must be 0 (all), 1 (mentions only), or 2 (muted)"
+                .to_string(),
         )),
     };
 

@@ -8,7 +8,8 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::database::models::{
-    CaptchaSettingRecord, Permission, Role, RolePermission, StorageProvider, StorageProviderType, UserPermission, UserStatus, UserRole,
+    CaptchaSettingRecord, Permission, Role, RolePermission, StorageProvider, StorageProviderType,
+    UserPermission, UserRole, UserStatus,
 };
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
@@ -291,35 +292,38 @@ pub async fn get_dashboard_stats(
     let pool = &state.database.pool;
 
     // 获取用户统计
-    let total_users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取总用户数失败: {}", e);
-            AppError::DatabaseError(e)
-        })?;
+    let total_users: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("获取总用户数失败: {}", e);
+                AppError::DatabaseError(e)
+            })?;
 
     let online_users = get_online_users_count(pool).await.unwrap_or(0);
 
     // 获取房间统计
-    let total_rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE deleted_at IS NULL")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取总房间数失败: {}", e);
-            AppError::DatabaseError(e)
-        })?;
+    let total_rooms: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE deleted_at IS NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("获取总房间数失败: {}", e);
+                AppError::DatabaseError(e)
+            })?;
 
     let active_rooms = get_active_rooms_count(pool).await.unwrap_or(0);
 
     // 获取消息统计
-    let total_messages: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE deleted_at IS NULL")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取总消息数失败: {}", e);
-            AppError::DatabaseError(e)
-        })?;
+    let total_messages: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE deleted_at IS NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("获取总消息数失败: {}", e);
+                AppError::DatabaseError(e)
+            })?;
 
     let today_messages = get_today_messages_count(pool).await.unwrap_or(0);
 
@@ -348,7 +352,7 @@ async fn get_online_users_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error>
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM users
          WHERE deleted_at IS NULL
-         AND updated_at > NOW() - INTERVAL '30 minutes'"
+         AND updated_at > NOW() - INTERVAL '30 minutes'",
     )
     .fetch_one(pool)
     .await?;
@@ -360,7 +364,7 @@ async fn get_active_rooms_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error>
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT room_id) FROM messages
          WHERE deleted_at IS NULL
-         AND created_at > NOW() - INTERVAL '24 hours'"
+         AND created_at > NOW() - INTERVAL '24 hours'",
     )
     .fetch_one(pool)
     .await?;
@@ -371,7 +375,7 @@ async fn get_today_messages_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Erro
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM messages
          WHERE deleted_at IS NULL
-         AND DATE(created_at) = CURRENT_DATE"
+         AND DATE(created_at) = CURRENT_DATE",
     )
     .fetch_one(pool)
     .await?;
@@ -404,19 +408,22 @@ async fn get_memory_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sy
 
         for line in meminfo.lines() {
             if line.starts_with("MemTotal:") {
-                total_memory = line.split_whitespace()
+                total_memory = line
+                    .split_whitespace()
                     .nth(1)
                     .unwrap_or("0")
                     .parse::<u64>()
                     .unwrap_or(0);
             } else if line.starts_with("MemFree:") {
-                free_memory = line.split_whitespace()
+                free_memory = line
+                    .split_whitespace()
                     .nth(1)
                     .unwrap_or("0")
                     .parse::<u64>()
                     .unwrap_or(0);
             } else if line.starts_with("MemAvailable:") {
-                available_memory = line.split_whitespace()
+                available_memory = line
+                    .split_whitespace()
                     .nth(1)
                     .unwrap_or("0")
                     .parse::<u64>()
@@ -654,7 +661,9 @@ pub async fn get_data_statistics(
     let message_growth_rate = calculate_message_growth_rate(pool).await.unwrap_or(0.0);
 
     // 获取活跃峰值时间
-    let peak_active_time = get_peak_active_time(pool).await.unwrap_or("14:00".to_string());
+    let peak_active_time = get_peak_active_time(pool)
+        .await
+        .unwrap_or("14:00".to_string());
 
     let stats = DataStatistics {
         daily_active_users,
@@ -668,7 +677,10 @@ pub async fn get_data_statistics(
     Ok(Json(stats))
 }
 
-async fn get_daily_active_users(pool: &sqlx::PgPool, days: i64) -> Result<Vec<DailyStat>, sqlx::Error> {
+async fn get_daily_active_users(
+    pool: &sqlx::PgPool,
+    days: i64,
+) -> Result<Vec<DailyStat>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -782,7 +794,7 @@ async fn calculate_user_growth_rate(pool: &sqlx::PgPool) -> Result<f64, sqlx::Er
     let recent_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM users
          WHERE deleted_at IS NULL
-         AND created_at >= CURRENT_DATE - INTERVAL '30 days'"
+         AND created_at >= CURRENT_DATE - INTERVAL '30 days'",
     )
     .fetch_one(pool)
     .await?;
@@ -807,7 +819,7 @@ async fn calculate_message_growth_rate(pool: &sqlx::PgPool) -> Result<f64, sqlx:
     let recent_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM messages
          WHERE deleted_at IS NULL
-         AND created_at >= CURRENT_DATE - INTERVAL '7 days'"
+         AND created_at >= CURRENT_DATE - INTERVAL '7 days'",
     )
     .fetch_one(pool)
     .await?;
@@ -880,7 +892,7 @@ pub async fn get_user_detail(
 
     // 获取用户统计信息
     let message_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM messages WHERE user_id = $1 AND deleted_at IS NULL"
+        "SELECT COUNT(*) FROM messages WHERE user_id = $1 AND deleted_at IS NULL",
     )
     .bind(user_id)
     .fetch_one(pool)
@@ -888,7 +900,7 @@ pub async fn get_user_detail(
     .map_err(|e| AppError::DatabaseError(e))?;
 
     let room_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM room_members WHERE user_id = $1 AND deleted_at IS NULL"
+        "SELECT COUNT(*) FROM room_members WHERE user_id = $1 AND deleted_at IS NULL",
     )
     .bind(user_id)
     .fetch_one(pool)
@@ -898,7 +910,7 @@ pub async fn get_user_detail(
     let storage_usage: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(file_size), 0) FROM message_parts mp
          INNER JOIN messages m ON mp.message_id = m.id
-         WHERE m.user_id = $1 AND mp.object_key IS NOT NULL AND mp.deleted_at IS NULL"
+         WHERE m.user_id = $1 AND mp.object_key IS NOT NULL AND mp.deleted_at IS NULL",
     )
     .bind(user_id)
     .fetch_one(pool)
@@ -949,13 +961,12 @@ pub async fn update_user(
     let pool = &state.database.pool;
 
     // 检查用户是否存在
-    let existing_user: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM users WHERE id = $1 AND deleted_at IS NULL"
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let existing_user: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing_user == 0 {
         return Ok(Json(UserOperationResponse {
@@ -968,7 +979,7 @@ pub async fn update_user(
     if let Some(ref email) = req.email {
         if !email.trim().is_empty() {
             let existing_email: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL"
+                "SELECT COUNT(*) FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL",
             )
             .bind(email.trim())
             .bind(user_id)
@@ -1072,13 +1083,12 @@ pub async fn reset_user_password(
     let pool = &state.database.pool;
 
     // 检查用户是否存在
-    let existing_user: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM users WHERE id = $1 AND deleted_at IS NULL"
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let existing_user: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing_user == 0 {
         return Ok(Json(UserOperationResponse {
@@ -1166,15 +1176,11 @@ pub async fn get_permissions(
         // 添加更多权限...
     ];
 
-    Ok(Json(PermissionListResponse {
-        permissions,
-    }))
+    Ok(Json(PermissionListResponse { permissions }))
 }
 
 /// 获取所有角色列表（简化版本）
-pub async fn get_roles(
-    State(state): State<AppState>,
-) -> Result<Json<RoleListResponse>, AppError> {
+pub async fn get_roles(State(state): State<AppState>) -> Result<Json<RoleListResponse>, AppError> {
     // 简化版本，返回预定义的角色列表
     let roles = vec![
         RoleResponse {
@@ -1219,9 +1225,7 @@ pub async fn get_roles(
         },
     ];
 
-    Ok(Json(RoleListResponse {
-        roles,
-    }))
+    Ok(Json(RoleListResponse { roles }))
 }
 
 /// 创建角色（简化版本）
@@ -1342,9 +1346,7 @@ pub async fn check_user_permission(
     // 检查用户是否有指定权限（简化版本，使用枚举）
     let has_permission = true; // 简化处理，实际应该查询数据库
 
-    Ok(Json(CheckPermissionResponse {
-        has_permission,
-    }))
+    Ok(Json(CheckPermissionResponse { has_permission }))
 }
 
 /// 获取用户角色列表（简化版本）
@@ -1353,15 +1355,13 @@ pub async fn get_user_roles(
     Path(user_id): Path<String>,
 ) -> Result<Json<Vec<UserRoleResponse>>, AppError> {
     // 简化版本，返回模拟数据
-    let roles = vec![
-        UserRoleResponse {
-            user_id: user_id.clone(),
-            role_id: "1".to_string(),
-            role_name: "超级管理员".to_string(),
-            role_code: "super_admin".to_string(),
-            assigned_at: chrono::Utc::now().to_rfc3339(),
-        },
-    ];
+    let roles = vec![UserRoleResponse {
+        user_id: user_id.clone(),
+        role_id: "1".to_string(),
+        role_name: "超级管理员".to_string(),
+        role_code: "super_admin".to_string(),
+        assigned_at: chrono::Utc::now().to_rfc3339(),
+    }];
 
     Ok(Json(roles))
 }
@@ -1477,12 +1477,11 @@ pub async fn get_file_management_stats(
     let pool = &state.database.pool;
 
     // 获取总体统计
-    let total_files: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM message_parts WHERE attachment_key IS NOT NULL"
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let total_files: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM message_parts WHERE attachment_key IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
 
     let total_size_bytes: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(attachment_size), 0) FROM message_parts WHERE attachment_key IS NOT NULL"
@@ -1531,20 +1530,18 @@ pub async fn get_file_list(
     let page_size = params.page_size.max(1).min(100);
 
     // 简化版本，返回模拟数据
-    let files = vec![
-        FileItem {
-            id: "1".to_string(),
-            object_key: "attachments/test.jpg".to_string(),
-            original_name: Some("test.jpg".to_string()),
-            mime_type: Some("image/jpeg".to_string()),
-            size_bytes: Some(1024),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            user_id: "1".to_string(),
-            username: "admin".to_string(),
-            room_id: Some("1".to_string()),
-            room_name: Some("测试房间".to_string()),
-        },
-    ];
+    let files = vec![FileItem {
+        id: "1".to_string(),
+        object_key: "attachments/test.jpg".to_string(),
+        original_name: Some("test.jpg".to_string()),
+        mime_type: Some("image/jpeg".to_string()),
+        size_bytes: Some(1024),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        user_id: "1".to_string(),
+        username: "admin".to_string(),
+        room_id: Some("1".to_string()),
+        room_name: Some("测试房间".to_string()),
+    }];
 
     Ok(Json(FileListResponse {
         files,
@@ -1596,7 +1593,6 @@ pub async fn delete_files_batch(
         deleted_count: Some(file_ids.len()),
     }))
 }
-
 
 pub async fn update_user_status(
     State(state): State<AppState>,

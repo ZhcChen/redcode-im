@@ -1023,9 +1023,10 @@ pub async fn generate_message_attachment_signature(
     // 验证文件类型
     if let Some(content_type) = &req.content_type {
         if !crate::constants::is_content_type_allowed(content_type) {
-            return Err(AppError::ValidationError(
-                format!("不支持的文件类型: {}", content_type),
-            ));
+            return Err(AppError::ValidationError(format!(
+                "不支持的文件类型: {}",
+                content_type
+            )));
         }
     }
 
@@ -1038,9 +1039,10 @@ pub async fn generate_message_attachment_signature(
         };
 
         if file_size > max_size {
-            return Err(AppError::ValidationError(
-                format!("文件大小超出限制，最大允许{}MB", max_size / 1024 / 1024),
-            ));
+            return Err(AppError::ValidationError(format!(
+                "文件大小超出限制，最大允许{}MB",
+                max_size / 1024 / 1024
+            )));
         }
     }
 

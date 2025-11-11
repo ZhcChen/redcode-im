@@ -212,9 +212,7 @@ impl WebSocketClient {
                     println!("已加入房间: {}", room_id);
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.push(room_id.clone());
-                    state_guard
-                        .pending_rooms
-                        .retain(|r| r != room_id);
+                    state_guard.pending_rooms.retain(|r| r != room_id);
                 }
                 TauriEventPayload::Left { room_id } => {
                     println!("已离开房间: {}", room_id);

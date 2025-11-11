@@ -1,6 +1,6 @@
-use std::env;
-use sqlx::{Pool, Postgres};
 use redcode_im_backend::database::Database;
+use sqlx::{Pool, Postgres};
+use std::env;
 
 pub struct TestDatabase {
     pub pool: Pool<Postgres>,
@@ -24,16 +24,12 @@ impl TestDatabase {
 
     pub async fn setup(&self) -> Result<(), sqlx::Error> {
         // 运行迁移
-        sqlx::query("BEGIN")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("BEGIN").execute(&self.pool).await?;
 
         // 这里可以添加测试数据的初始化
         // 例如：创建测试用户、房间等
 
-        sqlx::query("COMMIT")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("COMMIT").execute(&self.pool).await?;
 
         Ok(())
     }
@@ -66,10 +62,16 @@ impl TestDatabase {
 
 pub async fn setup_test_db() -> TestDatabase {
     let test_db = TestDatabase::new().await;
-    test_db.setup().await.expect("Failed to setup test database");
+    test_db
+        .setup()
+        .await
+        .expect("Failed to setup test database");
     test_db
 }
 
 pub async fn cleanup_test_db(test_db: &TestDatabase) {
-    test_db.cleanup().await.expect("Failed to cleanup test database");
+    test_db
+        .cleanup()
+        .await
+        .expect("Failed to cleanup test database");
 }

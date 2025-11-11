@@ -50,11 +50,29 @@ async fn force_center_window(window: Window) -> Result<(), String> {
 async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> Result<(), String> {
     use tauri::LogicalSize;
 
+    // 获取当前尺寸
+    let current_size = window.inner_size().map_err(|e| e.to_string())?;
+    println!("[RUST_RESIZE] ========== 设置窗口尺寸 ==========");
+    println!(
+        "[RUST_RESIZE] 调整前尺寸: {}x{}",
+        current_size.width, current_size.height
+    );
+    println!("[RUST_RESIZE] 目标尺寸: {}x{}", width, height);
+
     window
         .set_size(LogicalSize::new(width, height))
         .map_err(|e| e.to_string())?;
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     window.center().map_err(|e| e.to_string())?;
+
+    // 获取调整后的尺寸
+    let after_size = window.inner_size().map_err(|e| e.to_string())?;
+    println!(
+        "[RUST_RESIZE] 调整后尺寸: {}x{}",
+        after_size.width, after_size.height
+    );
+    println!("[RUST_RESIZE] ========== 设置完成 ==========");
+
     Ok(())
 }
 

@@ -9,9 +9,11 @@ pub struct Account {
     pub username: String,
     pub nickname: String,
     pub avatar: Option<String>,
+    pub avatar_object_key: Option<String>,
+    pub avatar_local_path: Option<String>,
     pub mobile: Option<String>,
     pub email: Option<String>,
-    pub token: String,  // 加密存储
+    pub token: String, // 加密存储
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -65,6 +67,8 @@ impl AccountStore {
                 username TEXT NOT NULL,
                 nickname TEXT NOT NULL,
                 avatar TEXT,
+                avatar_object_key TEXT,
+                avatar_local_path TEXT,
                 mobile TEXT,
                 email TEXT,
                 token TEXT NOT NULL,
@@ -108,7 +112,35 @@ impl AccountStore {
             .execute(&self.pool)
             .await?;
 
+        // 兼容旧版本：补充新增列
+        self.ensure_account_column("avatar_object_key", "TEXT")
+            .await?;
+        self.ensure_account_column("avatar_local_path", "TEXT")
+            .await?;
+
         tracing::info!("账号数据库表初始化完成");
+        Ok(())
+    }
+
+    async fn ensure_account_column(
+        &self,
+        column_name: &str,
+        definition: &str,
+    ) -> Result<(), sqlx::Error> {
+        let exists: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM pragma_table_info('accounts') WHERE name = ?")
+                .bind(column_name)
+                .fetch_one(&self.pool)
+                .await?;
+
+        if exists == 0 {
+            let alter = format!(
+                "ALTER TABLE accounts ADD COLUMN {} {}",
+                column_name, definition
+            );
+            sqlx::query(&alter).execute(&self.pool).await?;
+        }
+
         Ok(())
     }
 
@@ -116,12 +148,14 @@ impl AccountStore {
     pub async fn add_account(&self, account: &Account) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
-            INSERT INTO accounts (id, username, nickname, avatar, mobile, email, token, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO accounts (id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 username = excluded.username,
                 nickname = excluded.nickname,
                 avatar = excluded.avatar,
+                avatar_object_key = excluded.avatar_object_key,
+                avatar_local_path = excluded.avatar_local_path,
                 mobile = excluded.mobile,
                 email = excluded.email,
                 token = excluded.token,
@@ -132,6 +166,8 @@ impl AccountStore {
         .bind(&account.username)
         .bind(&account.nickname)
         .bind(&account.avatar)
+        .bind(&account.avatar_object_key)
+        .bind(&account.avatar_local_path)
         .bind(&account.mobile)
         .bind(&account.email)
         .bind(&account.token)
@@ -160,9 +196,9 @@ impl AccountStore {
     pub async fn get_all_accounts(&self) -> Result<Vec<Account>, sqlx::Error> {
         let accounts = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, nickname, avatar, mobile, email, token, created_at, updated_at
+            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at
             FROM accounts
-            ORDER BY created_at DESC
+            ORDER BY created_at ASC
             "#,
         )
         .fetch_all(&self.pool)
@@ -172,10 +208,13 @@ impl AccountStore {
     }
 
     /// 根据 ID 获取账号
-    pub async fn get_account_by_id(&self, account_id: &str) -> Result<Option<Account>, sqlx::Error> {
+    pub async fn get_account_by_id(
+        &self,
+        account_id: &str,
+    ) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, nickname, avatar, mobile, email, token, created_at, updated_at
+            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at
             FROM accounts
             WHERE id = ?
             "#,
@@ -219,7 +258,7 @@ impl AccountStore {
     pub async fn get_current_account(&self) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT a.id, a.username, a.nickname, a.avatar, a.mobile, a.email, a.token, a.created_at, a.updated_at
+            SELECT a.id, a.username, a.nickname, a.avatar, a.avatar_object_key, a.avatar_local_path, a.mobile, a.email, a.token, a.created_at, a.updated_at
             FROM accounts a
             INNER JOIN current_account c ON a.id = c.account_id
             WHERE c.id = 1
@@ -242,7 +281,11 @@ impl AccountStore {
     }
 
     /// 更新账号未读数
-    pub async fn update_unread_count(&self, account_id: &str, count: i32) -> Result<(), sqlx::Error> {
+    pub async fn update_unread_count(
+        &self,
+        account_id: &str,
+        count: i32,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
             UPDATE account_settings
@@ -259,7 +302,10 @@ impl AccountStore {
     }
 
     /// 获取账号设置
-    pub async fn get_account_settings(&self, account_id: &str) -> Result<Option<AccountSettings>, sqlx::Error> {
+    pub async fn get_account_settings(
+        &self,
+        account_id: &str,
+    ) -> Result<Option<AccountSettings>, sqlx::Error> {
         let settings = sqlx::query_as::<_, AccountSettings>(
             r#"
             SELECT account_id, unread_count, last_active_at

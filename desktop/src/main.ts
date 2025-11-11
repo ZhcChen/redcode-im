@@ -48,11 +48,38 @@ console.log("[Main] 应用挂载完成");
 disableNavigationShortcuts();
 
 fallbackTimer = window.setTimeout(async () => {
-  console.warn("[Main] Fallback: 强制隐藏加载蒙版并跳转登录页");
+  const fallbackId = `FALLBACK_${Date.now()}`;
+  console.warn(`[${fallbackId}] ========== Fallback 定时器触发 ==========`);
+  console.warn(`[${fallbackId}] Fallback: 检查应用状态`);
+  
+  // 只在未登录且不在登录页时才执行 fallback 逻辑
+  const isLoggedIn = store.getters.isLoggedIn;
+  const currentPath = router.currentRoute.value.path;
+  
+  console.warn(`[${fallbackId}] 当前状态:`, {
+    isLoggedIn,
+    currentPath,
+    hasToken: !!store.state.token
+  });
+  
+  if (isLoggedIn) {
+    console.log(`[${fallbackId}] Fallback: 用户已登录，跳过 fallback 处理`);
+    console.warn(`[${fallbackId}] ========== Fallback 结束 (已登录) ==========`);
+    return;
+  }
+  
+  if (currentPath === '/login') {
+    console.log(`[${fallbackId}] Fallback: 已在登录页，跳过 fallback 处理`);
+    console.warn(`[${fallbackId}] ========== Fallback 结束 (已在登录页) ==========`);
+    return;
+  }
+  
+  console.warn(`[${fallbackId}] Fallback: 强制隐藏加载蒙版并跳转登录页`);
+  console.warn(`[${fallbackId}] 调用栈:`, new Error().stack);
   try {
     store.dispatch("hideGlobalLoading");
   } catch (error) {
-    console.warn("[Main] Fallback 隐藏蒙版失败:", error);
+    console.warn(`[${fallbackId}] Fallback 隐藏蒙版失败:`, error);
   }
   const fallbackLoading = document.getElementById("app-loading");
   if (fallbackLoading) {
@@ -61,11 +88,12 @@ fallbackTimer = window.setTimeout(async () => {
   if (router.currentRoute.value.name !== "Login") {
     try {
       await router.replace({ name: "Login" });
-      console.log("[Main] Fallback 跳转至登录页");
+      console.log(`[${fallbackId}] Fallback 跳转至登录页`);
     } catch (error) {
-      console.warn("[Main] Fallback 跳转登录页失败:", error);
+      console.warn(`[${fallbackId}] Fallback 跳转登录页失败:`, error);
     }
   }
+  console.warn(`[${fallbackId}] ========== Fallback 结束 (执行跳转) ==========`);
 }, 5000);
 
 // 应用挂载完成后，通知后端关闭启动画面

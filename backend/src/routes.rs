@@ -6,8 +6,8 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, feedback, friend, group_management, healthz, message, message_read, message_search, room, root, settings, user,
-    version, ws,
+    admin, auth, feedback, friend, group_management, healthz, message, message_read,
+    message_search, room, root, settings, user, version, ws,
 };
 use crate::AppState;
 
@@ -62,13 +62,9 @@ pub fn create_routes() -> Router<AppState> {
         .route("/api/admin/roles", post(admin::create_role))
         .route(
             "/api/admin/roles/{role_id}",
-            patch(admin::update_role)
-                .delete(admin::delete_role),
+            patch(admin::update_role).delete(admin::delete_role),
         )
-        .route(
-            "/api/admin/roles/assign",
-            post(admin::assign_role_to_user),
-        )
+        .route("/api/admin/roles/assign", post(admin::assign_role_to_user))
         .route(
             "/api/admin/users/{user_id}/roles/{role_id}",
             delete(admin::revoke_role_from_user),
@@ -82,14 +78,8 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/files/stats",
             get(admin::get_file_management_stats),
         )
-        .route(
-            "/api/admin/files",
-            get(admin::get_file_list),
-        )
-        .route(
-            "/api/admin/files/{file_id}",
-            delete(admin::delete_file),
-        )
+        .route("/api/admin/files", get(admin::get_file_list))
+        .route("/api/admin/files/{file_id}", delete(admin::delete_file))
         .route(
             "/api/admin/files/batch-delete",
             post(admin::delete_files_batch),
@@ -252,10 +242,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/unread_counts", get(message_read::get_all_unread_counts))
         // 消息搜索 API
-        .route(
-            "/messages/search",
-            get(message_search::search_messages),
-        )
+        .route("/messages/search", get(message_search::search_messages))
         .route(
             "/messages/search/suggestions",
             get(message_search::get_search_suggestions),
@@ -272,8 +259,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/announcements",
-            get(group_management::list_announcements)
-                .post(group_management::create_announcement),
+            get(group_management::list_announcements).post(group_management::create_announcement),
         )
         .route(
             "/rooms/{room_id}/announcements/{announcement_id}",
@@ -282,18 +268,15 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/rules",
-            get(group_management::list_rules)
-                .post(group_management::create_rule),
+            get(group_management::list_rules).post(group_management::create_rule),
         )
         .route(
             "/rooms/{room_id}/rules/{rule_id}",
-            patch(group_management::update_rule)
-                .delete(group_management::delete_rule),
+            patch(group_management::update_rule).delete(group_management::delete_rule),
         )
         .route(
             "/rooms/{room_id}/join-requests",
-            get(group_management::list_join_requests)
-                .post(group_management::create_join_request),
+            get(group_management::list_join_requests).post(group_management::create_join_request),
         )
         .route(
             "/rooms/{room_id}/join-requests/{request_id}/review",
@@ -309,8 +292,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/admins",
-            get(group_management::list_admins)
-                .post(group_management::appoint_admin),
+            get(group_management::list_admins).post(group_management::appoint_admin),
         )
         .route(
             "/rooms/{room_id}/admins/{admin_id}",
@@ -318,8 +300,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/mutes",
-            post(group_management::mute_user)
-                .get(group_management::list_muted_users),
+            post(group_management::mute_user).get(group_management::list_muted_users),
         )
         .route(
             "/rooms/{room_id}/mutes/{muted_user_id}",

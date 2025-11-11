@@ -20,7 +20,10 @@ mod tests {
         assert_eq!(response.status(), 200);
         let body: serde_json::Value = response.json().await;
         assert_eq!(body["success"], false);
-        assert!(body["message"].as_str().unwrap().contains("不支持的文件类型"));
+        assert!(body["message"]
+            .as_str()
+            .unwrap()
+            .contains("不支持的文件类型"));
 
         // 测试文件大小超出限制
         let response = app
@@ -34,7 +37,10 @@ mod tests {
         assert_eq!(response.status(), 200);
         let body: serde_json::Value = response.json().await;
         assert_eq!(body["success"], false);
-        assert!(body["message"].as_str().unwrap().contains("文件大小超出限制"));
+        assert!(body["message"]
+            .as_str()
+            .unwrap()
+            .contains("文件大小超出限制"));
 
         // 测试有效的头像文件
         let response = app
@@ -70,7 +76,10 @@ mod tests {
         // 测试语音文件上传
         let room_id = uuid::Uuid::new_v4();
         let response = app
-            .post(&format!("/rooms/{}/messages/attachments/signature", room_id))
+            .post(&format!(
+                "/rooms/{}/messages/attachments/signature",
+                room_id
+            ))
             .header("Authorization", format!("Bearer {}", token))
             .json(&json!({
                 "part_type": 4, // AUDIO_CONTENT_TYPE
@@ -88,7 +97,10 @@ mod tests {
 
         // 测试音频文件大小超出限制
         let response = app
-            .post(&format!("/rooms/{}/messages/attachments/signature", room_id))
+            .post(&format!(
+                "/rooms/{}/messages/attachments/signature",
+                room_id
+            ))
             .header("Authorization", format!("Bearer {}", token))
             .json(&json!({
                 "part_type": 4,
@@ -100,7 +112,10 @@ mod tests {
 
         assert_eq!(response.status(), 400);
         let body: serde_json::Value = response.json().await;
-        assert!(body["message"].as_str().unwrap().contains("文件大小超出限制"));
+        assert!(body["message"]
+            .as_str()
+            .unwrap()
+            .contains("文件大小超出限制"));
     }
 
     // 测试辅助函数

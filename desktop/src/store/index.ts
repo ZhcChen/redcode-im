@@ -1,7 +1,9 @@
 // @ts-nocheck
 import {createStore} from 'vuex'
+import type { AccountInfo } from './modules/accounts'
 import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
 import { UserApi, VersionApi, apiConfig } from '@/api'
+import favoriteAvatar from '@/assets/image/favorite-avatar.svg'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
 import accountsModule from './modules/accounts'
 
@@ -92,7 +94,7 @@ export interface ChatItem {
     unreadCount: number
     isTop: boolean
     isHidden?: boolean
-    groupType: number // 0=单聊, 1=群聊
+    groupType: number // 0=单聊, 1=群聊, 2=收藏夹
     lastMessageId?: string | null
     chatStatus?: number
     groupNotice?: string | null
@@ -256,7 +258,13 @@ export const store = createStore<State>({
     mutations: {
         // 授权 Token
         SET_TOKEN(state: State, token: string) {
+            const mutationId = `MUTATION_${Date.now()}`;
+            console.log(`[${mutationId}] ========== SET_TOKEN 被调用 ==========`);
+            console.log(`[${mutationId}] 旧token:`, state.token ? `${state.token.substring(0, 10)}...` : '无token');
+            console.log(`[${mutationId}] 新token:`, token ? `${token.substring(0, 10)}...` : '无token');
+            console.log(`[${mutationId}] 调用栈:`, new Error().stack);
             state.token = token
+            console.log(`[${mutationId}] ========== SET_TOKEN 完成 ==========`);
         },
 
         // 用户相关
@@ -834,9 +842,14 @@ export const store = createStore<State>({
                 }
 
                 try {
+                    console.log('🔄 准备同步头像缓存...');
+                    console.log('🔄 UserApi:', UserApi);
+                    console.log('🔄 syncAvatarCache:', UserApi.syncAvatarCache);
                     await UserApi.syncAvatarCache(true);
+                    console.log('✅ 头像缓存同步完成');
                 } catch (cacheError) {
-                    console.warn('同步头像缓存失败:', cacheError);
+                    console.error('❌ 同步头像缓存失败:', cacheError);
+                    console.error('❌ 错误堆栈:', cacheError.stack);
                 }
 
                 try {
@@ -867,14 +880,35 @@ export const store = createStore<State>({
         },
 
         // 登出 - 显示加载蒙版，快速清除客户端状态，立即关闭WebSocket防止账户混乱
-        logout({commit, state}: { commit: any; state: State }) {
-            console.log('🔄 开始退出登录...')
+        async logout({commit, state, dispatch, rootGetters}: { commit: any; state: State; dispatch: any; rootGetters: any }) {
+            const logoutId = `LOGOUT_${Date.now()}`;
+            console.log(`[${logoutId}] ========== 开始退出登录 ==========`);
+            console.log(`[${logoutId}] 当前状态:`, {
+                hasToken: !!state.token,
+                tokenPreview: state.token ? `${state.token.substring(0, 10)}...` : '无token',
+                isLoggedIn: state.user.isLoggedIn,
+                userId: state.user.id
+            });
+            console.log(`[${logoutId}] 调用栈:`, new Error().stack);
 
             // 如果已经处于未登录状态，立即收起蒙版并退出
             if (!state.token && !state.user.isLoggedIn) {
-                console.log('⚠️ 已是未登录状态，跳过登出流程')
+                console.log(`[${logoutId}] ⚠️ 已是未登录状态，跳过登出流程`);
                 commit('HIDE_GLOBAL_LOADING')
+                console.log(`[${logoutId}] ========== 退出登录结束 (已未登录) ==========`);
                 return
+            }
+
+            const accountList: AccountInfo[] = (rootGetters['accounts/allAccounts'] as AccountInfo[] | undefined) || []
+            const accountIds = accountList.map(account => account.id)
+
+            for (const accountId of accountIds) {
+                try {
+                    await dispatch('accounts/logoutAccount', accountId)
+                    console.log('✅ 已从多账号列表移除账号', accountId)
+                } catch (error) {
+                    console.warn('⚠️ 从多账号列表移除账号失败:', accountId, error)
+                }
             }
 
             // 第一步：显示加载蒙版
@@ -917,6 +951,7 @@ export const store = createStore<State>({
 
                 // 强制清除认证状态的函数
                 const forceLogout = async () => {
+                    console.log(`[${logoutId}] 🔥 执行强制清除认证状态`);
                     commit('SET_TOKEN', null)
                     commit('LOGOUT_USER')
 
@@ -924,9 +959,9 @@ export const store = createStore<State>({
                     try {
                         const { setLoggingOut } = await import('../api/http')
                         setLoggingOut(false)
-                        console.log('📝 已重置登出状态，允许重新登录')
+                        console.log(`[${logoutId}] 📝 已重置登出状态，允许重新登录`)
                     } catch (error) {
-                        console.warn('重置登出状态失败:', error)
+                        console.warn(`[${logoutId}] 重置登出状态失败:`, error)
                     }
 
                     // 重置窗口标题
@@ -934,13 +969,14 @@ export const store = createStore<State>({
                         const { updateWindowTitle } = await import('../utils')
                         await updateWindowTitle() // 不传参数，显示默认标题
                     } catch (error) {
-                        console.warn('重置窗口标题失败:', error)
+                        console.warn(`[${logoutId}] 重置窗口标题失败:`, error)
                     }
 
-                    console.log('✅ 认证状态已清除，将触发路由跳转')
+                    console.log(`[${logoutId}] ✅ 认证状态已清除，将触发路由跳转`)
 
                     // 确保全局加载蒙版被关闭
                     commit('HIDE_GLOBAL_LOADING')
+                    console.log(`[${logoutId}] ========== 退出登录结束 (强制清除) ==========`);
                 }
 
                 // 设置超时保护，确保1.5秒内必须清除token
@@ -1362,13 +1398,16 @@ export const store = createStore<State>({
                             : new Date(group.lastMessageTime || Date.now())
 
                         const extra = group.extra && typeof group.extra === 'object' ? group.extra : {}
+                        const isFavoriteRoom = group.type === 'favorite'
 
                         const isPrivateChat = group.type === 'single' || group.type === 'private'
                         const privateDisplay = isPrivateChat ? resolvePrivateChatDisplay(group) : null
 
-                        const displayName = privateDisplay?.name || normalizeString(group.name) || '未命名会话'
-                        const displayAvatar = privateDisplay?.avatar || normalizeString(group.avatar) || ''
+                        const displayName = (isFavoriteRoom ? (normalizeString(group.name) || '收藏夹') : (privateDisplay?.name || normalizeString(group.name) || '未命名会话'))
+                        const baseAvatar = privateDisplay?.avatar || normalizeString(group.avatar) || ''
+                        const displayAvatar = isFavoriteRoom ? favoriteAvatar : baseAvatar
                         const groupNotice = typeof extra.description === 'string' ? extra.description : null
+                        const computedGroupType = isFavoriteRoom ? 2 : (group.type === 'group' ? 1 : 0)
 
                         return {
                             id: group.id || group.roomId || '',
@@ -1382,7 +1421,7 @@ export const store = createStore<State>({
                             unreadCount: group.unreadCount || 0,
                             isTop: Boolean(group.isPinned),
                             isHidden: false,
-                            groupType: group.type === 'group' ? 1 : 0,
+                            groupType: computedGroupType,
                             lastMessageId: group.lastMessageId ?? null,
                             chatStatus: group.isMuted ? 1 : 0,
                             groupNotice,

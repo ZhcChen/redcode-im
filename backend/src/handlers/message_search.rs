@@ -35,7 +35,7 @@ pub struct MessageSearchResult {
     pub message_type: String,
     pub timestamp: String,
     pub matched_text: Option<String>, // 匹配的文本片段
-    pub relevance_score: f64,        // 相关性评分
+    pub relevance_score: f64,         // 相关性评分
 }
 
 // 搜索统计
@@ -66,7 +66,9 @@ pub async fn search_messages(
     }
 
     if params.query.len() > 200 {
-        return Err(AppError::ValidationError("搜索内容过长，最多200个字符".to_string()));
+        return Err(AppError::ValidationError(
+            "搜索内容过长，最多200个字符".to_string(),
+        ));
     }
 
     // 构建SQL查询
@@ -75,7 +77,8 @@ pub async fn search_messages(
 
     // 添加搜索条件（使用全文搜索）
     if !params.query.trim().is_empty() {
-        query_conditions.push("(m.content ILIKE $1 OR u.username ILIKE $1 OR u.nickname ILIKE $1)".to_string());
+        query_conditions
+            .push("(m.content ILIKE $1 OR u.username ILIKE $1 OR u.nickname ILIKE $1)".to_string());
         bind_params.push(Box::new(format!("%{}%", params.query.trim())));
     }
 
@@ -93,7 +96,8 @@ pub async fn search_messages(
 
     // 添加消息类型过滤
     if let Some(message_type) = &params.message_type {
-        query_conditions.push("m.message_type = $".to_string() + &(bind_params.len() + 1).to_string());
+        query_conditions
+            .push("m.message_type = $".to_string() + &(bind_params.len() + 1).to_string());
         bind_params.push(Box::new(message_type.clone()));
     }
 
@@ -101,14 +105,16 @@ pub async fn search_messages(
     if let Some(date_from) = params.date_from {
         let from_date = chrono::DateTime::from_timestamp(date_from, 0)
             .ok_or_else(|| AppError::ValidationError("无效的开始时间".to_string()))?;
-        query_conditions.push("m.created_at >= $".to_string() + &(bind_params.len() + 1).to_string());
+        query_conditions
+            .push("m.created_at >= $".to_string() + &(bind_params.len() + 1).to_string());
         bind_params.push(Box::new(from_date));
     }
 
     if let Some(date_to) = params.date_to {
         let to_date = chrono::DateTime::from_timestamp(date_to, 0)
             .ok_or_else(|| AppError::ValidationError("无效的结束时间".to_string()))?;
-        query_conditions.push("m.created_at <= $".to_string() + &(bind_params.len() + 1).to_string());
+        query_conditions
+            .push("m.created_at <= $".to_string() + &(bind_params.len() + 1).to_string());
         bind_params.push(Box::new(to_date));
     }
 
@@ -182,7 +188,8 @@ pub async fn search_messages(
     let results: Vec<MessageSearchResult> = search_results
         .into_iter()
         .map(|row| {
-            let sender_name = row.sender_nickname
+            let sender_name = row
+                .sender_nickname
                 .filter(|n| !n.trim().is_empty())
                 .unwrap_or_else(|| row.sender_username.clone());
 

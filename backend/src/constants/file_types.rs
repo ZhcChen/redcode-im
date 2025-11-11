@@ -55,7 +55,7 @@ pub const VIDEO_ALLOWED_TYPES: &[&str] = &[
     "video/webm",
     "video/ogg",
     "video/quicktime",
-    "video/x-msvideo", // avi
+    "video/x-msvideo",  // avi
     "video/x-matroska", // mkv
 ];
 
@@ -119,11 +119,11 @@ pub fn is_content_type_allowed(content_type: &str) -> bool {
         return false;
     }
 
-    AVATAR_ALLOWED_TYPES.contains(&content_type.as_str()) ||
-    IMAGE_ALLOWED_TYPES.contains(&content_type.as_str()) ||
-    AUDIO_ALLOWED_TYPES.contains(&content_type.as_str()) ||
-    VIDEO_ALLOWED_TYPES.contains(&content_type.as_str()) ||
-    DOCUMENT_ALLOWED_TYPES.contains(&content_type.as_str())
+    AVATAR_ALLOWED_TYPES.contains(&content_type.as_str())
+        || IMAGE_ALLOWED_TYPES.contains(&content_type.as_str())
+        || AUDIO_ALLOWED_TYPES.contains(&content_type.as_str())
+        || VIDEO_ALLOWED_TYPES.contains(&content_type.as_str())
+        || DOCUMENT_ALLOWED_TYPES.contains(&content_type.as_str())
 }
 
 /// 检查文件类型是否为图片

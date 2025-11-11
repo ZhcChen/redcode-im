@@ -459,7 +459,10 @@ class HttpClient {
     responseMessage?: string
   ): never {
     const authorizationHeader = requestHeaders['Authorization'] || '';
-    console.error(`🚫 [${requestId}] 401认证失败:`, {
+    const handle401Id = `401_${Date.now()}`;
+    
+    console.error(`[${handle401Id}] ========== 401 错误处理开始 ==========`);
+    console.error(`[${handle401Id}] 🚫 [${requestId}] 401认证失败:`, {
       url: fullUrl,
       method,
       hasAuthorization: !!authorizationHeader,
@@ -473,46 +476,49 @@ class HttpClient {
       responseMessage: responseMessage || '无'
     });
 
-    const isInLoginGracePeriod = this.lastLoginTime && (Date.now() - this.lastLoginTime) < 30000;
-    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-    const isLoginRelated = currentPath === '/login' || currentPath === '/home' || Boolean(isInLoginGracePeriod);
-
-    if (isLoginRelated && isInLoginGracePeriod) {
-      console.warn(`⚠️ [${requestId}] 登录后宽容期内的401错误，跳过自动登出处理`);
+    // 登录后 60 秒宽容期，避免登录过程中的 401 导致自动登出
+    const isInLoginGracePeriod = this.lastLoginTime && (Date.now() - this.lastLoginTime) < 60000;
+    
+    if (isInLoginGracePeriod) {
+      console.warn(`[${handle401Id}] ⚠️ [${requestId}] 登录后宽容期内的401错误，跳过自动登出处理`);
+      console.error(`[${handle401Id}] ========== 401 错误处理结束 (宽容期) ==========`);
       throw new Error('登录验证中，请稍后重试');
     }
 
     if (!store.getters.isLoggedIn || !store.state.token) {
-      console.warn(`[${requestId}] 未登录状态收到401，跳过自动登出流程`);
+      console.warn(`[${handle401Id}] [${requestId}] 未登录状态收到401，跳过自动登出流程`);
       this.setLoggingOut(false);
       try {
         store.dispatch('hideGlobalLoading');
       } catch (dispatchError) {
-        console.warn('尝试隐藏全局加载蒙版失败:', dispatchError);
+        console.warn(`[${handle401Id}] 尝试隐藏全局加载蒙版失败:`, dispatchError);
       }
+      console.error(`[${handle401Id}] ========== 401 错误处理结束 (未登录) ==========`);
       throw new Error('未登录，无需重复登出');
     }
 
     if (!this.isLoggingOut) {
-      console.error('🚫 认证失败，准备自动登出');
+      console.error(`[${handle401Id}] 🚫 认证失败，准备自动登出`);
+      console.error(`[${handle401Id}] 调用栈:`, new Error().stack);
       this.setLoggingOut(true);
 
       setTimeout(() => {
         if (store.getters.isLoggedIn && store.state.token) {
-          console.log('===============最终确认：身份验证失效，执行自动登出===========');
+          console.log(`[${handle401Id}] ===============最终确认：身份验证失效，执行自动登出===========`);
           store.dispatch('logout');
           if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
             window.location.href = '/login';
           }
         } else {
-          console.log('用户已手动登出，取消自动登出操作');
+          console.log(`[${handle401Id}] 用户已手动登出，取消自动登出操作`);
           this.setLoggingOut(false);
         }
       }, 3000);
     } else {
-      console.log(`[${requestId}] 已在登出状态，跳过重复401处理`);
+      console.log(`[${handle401Id}] [${requestId}] 已在登出状态，跳过重复401处理`);
     }
 
+    console.error(`[${handle401Id}] ========== 401 错误处理结束 (触发登出) ==========`);
     throw new Error('身份验证失效，请重新登录');
   }
 

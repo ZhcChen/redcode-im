@@ -32,8 +32,8 @@ impl TokenCrypto {
     /// 使用 SHA256 生成 32 字节密钥
     fn generate_device_key(app_data_dir: &PathBuf) -> Result<[u8; 32], Box<dyn std::error::Error>> {
         // 获取机器 ID
-        let machine_id = machine_uid::get()
-            .map_err(|e| format!("Failed to get machine ID: {}", e))?;
+        let machine_id =
+            machine_uid::get().map_err(|e| format!("Failed to get machine ID: {}", e))?;
 
         // 获取数据目录路径
         let dir_path = app_data_dir
@@ -97,8 +97,7 @@ impl TokenCrypto {
             .map_err(|e| format!("Decryption failed: {}", e))?;
 
         // 转换为字符串
-        let token = String::from_utf8(plaintext)
-            .map_err(|e| format!("Invalid UTF-8: {}", e))?;
+        let token = String::from_utf8(plaintext).map_err(|e| format!("Invalid UTF-8: {}", e))?;
 
         Ok(token)
     }

@@ -3,12 +3,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::database::models::{
-    GroupSettings, GroupAnnouncement, GroupRule, JoinRequest, GroupInvitation,
-    GroupAdmin, GroupOperationLog, GroupMute, InvitationStatus,
-    CreateAnnouncementRequest, UpdateAnnouncementRequest, CreateRuleRequest,
-    UpdateRuleRequest, UpdateGroupSettingsRequest, JoinGroupRequest,
-    ReviewJoinRequestRequest, InviteToGroupRequest, AppointAdminRequest,
-    MuteUserRequest, GroupDetailInfo
+    AppointAdminRequest, CreateAnnouncementRequest, CreateRuleRequest, GroupAdmin,
+    GroupAnnouncement, GroupDetailInfo, GroupInvitation, GroupMute, GroupOperationLog, GroupRule,
+    GroupSettings, InvitationStatus, InviteToGroupRequest, JoinGroupRequest, JoinRequest,
+    MuteUserRequest, ReviewJoinRequestRequest, UpdateAnnouncementRequest,
+    UpdateGroupSettingsRequest, UpdateRuleRequest,
 };
 
 pub struct GroupManagementStore<'a> {
@@ -22,7 +21,10 @@ impl<'a> GroupManagementStore<'a> {
 
     // ===== 群设置管理 =====
 
-    pub async fn get_group_settings(&self, room_id: Uuid) -> Result<Option<GroupSettings>, sqlx::Error> {
+    pub async fn get_group_settings(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Option<GroupSettings>, sqlx::Error> {
         let settings = sqlx::query_as::<_, GroupSettings>(
             r#"
             SELECT id, room_id, join_approval_required, member_can_invite,
@@ -125,7 +127,10 @@ impl<'a> GroupManagementStore<'a> {
         Ok(announcement)
     }
 
-    pub async fn list_announcements(&self, room_id: Uuid) -> Result<Vec<GroupAnnouncement>, sqlx::Error> {
+    pub async fn list_announcements(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Vec<GroupAnnouncement>, sqlx::Error> {
         let announcements = sqlx::query_as::<_, GroupAnnouncement>(
             r#"
             SELECT id, room_id, title, content, publisher_id, is_pinned, created_at, updated_at
@@ -141,7 +146,10 @@ impl<'a> GroupManagementStore<'a> {
         Ok(announcements)
     }
 
-    pub async fn get_announcement(&self, announcement_id: Uuid) -> Result<Option<GroupAnnouncement>, sqlx::Error> {
+    pub async fn get_announcement(
+        &self,
+        announcement_id: Uuid,
+    ) -> Result<Option<GroupAnnouncement>, sqlx::Error> {
         let announcement = sqlx::query_as::<_, GroupAnnouncement>(
             r#"
             SELECT id, room_id, title, content, publisher_id, is_pinned, created_at, updated_at
@@ -420,7 +428,9 @@ impl<'a> GroupManagementStore<'a> {
         appointed_by: Uuid,
         request: AppointAdminRequest,
     ) -> Result<GroupAdmin, sqlx::Error> {
-        let admin_id = request.user_id.parse::<Uuid>()
+        let admin_id = request
+            .user_id
+            .parse::<Uuid>()
             .map_err(|_| sqlx::Error::Protocol("Invalid user ID".to_string()))?;
 
         let admin = sqlx::query_as::<_, GroupAdmin>(
@@ -482,7 +492,9 @@ impl<'a> GroupManagementStore<'a> {
         muted_by: Uuid,
         request: MuteUserRequest,
     ) -> Result<GroupMute, sqlx::Error> {
-        let user_id = request.user_id.parse::<Uuid>()
+        let user_id = request
+            .user_id
+            .parse::<Uuid>()
             .map_err(|_| sqlx::Error::Protocol("Invalid user ID".to_string()))?;
 
         let mute = sqlx::query_as::<_, GroupMute>(
@@ -600,7 +612,10 @@ impl<'a> GroupManagementStore<'a> {
 
     // ===== 群聊详情查询 =====
 
-    pub async fn get_group_detail_info(&self, room_id: Uuid) -> Result<Option<GroupDetailInfo>, sqlx::Error> {
+    pub async fn get_group_detail_info(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Option<GroupDetailInfo>, sqlx::Error> {
         let info = sqlx::query_as::<_, GroupDetailInfo>(
             r#"
             SELECT * FROM group_detail_view
@@ -618,7 +633,7 @@ impl<'a> GroupManagementStore<'a> {
 
     pub async fn is_group_admin(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM group_admins WHERE room_id = $1 AND admin_id = $2"
+            "SELECT COUNT(*) FROM group_admins WHERE room_id = $1 AND admin_id = $2",
         )
         .bind(room_id)
         .bind(user_id)
@@ -629,17 +644,20 @@ impl<'a> GroupManagementStore<'a> {
     }
 
     pub async fn is_group_owner(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
-        let owner_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT owner_id FROM rooms WHERE id = $1 AND deleted_at IS NULL"
-        )
-        .bind(room_id)
-        .fetch_one(self.pool)
-        .await?;
+        let owner_id: Option<Uuid> =
+            sqlx::query_scalar("SELECT owner_id FROM rooms WHERE id = $1 AND deleted_at IS NULL")
+                .bind(room_id)
+                .fetch_one(self.pool)
+                .await?;
 
         Ok(owner_id == Some(user_id))
     }
 
-    pub async fn can_manage_group(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn can_manage_group(
+        &self,
+        room_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
         // 检查是否是群主或管理员
         let is_owner = self.is_group_owner(room_id, user_id).await?;
         if is_owner {

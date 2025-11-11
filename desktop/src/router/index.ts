@@ -56,25 +56,39 @@ export const router = createRouter({
 
 // 路由守卫 - 认证和窗口管理
 router.beforeEach(async (to, from, next) => {
+  const guardId = `GUARD_${Date.now()}`;
+  
   // 直接从Vuex store获取登录状态，不检查localStorage
   const isLoggedIn = store.getters.isLoggedIn
+  const token = store.state.token
   
-  console.log('路由守卫 - 目标路由:', to.name)
-  console.log('路由守卫 - 登录状态:', isLoggedIn)
+  console.log(`[${guardId}] ========== 路由守卫触发 ==========`);
+  console.log(`[${guardId}] 路由守卫 - 从:`, from.path, from.name);
+  console.log(`[${guardId}] 路由守卫 - 到:`, to.path, to.name);
+  console.log(`[${guardId}] 路由守卫 - 登录状态:`, {
+    isLoggedIn,
+    hasToken: !!token,
+    tokenPreview: token ? `${token.substring(0, 10)}...` : '无token'
+  });
 
   // 如果用户已登录且试图访问登录页，重定向到主页
   if (isLoggedIn && to.name === 'Login') {
-    console.log('已登录用户试图访问登录页，重定向到主页')
+    console.log(`[${guardId}] ⚠️ 已登录用户试图访问登录页，重定向到主页`);
+    console.log(`[${guardId}] ========== 路由守卫结束 (重定向到主页) ==========`);
     next({ name: 'Home', replace: true })
     return
   }
   
   // 如果用户未登录且试图访问需要认证的页面，重定向到登录页
   if (!isLoggedIn && to.name !== 'Login' && to.path !== '/login') {
-    console.log('未登录用户试图访问受保护页面，重定向到登录页')
+    console.log(`[${guardId}] ⚠️ 未登录用户试图访问受保护页面，重定向到登录页`);
+    console.log(`[${guardId}] 调用栈:`, new Error().stack);
+    console.log(`[${guardId}] ========== 路由守卫结束 (重定向到登录页) ==========`);
     next({ name: 'Login', replace: true })
     return
   }
   
+  console.log(`[${guardId}] ✅ 路由守卫通过`);
+  console.log(`[${guardId}] ========== 路由守卫结束 (通过) ==========`);
   next()
 })

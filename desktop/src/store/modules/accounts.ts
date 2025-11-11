@@ -11,6 +11,8 @@ export interface AccountInfo {
     username: string
     nickname: string
     avatar: string
+    avatarObjectKey: string | null
+    avatarLocalPath: string | null
   }
   unreadCount: number // 未读消息数
   createdAt: number // 添加时间戳
@@ -89,14 +91,23 @@ const accountsModule = {
         return
       }
 
-      state.accounts.push({
+      const normalizedAccount: AccountInfo = {
         ...account,
+        userInfo: {
+          ...account.userInfo,
+          avatarObjectKey: account.userInfo.avatarObjectKey ?? null,
+          avatarLocalPath: account.userInfo.avatarLocalPath ?? null
+        }
+      }
+
+      state.accounts.push({
+        ...normalizedAccount,
         createdAt: Date.now()
       })
 
       // 如果是第一个账号，自动设为当前账号
       if (state.accounts.length === 1) {
-        state.currentAccountId = account.id
+        state.currentAccountId = normalizedAccount.id
       }
     },
 
@@ -222,6 +233,46 @@ const accountsModule = {
     },
 
     /**
+     * 同步账号资料（头像、昵称等）到内存和 SQLite
+     */
+    async syncAccountProfile({ state, commit }, payload: { accountId?: string; userInfo?: Partial<AccountInfo['userInfo']>; token?: string }) {
+      const targetAccountId = payload.accountId || state.currentAccountId
+      if (!targetAccountId) {
+        console.warn('syncAccountProfile: 无可用账号ID')
+        return
+      }
+
+      const account = state.accounts.find(acc => acc.id === targetAccountId)
+      if (!account) {
+        console.warn(`syncAccountProfile: 账号 ${targetAccountId} 不存在`)
+        return
+      }
+
+      const nextAccount: AccountInfo = {
+        ...account,
+        token: payload.token ?? account.token,
+        userInfo: {
+          ...account.userInfo,
+          ...(payload.userInfo || {})
+        }
+      }
+
+      try {
+        await addAccountToRust(nextAccount)
+      } catch (error) {
+        console.error('同步账号信息到 SQLite 失败:', error)
+      }
+
+      commit('UPDATE_ACCOUNT', {
+        accountId: targetAccountId,
+        data: {
+          token: nextAccount.token,
+          userInfo: nextAccount.userInfo
+        }
+      })
+    },
+
+    /**
      * 从 Rust SQLite 恢复账号列表
      */
     async loadAccountsFromStorage({ commit }) {
@@ -239,6 +290,16 @@ const accountsModule = {
 
         if (currentAccountId && accounts.some(acc => acc.id === currentAccountId)) {
           commit('SET_CURRENT_ACCOUNT', currentAccountId)
+        }
+
+        // 如果有当前账号，同步头像缓存
+        if (currentAccountId) {
+          try {
+            const { UserApi } = await import('../../api/user')
+            await UserApi.syncAvatarCache(false)
+          } catch (error) {
+            console.warn('同步头像缓存失败:', error)
+          }
         }
       } catch (error) {
         console.error('加载账号列表失败:', error)
@@ -272,6 +333,8 @@ interface RustAccountInput {
   username: string
   nickname: string
   avatar: string | null
+  avatar_object_key: string | null
+  avatar_local_path: string | null
   mobile: string | null
   email: string | null
   token: string
@@ -285,6 +348,8 @@ interface RustAccountOutput {
   username: string
   nickname: string
   avatar: string | null
+  avatar_object_key: string | null
+  avatar_local_path: string | null
   mobile: string | null
   email: string | null
   token: string
@@ -302,6 +367,8 @@ async function addAccountToRust(account: AccountInfo): Promise<void> {
       username: account.userInfo.username,
       nickname: account.userInfo.nickname,
       avatar: account.userInfo.avatar || null,
+      avatar_object_key: account.userInfo.avatarObjectKey || null,
+      avatar_local_path: account.userInfo.avatarLocalPath || null,
       mobile: null,
       email: null,
       token: account.token
@@ -327,7 +394,9 @@ async function loadAccountsFromRust(): Promise<AccountInfo[]> {
         id: acc.id,
         username: acc.username,
         nickname: acc.nickname,
-        avatar: acc.avatar || ''
+        avatar: acc.avatar || '',
+        avatarObjectKey: acc.avatar_object_key || null,
+        avatarLocalPath: acc.avatar_local_path || null
       },
       unreadCount: 0, // 暂时设为 0，后续可以从设置中加载
       createdAt: acc.created_at

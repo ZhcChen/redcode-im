@@ -130,18 +130,11 @@ impl ServerEventDecoder {
 #[serde(tag = "type", content = "payload")]
 pub enum TauriEventPayload {
     /// 认证成功
-    Authed {
-        user_id: String,
-        conn_id: String,
-    },
+    Authed { user_id: String, conn_id: String },
     /// 加入房间成功
-    Joined {
-        room_id: String,
-    },
+    Joined { room_id: String },
     /// 离开房间
-    Left {
-        room_id: String,
-    },
+    Left { room_id: String },
     /// 收到消息
     Message(serde_json::Value),
     /// 消息已读
@@ -151,15 +144,11 @@ pub enum TauriEventPayload {
     /// 置顶更新
     PinUpdate(serde_json::Value),
     /// 好友请求更新
-    FriendRequestUpdate {
-        pending_count: i32,
-    },
+    FriendRequestUpdate { pending_count: i32 },
     /// 房间创建
     RoomCreated(serde_json::Value),
     /// 错误
-    Error {
-        message: String,
-    },
+    Error { message: String },
     /// Pong
     Pong,
 }
