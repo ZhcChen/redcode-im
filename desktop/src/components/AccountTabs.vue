@@ -157,13 +157,18 @@ function handleMouseMove(event: MouseEvent) {
   if (!isDragging.value && (deltaX > 5 || deltaY > 5)) {
     isDragging.value = true
     console.log('🚀 开始拖拽账号:', draggedAccountId.value)
+    // 设置全局光标样式
+    document.body.style.cursor = 'grabbing'
   }
 
   if (!isDragging.value) return
 
   // 查找鼠标下方的元素
   const elementBelow = document.elementFromPoint(event.clientX, event.clientY)
-  if (!elementBelow) return
+  if (!elementBelow) {
+    dragOverAccountId.value = null
+    return
+  }
 
   // 查找最近的 account-tab 元素
   const tabElement = elementBelow.closest('.account-tab') as HTMLElement
@@ -175,6 +180,8 @@ function handleMouseMove(event: MouseEvent) {
   const targetAccountId = tabElement.dataset.accountId
   if (targetAccountId && targetAccountId !== draggedAccountId.value) {
     dragOverAccountId.value = targetAccountId
+  } else {
+    dragOverAccountId.value = null
   }
 }
 
@@ -263,6 +270,8 @@ function resetDragState() {
   draggedAccountId.value = null
   dragOverAccountId.value = null
   dragStartIndex.value = -1
+  // 恢复光标样式
+  document.body.style.cursor = ''
 }
 </script>
 
@@ -304,8 +313,8 @@ function resetDragState() {
   border-bottom: 2px solid transparent;
   background: transparent;
   padding: 0 12px;
-  cursor: move; // 拖拽时显示移动光标
-  transition: all 0.2s ease;
+  cursor: grab; // 拖拽时显示抓取光标
+  transition: all 0.15s ease;
   color: inherit;
   font: inherit;
   display: flex;
@@ -313,7 +322,11 @@ function resetDragState() {
   position: relative;
   user-select: none; // 防止拖拽时选中文本
 
-  &:hover {
+  &:active {
+    cursor: grabbing; // 按下时显示抓取中光标
+  }
+
+  &:hover:not(.dragging):not(.drag-over) {
     background: rgba(0, 194, 179, 0.08);
   }
 
@@ -321,6 +334,10 @@ function resetDragState() {
     background: #00c2b3;
     border-bottom-color: #00c2b3;
     cursor: pointer; // 激活状态使用指针光标
+
+    &:hover:not(.dragging):not(.drag-over) {
+      background: #00c2b3;
+    }
 
     .tab-content {
       .nickname {
@@ -345,12 +362,32 @@ function resetDragState() {
 
   // 拖拽状态样式
   &.dragging {
-    opacity: 0.5;
+    opacity: 0.4;
+    transform: scale(0.95);
+    cursor: grabbing !important;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: rgba(0, 194, 179, 0.2) !important;
   }
 
   &.drag-over {
-    background: rgba(0, 194, 179, 0.15);
-    border-left: 2px solid #00c2b3;
+    background: rgba(0, 194, 179, 0.25) !important;
+    border-left: 3px solid #00c2b3;
+    border-right: 3px solid #00c2b3;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 194, 179, 0.3);
+    position: relative;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: -3px;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: #00c2b3;
+      animation: pulse-border 1s ease-in-out infinite;
+    }
   }
 }
 
@@ -361,6 +398,18 @@ function resetDragState() {
   }
   50% {
     background-color: rgba(255, 152, 0, 0.35);
+  }
+}
+
+// 拖拽插入指示线动画
+@keyframes pulse-border {
+  0%, 100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scaleY(0.95);
   }
 }
 
