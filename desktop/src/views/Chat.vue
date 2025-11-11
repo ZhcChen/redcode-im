@@ -3821,7 +3821,12 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           // 无论消息是否存在，都直接返回，避免重复添加
           return
         } else {
-          console.log('🔍 [WebSocket] 尝试匹配临时消息')
+          console.log('🔍 [WebSocket] 尝试匹配临时消息', {
+            recentSentMessages: Array.from(recentSentMessages.value),
+            wsMessageContent: uiMessage.content,
+            wsContentType: uiMessage.contentType,
+            wsParts: uiMessage.parts
+          })
           const resendMatchId = Array.from(recentSentMessages.value).find((sentId: string) =>
             sentId.startsWith('resend_') && messageData.content
           )
@@ -3832,6 +3837,13 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           }
           for (const sentId of Array.from(recentSentMessages.value)) {
             const localMessage = messages.value.find(msg => msg.id === sentId)
+            console.log('🔍 [WebSocket] 检查临时消息:', {
+              sentId,
+              found: !!localMessage,
+              localContent: localMessage?.content,
+              localContentType: localMessage?.contentType,
+              wsContent: uiMessage.content
+            })
             if (localMessage && isContentMatch(localMessage.content, uiMessage.content)) {
               matchedLocalMessageId = sentId as string
               console.log('✅ [WebSocket] 匹配到临时消息:', matchedLocalMessageId)
