@@ -2833,7 +2833,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
     }
 
     final name = _message.displaySenderName.trim();
-    final initial = name.isNotEmpty ? name[0] : '?';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
     return CircleAvatar(
       radius: _MessageBubble._avatarRadius,

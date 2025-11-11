@@ -198,13 +198,21 @@ class _AddFriendPageState extends State<AddFriendPage> {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: AppColors.surfaceMuted,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                     backgroundImage:
                         (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
                         ? NetworkImage(user.avatarUrl!)
                         : null,
                     child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                        ? const Icon(Icons.person_outline)
+                        ? Text(
+                            user.displayName.isNotEmpty
+                                ? user.displayName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
                         : null,
                   ),
                   const SizedBox(width: 12),
@@ -658,13 +666,21 @@ class _AddFriendPageState extends State<AddFriendPage> {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppColors.surfaceMuted,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
           backgroundImage:
               (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
               ? NetworkImage(user.avatarUrl!)
               : null,
           child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-              ? const Icon(Icons.person_outline)
+              ? Text(
+                  user.displayName.isNotEmpty
+                      ? user.displayName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
               : null,
         ),
         title: Text(user.displayName),
@@ -841,13 +857,21 @@ class _AddFriendPageState extends State<AddFriendPage> {
       elevation: 0,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppColors.surfaceMuted,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
           backgroundImage:
               (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
               ? NetworkImage(user.avatarUrl!)
               : null,
           child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-              ? const Icon(Icons.person_outline)
+              ? Text(
+                  user.displayName.isNotEmpty
+                      ? user.displayName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
               : null,
         ),
         title: Text(user.displayName),

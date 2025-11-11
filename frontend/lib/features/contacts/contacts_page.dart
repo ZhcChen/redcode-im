@@ -840,14 +840,26 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   }
 
   Widget _buildDefaultAvatar(double size) {
+    final name = widget.entry.name.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: AppColors.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(size / 2),
       ),
-      child: const Icon(Icons.person_outline, color: AppColors.textQuaternary),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: size * 0.4,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

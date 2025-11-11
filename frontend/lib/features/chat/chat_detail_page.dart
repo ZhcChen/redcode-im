@@ -103,7 +103,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              _ConversationAvatar(avatar: widget.conversation.avatar),
+              _ConversationAvatar(
+                avatar: widget.conversation.avatar,
+                name: widget.conversation.name,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -418,9 +421,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 }
 
 class _ConversationAvatar extends StatelessWidget {
-  const _ConversationAvatar({this.avatar});
+  const _ConversationAvatar({this.avatar, required this.name});
 
   final String? avatar;
+  final String name;
 
   @override
   Widget build(BuildContext context) {
@@ -437,6 +441,7 @@ class _ConversationAvatar extends StatelessWidget {
             width: size,
             height: size,
             fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
           ),
         );
       }
@@ -454,19 +459,41 @@ class _ConversationAvatar extends StatelessWidget {
       }
       return ClipRRect(
         borderRadius: borderRadius,
-        child: Image.asset(value, width: size, height: size, fit: BoxFit.cover),
+        child: Image.asset(
+          value,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+        ),
       );
     }
 
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    const size = 44.0;
+    final name = this.name.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: borderRadius,
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(size / 2),
       ),
-      padding: const EdgeInsets.all(6),
-      child: SvgPicture.asset(AppAssets.defaultAvatar),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 18,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

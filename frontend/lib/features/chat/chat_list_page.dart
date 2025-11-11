@@ -752,7 +752,7 @@ class _ChatAvatarState extends State<_ChatAvatar> {
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               // 如果文件读取失败，显示默认头像
-              return SvgPicture.asset(AppAssets.defaultAvatar);
+              return _buildDefaultAvatar();
             },
           ),
         );
@@ -794,7 +794,31 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     }
 
     // 默认头像
-    return SvgPicture.asset(AppAssets.defaultAvatar);
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    final name = widget.chat.name.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(48),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 19,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
   }
 }
 

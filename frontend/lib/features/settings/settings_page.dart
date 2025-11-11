@@ -804,7 +804,7 @@ class _UserInfoSection extends StatelessWidget {
         width: 100,
         height: 100,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const _DefaultAvatar(),
+        errorBuilder: (_, __, ___) => _DefaultAvatar(displayName: displayName),
       );
     } else if (avatarUrl != null && avatarUrl.isNotEmpty) {
       avatarContent = Image.network(
@@ -812,10 +812,10 @@ class _UserInfoSection extends StatelessWidget {
         width: 100,
         height: 100,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const _DefaultAvatar(),
+        errorBuilder: (_, __, ___) => _DefaultAvatar(displayName: displayName),
       );
     } else {
-      avatarContent = const _DefaultAvatar();
+      avatarContent = _DefaultAvatar(displayName: displayName);
     }
 
     return Column(
@@ -946,10 +946,15 @@ class _UserInfoSection extends StatelessWidget {
 }
 
 class _DefaultAvatar extends StatelessWidget {
-  const _DefaultAvatar();
+  const _DefaultAvatar({required this.displayName});
+
+  final String displayName;
 
   @override
   Widget build(BuildContext context) {
+    final name = displayName.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    
     return Container(
       width: 100,
       height: 100,
@@ -957,10 +962,15 @@ class _DefaultAvatar extends StatelessWidget {
         color: AppColors.settingsAvatarBg,
         shape: BoxShape.circle,
       ),
-      child: const Icon(
-        Icons.person,
-        size: 40,
-        color: AppColors.settingsTextMuted,
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            fontSize: 40,
+            color: AppColors.settingsTextMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

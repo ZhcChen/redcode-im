@@ -149,12 +149,9 @@ class _ProfileHeader extends StatelessWidget {
                       width: 88,
                       height: 88,
                       fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName),
                     )
-                  : SvgPicture.asset(
-                      AppAssets.defaultAvatar,
-                      width: 64,
-                      height: 64,
-                    ),
+                  : _buildDefaultAvatar(displayName),
             ),
           ),
           const SizedBox(height: 16),
@@ -207,6 +204,30 @@ class _ProfileHeader extends StatelessWidget {
       default:
         return status;
     }
+  }
+
+  Widget _buildDefaultAvatar(String displayName) {
+    final name = displayName.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    
+    return Container(
+      width: 88,
+      height: 88,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 35,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
   }
 }
 
