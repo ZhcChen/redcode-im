@@ -3682,6 +3682,12 @@ const isContentMatch = (content1: any, content2: any): boolean => {
 
   // 如果都是对象，比较关键字段
   if (typeof content1 === 'object' && typeof content2 === 'object') {
+    // 对于附件消息，优先比较 key（附件的唯一标识）
+    if (content1.key && content2.key) {
+      const match = content1.key === content2.key
+      console.log('🔑 attachment key比较结果:', match, { key1: content1.key, key2: content2.key })
+      return match
+    }
     // 对于图片/视频消息，比较文件名或URL
     if (content1.name && content2.name) {
       const match = content1.name === content2.name
