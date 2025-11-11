@@ -572,7 +572,7 @@ class _ContactListTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            _ContactAvatar(entry: entry),
+            _ContactAvatar(key: ValueKey(entry.id), entry: entry),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -639,7 +639,6 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   @override
   void initState() {
     super.initState();
-    _cachedAvatarPath = widget.entry.localAvatarPath;
     print('[ContactAvatar] ========== 初始化联系人头像 ==========');
     print('[ContactAvatar] userId: ${widget.entry.id}');
     print('[ContactAvatar] name: ${widget.entry.name}');
@@ -648,28 +647,24 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     print('[ContactAvatar] avatarUrl: ${widget.entry.avatarUrl}');
     
     // 验证本地缓存文件是否真的存在
-    bool needsLoad = false;
-    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
-      final file = File(_cachedAvatarPath!);
-      if (!file.existsSync()) {
-        print('[ContactAvatar] ⚠️ 本地文件不存在: $_cachedAvatarPath');
-        _cachedAvatarPath = null;
-        needsLoad = true;
+    final localPath = widget.entry.localAvatarPath;
+    if (localPath != null && localPath.isNotEmpty) {
+      final file = File(localPath);
+      if (file.existsSync()) {
+        print('[ContactAvatar] ✅ 使用本地缓存: $localPath');
+        _cachedAvatarPath = localPath;
+        // 不需要加载，直接返回
+        return;
       } else {
-        print('[ContactAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+        print('[ContactAvatar] ⚠️ 本地文件不存在: $localPath');
       }
-    } else {
-      needsLoad = true;
     }
     
-    // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
-    if (needsLoad &&
-        widget.entry.avatarObjectKey != null &&
+    // 如果没有有效的本地缓存，但有avatarObjectKey，异步加载
+    if (widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty) {
       print('[ContactAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
-    } else if (!needsLoad) {
-      // 已有本地缓存，不需要加载
     } else {
       print('[ContactAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
     }
@@ -678,12 +673,30 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   @override
   void didUpdateWidget(_ContactAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 如果 localAvatarPath 变化，验证并更新
+    if (widget.entry.localAvatarPath != oldWidget.entry.localAvatarPath) {
+      final newPath = widget.entry.localAvatarPath;
+      if (newPath != null && newPath.isNotEmpty) {
+        final file = File(newPath);
+        if (file.existsSync()) {
+          // 文件存在，直接使用
+          setState(() {
+            _cachedAvatarPath = newPath;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+      // 文件不存在或路径为空，清除缓存
+      _cachedAvatarPath = null;
+    }
+    
     // 如果avatarObjectKey变化，重新加载
     if (widget.entry.avatarObjectKey != oldWidget.entry.avatarObjectKey) {
-      _cachedAvatarPath = widget.entry.localAvatarPath;
       if (widget.entry.avatarObjectKey != null &&
           widget.entry.avatarObjectKey!.isNotEmpty &&
-          _cachedAvatarPath == null) {
+          _cachedAvatarPath == null &&
+          !_isLoading) {
         _loadAvatar();
       }
     }
