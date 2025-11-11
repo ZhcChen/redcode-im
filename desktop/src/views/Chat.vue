@@ -2343,6 +2343,7 @@ const sendMessage = async () => {
     timestamp
   }
 
+  console.log('📤 [sendMessage] 添加临时消息:', { tempId, content })
   messages.value.push(tempMessage)
   newMessage.value = ''
   scrollToBottom()
@@ -2355,10 +2356,18 @@ const sendMessage = async () => {
 
     if (apiMessage) {
       const uiMessage = mapDomainMessageToUi(apiMessage)
+      console.log('📥 [sendMessage] API 返回:', { 
+        realId: apiMessage.id, 
+        tempId, 
+        recentSentMessages: Array.from(recentSentMessages.value),
+        messagesCount: messages.value.length,
+        messageIds: messages.value.map(m => m.id)
+      })
       
       // 先检查是否已经存在真实消息（可能 WebSocket 先到达）
       const existingRealMessageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
       if (existingRealMessageIndex !== -1) {
+        console.log('✅ [sendMessage] 真实消息已存在，更新状态:', existingRealMessageIndex)
         // 如果真实消息已存在，更新状态即可，不需要重复添加
         messages.value[existingRealMessageIndex] = {
           ...messages.value[existingRealMessageIndex],
@@ -2375,13 +2384,16 @@ const sendMessage = async () => {
       // 查找临时消息并替换
       // 注意：临时消息可能已经被 WebSocket 替换为真实消息 ID，所以需要同时检查 tempId 和真实消息 ID
       let messageIndex = messages.value.findIndex(msg => msg.id === tempId)
+      console.log('🔍 [sendMessage] 查找临时消息:', { tempId, found: messageIndex !== -1 })
       
       // 如果找不到 tempId，可能是已经被 WebSocket 替换了，检查真实消息 ID
       if (messageIndex === -1) {
         messageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
+        console.log('🔍 [sendMessage] 临时消息不存在，查找真实消息ID:', { realId: apiMessage.id, found: messageIndex !== -1 })
       }
       
       if (messageIndex !== -1) {
+        console.log('✅ [sendMessage] 找到消息，替换为真实消息:', messageIndex)
         // 找到消息，更新为真实消息（确保状态为2，移除转圈圈）
         messages.value[messageIndex] = {
           ...uiMessage,
@@ -2392,15 +2404,23 @@ const sendMessage = async () => {
         setTimeout(() => {
           recentSentMessages.value.delete(apiMessage.id)
         }, 10000)
+        console.log('✅ [sendMessage] 消息已替换，添加到 recentSentMessages:', apiMessage.id)
         return // 消息已更新，直接返回，避免后续重复处理
       } else {
+        console.log('⚠️ [sendMessage] 消息不存在，检查 recentSentMessages:', { 
+          hasInRecent: recentSentMessages.value.has(apiMessage.id),
+          recentSentMessages: Array.from(recentSentMessages.value)
+        })
         // 如果消息不存在，检查是否应该添加
         // 只有在 recentSentMessages 中没有时才添加（避免 WebSocket 消息已添加的情况）
         if (!recentSentMessages.value.has(apiMessage.id)) {
+          console.log('➕ [sendMessage] 添加新消息到列表')
           messages.value.push({
             ...uiMessage,
             status: 2
           })
+        } else {
+          console.log('⏭️ [sendMessage] recentSentMessages 中已有，跳过添加')
         }
         // 添加到 recentSentMessages 用于去重
         recentSentMessages.value.add(apiMessage.id)
@@ -3716,12 +3736,24 @@ const handleWebSocketMessage = (event: CustomEvent) => {
   const messageGroupId = messageData.roomId
   const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === messageGroupId
 
+  console.log('📨 [WebSocket] 收到消息:', { 
+    id: uiMessage.id, 
+    isSelf: messageData.isSelf, 
+    isCurrentRoom,
+    content: typeof messageData.content === 'string' ? messageData.content.substring(0, 20) : 'object',
+    recentSentMessages: Array.from(recentSentMessages.value),
+    messagesCount: messages.value.length,
+    messageIds: messages.value.map(m => m.id)
+  })
+
   if (isCurrentRoom) {
     const existingMessageIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
+    console.log('🔍 [WebSocket] 检查消息是否存在:', { id: uiMessage.id, found: existingMessageIndex !== -1 })
 
     if (existingMessageIndex !== -1) {
       // 如果消息已存在，检查是否需要更新
       if (messageData.isSelf) {
+        console.log('✅ [WebSocket] 消息已存在（自己发送），合并更新:', existingMessageIndex)
         // 如果是自己发送的消息，无论状态如何都应该合并（避免重复）
         const mergedMessage = mergeMessagePreservingLocalData(
           messages.value[existingMessageIndex],
@@ -3742,9 +3774,11 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         setTimeout(() => {
           recentSentMessages.value.delete(uiMessage.id)
         }, 10000)
+        console.log('✅ [WebSocket] 消息已更新，添加到 recentSentMessages:', uiMessage.id)
         // 消息已存在且已更新，直接返回，避免重复添加
         return
       } else {
+        console.log('⏭️ [WebSocket] 消息已存在（他人发送），跳过')
         // 如果是他人发送的消息且已存在，说明可能是重复推送，直接返回
         return
       }
@@ -3754,23 +3788,29 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         // 如果 recentSentMessages 中已经有真实消息 ID，说明 API 已经返回了
         // 即使消息不存在（可能是时序问题），也应该直接返回，避免重复添加
         if (recentSentMessages.value.has(uiMessage.id)) {
+          console.log('⚠️ [WebSocket] recentSentMessages 中已有真实消息ID，再次检查消息是否存在')
           // 再次检查消息是否存在（可能是时序问题导致第一次检查时不存在）
           const existingIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
           if (existingIndex !== -1) {
+            console.log('✅ [WebSocket] 消息存在，更新状态:', existingIndex)
             // 消息存在，更新状态
             messages.value[existingIndex] = {
               ...messages.value[existingIndex],
               ...uiMessage,
               status: 2
             }
+          } else {
+            console.log('⚠️ [WebSocket] 消息不存在但 recentSentMessages 中有，可能是时序问题，跳过')
           }
           // 无论消息是否存在，都直接返回，避免重复添加
           return
         } else {
+          console.log('🔍 [WebSocket] 尝试匹配临时消息')
           const resendMatchId = Array.from(recentSentMessages.value).find((sentId: string) =>
             sentId.startsWith('resend_') && messageData.content
           )
           if (resendMatchId) {
+            console.log('✅ [WebSocket] 匹配到重发消息ID:', resendMatchId)
             recentSentMessages.value.delete(resendMatchId)
             return
           }
@@ -3778,6 +3818,7 @@ const handleWebSocketMessage = (event: CustomEvent) => {
             const localMessage = messages.value.find(msg => msg.id === sentId)
             if (localMessage && isContentMatch(localMessage.content, uiMessage.content)) {
               matchedLocalMessageId = sentId as string
+              console.log('✅ [WebSocket] 匹配到临时消息:', matchedLocalMessageId)
               break
             }
           }
@@ -3790,6 +3831,7 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         // 这里只处理临时消息的情况
         const localMessageIndex = messages.value.findIndex(msg => msg.id === matchedLocalMessageId)
         if (localMessageIndex !== -1) {
+          console.log('✅ [WebSocket] 替换临时消息为真实消息:', { tempId: matchedLocalMessageId, realId: uiMessage.id, index: localMessageIndex })
           const mergedMessage = mergeMessagePreservingLocalData(
             {
               ...messages.value[localMessageIndex],
@@ -3814,18 +3856,25 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           setTimeout(() => {
             recentSentMessages.value.delete(uiMessage.id)
           }, 10000)
+          console.log('✅ [WebSocket] 临时消息已替换，添加到 recentSentMessages:', uiMessage.id)
         }
       } else {
         // 如果没有匹配到临时消息，检查是否应该添加
         // 对于自己发送的消息，如果已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
         if (messageData.isSelf && recentSentMessages.value.has(uiMessage.id)) {
+          console.log('⏭️ [WebSocket] recentSentMessages 中已有，跳过添加')
           // 消息已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
           return
         }
         
+        console.log('➕ [WebSocket] 添加新消息到列表')
         messages.value.push(uiMessage)
+        // 如果是自己发送的消息，应该添加到 recentSentMessages，防止 API 返回时重复添加
         if (messageData.isSelf) {
-          recentSentMessages.value.delete(uiMessage.id)
+          recentSentMessages.value.add(uiMessage.id)
+          setTimeout(() => {
+            recentSentMessages.value.delete(uiMessage.id)
+          }, 10000)
         }
 
         // 索引新消息
