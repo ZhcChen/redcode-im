@@ -639,58 +639,94 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   @override
   void initState() {
     super.initState();
-    _cachedAvatarPath = widget.entry.localAvatarPath;
-    print('[ContactAvatar] ========== 初始化联系人头像 ==========');
+    print('[ContactAvatar] ========== initState 开始 ==========');
     print('[ContactAvatar] userId: ${widget.entry.id}');
     print('[ContactAvatar] name: ${widget.entry.name}');
     print('[ContactAvatar] avatarObjectKey: ${widget.entry.avatarObjectKey}');
     print('[ContactAvatar] localAvatarPath: ${widget.entry.localAvatarPath}');
     print('[ContactAvatar] avatarUrl: ${widget.entry.avatarUrl}');
     
+    // 先赋值
+    _cachedAvatarPath = widget.entry.localAvatarPath;
+    print('[ContactAvatar] 📝 初始赋值 _cachedAvatarPath = $_cachedAvatarPath');
+    
     // 验证本地缓存文件是否真的存在
     bool needsLoad = false;
     if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
       final file = File(_cachedAvatarPath!);
-      if (!file.existsSync()) {
-        print('[ContactAvatar] ⚠️ 本地文件不存在: $_cachedAvatarPath');
+      final exists = file.existsSync();
+      print('[ContactAvatar] 📂 检查文件是否存在: $_cachedAvatarPath');
+      print('[ContactAvatar] 📂 文件存在: $exists');
+      if (!exists) {
+        print('[ContactAvatar] ⚠️ 本地文件不存在，清除 _cachedAvatarPath');
         _cachedAvatarPath = null;
         needsLoad = true;
       } else {
-        print('[ContactAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
+        print('[ContactAvatar] ✅ 文件存在，使用本地缓存');
+        needsLoad = false;
       }
     } else {
+      print('[ContactAvatar] ⚠️ _cachedAvatarPath 为空，需要加载');
       needsLoad = true;
     }
+    
+    print('[ContactAvatar] 🔍 needsLoad = $needsLoad');
+    print('[ContactAvatar] 🔍 _cachedAvatarPath = $_cachedAvatarPath');
+    print('[ContactAvatar] 🔍 avatarObjectKey = ${widget.entry.avatarObjectKey}');
     
     // 如果没有有效的本地缓存，但有avatarObjectKey，异步加载
     if (needsLoad &&
         widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty) {
-      print('[ContactAvatar] ⚠️ 需要异步加载头像');
+      print('[ContactAvatar] ⚠️ 需要异步加载头像，调用 _loadAvatar()');
       _loadAvatar();
     } else if (!needsLoad) {
-      // 已有本地缓存，不需要加载
+      print('[ContactAvatar] ✅ 已有本地缓存，不需要加载');
     } else {
-      print('[ContactAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
+      print('[ContactAvatar] ⚠️ 无avatarObjectKey，将使用默认头像');
     }
+    print('[ContactAvatar] ========== initState 结束 ==========');
   }
 
   @override
   void didUpdateWidget(_ContactAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    print('[ContactAvatar] ========== didUpdateWidget ==========');
+    print('[ContactAvatar] 旧 localAvatarPath: ${oldWidget.entry.localAvatarPath}');
+    print('[ContactAvatar] 新 localAvatarPath: ${widget.entry.localAvatarPath}');
+    print('[ContactAvatar] 旧 avatarObjectKey: ${oldWidget.entry.avatarObjectKey}');
+    print('[ContactAvatar] 新 avatarObjectKey: ${widget.entry.avatarObjectKey}');
+    print('[ContactAvatar] 当前 _cachedAvatarPath: $_cachedAvatarPath');
+    
+    // 如果 localAvatarPath 变化，更新缓存路径
+    if (widget.entry.localAvatarPath != oldWidget.entry.localAvatarPath) {
+      print('[ContactAvatar] 🔄 localAvatarPath 发生变化');
+      _cachedAvatarPath = widget.entry.localAvatarPath;
+      print('[ContactAvatar] 📝 更新 _cachedAvatarPath = $_cachedAvatarPath');
+    }
+    
     // 如果avatarObjectKey变化，重新加载
     if (widget.entry.avatarObjectKey != oldWidget.entry.avatarObjectKey) {
-      _cachedAvatarPath = widget.entry.localAvatarPath;
+      print('[ContactAvatar] 🔄 avatarObjectKey 发生变化');
       if (widget.entry.avatarObjectKey != null &&
           widget.entry.avatarObjectKey!.isNotEmpty &&
           _cachedAvatarPath == null) {
+        print('[ContactAvatar] ⚠️ 需要重新加载头像');
         _loadAvatar();
+      } else {
+        print('[ContactAvatar] ℹ️ 不需要重新加载（avatarObjectKey为空或已有缓存）');
       }
     }
+    print('[ContactAvatar] ========== didUpdateWidget 结束 ==========');
   }
 
   Future<void> _loadAvatar() async {
-    print('[ContactAvatar] _loadAvatar 被调用');
+    print('[ContactAvatar] ========== _loadAvatar 开始 ==========');
+    print('[ContactAvatar] userId: ${widget.entry.id}');
+    print('[ContactAvatar] avatarObjectKey: ${widget.entry.avatarObjectKey}');
+    print('[ContactAvatar] 当前 _isLoading: $_isLoading');
+    print('[ContactAvatar] 当前 _cachedAvatarPath: $_cachedAvatarPath');
+    
     if (_isLoading) {
       print('[ContactAvatar] ⚠️ 正在加载中，跳过');
       return;
@@ -701,23 +737,27 @@ class _ContactAvatarState extends State<_ContactAvatar> {
       return;
     }
 
-    print('[ContactAvatar] 开始加载头像...');
+    print('[ContactAvatar] 📥 开始加载头像...');
     setState(() {
       _isLoading = true;
     });
+    print('[ContactAvatar] 📝 setState: _isLoading = true');
 
     try {
       final cachedPath = await _avatarService.loadAndCacheAvatar(
         userId: widget.entry.id,
         avatarObjectKey: widget.entry.avatarObjectKey,
       );
-      print('[ContactAvatar] 加载结果: $cachedPath');
+      print('[ContactAvatar] ✅ 加载完成，缓存路径: $cachedPath');
       if (mounted) {
         setState(() {
           _cachedAvatarPath = cachedPath;
           _isLoading = false;
         });
+        print('[ContactAvatar] 📝 setState: _cachedAvatarPath = $cachedPath, _isLoading = false');
         print('[ContactAvatar] ✅ 状态已更新');
+      } else {
+        print('[ContactAvatar] ⚠️ Widget 已卸载，不更新状态');
       }
     } catch (e, stackTrace) {
       print('[ContactAvatar] ❌ 加载异常: $e');
@@ -726,15 +766,25 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         setState(() {
           _isLoading = false;
         });
+        print('[ContactAvatar] 📝 setState: _isLoading = false (错误后)');
       }
     }
+    print('[ContactAvatar] ========== _loadAvatar 结束 ==========');
   }
 
   @override
   Widget build(BuildContext context) {
+    print('[ContactAvatar] ========== build 开始 ==========');
+    print('[ContactAvatar] userId: ${widget.entry.id}');
+    print('[ContactAvatar] _cachedAvatarPath: $_cachedAvatarPath');
+    print('[ContactAvatar] _isLoading: $_isLoading');
+    print('[ContactAvatar] avatarObjectKey: ${widget.entry.avatarObjectKey}');
+    print('[ContactAvatar] localAvatarPath: ${widget.entry.localAvatarPath}');
+    
     final isSpecial = widget.entry.type == ContactEntryType.special;
     final size = isSpecial ? 44.0 : 48.0;
     if (isSpecial) {
+      print('[ContactAvatar] 🎨 返回特殊类型头像');
       return Container(
         width: size,
         height: size,
@@ -753,8 +803,12 @@ class _ContactAvatarState extends State<_ContactAvatar> {
 
     // 优先使用本地缓存路径（与聊天列表保持一致，避免闪烁）
     if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      print('[ContactAvatar] 🔍 检查缓存路径: $_cachedAvatarPath');
       final file = File(_cachedAvatarPath!);
-      if (file.existsSync()) {
+      final exists = file.existsSync();
+      print('[ContactAvatar] 📂 文件存在: $exists');
+      if (exists) {
+        print('[ContactAvatar] ✅ 返回 Image.file');
         return ClipRRect(
           borderRadius: BorderRadius.circular(size / 2),
           child: Image.file(
@@ -763,17 +817,23 @@ class _ContactAvatarState extends State<_ContactAvatar> {
             height: size,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
+              print('[ContactAvatar] ❌ Image.file 读取失败: $error');
               // 如果文件读取失败，显示默认头像
               return _buildDefaultAvatar(size);
             },
           ),
         );
+      } else {
+        print('[ContactAvatar] ⚠️ 缓存路径存在但文件不存在');
       }
+    } else {
+      print('[ContactAvatar] ⚠️ _cachedAvatarPath 为空');
     }
 
     // 处理其他类型的头像（asset、svg等）
     if (widget.entry.avatarAsset != null &&
         widget.entry.avatarAsset!.endsWith('.svg')) {
+      print('[ContactAvatar] 🎨 返回 SVG asset 头像');
       return Container(
         width: size,
         height: size,
@@ -787,6 +847,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     }
 
     if (widget.entry.avatarAsset != null) {
+      print('[ContactAvatar] 🎨 返回 asset 头像');
       return ClipRRect(
         borderRadius: BorderRadius.circular(size / 2),
         child: Image.asset(
@@ -802,6 +863,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     if (_isLoading &&
         widget.entry.avatarObjectKey != null &&
         widget.entry.avatarObjectKey!.isNotEmpty) {
+      print('[ContactAvatar] ⏳ 返回加载指示器');
       return Container(
         width: size,
         height: size,
@@ -823,6 +885,8 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     // 如果后端返回了临时下载地址（avatarUrl），可以考虑使用
     // 但根据文档，应该优先使用avatarObjectKey获取临时下载地址
 
+    print('[ContactAvatar] 🎨 返回默认头像');
+    print('[ContactAvatar] ========== build 结束 ==========');
     return _buildDefaultAvatar(size);
   }
 
