@@ -158,14 +158,22 @@ export class SearchUtils {
       console.warn('⚠️ 消息缺少 roomId:', { id: message.id, roomName })
     }
     
+    // 确保所有字段都是正确的类型（字符串或数字）
+    const messageType = message.messageType || message.type || 'text'
+    const messageTypeStr = typeof messageType === 'number' ? String(messageType) : messageType
+    
+    // 确保 ID 字段都是字符串
+    const senderId = message.senderId || ''
+    const senderIdStr = typeof senderId === 'number' ? String(senderId) : senderId
+
     return {
-      id: message.id,
+      id: String(message.id),  // 确保 id 是字符串
       roomId: finalRoomId,
       roomName,
-      senderId: message.senderId || '',
+      senderId: senderIdStr,
       senderName: message.senderName || message.senderUsername || '',
       content: typeof message.content === 'string' ? message.content : (message.content?.text || ''),
-      messageType: message.messageType || message.type || 'text',
+      messageType: messageTypeStr,
       timestamp,
     };
   }
