@@ -1569,7 +1569,14 @@ const loadMessages = async (groupId: string) => {
 
     const cached = await loadCache<Message[]>(CACHE_KEYS.messages(groupId))
     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
-      messages.value = cached.data.map((item) => restoreMessageFromCache(item))
+      messages.value = cached.data.map((item) => {
+        const restoredMessage = restoreMessageFromCache(item)
+        // 确保消息有 roomId，如果没有则使用当前群组ID
+        if (!restoredMessage.roomId) {
+          restoredMessage.roomId = groupId
+        }
+        return restoredMessage
+      })
       usedCache = true
       console.log('💾 使用缓存的消息列表，数量:', cached.data.length)
     }
@@ -1588,7 +1595,14 @@ const loadMessages = async (groupId: string) => {
     if (response.success && response.data) {
       const messageList = Array.isArray(response.data) ? (response.data as DomainMessage[]) : []
 
-      const convertedMessages = messageList.map((msg) => mapDomainMessageToUi(msg))
+      const convertedMessages = messageList.map((msg) => {
+        const uiMessage = mapDomainMessageToUi(msg)
+        // 确保消息有 roomId，如果没有则使用当前群组ID
+        if (!uiMessage.roomId) {
+          uiMessage.roomId = groupId
+        }
+        return uiMessage
+      })
       
       // 按时间排序：最早的消息在上面，最新的在下面
       // 使用 createTime 或 timestamp 进行排序
