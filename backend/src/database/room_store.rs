@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sqlx::{PgConnection, PgPool};
+use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::database::models::{ChatSummaryRow, MemberRole, Room, RoomMember, RoomType};
@@ -368,6 +368,57 @@ impl<'a> RoomStore<'a> {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn delete_chat(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        // 首先检查用户是否有权限删除这个聊天（必须是房间成员）
+        let member_check = sqlx::query(
+            r#"
+            SELECT COUNT(*) as count
+            FROM room_members
+            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let count: i64 = member_check.get("count");
+        if count == 0 {
+            tx.rollback().await?;
+            return Ok(false); // 用户不是房间成员，无权删除
+        }
+
+        // 软删除房间
+        let room_result = sqlx::query(
+            r#"
+            UPDATE rooms
+            SET deleted_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // 软删除所有房间成员关系
+        let members_result = sqlx::query(
+            r#"
+            UPDATE room_members
+            SET deleted_at = NOW()
+            WHERE room_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(room_result.rows_affected() > 0)
     }
 }
 

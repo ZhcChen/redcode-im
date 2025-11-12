@@ -468,7 +468,7 @@
     v-model:visible="showDeleteConfirm"
     title="删除对话"
     :message="`确定要删除与'${deleteTargetChat?.name}'的对话吗？`"
-    description="这只会从列表中移除对话，不会删除服务器上的消息记录。"
+    description="此操作将永久删除该对话及其所有消息记录，无法恢复。"
     confirm-text="删除"
     cancel-text="取消"
     type="danger"
@@ -3413,21 +3413,15 @@ const confirmDelete = async () => {
     console.log('✅ 用户确认删除，开始执行...')
     console.log('🔄 删除对话:', chat.name, 'ID:', chat.id)
     
-    // 尝试调用后端 API（如果后端支持）
-    try {
-      const response = await GroupApi.deleteChat({ roomId: chat.groupId })
-      
-      if (!response.success) {
-        console.warn('⚠️ 后端删除失败，将只进行前端删除:', response.message)
-      } else {
-        console.log('✅ 后端删除成功')
-      }
-    } catch (apiError: any) {
-      // API 调用失败，可能后端还未实现，继续进行前端删除
-      console.warn('⚠️ 删除 API 调用失败，将只进行前端删除:', apiError.message)
+    // 调用后端 API 删除对话
+    const response = await GroupApi.deleteChat({ roomId: chat.groupId })
+    
+    if (!response.success) {
+      throw new Error(response.message || '删除失败')
     }
     
-    // 无论后端是否成功，都进行前端删除
+    console.log('✅ 后端删除成功')
+    
     // 如果删除的是当前选中的对话，清空选中状态
     if (selectedChat.value && selectedChat.value.id === chat.id) {
       console.log('🎯 删除的是当前选中的对话，清空选中状态')
@@ -3442,8 +3436,8 @@ const confirmDelete = async () => {
     console.log('📤 调用 store.dispatch removeChatItem, chatId:', chat.id)
     await store.dispatch('removeChatItem', chat.id)
     
-    console.log('✅ 已从聊天列表移除:', chat.name)
-    toast.success('对话已从列表中移除')
+    console.log('✅ 对话已永久删除:', chat.name)
+    toast.success('对话已永久删除')
   } catch (error: any) {
     console.error('❌ 删除对话失败:', error)
     toast.error(error.message || '删除失败')

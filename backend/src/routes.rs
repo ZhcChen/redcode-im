@@ -194,6 +194,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         // chats
         .route("/chats", get(room::list_chat_summaries))
+        .route("/chats/{room_id}", delete(room::delete_chat))
         // rooms
         .route("/rooms", post(room::create_room).get(room::list_my_rooms))
         .route("/rooms/{room_id}/join", post(room::join_room))

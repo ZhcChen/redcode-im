@@ -254,6 +254,32 @@ pub struct UpdateNotificationSettingsResponse {
     pub notification_settings: i32,
 }
 
+#[derive(Serialize)]
+pub struct DeleteChatResponse {
+    pub success: bool,
+}
+
+pub async fn delete_chat(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<DeleteChatResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    let success = store.delete_chat(room_id, user_id).await?;
+
+    if !success {
+        return Err(AppError::NotFound(format!(
+            "Chat {} not found or you don't have permission to delete it",
+            room_id
+        )));
+    }
+
+    Ok(Json(DeleteChatResponse { success }))
+}
+
 pub async fn update_notification_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
