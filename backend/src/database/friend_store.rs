@@ -308,6 +308,56 @@ impl FriendStore {
         .await?;
         Ok(exists.is_some())
     }
+
+    /// 更新或创建好友备注
+    pub async fn upsert_friend_remark(
+        &self,
+        user_id: Uuid,
+        friend_user_id: Uuid,
+        remark: Option<String>,
+    ) -> Result<Option<String>, AppError> {
+        // 验证好友关系
+        if !self.are_already_friends(user_id, friend_user_id).await? {
+            return Err(AppError::ValidationError("不是好友关系".to_string()));
+        }
+
+        let pool = self.pool();
+
+        // 如果备注为空或空字符串,删除备注记录
+        if remark.as_ref().map(|s| s.trim().is_empty()).unwrap_or(true) {
+            sqlx::query(
+                r#"
+                DELETE FROM user_friend_remarks
+                WHERE user_id = $1 AND friend_user_id = $2
+                "#,
+            )
+            .bind(user_id)
+            .bind(friend_user_id)
+            .execute(pool)
+            .await?;
+            return Ok(None);
+        }
+
+        // 更新或插入备注
+        let result: Option<String> = sqlx::query_scalar(
+            r#"
+            INSERT INTO user_friend_remarks (user_id, friend_user_id, remark, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (user_id, friend_user_id)
+            DO UPDATE SET
+                remark = EXCLUDED.remark,
+                updated_at = NOW()
+            RETURNING remark
+            "#,
+        )
+        .bind(user_id)
+        .bind(friend_user_id)
+        .bind(remark)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(result)
+    }
 }
 
 /// 好友请求方向

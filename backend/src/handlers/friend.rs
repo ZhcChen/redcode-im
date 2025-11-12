@@ -376,3 +376,39 @@ pub async fn list_friends(
 
     Ok(Json(infos))
 }
+
+#[derive(serde::Deserialize)]
+pub struct UpdateRemarkRequest {
+    pub remark: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct UpdateRemarkResponse {
+    pub remark: Option<String>,
+}
+
+/// 更新好友备注
+pub async fn update_friend_remark(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(friend_user_id_str): Path<String>,
+    Json(payload): Json<UpdateRemarkRequest>,
+) -> Result<Json<UpdateRemarkResponse>, AppError> {
+    let current_user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+    let friend_user_id = string_to_uuid(&friend_user_id_str)
+        .map_err(|e| AppError::ValidationError(format!("无效的好友ID: {}", e)))?;
+
+    if current_user_id == friend_user_id {
+        return Err(AppError::ValidationError(
+            "不能给自己设置备注".to_string(),
+        ));
+    }
+
+    let friend_store = FriendStore::new(state.database.clone());
+    let remark = friend_store
+        .upsert_friend_remark(current_user_id, friend_user_id, payload.remark)
+        .await?;
+
+    Ok(Json(UpdateRemarkResponse { remark }))
+}

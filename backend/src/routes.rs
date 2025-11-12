@@ -192,6 +192,10 @@ pub fn create_routes() -> Router<AppState> {
             "/friends/{friend_user_id}/chat",
             post(friend::ensure_private_chat),
         )
+        .route(
+            "/friends/{friend_user_id}/remark",
+            patch(friend::update_friend_remark),
+        )
         // chats
         .route("/chats", get(room::list_chat_summaries))
         .route("/chats/{room_id}", delete(room::delete_chat))
