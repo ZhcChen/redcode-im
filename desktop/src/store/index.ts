@@ -71,6 +71,7 @@ export interface Contact {
     name: string
     avatar?: string
     avatarLocalPath?: string | null
+    avatarObjectKey?: string | null
     phone: string
     email?: string
     isOnline: boolean
@@ -1172,19 +1173,12 @@ export const store = createStore<State>({
                 })
 
                 if (response.success && Array.isArray(response.data)) {
-                    console.log('📊 [getFriendList] 原始 API 响应数据:', JSON.stringify(response.data, null, 2))
+                    // 导入 UserApi 用于获取头像下载地址
+                    const { UserApi } = await import('../api/user')
 
+                    // 先创建基础 Contact 对象
                     const contacts: Contact[] = response.data.map((friend: any) => {
                         const user = friend.user || {}
-
-                        console.log('👤 [getFriendList] 映射好友数据:', {
-                            userId: user.id,
-                            username: user.username,
-                            avatarUrl: user.avatarUrl,
-                            avatarObjectKey: user.avatarObjectKey,
-                            hasAvatarUrl: !!user.avatarUrl,
-                            hasAvatarObjectKey: !!user.avatarObjectKey
-                        })
 
                         // 优先显示好友备注，如果没有备注则显示昵称或用户名
                         const displayName = friend.friendRemark?.trim() || user.nickname?.trim() || user.username || '未知用户'
@@ -1195,7 +1189,8 @@ export const store = createStore<State>({
                             id: user.id?.toString() || friend.id?.toString() || '',
                             name: displayName,
                             avatar: user.avatarUrl || '',
-                            avatarLocalPath: null, // 将在后续加载时填充
+                            avatarLocalPath: null, // 将在下面异步填充
+                            avatarObjectKey: user.avatarObjectKey || null,
                             phone: user.username || '',
                             email: user.email || '',
                             isOnline: false,
@@ -1207,6 +1202,25 @@ export const store = createStore<State>({
                             updateTime: createdAtIso.toISOString()
                         }
                     })
+
+                    // 异步获取所有好友的头像临时下载地址
+                    await Promise.all(
+                        contacts.map(async (contact) => {
+                            if (contact.avatarObjectKey) {
+                                try {
+                                    const avatarResp = await UserApi.getUserAvatarDownloadUrl({
+                                        userId: contact.id,
+                                        expiresInSeconds: 3600 // 1小时有效期
+                                    })
+                                    if (avatarResp.success && avatarResp.data?.download_url) {
+                                        contact.avatarLocalPath = avatarResp.data.download_url
+                                    }
+                                } catch (error) {
+                                    // 静默失败,使用默认头像
+                                }
+                            }
+                        })
+                    )
 
                     // 根据参数选择使用同步模式还是替换模式
                     if (params.compareWithStore && state.contacts.list.length > 0) {

@@ -98,6 +98,25 @@ export class UserApi {
     return rustHttp.get('/users/me/avatar/url', query);
   }
 
+  /**
+   * 获取指定用户的头像临时下载地址
+   * @param params.userId - 用户 ID
+   * @param params.expiresInSeconds - 有效期（秒），默认 3600（1小时）
+   */
+  static async getUserAvatarDownloadUrl(params: {
+    userId: string;
+    expiresInSeconds?: number;
+  }): Promise<ApiResponse<{
+    success: boolean;
+    message: string;
+    download_url?: string;
+  }>> {
+    const query = params.expiresInSeconds
+      ? { expires_in_seconds: params.expiresInSeconds.toString() }
+      : undefined;
+    return rustHttp.get(`/users/${params.userId}/avatar/url`, query);
+  }
+
   static async updateUserInfo(params: Partial<UserInfo & LegacyUserInfo>): Promise<ApiResponse<LegacyUserInfo>> {
     const payload: Record<string, any> = {};
     if (params.userName || params.nickname || params.realName) {
