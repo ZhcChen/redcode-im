@@ -15,6 +15,7 @@ interface BackendUserSummary {
   username: string;
   nickname?: string | null;
   avatar_url?: string | null;
+  avatar_object_key?: string | null;
   email?: string | null;
   status?: string | null;
 }
@@ -60,6 +61,7 @@ const mapAuthUser = (user: BackendUserSummary): AuthUser => ({
   email: user.email ?? null,
   nickname: user.nickname ?? null,
   avatarUrl: user.avatar_url ?? null,
+  avatarObjectKey: user.avatar_object_key ?? null,
   status: user.status ?? null,
 });
 

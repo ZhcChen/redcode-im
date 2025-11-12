@@ -174,6 +174,7 @@ export interface AuthUser {
   email?: string | null;
   nickname?: string | null;
   avatarUrl?: string | null;
+  avatarObjectKey?: string | null;
   status?: string | null;
 }
 
