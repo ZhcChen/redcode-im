@@ -630,9 +630,9 @@ const sanitizeMessageForCache = (message: Message): Message => {
   if (typeof message.content === 'object' && message.content) {
     sanitizedContent = {
       ...message.content,
-      localUrl: null,
-      downloadUrl: null,
-      uploadProgress: null,
+      localUrl: undefined,
+      downloadUrl: undefined,
+      uploadProgress: undefined,
       isUploading: false,
     }
   }
@@ -661,9 +661,9 @@ const restoreMessageFromCache = (cached: Message): Message => {
   if (typeof cached.content === 'object' && cached.content) {
     restoredContent = {
       ...cached.content,
-      localUrl: null,
-      downloadUrl: null,
-      uploadProgress: null,
+      localUrl: undefined,
+      downloadUrl: undefined,
+      uploadProgress: undefined,
       isUploading: false,
     }
   }
@@ -1327,11 +1327,15 @@ const availableContactsForGroup = computed(() => {
 const showEditGroupNameDialog = ref(false)
 const editingGroupName = ref('')
 const isUpdatingGroupName = ref(false)
+const groupNameError = ref('')
 
 // 群公告修改相关状态
 const showEditGroupNoticeDialog = ref(false)
 const editingGroupNotice = ref('')
 const isUpdatingGroupNotice = ref(false)
+
+// 消息列表相关
+const messageList = ref<Message[]>([])
 
 // 语音相关状态
 const showVoiceRecorder = ref(false)
@@ -4893,6 +4897,35 @@ const handleVoiceSend = async (recording: any) => {
   } catch (error: any) {
     console.error('发送语音消息失败:', error)
     toast.error('发送失败: ' + (error.message || '网络错误'))
+  }
+}
+
+// 加载群成员列表
+const loadGroupMembers = async (groupId: string) => {
+  try {
+    const response = await GroupApi.getChatGroupMembers({ chatGroupId: groupId })
+    if (response.success && response.data) {
+      groupMembers.value = response.data
+    }
+  } catch (error: any) {
+    console.error('加载群成员失败:', error)
+  }
+}
+
+// 加载消息列表
+const loadMessageList = async (groupId: string) => {
+  if (!groupId) return
+  
+  try {
+    messagesLoading.value = true
+    const response = await MessageApi.listMessages({ roomId: groupId })
+    if (response.success && response.data) {
+      messages.value = response.data
+    }
+  } catch (error: any) {
+    console.error('加载消息失败:', error)
+  } finally {
+    messagesLoading.value = false
   }
 }
 </script>
