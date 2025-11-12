@@ -40,11 +40,11 @@
           </div>
         </div>
         <!-- 群设置按钮 -->
-        <div v-if="selectedChat.groupType === 1" class="group-settings-btn" @click="showGroupSettings = true">
+        <div v-if="selectedChat.groupType === 1" class="group-settings-btn" @click="handleShowGroupSettings">
           <img src="@/assets/image/icon-menu.svg" alt="群设置" class="settings-icon" />
         </div>
         <!-- 单聊设置按钮 -->
-        <div v-if="selectedChat.groupType === 0" class="group-settings-btn" @click="showGroupSettings = true">
+        <div v-if="selectedChat.groupType === 0" class="group-settings-btn" @click="handleShowGroupSettings">
           <img src="@/assets/image/icon-menu.svg" alt="聊天设置" class="settings-icon" />
         </div>
       </div>
@@ -1349,6 +1349,25 @@ const showGroupSettings = ref<boolean>(false)
 // 群成员数据
 const groupMembers = ref<RoomMember[]>([])
 
+// 打开群设置抽屉
+const handleShowGroupSettings = async () => {
+  if (!selectedChat.value) return
+
+  console.log('🔧 打开群设置抽屉', {
+    groupId: selectedChat.value.groupId,
+    groupType: selectedChat.value.groupType,
+    currentMemberCount: groupMembers.value.length
+  })
+
+  // 如果是群聊且成员列表为空，先加载群成员
+  if (selectedChat.value.groupType === 1 && groupMembers.value.length === 0) {
+    console.log('🔄 群成员列表为空，重新加载...')
+    await loadGroupMembers(selectedChat.value.groupId)
+  }
+
+  showGroupSettings.value = true
+}
+
 // 可添加到群的联系人列表(排除已在群里的成员)
 const availableContactsForGroup = computed(() => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
@@ -1616,7 +1635,15 @@ const loadGroupDetailInfo = async (groupId: string) => {
     })
 
     if (membersResponse.success && membersResponse.data) {
-      console.log('✅ 群成员列表获取成功:', membersResponse.data)
+      console.log('✅ 群成员列表获取成功:', {
+        count: membersResponse.data.length,
+        members: membersResponse.data.map(m => ({
+          userId: m.userId,
+          username: m.username,
+          nickname: m.nickname,
+          avatarUrl: m.avatarUrl
+        }))
+      })
 
       // 保存群成员数据
       groupMembers.value = membersResponse.data
@@ -1625,6 +1652,10 @@ const loadGroupDetailInfo = async (groupId: string) => {
       if (selectedChat.value && membersResponse.data.length) {
         selectedChat.value.memberCount = membersResponse.data.length
       }
+    } else {
+      console.warn('❌ 群成员列表获取失败:', membersResponse.message)
+      // 清空群成员数据
+      groupMembers.value = []
     }
 
   } catch (error: any) {
@@ -4888,7 +4919,17 @@ const handleRemoveMember = () => {
     toast.error('请先选择一个群聊')
     return
   }
-  console.log('打开删除成员对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
+  console.log('🗑️ 打开删除成员对话框', {
+    groupId: selectedChat.value.id,
+    groupName: selectedChat.value.name,
+    memberCount: groupMembers.value.length,
+    members: groupMembers.value.map(m => ({
+      userId: m.userId,
+      username: m.username,
+      nickname: m.nickname,
+      avatarUrl: m.avatarUrl
+    }))
+  })
   showRemoveMemberDialog.value = true
 }
 
