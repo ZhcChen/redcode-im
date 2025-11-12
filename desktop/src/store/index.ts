@@ -1173,8 +1173,9 @@ export const store = createStore<State>({
                 })
 
                 if (response.success && Array.isArray(response.data)) {
-                    // 导入 UserApi 用于获取头像下载地址
+                    // 导入 UserApi 和缓存工具
                     const { UserApi } = await import('../api/user')
+                    const { AvatarUrlCache } = await import('../utils/avatar-url-cache')
 
                     // 先创建基础 Contact 对象
                     const contacts: Contact[] = response.data.map((friend: any) => {
@@ -1189,7 +1190,7 @@ export const store = createStore<State>({
                             id: user.id?.toString() || friend.id?.toString() || '',
                             name: displayName,
                             avatar: user.avatarUrl || '',
-                            avatarLocalPath: null, // 将在下面异步填充
+                            avatarLocalPath: null, // 将在下面填充(从缓存或 API)
                             avatarObjectKey: user.avatarObjectKey || null,
                             phone: user.username || '',
                             email: user.email || '',
@@ -1203,24 +1204,46 @@ export const store = createStore<State>({
                         }
                     })
 
-                    // 异步获取所有好友的头像临时下载地址
+                    // 智能获取头像下载地址:
+                    // 1. 优先从缓存读取(检查 objectKey 是否匹配 + 是否过期)
+                    // 2. 缓存未命中时才调用 API
                     await Promise.all(
                         contacts.map(async (contact) => {
-                            if (contact.avatarObjectKey) {
-                                try {
-                                    const avatarResp = await UserApi.getUserAvatarDownloadUrl({
-                                        userId: contact.id,
-                                        expiresInSeconds: 3600 // 1小时有效期
-                                    })
-                                    if (avatarResp.success && avatarResp.data?.download_url) {
-                                        contact.avatarLocalPath = avatarResp.data.download_url
-                                    }
-                                } catch (error) {
-                                    // 静默失败,使用默认头像
+                            if (!contact.avatarObjectKey) {
+                                return
+                            }
+
+                            // 1. 尝试从缓存读取
+                            const cachedUrl = AvatarUrlCache.get(contact.id, contact.avatarObjectKey)
+                            if (cachedUrl) {
+                                contact.avatarLocalPath = cachedUrl
+                                return
+                            }
+
+                            // 2. 缓存未命中,调用 API 获取
+                            try {
+                                const avatarResp = await UserApi.getUserAvatarDownloadUrl({
+                                    userId: contact.id,
+                                    expiresInSeconds: 3600 // 1小时有效期
+                                })
+                                if (avatarResp.success && avatarResp.data?.download_url) {
+                                    contact.avatarLocalPath = avatarResp.data.download_url
+                                    // 3. 更新缓存
+                                    AvatarUrlCache.set(
+                                        contact.id,
+                                        contact.avatarObjectKey,
+                                        avatarResp.data.download_url,
+                                        3600 * 1000 // 1小时
+                                    )
                                 }
+                            } catch (error) {
+                                // 静默失败,使用默认头像
                             }
                         })
                     )
+
+                    // 清理过期缓存(异步执行,不阻塞主流程)
+                    AvatarUrlCache.cleanExpired()
 
                     // 根据参数选择使用同步模式还是替换模式
                     if (params.compareWithStore && state.contacts.list.length > 0) {
