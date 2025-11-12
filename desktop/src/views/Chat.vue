@@ -380,6 +380,31 @@
       </div>
     </Dialog>
 
+    <!-- 修改备注对话框 -->
+    <Dialog
+      v-model="showEditRemarkDialog"
+      title="修改备注"
+      @confirm="handleConfirmEditRemark"
+      @cancel="handleCancelEditRemark"
+      :confirm-text="isUpdatingRemark ? '保存中...' : '保存'"
+      :confirm-disabled="isUpdatingRemark"
+    >
+      <div class="group-name-content">
+        <DialogInput
+          v-model="editingRemark"
+          placeholder="请输入备注..."
+          :disabled="isUpdatingRemark"
+          maxlength="20"
+          @keyup.enter="handleConfirmEditRemark"
+        />
+
+        <!-- 错误提示 -->
+        <div v-if="groupNameError" class="group-name-error">
+          {{ groupNameError }}
+        </div>
+      </div>
+    </Dialog>
+
     <!-- 添加群成员对话框 (创建新群时) -->
     <AddGroupMemberDialog
       v-model:visible="showAddMemberDialog"
@@ -430,6 +455,7 @@
       @edit-group-name="handleEditGroupName"
       @edit-group-avatar="handleEditGroupAvatar"
       @edit-group-notice="handleEditGroupNotice"
+      @edit-remark="handleEditRemark"
       @toggle-mute="handleToggleMute"
       @toggle-top="handleToggleTop"
       @add-member="handleAddMember"
@@ -1345,6 +1371,11 @@ const groupNameError = ref<string>('')
 const showEditGroupNoticeDialog = ref<boolean>(false)
 const editingGroupNotice = ref<string>('')
 const isUpdatingGroupNotice = ref<boolean>(false)
+
+// 备注修改相关状态
+const showEditRemarkDialog = ref<boolean>(false)
+const editingRemark = ref<string>('')
+const isUpdatingRemark = ref<boolean>(false)
 
 // 消息列表相关
 const messageList = ref<Message[]>([])
@@ -2267,6 +2298,7 @@ interface ChatAccountState {
   groupMembers: RoomMember[]
   editingGroupName: string
   editingGroupNotice: string
+  editingRemark: string
 }
 
 const accountStates = new Map<string, ChatAccountState>()
@@ -2281,7 +2313,8 @@ const saveCurrentAccountState = (accountId: string) => {
     isInitialized: isInitialized.value,
     groupMembers: [...groupMembers.value],
     editingGroupName: editingGroupName.value,
-    editingGroupNotice: editingGroupNotice.value
+    editingGroupNotice: editingGroupNotice.value,
+    editingRemark: editingRemark.value
   })
   console.log(`💾 已保存账号 ${accountId} 的 Chat 状态`, {
     hasSelectedChat: !!selectedChat.value,
@@ -2306,6 +2339,7 @@ const restoreAccountState = (accountId: string) => {
     groupMembers.value = [...state.groupMembers]
     editingGroupName.value = state.editingGroupName
     editingGroupNotice.value = state.editingGroupNotice
+    editingRemark.value = state.editingRemark
     
     // 如果有选中的对话，重新加入房间
     if (state.selectedChat) {
@@ -2324,6 +2358,7 @@ const restoreAccountState = (accountId: string) => {
     groupMembers.value = []
     editingGroupName.value = ''
     editingGroupNotice.value = ''
+    editingRemark.value = ''
   }
   
   // 始终重置对话框状态（不需要保留）
@@ -2331,6 +2366,7 @@ const restoreAccountState = (accountId: string) => {
   showAddMemberDialog.value = false
   showEditGroupNameDialog.value = false
   showEditGroupNoticeDialog.value = false
+  showEditRemarkDialog.value = false
   showGroupSettings.value = false
   showAddExistingGroupMemberDialog.value = false
   showRemoveMemberDialog.value = false
@@ -3646,6 +3682,88 @@ const handleCancelEditGroupNotice = () => {
   editingGroupNotice.value = ''
   groupNameError.value = ''
   isUpdatingGroupNotice.value = false
+}
+
+// 处理备注修改
+const handleEditRemark = () => {
+  if (!selectedChat.value) return
+
+  console.log('🔄 打开备注修改弹窗')
+
+  // 设置当前备注作为默认值（如果有的话）
+  editingRemark.value = selectedChat.value.remark || ''
+  groupNameError.value = ''
+
+  // 关闭群设置抽屉，打开备注修改弹窗
+  showGroupSettings.value = false
+  showEditRemarkDialog.value = true
+}
+
+// 确认修改备注
+const handleConfirmEditRemark = async () => {
+  const newRemark = editingRemark.value.trim()
+
+  // 验证备注
+  if (!newRemark) {
+    groupNameError.value = '备注不能为空'
+    return
+  }
+
+  if (!selectedChat.value) {
+    groupNameError.value = '未选中聊天'
+    return
+  }
+
+  try {
+    isUpdatingRemark.value = true
+    groupNameError.value = ''
+
+    console.log('🔄 正在更新备注:', newRemark)
+
+    // TODO: 调用API更新备注
+    // 这里需要根据实际API接口来实现
+    // const response = await FriendApi.updateRemark({
+    //   friendId: selectedChat.value.groupId,
+    //   remark: newRemark
+    // })
+
+    // 暂时模拟成功
+    const response = { success: true, data: null }
+
+    if (response.success) {
+      // 更新本地数据
+      if (selectedChat.value) {
+        selectedChat.value.remark = newRemark
+        
+        // 更新聊天列表中的对应项
+        const chatItem = chatList.value.find(chat => chat.id === selectedChat.value?.id)
+        if (chatItem) {
+          chatItem.remark = newRemark
+        }
+      }
+
+      console.log('✅ 备注修改成功:', newRemark)
+      toast.success('备注修改成功')
+
+      // 关闭弹窗
+      showEditRemarkDialog.value = false
+    } else {
+      groupNameError.value = response.message || '修改失败'
+    }
+  } catch (error: any) {
+    console.error('❌ 备注修改失败:', error)
+    groupNameError.value = error.message || '网络错误'
+  } finally {
+    isUpdatingRemark.value = false
+  }
+}
+
+// 取消修改备注
+const handleCancelEditRemark = () => {
+  showEditRemarkDialog.value = false
+  editingRemark.value = ''
+  groupNameError.value = ''
+  isUpdatingRemark.value = false
 }
 
 // 处理消息免打扰切换

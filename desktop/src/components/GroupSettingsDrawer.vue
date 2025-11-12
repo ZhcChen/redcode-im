@@ -10,11 +10,11 @@
           class="header-icon"
           @click="handleClose"
         />
-        <div class="header-title">群设置</div>
+        <div class="header-title">{{ groupInfo?.groupType === 1 ? '群设置' : '聊天设置' }}</div>
       </div>
 
-      <!-- 第二行：群成员管理 -->
-      <div class="drawer-section">
+      <!-- 第二行：群成员管理（仅群聊显示） -->
+      <div class="drawer-section" v-if="groupInfo?.groupType === 1">
         <div class="member-grid">
           <!-- 新增成员按钮 -->
           <div class="member-item add-member-btn" @click="handleAddMember">
@@ -53,32 +53,73 @@
         </div>
       </div>
 
-      <!-- 第三行：群设置选项 -->
+      <!-- 第三行：设置选项 -->
       <div class="drawer-section">
-        <div class="setting-item" @click="handleEditGroupName">
-          <div class="setting-label">群名称</div>
-          <div class="setting-value">
-            {{ groupInfo?.name || '' }}
-            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+        <!-- 群聊专属设置 -->
+        <template v-if="groupInfo?.groupType === 1">
+          <div class="setting-item" @click="handleEditGroupName">
+            <div class="setting-label">群名称</div>
+            <div class="setting-value">
+              {{ groupInfo?.name || '' }}
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
           </div>
-        </div>
 
-        <div class="setting-item" @click="handleEditGroupAvatar">
-          <div class="setting-label">群头像</div>
-          <div class="setting-value">
-            <Avatar :src="groupInfo?.avatar" :text="groupInfo?.name" :size="32" />
-            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+          <div class="setting-item" @click="handleEditGroupAvatar">
+            <div class="setting-label">群头像</div>
+            <div class="setting-value">
+              <Avatar :src="groupInfo?.avatar" :text="groupInfo?.name" :size="32" />
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
           </div>
-        </div>
 
-        <div class="setting-item" @click="handleEditGroupNotice">
-          <div class="setting-label">群公告</div>
-          <div class="setting-value">
-            {{ groupNoticeText }}
-            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+          <div class="setting-item" @click="handleEditGroupNotice">
+            <div class="setting-label">群公告</div>
+            <div class="setting-value">
+              {{ groupNoticeText }}
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
           </div>
-        </div>
 
+          <div class="setting-item" @click="handleClearHistory">
+            <div class="setting-label">清除聊天记录</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" @click="handleReport">
+            <div class="setting-label">举报群聊</div>
+          </div>
+
+          <div class="setting-item danger" @click="handleLeaveGroup">
+            <div class="setting-label">退出群聊</div>
+          </div>
+        </template>
+
+        <!-- 单聊专属设置 -->
+        <template v-else-if="groupInfo?.groupType === 0">
+          <div class="setting-item" @click="handleEditRemark">
+            <div class="setting-label">备注</div>
+            <div class="setting-value">
+              {{ remarkText }}
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" @click="handleClearHistory">
+            <div class="setting-label">清除聊天记录</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" @click="handleReport">
+            <div class="setting-label">举报用户</div>
+          </div>
+        </template>
+
+        <!-- 通用设置（群聊和单聊都有） -->
         <div class="setting-item">
           <div class="setting-label">消息免打扰</div>
           <div class="setting-value">
@@ -91,21 +132,6 @@
           <div class="setting-value">
             <BSwitch v-model="isTop" @change="handleTopChange" />
           </div>
-        </div>
-
-        <div class="setting-item" @click="handleClearHistory">
-          <div class="setting-label">清除聊天记录</div>
-          <div class="setting-value">
-            <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
-          </div>
-        </div>
-
-        <div class="setting-item" @click="handleReport">
-          <div class="setting-label">举报群聊</div>
-        </div>
-
-        <div class="setting-item danger" @click="handleLeaveGroup">
-          <div class="setting-label">退出群聊</div>
         </div>
       </div>
     </div>
@@ -129,6 +155,7 @@ interface GroupInfo {
   chatStatus?: number
   groupNotice?: string | null
   showNoticeFlag?: boolean
+  remark?: string | null
 }
 
 interface Props {
@@ -142,8 +169,14 @@ interface Emits {
   (e: 'edit-group-name'): void
   (e: 'edit-group-avatar'): void
   (e: 'edit-group-notice'): void
+  (e: 'edit-remark'): void
   (e: 'toggle-mute', value: boolean): void
   (e: 'toggle-top', value: boolean): void
+  (e: 'add-member'): void
+  (e: 'remove-member'): void
+  (e: 'clear-history'): void
+  (e: 'report-group'): void
+  (e: 'leave-group'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -177,7 +210,7 @@ const muteNotification = ref(false)
 const isTop = ref(false)
 
 // 监听props变化，更新开关状态
-watch(() => props.groupInfo, (newGroupInfo) => {
+watch(() => props.groupInfo, (newGroupInfo: GroupInfo | null | undefined) => {
   if (newGroupInfo) {
     muteNotification.value = newGroupInfo.chatStatus === 1 // 1=免打扰
     isTop.value = newGroupInfo.isTop || false
@@ -191,6 +224,15 @@ const groupNoticeText = computed(() => {
 
   const notice = groupInfo.groupNotice || ''
   return notice.trim().length > 0 ? notice : '暂无公告'
+})
+
+// 计算备注显示文本
+const remarkText = computed(() => {
+  const groupInfo = props.groupInfo
+  if (!groupInfo) return '点击设置备注'
+
+  const remark = groupInfo.remark || ''
+  return remark.trim().length > 0 ? remark : '点击设置备注'
 })
 
 // 事件处理
@@ -216,6 +258,11 @@ const handleEditGroupAvatar = () => {
 const handleEditGroupNotice = () => {
   console.log('编辑群公告')
   emit('edit-group-notice')
+}
+
+const handleEditRemark = () => {
+  console.log('编辑备注')
+  emit('edit-remark')
 }
 
 const handleAddMember = () => {
