@@ -33,7 +33,7 @@
           </div>
 
           <!-- 群成员列表 -->
-<div
+          <div
             v-for="member in displayMembers"
             :key="member.userId"
             class="member-item"
@@ -180,7 +180,9 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  groupMembers: () => [] as RoomMember[]
+  visible: false,
+  groupInfo: null,
+  groupMembers: () => []
 })
 const emit = defineEmits<Emits>()
 
@@ -190,11 +192,11 @@ const isExpanded = ref(false)
 // 显示的成员（第一行只显示前两个，因为有新增删除按钮）
 const displayMembers = computed(() => {
   if (!props.groupMembers || props.groupMembers.length === 0) {
-    return [] as RoomMember[]
+    return []
   }
 
   // 展开时显示所有成员，收起时只显示前两个（第一行）
-  return (isExpanded.value ? props.groupMembers : props.groupMembers.slice(0, 2)) as RoomMember[]
+  return isExpanded.value ? props.groupMembers : props.groupMembers.slice(0, 2)
 })
 
 // 总成员数

@@ -1,4 +1,4 @@
-import { get, post, del } from "./http";
+import { get, post, del, patch } from "./http";
 import type { ApiResponse } from "./http";
 import type {
   Chat,
@@ -338,11 +338,42 @@ export class GroupApi {
     };
   }
 
-  static async updateGroupInfo(): Promise<ApiResponse<null>> {
+  static async updateGroupInfo(params: {
+    groupId: string;
+    groupName?: string;
+    groupAvatar?: string;
+    groupDescription?: string;
+  }): Promise<ApiResponse<null>> {
+    // 构建请求体，只包含提供的字段
+    const payload: Record<string, unknown> = {};
+
+    if (params.groupName !== undefined) {
+      payload.name = params.groupName;
+    }
+
+    if (params.groupAvatar !== undefined) {
+      payload.avatar_url = params.groupAvatar;
+    }
+
+    if (params.groupDescription !== undefined) {
+      payload.description = params.groupDescription;
+    }
+
+    // 如果没有提供任何字段，返回错误
+    if (Object.keys(payload).length === 0) {
+      return {
+        code: 400,
+        success: false,
+        message: "至少需要提供一个更新字段",
+        data: null,
+      };
+    }
+
+    // 调用后端 API 更新群信息
+    const response = await patch<null>(`/rooms/${params.groupId}/settings`, payload);
+
     return {
-      code: 501,
-      success: false,
-      message: "当前后端暂未提供群设置更新能力",
+      ...response,
       data: null,
     };
   }
@@ -397,5 +428,86 @@ export class GroupApi {
   }): Promise<ApiResponse<null>> {
     const response = await del<null>(`/chats/${params.roomId}`);
     return response;
+  }
+
+  // 群公告相关 API
+  static async createAnnouncement(params: {
+    roomId: string;
+    content: string;
+    authorId: string;
+  }): Promise<ApiResponse<{ announcementId: string }>> {
+    const payload = {
+      content: params.content,
+      author_id: params.authorId,
+    };
+
+    const response = await post<{ id: string }>(`/rooms/${params.roomId}/announcements`, payload);
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        announcementId: response.data.id,
+      },
+    };
+  }
+
+  static async updateAnnouncement(params: {
+    roomId: string;
+    announcementId: string;
+    content: string;
+  }): Promise<ApiResponse<null>> {
+    const payload = {
+      content: params.content,
+    };
+
+    const response = await patch<null>(
+      `/rooms/${params.roomId}/announcements/${params.announcementId}`,
+      payload
+    );
+
+    return response;
+  }
+
+  static async listAnnouncements(params: {
+    roomId: string;
+  }): Promise<ApiResponse<Array<{
+    id: string;
+    content: string;
+    authorId: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }>>> {
+    const response = await get<Array<{
+      id: string;
+      content: string;
+      author_id: string;
+      created_at: string;
+      updated_at: string;
+    }>>(`/rooms/${params.roomId}/announcements`);
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: response.data.map(announcement => ({
+        id: announcement.id,
+        content: announcement.content,
+        authorId: announcement.author_id,
+        createdAt: parseTimestamp(announcement.created_at),
+        updatedAt: parseTimestamp(announcement.updated_at),
+      })),
+    };
   }
 }
