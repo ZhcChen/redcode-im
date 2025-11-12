@@ -205,6 +205,10 @@ pub fn create_routes() -> Router<AppState> {
             post(room::update_notification_settings),
         )
         .route(
+            "/rooms/{room_id}/pin",
+            post(room::pin_room).delete(room::unpin_room),
+        )
+        .route(
             "/rooms/{room_id}/messages",
             post(message::send_message).get(message::list_messages),
         )

@@ -484,6 +484,8 @@ pub struct ChatSummary {
     pub unread_count: i64,
     pub last_read_message_id: Option<String>,
     pub last_read_at: Option<String>,
+    #[serde(default)]
+    pub is_pinned: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message: Option<ChatMessagePreview>,
     #[serde(skip_serializing_if = "Option::is_none")]

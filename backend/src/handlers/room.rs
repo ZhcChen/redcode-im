@@ -150,6 +150,13 @@ pub struct LeaveRoomResponse {
     pub ok: bool,
 }
 
+#[derive(Serialize)]
+pub struct PinRoomResponse {
+    pub is_pinned: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_at: Option<String>,
+}
+
 pub async fn leave_room(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -307,5 +314,51 @@ pub async fn update_notification_settings(
 
     Ok(Json(UpdateNotificationSettingsResponse {
         notification_settings: payload.notification_settings,
+    }))
+}
+
+pub async fn pin_room(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<PinRoomResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    if !store.is_user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
+    }
+
+    let record = store.pin_room_for_user(user_id, room_id).await?;
+
+    Ok(Json(PinRoomResponse {
+        is_pinned: true,
+        pinned_at: Some(record.pinned_at.to_rfc3339()),
+    }))
+}
+
+pub async fn unpin_room(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<PinRoomResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    if !store.is_user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
+    }
+
+    let _ = store.unpin_room_for_user(user_id, room_id).await?;
+
+    Ok(Json(PinRoomResponse {
+        is_pinned: false,
+        pinned_at: None,
     }))
 }

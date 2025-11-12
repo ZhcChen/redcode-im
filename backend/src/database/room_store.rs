@@ -2,7 +2,9 @@ use chrono::Utc;
 use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
-use crate::database::models::{ChatSummaryRow, MemberRole, Room, RoomMember, RoomType};
+use crate::database::models::{
+    ChatSummaryRow, MemberRole, Room, RoomMember, RoomType, UserRoomPin,
+};
 
 pub struct RoomStore<'a> {
     pub pool: &'a PgPool,
@@ -168,6 +170,27 @@ impl<'a> RoomStore<'a> {
         Ok(res.rows_affected() > 0)
     }
 
+    pub async fn is_user_in_room(
+        &self,
+        room_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            SELECT user_id
+            FROM room_members
+            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+            LIMIT 1
+            "#,
+        )
+        .bind(room_id)
+        .bind(user_id)
+        .fetch_optional(self.pool)
+        .await?;
+
+        Ok(exists.is_some())
+    }
+
     pub async fn list_members(&self, room_id: Uuid) -> Result<Vec<RoomMember>, sqlx::Error> {
         let rows = sqlx::query_as::<_, RoomMember>(
             r#"
@@ -281,6 +304,7 @@ impl<'a> RoomStore<'a> {
                 r.room_type AS room_type,
                 r.description AS room_description,
                 r.avatar_url AS room_avatar_url,
+                CASE WHEN urp.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_pinned,
                 lm.id AS last_message_id,
                 lm.content AS last_message_content,
                 lm.message_type AS last_message_type,
@@ -295,6 +319,8 @@ impl<'a> RoomStore<'a> {
                 fu.friend_avatar_object_key AS friend_avatar_object_key
             FROM room_members rm
             JOIN rooms r ON rm.room_id = r.id
+            LEFT JOIN user_room_pins urp
+                ON urp.user_id = rm.user_id AND urp.room_id = r.id
             LEFT JOIN LATERAL (
                 SELECT
                     m.id,
@@ -335,6 +361,7 @@ impl<'a> RoomStore<'a> {
               AND rm.deleted_at IS NULL
               AND r.deleted_at IS NULL
             ORDER BY
+                CASE WHEN urp.id IS NULL THEN 1 ELSE 0 END,
                 CASE WHEN r.room_type = $2 THEN 0 ELSE 1 END,
                 COALESCE(lm.created_at, r.updated_at, r.created_at) DESC
             "#,
@@ -419,6 +446,37 @@ impl<'a> RoomStore<'a> {
         tx.commit().await?;
 
         Ok(room_result.rows_affected() > 0)
+    }
+
+    pub async fn pin_room_for_user(&self, user_id: Uuid, room_id: Uuid) -> Result<UserRoomPin, sqlx::Error> {
+        let record = sqlx::query_as::<_, UserRoomPin>(
+            r#"
+            INSERT INTO user_room_pins (user_id, room_id, pinned_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (user_id, room_id) DO UPDATE SET pinned_at = NOW()
+            RETURNING id, user_id, room_id, pinned_at
+            "#,
+        )
+        .bind(user_id)
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await?;
+
+        Ok(record)
+    }
+
+    pub async fn unpin_room_for_user(&self, user_id: Uuid, room_id: Uuid) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM user_room_pins WHERE user_id = $1 AND room_id = $2
+            "#,
+        )
+        .bind(user_id)
+        .bind(room_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 }
 

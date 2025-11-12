@@ -283,6 +283,15 @@ pub struct RoomPin {
     pub pinned_at: DateTime<Utc>,
 }
 
+/// 用户房间置顶表模型 (用于用户级别的聊天置顶功能)
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserRoomPin {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub room_id: Uuid,
+    pub pinned_at: DateTime<Utc>,
+}
+
 /// 消息类型枚举
 #[derive(
     Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
@@ -461,6 +470,7 @@ pub struct ChatSummaryRow {
     pub room_type: RoomType,
     pub room_description: Option<String>,
     pub room_avatar_url: Option<String>,
+    pub is_pinned: bool,
     pub last_message_id: Option<Uuid>,
     pub last_message_content: Option<String>,
     pub last_message_type: Option<MessageType>,
