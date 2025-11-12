@@ -55,15 +55,24 @@ const parseTimestamp = (value: string): Date => {
   return parsed;
 };
 
-const mapAuthUser = (user: BackendUserSummary): AuthUser => ({
-  id: user.id,
-  username: user.username,
-  email: user.email ?? null,
-  nickname: user.nickname ?? null,
-  avatarUrl: user.avatar_url ?? null,
-  avatarObjectKey: user.avatar_object_key ?? null,
-  status: user.status ?? null,
-});
+const mapAuthUser = (user: BackendUserSummary): AuthUser => {
+  const mapped = {
+    id: user.id,
+    username: user.username,
+    email: user.email ?? null,
+    nickname: user.nickname ?? null,
+    avatarUrl: user.avatar_url ?? null,
+    avatarObjectKey: user.avatar_object_key ?? null,
+    status: user.status ?? null,
+  };
+
+  console.log('🔄 [mapAuthUser] 映射用户数据:', {
+    原始: { avatar_url: user.avatar_url, avatar_object_key: user.avatar_object_key },
+    映射后: { avatarUrl: mapped.avatarUrl, avatarObjectKey: mapped.avatarObjectKey }
+  });
+
+  return mapped;
+};
 
 const parseFriendRequestStatus = (
   status: BackendFriendRequestStatus,
@@ -110,6 +119,9 @@ export class FriendApi {
     } = {},
   ): Promise<ApiResponse<FriendInfo[]>> {
     const response = await get<BackendFriendInfo[]>("/friends");
+
+    console.log('🔍 [FriendApi.getMyFriendList] 后端原始响应:', JSON.stringify(response.data, null, 2));
+
     if (!response.success || !response.data) {
       return {
         ...response,

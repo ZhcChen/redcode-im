@@ -1172,8 +1172,20 @@ export const store = createStore<State>({
                 })
 
                 if (response.success && Array.isArray(response.data)) {
+                    console.log('📊 [getFriendList] 原始 API 响应数据:', JSON.stringify(response.data, null, 2))
+
                     const contacts: Contact[] = response.data.map((friend: any) => {
                         const user = friend.user || {}
+
+                        console.log('👤 [getFriendList] 映射好友数据:', {
+                            userId: user.id,
+                            username: user.username,
+                            avatarUrl: user.avatarUrl,
+                            avatarObjectKey: user.avatarObjectKey,
+                            hasAvatarUrl: !!user.avatarUrl,
+                            hasAvatarObjectKey: !!user.avatarObjectKey
+                        })
+
                         // 优先显示好友备注，如果没有备注则显示昵称或用户名
                         const displayName = friend.friendRemark?.trim() || user.nickname?.trim() || user.username || '未知用户'
                         const createdAt: Date = friend.createdAt instanceof Date ? friend.createdAt : new Date(friend.createdAt)
