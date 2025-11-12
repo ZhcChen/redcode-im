@@ -1227,7 +1227,7 @@ export const store = createStore<State>({
 
         // 聊天列表相关 actions
         // 加载聊天列表
-        async loadChatList({commit, state}: { commit: any; state: State }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+        async loadChatList({commit, state, dispatch}: { commit: any; state: State; dispatch: any }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
             const { forceRefresh = false, compareWithStore = false } = params
             let shouldResetLoading = false
             try {

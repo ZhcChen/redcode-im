@@ -3256,6 +3256,16 @@ const handleCancelCreateGroup = () => {
   isCreatingGroup.value = false
 }
 
+// 旧的添加成员对话框处理函数（已废弃，保留以避免模板引用错误）
+const handleConfirmAddMembers = () => {
+  console.warn('⚠️ handleConfirmAddMembers 已废弃，请使用 CreateGroupDialog')
+  showAddMemberDialog.value = false
+}
+
+const handleCancelAddMembers = () => {
+  showAddMemberDialog.value = false
+}
+
 // 处理群头像修改
 const handleEditGroupAvatar = () => {
   if (!selectedChat.value) return
