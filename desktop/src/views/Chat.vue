@@ -3440,6 +3440,10 @@ const confirmDelete = async () => {
     console.log('📤 调用 store.dispatch removeChatItem, chatId:', chat.id)
     await store.dispatch('removeChatItem', chat.id)
     
+    // 删除成功后立即刷新聊天列表，确保数据同步
+    console.log('🔄 删除后刷新聊天列表...')
+    await loadChatList(true) // 强制刷新API数据
+    
     console.log('✅ 对话已永久删除:', chat.name)
     toast.success('对话已永久删除')
   } catch (error: any) {
@@ -3951,22 +3955,45 @@ const handleRouteParams = async () => {
         
         // 多次尝试查找新创建的聊天，使用更宽松的匹配条件
         let attempts = 0
-        const maxAttempts = 3
+        const maxAttempts = 5 // 增加尝试次数
         
         const findAndSelectChat = async () => {
           attempts++
           console.log(`🔍 第${attempts}次尝试查找新聊天...`)
           
+          // 重新加载聊天列表以确保获取最新数据
+          if (attempts > 1) {
+            await loadChatList(true) // 强制刷新API数据
+          }
+          
           const newChat = chatList.value.find(chat => {
+            // 优先使用roomId匹配
+            const matchesId = createdRoomId && (chat.id === createdRoomId || chat.groupId === createdRoomId)
+            
+            // 备用匹配：使用联系人名称
             const matchesName = contactName && (
               chat.name === contactName ||
               chat.name.includes(contactName as string) ||
               (contactName as string).includes(chat.name)
             )
-            const matchesId = createdRoomId && chat.id === createdRoomId
-            const matchesGroupId = createdRoomId && chat.groupId === createdRoomId
+            
+            // 额外匹配：检查是否是单聊类型且与联系人ID相关
+            const isPrivateChat = chat.groupType === 0 // 单聊类型
+            const matchesFriendId = contactId && isPrivateChat && (
+              chat.groupId === contactId || 
+              chat.extra?.friend_id === contactId ||
+              chat.extra?.friendId === contactId
+            )
 
-            return matchesName || matchesId || matchesGroupId
+            console.log(`🔍 检查聊天 ${chat.name} (${chat.id}):`, {
+              matchesId,
+              matchesName,
+              matchesFriendId,
+              chatGroupId: chat.groupId,
+              chatExtra: chat.extra
+            })
+
+            return matchesId || matchesName || matchesFriendId
           })
           
           if (newChat) {
@@ -3976,14 +4003,19 @@ const handleRouteParams = async () => {
           }
           
           if (attempts < maxAttempts) {
-            console.log(`⏳ 未找到聊天，${500 * attempts}ms后重试...`)
+            console.log(`⏳ 未找到聊天，${300 * attempts}ms后重试...`)
             setTimeout(async () => {
-              // 重新加载列表再试
-              await loadChatList()
               await findAndSelectChat()
-            }, 500 * attempts)
+            }, 300 * attempts) // 减少等待时间
           } else {
             console.warn('❌ 经过多次尝试仍未找到新创建的聊天')
+            console.log('📊 当前聊天列表:', chatList.value.map((c: any) => ({
+              name: c.name,
+              id: c.id,
+              groupId: c.groupId,
+              groupType: c.groupType,
+              extra: c.extra
+            })))
             // 如果实在找不到，至少显示一个提示
             toast.error('聊天创建成功，但无法自动打开，请手动选择')
           }
