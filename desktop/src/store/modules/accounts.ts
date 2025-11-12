@@ -383,11 +383,12 @@ const accountsModule = {
         return
       }
 
-      // 生成排序值（使用时间戳）
-      const now = Date.now()
+      // 生成排序值（使用秒级时间戳 + 索引的偏移量）
+      // 使用秒级时间戳确保与数据库中的其他时间戳保持一致
+      const baseTimestamp = Math.floor(Date.now() / 1000)
       const accountOrders: [string, number][] = validIds.map((id, index) => [
         id,
-        now + index
+        baseTimestamp + index * 10  // 每个账号间隔 10 秒，确保顺序明确
       ])
 
       try {

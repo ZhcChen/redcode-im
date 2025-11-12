@@ -150,13 +150,10 @@ impl AccountStore {
 
     /// 添加账号
     pub async fn add_account(&self, account: &Account) -> Result<(), sqlx::Error> {
-        // 如果没有设置 sort_order，使用 created_at 作为默认值
-        let sort_order = account.sort_order.unwrap_or(account.created_at);
-        
         sqlx::query(
             r#"
             INSERT INTO accounts (id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?))
             ON CONFLICT(id) DO UPDATE SET
                 username = excluded.username,
                 nickname = excluded.nickname,
@@ -167,7 +164,7 @@ impl AccountStore {
                 email = excluded.email,
                 token = excluded.token,
                 updated_at = excluded.updated_at,
-                sort_order = COALESCE(excluded.sort_order, accounts.sort_order)
+                sort_order = COALESCE(accounts.sort_order, excluded.sort_order)
             "#,
         )
         .bind(&account.id)
@@ -181,7 +178,8 @@ impl AccountStore {
         .bind(&account.token)
         .bind(account.created_at)
         .bind(account.updated_at)
-        .bind(sort_order)
+        .bind(account.sort_order)
+        .bind(account.created_at)
         .execute(&self.pool)
         .await?;
 

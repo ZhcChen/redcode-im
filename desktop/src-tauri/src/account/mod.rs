@@ -80,7 +80,7 @@ impl AccountManager {
             token: encrypted_token_base64,
             created_at: now,
             updated_at: now,
-            sort_order: Some(now), // 使用创建时间作为默认排序
+            sort_order: None, // 不设置 sort_order,由数据库层自动处理
         };
 
         store
