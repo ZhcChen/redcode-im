@@ -60,7 +60,7 @@
             <div class="debug-details">联系人: {{ route.query.contactName }} (ID: {{ route.query.contactId }})</div>
           </div>
         </div>
-        <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
+        <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" @contextmenu.prevent="handleChatContextMenu(chat, $event)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
           <Avatar :src="chat.avatar" :text="chat.name" :size="48" />
           <div class="chat-info">
             <div class="chat-name-time">
@@ -452,6 +452,16 @@
     @close="showSearchDialog = false"
     @result-click="handleSearchResultClick"
   />
+
+  <!-- 聊天列表右键菜单 -->
+  <ChatContextMenu
+    v-model:visible="showContextMenu"
+    :position="contextMenuPosition"
+    :chat="contextMenuChat"
+    @pin="handleContextMenuPin"
+    @mute="handleContextMenuMute"
+    @delete="handleContextMenuDelete"
+  />
 </div>
 </template>
 
@@ -474,6 +484,7 @@ import DialogInput from '../components/DialogInput.vue'
 import MediaPreview from '../components/MediaPreview.vue'
 import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
 import VoiceMessage from '../components/VoiceMessage.vue'
+import ChatContextMenu from '../components/ChatContextMenu.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
@@ -1269,6 +1280,11 @@ const isCreatingGroup = ref(false)
 const isLoadingContacts = ref(false)
 const contacts = ref<any[]>([])
 const pendingGroupData = ref<any>(null)
+
+// 聊天列表右键菜单状态
+const showContextMenu = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const contextMenuChat = ref<ChatItem | null>(null)
 
 // 群设置抽屉状态
 const showGroupSettings = ref(false)
@@ -3254,6 +3270,134 @@ const handleCreateGroupConfirm = async (data: {
 const handleCancelCreateGroup = () => {
   showCreateGroupDialog.value = false
   isCreatingGroup.value = false
+}
+
+// ==================== 聊天列表右键菜单处理 ====================
+
+// 显示右键菜单
+const handleChatContextMenu = (chat: ChatItem, event: MouseEvent) => {
+  event.preventDefault()
+  event.stopPropagation()
+  
+  contextMenuChat.value = chat
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+  showContextMenu.value = true
+  
+  console.log('🖱️ 显示聊天右键菜单:', chat.name)
+}
+
+// 处理置顶/取消置顶
+const handleContextMenuPin = async (chat: ChatItem) => {
+  try {
+    const targetState = !chat.isTop
+    console.log(`🔄 ${targetState ? '置顶' : '取消置顶'}对话:`, chat.name)
+    
+    // 调用API
+    const response = targetState 
+      ? await GroupApi.pinChat({ roomId: chat.groupId })
+      : await GroupApi.unpinChat({ roomId: chat.groupId })
+    
+    if (response.success) {
+      // 更新本地状态
+      const chatIndex = chatList.value.findIndex(c => c.id === chat.id)
+      if (chatIndex !== -1) {
+        chatList.value[chatIndex].isTop = targetState
+      }
+      
+      // 更新 store
+      store.dispatch('updateChatItem', {
+        ...chat,
+        isTop: targetState
+      })
+      
+      // 重新加载聊天列表以更新排序
+      await loadChatList(true)
+      
+      toast.success(targetState ? '已置顶' : '已取消置顶')
+    } else {
+      toast.error(response.message || (targetState ? '置顶失败' : '取消置顶失败'))
+    }
+  } catch (error: any) {
+    console.error('置顶操作失败:', error)
+    toast.error(error.message || '操作失败')
+  }
+}
+
+// 处理消息免打扰/允许通知
+const handleContextMenuMute = async (chat: ChatItem) => {
+  try {
+    const targetState = chat.chatStatus === 1 ? 0 : 2 // 0=允许通知, 2=免打扰
+    console.log(`🔄 ${targetState === 2 ? '设置免打扰' : '允许消息通知'}:`, chat.name)
+    
+    // 调用API
+    const response = await MessageApi.updateNotificationSettings({
+      roomId: chat.groupId,
+      notificationSettings: targetState
+    })
+    
+    if (response.success) {
+      // 更新本地状态
+      const chatIndex = chatList.value.findIndex(c => c.id === chat.id)
+      if (chatIndex !== -1) {
+        chatList.value[chatIndex].chatStatus = targetState === 2 ? 1 : 0
+      }
+      
+      // 更新 store
+      store.dispatch('updateChatItem', {
+        ...chat,
+        chatStatus: targetState === 2 ? 1 : 0
+      })
+      
+      toast.success(targetState === 2 ? '已开启消息免打扰' : '已允许消息通知')
+    } else {
+      toast.error(response.message || '设置失败')
+    }
+  } catch (error: any) {
+    console.error('消息免打扰设置失败:', error)
+    toast.error(error.message || '操作失败')
+  }
+}
+
+// 处理删除对话
+const handleContextMenuDelete = async (chat: ChatItem) => {
+  try {
+    // 确认删除
+    if (!confirm(`确定要删除与"${chat.name}"的对话吗？`)) {
+      return
+    }
+    
+    console.log('🔄 删除对话:', chat.name)
+    
+    // 调用API
+    const response = await GroupApi.deleteChat({ roomId: chat.groupId })
+    
+    if (response.success) {
+      // 如果删除的是当前选中的对话，清空选中状态
+      if (selectedChat.value && selectedChat.value.id === chat.id) {
+        selectedChat.value = null
+        messages.value = []
+      }
+      
+      // 从本地列表中移除
+      const chatIndex = chatList.value.findIndex(c => c.id === chat.id)
+      if (chatIndex !== -1) {
+        chatList.value.splice(chatIndex, 1)
+      }
+      
+      // 更新 store
+      store.dispatch('removeChatItem', chat.id)
+      
+      toast.success('对话已删除')
+    } else {
+      toast.error(response.message || '删除失败')
+    }
+  } catch (error: any) {
+    console.error('删除对话失败:', error)
+    toast.error(error.message || '删除失败')
+  }
 }
 
 // 旧的添加成员对话框处理函数（已废弃，保留以避免模板引用错误）

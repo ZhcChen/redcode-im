@@ -1,4 +1,4 @@
-import { get, post } from "./http";
+import { get, post, del } from "./http";
 import type { ApiResponse } from "./http";
 import type {
   Chat,
@@ -306,5 +306,57 @@ export class GroupApi {
       message: "当前后端暂未提供群设置更新能力",
       data: null,
     };
+  }
+
+  static async pinChat(params: {
+    roomId: string;
+  }): Promise<ApiResponse<{ isPinned: boolean }>> {
+    const response = await post<{ is_pinned: boolean }>(
+      `/rooms/${params.roomId}/pin`,
+      {},
+    );
+
+    if (!response.success || response.data === null || response.data === undefined) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        isPinned: Boolean(response.data.is_pinned),
+      },
+    };
+  }
+
+  static async unpinChat(params: {
+    roomId: string;
+  }): Promise<ApiResponse<{ isPinned: boolean }>> {
+    const response = await del<{ is_pinned: boolean }>(
+      `/rooms/${params.roomId}/pin`,
+    );
+
+    if (!response.success || response.data === null || response.data === undefined) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        isPinned: Boolean(response.data.is_pinned),
+      },
+    };
+  }
+
+  static async deleteChat(params: {
+    roomId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del<null>(`/chats/${params.roomId}`);
+    return response;
   }
 }
