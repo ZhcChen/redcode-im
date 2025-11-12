@@ -354,7 +354,7 @@ const handleFileSelect = async (event: Event) => {
         const oldPreviewUrl = previewImageUrl.value
         previewImageUrl.value = '' // 先清空引用，触发 computed 重新计算
 
-        console.log('[Settings] 📊 清理预览后 userAvatarSrc 计算值:', userAvatarSrc.value)
+        console.log('[Settings] 📊 清理预览后 userAvatarLocalPath 计算值:', userAvatarLocalPath.value)
 
         // 延迟释放 Blob URL，给 Avatar 组件足够时间加载新图片
         setTimeout(() => {
