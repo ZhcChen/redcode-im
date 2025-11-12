@@ -3,7 +3,7 @@ use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::database::models::{
-    ChatSummaryRow, MemberRole, Room, RoomMember, RoomType, UserRoomPin,
+    ChatSummaryRow, MemberRole, Room, RoomMember, RoomMemberWithUserInfo, RoomType, UserRoomPin,
 };
 
 pub struct RoomStore<'a> {
@@ -205,6 +205,31 @@ impl<'a> RoomStore<'a> {
             FROM room_members
             WHERE room_id = $1 AND deleted_at IS NULL
             ORDER BY joined_at ASC
+            "#,
+        )
+        .bind(room_id)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// 获取房间成员列表(包含用户信息)
+    pub async fn list_members_with_user_info(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Vec<RoomMemberWithUserInfo>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, RoomMemberWithUserInfo>(
+            r#"
+            SELECT rm.user_id,
+                   u.username,
+                   u.nickname,
+                   u.avatar_url,
+                   rm.role as "role: MemberRole",
+                   rm.joined_at
+            FROM room_members rm
+            JOIN users u ON u.id = rm.user_id AND u.deleted_at IS NULL
+            WHERE rm.room_id = $1 AND rm.deleted_at IS NULL
+            ORDER BY rm.joined_at ASC
             "#,
         )
         .bind(room_id)

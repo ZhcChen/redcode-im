@@ -31,7 +31,35 @@ const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.v
 const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
 
 // 定时器相关
+const CROSS_ACCOUNT_REFRESH_INTERVAL = 5000;
 let unreadRefreshTimer: number | null = null;
+let unreadRefreshInProgress = false;
+let unreadRefreshPending = false;
+
+async function triggerCrossAccountUnreadRefresh(reason: string) {
+  if (accounts.value.length <= 1) {
+    return;
+  }
+
+  if (unreadRefreshInProgress) {
+    unreadRefreshPending = true;
+    return;
+  }
+
+  unreadRefreshInProgress = true;
+  console.log(`[App.vue] 🔄 跨账号未读刷新 (${reason})`);
+  try {
+    await store.dispatch('accounts/refreshAllAccountsUnreadCount');
+  } catch (error) {
+    console.error(`[App.vue] ❌ 跨账号未读刷新失败 (${reason})`, error);
+  } finally {
+    unreadRefreshInProgress = false;
+    if (unreadRefreshPending) {
+      unreadRefreshPending = false;
+      window.setTimeout(() => triggerCrossAccountUnreadRefresh('pending-drain'), 0);
+    }
+  }
+}
 
 async function ensureAvatarCacheConsistency(reason: string, forceDownload = false) {
   const logId = `AVATAR_VERIFY_${Date.now()}_${reason}`
@@ -431,6 +459,7 @@ function handleChatMessage(detail: any) {
   const payload = detail?.message ?? detail
   console.log('处理聊天消息:', payload)
   // 这里可以更新聊天界面，播放提示音等
+  triggerCrossAccountUnreadRefresh('ws-chat-message')
 }
 
 function handleAIMessage(detail: any) {
@@ -443,6 +472,7 @@ function handleFriendChange(detail: any) {
   console.log('处理好友变化:', detail);
   // 收到好友申请相关消息后，重新获取数量
   store.dispatch('updatePendingFriendRequests');
+  triggerCrossAccountUnreadRefresh('friend-change')
 }
 
 function handleDeleteFriend(detail: any) {
@@ -458,6 +488,7 @@ function handleDeleteFriend(detail: any) {
   
   // 好友被删除后，也需要更新申请数量
   store.dispatch('updatePendingFriendRequests');
+  triggerCrossAccountUnreadRefresh('friend-delete')
 }
 
 function handleFriendCircle(detail: any) {
@@ -815,9 +846,7 @@ onMounted(async () => {
       
       // 立即执行一次
       if (accounts.value.length > 1) {
-        store.dispatch('accounts/refreshAllAccountsUnreadCount').catch(error => {
-          console.error('[App.vue] ❌ 刷新账号未读数失败:', error);
-        });
+        triggerCrossAccountUnreadRefresh('initial');
       }
       
       // 每10秒刷新一次
@@ -825,11 +854,9 @@ onMounted(async () => {
         // 只有在有多个账号时才刷新
         if (accounts.value.length > 1) {
           console.log('[App.vue] 🔄 定时刷新所有账号未读数');
-          store.dispatch('accounts/refreshAllAccountsUnreadCount').catch(error => {
-            console.error('[App.vue] ❌ 刷新账号未读数失败:', error);
-          });
+          triggerCrossAccountUnreadRefresh('interval');
         }
-      }, 10000); // 10秒
+      }, CROSS_ACCOUNT_REFRESH_INTERVAL);
       
       console.log('✅ 已启动账号未读数定时刷新');
     };
@@ -844,6 +871,8 @@ onMounted(async () => {
         } else if (newLength <= 1 && unreadRefreshTimer) {
           clearInterval(unreadRefreshTimer);
           unreadRefreshTimer = null;
+          unreadRefreshInProgress = false;
+          unreadRefreshPending = false;
           console.log('✅ 已停止账号未读数定时刷新（账号数量 <= 1）');
         }
       },

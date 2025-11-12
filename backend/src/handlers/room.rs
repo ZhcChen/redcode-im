@@ -181,7 +181,14 @@ pub async fn leave_room(
 #[derive(Serialize)]
 pub struct RoomMemberDto {
     pub user_id: Uuid,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nickname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
     pub role: MemberRole,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub joined_at: Option<String>,
 }
 
 pub async fn list_members(
@@ -189,13 +196,17 @@ pub async fn list_members(
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoomMemberDto>>, AppError> {
     let store = RoomStore::new(state.database.pool());
-    let rows = store.list_members(room_id).await?;
+    let rows = store.list_members_with_user_info(room_id).await?;
 
     let items = rows
         .into_iter()
         .map(|rm| RoomMemberDto {
             user_id: rm.user_id,
+            username: rm.username,
+            nickname: rm.nickname,
+            avatar_url: rm.avatar_url,
             role: rm.role,
+            joined_at: rm.joined_at.map(|dt| dt.to_rfc3339()),
         })
         .collect();
 

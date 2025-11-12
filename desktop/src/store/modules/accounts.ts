@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { apiConfig } from '@/api/config'
 
 /**
  * 账号信息接口
@@ -439,56 +440,71 @@ const accountsModule = {
      * 用于定期检查非当前账号的未读消息
      */
     async refreshAllAccountsUnreadCount({ commit, state, rootState }) {
-      // 保存当前token和账号
-      const currentAccountId = state.currentAccountId
-      const currentAccount = state.accounts.find(acc => acc.id === currentAccountId)
-      if (!currentAccount) {
+      if (state.accounts.length === 0) {
         return
       }
 
-      // 导入必要的API
-      const { GroupApi } = await import('@/api/group')
-      const { FriendApi } = await import('@/api/friend')
-      const { syncRustBackendToken } = await import('@/api/http')
+      await Promise.all(
+        state.accounts.map(async account => {
+          try {
+            const [chatResponse, friendResponse] = await Promise.all([
+              fetchJsonWithAccountToken('/chats', account.token),
+              fetchJsonWithAccountToken('/friends/requests?direction=incoming&status=pending', account.token)
+            ])
 
-      // 遍历所有账号（包括当前账号）
-      for (const account of state.accounts) {
-        try {
-          // 暂时切换到目标账号的token
-          await syncRustBackendToken(account.token)
+            if (chatResponse?.success && Array.isArray(chatResponse.data)) {
+              const totalUnread = chatResponse.data.reduce((sum: number, chat: any) => {
+                return sum + (chat.unread_count ?? chat.unreadCount ?? 0)
+              }, 0)
 
-          // 获取聊天列表
-          const chatResponse = await GroupApi.getMyChatGroupList()
-          if (chatResponse.success && Array.isArray(chatResponse.data)) {
-            // 计算未读消息总数
-            const totalUnread = chatResponse.data.reduce((sum, chat) => {
-              return sum + (chat.unreadCount || 0)
-            }, 0)
+              commit('UPDATE_UNREAD_COUNT', {
+                accountId: account.id,
+                count: totalUnread
+              })
+            }
 
-            // 更新账号未读数
-            commit('UPDATE_UNREAD_COUNT', {
-              accountId: account.id,
-              count: totalUnread
-            })
+            if (friendResponse?.success) {
+              const pendingList = Array.isArray(friendResponse.data) ? friendResponse.data : []
+              const pendingCount = pendingList.length
+              commit('UPDATE_FRIEND_REQUEST_COUNT', {
+                accountId: account.id,
+                count: pendingCount
+              })
+
+              if (state.currentAccountId === account.id) {
+                commit('SET_PENDING_FRIEND_REQUESTS', pendingCount, { root: true })
+              }
+            }
+          } catch (error) {
+            console.error(`刷新账号 ${account.userInfo.nickname} 未读数失败:`, error)
           }
-
-          // 获取好友请求数
-          const friendRequestResponse = await FriendApi.getPendingFriendRequestCount()
-          if (friendRequestResponse.success && typeof friendRequestResponse.data === 'number') {
-            // 更新好友请求数
-            commit('UPDATE_FRIEND_REQUEST_COUNT', {
-              accountId: account.id,
-              count: friendRequestResponse.data
-            })
-          }
-        } catch (error) {
-          console.error(`刷新账号 ${account.userInfo.nickname} 未读数失败:`, error)
-        }
-      }
-
-      // 恢复当前账号的token
-      await syncRustBackendToken(currentAccount.token)
+        })
+      )
     }
+  }
+}
+
+async function fetchJsonWithAccountToken(path: string, token: string) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+
+  try {
+    const response = await fetch(`${apiConfig.API_BASE_URL}${path}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      },
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    return await response.json()
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

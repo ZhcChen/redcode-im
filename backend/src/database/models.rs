@@ -398,6 +398,17 @@ pub struct RoomMember {
     pub notification_settings: NotificationSetting,
 }
 
+/// 包含用户信息的房间成员（用于 API 返回）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RoomMemberWithUserInfo {
+    pub user_id: Uuid,
+    pub username: String,
+    pub nickname: Option<String>,
+    pub avatar_url: Option<String>,
+    pub role: MemberRole,
+    pub joined_at: Option<DateTime<Utc>>,
+}
+
 /// 通知设置枚举
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
 #[repr(i32)]

@@ -13,6 +13,12 @@
 
         <!-- 联系人列表 -->
         <div class="contact-list">
+          <!-- 空状态提示 -->
+          <div v-if="filteredContacts.length === 0" class="empty-state">
+            <div class="empty-text">{{ searchKeyword ? '未找到匹配的联系人' : '暂无可添加的联系人' }}</div>
+            <div v-if="!searchKeyword && props.contacts.length === 0" class="empty-hint">请先添加好友</div>
+          </div>
+          
           <div
             v-for="contact in filteredContacts"
             :key="contact.id"
@@ -189,6 +195,25 @@ watch(() => props.visible, (newVisible) => {
     flex: 1;
     overflow-y: auto;
     padding: 0 20px;
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      
+      .empty-text {
+        font-size: 14px;
+        color: #999;
+        margin-bottom: 8px;
+      }
+      
+      .empty-hint {
+        font-size: 12px;
+        color: #ccc;
+      }
+    }
 
     .contact-item {
       display: flex;
