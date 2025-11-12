@@ -855,7 +855,7 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
 };
 
 const updateAttachmentProgress = (messageId: string, attachmentKey: string, progress: number | null) => {
-  const index = messages.value.findIndex((msg) => msg.id === messageId);
+  const index = messages.value.findIndex((msg: Message) => msg.id === messageId);
   if (index === -1) {
     return;
   }
@@ -867,7 +867,7 @@ const updateAttachmentProgress = (messageId: string, attachmentKey: string, prog
 
   let changed = false;
 
-  const updatedParts = message.parts.map((part) => {
+  const updatedParts = message.parts.map((part: MessagePart) => {
     if (part.attachment?.key !== attachmentKey) {
       return part;
     }
@@ -1035,7 +1035,10 @@ const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string |
 
     const bytes = base64ToUint8Array(response.data.base64);
     const contentType = mime || response.data.headers?.['content-type'] || undefined;
-    const blob = new Blob([bytes], { type: contentType });
+    const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+    const view = new Uint8Array(arrayBuffer);
+    view.set(bytes);
+    const blob = new Blob([arrayBuffer], { type: contentType });
     const objectUrl = URL.createObjectURL(blob);
     return { localPath: objectUrl, fromBlob: true };
   } catch (error) {
@@ -1045,7 +1048,7 @@ const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string |
 };
 
 const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localPath: string | null, extra: { downloadUrl?: string | null } = {}) => {
-  const index = messages.value.findIndex((msg) => msg.id === messageId);
+  const index = messages.value.findIndex((msg: Message) => msg.id === messageId);
   if (index === -1) {
     return;
   }
@@ -1057,7 +1060,7 @@ const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localP
 
   let changed = false;
 
-  const updatedParts = message.parts.map((part) => {
+  const updatedParts = message.parts.map((part: MessagePart) => {
     if (!part.attachment || part.attachment.key !== attachmentKey) {
       return part;
     }
@@ -1264,48 +1267,48 @@ interface Message {
 
 const route = useRoute()
 const router = useRouter()
-const store = useStore()
-const selectedChat = ref<ChatItem | null>(null)
-const newMessage = ref('')
-const searchText = ref('')
-const isResizing = ref(false)
-const startX = ref(0)
-const startWidth = ref(0)
+const store = useStore() as any
+const selectedChat = (ref as any)<ChatItem | null>(null)
+const newMessage = (ref as any)<string>('')
+const searchText = (ref as any)<string>('')
+const isResizing = (ref as any)<boolean>(false)
+const startX = (ref as any)<number>(0)
+const startWidth = (ref as any)<number>(0)
 
 // 搜索功能状态
-const showSearchDialog = ref(false)
-const availableRoomsForSearch = ref<Array<{ id: string; name: string }>>([])
-const availableSendersForSearch = ref<Array<{ id: string; name: string }>>([])
+const showSearchDialog = (ref as any)<boolean>(false)
+const availableRoomsForSearch = (ref as any)<Array<{ id: string; name: string }>>([])
+const availableSendersForSearch = (ref as any)<Array<{ id: string; name: string }>>([])
 
 // 表情选择器状态
-const showEmojiPicker = ref(false)
+const showEmojiPicker = (ref as any)<boolean>(false)
 
 // 媒体预览状态
-const showMediaPreview = ref(false)
-const previewMediaSrc = ref('')
+const showMediaPreview = (ref as any)<boolean>(false)
+const previewMediaSrc = ref<string>('')
 const previewMediaType = ref<'image' | 'video'>('image')
-const previewMediaName = ref('')
-const previewMediaSize = ref(0)
+const previewMediaName = ref<string>('')
+const previewMediaSize = ref<number>(0)
 
 // 群组创建相关状态
-const showCreateGroupDialog = ref(false)
-const showAddMemberDialog = ref(false)
-const isCreatingGroup = ref(false)
-const isLoadingContacts = ref(false)
+const showCreateGroupDialog = ref<boolean>(false)
+const showAddMemberDialog = ref<boolean>(false)
+const isCreatingGroup = ref<boolean>(false)
+const isLoadingContacts = ref<boolean>(false)
 const contacts = ref<any[]>([])
 const pendingGroupData = ref<any>(null)
 
 // 聊天列表右键菜单状态
-const showContextMenu = ref(false)
-const contextMenuPosition = ref({ x: 0, y: 0 })
+const showContextMenu = ref<boolean>(false)
+const contextMenuPosition = ref<{ x: number; y: number }>({ x: 0, y: 0 })
 const contextMenuChat = ref<ChatItem | null>(null)
 
 // 删除对话确认对话框状态
-const showDeleteConfirm = ref(false)
+const showDeleteConfirm = ref<boolean>(false)
 const deleteTargetChat = ref<ChatItem | null>(null)
 
 // 群设置抽屉状态
-const showGroupSettings = ref(false)
+const showGroupSettings = ref<boolean>(false)
 
 // 群成员数据
 const groupMembers = ref<RoomMember[]>([])
@@ -1317,28 +1320,28 @@ const availableContactsForGroup = computed(() => {
   }
 
   // 获取已在群里的成员 ID 列表
-  const existingMemberIds = new Set(groupMembers.value.map(member => member.userId))
+  const existingMemberIds = new Set(groupMembers.value.map((member: RoomMember) => member.userId))
 
   // 过滤掉已在群里的联系人
-  return contacts.value.filter(contact => !existingMemberIds.has(contact.id))
+  return contacts.value.filter((contact: any) => !existingMemberIds.has(contact.id))
 })
 
 // 群名修改相关状态
-const showEditGroupNameDialog = ref(false)
-const editingGroupName = ref('')
-const isUpdatingGroupName = ref(false)
-const groupNameError = ref('')
+const showEditGroupNameDialog = ref<boolean>(false)
+const editingGroupName = ref<string>('')
+const isUpdatingGroupName = ref<boolean>(false)
+const groupNameError = ref<string>('')
 
 // 群公告修改相关状态
-const showEditGroupNoticeDialog = ref(false)
-const editingGroupNotice = ref('')
-const isUpdatingGroupNotice = ref(false)
+const showEditGroupNoticeDialog = ref<boolean>(false)
+const editingGroupNotice = ref<string>('')
+const isUpdatingGroupNotice = ref<boolean>(false)
 
 // 消息列表相关
 const messageList = ref<Message[]>([])
 
 // 语音相关状态
-const showVoiceRecorder = ref(false)
+const showVoiceRecorder = ref<boolean>(false)
 
 // 聊天消息容器引用
 const chatMessagesRef = ref<HTMLElement | null>(null)
@@ -1348,12 +1351,12 @@ const messageInput = ref<HTMLTextAreaElement | null>(null)
 const chatList = computed(() => store.getters.chatList)
 const messages = ref<Message[]>([])
 const loading = computed(() => store.getters.chatListLoading)
-const messagesLoading = ref(false)
+const messagesLoading = ref<boolean>(false)
 const currentUserId = computed(() => store.getters.currentUser.id)
 
 watch(
   () => [selectedChat.value?.groupId, messages.value] as [string | undefined | null, Message[]],
-  ([groupId, messageList]) => {
+  ([groupId, messageList]: [string | undefined | null, Message[]]) => {
     if (!groupId) {
       return
     }
@@ -1363,7 +1366,7 @@ watch(
 )
 
 // 添加本地初始化状态，避免重复加载
-const isInitialized = ref(false)
+const isInitialized = ref<boolean>(false)
 
 // 新增：跟踪最近发送的消息，用于避免重复
 const recentSentMessages = ref<Set<string>>(new Set())
@@ -1403,7 +1406,7 @@ const loadChatList = async (forceRefresh = false) => {
     })
 
     const roomIds = chatList.value
-      .map(chat => chat.groupId)
+      .map((chat: ChatItem) => chat.groupId)
       .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0)
 
     webSocketManager.ensureRoomsSubscribed(roomIds, false)
@@ -1647,7 +1650,7 @@ const loadMessages = async (groupId: string) => {
       await persistMessagesCache(groupId, sortedMessages)
       
       console.log('✅ 消息加载成功:', messages.value.length, '条消息')
-      console.log('📋 消息详情（按时间排序）:', messages.value.map(msg => ({
+      console.log('📋 消息详情（按时间排序）:', messages.value.map((msg: Message) => ({
         id: msg.id,
         content: msg.content,
         isSelf: msg.isSelf,
@@ -2225,7 +2228,7 @@ const scrollToBottom = (force = false) => {
     setTimeout(scroll, 50)
 
     // 如果强制滚动或有图片消息，额外延迟确保图片加载完成
-    if (force || messages.value.some(msg =>
+    if (force || messages.value.some((msg: Message) =>
       msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
       msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
     )) {
@@ -2333,7 +2336,7 @@ const restoreAccountState = (accountId: string) => {
 // 监听账号切换，保存/恢复状态
 watch(
   () => store.state.accounts?.currentAccountId,
-  (newAccountId, oldAccountId) => {
+  (newAccountId: any, oldAccountId: any) => {
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
       console.log('🔄 检测到账号切换', {
         from: oldAccountId,
