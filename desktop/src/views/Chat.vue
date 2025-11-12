@@ -3365,35 +3365,41 @@ const handleContextMenuMute = async (chat: ChatItem) => {
 const handleContextMenuDelete = async (chat: ChatItem) => {
   try {
     // 确认删除
-    if (!confirm(`确定要删除与"${chat.name}"的对话吗？`)) {
+    if (!confirm(`确定要删除与"${chat.name}"的对话吗？\n\n注意：这只会从列表中移除对话，不会删除服务器上的消息记录。`)) {
       return
     }
     
     console.log('🔄 删除对话:', chat.name)
     
-    // 调用API
-    const response = await GroupApi.deleteChat({ roomId: chat.groupId })
-    
-    if (response.success) {
-      // 如果删除的是当前选中的对话，清空选中状态
-      if (selectedChat.value && selectedChat.value.id === chat.id) {
-        selectedChat.value = null
-        messages.value = []
+    // 尝试调用后端 API（如果后端支持）
+    try {
+      const response = await GroupApi.deleteChat({ roomId: chat.groupId })
+      
+      if (!response.success) {
+        console.warn('⚠️ 后端删除失败，将只进行前端删除:', response.message)
+      } else {
+        console.log('✅ 后端删除成功')
       }
-      
-      // 从本地列表中移除
-      const chatIndex = chatList.value.findIndex(c => c.id === chat.id)
-      if (chatIndex !== -1) {
-        chatList.value.splice(chatIndex, 1)
-      }
-      
-      // 更新 store
-      store.dispatch('removeChatItem', chat.id)
-      
-      toast.success('对话已删除')
-    } else {
-      toast.error(response.message || '删除失败')
+    } catch (apiError: any) {
+      // API 调用失败，可能后端还未实现，继续进行前端删除
+      console.warn('⚠️ 删除 API 调用失败，将只进行前端删除:', apiError.message)
     }
+    
+    // 无论后端是否成功，都进行前端删除
+    // 如果删除的是当前选中的对话，清空选中状态
+    if (selectedChat.value && selectedChat.value.id === chat.id) {
+      selectedChat.value = null
+      messages.value = []
+      
+      // 清空当前房间 ID
+      store.commit('SET_CURRENT_CHAT_GROUP_ID', null)
+    }
+    
+    // 通过 store 删除（这会触发 computed 重新计算）
+    store.dispatch('removeChatItem', chat.id)
+    
+    console.log('✅ 已从聊天列表移除:', chat.name)
+    toast.success('对话已从列表中移除')
   } catch (error: any) {
     console.error('删除对话失败:', error)
     toast.error(error.message || '删除失败')
