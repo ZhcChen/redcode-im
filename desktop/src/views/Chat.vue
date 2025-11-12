@@ -61,7 +61,11 @@
           </div>
         </div>
         <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" @contextmenu.prevent="handleChatContextMenu(chat, $event)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
-          <Avatar :src="chat.avatar" :text="chat.name" :size="48" />
+          <div class="avatar-container">
+            <Avatar :src="chat.avatar" :text="chat.name" :size="48" />
+            <!-- 免打扰状态的小红点 -->
+            <div v-if="chat.chatStatus === 1 && chat.unreadCount > 0" class="mute-dot"></div>
+          </div>
           <div class="chat-info">
             <div class="chat-name-time">
               <div class="chat-name">
@@ -75,7 +79,8 @@
             </div>
             <div class="chat-message-badge">
               <div class="chat-message">{{ chat.lastMessage }}</div>
-              <div v-if="chat.unreadCount > 0" class="chat-badge">{{ chat.unreadCount }}</div>
+              <!-- 非免打扰状态显示未读角标 -->
+              <div v-if="chat.unreadCount > 0 && chat.chatStatus !== 1" class="chat-badge">{{ chat.unreadCount }}</div>
             </div>
           </div>
         </div>
@@ -5584,6 +5589,26 @@ const loadMessageList = async (groupId: string) => {
   font-size: 12px;
   margin-left: 4px;
   color: #ffa502;
+}
+
+// 头像容器样式
+.avatar-container {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+// 免打扰状态的小红点
+.mute-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background-color: #ff4757;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  z-index: 1;
 }
 
 .chat-type {
