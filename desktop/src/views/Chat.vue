@@ -1264,6 +1264,7 @@ interface ChatItem {
   showNoticeFlag?: boolean
   userAvatar?: string | null
   friendName?: string | null
+  remark?: string | null
 }
 
 interface Message {
@@ -3720,27 +3721,28 @@ const handleConfirmEditRemark = async () => {
 
     console.log('🔄 正在更新备注:', newRemark)
 
-    // TODO: 调用API更新备注
-    // 这里需要根据实际API接口来实现
-    // const response = await FriendApi.updateRemark({
-    //   friendId: selectedChat.value.groupId,
-    //   remark: newRemark
-    // })
-
-    // 暂时模拟成功
-    const response = { success: true, data: null, message: null as string | null }
+    // 调用API更新备注
+    const response = await FriendApi.updateRemark({
+      friendId: selectedChat.value.groupId,
+      remark: newRemark
+    })
 
     if (response.success) {
       // 更新本地数据
       if (selectedChat.value) {
         selectedChat.value.remark = newRemark
-        
+
         // 更新聊天列表中的对应项
         const chatItem = chatList.value.find((chat: ChatItem) => chat.id === selectedChat.value?.id)
         if (chatItem) {
           chatItem.remark = newRemark
+          // 更新显示名称，优先使用备注
+          chatItem.name = newRemark
         }
       }
+
+      // 刷新联系人列表以同步备注
+      await store.dispatch('getFriendList')
 
       console.log('✅ 备注修改成功:', newRemark)
       toast.success('备注修改成功')

@@ -1358,10 +1358,12 @@ export const store = createStore<State>({
                             }
                         }
 
+                        let friendRemark: string | null = null
                         if (!resolvedName && friendId && contactsMap.has(friendId)) {
                             const contact = contactsMap.get(friendId)
                             const remark = normalizeString(contact?.remark)
                             const contactName = normalizeString(contact?.name)
+                            friendRemark = remark
                             resolvedName = remark || contactName || resolvedName
                             if (!avatar) {
                                 avatar = normalizeString(contact?.avatar)
@@ -1388,6 +1390,7 @@ export const store = createStore<State>({
                             name: resolvedName,
                             friendName: resolvedName,
                             avatar,
+                            remark: friendRemark,
                         }
                     }
 
@@ -1454,7 +1457,8 @@ export const store = createStore<State>({
                             groupNotice,
                             showNoticeFlag: !!(groupNotice && groupNotice.trim().length > 0),
                             userAvatar: isPrivateChat ? (displayAvatar || null) : undefined,
-                            friendName: privateDisplay?.friendName || null
+                            friendName: privateDisplay?.friendName || null,
+                            remark: privateDisplay?.remark || null
                         }
                     })
 

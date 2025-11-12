@@ -1,4 +1,4 @@
-import { del, get, post } from "./http";
+import { del, get, patch, post } from "./http";
 import type { ApiResponse } from "./http";
 import type {
   AuthUser,
@@ -291,5 +291,19 @@ export class FriendApi {
         friendAvatar: response.data.friend_avatar ?? null,
       },
     };
+  }
+
+  static async updateRemark(params: {
+    friendId: string;
+    remark: string | null;
+  }): Promise<ApiResponse<{ remark: string | null }>> {
+    const response = await patch<{ remark: string | null }>(
+      `/friends/${params.friendId}/remark`,
+      {
+        remark: params.remark,
+      },
+    );
+
+    return response;
   }
 }
