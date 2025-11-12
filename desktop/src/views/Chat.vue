@@ -1638,8 +1638,8 @@ const loadMessages = async (groupId: string) => {
       // 使用 createTime 或 timestamp 进行排序
       const sortedMessages = convertedMessages.sort((a, b) => {
         // 优先使用 timestamp，如果没有则使用 createTime
-        const timeA = a.timestamp || new Date(a.createTime).getTime()
-        const timeB = b.timestamp || new Date(b.createTime).getTime()
+        const timeA = a.timestamp || (a.createTime ? new Date(a.createTime).getTime() : 0)
+        const timeB = b.timestamp || (b.createTime ? new Date(b.createTime).getTime() : 0)
         return timeA - timeB // 升序排列
       })
       
@@ -4854,17 +4854,24 @@ const handleVoiceSend = async (recording: any) => {
 
     // 2. 直接上传到COS
     const { key, signature } = signatureResponse.data
-    const headers = new Headers(signature.headers || {})
-    headers.set('Content-Type', 'audio/webm')
-    if (!headers.has('Content-Length')) {
-      headers.set('Content-Length', String(recording.blob.size))
+    const headersObj: Record<string, string> = {}
+    
+    // 将 Headers 转换为普通对象
+    if (signature.headers) {
+      Object.entries(signature.headers).forEach(([key, value]) => {
+        headersObj[key] = String(value)
+      })
+    }
+    headersObj['Content-Type'] = 'audio/webm'
+    if (!headersObj['Content-Length']) {
+      headersObj['Content-Length'] = String(recording.blob.size)
     }
 
     const voiceBuffer = new Uint8Array(await recording.blob.arrayBuffer())
     const uploadResponse = await rustHttp.requestRaw({
       path: signature.url,
       method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
-      headers,
+      headers: headersObj,
       binaryBody: voiceBuffer,
       injectToken: false,
       forceStreaming: true
@@ -4879,11 +4886,11 @@ const handleVoiceSend = async (recording: any) => {
       groupId: selectedChat.value.id,
       content: '', // 语音消息通常不包含文字内容
       parts: [{
-        partType: 4, // AUDIO_CONTENT_TYPE
-        objectKey: key,
-        originalName: `voice_${recording.id}.webm`,
-        mimeType: 'audio/webm',
-        duration: Math.round(recording.duration),
+        type: 'audio',
+        key,
+        name: `voice_${recording.id}.webm`,
+        mime: 'audio/webm',
+        durationMs: Math.round(recording.duration),
       }],
     })
 
@@ -4918,7 +4925,10 @@ const loadMessageList = async (groupId: string) => {
   
   try {
     messagesLoading.value = true
-    const response = await MessageApi.listMessages({ roomId: groupId })
+    const response = await MessageApi.getMessageListByChatGroupId({ 
+      groupId,
+      currentUserId: currentUserId.value 
+    })
     if (response.success && response.data) {
       messages.value = response.data
     }
