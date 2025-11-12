@@ -43,6 +43,10 @@
         <div v-if="selectedChat.groupType === 1" class="group-settings-btn" @click="showGroupSettings = true">
           <img src="@/assets/image/icon-menu.svg" alt="群设置" class="settings-icon" />
         </div>
+        <!-- 单聊设置按钮 -->
+        <div v-if="selectedChat.groupType === 0" class="group-settings-btn" @click="showGroupSettings = true">
+          <img src="@/assets/image/icon-menu.svg" alt="聊天设置" class="settings-icon" />
+        </div>
       </div>
       <h2 v-else></h2>
     </div>
