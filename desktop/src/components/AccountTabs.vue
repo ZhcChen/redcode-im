@@ -23,14 +23,6 @@
           <!-- 昵称 -->
           <span class="nickname">{{ account.userInfo.nickname || '未命名' }}</span>
 
-          <!-- 角标 -->
-          <span 
-            v-if="getUnreadCount(account) > 0" 
-            class="badge"
-          >
-            {{ formatBadgeCount(getUnreadCount(account)) }}
-          </span>
-
           <!-- 关闭按钮 -->
           <button
             v-if="accounts.length > 1"
@@ -64,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useStore } from 'vuex'
 import type { AccountInfo } from '@/store/modules/accounts'
 
@@ -90,6 +82,27 @@ const emit = defineEmits<{
 
 const store = useStore()
 
+// 监听账号列表变化
+watch(() => props.accounts, (newAccounts) => {
+  const accountsInfo = newAccounts.map(a => ({
+    id: a.id,
+    nickname: a.userInfo.nickname,
+    unreadCount: a.unreadCount,
+    friendRequestCount: a.friendRequestCount,
+    total: (a.unreadCount || 0) + (a.friendRequestCount || 0)
+  }))
+  
+  console.log('[账号标签] 📋 账号列表更新', {
+    count: newAccounts.length,
+    accounts: accountsInfo
+  })
+  
+  // 打印每个账号的详细信息
+  accountsInfo.forEach((acc, idx) => {
+    console.log(`[账号标签] 账号${idx + 1}: ${acc.nickname} - 消息:${acc.unreadCount}, 好友:${acc.friendRequestCount}, 总计:${acc.total}`)
+  })
+}, { deep: true, immediate: true })
+
 // 拖拽相关状态
 const draggedAccountId = ref<string | null>(null)
 const dragOverAccountId = ref<string | null>(null)
@@ -105,15 +118,13 @@ function hasUnreadMessages(account: AccountInfo): boolean {
 
 // 获取账号的未读总数（消息未读数 + 好友申请未读数）
 function getUnreadCount(account: AccountInfo): number {
-  let count = account.unreadCount || 0
+  const messageUnread = account.unreadCount || 0
+  const friendRequestUnread = account.friendRequestCount || 0
+  const total = messageUnread + friendRequestUnread
   
-  // 如果是当前账号，加上好友申请数量
-  if (account.id === props.currentAccountId) {
-    const pendingFriendRequests = store.getters.pendingFriendRequests || 0
-    count += pendingFriendRequests
-  }
+  console.log(`[账号标签] 📊 计算未读总数 - ${account.userInfo.nickname}: 消息=${messageUnread}, 好友=${friendRequestUnread}, 总计=${total}`)
   
-  return count
+  return total
 }
 
 // 格式化角标数字显示

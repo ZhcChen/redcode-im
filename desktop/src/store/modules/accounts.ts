@@ -15,6 +15,7 @@ export interface AccountInfo {
     avatarLocalPath: string | null
   }
   unreadCount: number // 未读消息数
+  friendRequestCount: number // 好友请求未读数
   createdAt: number // 添加时间戳
 }
 
@@ -102,6 +103,7 @@ const accountsModule = {
 
       state.accounts.push({
         ...normalizedAccount,
+        friendRequestCount: normalizedAccount.friendRequestCount || 0,
         createdAt: Date.now()
       })
 
@@ -152,9 +154,13 @@ const accountsModule = {
      * 更新账号未读数
      */
     UPDATE_UNREAD_COUNT(state, payload: { accountId: string; count: number }) {
-      const account = state.accounts.find(acc => acc.id === payload.accountId)
-      if (account) {
-        account.unreadCount = payload.count
+      const index = state.accounts.findIndex(acc => acc.id === payload.accountId)
+      if (index !== -1) {
+        // 创建新对象以触发 Vue 响应式更新
+        state.accounts[index] = {
+          ...state.accounts[index],
+          unreadCount: payload.count
+        }
       }
     },
 
@@ -162,9 +168,13 @@ const accountsModule = {
      * 增加账号未读数
      */
     INCREMENT_UNREAD_COUNT(state, accountId: string) {
-      const account = state.accounts.find(acc => acc.id === accountId)
-      if (account) {
-        account.unreadCount++
+      const index = state.accounts.findIndex(acc => acc.id === accountId)
+      if (index !== -1) {
+        // 创建新对象以触发 Vue 响应式更新
+        state.accounts[index] = {
+          ...state.accounts[index],
+          unreadCount: state.accounts[index].unreadCount + 1
+        }
       }
     },
 
@@ -172,9 +182,59 @@ const accountsModule = {
      * 清空账号未读数
      */
     CLEAR_UNREAD_COUNT(state, accountId: string) {
-      const account = state.accounts.find(acc => acc.id === accountId)
-      if (account) {
-        account.unreadCount = 0
+      const index = state.accounts.findIndex(acc => acc.id === accountId)
+      if (index !== -1) {
+        // 创建新对象以触发 Vue 响应式更新
+        state.accounts[index] = {
+          ...state.accounts[index],
+          unreadCount: 0
+        }
+      }
+    },
+
+    /**
+     * 更新账号好友请求数
+     */
+    UPDATE_FRIEND_REQUEST_COUNT(state, payload: { accountId: string; count: number }) {
+      console.log('[账号模块] 🔔 UPDATE_FRIEND_REQUEST_COUNT 被调用', {
+        accountId: payload.accountId,
+        count: payload.count,
+        allAccounts: state.accounts.map(a => ({ id: a.id, nickname: a.userInfo.nickname, friendRequestCount: a.friendRequestCount }))
+      })
+      const index = state.accounts.findIndex(acc => acc.id === payload.accountId)
+      if (index !== -1) {
+        const account = state.accounts[index]
+        const oldCount = account.friendRequestCount
+        
+        // 创建新对象以触发 Vue 响应式更新
+        state.accounts[index] = {
+          ...account,
+          friendRequestCount: payload.count
+        }
+        
+        console.log('[账号模块] ✅ 已更新账号好友请求数', {
+          accountId: payload.accountId,
+          nickname: account.userInfo.nickname,
+          oldCount,
+          newCount: payload.count,
+          triggeredUpdate: true
+        })
+      } else {
+        console.warn('[账号模块] ⚠️ 未找到账号', payload.accountId)
+      }
+    },
+
+    /**
+     * 清空账号好友请求数
+     */
+    CLEAR_FRIEND_REQUEST_COUNT(state, accountId: string) {
+      const index = state.accounts.findIndex(acc => acc.id === accountId)
+      if (index !== -1) {
+        // 创建新对象以触发 Vue 响应式更新
+        state.accounts[index] = {
+          ...state.accounts[index],
+          friendRequestCount: 0
+        }
       }
     },
 
@@ -375,6 +435,24 @@ const accountsModule = {
         accountId,
         count: totalUnread
       })
+    },
+
+    /**
+     * 同步账号好友请求数（从全局状态同步到当前账号）
+     */
+    syncAccountFriendRequestCount({ commit, state, rootGetters }, accountId: string) {
+      console.log('[账号模块] 🔄 syncAccountFriendRequestCount 被调用', {
+        accountId,
+        pendingFriendRequests: rootGetters.pendingFriendRequests
+      })
+      // 从全局状态获取好友请求数
+      const friendRequestCount = rootGetters.pendingFriendRequests || 0
+
+      // 更新账号好友请求数
+      commit('UPDATE_FRIEND_REQUEST_COUNT', {
+        accountId,
+        count: friendRequestCount
+      })
     }
   }
 }
@@ -454,6 +532,7 @@ async function loadAccountsFromRust(): Promise<AccountInfo[]> {
         avatarLocalPath: acc.avatar_local_path || null
       },
       unreadCount: 0, // 暂时设为 0，后续可以从设置中加载
+      friendRequestCount: 0, // 暂时设为 0，后续可以从设置中加载
       createdAt: acc.created_at
     }))
   } catch (error) {

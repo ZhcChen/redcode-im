@@ -23,7 +23,15 @@ const networkState = computed(() => store.state.networkState);
 const globalLoading = computed(() => store.getters.globalLoading);
 
 // 多账号相关计算属性
-const accounts = computed(() => store.getters['accounts/allAccounts']);
+const accounts = computed(() => {
+  const allAccounts = store.getters['accounts/allAccounts'];
+  console.log('[App.vue] 📊 accounts computed 被调用，账号数量:', allAccounts.length, allAccounts.map((a: any) => ({
+    nickname: a.userInfo.nickname,
+    unreadCount: a.unreadCount,
+    friendRequestCount: a.friendRequestCount
+  })));
+  return allAccounts;
+});
 const currentAccountId = computed(() => store.state.accounts.currentAccountId);
 const isLoggedIn = computed(() => store.getters.isLoggedIn);
 // 只有多个账号时才显示切换标签

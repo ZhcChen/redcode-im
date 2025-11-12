@@ -415,6 +415,11 @@ export const store = createStore<State>({
 
         // 设置待处理的好友申请数量
         SET_PENDING_FRIEND_REQUESTS(state: State, count: number) {
+            console.log('[全局状态] 🔔 SET_PENDING_FRIEND_REQUESTS 被调用', {
+                oldCount: state.pendingFriendRequests,
+                newCount: count,
+                currentAccountId: state.accounts?.currentAccountId
+            })
             state.pendingFriendRequests = count
         },
 
@@ -1025,21 +1030,43 @@ export const store = createStore<State>({
         },
 
         // 更新待处理的好友申请数量
-        async updatePendingFriendRequests({commit}: { commit: any }) {
+        async updatePendingFriendRequests({commit, dispatch, state}: { commit: any; dispatch: any; state: State }) {
+            console.log('[全局状态] 🚀 updatePendingFriendRequests 开始执行', {
+                currentAccountId: state.accounts?.currentAccountId
+            })
             try {
                 // 导入 FriendApi 并调用 API
                 const { FriendApi } = await import('../api/friend')
                 const response = await FriendApi.getPendingFriendRequestCount()
 
+                console.log('[全局状态] 📡 API 响应', {
+                    success: response.success,
+                    data: response.data
+                })
+
                 if (response.success && typeof response.data === 'number') {
+                    // 更新全局状态
                     commit('SET_PENDING_FRIEND_REQUESTS', response.data)
-                    console.log('✅ 更新待处理好友申请数量:', response.data)
+                    console.log('[全局状态] ✅ 更新待处理好友申请数量:', response.data)
+                    
+                    // 同步到当前账号
+                    const currentAccountId = state.accounts?.currentAccountId
+                    if (currentAccountId) {
+                        console.log('[全局状态] 🔄 准备同步到当前账号', currentAccountId)
+                        // 调用账号模块的 mutation
+                        commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
+                            accountId: currentAccountId,
+                            count: response.data
+                        }, { root: true })
+                    } else {
+                        console.warn('[全局状态] ⚠️ 没有当前账号，跳过同步')
+                    }
                 } else {
                     commit('SET_PENDING_FRIEND_REQUESTS', 0)
-                    console.warn('⚠️ API调用失败，设置好友申请数量为0')
+                    console.warn('[全局状态] ⚠️ API调用失败，设置好友申请数量为0')
                 }
             } catch (error) {
-                console.error('❌ 获取好友申请数量失败:', error)
+                console.error('[全局状态] ❌ 获取好友申请数量失败:', error)
                 // 如果发生错误，使用默认值0
                 commit('SET_PENDING_FRIEND_REQUESTS', 0)
             }
