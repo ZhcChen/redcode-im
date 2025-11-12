@@ -467,7 +467,7 @@
   <ConfirmDialog
     v-model:visible="showDeleteConfirm"
     title="删除对话"
-    :message="`确定要删除与"${deleteTargetChat?.name}"的对话吗？`"
+    :message="`确定要删除与'${deleteTargetChat?.name}'的对话吗？`"
     description="这只会从列表中移除对话，不会删除服务器上的消息记录。"
     confirm-text="删除"
     cancel-text="取消"
