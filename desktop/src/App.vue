@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted, computed } from 'vue'
+import { watch, onMounted, onUnmounted, computed, ref } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
@@ -23,20 +23,15 @@ const networkState = computed(() => store.state.networkState);
 const globalLoading = computed(() => store.getters.globalLoading);
 
 // 多账号相关计算属性
-const accounts = computed(() => {
-  const allAccounts = store.getters['accounts/allAccounts'];
-  console.log('[App.vue] 📊 accounts computed 被调用，账号数量:', allAccounts.length, allAccounts.map((a: any) => ({
-    nickname: a.userInfo.nickname,
-    unreadCount: a.unreadCount,
-    friendRequestCount: a.friendRequestCount
-  })));
-  return allAccounts;
-});
+const accounts = computed(() => store.getters['accounts/allAccounts']);
 const currentAccountId = computed(() => store.state.accounts.currentAccountId);
 const isLoggedIn = computed(() => store.getters.isLoggedIn);
 // 只有多个账号时才显示切换标签
 const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.value);
 const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
+
+// 定时器相关
+let unreadRefreshTimer: number | null = null;
 
 async function ensureAvatarCacheConsistency(reason: string, forceDownload = false) {
   const logId = `AVATAR_VERIFY_${Date.now()}_${reason}`
@@ -810,11 +805,63 @@ onMounted(async () => {
       console.warn('注册账号添加事件监听失败:', error);
     }
   })();
+
+  // 启动定时刷新所有账号未读数（仅在有多个账号时）
+  if (!isLoginWindow) {
+    const startUnreadRefresh = () => {
+      if (unreadRefreshTimer) {
+        clearInterval(unreadRefreshTimer);
+      }
+      
+      // 立即执行一次
+      if (accounts.value.length > 1) {
+        store.dispatch('accounts/refreshAllAccountsUnreadCount').catch(error => {
+          console.error('[App.vue] ❌ 刷新账号未读数失败:', error);
+        });
+      }
+      
+      // 每10秒刷新一次
+      unreadRefreshTimer = window.setInterval(() => {
+        // 只有在有多个账号时才刷新
+        if (accounts.value.length > 1) {
+          console.log('[App.vue] 🔄 定时刷新所有账号未读数');
+          store.dispatch('accounts/refreshAllAccountsUnreadCount').catch(error => {
+            console.error('[App.vue] ❌ 刷新账号未读数失败:', error);
+          });
+        }
+      }, 10000); // 10秒
+      
+      console.log('✅ 已启动账号未读数定时刷新');
+    };
+
+    // 监听账号数量变化，动态启动/停止定时器
+    watch(
+      () => accounts.value.length,
+      (newLength, oldLength) => {
+        console.log(`[App.vue] 账号数量变化: ${oldLength} -> ${newLength}`);
+        if (newLength > 1) {
+          startUnreadRefresh();
+        } else if (newLength <= 1 && unreadRefreshTimer) {
+          clearInterval(unreadRefreshTimer);
+          unreadRefreshTimer = null;
+          console.log('✅ 已停止账号未读数定时刷新（账号数量 <= 1）');
+        }
+      },
+      { immediate: true }
+    );
+  }
 });
 
 // 组件卸载时清理
 onUnmounted(() => {
   console.log('App 组件卸载，清理 WebSocket 连接和事件监听');
+  
+  // 清理未读数刷新定时器
+  if (unreadRefreshTimer) {
+    clearInterval(unreadRefreshTimer);
+    unreadRefreshTimer = null;
+    console.log('✅ 已清理账号未读数定时器');
+  }
   
   // 清理所有定时器
   clearAllTimers();

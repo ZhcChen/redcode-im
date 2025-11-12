@@ -2,7 +2,8 @@
   <div class="side-menu">
     <div class="user-avatar" @click="handleAvatarClick">
       <Avatar 
-        :src="userAvatarSrc" 
+        :src="userAvatarLocalPath" 
+        :text="userDisplayName"
         :alt="userDisplayName + '的头像'" 
         :size="48" 
       />
@@ -122,16 +123,10 @@ const userDisplayName = computed(() => {
   return currentUser.value.nickname || currentUser.value.username || '用户'
 })
 
-// 用户头像地址（优先使用本地缓存）
-const userAvatarSrc = computed(() => {
+// 用户头像本地路径
+const userAvatarLocalPath = computed(() => {
   const localPath = currentUser.value.avatarLocalPath
-  if (localPath && localPath.trim()) {
-    return localPath
-  }
-
-  // 使用用户名的首字符生成默认头像
-  const firstChar = userDisplayName.value.charAt(0).toUpperCase()
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(firstChar)}&background=6366f1&color=ffffff&size=96&rounded=true`
+  return localPath && localPath.trim() ? localPath : undefined
 })
 
 const menuItems = ref<MenuItem[]>([

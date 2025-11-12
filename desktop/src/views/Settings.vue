@@ -5,7 +5,8 @@
       <div class="avatar-container">
         <div class="avatar-wrapper" @click="handleChangeAvatar">
           <Avatar 
-            :src="userAvatarSrc" 
+            :src="userAvatarLocalPath" 
+            :text="userDisplayName"
             :alt="userDisplayName + '的头像'" 
             :size="100" 
           />
@@ -169,6 +170,30 @@ watch(versionError, (value) => {
   }
 })
 
+// 监听账号切换，重置对话框状态
+// Settings 页面不需要保存状态，因为都是即时操作
+watch(
+  () => store.state.accounts?.currentAccountId,
+  (newAccountId, oldAccountId) => {
+    if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
+      console.log('🔄 检测到账号切换 (Settings)', {
+        from: oldAccountId,
+        to: newAccountId
+      })
+      
+      // 重置对话框状态（Settings 页面的操作是即时的，不需要保存）
+      showNicknameDialog.value = false
+      newNickname.value = ''
+      isUpdatingNickname.value = false
+      nicknameError.value = ''
+      previewImageUrl.value = ''
+      downloadInProgress.value = false
+      
+      console.log('✅ Settings 状态已重置')
+    }
+  }
+)
+
 onMounted(async () => {
   try {
     await store.dispatch('checkAppUpdate')
@@ -182,37 +207,17 @@ const userDisplayName = computed(() => {
   return currentUser.value.userName || currentUser.value.username || '用户'
 })
 
-// 用户头像地址（如果有预览图则显示预览图，否则使用用户头像或默认头像）
-const userAvatarSrc = computed(() => {
+// 用户头像本地路径
+const userAvatarLocalPath = computed(() => {
+  // 如果有预览图，优先显示预览图
   if (previewImageUrl.value) {
     return previewImageUrl.value
   }
-
-  if (currentUser.value.avatarLocalPath && currentUser.value.avatarLocalPath.trim()) {
-    return currentUser.value.avatarLocalPath
-  }
-
-  const firstChar = userDisplayName.value.charAt(0).toUpperCase()
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(firstChar)}&background=6366f1&color=ffffff&size=96&rounded=true`
+  
+  // 否则使用本地缓存的头像路径
+  const localPath = currentUser.value.avatarLocalPath
+  return localPath && localPath.trim() ? localPath : undefined
 })
-
-// 监听 avatarLocalPath 变化
-watch(
-  () => currentUser.value.avatarLocalPath,
-  (newPath, oldPath) => {
-    console.log('[Settings] 👀 avatarLocalPath 变化:', { oldPath, newPath })
-    console.log('[Settings] 👀 userAvatarSrc 重新计算:', userAvatarSrc.value)
-  },
-  { immediate: true }
-)
-
-// 监听 userAvatarSrc 变化
-watch(
-  userAvatarSrc,
-  (newSrc, oldSrc) => {
-    console.log('[Settings] 👀 userAvatarSrc 变化:', { oldSrc, newSrc })
-  }
-)
 
 // 处理更换头像
 const handleChangeAvatar = () => {

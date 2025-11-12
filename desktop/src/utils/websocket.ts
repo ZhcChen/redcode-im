@@ -193,10 +193,6 @@ class WebSocketManager {
 
       case 'friendrequestupdate': {
         const data = payload.payload as { pending_count: number };
-        console.log('[WebSocket] 🔔 收到好友请求更新事件', {
-          pending_count: data.pending_count,
-          type: typeof data.pending_count
-        });
         if (typeof data.pending_count === 'number') {
           // 更新全局状态
           store.commit('SET_PENDING_FRIEND_REQUESTS', data.pending_count);
@@ -204,7 +200,6 @@ class WebSocketManager {
           // 同步到当前账号
           const currentAccountId = (store.state as any).accounts?.currentAccountId;
           if (currentAccountId) {
-            console.log('[WebSocket] 🔄 同步好友请求数到当前账号', currentAccountId);
             store.commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
               accountId: currentAccountId,
               count: data.pending_count
@@ -253,13 +248,11 @@ class WebSocketManager {
    * 认证后刷新数据
    */
   private refreshAfterAuthenticated(): void {
-    console.log('[WebSocket] 🔄 认证成功后刷新数据');
     this.refreshChatList(true);
     this.refreshContacts(true);
-    console.log('[WebSocket] 🔔 准备更新好友请求数量');
     void store
       .dispatch('updatePendingFriendRequests')
-      .catch((error: unknown) => console.warn('[WebSocket] ❌ 更新待处理好友申请失败:', error));
+      .catch((error: unknown) => console.warn('更新待处理好友申请失败:', error));
   }
 
   /**

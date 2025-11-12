@@ -92,7 +92,7 @@
           <div v-if="messages.length === 0" class="empty-container">
             <div class="empty-text">暂无消息，开始聊天吧</div>
           </div>
-          <div v-else class="message" v-for="message in messages" :key="message.id" :data-message-id="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 3, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }">
+          <div v-else class="message" v-for="message in messages" :key="message.id" :data-message-id="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 5, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }">
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -239,9 +239,16 @@
 
               <div class="message-time">
                 {{ formatMessageTime(message.createTime || message.time) }}
+                <svg v-if="message.isSelf && message.status === 2" class="message-status-icon sent" width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
+                </svg>
+                <svg v-if="message.isSelf && message.status === 4" class="message-status-icon read" width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z" fill="currentColor"/>
+                </svg>
               </div>
             </div>
-            <div v-if="message.status === 3" class="message-status failed">
+            <div v-if="message.status === 5" class="message-status failed">
               发送失败
               <button v-if="message.isSelf" @click="resendMessage(message)" class="resend-btn">重发</button>
             </div>
@@ -304,30 +311,15 @@
       </div>
     </div>
 
-    <!-- 群名输入对话框 -->
-    <Dialog
-      v-model="showGroupNameDialog"
-      title="创建群聊"
-      @confirm="handleConfirmGroupName"
-      @cancel="handleCancelGroupName"
-      :confirm-text="isCreatingGroup ? '加载中...' : '下一步'"
-      :confirm-disabled="isCreatingGroup || !newGroupName.trim()"
-    >
-      <div class="group-name-content">
-        <DialogInput
-          v-model="newGroupName"
-          placeholder="请输入群聊名称..."
-          :disabled="isCreatingGroup"
-          maxlength="20"
-          @keyup.enter="handleConfirmGroupName"
-        />
-
-        <!-- 错误提示 -->
-        <div v-if="groupNameError" class="group-name-error">
-          {{ groupNameError }}
-        </div>
-      </div>
-    </Dialog>
+    <!-- 创建群聊对话框 -->
+    <CreateGroupDialog
+      v-model:visible="showCreateGroupDialog"
+      :contacts="contacts"
+      :is-loading-contacts="isLoadingContacts"
+      @create="handleCreateGroupConfirm"
+      @load-contacts="loadContactsForGroup"
+      @close="handleCancelCreateGroup"
+    />
 
     <!-- 修改群名对话框 -->
     <Dialog
@@ -474,6 +466,7 @@ import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
 import EmojiPicker from '../components/EmojiPicker.vue'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
+import CreateGroupDialog from '../components/CreateGroupDialog.vue'
 import RemoveGroupMemberDialog from '../components/RemoveGroupMemberDialog.vue'
 import ReportDialog from '../components/ReportDialog.vue'
 import Dialog from '../components/Dialog.vue'
@@ -540,9 +533,9 @@ const MESSAGE_CONSTANTS = {
 const messageStatusToUiStatus: Record<MessageStatus, number> = {
   [MessageStatus.SENDING]: 1,
   [MessageStatus.SENT]: 2,
-  [MessageStatus.DELIVERED]: 2,
-  [MessageStatus.READ]: 2,
-  [MessageStatus.FAILED]: 3
+  [MessageStatus.DELIVERED]: 3,
+  [MessageStatus.READ]: 4,
+  [MessageStatus.FAILED]: 5
 }
 
 const blobUrlRegistry = new Set<string>();
@@ -1270,11 +1263,10 @@ const previewMediaName = ref('')
 const previewMediaSize = ref(0)
 
 // 群组创建相关状态
-const showGroupNameDialog = ref(false)
+const showCreateGroupDialog = ref(false)
 const showAddMemberDialog = ref(false)
-const newGroupName = ref('')
 const isCreatingGroup = ref(false)
-const groupNameError = ref('')
+const isLoadingContacts = ref(false)
 const contacts = ref<any[]>([])
 const pendingGroupData = ref<any>(null)
 
@@ -1785,7 +1777,7 @@ const parseVideoSrc = (message: Message): string => {
     })
 
     // 1. 消息发送成功或历史消息，优先使用服务器地址
-    if (message.status === 2 || !message.status) {
+    if ((message.status >= 2 && message.status <= 4) || !message.status) {
       // 优先使用现有的完整 URL
       if (content.url && content.url.trim() !== '' && (content.url.startsWith('http://') || content.url.startsWith('https://'))) {
         console.log('✅ 视频使用完整 URL:', content.url)
@@ -1814,7 +1806,7 @@ const parseVideoSrc = (message: Message): string => {
     }
 
     // 2. 发送中或失败时，使用本地预览
-    if (message.status === 1 || message.status === 3) {
+    if (message.status === 1 || message.status === 5) {
       if (content.localUrl) {
         console.log('🔄 视频发送中/失败，使用本地预览:', content.localUrl)
         return content.localUrl
@@ -2215,6 +2207,112 @@ watch(messages, () => {
   scrollToBottom()
 }, { flush: 'post' }) // flush: 'post' 确保DOM更新后执行
 
+// 为每个账号缓存页面状态
+interface ChatAccountState {
+  selectedChat: ChatItem | null
+  messages: Message[]
+  newMessage: string
+  searchText: string
+  isInitialized: boolean
+  groupMembers: RoomMember[]
+  editingGroupName: string
+  editingGroupNotice: string
+}
+
+const accountStates = new Map<string, ChatAccountState>()
+
+// 保存当前账号的状态
+const saveCurrentAccountState = (accountId: string) => {
+  accountStates.set(accountId, {
+    selectedChat: selectedChat.value,
+    messages: [...messages.value],
+    newMessage: newMessage.value,
+    searchText: searchText.value,
+    isInitialized: isInitialized.value,
+    groupMembers: [...groupMembers.value],
+    editingGroupName: editingGroupName.value,
+    editingGroupNotice: editingGroupNotice.value
+  })
+  console.log(`💾 已保存账号 ${accountId} 的 Chat 状态`, {
+    hasSelectedChat: !!selectedChat.value,
+    messagesCount: messages.value.length
+  })
+}
+
+// 恢复指定账号的状态
+const restoreAccountState = (accountId: string) => {
+  const state = accountStates.get(accountId)
+  if (state) {
+    console.log(`📂 恢复账号 ${accountId} 的 Chat 状态`, {
+      hasSelectedChat: !!state.selectedChat,
+      messagesCount: state.messages.length
+    })
+    
+    selectedChat.value = state.selectedChat
+    messages.value = [...state.messages]
+    newMessage.value = state.newMessage
+    searchText.value = state.searchText
+    isInitialized.value = state.isInitialized
+    groupMembers.value = [...state.groupMembers]
+    editingGroupName.value = state.editingGroupName
+    editingGroupNotice.value = state.editingGroupNotice
+    
+    // 如果有选中的对话，重新加入房间
+    if (state.selectedChat) {
+      store.commit('SET_CURRENT_CHAT_GROUP_ID', state.selectedChat.groupId)
+      webSocketManager.joinRoom(state.selectedChat.groupId)
+    }
+  } else {
+    console.log(`🆕 账号 ${accountId} 无缓存状态，使用初始状态`)
+    
+    // 初始化为空状态
+    selectedChat.value = null
+    messages.value = []
+    newMessage.value = ''
+    searchText.value = ''
+    isInitialized.value = false
+    groupMembers.value = []
+    editingGroupName.value = ''
+    editingGroupNotice.value = ''
+  }
+  
+  // 始终重置对话框状态（不需要保留）
+  showCreateGroupDialog.value = false
+  showAddMemberDialog.value = false
+  showEditGroupNameDialog.value = false
+  showEditGroupNoticeDialog.value = false
+  showGroupSettings.value = false
+  showAddExistingGroupMemberDialog.value = false
+  showRemoveMemberDialog.value = false
+  showReportDialog.value = false
+  showSearchDialog.value = false
+  showEmojiPicker.value = false
+  showMediaPreview.value = false
+  showVoiceRecorder.value = false
+  recentSentMessages.value.clear()
+}
+
+// 监听账号切换，保存/恢复状态
+watch(
+  () => store.state.accounts?.currentAccountId,
+  (newAccountId, oldAccountId) => {
+    if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
+      console.log('🔄 检测到账号切换', {
+        from: oldAccountId,
+        to: newAccountId
+      })
+      
+      // 保存旧账号的状态
+      saveCurrentAccountState(oldAccountId)
+      
+      // 恢复新账号的状态
+      restoreAccountState(newAccountId)
+      
+      console.log('✅ 账号状态切换完成')
+    }
+  }
+)
+
 const selectChat = async (chat: ChatItem) => {
   selectedChat.value = chat
   store.commit('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
@@ -2456,7 +2554,7 @@ const sendMessage = async () => {
   } catch (error: any) {
     const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
     if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3
+      messages.value[messageIndex].status = 5
     }
     // 发送失败时，从 recentSentMessages 中删除临时消息ID
     recentSentMessages.value.delete(tempId)
@@ -2481,7 +2579,7 @@ const resendMessage = async (message: Message) => {
   if (Array.isArray(message.parts) && message.parts.length > 0) {
     toast.error('文件消息暂不支持重发，请重新选择文件发送')
     if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3
+      messages.value[messageIndex].status = 5
     }
     return
   }
@@ -2493,7 +2591,7 @@ const resendMessage = async (message: Message) => {
   if (!messageContent) {
     toast.error('无法获取消息内容，重发失败')
     if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3
+      messages.value[messageIndex].status = 5
     }
     return
   }
@@ -2520,7 +2618,7 @@ const resendMessage = async (message: Message) => {
     }
   } catch (error: any) {
     if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 3
+      messages.value[messageIndex].status = 5
     }
     console.error('❌ 消息重发失败:', error)
     toast.error('消息重发失败: ' + (error.message || '网络错误'))
@@ -2962,7 +3060,7 @@ const uploadAndSendFile = async (file: File) => {
     if (tempId) {
       const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
       if (messageIndex !== -1) {
-        messages.value[messageIndex].status = 3
+        messages.value[messageIndex].status = 5
         updateAttachmentProgress(tempId, attachmentKey, null)
       }
       // 上传失败时，从 recentSentMessages 中删除临时消息ID
@@ -2974,13 +3072,188 @@ const uploadAndSendFile = async (file: File) => {
 
 const handleCreateGroup = async () => {
   console.log('🔄 用户点击创建群组...')
+  // 显示创建群聊对话框
+  showCreateGroupDialog.value = true
+}
 
-  // 重置状态
-  newGroupName.value = ''
-  groupNameError.value = ''
+// 加载联系人列表用于群组创建
+const loadContactsForGroup = async () => {
+  isLoadingContacts.value = true
+  try {
+    console.log('🔄 加载联系人列表用于群组创建...')
 
-  // 显示群名输入对话框
-  showGroupNameDialog.value = true
+    // 获取好友列表
+    const response = await FriendApi.getMyFriendList({
+      page: 1,
+      size: 1000
+    })
+
+    if (response.success && response.data && Array.isArray(response.data)) {
+      // API响应格式：FriendInfo[]
+      const allContacts: any[] = response.data.map((friend: any) => {
+        const user = friend.user || {}
+        return {
+          id: user.id || friend.id || '',
+          nickname: user.nickname?.trim() || user.username || '未知用户',
+          avatar: user.avatarUrl || '',
+          username: user.username || ''
+        }
+      })
+
+      contacts.value = allContacts
+      console.log('✅ 联系人列表加载成功:', contacts.value.length, '个联系人')
+    } else {
+      console.warn('❌ 联系人列表获取失败:', response.message)
+      toast.error('获取联系人列表失败: ' + (response.message || '未知错误'))
+    }
+  } catch (error: any) {
+    console.error('❌ 获取联系人列表异常:', error)
+    toast.error('获取联系人列表失败: ' + (error.message || '网络错误'))
+  } finally {
+    isLoadingContacts.value = false
+  }
+}
+
+// 处理群创建确认
+const handleCreateGroupConfirm = async (data: {
+  name: string
+  notice?: string
+  avatar?: string
+  memberIds: string[]
+}) => {
+  console.log('🔄 创建群组:', data)
+
+  try {
+    isCreatingGroup.value = true
+
+    // 如果提供了头像且是 base64 格式，需要先上传
+    let avatarUrl: string | undefined
+    if (data.avatar && data.avatar.startsWith('data:')) {
+      try {
+        console.log('🔄 开始上传群头像...')
+        
+        // 将 base64 转换为 Blob
+        const response = await fetch(data.avatar)
+        const blob = await response.blob()
+        const file = new File([blob], 'group-avatar.jpg', { type: 'image/jpeg' })
+        
+        // 上传文件
+        const uploadResult = await FileApi.uploadFile({
+          file,
+          category: 'avatar',
+          isPublic: true,
+          description: '群头像'
+        })
+
+        if (uploadResult.code === 200 && uploadResult.data) {
+          avatarUrl = FileApi.buildImageUrl(uploadResult.data)
+          console.log('✅ 群头像上传成功:', avatarUrl)
+        } else {
+          console.warn('⚠️ 群头像上传失败，将使用默认头像')
+        }
+      } catch (error: any) {
+        console.error('❌ 群头像上传异常:', error)
+        console.warn('⚠️ 群头像上传失败，将使用默认头像')
+      }
+    }
+
+    // 调用创建群组API
+    const currentUser = store.getters.currentUser
+    const membersWithCreator = [...data.memberIds, currentUser.id] // 成员列表必须包含创建者
+
+    console.log('🔄 准备创建群组，参数构建:', {
+      groupName: data.name,
+      selectedMembers: data.memberIds,
+      currentUser: currentUser.id,
+      finalMembers: membersWithCreator,
+      notice: data.notice,
+      avatarUrl
+    })
+
+    const response = await GroupApi.launchChatGroup({
+      name: data.name,
+      memberIds: membersWithCreator,
+      description: data.notice || undefined,
+      avatarUrl: avatarUrl
+    })
+
+    if (response.success && response.data) {
+      console.log('✅ 群组创建成功:', response.data)
+      toast.success('群组创建成功')
+
+      // 关闭对话框
+      showCreateGroupDialog.value = false
+
+      // 提取返回的群组信息
+      const groupId = response.data.roomId
+      const groupName = data.name
+      console.log('📋 新群组信息:', { groupId, groupName })
+
+      // 重新加载聊天列表以显示新创建的群组
+      await loadChatList(true) // 强制刷新获取最新数据
+
+      // 使用返回的groupId和groupName查找新创建的群组
+      let newGroup: ChatItem | undefined
+
+      // 尝试多次查找新创建的群组（因为可能需要时间同步）
+      for (let attempt = 0; attempt < 3; attempt++) {
+        console.log(`🔍 第${attempt + 1}次尝试查找新创建的群组:`, { groupId, groupName })
+
+        // 优先使用 groupId 查找，其次使用 groupName
+        newGroup = chatList.value.find(chat =>
+          chat.groupId === groupId ||
+          chat.id === groupId ||
+          chat.name === groupName ||
+          chat.name.includes(groupName)
+        )
+
+        if (newGroup) {
+          console.log('✅ 找到新创建的群组:', newGroup)
+          await selectChat(newGroup)
+
+          // 发送群组创建的系统消息
+          await sendGroupCreationSystemMessage(groupId, groupName)
+          break
+        } else {
+          console.log(`⏳ 第${attempt + 1}次未找到群组，当前聊天列表:`, chatList.value.map(c => ({
+            id: c.id,
+            groupId: c.groupId,
+            name: c.name
+          })))
+
+          if (attempt < 2) { // 只在前两次尝试时等待
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            await loadChatList(true) // 重新加载
+          }
+        }
+      }
+
+      // 如果最终没找到群组，提供备用方案
+      if (!newGroup) {
+        console.warn('⚠️ 多次尝试后仍未找到新创建的群组')
+        console.warn('📊 查找条件:', {
+          targetGroupId: groupId,
+          targetGroupName: groupName,
+          currentChatList: chatList.value.length
+        })
+        toast.warning('群组创建成功，但无法自动打开，请手动选择群组')
+      }
+    } else {
+      console.warn('❌ 群组创建失败:', response.message)
+      toast.error('群组创建失败: ' + (response.message || '未知错误'))
+    }
+  } catch (error: any) {
+    console.error('❌ 群组创建异常:', error)
+    toast.error('群组创建失败: ' + (error.message || '网络错误'))
+  } finally {
+    isCreatingGroup.value = false
+  }
+}
+
+// 取消创建群组
+const handleCancelCreateGroup = () => {
+  showCreateGroupDialog.value = false
+  isCreatingGroup.value = false
 }
 
 // 处理群头像修改
@@ -3290,204 +3563,6 @@ const handleCancelEditGroupName = () => {
   isUpdatingGroupName.value = false
 }
 
-// 确认创建群组 - 输入群名后
-const handleConfirmGroupName = async () => {
-  const groupName = newGroupName.value.trim()
-
-  // 验证群名
-  if (!groupName) {
-    groupNameError.value = '群名不能为空'
-    return
-  }
-
-  if (groupName.length > 20) {
-    groupNameError.value = '群名不能超过20个字符'
-    return
-  }
-
-  // 开始加载联系人
-  isCreatingGroup.value = true
-  groupNameError.value = ''
-
-  try {
-    console.log('🔄 加载联系人列表用于群组创建...')
-
-    // 获取好友列表
-    const response = await FriendApi.getMyFriendList({
-      page: 1,
-      size: 1000
-    })
-
-    if (response.success && response.data) {
-      // 新的API响应格式：{ myFriendsIndexList: string[], myFriendList: FriendGroup[] }
-      const friendListResponse = response.data
-      const allContacts: any[] = []
-
-      // 遍历所有分组的好友
-      if (friendListResponse.myFriendList && Array.isArray(friendListResponse.myFriendList)) {
-        friendListResponse.myFriendList.forEach((group: any) => {
-          if (group.friends && Array.isArray(group.friends)) {
-            group.friends.forEach((friend: any) => {
-              allContacts.push({
-                id: friend.friendId || friend.id,
-                nickname: friend.nickname || friend.friendName || friend.userName || friend.realName || '未知用户',
-                avatar: friend.avatar || friend.headImg || '',
-                username: friend.username || friend.userName || friend.chatNumber
-              })
-            })
-          }
-        })
-      }
-
-      contacts.value = allContacts
-
-      // 保存群组数据供后续使用
-      pendingGroupData.value = {
-        name: groupName,
-        description: `由${store.getters.currentUser.userName || '用户'}创建的群聊`,
-        avatar: null // 暂时不支持群头像，设为null
-      }
-
-      // 关闭群名对话框，打开成员选择对话框
-      showGroupNameDialog.value = false
-      showAddMemberDialog.value = true
-
-      console.log('✅ 联系人列表加载成功:', contacts.value.length, '个联系人')
-    } else {
-      groupNameError.value = '获取联系人列表失败: ' + (response.message || '未知错误')
-      console.warn('❌ 联系人列表获取失败:', response.message)
-    }
-  } catch (error: any) {
-    console.error('❌ 获取联系人列表异常:', error)
-    groupNameError.value = '获取联系人列表失败: ' + (error.message || '网络错误')
-  } finally {
-    isCreatingGroup.value = false
-  }
-}
-
-// 取消创建群组 - 群名输入阶段
-const handleCancelGroupName = () => {
-  showGroupNameDialog.value = false
-  newGroupName.value = ''
-  groupNameError.value = ''
-  isCreatingGroup.value = false
-}
-
-// 确认添加成员并创建群组
-const handleConfirmAddMembers = async (selectedMemberIds: string[]) => {
-  if (!pendingGroupData.value) {
-    toast.error('群组信息丢失，请重新创建')
-    return
-  }
-
-  console.log('🔄 创建群组并添加成员:', {
-    groupName: pendingGroupData.value.name,
-    memberCount: selectedMemberIds.length,
-    memberIds: selectedMemberIds
-  })
-
-  try {
-    isCreatingGroup.value = true
-
-    // 调用创建群组API - 使用与bear-chat-uniapp一致的参数结构
-    const currentUser = store.getters.currentUser
-    const membersWithCreator = [...selectedMemberIds, currentUser.id] // 成员列表必须包含创建者
-
-    console.log('🔄 准备创建群组，参数构建:', {
-      groupName: pendingGroupData.value.name,
-      selectedMembers: selectedMemberIds,
-      currentUser: currentUser.id,
-      finalMembers: membersWithCreator
-    })
-
-    const response = await GroupApi.launchChatGroup({
-      name: pendingGroupData.value.name,
-      memberIds: membersWithCreator,
-      description: pendingGroupData.value.description || undefined
-    })
-
-    if (response.success && response.data) {
-      console.log('✅ 群组创建成功:', response.data)
-      toast.success('群组创建成功')
-
-      // 关闭对话框
-      showAddMemberDialog.value = false
-
-      // 提取返回的群组信息
-      const groupId = response.data.roomId
-      const groupName = pendingGroupData.value.name
-      console.log('📋 新群组信息:', { groupId, groupName })
-
-      // 重新加载聊天列表以显示新创建的群组
-      await loadChatList(true) // 强制刷新获取最新数据
-
-      // 使用返回的groupId和groupName查找新创建的群组
-      let newGroup: ChatItem | undefined
-
-      // 尝试多次查找新创建的群组（因为可能需要时间同步）
-      for (let attempt = 0; attempt < 3; attempt++) {
-        console.log(`🔍 第${attempt + 1}次尝试查找新创建的群组:`, { groupId, groupName })
-
-        // 优先使用 groupId 查找，其次使用 groupName
-        newGroup = chatList.value.find(chat =>
-          chat.groupId === groupId ||
-          chat.id === groupId ||
-          chat.name === groupName ||
-          chat.name.includes(groupName)
-        )
-
-        if (newGroup) {
-          console.log('✅ 找到新创建的群组:', newGroup)
-          await selectChat(newGroup)
-
-          // 发送群组创建的系统消息
-          await sendGroupCreationSystemMessage(groupId, groupName)
-          break
-        } else {
-          console.log(`⏳ 第${attempt + 1}次未找到群组，当前聊天列表:`, chatList.value.map(c => ({
-            id: c.id,
-            groupId: c.groupId,
-            name: c.name
-          })))
-
-          if (attempt < 2) { // 只在前两次尝试时等待
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            await loadChatList(true) // 重新加载
-          }
-        }
-      }
-
-      // 如果最终没找到群组，提供备用方案
-      if (!newGroup) {
-        console.warn('⚠️ 多次尝试后仍未找到新创建的群组')
-        console.warn('📊 查找条件:', {
-          targetGroupId: groupId,
-          targetGroupName: groupName,
-          currentChatList: chatList.value.length
-        })
-        toast.warning('群组创建成功，但无法自动打开，请手动选择群组')
-      }
-    } else {
-      console.warn('❌ 群组创建失败:', response.message)
-      toast.error('群组创建失败: ' + (response.message || '未知错误'))
-    }
-  } catch (error: any) {
-    console.error('❌ 群组创建异常:', error)
-    toast.error('群组创建失败: ' + (error.message || '网络错误'))
-  } finally {
-    isCreatingGroup.value = false
-    // 清理临时数据
-    pendingGroupData.value = null
-  }
-}
-
-// 取消添加成员
-const handleCancelAddMembers = () => {
-  showAddMemberDialog.value = false
-  pendingGroupData.value = null
-  isCreatingGroup.value = false
-}
-
 // 发送群组创建的系统消息（与bear-chat-uniapp保持一致）
 // NOTE: 此功能已废弃 - 系统消息应由服务器自动生成并通过 WebSocket 推送
 // 群聊创建流程：
@@ -3567,7 +3642,7 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
           // 更新本地消息状态为失败
           const messageIndex = messages.value.findIndex(msg => msg.id === localSystemMessage.id)
           if (messageIndex !== -1) {
-            messages.value[messageIndex].status = 3 // 发送失败
+            messages.value[messageIndex].status = 5 // 发送失败
           }
 
           reject(new Error('系统消息发送失败'))
@@ -4906,6 +4981,24 @@ const handleVoiceSend = async (recording: any) => {
         margin-top: 8px;
         text-align: right;
         line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .message-status-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        
+        &.sent {
+          color: white;
+        }
+        
+        &.read {
+          color: white;
+        }
       }
 
       .message-edited-flag {

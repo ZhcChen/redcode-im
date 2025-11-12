@@ -196,31 +196,13 @@ const accountsModule = {
      * 更新账号好友请求数
      */
     UPDATE_FRIEND_REQUEST_COUNT(state, payload: { accountId: string; count: number }) {
-      console.log('[账号模块] 🔔 UPDATE_FRIEND_REQUEST_COUNT 被调用', {
-        accountId: payload.accountId,
-        count: payload.count,
-        allAccounts: state.accounts.map(a => ({ id: a.id, nickname: a.userInfo.nickname, friendRequestCount: a.friendRequestCount }))
-      })
       const index = state.accounts.findIndex(acc => acc.id === payload.accountId)
       if (index !== -1) {
-        const account = state.accounts[index]
-        const oldCount = account.friendRequestCount
-        
         // 创建新对象以触发 Vue 响应式更新
         state.accounts[index] = {
-          ...account,
+          ...state.accounts[index],
           friendRequestCount: payload.count
         }
-        
-        console.log('[账号模块] ✅ 已更新账号好友请求数', {
-          accountId: payload.accountId,
-          nickname: account.userInfo.nickname,
-          oldCount,
-          newCount: payload.count,
-          triggeredUpdate: true
-        })
-      } else {
-        console.warn('[账号模块] ⚠️ 未找到账号', payload.accountId)
       }
     },
 
@@ -441,10 +423,6 @@ const accountsModule = {
      * 同步账号好友请求数（从全局状态同步到当前账号）
      */
     syncAccountFriendRequestCount({ commit, state, rootGetters }, accountId: string) {
-      console.log('[账号模块] 🔄 syncAccountFriendRequestCount 被调用', {
-        accountId,
-        pendingFriendRequests: rootGetters.pendingFriendRequests
-      })
       // 从全局状态获取好友请求数
       const friendRequestCount = rootGetters.pendingFriendRequests || 0
 
@@ -453,6 +431,62 @@ const accountsModule = {
         accountId,
         count: friendRequestCount
       })
+    },
+
+    /**
+     * 刷新所有账号的未读数
+     * 用于定期检查非当前账号的未读消息
+     */
+    async refreshAllAccountsUnreadCount({ commit, state, rootState }) {
+      // 保存当前token和账号
+      const currentAccountId = state.currentAccountId
+      const currentAccount = state.accounts.find(acc => acc.id === currentAccountId)
+      if (!currentAccount) {
+        return
+      }
+
+      // 导入必要的API
+      const { GroupApi } = await import('@/api/group')
+      const { FriendApi } = await import('@/api/friend')
+      const { syncRustBackendToken } = await import('@/api/http')
+
+      // 遍历所有账号（包括当前账号）
+      for (const account of state.accounts) {
+        try {
+          // 暂时切换到目标账号的token
+          await syncRustBackendToken(account.token)
+
+          // 获取聊天列表
+          const chatResponse = await GroupApi.getMyChatGroupList()
+          if (chatResponse.success && Array.isArray(chatResponse.data)) {
+            // 计算未读消息总数
+            const totalUnread = chatResponse.data.reduce((sum, chat) => {
+              return sum + (chat.unreadCount || 0)
+            }, 0)
+
+            // 更新账号未读数
+            commit('UPDATE_UNREAD_COUNT', {
+              accountId: account.id,
+              count: totalUnread
+            })
+          }
+
+          // 获取好友请求数
+          const friendRequestResponse = await FriendApi.getPendingFriendRequestCount()
+          if (friendRequestResponse.success && typeof friendRequestResponse.data === 'number') {
+            // 更新好友请求数
+            commit('UPDATE_FRIEND_REQUEST_COUNT', {
+              accountId: account.id,
+              count: friendRequestResponse.data
+            })
+          }
+        } catch (error) {
+          console.error(`刷新账号 ${account.userInfo.nickname} 未读数失败:`, error)
+        }
+      }
+
+      // 恢复当前账号的token
+      await syncRustBackendToken(currentAccount.token)
     }
   }
 }

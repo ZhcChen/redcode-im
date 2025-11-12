@@ -48,9 +48,9 @@ interface Props {
   size?: number | string
   /** 是否为圆形，默认true */
   circle?: boolean
-  /** 显示的文字（当没有图片时） */
+  /** 显示的文字（当没有图片时），自动取首字 */
   text?: string
-  /** 背景颜色 */
+  /** 背景颜色（如果不指定，会根据text自动生成） */
   backgroundColor?: string
   /** 文字颜色 */
   textColor?: string
@@ -62,8 +62,7 @@ const props = withDefaults(defineProps<Props>(), {
   size: 48,
   circle: true,
   alt: '头像',
-  backgroundColor: '#f0f0f0',
-  textColor: '#666',
+  textColor: '#ffffff',
   defaultSrc: defaultAvatarSvg
 })
 
@@ -72,7 +71,6 @@ const imageError = ref(false)
 // 当 src 变化时,重置错误状态
 watch(() => props.src, (newSrc, oldSrc) => {
   if (newSrc !== oldSrc) {
-    console.log('[Avatar] 📸 src 属性变化,重置 imageError', { oldSrc, newSrc })
     imageError.value = false
   }
 })
@@ -85,29 +83,93 @@ const sizeValue = computed(() => {
   return props.size
 })
 
+// 字符串哈希函数（用于生成一致的颜色）
+const hashCode = (str: string): number => {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash)
+}
+
+// 根据文本生成背景颜色
+const generateBackgroundColor = (text: string): string => {
+  if (!text) return '#6366f1'
+  
+  // 预设的柔和色调
+  const colors = [
+    '#6366f1', // 靛蓝
+    '#8b5cf6', // 紫色
+    '#ec4899', // 粉红
+    '#f43f5e', // 玫瑰
+    '#f59e0b', // 琥珀
+    '#10b981', // 翠绿
+    '#06b6d4', // 青色
+    '#3b82f6', // 蓝色
+    '#6366f1', // 靛蓝
+    '#a855f7', // 紫罗兰
+  ]
+  
+  const hash = hashCode(text)
+  return colors[hash % colors.length]
+}
+
+// 计算背景颜色
+const computedBackgroundColor = computed(() => {
+  // 如果指定了背景色，使用指定的
+  if (props.backgroundColor) {
+    return props.backgroundColor
+  }
+  
+  // 如果有文字，基于文字生成颜色
+  if (props.text) {
+    return generateBackgroundColor(props.text)
+  }
+  
+  // 默认颜色
+  return '#f0f0f0'
+})
+
 // 头像样式
 const avatarStyle = computed(() => ({
   width: sizeValue.value,
   height: sizeValue.value,
-  backgroundColor: props.backgroundColor
+  backgroundColor: computedBackgroundColor.value
 }))
 
 // 文字样式
 const textStyle = computed(() => {
   const fontSize = typeof props.size === 'number' 
-    ? `${Math.floor(props.size * 0.4)}px` 
-    : '19px'
+    ? `${Math.floor(props.size * 0.45)}px` 
+    : '22px'
   
   return {
     fontSize,
-    color: props.textColor
+    color: props.textColor,
+    fontWeight: '500'
   }
 })
 
-// 显示的文字（取前两个字符）
+// 显示的文字（只取首字）
 const displayText = computed(() => {
   if (!props.text) return ''
-  return props.text.slice(0, 2)
+  
+  // 去除空格后取第一个字符
+  const trimmed = props.text.trim()
+  if (!trimmed) return ''
+  
+  // 只取首字符
+  const firstChar = trimmed.charAt(0)
+  
+  // 如果是英文，转大写
+  if (/^[a-zA-Z]$/.test(firstChar)) {
+    return firstChar.toUpperCase()
+  }
+  
+  // 其他字符（中文等）直接返回
+  return firstChar
 })
 
 // 处理图片加载错误

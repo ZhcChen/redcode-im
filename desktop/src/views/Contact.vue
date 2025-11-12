@@ -934,6 +934,67 @@ const handleWindowResize = () => {
   }
 }
 
+// 为每个账号缓存页面状态
+interface ContactAccountState {
+  searchQuery: string
+  currentFilter: string
+}
+
+const accountStates = new Map<string, ContactAccountState>()
+
+// 保存当前账号的状态
+const saveCurrentAccountState = (accountId: string) => {
+  accountStates.set(accountId, {
+    searchQuery: searchQuery.value,
+    currentFilter: currentFilter.value
+  })
+  console.log(`💾 已保存账号 ${accountId} 的 Contact 状态`)
+}
+
+// 恢复指定账号的状态
+const restoreAccountState = (accountId: string) => {
+  const state = accountStates.get(accountId)
+  if (state) {
+    console.log(`📂 恢复账号 ${accountId} 的 Contact 状态`)
+    searchQuery.value = state.searchQuery
+    currentFilter.value = state.currentFilter
+  } else {
+    console.log(`🆕 账号 ${accountId} 无缓存状态，使用初始状态`)
+    searchQuery.value = ''
+    currentFilter.value = 'all'
+  }
+  
+  // 始终重置对话框状态（不需要保留）
+  showAddDialog.value = false
+  addContactInput.value = ''
+  showFriendRequests.value = false
+  isSearching.value = false
+  isAddingFriend.value = false
+  searchError.value = ''
+  isFriendRequestsInitialized.value = false
+}
+
+// 监听账号切换，保存/恢复状态
+watch(
+  () => store.state.accounts?.currentAccountId,
+  (newAccountId, oldAccountId) => {
+    if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
+      console.log('🔄 检测到账号切换 (Contact)', {
+        from: oldAccountId,
+        to: newAccountId
+      })
+      
+      // 保存旧账号的状态
+      saveCurrentAccountState(oldAccountId)
+      
+      // 恢复新账号的状态
+      restoreAccountState(newAccountId)
+      
+      console.log('✅ Contact 账号状态切换完成')
+    }
+  }
+)
+
 onMounted(async () => {
   // 使用事件管理器添加监听器
   eventManager.addWindowListener('resize', handleWindowResize)
