@@ -4279,6 +4279,16 @@ onMounted(async () => {
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
 
+  // 尝试恢复当前账号的缓存状态
+  const currentAccountId = store.state.accounts?.currentAccountId
+  if (currentAccountId) {
+    const hasCache = accountStates.has(currentAccountId)
+    if (hasCache) {
+      console.log('📂 页面加载时恢复账号缓存状态:', currentAccountId)
+      restoreAccountState(currentAccountId)
+    }
+  }
+
   // 先处理路由参数，如果有联系人参数，会在处理过程中加载聊天列表
   const hasRouteParams = route.query.contactId
   if (hasRouteParams) {
