@@ -441,13 +441,14 @@ pub fn db_friend_request_to_api(
 
 /// 将数据库好友关系转换为 API 好友信息
 pub fn db_friendship_to_api(
-    friendship: &crate::database::models::Friendship,
+    friendship_record: &crate::database::friend_store::FriendshipRecord,
     friend_user: &crate::database::models::User,
 ) -> crate::models::FriendInfo {
     crate::models::FriendInfo {
-        id: friendship.id.to_string(),
+        id: friendship_record.friendship.id.to_string(),
         user: db_user_to_api_user_info(friend_user),
-        created_at: friendship.created_at.to_rfc3339(),
+        created_at: friendship_record.friendship.created_at.to_rfc3339(),
+        friend_remark: friendship_record.friend_remark.clone(),
     }
 }
 

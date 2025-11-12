@@ -1172,7 +1172,8 @@ export const store = createStore<State>({
                 if (response.success && Array.isArray(response.data)) {
                     const contacts: Contact[] = response.data.map((friend: any) => {
                         const user = friend.user || {}
-                        const displayName = user.nickname?.trim() || user.username || '未知用户'
+                        // 优先显示好友备注，如果没有备注则显示昵称或用户名
+                        const displayName = friend.friendRemark?.trim() || user.nickname?.trim() || user.username || '未知用户'
                         const createdAt: Date = friend.createdAt instanceof Date ? friend.createdAt : new Date(friend.createdAt)
                         const createdAtIso = isNaN(createdAt.getTime()) ? new Date() : createdAt
 
@@ -1185,7 +1186,7 @@ export const store = createStore<State>({
                             isOnline: false,
                             lastSeen: formatLastSeen(createdAtIso.toISOString()),
                             isRecent: isRecentContact(createdAtIso.toISOString()),
-                            remark: user.nickname || '',
+                            remark: friend.friendRemark || user.nickname || '',
                             status: 1,
                             createTime: createdAtIso.toISOString(),
                             updateTime: createdAtIso.toISOString()

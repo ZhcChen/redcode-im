@@ -23,6 +23,7 @@ interface BackendFriendInfo {
   id: string;
   user: BackendUserSummary;
   created_at: string;
+  friend_remark?: string | null;
 }
 
 interface BackendFriendRequestInfo {
@@ -80,6 +81,7 @@ const mapFriendInfo = (info: BackendFriendInfo): FriendInfo => ({
   id: info.id,
   user: mapAuthUser(info.user),
   createdAt: parseTimestamp(info.created_at),
+  friendRemark: info.friend_remark ?? null,
 });
 
 const mapFriendRequest = (

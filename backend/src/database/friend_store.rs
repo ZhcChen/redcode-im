@@ -14,6 +14,7 @@ pub struct FriendStore {
 pub struct FriendshipRecord {
     pub friendship: Friendship,
     pub friend_user_id: Uuid,
+    pub friend_remark: Option<String>,
 }
 
 impl FriendStore {
@@ -264,8 +265,13 @@ impl FriendStore {
                 f.user_a_id,
                 f.user_b_id,
                 f.created_at,
-                CASE WHEN f.user_a_id = $1 THEN f.user_b_id ELSE f.user_a_id END AS friend_user_id
+                CASE WHEN f.user_a_id = $1 THEN f.user_b_id ELSE f.user_a_id END AS friend_user_id,
+                ufr.remark as friend_remark
             FROM friendships f
+            LEFT JOIN user_friend_remarks ufr ON (
+                ufr.user_id = $1 AND 
+                ufr.friend_user_id = CASE WHEN f.user_a_id = $1 THEN f.user_b_id ELSE f.user_a_id END
+            )
             WHERE f.user_a_id = $1 OR f.user_b_id = $1
             ORDER BY f.created_at DESC
             "#,
@@ -284,6 +290,7 @@ impl FriendStore {
                     created_at: row.get("created_at"),
                 },
                 friend_user_id: row.get("friend_user_id"),
+                friend_remark: row.get("friend_remark"),
             })
             .collect();
 

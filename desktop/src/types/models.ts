@@ -187,6 +187,7 @@ export interface FriendInfo {
   id: string;
   user: AuthUser;
   createdAt: Date;
+  friendRemark?: string | null;
 }
 
 export interface FriendRequestInfo {

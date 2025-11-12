@@ -370,7 +370,7 @@ pub async fn list_friends(
         .into_iter()
         .filter_map(|record| {
             let friend_user = user_map.get(&record.friend_user_id)?;
-            Some(db_friendship_to_api(&record.friendship, friend_user))
+            Some(db_friendship_to_api(&record, friend_user))
         })
         .collect();
 

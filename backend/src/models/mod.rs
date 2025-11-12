@@ -572,4 +572,6 @@ pub struct FriendInfo {
     pub id: String,
     pub user: UserInfo,
     pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friend_remark: Option<String>,
 }
