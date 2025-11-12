@@ -59,6 +59,7 @@ pub struct UpdateUserRequest {
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
     pub avatar_object_key: Option<String>,
+    pub friend_remark: Option<String>,
 }
 
 /// 修改密码请求
@@ -485,11 +486,17 @@ pub struct ChatSummary {
     pub last_read_message_id: Option<String>,
     pub last_read_at: Option<String>,
     #[serde(default)]
+    pub notification_settings: i32,
+    #[serde(default)]
+    pub is_muted: bool,
+    #[serde(default)]
     pub is_pinned: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message: Option<ChatMessagePreview>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friend_user_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friend_remark: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friend_avatar_object_key: Option<String>,
 }

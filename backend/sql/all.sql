@@ -224,6 +224,21 @@ CREATE TABLE IF NOT EXISTS friendships (
 CREATE INDEX IF NOT EXISTS idx_friendships_user_a ON friendships(user_a_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_user_b ON friendships(user_b_id);
 
+-- 好友备注表（按用户维度存储）
+CREATE TABLE IF NOT EXISTS user_friend_remarks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friend_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    remark TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, friend_user_id),
+    CHECK (user_id <> friend_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_friend_remarks_user_id
+    ON user_friend_remarks(user_id)
+    WHERE remark <> '';
+
 -- 文档表
 CREATE TABLE IF NOT EXISTS app_documents (
     key TEXT PRIMARY KEY,

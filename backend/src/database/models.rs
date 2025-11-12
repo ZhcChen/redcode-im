@@ -481,8 +481,19 @@ pub struct ChatSummaryRow {
     pub unread_count: i64,
     pub last_read_message_id: Option<Uuid>,
     pub last_read_at: Option<DateTime<Utc>>,
+    pub notification_settings: NotificationSetting,
     pub friend_user_id: Option<Uuid>,
+    pub friend_remark: Option<String>,
     pub friend_avatar_object_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserFriendRemark {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub friend_user_id: Uuid,
+    pub remark: String,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// 好友请求状态
