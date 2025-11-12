@@ -70,6 +70,7 @@ export interface Contact {
     id: string
     name: string
     avatar?: string
+    avatarLocalPath?: string | null
     phone: string
     email?: string
     isOnline: boolean
@@ -87,6 +88,7 @@ export interface ChatItem {
     roomId: string
     name: string
     avatar?: string | null
+    avatarLocalPath?: string | null
     lastMessage: string
     time: string
     groupId: string
@@ -1181,6 +1183,7 @@ export const store = createStore<State>({
                             id: user.id?.toString() || friend.id?.toString() || '',
                             name: displayName,
                             avatar: user.avatarUrl || '',
+                            avatarLocalPath: null, // 将在后续加载时填充
                             phone: user.username || '',
                             email: user.email || '',
                             isOnline: false,
@@ -1444,6 +1447,7 @@ export const store = createStore<State>({
                             roomId: group.roomId || group.id || '',
                             name: displayName,
                             avatar: displayAvatar,
+                            avatarLocalPath: null, // 将在后续加载时填充
                             lastMessage: group.lastMessage || '',
                             time: formatTime(lastMessageTime),
                             groupId: group.roomId || group.id || '',
