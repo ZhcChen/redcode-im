@@ -496,6 +496,10 @@ pub struct ChatSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friend_user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub friend_nickname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friend_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub friend_remark: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friend_avatar_object_key: Option<String>,

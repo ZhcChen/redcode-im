@@ -317,6 +317,8 @@ impl<'a> RoomStore<'a> {
                 rm.last_read_at AS last_read_at,
                 rm.notification_settings AS notification_settings,
                 fu.friend_user_id AS friend_user_id,
+                fu.friend_nickname AS friend_nickname,
+                fu.friend_username AS friend_username,
                 fu.friend_remark AS friend_remark,
                 fu.friend_avatar_object_key AS friend_avatar_object_key
             FROM room_members rm
@@ -350,6 +352,8 @@ impl<'a> RoomStore<'a> {
             LEFT JOIN LATERAL (
                 SELECT
                     rm2.user_id AS friend_user_id,
+                    u2.nickname AS friend_nickname,
+                    u2.username AS friend_username,
                     u2.avatar_object_key AS friend_avatar_object_key,
                     ufr.remark AS friend_remark
                 FROM room_members rm2

@@ -286,6 +286,8 @@ pub fn db_chat_summary_to_api(
         is_pinned: row.is_pinned,
         last_message,
         friend_user_id: row.friend_user_id.map(|id| id.to_string()),
+        friend_nickname: row.friend_nickname.clone(),
+        friend_username: row.friend_username.clone(),
         friend_remark: row.friend_remark.clone(),
         friend_avatar_object_key: row.friend_avatar_object_key.clone(),
     }

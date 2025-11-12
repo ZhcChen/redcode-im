@@ -309,18 +309,14 @@ pub async fn ensure_private_chat(
         .await?
         .ok_or_else(|| AppError::NotFound("好友不存在或已被停用".to_string()))?;
 
-    let current_display = current_user
-        .nickname
-        .clone()
-        .filter(|name| !name.trim().is_empty())
-        .unwrap_or_else(|| current_user.username.clone());
+    // 使用好友的显示名称作为房间名称（昵称优先，否则使用用户名）
     let friend_display = friend_user
         .nickname
         .clone()
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(|| friend_user.username.clone());
 
-    let room_name = format!("{} · {}", current_display, friend_display);
+    let room_name = friend_display.clone();
 
     let room_store = RoomStore::new(state.database.pool());
     let room = room_store

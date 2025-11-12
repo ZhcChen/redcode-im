@@ -32,6 +32,11 @@ interface BackendChatSummary {
   is_pinned?: boolean;
   is_muted?: boolean;
   extra?: Record<string, unknown> | null;
+  friend_user_id?: string | null;
+  friend_nickname?: string | null;
+  friend_username?: string | null;
+  friend_remark?: string | null;
+  friend_avatar_object_key?: string | null;
 }
 
 interface BackendRoomInfo {
@@ -108,6 +113,40 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
   const memberCount =
     typeof memberCountRaw === "number" ? memberCountRaw : undefined;
 
+  // 构建 extra 对象，合并后端的 extra 和好友信息
+  const extra: Record<string, unknown> = {
+    ...(summaryExtra || {}),
+  };
+
+  // 添加好友相关信息到 extra
+  if (summary.friend_user_id) {
+    extra.friend_id = summary.friend_user_id;
+    extra.friendId = summary.friend_user_id;
+    extra.friend_user_id = summary.friend_user_id;
+  }
+  if (summary.friend_nickname) {
+    extra.friend_nickname = summary.friend_nickname;
+    extra.friendNickname = summary.friend_nickname;
+  }
+  if (summary.friend_username) {
+    extra.friend_username = summary.friend_username;
+    extra.friendUsername = summary.friend_username;
+    extra.friend_name = summary.friend_username;
+    extra.friendName = summary.friend_username;
+  }
+  if (summary.friend_remark) {
+    extra.friend_remark = summary.friend_remark;
+    extra.friendRemark = summary.friend_remark;
+    extra.remark = summary.friend_remark;
+  }
+  if (summary.friend_avatar_object_key) {
+    extra.friend_avatar_object_key = summary.friend_avatar_object_key;
+    extra.friendAvatarObjectKey = summary.friend_avatar_object_key;
+  }
+  if (summary.description) {
+    extra.description = summary.description;
+  }
+
   return {
     id: summary.room_id,
     roomId: summary.room_id,
@@ -121,9 +160,7 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
     isPinned: Boolean(summary.is_pinned),
     isMuted: Boolean(summary.is_muted),
     memberCount,
-    extra:
-      summary.extra ??
-      (summary.description ? { description: summary.description } : null),
+    extra: Object.keys(extra).length > 0 ? extra : null,
   };
 };
 

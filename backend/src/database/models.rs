@@ -483,6 +483,8 @@ pub struct ChatSummaryRow {
     pub last_read_at: Option<DateTime<Utc>>,
     pub notification_settings: NotificationSetting,
     pub friend_user_id: Option<Uuid>,
+    pub friend_nickname: Option<String>,
+    pub friend_username: Option<String>,
     pub friend_remark: Option<String>,
     pub friend_avatar_object_key: Option<String>,
 }
