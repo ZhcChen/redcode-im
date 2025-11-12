@@ -3674,16 +3674,44 @@ const handleToggleTop = async (value: boolean) => {
   if (!selectedChat.value) return
 
   try {
-    console.log('🔄 切换置顶聊天:', value)
-    toast.warning('当前版本暂未提供聊天置顶功能，敬请期待后续更新')
-    selectedChat.value.isTop = !value
+    const targetState = !value
+    console.log(`🔄 ${targetState ? '置顶' : '取消置顶'}聊天:`, selectedChat.value.name)
+    
+    // 调用API
+    const response = targetState 
+      ? await GroupApi.pinChat({ roomId: selectedChat.value.groupId || selectedChat.value.id })
+      : await GroupApi.unpinChat({ roomId: selectedChat.value.groupId || selectedChat.value.id })
+    
+    if (response.success) {
+      // 更新本地状态
+      selectedChat.value.isTop = targetState
+      
+      // 更新聊天列表中的对应项
+      const chatIndex = chatList.value.findIndex(c => c.id === selectedChat.value?.id)
+      if (chatIndex !== -1) {
+        chatList.value[chatIndex].isTop = targetState
+      }
+      
+      // 更新 store
+      store.dispatch('updateChatItem', {
+        ...selectedChat.value,
+        isTop: targetState
+      })
+      
+      // 重新加载聊天列表以更新排序
+      await loadChatList(true)
+      
+      toast.success(targetState ? '已置顶' : '已取消置顶')
+    } else {
+      toast.error(response.message || (targetState ? '置顶失败' : '取消置顶失败'))
+    }
   } catch (error: any) {
     console.error('❌ 置顶设置异常:', error)
     toast.error('设置失败: ' + (error.message || '网络错误'))
 
     // 回滚本地状态
     if (selectedChat.value) {
-      selectedChat.value.isTop = !value
+      selectedChat.value.isTop = value
     }
   }
 }
