@@ -4109,7 +4109,26 @@ const handleRouteParams = async () => {
       if (response.success) {
         const createdRoomId = response.data?.roomId || ''
         console.log('✅ 单聊创建成功，响应数据:', response.data)
-        
+
+        // 同步好友头像到本地缓存
+        if (response.data?.friendAvatarObjectKey && response.data?.friendId) {
+          try {
+            const { UserApi } = await import('../api/user')
+            console.log('🔄 同步好友头像:', {
+              friendId: response.data.friendId,
+              objectKey: response.data.friendAvatarObjectKey
+            })
+            await UserApi.syncUserAvatarCache(
+              response.data.friendId,
+              response.data.friendAvatarObjectKey,
+              false
+            )
+            console.log('✅ 好友头像同步完成')
+          } catch (error) {
+            console.warn('⚠️ 同步好友头像失败:', error)
+          }
+        }
+
         // 重新加载聊天列表以获取新创建的单聊
         await loadChatList()
         

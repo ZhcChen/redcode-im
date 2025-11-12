@@ -209,6 +209,7 @@ export interface EnsureChatResult {
   friendId: string;
   friendName: string;
   friendAvatar?: string | null;
+  friendAvatarObjectKey?: string | null;
 }
 
 export const getDisplayName = (user: Pick<AuthUser, 'nickname' | 'username'>): string => {

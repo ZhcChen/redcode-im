@@ -63,6 +63,7 @@ interface BackendEnsureChatResponse {
   friend_id: string;
   friend_name: string;
   friend_avatar?: string | null;
+  friend_avatar_object_key?: string | null;
 }
 
 interface CreateGroupResponse {
@@ -261,6 +262,7 @@ export class GroupApi {
         friendId: response.data.friend_id,
         friendName: response.data.friend_name,
         friendAvatar: response.data.friend_avatar ?? null,
+        friendAvatarObjectKey: response.data.friend_avatar_object_key ?? null,
       },
     };
   }

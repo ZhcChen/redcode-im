@@ -281,6 +281,7 @@ pub struct EnsureChatResponse {
     pub friend_id: String,
     pub friend_name: String,
     pub friend_avatar: Option<String>,
+    pub friend_avatar_object_key: Option<String>,
 }
 
 /// 确保与好友的私聊房间存在
@@ -333,6 +334,7 @@ pub async fn ensure_private_chat(
         friend_id: friend_user.id.to_string(),
         friend_name: friend_display,
         friend_avatar: friend_user.avatar_url.clone(),
+        friend_avatar_object_key: friend_user.avatar_object_key.clone(),
     };
 
     Ok(Json(response))
