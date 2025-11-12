@@ -1173,9 +1173,8 @@ export const store = createStore<State>({
                 })
 
                 if (response.success && Array.isArray(response.data)) {
-                    // 导入 UserApi 和缓存工具
+                    // 导入 UserApi
                     const { UserApi } = await import('../api/user')
-                    const { AvatarUrlCache } = await import('../utils/avatar-url-cache')
 
                     // 先创建基础 Contact 对象
                     const contacts: Contact[] = response.data.map((friend: any) => {
@@ -1190,7 +1189,7 @@ export const store = createStore<State>({
                             id: user.id?.toString() || friend.id?.toString() || '',
                             name: displayName,
                             avatar: user.avatarUrl || '',
-                            avatarLocalPath: null, // 将在下面填充(从缓存或 API)
+                            avatarLocalPath: null, // 将在下面填充(从本地缓存或下载)
                             avatarObjectKey: user.avatarObjectKey || null,
                             phone: user.username || '',
                             email: user.email || '',
@@ -1204,46 +1203,36 @@ export const store = createStore<State>({
                         }
                     })
 
-                    // 智能获取头像下载地址:
-                    // 1. 优先从缓存读取(检查 objectKey 是否匹配 + 是否过期)
-                    // 2. 缓存未命中时才调用 API
+                    // 智能同步头像缓存:
+                    // 1. 优先从本地缓存读取(基于 objectKey 检查)
+                    // 2. objectKey 不匹配或缓存不存在时:
+                    //    - 获取临时下载地址
+                    //    - 下载到本地
+                    //    - 返回本地 Blob URL
                     await Promise.all(
                         contacts.map(async (contact) => {
                             if (!contact.avatarObjectKey) {
                                 return
                             }
 
-                            // 1. 尝试从缓存读取
-                            const cachedUrl = AvatarUrlCache.get(contact.id, contact.avatarObjectKey)
-                            if (cachedUrl) {
-                                contact.avatarLocalPath = cachedUrl
-                                return
-                            }
-
-                            // 2. 缓存未命中,调用 API 获取
                             try {
-                                const avatarResp = await UserApi.getUserAvatarDownloadUrl({
-                                    userId: contact.id,
-                                    expiresInSeconds: 3600 // 1小时有效期
-                                })
-                                if (avatarResp.success && avatarResp.data?.download_url) {
-                                    contact.avatarLocalPath = avatarResp.data.download_url
-                                    // 3. 更新缓存
-                                    AvatarUrlCache.set(
-                                        contact.id,
-                                        contact.avatarObjectKey,
-                                        avatarResp.data.download_url,
-                                        3600 * 1000 // 1小时
-                                    )
+                                // syncUserAvatarCache 会:
+                                // 1. 检查本地缓存(基于 objectKey)
+                                // 2. 缓存命中直接返回 Blob URL
+                                // 3. 缓存未命中则下载并保存
+                                const localPath = await UserApi.syncUserAvatarCache(
+                                    contact.id,
+                                    contact.avatarObjectKey,
+                                    false // 不强制刷新,优先使用缓存
+                                )
+                                if (localPath) {
+                                    contact.avatarLocalPath = localPath
                                 }
                             } catch (error) {
                                 // 静默失败,使用默认头像
                             }
                         })
                     )
-
-                    // 清理过期缓存(异步执行,不阻塞主流程)
-                    AvatarUrlCache.cleanExpired()
 
                     // 根据参数选择使用同步模式还是替换模式
                     if (params.compareWithStore && state.contacts.list.length > 0) {

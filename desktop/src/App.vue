@@ -685,14 +685,6 @@ function enableContextMenu() {
 onMounted(async () => {
   console.log('App 组件已挂载');
 
-  // 清理过期的头像下载地址缓存
-  try {
-    const { AvatarUrlCache } = await import('./utils/avatar-url-cache');
-    AvatarUrlCache.cleanExpired();
-  } catch (error) {
-    console.warn('清理头像缓存失败:', error);
-  }
-
   // 检查是否是独立登录窗口
   let isLoginWindow = false;
   try {

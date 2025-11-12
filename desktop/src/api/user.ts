@@ -441,6 +441,86 @@ export class UserApi {
     };
   }
 
+  /**
+   * 同步指定用户的头像缓存(适用于好友、群成员等)
+   *
+   * @param userId - 用户 ID
+   * @param avatarObjectKey - 头像 object key
+   * @param force - 是否强制刷新缓存
+   * @returns 本地缓存路径(Blob URL)，失败返回 null
+   */
+  static async syncUserAvatarCache(
+    userId: string,
+    avatarObjectKey: string,
+    force = false
+  ): Promise<string | null> {
+    const logId = `USER_AVATAR_SYNC_${userId.substring(0, 8)}_${Date.now()}`;
+    console.log(`[${logId}] 同步用户头像缓存`, { userId, avatarObjectKey, force });
+
+    try {
+      if (!avatarObjectKey) {
+        console.log(`[${logId}] 无 avatarObjectKey，跳过`);
+        return null;
+      }
+
+      // 如果不强制刷新，检查本地缓存
+      if (!force) {
+        const cached = await AvatarCache.resolve(userId, avatarObjectKey);
+        if (cached) {
+          console.log(`[${logId}] ✅ 缓存命中: ${cached.webPath}`);
+          return cached.webPath;
+        }
+        console.log(`[${logId}] ⚠️ 缓存未命中，需要下载`);
+      }
+
+      // 获取临时下载 URL
+      const downloadResp = await this.getUserAvatarDownloadUrl({
+        userId,
+        expiresInSeconds: 3600
+      });
+
+      const payload = downloadResp.data;
+      if (!payload || !payload.success || !payload.download_url) {
+        console.error(`[${logId}] ❌ 获取下载 URL 失败:`, downloadResp.message);
+        return null;
+      }
+
+      // 下载头像文件
+      console.log(`[${logId}] 📥 下载头像文件...`);
+      const downloadResponse = await rustHttp.requestRaw<{
+        base64?: string;
+        headers?: Record<string, string>
+      }>({
+        path: payload.download_url,
+        method: 'GET',
+        responseType: 'binary',
+        injectToken: false
+      });
+
+      if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
+        console.error(`[${logId}] ❌ 下载头像失败: HTTP ${downloadResponse.code}`);
+        return null;
+      }
+
+      // 保存到本地缓存
+      console.log(`[${logId}] 💾 保存到本地缓存...`);
+      const buffer = base64ToUint8Array(downloadResponse.data.base64);
+      const contentType = downloadResponse.data.headers?.['content-type'] || 'image/jpeg';
+      const saved = await AvatarCache.save({
+        userId,
+        objectKey: avatarObjectKey,
+        data: buffer,
+        contentType
+      });
+
+      console.log(`[${logId}] ✅ 缓存保存成功: ${saved.webPath}`);
+      return saved.webPath;
+    } catch (error) {
+      console.error(`[${logId}] ❌ 同步头像缓存失败:`, error);
+      return null;
+    }
+  }
+
   static async syncAvatarCache(force = false): Promise<void> {
     const logId = `AVATAR_SYNC_${Date.now()}`;
     console.log(`[${logId}] ========== 同步头像缓存 ==========`);
