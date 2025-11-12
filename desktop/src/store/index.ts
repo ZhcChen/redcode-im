@@ -106,6 +106,21 @@ export interface ChatItem {
     friendName?: string | null
 }
 
+const sortChatItems = (list: ChatItem[]) => {
+    list.sort((a, b) => {
+        const aIsFavorite = a.groupType === 2
+        const bIsFavorite = b.groupType === 2
+
+        if (aIsFavorite && !bIsFavorite) return -1
+        if (!aIsFavorite && bIsFavorite) return 1
+
+        if (a.isTop && !b.isTop) return -1
+        if (!a.isTop && b.isTop) return 1
+
+        return new Date(b.time).getTime() - new Date(a.time).getTime()
+    })
+}
+
 // 定义状态接口
 export interface State {
     token: string | null,
@@ -541,7 +556,9 @@ export const store = createStore<State>({
 
         SET_CHAT_LIST(state: State, chatList: ChatItem[]) {
             // 保留原有的直接设置功能，用于初始化或完全替换
-            state.chatList.list = chatList
+            const sortedChatList = [...chatList]
+            sortChatItems(sortedChatList)
+            state.chatList.list = sortedChatList
             state.chatList.lastUpdateTime = Date.now()
             state.chatList.error = null
         },
@@ -593,12 +610,8 @@ export const store = createStore<State>({
                 }
             })
 
-            // 4. 重新排序（置顶的在前，然后按时间倒序）
-            state.chatList.list.sort((a, b) => {
-                if (a.isTop && !b.isTop) return -1
-                if (!a.isTop && b.isTop) return 1
-                return new Date(b.time).getTime() - new Date(a.time).getTime()
-            })
+            // 4. 重新排序（收藏夹优先，其次置顶，再按时间倒序）
+            sortChatItems(state.chatList.list)
 
             // 5. 更新最后更新时间和清除错误状态
             state.chatList.lastUpdateTime = Date.now()
@@ -607,27 +620,12 @@ export const store = createStore<State>({
             console.log('✅ 聊天列表数据同步完成，总数:', state.chatList.list.length)
         },
 
-        SET_CHAT_LIST_ERROR(state: State, error: string | null) {
-            state.chatList.error = error
-        },
-
-        CLEAR_CHAT_LIST(state: State) {
-            state.chatList.list = []
-            state.chatList.loading = false
-            state.chatList.error = null
-            state.chatList.lastUpdateTime = null
-        },
-
         UPDATE_CHAT_ITEM(state: State, updatedChat: ChatItem) {
             const index = state.chatList.list.findIndex(chat => chat.id === updatedChat.id)
             if (index !== -1) {
                 state.chatList.list.splice(index, 1, updatedChat)
                 // 重新排序
-                state.chatList.list.sort((a, b) => {
-                    if (a.isTop && !b.isTop) return -1
-                    if (!a.isTop && b.isTop) return 1
-                    return new Date(b.time).getTime() - new Date(a.time).getTime()
-                })
+                sortChatItems(state.chatList.list)
             }
         },
 
@@ -644,17 +642,14 @@ export const store = createStore<State>({
             if (!exists) {
                 state.chatList.list.push(newChat)
                 // 重新排序
-                state.chatList.list.sort((a, b) => {
-                    if (a.isTop && !b.isTop) return -1
-                    if (!a.isTop && b.isTop) return 1
-                    return new Date(b.time).getTime() - new Date(a.time).getTime()
-                })
+                sortChatItems(state.chatList.list)
             }
         },
 
         REMOVE_CHAT_ITEM(state: State, chatId: string) {
             console.log('🗑️ REMOVE_CHAT_ITEM mutation 被调用:', chatId)
             console.log('📋 删除前的聊天列表:', state.chatList.list.map(c => ({ id: c.id, name: c.name })))
+            // ...
             
             const beforeCount = state.chatList.list.length
             state.chatList.list = state.chatList.list.filter(chat => {
