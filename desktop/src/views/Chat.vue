@@ -462,6 +462,19 @@
     @mute="handleContextMenuMute"
     @delete="handleContextMenuDelete"
   />
+
+  <!-- 删除对话确认对话框 -->
+  <ConfirmDialog
+    v-model:visible="showDeleteConfirm"
+    title="删除对话"
+    :message="`确定要删除与"${deleteTargetChat?.name}"的对话吗？`"
+    description="这只会从列表中移除对话，不会删除服务器上的消息记录。"
+    confirm-text="删除"
+    cancel-text="取消"
+    type="danger"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </div>
 </template>
 
@@ -485,6 +498,7 @@ import MediaPreview from '../components/MediaPreview.vue'
 import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
 import VoiceMessage from '../components/VoiceMessage.vue'
 import ChatContextMenu from '../components/ChatContextMenu.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
@@ -1285,6 +1299,10 @@ const pendingGroupData = ref<any>(null)
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const contextMenuChat = ref<ChatItem | null>(null)
+
+// 删除对话确认对话框状态
+const showDeleteConfirm = ref(false)
+const deleteTargetChat = ref<ChatItem | null>(null)
 
 // 群设置抽屉状态
 const showGroupSettings = ref(false)
@@ -3361,15 +3379,39 @@ const handleContextMenuMute = async (chat: ChatItem) => {
   }
 }
 
-// 处理删除对话
-const handleContextMenuDelete = async (chat: ChatItem) => {
+// 处理删除对话 - 显示确认对话框
+const handleContextMenuDelete = (chat: ChatItem) => {
+  console.log('🖱️ 右键删除对话被触发:', {
+    chatId: chat.id,
+    chatName: chat.name,
+    groupId: chat.groupId
+  })
+  
+  // 保存要删除的对话信息
+  deleteTargetChat.value = chat
+  
+  // 显示确认对话框
+  showDeleteConfirm.value = true
+}
+
+// 取消删除
+const cancelDelete = () => {
+  console.log('❌ 用户取消删除')
+  deleteTargetChat.value = null
+}
+
+// 确认删除对话
+const confirmDelete = async () => {
+  if (!deleteTargetChat.value) {
+    console.error('❌ 删除目标为空')
+    return
+  }
+  
+  const chat = deleteTargetChat.value
+  
   try {
-    // 确认删除
-    if (!confirm(`确定要删除与"${chat.name}"的对话吗？\n\n注意：这只会从列表中移除对话，不会删除服务器上的消息记录。`)) {
-      return
-    }
-    
-    console.log('🔄 删除对话:', chat.name)
+    console.log('✅ 用户确认删除，开始执行...')
+    console.log('🔄 删除对话:', chat.name, 'ID:', chat.id)
     
     // 尝试调用后端 API（如果后端支持）
     try {
@@ -3388,6 +3430,7 @@ const handleContextMenuDelete = async (chat: ChatItem) => {
     // 无论后端是否成功，都进行前端删除
     // 如果删除的是当前选中的对话，清空选中状态
     if (selectedChat.value && selectedChat.value.id === chat.id) {
+      console.log('🎯 删除的是当前选中的对话，清空选中状态')
       selectedChat.value = null
       messages.value = []
       
@@ -3396,13 +3439,18 @@ const handleContextMenuDelete = async (chat: ChatItem) => {
     }
     
     // 通过 store 删除（这会触发 computed 重新计算）
-    store.dispatch('removeChatItem', chat.id)
+    console.log('📤 调用 store.dispatch removeChatItem, chatId:', chat.id)
+    await store.dispatch('removeChatItem', chat.id)
     
     console.log('✅ 已从聊天列表移除:', chat.name)
     toast.success('对话已从列表中移除')
   } catch (error: any) {
-    console.error('删除对话失败:', error)
+    console.error('❌ 删除对话失败:', error)
     toast.error(error.message || '删除失败')
+  } finally {
+    // 清理状态
+    showDeleteConfirm.value = false
+    deleteTargetChat.value = null
   }
 }
 

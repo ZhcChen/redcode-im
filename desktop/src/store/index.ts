@@ -650,7 +650,24 @@ export const store = createStore<State>({
         },
 
         REMOVE_CHAT_ITEM(state: State, chatId: string) {
-            state.chatList.list = state.chatList.list.filter(chat => chat.id !== chatId)
+            console.log('🗑️ REMOVE_CHAT_ITEM mutation 被调用:', chatId)
+            console.log('📋 删除前的聊天列表:', state.chatList.list.map(c => ({ id: c.id, name: c.name })))
+            
+            const beforeCount = state.chatList.list.length
+            state.chatList.list = state.chatList.list.filter(chat => {
+                const keep = chat.id !== chatId
+                if (!keep) {
+                    console.log('🎯 找到并删除:', chat.name, chat.id)
+                }
+                return keep
+            })
+            const afterCount = state.chatList.list.length
+            
+            console.log('📊 删除结果:', {
+                删除前数量: beforeCount,
+                删除后数量: afterCount,
+                是否成功: beforeCount > afterCount
+            })
         },
 
         // 好友申请相关 mutations
