@@ -3728,7 +3728,7 @@ const handleConfirmEditRemark = async () => {
     // })
 
     // 暂时模拟成功
-    const response = { success: true, data: null }
+    const response = { success: true, data: null, message: null as string | null }
 
     if (response.success) {
       // 更新本地数据
@@ -3736,7 +3736,7 @@ const handleConfirmEditRemark = async () => {
         selectedChat.value.remark = newRemark
         
         // 更新聊天列表中的对应项
-        const chatItem = chatList.value.find(chat => chat.id === selectedChat.value?.id)
+        const chatItem = chatList.value.find((chat: ChatItem) => chat.id === selectedChat.value?.id)
         if (chatItem) {
           chatItem.remark = newRemark
         }
@@ -3817,7 +3817,7 @@ const handleToggleTop = async (value: boolean) => {
       selectedChat.value.isTop = targetState
       
       // 更新聊天列表中的对应项
-      const chatIndex = chatList.value.findIndex(c => c.id === selectedChat.value?.id)
+      const chatIndex = chatList.value.findIndex((c: ChatItem) => c.id === selectedChat.value?.id)
       if (chatIndex !== -1) {
         chatList.value[chatIndex].isTop = targetState
       }
