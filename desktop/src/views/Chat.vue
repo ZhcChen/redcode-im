@@ -3188,14 +3188,19 @@ const loadContactsForGroup = async () => {
       })
 
       contacts.value = allContacts
-      console.log('✅ 联系人列表加载成功:', contacts.value.length, '个联系人')
+      console.log('✅ 联系人列表加载成功:', {
+        count: contacts.value.length,
+        contacts: contacts.value.slice(0, 5).map(c => ({ id: c.id, nickname: c.nickname, username: c.username }))
+      })
     } else {
       console.warn('❌ 联系人列表获取失败:', response.message)
       toast.error('获取联系人列表失败: ' + (response.message || '未知错误'))
+      contacts.value = []
     }
   } catch (error: any) {
     console.error('❌ 获取联系人列表异常:', error)
     toast.error('获取联系人列表失败: ' + (error.message || '网络错误'))
+    contacts.value = []
   } finally {
     isLoadingContacts.value = false
   }
@@ -3620,8 +3625,13 @@ const handleConfirmEditGroupNotice = async () => {
     return
   }
 
-  if (newGroupNotice.length > 100) {
-    groupNameError.value = '群公告不能超过100个字符'
+  if (newGroupNotice.length > 500) {
+    groupNameError.value = '群公告不能超过500个字符'
+    return
+  }
+
+  if (!selectedChat.value?.groupId) {
+    groupNameError.value = '未找到群组信息'
     return
   }
 
@@ -3629,16 +3639,36 @@ const handleConfirmEditGroupNotice = async () => {
   groupNameError.value = ''
 
   try {
+    const roomId = selectedChat.value.groupId
     console.log('🔄 开始修改群公告:', {
-      groupId: selectedChat.value?.groupId,
+      roomId,
       newNotice: newGroupNotice
     })
 
-    const response = await GroupApi.updateGroupInfo({
-      groupId: selectedChat.value?.groupId || '',
-      groupNotice: newGroupNotice,  // 群公告内容
-      showNoticeFlag: 1            // 显示群公告标志（与bear-chat-uniapp保持一致）
-    })
+    // 1. 先获取现有的群公告列表
+    const listResponse = await GroupApi.listAnnouncements({ roomId })
+
+    let response: any
+
+    if (listResponse.success && listResponse.data && listResponse.data.length > 0) {
+      // 如果有现有公告，更新最新的一条
+      const latestAnnouncement = listResponse.data[0]
+      console.log('🔄 更新现有群公告:', latestAnnouncement.id)
+
+      response = await GroupApi.updateAnnouncement({
+        roomId,
+        announcementId: latestAnnouncement.id,
+        content: newGroupNotice
+      })
+    } else {
+      // 如果没有公告，创建新的
+      console.log('🔄 创建新的群公告')
+
+      response = await GroupApi.createAnnouncement({
+        roomId,
+        content: newGroupNotice
+      })
+    }
 
     if (response.success) {
       console.log('✅ 群公告修改成功')
@@ -3655,13 +3685,11 @@ const handleConfirmEditGroupNotice = async () => {
         })
       }
 
-      // 发送群公告修改的系统消息（与bear-chat-uniapp保持一致）
-      await sendGroupNoticeUpdateSystemMessage(selectedChat.value?.groupId || '', newGroupNotice)
+      // 发送群公告修改的系统消息
+      await sendGroupNoticeUpdateSystemMessage(roomId, newGroupNotice)
 
       // 重新加载群详情以确保数据同步
-      if (selectedChat.value?.groupId) {
-        await loadGroupDetailInfo(selectedChat.value.groupId)
-      }
+      await loadGroupDetailInfo(roomId)
 
       // 关闭弹窗
       showEditGroupNoticeDialog.value = false
@@ -4794,12 +4822,16 @@ const isRemovingMembers = ref(false)
 const showReportDialog = ref(false)
 const isReportingGroup = ref(false)
 
-const handleAddMember = () => {
+const handleAddMember = async () => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
     toast.error('请先选择一个群聊')
     return
   }
   console.log('打开添加成员对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
+  
+  // 加载联系人列表
+  await loadContactsForGroup()
+  
   showAddExistingGroupMemberDialog.value = true
 }
 
@@ -4902,7 +4934,7 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
 
       // 刷新群成员列表
       if (selectedChat.value) {
-        await loadGroupDetailInfo(selectedChat.value.groupId)
+        await loadGroupMembers(selectedChat.value.id)
       }
 
       // 关闭对话框
@@ -5121,12 +5153,27 @@ const handleVoiceSend = async (recording: any) => {
 // 加载群成员列表
 const loadGroupMembers = async (groupId: string) => {
   try {
+    console.log('🔄 加载群成员列表:', groupId)
     const response = await GroupApi.getChatGroupMembers({ chatGroupId: groupId })
     if (response.success && response.data) {
       groupMembers.value = response.data
+      console.log('✅ 群成员列表加载成功:', {
+        count: response.data.length,
+        members: response.data.map(m => ({
+          userId: m.userId,
+          username: m.username,
+          nickname: m.nickname,
+          avatarUrl: m.avatarUrl,
+          role: m.role
+        }))
+      })
+    } else {
+      console.warn('❌ 群成员列表获取失败:', response.message)
+      groupMembers.value = []
     }
   } catch (error: any) {
-    console.error('加载群成员失败:', error)
+    console.error('❌ 加载群成员失败:', error)
+    groupMembers.value = []
   }
 }
 

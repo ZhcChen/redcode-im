@@ -433,15 +433,15 @@ export class GroupApi {
   // 群公告相关 API
   static async createAnnouncement(params: {
     roomId: string;
+    title?: string;
     content: string;
-    authorId: string;
   }): Promise<ApiResponse<{ announcementId: string }>> {
     const payload = {
+      title: params.title || '群公告',
       content: params.content,
-      author_id: params.authorId,
     };
 
-    const response = await post<{ id: string }>(`/rooms/${params.roomId}/announcements`, payload);
+    const response = await post<{ announcement: { id: string } }>(`/rooms/${params.roomId}/announcements`, payload);
 
     if (!response.success || !response.data) {
       return {
@@ -453,7 +453,7 @@ export class GroupApi {
     return {
       ...response,
       data: {
-        announcementId: response.data.id,
+        announcementId: response.data.announcement.id,
       },
     };
   }
@@ -461,11 +461,16 @@ export class GroupApi {
   static async updateAnnouncement(params: {
     roomId: string;
     announcementId: string;
+    title?: string;
     content: string;
   }): Promise<ApiResponse<null>> {
-    const payload = {
+    const payload: Record<string, unknown> = {
       content: params.content,
     };
+
+    if (params.title) {
+      payload.title = params.title;
+    }
 
     const response = await patch<null>(
       `/rooms/${params.roomId}/announcements/${params.announcementId}`,
@@ -479,20 +484,26 @@ export class GroupApi {
     roomId: string;
   }): Promise<ApiResponse<Array<{
     id: string;
+    title: string;
     content: string;
     authorId: string;
+    isPinned: boolean;
     createdAt: Date;
     updatedAt: Date;
   }>>> {
-    const response = await get<Array<{
+    interface BackendAnnouncement {
       id: string;
+      title: string;
       content: string;
-      author_id: string;
+      publisher_id: string;
+      is_pinned: boolean;
       created_at: string;
       updated_at: string;
-    }>>(`/rooms/${params.roomId}/announcements`);
+    }
 
-    if (!response.success || !response.data) {
+    const response = await get<{ announcements: BackendAnnouncement[] }>(`/rooms/${params.roomId}/announcements`);
+
+    if (!response.success || !response.data || !response.data.announcements) {
       return {
         ...response,
         data: null,
@@ -501,10 +512,12 @@ export class GroupApi {
 
     return {
       ...response,
-      data: response.data.map(announcement => ({
+      data: response.data.announcements.map(announcement => ({
         id: announcement.id,
+        title: announcement.title,
         content: announcement.content,
-        authorId: announcement.author_id,
+        authorId: announcement.publisher_id,
+        isPinned: announcement.is_pinned,
         createdAt: parseTimestamp(announcement.created_at),
         updatedAt: parseTimestamp(announcement.updated_at),
       })),
