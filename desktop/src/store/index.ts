@@ -1670,10 +1670,25 @@ export const store = createStore<State>({
                     // 更新待处理好友申请数量
                     const pendingCount = friendRequests.filter(req => req.status === '待验证').length
                     commit('SET_PENDING_FRIEND_REQUESTS', pendingCount)
+
+                    const currentAccountId = state.accounts?.currentAccountId
+                    if (currentAccountId) {
+                        commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
+                            accountId: currentAccountId,
+                            count: pendingCount
+                        }, { root: true })
+                    }
                 } else {
                     // API调用失败
                     console.warn('❌ 好友申请API调用失败:', response.message)
                     commit('SET_FRIEND_REQUESTS_ERROR', response.message || '获取好友申请失败')
+                    const currentAccountId = state.accounts?.currentAccountId
+                    if (currentAccountId) {
+                        commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
+                            accountId: currentAccountId,
+                            count: 0
+                        }, { root: true })
+                    }
 
                     // 根据错误类型显示不同提示
                     if (response.message && response.message.includes('登录')) {
@@ -1683,6 +1698,13 @@ export const store = createStore<State>({
             } catch (error: any) {
                 console.error('❌ 加载好友申请异常:', error)
                 commit('SET_FRIEND_REQUESTS_ERROR', error.message || '网络错误，请稍后重试')
+                const currentAccountId = state.accounts?.currentAccountId
+                if (currentAccountId) {
+                    commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
+                        accountId: currentAccountId,
+                        count: 0
+                    }, { root: true })
+                }
             } finally {
                 if (shouldResetLoading) {
                     commit('SET_FRIEND_REQUESTS_LOADING', false)
