@@ -164,6 +164,7 @@ export interface RoomMember {
   username: string;
   nickname?: string | null;
   avatarUrl?: string | null;
+  avatarObjectKey?: string | null;
   role: RoomMemberRole;
   joinedAt?: Date | null;
 }

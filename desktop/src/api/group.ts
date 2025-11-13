@@ -60,6 +60,7 @@ interface BackendRoomMember {
   username: string;
   nickname?: string | null;
   avatar_url?: string | null;
+  avatar_object_key?: string | null;
   role: "owner" | "admin" | "member";
   joined_at?: string | null;
 }
@@ -249,6 +250,7 @@ const mapRoomMember = (member: BackendRoomMember): RoomMember => ({
   username: member.username,
   nickname: member.nickname ?? null,
   avatarUrl: member.avatar_url ?? null,
+  avatarObjectKey: member.avatar_object_key ?? null,
   role: mapRoomMemberRole(member.role),
   joinedAt: member.joined_at ? parseTimestamp(member.joined_at) : null,
 });

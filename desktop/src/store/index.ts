@@ -104,6 +104,7 @@ export interface ChatItem {
     showNoticeFlag?: boolean
     userAvatar?: string | null
     friendName?: string | null
+    extra?: Record<string, unknown> | null
 }
 
 const sortChatItems = (list: ChatItem[]) => {
@@ -1301,7 +1302,13 @@ export const store = createStore<State>({
                 if (!forceRefresh && state.chatList.list.length === 0) {
                     const cached = await loadCache<ChatItem[]>(CACHE_KEYS.chatList)
                     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
-                        commit('SET_CHAT_LIST', cached.data)
+                        // 清除缓存中的头像 URL 和 LocalPath，等待后续同步
+                        const sanitizedData = cached.data.map(chat => ({
+                            ...chat,
+                            avatar: undefined,
+                            avatarLocalPath: undefined,
+                        }))
+                        commit('SET_CHAT_LIST', sanitizedData)
                         console.log('💾 使用缓存的聊天列表，数量:', cached.data.length)
                     }
                 }
@@ -1506,7 +1513,8 @@ export const store = createStore<State>({
                             showNoticeFlag: !!(groupNotice && groupNotice.trim().length > 0),
                             userAvatar: isPrivateChat ? (displayAvatar || null) : undefined,
                             friendName: privateDisplay?.friendName || null,
-                            remark: privateDisplay?.remark || null
+                            remark: privateDisplay?.remark || null,
+                            extra: extra // 保留 extra 对象，包含 room_avatar_object_key 等信息
                         }
                     })
 
@@ -1519,6 +1527,7 @@ export const store = createStore<State>({
                     //    - 获取临时下载地址
                     //    - 下载到本地
                     //    - 返回本地 Blob URL
+                    console.log('🔍 [loadChatList] 开始同步群头像缓存, 会话列表数量:', validChatList.length)
                     await Promise.all(
                         validChatList.map(async (chatItem) => {
                             // 只处理群聊(不是私聊)的头像
@@ -1526,15 +1535,37 @@ export const store = createStore<State>({
                                 return
                             }
 
+                            console.log('🔍 [loadChatList] 检查群聊头像:', {
+                                groupId: chatItem.groupId,
+                                name: chatItem.name,
+                                hasExtra: !!chatItem.extra,
+                                extra: chatItem.extra
+                            })
+
                             // 从 extra 中获取 room_avatar_object_key
                             const roomAvatarObjectKey = chatItem.extra?.room_avatar_object_key ||
                                                         chatItem.extra?.roomAvatarObjectKey;
 
+                            console.log('🔍 [loadChatList] 提取 roomAvatarObjectKey:', {
+                                groupId: chatItem.groupId,
+                                name: chatItem.name,
+                                roomAvatarObjectKey
+                            })
+
                             if (!roomAvatarObjectKey) {
+                                console.warn('⚠️ [loadChatList] 群聊缺少 avatar_object_key:', {
+                                    groupId: chatItem.groupId,
+                                    name: chatItem.name
+                                })
                                 return;
                             }
 
                             try {
+                                console.log('🔄 [loadChatList] 开始获取群头像临时URL:', {
+                                    groupId: chatItem.groupId,
+                                    name: chatItem.name,
+                                    roomAvatarObjectKey
+                                })
                                 // 检查本地缓存
                                 const { UserApi } = await import('../api/user')
                                 const localPath = await UserApi.syncGroupAvatarCache(
@@ -1542,6 +1573,11 @@ export const store = createStore<State>({
                                     roomAvatarObjectKey,
                                     false // 不强制刷新,优先使用缓存
                                 )
+                                console.log('✅ [loadChatList] 获取群头像临时URL成功:', {
+                                    groupId: chatItem.groupId,
+                                    name: chatItem.name,
+                                    localPath
+                                })
                                 if (localPath) {
                                     chatItem.avatarLocalPath = localPath
                                     // 同时更新store中的对应项
@@ -1552,7 +1588,11 @@ export const store = createStore<State>({
                                 }
                             } catch (error) {
                                 // 静默失败,使用默认头像
-                                console.warn(`群头像缓存同步失败: ${chatItem.name}`, error)
+                                console.error('❌ [loadChatList] 群头像缓存同步失败:', {
+                                    groupId: chatItem.groupId,
+                                    name: chatItem.name,
+                                    error
+                                })
                             }
                         })
                     )

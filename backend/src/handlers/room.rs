@@ -187,6 +187,8 @@ pub struct RoomMemberDto {
     pub nickname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_object_key: Option<String>,
     pub role: MemberRole,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub joined_at: Option<String>,
@@ -206,6 +208,7 @@ pub async fn list_members(
             username: rm.username,
             nickname: rm.nickname,
             avatar_url: rm.avatar_url,
+            avatar_object_key: rm.avatar_object_key,
             role: rm.role,
             joined_at: rm.joined_at.map(|dt| dt.to_rfc3339()),
         })

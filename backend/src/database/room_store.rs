@@ -221,11 +221,12 @@ impl<'a> RoomStore<'a> {
     ) -> Result<Vec<RoomMemberWithUserInfo>, sqlx::Error> {
         let rows = sqlx::query_as::<_, RoomMemberRow>(
             r#"
-            SELECT 
+            SELECT
                 rm.user_id,
                 u.username,
                 u.nickname,
                 u.avatar_url,
+                u.avatar_object_key,
                 rm.role,
                 rm.joined_at
             FROM room_members rm

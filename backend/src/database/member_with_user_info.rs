@@ -12,6 +12,7 @@ pub struct RoomMemberWithUserInfo {
     pub username: String,
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
+    pub avatar_object_key: Option<String>,
     pub role: MemberRole,
     pub joined_at: Option<DateTime<Utc>>,
 }
@@ -23,6 +24,7 @@ pub struct RoomMemberRow {
     username: String,
     nickname: Option<String>,
     avatar_url: Option<String>,
+    avatar_object_key: Option<String>,
     role: MemberRole,
     joined_at: Option<DateTime<Utc>>,
 }
@@ -34,6 +36,7 @@ impl From<RoomMemberRow> for RoomMemberWithUserInfo {
             username: row.username,
             nickname: row.nickname,
             avatar_url: row.avatar_url,
+            avatar_object_key: row.avatar_object_key,
             role: row.role,
             joined_at: row.joined_at,
         }

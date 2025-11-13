@@ -32,7 +32,7 @@
         
       </div>
       <div class="chat-header-right" v-if="selectedChat">
-        <Avatar :src="selectedChat.avatar" :text="selectedChat.name" :size="42" />
+        <Avatar :src="selectedChat.avatarLocalPath || selectedChat.avatar" :text="selectedChat.name" :size="42" />
         <div class="chat-info">
           <h2 class="chat-title">{{ selectedChat.name }}</h2>
           <div v-if="selectedChat.groupType === 1" class="chat-member-count">
@@ -66,7 +66,7 @@
         </div>
         <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" @contextmenu.prevent="handleChatContextMenu(chat, $event)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
           <div class="avatar-container">
-            <Avatar :src="chat.avatar" :text="chat.name" :size="48" />
+            <Avatar :src="chat.avatarLocalPath || chat.avatar" :text="chat.name" :size="48" />
             <!-- 免打扰状态的小红点 -->
             <div v-if="chat.chatStatus === 1 && chat.unreadCount > 0" class="mute-dot"></div>
           </div>
@@ -110,7 +110,7 @@
 
             <!-- 普通用户消息 -->
             <template v-else>
-            <Avatar v-if="!message.isSelf" :src="message.senderAvatar" :text="message.senderName" :size="40" />
+            <Avatar v-if="!message.isSelf" :src="message.senderAvatarLocalPath || message.senderAvatar" :text="message.senderName" :size="40" />
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
               <div class="message-content">
@@ -708,6 +708,10 @@ const restoreMessageFromCache = (cached: Message): Message => {
     ...cached,
     content: restoredContent,
     parts: restoredParts,
+    // 清除缓存中的头像 URL 和 LocalPath，等待后续同步
+    senderAvatar: undefined,
+    senderAvatarLocalPath: undefined,
+    senderAvatarObjectKey: cached.senderAvatarObjectKey,
   }
 }
 
@@ -1292,6 +1296,8 @@ interface Message {
   senderId: string
   senderName: string
   senderAvatar?: string
+  senderAvatarLocalPath?: string | null
+  senderAvatarObjectKey?: string | null
   messageType: number
   status: number
   createTime?: string  // 原始创建时间
@@ -1768,7 +1774,7 @@ const loadMessages = async (groupId: string) => {
       
       messages.value = sortedMessages
       await persistMessagesCache(groupId, sortedMessages)
-      
+
       console.log('✅ 消息加载成功:', messages.value.length, '条消息')
       console.log('📋 消息详情（按时间排序）:', messages.value.map((msg: Message) => ({
         id: msg.id,
@@ -1778,6 +1784,50 @@ const loadMessages = async (groupId: string) => {
         time: msg.time,
         createTime: msg.createTime
       })))
+
+      // 同步消息发送者头像缓存
+      const uniqueSenderIds = new Set<string>()
+      sortedMessages.forEach(msg => {
+        if (!msg.isSelf && msg.senderId) {
+          uniqueSenderIds.add(msg.senderId)
+        }
+      })
+
+      if (uniqueSenderIds.size > 0) {
+        console.log('🔄 开始同步消息发送者头像，数量:', uniqueSenderIds.size)
+
+        // 获取群成员列表以获取 avatarObjectKey
+        await Promise.all(
+          Array.from(uniqueSenderIds).map(async senderId => {
+            // 从群成员列表中找到对应的成员
+            const member = groupMembers.value?.find(m => m.userId === senderId)
+            const avatarObjectKey = member?.avatarObjectKey
+
+            if (!avatarObjectKey) {
+              console.warn('⚠️ 未找到用户的 avatarObjectKey:', { senderId, memberName: member?.nickname || member?.username })
+              return
+            }
+
+            try {
+              const localPath = await UserApi.syncUserAvatarCache(senderId, avatarObjectKey, false)
+
+              // 更新消息列表中该发送者的所有消息
+              sortedMessages.forEach(msg => {
+                if (msg.senderId === senderId && !msg.isSelf) {
+                  msg.senderAvatarLocalPath = localPath
+                  msg.senderAvatarObjectKey = avatarObjectKey
+                }
+              })
+
+              console.log('✅ 同步用户头像成功:', { senderId, localPath })
+            } catch (error) {
+              console.error('❌ 同步用户头像失败:', { senderId, error })
+            }
+          })
+        )
+
+        console.log('✅ 消息发送者头像同步完成')
+      }
 
       // 初始化消息搜索索引
       if (messages.value.length > 0 && selectedChat.value) {
