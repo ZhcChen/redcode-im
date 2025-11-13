@@ -1,4 +1,4 @@
-use crate::database::models::StorageProviderType;
+use crate::database::models::{Platform, StorageProviderType};
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::version_store::{version_exists, VersionStore};
 use crate::error::AppError;
@@ -77,18 +77,16 @@ pub async fn create_app_version(
 ) -> Result<Json<crate::models::AppVersionInfo>, AppError> {
     validate_version_payload(&req)?;
 
-    let platform_trimmed = req.platform.trim();
+    let platform = Platform::from_str(req.platform.trim()).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            req.platform
+        ))
+    })?;
     let channel_trimmed = req.channel.trim();
     let version_trimmed = req.version.trim();
 
-    if version_exists(
-        &state.database,
-        platform_trimmed,
-        channel_trimmed,
-        version_trimmed,
-    )
-    .await?
-    {
+    if version_exists(&state.database, platform, channel_trimmed, version_trimmed).await? {
         return Err(AppError::ValidationError(
             "该平台该渠道的版本已存在".to_string(),
         ));
@@ -97,7 +95,7 @@ pub async fn create_app_version(
     let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
     let store = VersionStore::new(state.database.clone());
 
-    let insert = api_create_version_to_db(&req, operator);
+    let insert = api_create_version_to_db(&req, operator)?;
     let created = store.create_version(&insert).await?;
 
     Ok(Json(db_app_version_to_api(&created)))
@@ -129,10 +127,17 @@ pub async fn list_app_versions(
     Query(query): Query<ListAppVersionsQuery>,
 ) -> Result<Json<AppVersionListResponse>, AppError> {
     let store = VersionStore::new(state.database.clone());
-    let platform = query.platform.trim();
-    if platform.is_empty() {
+    let platform_str = query.platform.trim();
+    if platform_str.is_empty() {
         return Err(AppError::ValidationError("platform 必填".to_string()));
     }
+
+    let platform = Platform::from_str(platform_str).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            platform_str
+        ))
+    })?;
 
     let channel = query
         .channel
@@ -211,10 +216,17 @@ pub async fn latest_version(
     State(state): State<AppState>,
     Query(query): Query<LatestVersionQuery>,
 ) -> Result<Json<LatestVersionResponse>, AppError> {
-    let platform = query.platform.trim();
-    if platform.is_empty() {
+    let platform_str = query.platform.trim();
+    if platform_str.is_empty() {
         return Err(AppError::ValidationError("platform 必填".to_string()));
     }
+
+    let platform = Platform::from_str(platform_str).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            platform_str
+        ))
+    })?;
 
     let channel = query.channel.trim();
     if channel.is_empty() {

@@ -165,11 +165,65 @@ pub struct UpdateUserRequest {
     pub status: Option<UserStatus>,
 }
 
+/// 平台枚举
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
+)]
+#[sqlx(type_name = "text")]
+#[serde(rename_all = "lowercase")]
+pub enum Platform {
+    #[sqlx(rename = "windows")]
+    Windows,
+    #[sqlx(rename = "macos")]
+    MacOS,
+    #[sqlx(rename = "ios")]
+    IOS,
+    #[sqlx(rename = "android")]
+    Android,
+    #[sqlx(rename = "linux")]
+    Linux,
+}
+
+impl fmt::Display for Platform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Platform::Windows => write!(f, "windows"),
+            Platform::MacOS => write!(f, "macos"),
+            Platform::IOS => write!(f, "ios"),
+            Platform::Android => write!(f, "android"),
+            Platform::Linux => write!(f, "linux"),
+        }
+    }
+}
+
+impl Platform {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Platform::Windows => "windows",
+            Platform::MacOS => "macos",
+            Platform::IOS => "ios",
+            Platform::Android => "android",
+            Platform::Linux => "linux",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "windows" => Some(Platform::Windows),
+            "macos" => Some(Platform::MacOS),
+            "ios" => Some(Platform::IOS),
+            "android" => Some(Platform::Android),
+            "linux" => Some(Platform::Linux),
+            _ => None,
+        }
+    }
+}
+
 /// 应用版本记录
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AppVersion {
     pub id: Uuid,
-    pub platform: String,
+    pub platform: Platform,
     pub version: String,
     pub build_number: i32,
     pub channel: String,

@@ -1,4 +1,4 @@
-use crate::database::models::AppVersion;
+use crate::database::models::{AppVersion, Platform};
 use crate::database::Database;
 use chrono::{DateTime, Utc};
 use sqlx::{query_as, query_scalar, Error, QueryBuilder};
@@ -111,7 +111,7 @@ impl VersionStore {
 
     pub async fn list_versions(
         &self,
-        platform: &str,
+        platform: Platform,
         channel: Option<&str>,
         limit: i64,
         offset: i64,
@@ -119,7 +119,7 @@ impl VersionStore {
         let mut builder = QueryBuilder::new(
             "SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE platform = ",
         );
-        builder.push_bind(platform);
+        builder.push_bind(platform.as_str());
         if let Some(channel) = channel {
             builder.push(" AND channel = ");
             builder.push_bind(channel);
@@ -136,7 +136,7 @@ impl VersionStore {
 
     pub async fn find_latest_active(
         &self,
-        platform: &str,
+        platform: Platform,
         channel: &str,
     ) -> Result<Option<AppVersion>, Error> {
         let record = query_as::<_, AppVersion>(
@@ -148,7 +148,7 @@ impl VersionStore {
             LIMIT 1
             "#,
         )
-        .bind(platform)
+        .bind(platform.as_str())
         .bind(channel)
         .fetch_optional(&self.database.pool)
         .await?;
@@ -191,18 +191,18 @@ impl VersionStore {
 
     pub async fn count_versions(
         &self,
-        platform: &str,
+        platform: Platform,
         channel: Option<&str>,
     ) -> Result<i64, Error> {
         let query = if let Some(channel) = channel {
             sqlx::query_scalar(
                 "SELECT COUNT(*) FROM app_versions WHERE platform = $1 AND channel = $2",
             )
-            .bind(platform)
+            .bind(platform.as_str())
             .bind(channel)
         } else {
             sqlx::query_scalar("SELECT COUNT(*) FROM app_versions WHERE platform = $1")
-                .bind(platform)
+                .bind(platform.as_str())
         };
 
         let total: i64 = query.fetch_one(&self.database.pool).await?;
@@ -212,7 +212,7 @@ impl VersionStore {
 
 #[derive(Debug, Clone)]
 pub struct AppVersionInsert {
-    pub platform: String,
+    pub platform: Platform,
     pub version: String,
     pub build_number: i32,
     pub channel: String,
@@ -244,14 +244,14 @@ pub struct AppVersionUpdate {
 
 pub async fn version_exists(
     db: &Database,
-    platform: &str,
+    platform: Platform,
     channel: &str,
     version: &str,
 ) -> Result<bool, Error> {
     let exists: bool = query_scalar(
         "SELECT EXISTS(SELECT 1 FROM app_versions WHERE platform = $1 AND channel = $2 AND version = $3)",
     )
-    .bind(platform)
+    .bind(platform.as_str())
     .bind(channel)
     .bind(version)
     .fetch_one(&db.pool)

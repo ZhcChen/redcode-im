@@ -120,19 +120,19 @@ pub async fn get_chat_history(
 ) -> Result<Json<ChatHistoryResponse>, AppError> {
     let pool = &state.database.pool;
     let message_store = MessageStore::new(&state.database.pool);
-    
+
     let page = params.page.max(1);
     let page_size = params.page_size.max(1).min(100);
-    
+
     // 构建查询条件
     let mut query_conditions = Vec::new();
     let mut uuid_params: Vec<Uuid> = Vec::new();
     let mut string_params: Vec<String> = Vec::new();
     let mut param_index = 1;
-    
+
     // 基础条件：未删除的消息
     query_conditions.push("m.deleted_at IS NULL".to_string());
-    
+
     // 房间ID条件
     if let Some(room_id) = &params.room_id {
         if let Ok(uuid) = Uuid::parse_str(room_id) {
@@ -141,7 +141,7 @@ pub async fn get_chat_history(
             param_index += 1;
         }
     }
-    
+
     // 用户ID条件
     if let Some(user_id) = &params.user_id {
         if let Ok(uuid) = Uuid::parse_str(user_id) {
@@ -150,7 +150,7 @@ pub async fn get_chat_history(
             param_index += 1;
         }
     }
-    
+
     // 日期范围条件
     if let Some(start_date) = &params.start_date {
         if let Ok(dt) = DateTime::parse_from_rfc3339(start_date) {
@@ -159,7 +159,7 @@ pub async fn get_chat_history(
             param_index += 1;
         }
     }
-    
+
     if let Some(end_date) = &params.end_date {
         if let Ok(dt) = DateTime::parse_from_rfc3339(end_date) {
             query_conditions.push(format!("m.created_at <= ${}", param_index));
@@ -167,7 +167,7 @@ pub async fn get_chat_history(
             param_index += 1;
         }
     }
-    
+
     // 关键词搜索条件
     if let Some(keyword) = &params.keyword {
         if !keyword.trim().is_empty() {
@@ -177,39 +177,33 @@ pub async fn get_chat_history(
             param_index += 2;
         }
     }
-    
+
     let where_clause = if query_conditions.is_empty() {
         String::new()
     } else {
         format!("WHERE {}", query_conditions.join(" AND "))
     };
-    
+
     // 获取总数
-    let count_query = format!(
-        "SELECT COUNT(*) FROM messages m {}",
-        where_clause
-    );
-    
+    let count_query = format!("SELECT COUNT(*) FROM messages m {}", where_clause);
+
     let mut count_query_builder = sqlx::query_scalar(&count_query);
-    
+
     // 先绑定UUID参数
     for param in &uuid_params {
         count_query_builder = count_query_builder.bind(param);
     }
-    
+
     // 再绑定字符串参数
     for param in &string_params {
         count_query_builder = count_query_builder.bind(param);
     }
-    
-    let total: i64 = count_query_builder
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取聊天记录总数失败: {}", e);
-            AppError::DatabaseError(e)
-        })?;
-    
+
+    let total: i64 = count_query_builder.fetch_one(pool).await.map_err(|e| {
+        tracing::error!("获取聊天记录总数失败: {}", e);
+        AppError::DatabaseError(e)
+    })?;
+
     // 获取分页数据
     let offset = (page - 1) * page_size;
     let data_query = format!(
@@ -226,59 +220,62 @@ pub async fn get_chat_history(
         ORDER BY m.created_at DESC
         LIMIT ${} OFFSET ${}
         "#,
-        where_clause, param_index, param_index + 1
+        where_clause,
+        param_index,
+        param_index + 1
     );
-    
+
     let mut data_query_builder = sqlx::query(&data_query);
-    
+
     // 先绑定UUID参数
     for param in &uuid_params {
         data_query_builder = data_query_builder.bind(param);
     }
-    
+
     // 再绑定字符串参数
     for param in &string_params {
         data_query_builder = data_query_builder.bind(param);
     }
-    
+
     data_query_builder = data_query_builder.bind(page_size as i64);
     data_query_builder = data_query_builder.bind(offset as i64);
-    
-    let rows = data_query_builder
-        .fetch_all(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取聊天记录失败: {}", e);
-            AppError::DatabaseError(e)
-        })?;
-    
+
+    let rows = data_query_builder.fetch_all(pool).await.map_err(|e| {
+        tracing::error!("获取聊天记录失败: {}", e);
+        AppError::DatabaseError(e)
+    })?;
+
     let mut messages = Vec::new();
-    
+
     for row in rows {
         let message_id: Uuid = row.get("id");
         let room_id: Uuid = row.get("room_id");
         let sender_id: Uuid = row.get("sender_id");
-        
+
         // 获取消息部件
-        let parts_map = message_store.get_message_parts_map(&[message_id])
+        let parts_map = message_store
+            .get_message_parts_map(&[message_id])
             .await
             .map_err(|e| {
                 tracing::error!("获取消息部件失败: {}", e);
                 AppError::DatabaseError(e)
             })?;
-        
-        let message_parts: Vec<MessagePart> = parts_map.get(&message_id)
+
+        let message_parts: Vec<MessagePart> = parts_map
+            .get(&message_id)
             .unwrap_or(&Vec::new())
             .iter()
             .map(|part| MessagePart::from(part.clone()))
             .collect();
-        
-            let chat_message = ChatMessage {
+
+        let chat_message = ChatMessage {
             id: message_id.to_string(),
             room_id: room_id.to_string(),
             room_name: row.get("room_name"),
             sender_id: sender_id.to_string(),
-            sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
+            sender_name: row
+                .get::<Option<String>, _>("sender_name")
+                .unwrap_or_else(|| "未知用户".to_string()),
             sender_avatar: row.get("sender_avatar"),
             message_type: match row.get::<i16, _>("message_type") {
                 0 => "text".to_string(),
@@ -289,14 +286,20 @@ pub async fn get_chat_history(
             },
             content: row.get("content"),
             parts: message_parts,
-            created_at: row.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
-            updated_at: row.get::<chrono::DateTime<Utc>, _>("updated_at").to_rfc3339(),
-            deleted_at: row.get::<Option<chrono::DateTime<Utc>>, _>("deleted_at").map(|dt| dt.to_rfc3339()),
+            created_at: row
+                .get::<chrono::DateTime<Utc>, _>("created_at")
+                .to_rfc3339(),
+            updated_at: row
+                .get::<chrono::DateTime<Utc>, _>("updated_at")
+                .to_rfc3339(),
+            deleted_at: row
+                .get::<Option<chrono::DateTime<Utc>>, _>("deleted_at")
+                .map(|dt| dt.to_rfc3339()),
         };
-        
+
         messages.push(chat_message);
     }
-    
+
     Ok(Json(ChatHistoryResponse {
         messages,
         total: total as usize,
@@ -312,9 +315,9 @@ pub async fn get_user_rooms(
 ) -> Result<Json<UserRoomResponse>, AppError> {
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-    
+
     let pool = &state.database.pool;
-    
+
     // 获取用户参与的房间
     let query = r#"
     SELECT 
@@ -326,7 +329,7 @@ pub async fn get_user_rooms(
     WHERE rm.user_id = $1 AND r.deleted_at IS NULL AND rm.deleted_at IS NULL
     ORDER BY r.updated_at DESC
     "#;
-    
+
     let rows = sqlx::query(query)
         .bind(user_id)
         .fetch_all(pool)
@@ -335,12 +338,12 @@ pub async fn get_user_rooms(
             tracing::error!("获取用户房间列表失败: {}", e);
             AppError::DatabaseError(e)
         })?;
-    
+
     let mut rooms = Vec::new();
-    
+
     for row in rows {
         let room_id: Uuid = row.get("id");
-        
+
         // 获取房间最后一条消息
         let last_message_query = r#"
         SELECT 
@@ -355,7 +358,7 @@ pub async fn get_user_rooms(
         ORDER BY m.created_at DESC
         LIMIT 1
         "#;
-        
+
         let last_message_row = sqlx::query(last_message_query)
             .bind(room_id)
             .fetch_optional(pool)
@@ -364,14 +367,16 @@ pub async fn get_user_rooms(
                 tracing::error!("获取房间最后消息失败: {}", e);
                 AppError::DatabaseError(e)
             })?;
-        
-            let last_message = if let Some(row) = last_message_row {
+
+        let last_message = if let Some(row) = last_message_row {
             Some(ChatMessage {
                 id: row.get::<Uuid, _>("id").to_string(),
                 room_id: room_id.to_string(),
                 room_name: row.get::<Option<String>, _>("room_name"),
                 sender_id: row.get::<Uuid, _>("sender_id").to_string(),
-                sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
+                sender_name: row
+                    .get::<Option<String>, _>("sender_name")
+                    .unwrap_or_else(|| "未知用户".to_string()),
                 sender_avatar: row.get("sender_avatar"),
                 message_type: match row.get::<i16, _>("message_type") {
                     0 => "text".to_string(),
@@ -382,35 +387,42 @@ pub async fn get_user_rooms(
                 },
                 content: row.get("content"),
                 parts: Vec::new(),
-                created_at: row.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
-                updated_at: row.get::<chrono::DateTime<Utc>, _>("updated_at").to_rfc3339(),
+                created_at: row
+                    .get::<chrono::DateTime<Utc>, _>("created_at")
+                    .to_rfc3339(),
+                updated_at: row
+                    .get::<chrono::DateTime<Utc>, _>("updated_at")
+                    .to_rfc3339(),
                 deleted_at: None,
             })
         } else {
             None
         };
-        
+
         let room = UserRoom {
             id: room_id.to_string(),
-            name: row.get::<Option<String>, _>("name").unwrap_or_else(|| "未命名房间".to_string()),
+            name: row
+                .get::<Option<String>, _>("name")
+                .unwrap_or_else(|| "未命名房间".to_string()),
             description: row.get("description"),
             avatar_url: row.get("avatar_url"),
             is_private: row.get::<i16, _>("room_type") == 0, // 0=private
-            is_group: row.get::<i16, _>("room_type") == 1,  // 1=group
+            is_group: row.get::<i16, _>("room_type") == 1,   // 1=group
             member_count: row.get("member_count"),
             last_message,
-            created_at: row.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
-            updated_at: row.get::<chrono::DateTime<Utc>, _>("updated_at").to_rfc3339(),
+            created_at: row
+                .get::<chrono::DateTime<Utc>, _>("created_at")
+                .to_rfc3339(),
+            updated_at: row
+                .get::<chrono::DateTime<Utc>, _>("updated_at")
+                .to_rfc3339(),
         };
-        
+
         rooms.push(room);
     }
-    
+
     let total = rooms.len();
-    Ok(Json(UserRoomResponse {
-        rooms,
-        total,
-    }))
+    Ok(Json(UserRoomResponse { rooms, total }))
 }
 
 /// 获取特定房间的聊天记录
@@ -421,10 +433,10 @@ pub async fn get_room_chat_history(
 ) -> Result<Json<ChatHistoryResponse>, AppError> {
     let room_id = Uuid::parse_str(&room_id)
         .map_err(|_| AppError::ValidationError("无效的房间ID".to_string()))?;
-    
+
     // 设置房间ID并复用获取聊天记录的逻辑
     let mut room_params = params;
     room_params.room_id = Some(room_id.to_string());
-    
+
     get_chat_history(State(state), Query(room_params)).await
 }

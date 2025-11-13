@@ -2,10 +2,10 @@ use chrono::Utc;
 use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
+use crate::database::member_with_user_info::{RoomMemberRow, RoomMemberWithUserInfo};
 use crate::database::models::{
     ChatSummaryRow, MemberRole, Room, RoomMember, RoomType, UserRoomPin,
 };
-use crate::database::member_with_user_info::{RoomMemberWithUserInfo, RoomMemberRow};
 
 pub struct RoomStore<'a> {
     pub pool: &'a PgPool,
@@ -171,11 +171,7 @@ impl<'a> RoomStore<'a> {
         Ok(res.rows_affected() > 0)
     }
 
-    pub async fn is_user_in_room(
-        &self,
-        room_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<bool, sqlx::Error> {
+    pub async fn is_user_in_room(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let exists: Option<(Uuid,)> = sqlx::query_as(
             r#"
             SELECT user_id
@@ -239,7 +235,7 @@ impl<'a> RoomStore<'a> {
         .bind(room_id)
         .fetch_all(self.pool)
         .await?;
-        
+
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
@@ -489,7 +485,11 @@ impl<'a> RoomStore<'a> {
         Ok(room_result.rows_affected() > 0)
     }
 
-    pub async fn pin_room_for_user(&self, user_id: Uuid, room_id: Uuid) -> Result<UserRoomPin, sqlx::Error> {
+    pub async fn pin_room_for_user(
+        &self,
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> Result<UserRoomPin, sqlx::Error> {
         let record = sqlx::query_as::<_, UserRoomPin>(
             r#"
             INSERT INTO user_room_pins (user_id, room_id, pinned_at)
@@ -506,7 +506,11 @@ impl<'a> RoomStore<'a> {
         Ok(record)
     }
 
-    pub async fn unpin_room_for_user(&self, user_id: Uuid, room_id: Uuid) -> Result<bool, sqlx::Error> {
+    pub async fn unpin_room_for_user(
+        &self,
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
         let result = sqlx::query(
             r#"
             DELETE FROM user_room_pins WHERE user_id = $1 AND room_id = $2
@@ -521,7 +525,11 @@ impl<'a> RoomStore<'a> {
     }
 
     /// 获取指定成员信息
-    pub async fn get_member(&self, room_id: Uuid, user_id: Uuid) -> Result<Option<RoomMember>, sqlx::Error> {
+    pub async fn get_member(
+        &self,
+        room_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<RoomMember>, sqlx::Error> {
         let member = sqlx::query_as::<_, RoomMember>(
             r#"
             SELECT id, room_id, user_id, role, joined_at, deleted_at, last_read_at, last_read_message_id

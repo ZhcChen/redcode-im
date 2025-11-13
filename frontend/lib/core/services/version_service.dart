@@ -91,9 +91,12 @@ class VersionService {
     required String currentVersion,
     String channel = 'stable',
   }) async {
+    // 自动识别平台：iOS 或 Android
+    final platform = Platform.isIOS ? 'ios' : 'android';
+
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/versions/latest').replace(
       queryParameters: <String, String>{
-        'platform': 'frontend',
+        'platform': platform,
         'channel': channel,
         if (currentVersion.isNotEmpty) 'current_version': currentVersion,
       },

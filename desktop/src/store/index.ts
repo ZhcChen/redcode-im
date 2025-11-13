@@ -1102,7 +1102,6 @@ export const store = createStore<State>({
             commit('SET_VERSION_ERROR', null)
             try {
                 const response = await VersionApi.getLatestVersion({
-                    platform: 'desktop',
                     channel: state.version.current.channel,
                     currentVersion: state.version.current.version
                 })

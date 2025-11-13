@@ -1,5 +1,6 @@
 import { get } from './http';
 import type { ApiResponse } from './http';
+import { platform } from '@tauri-apps/api/os';
 
 export interface AppVersionInfo {
   id: string;
@@ -34,12 +35,17 @@ export interface VersionDownloadResponse {
 
 export class VersionApi {
   static async getLatestVersion(params: {
-    platform: string;
     channel?: string;
     currentVersion?: string;
   }): Promise<ApiResponse<LatestVersionResponse>> {
+    // 自动识别平台：windows 或 macos
+    const osPlatform = await platform();
+    const platformName = osPlatform === 'darwin' ? 'macos' :
+                         osPlatform === 'win32' ? 'windows' :
+                         osPlatform === 'linux' ? 'linux' : 'windows';
+
     const query: Record<string, string> = {
-      platform: params.platform,
+      platform: platformName,
       channel: params.channel ?? 'stable'
     };
     if (params.currentVersion) {

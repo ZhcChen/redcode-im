@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::database::models::{
-    CaptchaSettingRecord, Permission, Role, StorageProvider, StorageProviderType,
-    UserStatus,
+    CaptchaSettingRecord, Permission, Role, StorageProvider, StorageProviderType, UserStatus,
 };
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
@@ -711,7 +710,10 @@ async fn get_daily_active_users(
     Ok(stats)
 }
 
-async fn get_daily_messages(pool: &sqlx::PgPool, _days: i64) -> Result<Vec<DailyStat>, sqlx::Error> {
+async fn get_daily_messages(
+    pool: &sqlx::PgPool,
+    _days: i64,
+) -> Result<Vec<DailyStat>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
         SELECT

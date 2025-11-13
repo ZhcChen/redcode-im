@@ -160,9 +160,18 @@ pub fn create_routes() -> Router<AppState> {
             post(version::deactivate_app_version),
         )
         // 聊天记录管理API
-        .route("/api/admin/chat-history", get(chat_history::get_chat_history))
-        .route("/api/admin/users/{user_id}/rooms", get(chat_history::get_user_rooms))
-        .route("/api/admin/rooms/{room_id}/chat-history", get(chat_history::get_room_chat_history))
+        .route(
+            "/api/admin/chat-history",
+            get(chat_history::get_chat_history),
+        )
+        .route(
+            "/api/admin/users/{user_id}/rooms",
+            get(chat_history::get_user_rooms),
+        )
+        .route(
+            "/api/admin/rooms/{room_id}/chat-history",
+            get(chat_history::get_room_chat_history),
+        )
         .route("/feedbacks", post(feedback::submit_feedback))
         // users
         .route("/users/search", get(user::search_users))
@@ -209,9 +218,18 @@ pub fn create_routes() -> Router<AppState> {
         .route("/rooms/{room_id}/leave", post(room::leave_room))
         .route("/rooms/{room_id}/members", get(room::list_members))
         .route("/rooms/{room_id}", patch(room::update_room))
-        .route("/rooms/{room_id}/avatar/direct-upload", post(room::generate_room_avatar_direct_upload))
-        .route("/rooms/{room_id}/avatar/commit", post(room::commit_room_avatar_upload))
-        .route("/rooms/{room_id}/avatar/url", get(room::get_room_avatar_download_url))
+        .route(
+            "/rooms/{room_id}/avatar/direct-upload",
+            post(room::generate_room_avatar_direct_upload),
+        )
+        .route(
+            "/rooms/{room_id}/avatar/commit",
+            post(room::commit_room_avatar_upload),
+        )
+        .route(
+            "/rooms/{room_id}/avatar/url",
+            get(room::get_room_avatar_download_url),
+        )
         .route(
             "/rooms/{room_id}/notification-settings",
             post(room::update_notification_settings),

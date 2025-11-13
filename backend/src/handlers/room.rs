@@ -402,20 +402,28 @@ pub async fn update_room(
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
     let store = RoomStore::new(state.database.pool());
-    
+
     // 检查用户权限
     let member = store
         .get_member(room_id, user_id)
         .await?
         .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
-    
+
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
-        return Err(AppError::Forbidden("Only room owner or admin can update room".to_string()));
+        return Err(AppError::Forbidden(
+            "Only room owner or admin can update room".to_string(),
+        ));
     }
 
     let room = store
-        .update_room(room_id, request.name, request.description, request.avatar_url, None)
+        .update_room(
+            room_id,
+            request.name,
+            request.description,
+            request.avatar_url,
+            None,
+        )
         .await?;
 
     Ok(Json(UpdateRoomResponse {
@@ -485,7 +493,9 @@ pub async fn generate_room_avatar_direct_upload(
 
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
-        return Err(AppError::Forbidden("Only room owner or admin can upload avatar".to_string()));
+        return Err(AppError::Forbidden(
+            "Only room owner or admin can upload avatar".to_string(),
+        ));
     }
 
     // 加载默认存储提供商
@@ -495,7 +505,13 @@ pub async fn generate_room_avatar_direct_upload(
     // 生成唯一的对象键
     let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
     let ext = req.filename.rsplit('.').next().unwrap_or("png");
-    let key = format!("room_avatars/{}/{}_{}.{}", room_id, timestamp, uuid::Uuid::new_v4().to_string()[..8].to_string(), ext);
+    let key = format!(
+        "room_avatars/{}/{}_{}.{}",
+        room_id,
+        timestamp,
+        uuid::Uuid::new_v4().to_string()[..8].to_string(),
+        ext
+    );
 
     // 生成直传签名
     let signature = storage_service
@@ -550,7 +566,9 @@ pub async fn commit_room_avatar_upload(
 
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
-        return Err(AppError::Forbidden("Only room owner or admin can upload avatar".to_string()));
+        return Err(AppError::Forbidden(
+            "Only room owner or admin can upload avatar".to_string(),
+        ));
     }
 
     // 验证对象键格式
@@ -565,7 +583,13 @@ pub async fn commit_room_avatar_upload(
 
     // 更新房间头像：存储 object_key 和 url
     store
-        .update_room(room_id, None, None, Some(avatar_url.clone()), Some(key.to_string()))
+        .update_room(
+            room_id,
+            None,
+            None,
+            Some(avatar_url.clone()),
+            Some(key.to_string()),
+        )
         .await?;
 
     Ok(Json(CommitRoomAvatarUploadResponse {

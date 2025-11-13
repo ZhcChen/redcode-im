@@ -124,8 +124,7 @@ impl AccountStore {
             .await?;
         self.ensure_account_column("avatar_local_path", "TEXT")
             .await?;
-        self.ensure_account_column("sort_order", "INTEGER")
-            .await?;
+        self.ensure_account_column("sort_order", "INTEGER").await?;
 
         tracing::info!("账号数据库表初始化完成");
         Ok(())

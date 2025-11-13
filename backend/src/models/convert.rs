@@ -516,7 +516,7 @@ pub fn db_app_version_to_api(
 ) -> crate::models::AppVersionInfo {
     crate::models::AppVersionInfo {
         id: model.id.to_string(),
-        platform: model.platform.clone(),
+        platform: model.platform.to_string(),
         version: model.version.clone(),
         build_number: model.build_number,
         channel: model.channel.clone(),
@@ -543,8 +543,16 @@ pub fn db_versions_to_api_list(
 pub fn api_create_version_to_db(
     req: &crate::models::CreateAppVersionRequest,
     operator: Option<uuid::Uuid>,
-) -> crate::database::version_store::AppVersionInsert {
+) -> Result<crate::database::version_store::AppVersionInsert, crate::error::AppError> {
     use chrono::{DateTime, Utc};
+
+    let platform =
+        crate::database::models::Platform::from_str(req.platform.trim()).ok_or_else(|| {
+            crate::error::AppError::ValidationError(format!(
+                "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+                req.platform
+            ))
+        })?;
 
     let released_at = req
         .released_at
@@ -552,8 +560,8 @@ pub fn api_create_version_to_db(
         .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
-    crate::database::version_store::AppVersionInsert {
-        platform: req.platform.trim().to_string(),
+    Ok(crate::database::version_store::AppVersionInsert {
+        platform,
         version: req.version.trim().to_string(),
         build_number: req.build_number,
         channel: req.channel.trim().to_string(),
@@ -567,7 +575,7 @@ pub fn api_create_version_to_db(
         is_active: req.is_active,
         released_at,
         operator,
-    }
+    })
 }
 
 pub fn api_update_version_to_db(
