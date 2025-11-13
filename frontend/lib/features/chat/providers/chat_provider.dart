@@ -1,10 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
+import '../../../core/constants/app_config.dart';
 import '../../../core/services/message_service.dart'
     show MessageAttachmentDraft, MessageService, MessageStatus;
 import '../../../core/services/websocket_service.dart';
 import '../models/message_model.dart';
 import '../models/chat_model.dart';
 import '../models/message_reader.dart';
+import 'package:async/async.dart';
 
 /// 聊天提供者 - 管理聊天状态
 class ChatProvider with ChangeNotifier {
@@ -276,7 +282,7 @@ class ChatProvider with ChangeNotifier {
   /// 上传群头像
   Future<String> uploadGroupAvatar(String roomId, String filePath, String contentType, int fileSize) async {
     try {
-      final session = await _messageService._tokenStorage.readSession();
+      final session = await _messageService.tokenStorage.readSession();
       if (session == null) {
         throw Exception('Not logged in');
       }
@@ -312,7 +318,7 @@ class ChatProvider with ChangeNotifier {
   /// 提交群头像上传
   Future<String> commitGroupAvatarUpload(String roomId, String uploadKey) async {
     try {
-      final session = await _messageService._tokenStorage.readSession();
+      final session = await _messageService.tokenStorage.readSession();
       if (session == null) {
         throw Exception('Not logged in');
       }

@@ -115,6 +115,9 @@ class MessageService with ChangeNotifier {
     return cached == null ? null : List<MessageReader>.from(cached);
   }
 
+  /// 获取 TokenStorage 实例
+  TokenStorage get tokenStorage => _tokenStorage;
+
   /// 获取房间成员列表详细信息
   Future<List<Map<String, dynamic>>> fetchRoomMembers(String roomId) async {
     if (roomId.isEmpty) return [];
