@@ -288,7 +288,7 @@ export class GroupApi {
     chatGroupId: string;
   }): Promise<ApiResponse<Chat>> {
     console.log('🔄 [getChatGroupInfo] 开始请求群组信息:', params.chatGroupId);
-    const response = await get<BackendRoomInfo>(`/rooms/${params.chatGroupId}`);
+    const response = await get<{ info: BackendRoomInfo }>(`/rooms/${params.chatGroupId}/detail`);
 
     console.log('📥 [getChatGroupInfo] 后端返回原始数据:', {
       success: response.success,
@@ -296,7 +296,7 @@ export class GroupApi {
       message: response.message
     });
 
-    if (!response.success || !response.data) {
+    if (!response.success || !response.data || !response.data.info) {
       console.error('❌ [getChatGroupInfo] 请求失败或无数据');
       return {
         ...response,
@@ -304,7 +304,7 @@ export class GroupApi {
       };
     }
 
-    const mappedData = mapRoomInfo(response.data);
+    const mappedData = mapRoomInfo(response.data.info);
     console.log('✅ [getChatGroupInfo] 数据映射完成');
 
     return {
