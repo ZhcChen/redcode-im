@@ -1796,15 +1796,50 @@ const loadMessages = async (groupId: string) => {
       if (uniqueSenderIds.size > 0) {
         console.log('🔄 开始同步消息发送者头像，数量:', uniqueSenderIds.size)
 
-        // 获取群成员列表以获取 avatarObjectKey
+        // 判断是否为私聊
+        const isPrivateChat = selectedChat.value?.groupType === 0
+
+        // 获取群成员列表或私聊对方信息以获取 avatarObjectKey
         await Promise.all(
           Array.from(uniqueSenderIds).map(async senderId => {
-            // 从群成员列表中找到对应的成员
-            const member = groupMembers.value?.find(m => m.userId === senderId)
-            const avatarObjectKey = member?.avatarObjectKey
+            let avatarObjectKey: string | undefined
+            let userName: string | undefined
+
+            if (isPrivateChat) {
+              // 私聊:从 selectedChat.extra 中获取对方用户的 avatar_object_key
+              const friendAvatarObjectKey = selectedChat.value?.extra?.friend_avatar_object_key ||
+                                           selectedChat.value?.extra?.friendAvatarObjectKey ||
+                                           selectedChat.value?.extra?.avatar_object_key ||
+                                           selectedChat.value?.extra?.avatarObjectKey
+              avatarObjectKey = friendAvatarObjectKey
+              userName = selectedChat.value?.friendName || selectedChat.value?.name
+
+              console.log('🔍 [私聊] 提取对方用户头像信息:', {
+                senderId,
+                userName,
+                avatarObjectKey,
+                extra: selectedChat.value?.extra
+              })
+            } else {
+              // 群聊:从群成员列表中找到对应的成员
+              const member = groupMembers.value?.find(m => m.userId === senderId)
+              avatarObjectKey = member?.avatarObjectKey
+              userName = member?.nickname || member?.username
+
+              console.log('🔍 [群聊] 从成员列表查找:', {
+                senderId,
+                userName,
+                avatarObjectKey
+              })
+            }
 
             if (!avatarObjectKey) {
-              console.warn('⚠️ 未找到用户的 avatarObjectKey:', { senderId, memberName: member?.nickname || member?.username })
+              console.warn('⚠️ 未找到用户的 avatarObjectKey:', {
+                senderId,
+                userName,
+                isPrivateChat,
+                chatType: selectedChat.value?.groupType
+              })
               return
             }
 
@@ -1819,9 +1854,9 @@ const loadMessages = async (groupId: string) => {
                 }
               })
 
-              console.log('✅ 同步用户头像成功:', { senderId, localPath })
+              console.log('✅ 同步用户头像成功:', { senderId, userName, localPath })
             } catch (error) {
-              console.error('❌ 同步用户头像失败:', { senderId, error })
+              console.error('❌ 同步用户头像失败:', { senderId, userName, error })
             }
           })
         )
