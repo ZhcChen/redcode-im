@@ -55,7 +55,7 @@ pub async fn create_friend_request(
         .await?
         .ok_or_else(|| AppError::NotFound("目标用户不存在或已被停用".to_string()))?;
 
-    let current_user = user_store
+    let _current_user = user_store
         .find_by_id(&requester_id)
         .await?
         .ok_or_else(|| AppError::NotFound("当前用户不存在".to_string()))?;

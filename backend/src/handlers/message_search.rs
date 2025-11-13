@@ -168,7 +168,7 @@ pub async fn search_messages(
     let pool = &state.database.pool;
 
     // 执行搜索
-    let mut search_query = sqlx::query_as::<_, MessageSearchRow>(&search_sql);
+    let _search_query = sqlx::query_as::<_, MessageSearchRow>(&search_sql);
 
     // 绑定参数（这里需要根据实际的SQL库调整）
     // 注意：这是一个简化的实现，实际使用时需要正确处理参数绑定

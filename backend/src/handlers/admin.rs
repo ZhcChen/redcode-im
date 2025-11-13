@@ -679,7 +679,7 @@ pub async fn get_data_statistics(
 
 async fn get_daily_active_users(
     pool: &sqlx::PgPool,
-    days: i64,
+    _days: i64,
 ) -> Result<Vec<DailyStat>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
@@ -707,7 +707,7 @@ async fn get_daily_active_users(
     Ok(stats)
 }
 
-async fn get_daily_messages(pool: &sqlx::PgPool, days: i64) -> Result<Vec<DailyStat>, sqlx::Error> {
+async fn get_daily_messages(pool: &sqlx::PgPool, _days: i64) -> Result<Vec<DailyStat>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
         SELECT
@@ -734,10 +734,10 @@ async fn get_daily_messages(pool: &sqlx::PgPool, days: i64) -> Result<Vec<DailyS
     Ok(stats)
 }
 
-async fn get_storage_usage_by_type(pool: &sqlx::PgPool) -> Result<Vec<StorageTypeStat>, AppError> {
+async fn get_storage_usage_by_type(_pool: &sqlx::PgPool) -> Result<Vec<StorageTypeStat>, AppError> {
     // 这里需要根据实际的文件存储表来查询
     // 假设我们有文件记录表
-    let query = r#"
+    let _query = r#"
     SELECT
         CASE
             WHEN content_type LIKE 'image/%' THEN '图片'
@@ -763,7 +763,7 @@ async fn get_storage_usage_by_type(pool: &sqlx::PgPool) -> Result<Vec<StorageTyp
     "#;
 
     // 简化版本，返回模拟统计数据
-    let total_size = 1024 * 1024; // 1MB
+    let _total_size = 1024 * 1024; // 1MB
 
     let stats = vec![
         StorageTypeStat {
@@ -1153,7 +1153,7 @@ pub async fn delete_user(
 
 /// 获取所有权限列表（简化版本）
 pub async fn get_permissions(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> Result<Json<PermissionListResponse>, AppError> {
     // 简化版本，返回预定义的权限列表
     let permissions = vec![
@@ -1180,7 +1180,7 @@ pub async fn get_permissions(
 }
 
 /// 获取所有角色列表（简化版本）
-pub async fn get_roles(State(state): State<AppState>) -> Result<Json<RoleListResponse>, AppError> {
+pub async fn get_roles(State(_state): State<AppState>) -> Result<Json<RoleListResponse>, AppError> {
     // 简化版本，返回预定义的角色列表
     let roles = vec![
         RoleResponse {
@@ -1230,7 +1230,7 @@ pub async fn get_roles(State(state): State<AppState>) -> Result<Json<RoleListRes
 
 /// 创建角色（简化版本）
 pub async fn create_role(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(req): Json<CreateRoleRequest>,
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 验证输入
@@ -1257,9 +1257,9 @@ pub async fn create_role(
 
 /// 更新角色（简化版本）
 pub async fn update_role(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(role_id): Path<String>,
-    Json(req): Json<UpdateRoleRequest>,
+    Json(_req): Json<UpdateRoleRequest>,
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 简化版本，仅验证输入
     if role_id == "1" {
@@ -1277,7 +1277,7 @@ pub async fn update_role(
 
 /// 删除角色（简化版本）
 pub async fn delete_role(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(role_id): Path<String>,
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 简化版本，仅验证输入
@@ -1315,7 +1315,7 @@ pub async fn assign_role_to_user(
 
 /// 撤销用户角色（简化版本）
 pub async fn revoke_role_from_user(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(user_id): Path<String>,
     Path(role_id): Path<String>,
 ) -> Result<Json<RoleOperationResponse>, AppError> {
@@ -1524,7 +1524,7 @@ pub async fn get_file_list(
     State(state): State<AppState>,
     Query(params): Query<FileListParams>,
 ) -> Result<Json<FileListResponse>, AppError> {
-    let pool = &state.database.pool;
+    let _pool = &state.database.pool;
 
     let page = params.page.max(1);
     let page_size = params.page_size.max(1).min(100);
@@ -1554,7 +1554,7 @@ pub async fn get_file_list(
 
 /// 删除文件（简化版本）
 pub async fn delete_file(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(file_id): Path<String>,
     Json(_req): Json<DeleteFileRequest>,
 ) -> Result<Json<FileOperationResponse>, AppError> {
@@ -1576,7 +1576,7 @@ pub async fn delete_file(
 
 /// 批量删除文件（简化版本）
 pub async fn delete_files_batch(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(file_ids): Json<Vec<String>>,
 ) -> Result<Json<FileOperationResponse>, AppError> {
     if file_ids.is_empty() {
