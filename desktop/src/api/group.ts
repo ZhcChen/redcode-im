@@ -46,6 +46,7 @@ interface BackendRoomInfo {
   name: string;
   description?: string | null;
   avatar_url?: string | null;
+  avatar_object_key?: string | null;
   room_type: BackendRoomType;
   owner_id: string;
   created_at: string;
@@ -176,6 +177,22 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
   const memberCount =
     typeof memberCountRaw === "number" ? memberCountRaw : undefined;
 
+  // 构建 extra 对象
+  const extra: Record<string, unknown> = {
+    ...(roomExtra || {}),
+  };
+
+  // 添加 room_avatar_object_key 到 extra
+  if (room.avatar_object_key) {
+    extra.room_avatar_object_key = room.avatar_object_key;
+    extra.roomAvatarObjectKey = room.avatar_object_key;
+  }
+
+  // 添加 description 到 extra
+  if (room.description) {
+    extra.description = room.description;
+  }
+
   return {
     id: room.id,
     roomId: room.id,
@@ -189,9 +206,7 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
     isPinned: Boolean(room.is_pinned),
     isMuted: Boolean(room.is_muted),
     memberCount,
-    extra:
-      room.extra ??
-      (room.description ? { description: room.description } : null),
+    extra: Object.keys(extra).length > 0 ? extra : null,
   };
 };
 

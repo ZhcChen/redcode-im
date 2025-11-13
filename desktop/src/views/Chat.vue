@@ -1609,12 +1609,32 @@ const loadGroupDetailInfo = async (groupId: string) => {
         description
       })
 
+      // 获取群头像的临时下载URL
+      let avatarUrl = groupInfo.avatar || selectedChat.value?.avatar
+      const roomAvatarObjectKey = groupInfo.extra?.room_avatar_object_key ||
+                                   groupInfo.extra?.roomAvatarObjectKey
+
+      if (roomAvatarObjectKey) {
+        try {
+          const localPath = await UserApi.syncGroupAvatarCache(
+            groupId,
+            roomAvatarObjectKey,
+            false
+          )
+          if (localPath) {
+            avatarUrl = localPath
+          }
+        } catch (error) {
+          console.warn('获取群头像临时URL失败:', error)
+        }
+      }
+
       if (selectedChat.value) {
         selectedChat.value = {
           ...selectedChat.value,
           roomId: groupInfo.roomId,
           name: groupInfo.name,
-          avatar: groupInfo.avatar || selectedChat.value.avatar,
+          avatar: avatarUrl,
           groupType: groupInfo.type === ChatType.GROUP ? 1 : 0,
           memberCount: groupInfo.memberCount ?? selectedChat.value.memberCount,
           groupNotice: description,
