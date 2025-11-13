@@ -64,6 +64,7 @@ pub struct Role {
 
 /// 用户角色关联表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
 pub struct UserRole {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -74,6 +75,7 @@ pub struct UserRole {
 
 /// 角色权限关联表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
 pub struct RolePermission {
     pub id: Uuid,
     pub role_id: Uuid,
@@ -81,8 +83,9 @@ pub struct RolePermission {
     pub created_at: DateTime<Utc>,
 }
 
-/// 用户权限枚举（简化版，实际应该从数据库获取）
+/// 用户权限枚举（简化版，实际应该从database获取）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum UserPermission {
     // 用户管理
     UserView,
@@ -401,6 +404,7 @@ pub struct RoomMember {
 
 /// 包含用户信息的房间成员（用于 API 返回）
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
 pub struct RoomMemberWithUserInfo {
     pub user_id: Uuid,
     pub username: String,
@@ -503,6 +507,7 @@ pub struct ChatSummaryRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
 pub struct UserFriendRemark {
     pub id: Uuid,
     pub user_id: Uuid,

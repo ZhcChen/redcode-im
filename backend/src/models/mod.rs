@@ -55,6 +55,7 @@ pub struct LoginResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct UpdateUserRequest {
     pub nickname: Option<String>,
     pub avatar_url: Option<String>,
@@ -197,6 +198,7 @@ pub enum RoomType {
 
 /// 房间信息（API 响应）
 #[derive(Debug, Clone, Serialize)]
+#[allow(dead_code)]
 pub struct RoomInfo {
     pub id: String,
     pub name: String,
@@ -209,6 +211,7 @@ pub struct RoomInfo {
 
 /// 创建房间请求
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateRoomRequest {
     pub name: String,
     pub description: Option<String>,
@@ -218,6 +221,7 @@ pub struct CreateRoomRequest {
 /// 房间成员角色（API 层）
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[allow(dead_code)]
 pub enum MemberRole {
     Owner,  // 房主
     Admin,  // 管理员
@@ -226,6 +230,7 @@ pub enum MemberRole {
 
 /// 房间成员信息（API 响应）
 #[derive(Debug, Clone, Serialize)]
+#[allow(dead_code)]
 pub struct RoomMemberInfo {
     pub user_id: String,
     pub role: MemberRole,
@@ -328,6 +333,7 @@ pub enum MessageDeliveryStatus {
 
 /// 发送消息请求
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct SendMessageRequest {
     pub content: Option<String>,
     #[serde(default)]
@@ -427,6 +433,7 @@ pub struct ForwardMessageInfo {
 
 /// 消息列表查询参数
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ListMessagesQuery {
     pub limit: Option<i64>,
     pub before_id: Option<String>,

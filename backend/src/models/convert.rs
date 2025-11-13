@@ -68,6 +68,7 @@ pub fn api_update_user_to_db(
 // ==================== 房间模型转换 ====================
 
 /// 将数据库房间模型转换为 API 房间信息
+#[allow(dead_code)]
 pub fn db_room_to_api_room_info(
     db_room: &crate::database::models::Room,
 ) -> crate::models::RoomInfo {
@@ -93,6 +94,7 @@ pub fn db_room_type_to_api(db_type: &crate::database::models::RoomType) -> crate
 }
 
 /// 将 API 房间类型转换为数据库房间类型
+#[allow(dead_code)]
 pub fn api_room_type_to_db(
     api_type: &crate::models::RoomType,
 ) -> crate::database::models::RoomType {
@@ -105,6 +107,7 @@ pub fn api_room_type_to_db(
 }
 
 /// 将数据库成员角色转换为 API 成员角色
+#[allow(dead_code)]
 pub fn db_member_role_to_api(
     db_role: &crate::database::models::MemberRole,
 ) -> crate::models::MemberRole {
@@ -116,6 +119,7 @@ pub fn db_member_role_to_api(
 }
 
 /// 将 API 成员角色转换为数据库成员角色
+#[allow(dead_code)]
 pub fn api_member_role_to_db(
     api_role: &crate::models::MemberRole,
 ) -> crate::database::models::MemberRole {
@@ -127,6 +131,7 @@ pub fn api_member_role_to_db(
 }
 
 /// 将数据库房间成员转换为 API 房间成员信息
+#[allow(dead_code)]
 pub fn db_room_member_to_api(
     db_member: &crate::database::models::RoomMember,
 ) -> crate::models::RoomMemberInfo {
@@ -224,6 +229,7 @@ pub fn db_message_type_to_api(
 }
 
 /// 将 API 消息类型转换为数据库消息类型
+#[allow(dead_code)]
 pub fn api_message_type_to_db(
     api_type: &crate::models::MessageType,
 ) -> crate::database::models::MessageType {
@@ -464,6 +470,7 @@ pub fn string_to_uuid(id_str: &str) -> Result<Uuid, crate::error::AppError> {
 }
 
 /// 将多个 String ID 转换为 Uuid 列表
+#[allow(dead_code)]
 pub fn strings_to_uuids(id_strs: &[String]) -> Result<Vec<Uuid>, crate::error::AppError> {
     id_strs.iter().map(|s| string_to_uuid(s)).collect()
 }

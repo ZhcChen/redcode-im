@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 /// 账号信息
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[allow(dead_code)] // 保留用于桌面端应用
 pub struct Account {
     pub id: String,
     pub username: String,
@@ -22,6 +23,7 @@ pub struct Account {
 
 /// 账号设置
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[allow(dead_code)] // 保留用于桌面端应用
 pub struct AccountSettings {
     pub account_id: String,
     pub unread_count: i32,
@@ -29,12 +31,14 @@ pub struct AccountSettings {
 }
 
 /// 本地账号数据库（SQLite）
+#[allow(dead_code)] // 保留用于桌面端应用
 pub struct AccountStore {
     pool: SqlitePool,
 }
 
 impl AccountStore {
     /// 创建或打开账号数据库
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn new(app_data_dir: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         // 确保目录存在
         std::fs::create_dir_all(&app_data_dir)?;
@@ -60,6 +64,7 @@ impl AccountStore {
     }
 
     /// 初始化数据库表
+    #[allow(dead_code)] // 保留用于桌面端应用
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
         // 创建账号表
         sqlx::query(
@@ -126,6 +131,7 @@ impl AccountStore {
         Ok(())
     }
 
+    #[allow(dead_code)] // 保留用于桌面端应用
     async fn ensure_account_column(
         &self,
         column_name: &str,
@@ -149,6 +155,7 @@ impl AccountStore {
     }
 
     /// 添加账号
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn add_account(&self, account: &Account) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
@@ -200,6 +207,7 @@ impl AccountStore {
     }
 
     /// 获取所有账号
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn get_all_accounts(&self) -> Result<Vec<Account>, sqlx::Error> {
         let accounts = sqlx::query_as::<_, Account>(
             r#"
@@ -215,6 +223,7 @@ impl AccountStore {
     }
 
     /// 根据 ID 获取账号
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn get_account_by_id(
         &self,
         account_id: &str,
@@ -234,6 +243,7 @@ impl AccountStore {
     }
 
     /// 设置当前账号
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn set_current_account(&self, account_id: &str) -> Result<(), sqlx::Error> {
         // 检查账号是否存在
         let exists = sqlx::query("SELECT 1 FROM accounts WHERE id = ?")
@@ -262,6 +272,7 @@ impl AccountStore {
     }
 
     /// 获取当前账号
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn get_current_account(&self) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
@@ -278,6 +289,7 @@ impl AccountStore {
     }
 
     /// 删除账号
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn remove_account(&self, account_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM accounts WHERE id = ?")
             .bind(account_id)
@@ -288,6 +300,7 @@ impl AccountStore {
     }
 
     /// 更新账号未读数
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn update_unread_count(
         &self,
         account_id: &str,
@@ -309,6 +322,7 @@ impl AccountStore {
     }
 
     /// 获取账号设置
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn get_account_settings(
         &self,
         account_id: &str,
@@ -328,6 +342,7 @@ impl AccountStore {
     }
 
     /// 更新最后活跃时间
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn update_last_active(&self, account_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
@@ -345,6 +360,7 @@ impl AccountStore {
     }
 
     /// 更新账号顺序
+    #[allow(dead_code)] // 保留用于桌面端应用
     pub async fn update_account_order(
         &self,
         account_orders: &[(String, i64)],

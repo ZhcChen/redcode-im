@@ -69,6 +69,7 @@ pub struct StorageTypeStat {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct PaginationParams {
     #[serde(default = "default_page")]
     pub page: usize,
@@ -138,6 +139,7 @@ pub struct UserDetail {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateUserRequest {
     pub username: String,
     pub email: String,
@@ -226,6 +228,7 @@ impl From<Role> for RoleResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateRoleRequest {
     pub name: String,
     pub code: String,
@@ -234,6 +237,7 @@ pub struct CreateRoleRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct UpdateRoleRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -256,6 +260,7 @@ pub struct UserRoleResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CheckPermissionRequest {
     pub user_id: String,
     pub permission_code: String,
@@ -733,6 +738,7 @@ async fn get_daily_messages(pool: &sqlx::PgPool, _days: i64) -> Result<Vec<Daily
     Ok(stats)
 }
 
+#[allow(dead_code)]
 async fn get_storage_usage_by_type(_pool: &sqlx::PgPool) -> Result<Vec<StorageTypeStat>, AppError> {
     // 这里需要根据实际的文件存储表来查询
     // 假设我们有文件记录表
@@ -1431,6 +1437,7 @@ pub struct StorageGrowthData {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct FileListParams {
     #[serde(default = "default_page")]
     pub page: usize,
@@ -1454,6 +1461,7 @@ pub struct FileListResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct DeleteFileRequest {
     pub force: Option<bool>,
 }

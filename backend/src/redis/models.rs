@@ -109,6 +109,7 @@ impl Default for NodeStatus {
 
 /// 房间成员信息 (Redis 缓存)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RoomMemberCache {
     pub user_id: Uuid,
     pub username: String,
@@ -121,6 +122,7 @@ pub struct RoomMemberCache {
 
 /// 用户在线状态 (Redis 缓存)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UserOnlineStatus {
     pub user_id: Uuid,
     pub username: String,
@@ -132,6 +134,7 @@ pub struct UserOnlineStatus {
 
 /// 消息发送结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MessageDeliveryResult {
     pub message_id: Uuid,
     pub target_nodes: Vec<String>,
@@ -717,11 +720,13 @@ impl CacheKeys {
     }
 
     /// 房间成员缓存键
+    #[allow(dead_code)]
     pub fn room_members(room_id: &Uuid) -> String {
         format!("room:members:{}", room_id)
     }
 
     /// 用户在线状态键
+    #[allow(dead_code)]
     pub fn user_online_status(user_id: &Uuid) -> String {
         format!("user:online:{}", user_id)
     }
@@ -742,11 +747,13 @@ impl CacheKeys {
     }
 
     /// 用户缓存键
+    #[allow(dead_code)]
     pub fn user_cache(user_id: &Uuid) -> String {
         format!("cache:user:{}", user_id)
     }
 
     /// 房间信息缓存键
+    #[allow(dead_code)]
     pub fn room_cache(room_id: &Uuid) -> String {
         format!("cache:room:{}", room_id)
     }

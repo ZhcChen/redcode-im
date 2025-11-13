@@ -81,6 +81,7 @@ impl UserStore {
     }
 
     /// 根据邮箱查找用户
+    #[allow(dead_code)] // 保留用于将来可能的功能
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
@@ -201,7 +202,8 @@ impl UserStore {
         Ok(exists)
     }
 
-    /// 获取用户总数
+    /// 统计用户总数
+    #[allow(dead_code)] // 保留用于将来可能的功能
     pub async fn count_users(&self) -> Result<i64, Error> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM users WHERE status = $1 AND deleted_at IS NULL",

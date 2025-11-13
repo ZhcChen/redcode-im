@@ -192,6 +192,7 @@ impl<'a> RoomStore<'a> {
         Ok(exists.is_some())
     }
 
+    #[allow(dead_code)]
     pub async fn list_members(&self, room_id: Uuid) -> Result<Vec<RoomMember>, sqlx::Error> {
         let rows = sqlx::query_as::<_, RoomMember>(
             r#"

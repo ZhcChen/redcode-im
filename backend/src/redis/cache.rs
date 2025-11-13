@@ -7,11 +7,13 @@ use crate::database::models::{Room, User};
 use crate::redis::models::{CacheKeys, RoomMemberCache, UserOnlineStatus};
 
 /// Redis 缓存管理器
+#[allow(dead_code)]
 pub struct CacheManager {
     client: Client,
     default_ttl: u64, // 默认过期时间（秒）
 }
 
+#[allow(dead_code)]
 impl CacheManager {
     /// 创建新的缓存管理器
     pub fn new(client: Client) -> Self {

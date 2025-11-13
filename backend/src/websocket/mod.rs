@@ -35,7 +35,9 @@ pub struct ConnectionManager {
 // 连接信息
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
+    #[allow(dead_code)]
     pub user_id: String,
+    #[allow(dead_code)]
     pub connected_at: chrono::DateTime<chrono::Utc>,
     pub last_ping: chrono::DateTime<chrono::Utc>,
     pub format: ConnectionFormat,

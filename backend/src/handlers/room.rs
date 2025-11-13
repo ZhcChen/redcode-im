@@ -594,8 +594,6 @@ pub async fn get_room_avatar_download_url(
     Extension(_claims): Extension<Claims>,
     Query(params): Query<RoomAvatarDownloadUrlRequest>,
 ) -> Result<Json<RoomAvatarDownloadUrlResponse>, AppError> {
-    let store = RoomStore::new(state.database.pool());
-
     // 获取房间信息
     let room = sqlx::query_as::<_, crate::database::models::Room>(
         r#"

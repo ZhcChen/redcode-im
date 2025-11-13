@@ -146,6 +146,7 @@ impl<'a> GroupManagementStore<'a> {
         Ok(announcements)
     }
 
+    #[allow(dead_code)]
     pub async fn get_announcement(
         &self,
         announcement_id: Uuid,

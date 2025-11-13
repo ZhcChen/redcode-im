@@ -20,6 +20,7 @@ pub struct ErrorResponse {
 
 /// 应用错误类型
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum AppError {
     // 数据库错误
     DatabaseError(sqlx::Error),

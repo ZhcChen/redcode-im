@@ -127,18 +127,21 @@ pub fn is_content_type_allowed(content_type: &str) -> bool {
 }
 
 /// 检查文件类型是否为图片
+#[allow(dead_code)]
 pub fn is_image_content_type(content_type: &str) -> bool {
     let content_type = content_type.to_ascii_lowercase();
     IMAGE_ALLOWED_TYPES.contains(&content_type.as_str())
 }
 
 /// 检查文件类型是否为音频
+#[allow(dead_code)]
 pub fn is_audio_content_type(content_type: &str) -> bool {
     let content_type = content_type.to_ascii_lowercase();
     AUDIO_ALLOWED_TYPES.contains(&content_type.as_str())
 }
 
 /// 检查文件类型是否为视频
+#[allow(dead_code)]
 pub fn is_video_content_type(content_type: &str) -> bool {
     let content_type = content_type.to_ascii_lowercase();
     VIDEO_ALLOWED_TYPES.contains(&content_type.as_str())

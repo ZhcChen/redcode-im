@@ -5,7 +5,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::database::message_store::MessageStore;
 use crate::error::AppError;
 use crate::AppState;
 

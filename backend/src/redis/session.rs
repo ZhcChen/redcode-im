@@ -11,6 +11,7 @@ use crate::redis::models::{CacheKeys, NodeHeartbeat, SessionInfo};
 pub struct SessionManager {
     client: Client,
     node_id: String,
+    #[allow(dead_code)]
     session_ttl: u64, // 会话过期时间（秒）
 }
 
@@ -25,11 +26,13 @@ impl SessionManager {
     }
 
     /// 设置会话过期时间
+    #[allow(dead_code)]
     pub fn set_session_ttl(&mut self, ttl_seconds: u64) {
         self.session_ttl = ttl_seconds;
     }
 
     /// 创建用户会话
+    #[allow(dead_code)] // 保留用于将来可能的功能
     pub async fn create_session(
         &self,
         user_id: Uuid,
@@ -99,6 +102,7 @@ impl SessionManager {
     }
 
     /// 更新会话心跳
+    #[allow(dead_code)]
     pub async fn update_session_heartbeat(&self, user_id: &Uuid) -> RedisResult<bool> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let session_key = CacheKeys::user_session(user_id);
@@ -126,6 +130,7 @@ impl SessionManager {
     }
 
     /// 更新用户房间列表
+    #[allow(dead_code)]
     pub async fn update_user_rooms(&self, user_id: &Uuid, rooms: Vec<Uuid>) -> RedisResult<bool> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let session_key = CacheKeys::user_session(user_id);
@@ -284,6 +289,7 @@ impl SessionManager {
     }
 
     /// 获取所有活跃节点
+    #[allow(dead_code)]
     pub async fn get_active_nodes(&self) -> RedisResult<Vec<NodeHeartbeat>> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let active_nodes_key = CacheKeys::active_nodes();
@@ -304,6 +310,7 @@ impl SessionManager {
     }
 
     /// 检查节点是否活跃
+    #[allow(dead_code)]
     pub async fn is_node_active(&self, node_id: &str) -> RedisResult<bool> {
         let heartbeat_key = CacheKeys::node_heartbeat(node_id);
         let mut conn = self.client.get_multiplexed_async_connection().await?;
@@ -313,6 +320,7 @@ impl SessionManager {
     }
 
     /// 迁移用户会话到新节点
+    #[allow(dead_code)]
     pub async fn migrate_user_session(
         &self,
         user_id: &Uuid,
@@ -363,6 +371,7 @@ impl SessionManager {
     }
 
     /// 获取会话统计信息
+    #[allow(dead_code)]
     pub async fn get_session_stats(&self) -> RedisResult<HashMap<String, usize>> {
         let mut stats = HashMap::new();
 
