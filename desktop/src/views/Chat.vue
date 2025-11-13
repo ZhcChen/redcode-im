@@ -539,6 +539,7 @@ import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/
 import { GroupApi } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
+import { UserApi } from '../api/user'
 import type { Message as DomainMessage, Chat, RoomMember, MessagePart, MessageAttachment } from '@/types/models'
 import { ChatType, MessageStatus, MessageType, MessagePartType } from '@/types/models'
 import { toast } from '../utils/toast'
