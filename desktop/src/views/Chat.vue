@@ -3583,26 +3583,35 @@ const updateGroupAvatar = async (file: File) => {
     const uploadResult = await GroupApi.uploadGroupAvatar(selectedChat.value.groupId, file)
 
     if (uploadResult.success && uploadResult.data) {
-      const avatarUrl = uploadResult.data.avatarUrl
-
-      console.log('✅ 群头像上传成功:', avatarUrl)
+      console.log('✅ 群头像上传成功')
       toast.success('群头像修改成功')
 
-      // 更新本地数据
-      if (selectedChat.value) {
-        console.log('🔄 [头像更新] 原始头像URL:', avatarUrl)
+      // 获取临时下载URL用于显示
+      const downloadUrlResult = await GroupApi.getRoomAvatarDownloadUrl({
+        roomId: selectedChat.value.groupId,
+        expiresInSeconds: 3600 * 24 * 7 // 7天有效期
+      })
 
-        // 1. 更新当前选中的聊天项
-        selectedChat.value.avatar = avatarUrl
-        console.log('🔄 [头像更新] selectedChat.value.avatar 已更新为:', selectedChat.value.avatar)
+      if (downloadUrlResult.success && downloadUrlResult.data) {
+        const downloadUrl = downloadUrlResult.data.downloadUrl
+        console.log('✅ 获取群头像临时下载URL成功:', downloadUrl)
 
-        // 2. 同步更新store中的聊天列表
-        const updatedChat = { ...selectedChat.value, avatar: avatarUrl }
-        console.log('🔄 [头像更新] 准备更新store，updatedChat.avatar:', updatedChat.avatar)
-        store.dispatch('updateChatItem', updatedChat)
+        // 更新本地数据
+        if (selectedChat.value) {
+          // 1. 更新当前选中的聊天项
+          selectedChat.value.avatar = downloadUrl
+          console.log('🔄 [头像更新] selectedChat.value.avatar 已更新为:', downloadUrl)
 
-        // 3. 发送群头像修改的系统消息
-        await sendGroupAvatarUpdateSystemMessage(selectedChat.value.groupId, avatarUrl)
+          // 2. 同步更新store中的聊天列表
+          const updatedChat = { ...selectedChat.value, avatar: downloadUrl }
+          console.log('🔄 [头像更新] 准备更新store，updatedChat.avatar:', updatedChat.avatar)
+          store.dispatch('updateChatItem', updatedChat)
+
+          // 3. 发送群头像修改的系统消息（使用downloadUrl）
+          await sendGroupAvatarUpdateSystemMessage(selectedChat.value.groupId, downloadUrl)
+        }
+      } else {
+        throw new Error(downloadUrlResult.message || '获取群头像临时下载URL失败')
       }
     } else {
       throw new Error(uploadResult.message || '群头像上传失败')

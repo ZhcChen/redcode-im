@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/widgets.dart';
 import '../../../core/services/message_service.dart'
     show MessageAttachmentDraft, MessageService, MessageStatus;
 import '../../../core/services/websocket_service.dart';
@@ -268,6 +267,81 @@ class ChatProvider with ChangeNotifier {
       return cached <= 100;
     }
     return true;
+  }
+
+  Future<List<Map<String, dynamic>>> getRoomMembers(String roomId) async {
+    return await _messageService.fetchRoomMembers(roomId);
+  }
+
+  /// 上传群头像
+  Future<String> uploadGroupAvatar(String roomId, String filePath, String contentType, int fileSize) async {
+    try {
+      final session = await _messageService._tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('Not logged in');
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/avatar/direct-upload'),
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'content_type': contentType,
+          'file_size': fileSize,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          return data['key'] as String;
+        } else {
+          throw Exception('Failed to get upload signature: ${data['message']}');
+        }
+      } else {
+        throw Exception('Failed to get upload signature: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Failed to get group avatar upload signature: $e');
+      rethrow;
+    }
+  }
+
+  /// 提交群头像上传
+  Future<String> commitGroupAvatarUpload(String roomId, String uploadKey) async {
+    try {
+      final session = await _messageService._tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('Not logged in');
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/avatar/commit'),
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'key': uploadKey,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          return data['avatar_url'] as String;
+        } else {
+          throw Exception('Failed to commit avatar upload: ${data['message']}');
+        }
+      } else {
+        throw Exception('Failed to commit avatar upload: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Failed to commit group avatar upload: $e');
+      rethrow;
+    }
   }
 
   int? cachedMemberCount(String roomId) {

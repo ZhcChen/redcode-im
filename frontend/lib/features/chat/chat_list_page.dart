@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/room_avatar_service.dart';
 import '../../core/services/user_avatar_service.dart';
 import '../contacts/add_friend_page.dart';
 import 'chat_detail_page_v2.dart';
@@ -625,7 +626,8 @@ class _ChatAvatar extends StatefulWidget {
 class _ChatAvatarState extends State<_ChatAvatar> {
   String? _cachedAvatarPath;
   bool _isLoading = false;
-  final _avatarService = UserAvatarService();
+  final _userAvatarService = UserAvatarService();
+  final _roomAvatarService = RoomAvatarService();
 
   @override
   void initState() {
@@ -658,14 +660,11 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
     if (needsLoad &&
         widget.chat.avatarObjectKey != null &&
-        widget.chat.avatarObjectKey!.isNotEmpty &&
-        widget.chat.type == ChatType.single) {
+        widget.chat.avatarObjectKey!.isNotEmpty) {
       print('[ChatAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
     } else if (!needsLoad) {
       // 已有本地缓存，不需要加载
-    } else if (widget.chat.type != ChatType.single) {
-      print('[ChatAvatar] ℹ️ 非单聊，使用默认逻辑');
     } else {
       print('[ChatAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
     }
@@ -679,8 +678,7 @@ class _ChatAvatarState extends State<_ChatAvatar> {
       _cachedAvatarPath = widget.chat.localAvatarPath;
       if (widget.chat.avatarObjectKey != null &&
           widget.chat.avatarObjectKey!.isNotEmpty &&
-          _cachedAvatarPath == null &&
-          widget.chat.type == ChatType.single) {
+          _cachedAvatarPath == null) {
         _loadAvatar();
       }
     }
@@ -703,18 +701,29 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     });
 
     try {
-      // 从extra中获取用户ID
-      final userId = widget.chat.extra?['friend_user_id'] as String? ??
-          widget.chat.extra?['friendUserId'] as String? ??
-          widget.chat.roomId;
+      String? cachedPath;
       
-      print('[ChatAvatar] 使用userId: $userId');
-      print('[ChatAvatar] 开始加载头像...');
-
-      final cachedPath = await _avatarService.loadAndCacheAvatar(
-        userId: userId,
-        avatarObjectKey: widget.chat.avatarObjectKey,
-      );
+      // 根据聊天类型选择不同的头像服务
+      if (widget.chat.type == ChatType.single) {
+        // 单聊使用用户头像服务
+        final userId = widget.chat.extra?['friend_user_id'] as String? ??
+            widget.chat.extra?['friendUserId'] as String? ??
+            widget.chat.roomId;
+        
+        print('[ChatAvatar] 单聊，使用用户头像服务，userId: $userId');
+        cachedPath = await _userAvatarService.loadAndCacheAvatar(
+          userId: userId,
+          avatarObjectKey: widget.chat.avatarObjectKey,
+        );
+      } else {
+        // 群聊使用房间头像服务
+        print('[ChatAvatar] 群聊，使用房间头像服务，roomId: ${widget.chat.roomId}');
+        cachedPath = await _roomAvatarService.loadAndCacheAvatar(
+          roomId: widget.chat.roomId,
+          avatarObjectKey: widget.chat.avatarObjectKey,
+        );
+      }
+      
       print('[ChatAvatar] 加载结果: $cachedPath');
       if (mounted) {
         setState(() {

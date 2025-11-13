@@ -43,7 +43,7 @@ impl<'a> RoomStore<'a> {
             r#"
             INSERT INTO rooms (id, name, description, room_type, owner_id)
             VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+            RETURNING id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
             "#,
         )
         .bind(room_id)
@@ -83,7 +83,7 @@ impl<'a> RoomStore<'a> {
 
         let room = sqlx::query_as::<_, Room>(
             r#"
-            SELECT r.id, r.name, r.description, r.avatar_url, r.room_type, r.owner_id, r.created_at, r.updated_at, r.deleted_at
+            SELECT r.id, r.name, r.description, r.avatar_url, r.avatar_object_key, r.room_type, r.owner_id, r.created_at, r.updated_at, r.deleted_at
             FROM rooms r
             JOIN room_members m1 ON m1.room_id = r.id AND m1.user_id = $1
             JOIN room_members m2 ON m2.room_id = r.id AND m2.user_id = $2
@@ -114,7 +114,7 @@ impl<'a> RoomStore<'a> {
                     UPDATE rooms
                     SET name = $2, updated_at = NOW()
                     WHERE id = $1
-                    RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+                    RETURNING id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
                     "#,
                 )
                 .bind(room.id)
@@ -244,7 +244,7 @@ impl<'a> RoomStore<'a> {
     pub async fn list_user_rooms(&self, user_id: Uuid) -> Result<Vec<Room>, sqlx::Error> {
         let rows = sqlx::query_as::<_, Room>(
             r#"
-            SELECT r.id, r.name, r.description, r.avatar_url, r.room_type, r.owner_id, r.created_at, r.updated_at, r.deleted_at
+            SELECT r.id, r.name, r.description, r.avatar_url, r.avatar_object_key, r.room_type, r.owner_id, r.created_at, r.updated_at, r.deleted_at
             FROM rooms r
             JOIN room_members rm ON rm.room_id = r.id AND rm.deleted_at IS NULL
             WHERE rm.user_id = $1 AND r.deleted_at IS NULL
@@ -263,7 +263,7 @@ impl<'a> RoomStore<'a> {
 
             if let Some(room) = sqlx::query_as::<_, Room>(
                 r#"
-                SELECT id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+                SELECT id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
                 FROM rooms
                 WHERE owner_id = $1
                   AND room_type = $2
@@ -286,7 +286,7 @@ impl<'a> RoomStore<'a> {
                 r#"
                 INSERT INTO rooms (id, name, description, room_type, owner_id)
                 VALUES ($1, $2, $3, $4, $5)
-                RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+                RETURNING id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
                 "#,
             )
             .bind(crate::id::generate())
@@ -537,7 +537,7 @@ impl<'a> RoomStore<'a> {
     pub async fn get_room_owner(&self, room_id: Uuid) -> Result<Uuid, sqlx::Error> {
         let room = sqlx::query_as::<_, Room>(
             r#"
-            SELECT id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+            SELECT id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
             FROM rooms
             WHERE id = $1 AND deleted_at IS NULL
             "#,
@@ -555,21 +555,24 @@ impl<'a> RoomStore<'a> {
         name: Option<String>,
         description: Option<String>,
         avatar_url: Option<String>,
+        avatar_object_key: Option<String>,
     ) -> Result<Room, sqlx::Error> {
         let room = sqlx::query_as::<_, Room>(
             r#"
-            UPDATE rooms 
+            UPDATE rooms
             SET name = COALESCE($1, name),
                 description = COALESCE($2, description),
                 avatar_url = COALESCE($3, avatar_url),
+                avatar_object_key = COALESCE($4, avatar_object_key),
                 updated_at = NOW()
-            WHERE id = $4 AND deleted_at IS NULL
-            RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+            WHERE id = $5 AND deleted_at IS NULL
+            RETURNING id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
             "#,
         )
         .bind(name)
         .bind(description)
         .bind(avatar_url)
+        .bind(avatar_object_key)
         .bind(room_id)
         .fetch_one(self.pool)
         .await?;

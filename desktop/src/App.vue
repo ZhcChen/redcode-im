@@ -437,6 +437,13 @@ function setupWebSocketEventListeners() {
     console.log('置顶更新:', detail);
     handlePinUpdate(detail);
   });
+
+  // 监听群头像更新事件
+  window.addEventListener('websocket-group-avatar-update', (event) => {
+    const detail = (event as CustomEvent).detail;
+    console.log('群头像更新:', detail);
+    handleGroupAvatarUpdate(detail);
+  });
 }
 
 // 移除 WebSocket 事件监听器
@@ -452,6 +459,7 @@ function removeWebSocketEventListeners() {
   window.removeEventListener('websocket-message-update', handleMessageUpdate);
   window.removeEventListener('websocket-message-read', handleMessageRead);
   window.removeEventListener('websocket-pin-update', handlePinUpdate);
+  window.removeEventListener('websocket-group-avatar-update', handleGroupAvatarUpdate);
 }
 
 // 消息处理函数
@@ -535,6 +543,53 @@ function handlePinUpdate(detail: any) {
       store.dispatch('updateChatItem', { ...chat, isTop: !!isPinned });
     }
   }
+}
+
+// 处理群头像更新事件
+function handleGroupAvatarUpdate(detail: any) {
+  console.log('处理群头像更新事件:', detail);
+  const groupId = detail?.groupId || detail?.chatGroupId;
+  const newAvatarUrl = detail?.avatarUrl || detail?.newAvatarUrl;
+  
+  if (!groupId || !newAvatarUrl) {
+    console.warn('群头像更新事件缺少必要参数:', { groupId, newAvatarUrl });
+    return;
+  }
+
+  // 1. 更新聊天列表中对应群聊的头像
+  const chat = store.getters.getChatByGroupId(groupId);
+  if (chat) {
+    store.dispatch('updateChatItem', { 
+      ...chat, 
+      avatar: newAvatarUrl,
+      avatarLocalPath: undefined // 清除本地头像缓存路径，等待重新下载
+    });
+  }
+
+  // 2. 如果当前正在查看该群聊，更新界面显示
+  const currentChatGroupId = store.state.currentChatGroupId;
+  if (currentChatGroupId === groupId) {
+    // 触发界面刷新
+    store.dispatch('updateCurrentChatAvatar', { groupId, avatarUrl: newAvatarUrl });
+  }
+
+  // 3. 同步群头像缓存
+  try {
+    // 延迟一小段时间确保网络请求完成
+    setTimeout(async () => {
+      try {
+        const { UserApi } = await import('./api/user');
+        await UserApi.syncGroupAvatarCache(groupId, newAvatarUrl, true); // 强制刷新
+        console.log('✅ 群头像缓存同步成功:', groupId);
+      } catch (cacheError) {
+        console.warn('群头像缓存同步失败:', cacheError);
+      }
+    }, 1000);
+  } catch (error) {
+    console.error('群头像更新处理失败:', error);
+  }
+
+  triggerCrossAccountUnreadRefresh('group-avatar-update');
 }
 
 // 监听页面可见性变化

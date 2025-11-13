@@ -772,6 +772,17 @@ export const store = createStore<State>({
 
         REMOVE_FRIEND_REQUEST(state: State, requestId: string) {
             state.friendRequests.list = state.friendRequests.list.filter(request => request.id !== requestId)
+        },
+
+        // 更新当前聊天群头像
+        UPDATE_CURRENT_CHAT_AVATAR(state: State, payload: { groupId: string; avatarUrl: string }) {
+            const { groupId, avatarUrl } = payload;
+            // 更新聊天列表中对应群聊的头像
+            const chatItem = state.chatList.list.find(item => item.groupId === groupId);
+            if (chatItem) {
+                chatItem.avatar = avatarUrl;
+                chatItem.avatarLocalPath = undefined; // 清除本地缓存，等待重新下载
+            }
         }
     },
 
@@ -1198,7 +1209,7 @@ export const store = createStore<State>({
                         }
                     })
 
-                    // 智能同步头像缓存:
+                    // 智能同步用户头像缓存:
                     // 1. 优先从本地缓存读取(基于 objectKey 检查)
                     // 2. objectKey 不匹配或缓存不存在时:
                     //    - 获取临时下载地址
@@ -1502,6 +1513,42 @@ export const store = createStore<State>({
                     // 过滤掉隐藏的聊天和无效的群组ID
                     const validChatList = chatList.filter(chat => !chat.isHidden && chat.groupId && chat.groupId.trim() !== '')
 
+                    // 智能同步群头像缓存:
+                    // 1. 优先从本地缓存读取(基于 avatar url 检查)
+                    // 2. avatar url 不匹配或缓存不存在时:
+                    //    - 获取临时下载地址
+                    //    - 下载到本地
+                    //    - 返回本地 Blob URL
+                    await Promise.all(
+                        validChatList.map(async (chatItem) => {
+                            // 只处理群聊(不是私聊)的头像
+                            if (chatItem.groupType !== 1 || !chatItem.avatar) {
+                                return
+                            }
+
+                            try {
+                                // 检查本地缓存
+                                const { UserApi } = await import('../api/user')
+                                const localPath = await UserApi.syncGroupAvatarCache(
+                                    chatItem.groupId,
+                                    chatItem.avatar,
+                                    false // 不强制刷新,优先使用缓存
+                                )
+                                if (localPath) {
+                                    chatItem.avatarLocalPath = localPath
+                                    // 同时更新store中的对应项
+                                    const storeChatItem = state.chatList.list.find(item => item.groupId === chatItem.groupId)
+                                    if (storeChatItem) {
+                                        storeChatItem.avatarLocalPath = localPath
+                                    }
+                                }
+                            } catch (error) {
+                                // 静默失败,使用默认头像
+                                console.warn(`群头像缓存同步失败: ${chatItem.name}`, error)
+                            }
+                        })
+                    )
+
                     // 根据参数选择使用同步模式还是替换模式
                     if (compareWithStore && state.chatList.list.length > 0) {
                         // 使用智能同步，避免列表闪烁
@@ -1735,6 +1782,32 @@ export const store = createStore<State>({
         // 删除好友申请项
         removeFriendRequest({commit}: { commit: any }, requestId: string) {
             commit('REMOVE_FRIEND_REQUEST', requestId)
+        },
+
+        // 更新当前聊天群头像
+        async updateCurrentChatAvatar({commit, state}: { commit: any; state: any }, payload: { groupId: string; avatarUrl: string }) {
+            const { groupId, avatarUrl } = payload;
+            console.log('🔄 更新当前聊天群头像:', { groupId, avatarUrl });
+            
+            // 更新当前聊天群ID对应的群聊头像
+            commit('UPDATE_CURRENT_CHAT_AVATAR', { groupId, avatarUrl });
+            
+            // 同步更新聊天列表中的对应项
+            const chat = state.chatList.list.find((item: any) => item.groupId === groupId);
+            if (chat) {
+                commit('UPDATE_CHAT_ITEM', { 
+                    ...chat, 
+                    avatar: avatarUrl,
+                    avatarLocalPath: undefined // 清除本地缓存路径，等待重新下载
+                });
+            }
+            
+            // 强制更新界面显示
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('force-refresh-avatar', {
+                    detail: { groupId, avatarUrl }
+                }));
+            }, 100);
         }
     },
 

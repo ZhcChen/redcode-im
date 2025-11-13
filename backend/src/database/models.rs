@@ -192,6 +192,7 @@ pub struct Room {
     pub name: String,
     pub description: Option<String>,
     pub avatar_url: Option<String>,
+    pub avatar_object_key: Option<String>,
     pub room_type: RoomType,
     pub owner_id: Uuid,
     pub created_at: DateTime<Utc>,

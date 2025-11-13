@@ -648,6 +648,38 @@ export class GroupApi {
     return response;
   }
 
+  /**
+   * 获取群头像临时下载地址
+   */
+  static async getRoomAvatarDownloadUrl(params: {
+    roomId: string;
+    expiresInSeconds?: number;
+  }): Promise<ApiResponse<{ downloadUrl: string }>> {
+    const queryParams = params.expiresInSeconds
+      ? `?expires_in_seconds=${params.expiresInSeconds}`
+      : '';
+
+    const response = await get<{
+      success: boolean;
+      message: string;
+      download_url?: string;
+    }>(`/rooms/${params.roomId}/avatar/url${queryParams}`);
+
+    if (!response.success || !response.data || !response.data.success || !response.data.download_url) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        downloadUrl: response.data.download_url,
+      },
+    };
+  }
+
   static async listAnnouncements(params: {
     roomId: string;
   }): Promise<ApiResponse<Array<{

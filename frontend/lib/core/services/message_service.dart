@@ -115,6 +115,33 @@ class MessageService with ChangeNotifier {
     return cached == null ? null : List<MessageReader>.from(cached);
   }
 
+  /// 获取房间成员列表详细信息
+  Future<List<Map<String, dynamic>>> fetchRoomMembers(String roomId) async {
+    if (roomId.isEmpty) return [];
+    
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/members');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer ${session.token}'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load room members: ${response.body}');
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw Exception('Invalid room member response');
+    }
+
+    return decoded.cast<Map<String, dynamic>>();
+  }
+
   /// 拉取房间成员数量（带缓存）
   Future<int> fetchRoomMemberCount(
     String roomId, {

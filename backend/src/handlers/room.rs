@@ -412,7 +412,7 @@ pub async fn update_room(
     }
 
     let room = store
-        .update_room(room_id, request.name, request.description, request.avatar_url)
+        .update_room(room_id, request.name, request.description, request.avatar_url, None)
         .await?;
 
     Ok(Json(UpdateRoomResponse {
@@ -560,14 +560,72 @@ pub async fn commit_room_avatar_upload(
     let storage_service = crate::storage::create_storage_service(&provider)?;
     let avatar_url = storage_service.get_file_url(key);
 
-    // 更新房间头像URL
+    // 更新房间头像：存储 object_key 和 url
     store
-        .update_room(room_id, None, None, Some(avatar_url.clone()))
+        .update_room(room_id, None, None, Some(avatar_url.clone()), Some(key.to_string()))
         .await?;
 
     Ok(Json(CommitRoomAvatarUploadResponse {
         success: true,
         message: "群头像上传成功".to_string(),
         avatar_url: Some(avatar_url),
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct RoomAvatarDownloadUrlRequest {
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct RoomAvatarDownloadUrlResponse {
+    pub success: bool,
+    pub message: String,
+    pub download_url: Option<String>,
+}
+
+/// 获取群头像临时下载地址
+pub async fn get_room_avatar_download_url(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<RoomAvatarDownloadUrlRequest>,
+) -> Result<Json<RoomAvatarDownloadUrlResponse>, AppError> {
+    let store = RoomStore::new(state.database.pool());
+
+    // 获取房间信息
+    let room = sqlx::query_as::<_, crate::database::models::Room>(
+        r#"
+        SELECT id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
+        FROM rooms
+        WHERE id = $1 AND deleted_at IS NULL
+        "#,
+    )
+    .bind(room_id)
+    .fetch_optional(state.database.pool())
+    .await?
+    .ok_or_else(|| AppError::NotFound(format!("Room {} not found", room_id)))?;
+
+    let key = match room.avatar_object_key {
+        Some(ref key) => key.clone(),
+        None => {
+            return Ok(Json(RoomAvatarDownloadUrlResponse {
+                success: false,
+                message: "该群聊尚未设置头像".to_string(),
+                download_url: None,
+            }));
+        }
+    };
+
+    let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
+    let storage_service = crate::storage::create_storage_service(&provider)?;
+    let download_url = storage_service
+        .generate_download_url(&key, params.expires_in_seconds)
+        .await?;
+
+    Ok(Json(RoomAvatarDownloadUrlResponse {
+        success: true,
+        message: "生成下载链接成功".to_string(),
+        download_url: Some(download_url),
     }))
 }
