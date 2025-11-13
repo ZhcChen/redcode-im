@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     name VARCHAR(100) NOT NULL,
     description TEXT,
     avatar_url TEXT,
+    avatar_object_key TEXT,
     room_type SMALLINT NOT NULL DEFAULT 1,         -- 0=private,1=group,2=public,3=favorite
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -494,6 +495,7 @@ SELECT
     r.name,
     r.description,
     r.avatar_url,
+    r.avatar_object_key,
     r.room_type,
     r.owner_id,
     r.created_at,
