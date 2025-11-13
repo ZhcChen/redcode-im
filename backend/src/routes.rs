@@ -6,7 +6,7 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, feedback, friend, group_management, healthz, message, message_read,
+    admin, auth, chat_history, feedback, friend, group_management, healthz, message, message_read,
     message_search, room, root, settings, user, version, ws,
 };
 use crate::AppState;
@@ -159,6 +159,10 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/app-versions/{id}/deactivate",
             post(version::deactivate_app_version),
         )
+        // 聊天记录管理API
+        .route("/api/admin/chat-history", get(chat_history::get_chat_history))
+        .route("/api/admin/users/{user_id}/rooms", get(chat_history::get_user_rooms))
+        .route("/api/admin/rooms/{room_id}/chat-history", get(chat_history::get_room_chat_history))
         .route("/feedbacks", post(feedback::submit_feedback))
         // users
         .route("/users/search", get(user::search_users))

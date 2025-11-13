@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod chat_history;
 pub mod feedback;
 pub mod friend;
 pub mod group_management;
