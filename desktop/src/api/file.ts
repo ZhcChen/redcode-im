@@ -135,45 +135,35 @@ export class FileApi {
         data: uploadResult
       };
     } else if (category === 'group_avatar') {
-      // 群头像上传流程 - 直接上传文件，不经过用户头像通道
-      console.log('[FileApi] 🧷 走群头像上传流程');
-      
-      // 由于没有专门的群头像上传API，暂时使用临时文件上传方式
-      // 将在这里返回上传结果，后续在调用GroupApi.updateGroupInfo时使用fileUrl
-      // 这里需要使用普通文件上传逻辑，或者其他合适的上传方法
-      
+      // 群头像上传流程 - 使用 blob URL 作为临时方案
+      console.log('[FileApi] 🧷 走群头像上传流程（使用 blob URL）');
+
       try {
-        // 将文件转换为ArrayBuffer以获取内容
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        // 为群头像生成临时URL
-        // 在实际应用中，这里应该调用正确的群头像上传API
-        // 这里仅作为临时解决方案
-        const tempFileUrl = URL.createObjectURL(file);
-        
+        // 创建 blob URL 作为临时头像显示
+        const blobUrl = URL.createObjectURL(file);
+        console.log('[FileApi] ✅ 创建 blob URL:', blobUrl);
+
         const uploadResult: FileUploadResult = {
           id: '',
           fileName: file.name,
-          filePath: tempFileUrl,
-          fileUrl: tempFileUrl,
+          filePath: blobUrl,  // 使用 blob URL
+          fileUrl: blobUrl,   // 使用 blob URL
           fileSize: file.size,
           fileType: file.type,
           md5: '',
-          // 由于没有实际上传，这些字段将在后续步骤中设置
         };
 
         return {
           code: 200,
-          message: '群头像上传成功',
+          message: '群头像准备完成',
           success: true,
           data: uploadResult
         };
       } catch (error) {
-        console.error('[FileApi] ❌ 群头像上传失败', error);
+        console.error('[FileApi] ❌ 群头像处理失败', error);
         return {
           code: 500,
-          message: '群头像上传失败，请稍后重试',
+          message: '群头像处理失败，请稍后重试',
           success: false,
           data: null
         };
@@ -324,13 +314,25 @@ export class FileApi {
 
     console.log('🔧 FileApi.buildImageUrl 输入:', fileInfo);
 
-    // 1. 优先使用已有的完整 URL
-    if (fileInfo.url && fileInfo.url.trim() !== '' && (fileInfo.url.startsWith('http://') || fileInfo.url.startsWith('https://'))) {
+    // 1. 优先使用已有的完整 URL（包括 blob URL）
+    if (fileInfo.url && fileInfo.url.trim() !== '' && (fileInfo.url.startsWith('http://') || fileInfo.url.startsWith('https://') || fileInfo.url.startsWith('blob:'))) {
       console.log('✅ 使用现有的完整 URL:', fileInfo.url);
       return fileInfo.url;
     }
 
-    // 2. 使用 fullPath 构建 URL（主要情况）
+    // 2. 检查 fileUrl 是否是 blob URL
+    if (fileInfo.fileUrl && fileInfo.fileUrl.startsWith('blob:')) {
+      console.log('✅ 使用 blob URL (fileUrl):', fileInfo.fileUrl);
+      return fileInfo.fileUrl;
+    }
+
+    // 3. 检查 filePath 是否是 blob URL
+    if (fileInfo.filePath && fileInfo.filePath.startsWith('blob:')) {
+      console.log('✅ 使用 blob URL (filePath):', fileInfo.filePath);
+      return fileInfo.filePath;
+    }
+
+    // 4. 使用 fullPath 构建 URL（主要情况）
     if (fileInfo.fullPath) {
       const target = fileInfo.fileSaveTarget || fileConfig.target || 'local';
       const constructedUrl = target === 'local'
@@ -340,7 +342,7 @@ export class FileApi {
       return constructedUrl;
     }
 
-    // 3. 处理历史消息：url为空但有fileName的情况
+    // 5. 处理历史消息：url为空但有fileName的情况
     if (fileInfo.fileName && (!fileInfo.url || fileInfo.url.trim() === '')) {
       // 根据 fileSaveTarget 决定构建方式
       const target = fileInfo.fileSaveTarget || 'local';
@@ -355,14 +357,14 @@ export class FileApi {
       }
     }
 
-    // 4. 使用 filePath 构建 URL
+    // 6. 使用 filePath 构建 URL
     if (fileInfo.filePath) {
       const constructedUrl = `${fileConfig.showFile}${fileInfo.filePath}`;
       console.log('✅ 使用 filePath 构建URL:', constructedUrl);
       return constructedUrl;
     }
 
-    // 5. 如果 fileUrl 存在但不是完整 URL，根据 target 类型处理
+    // 7. 如果 fileUrl 存在但不是完整 URL，根据 target 类型处理
     if (fileInfo.fileUrl) {
       const target = fileInfo.fileSaveTarget || fileConfig.target || 'local';
       if (target === 'local') {

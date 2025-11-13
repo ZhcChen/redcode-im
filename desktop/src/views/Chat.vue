@@ -3609,61 +3609,17 @@ const updateGroupAvatar = async (file: File) => {
 
         // 更新本地数据
         if (selectedChat.value) {
-          // 添加时间戳避免浏览器缓存
-          const avatarUrlWithTimestamp = `${avatarUrl}?t=${Date.now()}`
+          console.log('🔄 [头像更新] 原始头像URL:', avatarUrl)
+          console.log('🔄 [头像更新] 头像URL类型:', avatarUrl.startsWith('blob:') ? 'blob URL' : '服务器URL')
 
           // 1. 更新当前选中的聊天项
-          selectedChat.value.avatar = avatarUrlWithTimestamp
+          selectedChat.value.avatar = avatarUrl
+          console.log('🔄 [头像更新] selectedChat.value.avatar 已更新为:', selectedChat.value.avatar)
 
           // 2. 同步更新store中的聊天列表
-          const updatedChat = { ...selectedChat.value, avatar: avatarUrlWithTimestamp }
+          const updatedChat = { ...selectedChat.value, avatar: avatarUrl }
+          console.log('🔄 [头像更新] 准备更新store，updatedChat.avatar:', updatedChat.avatar)
           store.dispatch('updateChatItem', updatedChat)
-          
-          // 3. 更新头像缓存
-          try {
-            const { AvatarCache } = await import('../utils/avatar-cache')
-            const groupId = selectedChat.value.groupId
-            
-            // 读取文件内容并保存到缓存
-            const fileReader = new FileReader()
-            await new Promise<void>((resolve, reject) => {
-              fileReader.onload = async () => {
-                try {
-                  // 确保获取到ArrayBuffer
-                  const arrayBuffer = fileReader.result as ArrayBuffer
-                  if (!arrayBuffer) {
-                    throw new Error('无法读取文件内容')
-                  }
-                  
-                  // 转换为Uint8Array格式，这是AvatarCache.save所需的格式
-                  const uint8Array = new Uint8Array(arrayBuffer)
-                  
-                  // 直接使用AvatarCache对象保存，指定avatarType为group
-                  // 使用groupId作为userId参数，使用avatarUrl作为objectKey参数
-                  await AvatarCache.save({
-                    userId: groupId,
-                    objectKey: avatarUrl, // 使用头像URL作为objectKey
-                    data: uint8Array,
-                    avatarType: 'group'
-                  })
-                  console.log('✅ 群头像缓存更新成功，groupId:', groupId)
-                  resolve()
-                } catch (error) {
-                  console.error('❌ 群头像缓存更新失败:', error)
-                  // 缓存更新失败不影响主流程，继续执行
-                  resolve()
-                }
-              }
-              fileReader.onerror = () => {
-                console.error('❌ 文件读取失败')
-                resolve() // 即使读取失败也继续执行
-              }
-              fileReader.readAsArrayBuffer(file)
-            })
-          } catch (cacheError) {
-            console.warn('⚠️ 头像缓存更新遇到问题:', cacheError)
-            // 缓存更新失败不影响主流程
-          }
         }
 
         // 发送群头像修改的系统消息（与bear-chat-uniapp保持一致）
