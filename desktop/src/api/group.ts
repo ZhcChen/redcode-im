@@ -1,5 +1,6 @@
 import { get, post, del, patch } from "./http";
 import type { ApiResponse } from "./http";
+import rustHttp from "./rust-http";
 import type {
   Chat,
   RoomMember,
@@ -395,7 +396,6 @@ export class GroupApi {
     const contentType = file.type || 'application/octet-stream';
     console.log('[GroupApi] 🔐 请求群头像直传签名', { contentType });
 
-    const rustHttp = await import('./rust-http').then(m => m.default);
     const directResp = await rustHttp.post<{
       success: boolean;
       message: string;
