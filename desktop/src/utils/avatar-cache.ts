@@ -191,7 +191,7 @@ export const AvatarCache = {
     if (record.storageType === 'indexedDB') {
       const stored = await readFromIndexedDB(record.storageKey)
       if (!stored) {
-        delete index[userId]
+        delete index[cacheKey]
         writeIndex(index)
         return null
       }

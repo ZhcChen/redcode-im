@@ -3609,51 +3609,65 @@ const updateGroupAvatar = async (file: File) => {
 
         // 更新本地数据
         if (selectedChat.value) {
-          selectedChat.value.avatar = avatarUrl
+          // 添加时间戳避免浏览器缓存
+          const avatarUrlWithTimestamp = `${avatarUrl}?t=${Date.now()}`
 
-          // 更新store中的聊天列表
-          const updatedChat = { ...selectedChat.value, avatar: avatarUrl }
+          // 1. 更新当前选中的聊天项
+          selectedChat.value.avatar = avatarUrlWithTimestamp
+
+          // 2. 同步更新store中的聊天列表
+          const updatedChat = { ...selectedChat.value, avatar: avatarUrlWithTimestamp }
           store.dispatch('updateChatItem', updatedChat)
           
-          // 更新头像缓存 - 修复群头像更新后不显示的问题
-                const { AvatarCache } = await import('../utils/avatar-cache')
-                const groupId = selectedChat.value.groupId
-                
-                // 读取文件内容并保存到缓存
-                const fileReader = new FileReader()
-                await new Promise<void>((resolve, reject) => {
-                  fileReader.onload = async () => {
-                    try {
-                      // 确保获取到ArrayBuffer
-                      const arrayBuffer = fileReader.result as ArrayBuffer
-                      if (!arrayBuffer) {
-                        throw new Error('无法读取文件内容')
-                      }
-                      
-                      // 转换为Uint8Array格式，这是AvatarCache.save所需的格式
-                      const uint8Array = new Uint8Array(arrayBuffer)
-                      
-                      // 直接使用AvatarCache对象保存，指定avatarType为group
-                      // 使用groupId作为userId参数，使用avatarUrl作为objectKey参数
-                      await AvatarCache.save({
-                        userId: groupId,
-                        objectKey: avatarUrl, // 使用头像URL作为objectKey
-                        data: uint8Array,
-                        avatarType: 'group'
-                      })
-                      console.log('✅ 群头像缓存更新成功，groupId:', groupId)
-                      resolve()
-                    } catch (error) {
-                      console.error('❌ 群头像缓存更新失败:', error)
-                      reject(error)
-                    }
+          // 3. 更新头像缓存
+          try {
+            const { AvatarCache } = await import('../utils/avatar-cache')
+            const groupId = selectedChat.value.groupId
+            
+            // 读取文件内容并保存到缓存
+            const fileReader = new FileReader()
+            await new Promise<void>((resolve, reject) => {
+              fileReader.onload = async () => {
+                try {
+                  // 确保获取到ArrayBuffer
+                  const arrayBuffer = fileReader.result as ArrayBuffer
+                  if (!arrayBuffer) {
+                    throw new Error('无法读取文件内容')
                   }
-                  fileReader.onerror = () => reject(new Error('文件读取失败'))
-                  fileReader.readAsArrayBuffer(file)
-                })
+                  
+                  // 转换为Uint8Array格式，这是AvatarCache.save所需的格式
+                  const uint8Array = new Uint8Array(arrayBuffer)
+                  
+                  // 直接使用AvatarCache对象保存，指定avatarType为group
+                  // 使用groupId作为userId参数，使用avatarUrl作为objectKey参数
+                  await AvatarCache.save({
+                    userId: groupId,
+                    objectKey: avatarUrl, // 使用头像URL作为objectKey
+                    data: uint8Array,
+                    avatarType: 'group'
+                  })
+                  console.log('✅ 群头像缓存更新成功，groupId:', groupId)
+                  resolve()
+                } catch (error) {
+                  console.error('❌ 群头像缓存更新失败:', error)
+                  // 缓存更新失败不影响主流程，继续执行
+                  resolve()
+                }
+              }
+              fileReader.onerror = () => {
+                console.error('❌ 文件读取失败')
+                resolve() // 即使读取失败也继续执行
+              }
+              fileReader.readAsArrayBuffer(file)
+            })
+          } catch (cacheError) {
+            console.warn('⚠️ 头像缓存更新遇到问题:', cacheError)
+            // 缓存更新失败不影响主流程
+          }
         }
 
         // 发送群头像修改的系统消息（与bear-chat-uniapp保持一致）
+        // 注意：系统消息中使用原始URL（不带时间戳），因为这是服务器上的实际路径
         await sendGroupAvatarUpdateSystemMessage(selectedChat.value.groupId, avatarUrl)
       } else {
         console.warn('❌ 群头像修改失败:', response.message)
