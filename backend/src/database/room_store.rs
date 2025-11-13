@@ -3,8 +3,9 @@ use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::database::models::{
-    ChatSummaryRow, MemberRole, Room, RoomMember, RoomMemberWithUserInfo, RoomType, UserRoomPin,
+    ChatSummaryRow, MemberRole, Room, RoomMember, RoomType, UserRoomPin,
 };
+use crate::database::member_with_user_info::{RoomMemberWithUserInfo, RoomMemberRow};
 
 pub struct RoomStore<'a> {
     pub pool: &'a PgPool,
@@ -218,14 +219,15 @@ impl<'a> RoomStore<'a> {
         &self,
         room_id: Uuid,
     ) -> Result<Vec<RoomMemberWithUserInfo>, sqlx::Error> {
-        let rows = sqlx::query_as::<_, RoomMemberWithUserInfo>(
+        let rows = sqlx::query_as::<_, RoomMemberRow>(
             r#"
-            SELECT rm.user_id,
-                   u.username,
-                   u.nickname,
-                   u.avatar_url,
-                   rm.role as "role: MemberRole",
-                   rm.joined_at
+            SELECT 
+                rm.user_id,
+                u.username,
+                u.nickname,
+                u.avatar_url,
+                rm.role,
+                rm.joined_at
             FROM room_members rm
             JOIN users u ON u.id = rm.user_id AND u.deleted_at IS NULL
             WHERE rm.room_id = $1 AND rm.deleted_at IS NULL
@@ -235,7 +237,8 @@ impl<'a> RoomStore<'a> {
         .bind(room_id)
         .fetch_all(self.pool)
         .await?;
-        Ok(rows)
+        
+        Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
     pub async fn list_user_rooms(&self, user_id: Uuid) -> Result<Vec<Room>, sqlx::Error> {
@@ -512,6 +515,65 @@ impl<'a> RoomStore<'a> {
         .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    /// 获取指定成员信息
+    pub async fn get_member(&self, room_id: Uuid, user_id: Uuid) -> Result<Option<RoomMember>, sqlx::Error> {
+        let member = sqlx::query_as::<_, RoomMember>(
+            r#"
+            SELECT id, room_id, user_id, role, joined_at, deleted_at, last_read_at, last_read_message_id
+            FROM room_members
+            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .bind(user_id)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(member)
+    }
+
+    /// 获取房间房主ID
+    pub async fn get_room_owner(&self, room_id: Uuid) -> Result<Uuid, sqlx::Error> {
+        let room = sqlx::query_as::<_, Room>(
+            r#"
+            SELECT id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+            FROM rooms
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await?;
+        Ok(room.owner_id)
+    }
+
+    /// 更新房间信息
+    pub async fn update_room(
+        &self,
+        room_id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        avatar_url: Option<String>,
+    ) -> Result<Room, sqlx::Error> {
+        let room = sqlx::query_as::<_, Room>(
+            r#"
+            UPDATE rooms 
+            SET name = COALESCE($1, name),
+                description = COALESCE($2, description),
+                avatar_url = COALESCE($3, avatar_url),
+                updated_at = NOW()
+            WHERE id = $4 AND deleted_at IS NULL
+            RETURNING id, name, description, avatar_url, room_type, owner_id, created_at, updated_at, deleted_at
+            "#,
+        )
+        .bind(name)
+        .bind(description)
+        .bind(avatar_url)
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await?;
+        Ok(room)
     }
 }
 

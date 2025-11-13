@@ -415,7 +415,7 @@ pub async fn search_users(
     Ok(Json(infos))
 }
 
-async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
+pub async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
     let provider = store
         .get_default_provider()

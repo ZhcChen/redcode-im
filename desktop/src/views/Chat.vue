@@ -3577,60 +3577,35 @@ const updateGroupAvatar = async (file: File) => {
   if (!selectedChat.value) return
 
   try {
-    console.log('🔄 开始上传群头像:', file.name)
+    console.log('🔄 开始上传群头像（使用COS直传）:', file.name)
 
-    // 先上传文件
-    const { FileApi } = await import('../api/file')
-    const uploadResult = await FileApi.uploadFile({
-      file,
-      category: 'group_avatar',
-      isPublic: true,
-      description: '群头像'
-    })
+    // 使用 GroupApi.uploadGroupAvatar 上传到 COS
+    const uploadResult = await GroupApi.uploadGroupAvatar(selectedChat.value.groupId, file)
 
-    if (uploadResult.code === 200 && uploadResult.data) {
-      const avatarUrl = FileApi.buildImageUrl(uploadResult.data)
+    if (uploadResult.success && uploadResult.data) {
+      const avatarUrl = uploadResult.data.avatarUrl
 
-      if (!avatarUrl) {
-        throw new Error('头像URL构建失败')
-      }
+      console.log('✅ 群头像上传成功:', avatarUrl)
+      toast.success('群头像修改成功')
 
-      console.log('✅ 头像上传成功，开始更新群信息:', avatarUrl)
+      // 更新本地数据
+      if (selectedChat.value) {
+        console.log('🔄 [头像更新] 原始头像URL:', avatarUrl)
 
-      // 调用更新群信息API
-      const response = await GroupApi.updateGroupInfo({
-        groupId: selectedChat.value.groupId,
-        groupAvatar: avatarUrl  // 修正：使用 groupAvatar
-      })
+        // 1. 更新当前选中的聊天项
+        selectedChat.value.avatar = avatarUrl
+        console.log('🔄 [头像更新] selectedChat.value.avatar 已更新为:', selectedChat.value.avatar)
 
-      if (response.success) {
-        console.log('✅ 群头像修改成功')
-        toast.success('群头像修改成功')
+        // 2. 同步更新store中的聊天列表
+        const updatedChat = { ...selectedChat.value, avatar: avatarUrl }
+        console.log('🔄 [头像更新] 准备更新store，updatedChat.avatar:', updatedChat.avatar)
+        store.dispatch('updateChatItem', updatedChat)
 
-        // 更新本地数据
-        if (selectedChat.value) {
-          console.log('🔄 [头像更新] 原始头像URL:', avatarUrl)
-          console.log('🔄 [头像更新] 头像URL类型:', avatarUrl.startsWith('blob:') ? 'blob URL' : '服务器URL')
-
-          // 1. 更新当前选中的聊天项
-          selectedChat.value.avatar = avatarUrl
-          console.log('🔄 [头像更新] selectedChat.value.avatar 已更新为:', selectedChat.value.avatar)
-
-          // 2. 同步更新store中的聊天列表
-          const updatedChat = { ...selectedChat.value, avatar: avatarUrl }
-          console.log('🔄 [头像更新] 准备更新store，updatedChat.avatar:', updatedChat.avatar)
-          store.dispatch('updateChatItem', updatedChat)
-        }
-
-        // 发送群头像修改的系统消息（与bear-chat-uniapp保持一致）
-        // 注意：系统消息中使用原始URL（不带时间戳），因为这是服务器上的实际路径
+        // 3. 发送群头像修改的系统消息
         await sendGroupAvatarUpdateSystemMessage(selectedChat.value.groupId, avatarUrl)
-      } else {
-        console.warn('❌ 群头像修改失败:', response.message)
-        toast.error('群头像修改失败: ' + (response.message || '未知错误'))
       }
     } else {
-      throw new Error(uploadResult.message || '头像上传失败')
+      throw new Error(uploadResult.message || '群头像上传失败')
     }
   } catch (error: any) {
     console.error('❌ 群头像修改异常:', error)

@@ -434,9 +434,8 @@ pub struct RoomAvatarDirectUploadRequest {
 pub struct RoomAvatarDirectUploadResponse {
     pub success: bool,
     pub message: String,
-    pub upload_url: Option<String>,
-    pub object_key: Option<String>,
-    pub expires_at: Option<String>,
+    pub key: Option<String>,
+    pub signature: Option<crate::storage::DirectUploadSignature>,
 }
 
 pub async fn generate_room_avatar_direct_upload(
@@ -453,9 +452,8 @@ pub async fn generate_room_avatar_direct_upload(
         return Ok(Json(RoomAvatarDirectUploadResponse {
             success: false,
             message: "Only image files are allowed".to_string(),
-            upload_url: None,
-            object_key: None,
-            expires_at: None,
+            key: None,
+            signature: None,
         }));
     }
 
@@ -468,45 +466,50 @@ pub async fn generate_room_avatar_direct_upload(
                     "文件大小超出限制，最大允许{}MB",
                     crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024
                 ),
-                upload_url: None,
-                object_key: None,
-                expires_at: None,
+                key: None,
+                signature: None,
             }));
         }
     }
 
     let store = RoomStore::new(state.database.pool());
-    
+
     // 检查用户权限（只有房主或管理员可以上传头像）
     let member = store
         .get_member(room_id, user_id)
         .await?
         .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
-    
+
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
         return Err(AppError::Forbidden("Only room owner or admin can upload avatar".to_string()));
     }
 
-    // 生成唯一的对象键
-    let object_key = format!("room_avatars/{}/{}", room_id, req.filename);
+    // 加载默认存储提供商
+    let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
+    let storage_service = crate::storage::create_storage_service(&provider)?;
 
-    // 模拟签名生成（实际应该调用存储服务）
-    let upload_url = format!("https://example.com/upload/{}", object_key);
-    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+    // 生成唯一的对象键
+    let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
+    let ext = req.filename.rsplit('.').next().unwrap_or("png");
+    let key = format!("room_avatars/{}/{}_{}.{}", room_id, timestamp, uuid::Uuid::new_v4().to_string()[..8].to_string(), ext);
+
+    // 生成直传签名
+    let signature = storage_service
+        .generate_direct_upload_signature(&key, Some(&req.content_type))
+        .await?;
 
     Ok(Json(RoomAvatarDirectUploadResponse {
         success: true,
-        message: "Upload URL generated successfully".to_string(),
-        upload_url: Some(upload_url),
-        object_key: Some(object_key.clone()),
-        expires_at: Some(expires_at),
+        message: "生成群头像直传签名成功".to_string(),
+        key: Some(key),
+        signature: Some(signature),
     }))
 }
 
 #[derive(Deserialize)]
 pub struct CommitRoomAvatarUploadRequest {
-    pub object_key: String,
+    pub key: String,
 }
 
 #[derive(Serialize)]
@@ -525,35 +528,46 @@ pub async fn commit_room_avatar_upload(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
+    let key = req.key.trim();
+    if key.is_empty() {
+        return Ok(Json(CommitRoomAvatarUploadResponse {
+            success: false,
+            message: "文件路径（key）不能为空".to_string(),
+            avatar_url: None,
+        }));
+    }
+
     let store = RoomStore::new(state.database.pool());
-    
+
     // 检查用户权限
     let member = store
         .get_member(room_id, user_id)
         .await?
         .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
-    
+
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
         return Err(AppError::Forbidden("Only room owner or admin can upload avatar".to_string()));
     }
 
     // 验证对象键格式
-    if !req.object_key.starts_with(&format!("room_avatars/{}/", room_id)) {
+    if !key.starts_with(&format!("room_avatars/{}/", room_id)) {
         return Err(AppError::InvalidInput("Invalid object key".to_string()));
     }
 
-    // 构建头像URL（这里简化处理，实际应该从存储服务获取）
-    let avatar_url = format!("https://example.com/files/{}", req.object_key);
+    // 加载存储服务并获取文件URL
+    let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
+    let storage_service = crate::storage::create_storage_service(&provider)?;
+    let avatar_url = storage_service.get_file_url(key);
 
     // 更新房间头像URL
-    let room = store
+    store
         .update_room(room_id, None, None, Some(avatar_url.clone()))
         .await?;
 
     Ok(Json(CommitRoomAvatarUploadResponse {
         success: true,
-        message: "Avatar uploaded successfully".to_string(),
+        message: "群头像上传成功".to_string(),
         avatar_url: Some(avatar_url),
     }))
 }

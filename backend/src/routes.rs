@@ -204,6 +204,9 @@ pub fn create_routes() -> Router<AppState> {
         .route("/rooms/{room_id}/join", post(room::join_room))
         .route("/rooms/{room_id}/leave", post(room::leave_room))
         .route("/rooms/{room_id}/members", get(room::list_members))
+        .route("/rooms/{room_id}", patch(room::update_room))
+        .route("/rooms/{room_id}/avatar/direct-upload", post(room::generate_room_avatar_direct_upload))
+        .route("/rooms/{room_id}/avatar/commit", post(room::commit_room_avatar_upload))
         .route(
             "/rooms/{room_id}/notification-settings",
             post(room::update_notification_settings),

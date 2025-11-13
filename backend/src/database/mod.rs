@@ -5,6 +5,7 @@ pub mod account_store;
 pub mod document_store;
 pub mod friend_store;
 pub mod group_management_store;
+pub mod member_with_user_info;
 pub mod message_read_store;
 pub mod message_store;
 pub mod models;

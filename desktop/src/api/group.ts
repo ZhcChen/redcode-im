@@ -378,6 +378,174 @@ export class GroupApi {
     };
   }
 
+  /**
+   * 上传群头像 - 使用腾讯 COS 直传
+   */
+  static async uploadGroupAvatar(
+    groupId: string,
+    file: File
+  ): Promise<ApiResponse<{ avatarUrl: string }>> {
+    console.log('[GroupApi] 🧾 收到群头像上传请求', {
+      groupId,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size
+    });
+
+    const contentType = file.type || 'application/octet-stream';
+    console.log('[GroupApi] 🔐 请求群头像直传签名', { contentType });
+
+    const rustHttp = await import('./rust-http').then(m => m.default);
+    const directResp = await rustHttp.post<{
+      success: boolean;
+      message: string;
+      key?: string;
+      signature?: {
+        url: string;
+        method: string;
+        headers: Record<string, string>;
+      };
+    }>(`/rooms/${groupId}/avatar/direct-upload`, {
+      content_type: contentType,
+      filename: file.name,
+      file_size: file.size
+    });
+
+    const directData = directResp.data;
+    console.log('[GroupApi] 🔐 直传签名响应', {
+      success: directResp.success,
+      code: directResp.code,
+      key: directData?.key,
+      hasSignature: Boolean(directData?.signature)
+    });
+
+    if (!directResp.success || !directData || !directData.success || !directData.key || !directData.signature) {
+      console.error('[GroupApi] ❌ 获取上传签名失败', {
+        code: directResp.code,
+        message: directResp.message,
+        payload: directData
+      });
+      return {
+        code: directResp.code || 500,
+        success: false,
+        message: directData?.message || directResp.message || '获取上传签名失败',
+        data: null
+      };
+    }
+
+    const { key, signature } = directData;
+    console.log('[GroupApi] 📋 服务端返回的签名 headers:', signature.headers);
+
+    const headers = new Headers();
+    // 过滤掉 Host 头，避免浏览器 CORS 限制
+    Object.entries(signature.headers || {}).forEach(
+      ([headerKey, headerValue]) => {
+        if (headerKey.toLowerCase() === 'host') {
+          console.log('[GroupApi] 🚫 已过滤 Host 头:', headerValue);
+          return;
+        }
+        headers.set(headerKey, headerValue);
+      }
+    );
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', contentType);
+    }
+
+    const fileBuffer = new Uint8Array(await file.arrayBuffer());
+    const contentLength = fileBuffer.length.toString();
+    const finalHeaders: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      finalHeaders[key] = value;
+    });
+    if (!headers.has('Content-Length')) {
+      headers.set('Content-Length', contentLength);
+    }
+    finalHeaders['Content-Length'] = headers.get('Content-Length') || contentLength;
+
+    console.log('[GroupApi] ☁️ 准备执行对象存储上传');
+
+    const uploadResponse = await rustHttp.requestRaw<{ base64?: string }>({
+      path: signature.url,
+      method: (signature.method || 'PUT') as any,
+      headers: finalHeaders,
+      binaryBody: fileBuffer,
+      injectToken: false,
+      forceStreaming: true
+    });
+
+    if (!uploadResponse.success) {
+      const status = uploadResponse.code;
+      let errorMessage = uploadResponse.message || '上传失败，请稍后重试';
+      if (status === 403) {
+        errorMessage = '上传配置错误：可能存在跨域访问问题，请联系管理员检查存储配置';
+      } else if (status === 0) {
+        errorMessage = '网络连接失败，请检查网络设置';
+      }
+
+      console.error('[GroupApi] ❌ 对象存储上传失败', {
+        status,
+        message: uploadResponse.message
+      });
+      return {
+        code: status,
+        success: false,
+        message: errorMessage,
+        data: null
+      };
+    }
+
+    console.log('[GroupApi] ✅ 对象存储上传成功，等待提交', {
+      status: uploadResponse.code,
+      key
+    });
+
+    console.log('[GroupApi] 🔄 提交群头像配置', { key });
+    const commitResp = await rustHttp.post<{
+      success: boolean;
+      message: string;
+      avatar_url?: string;
+    }>(`/rooms/${groupId}/avatar/commit`, {
+      key
+    });
+
+    const commitData = commitResp.data;
+    console.log('[GroupApi] 📝 提交群头像配置响应', {
+      success: commitResp.success,
+      code: commitResp.code,
+      message: commitResp.message,
+      hasData: Boolean(commitData),
+      dataSuccess: commitData?.success,
+      avatarUrl: commitData?.avatar_url
+    });
+
+    if (!commitResp.success || !commitData || !commitData.success || !commitData.avatar_url) {
+      console.error('[GroupApi] ❌ 提交群头像配置失败', {
+        code: commitResp.code,
+        message: commitResp.message,
+        payload: commitData
+      });
+      return {
+        code: commitResp.code || 500,
+        success: false,
+        message: commitData?.message || commitResp.message || '提交群头像配置失败',
+        data: null
+      };
+    }
+
+    console.log('[GroupApi] ✅ 群头像上传成功', {
+      avatarUrl: commitData.avatar_url
+    });
+
+    return {
+      code: 200,
+      success: true,
+      message: '群头像上传成功',
+      data: {
+        avatarUrl: commitData.avatar_url
+      }
+    };
+  }
+
   static async pinChat(params: {
     roomId: string;
   }): Promise<ApiResponse<{ isPinned: boolean }>> {
