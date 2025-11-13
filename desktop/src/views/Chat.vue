@@ -3614,6 +3614,43 @@ const updateGroupAvatar = async (file: File) => {
           // 更新store中的聊天列表
           const updatedChat = { ...selectedChat.value, avatar: avatarUrl }
           store.dispatch('updateChatItem', updatedChat)
+          
+          // 更新头像缓存 - 修复群头像更新后不显示的问题
+                const { AvatarCache } = await import('../utils/avatar-cache')
+                const groupId = selectedChat.value.groupId
+                
+                // 读取文件内容并保存到缓存
+                const fileReader = new FileReader()
+                await new Promise<void>((resolve, reject) => {
+                  fileReader.onload = async () => {
+                    try {
+                      // 确保获取到ArrayBuffer
+                      const arrayBuffer = fileReader.result as ArrayBuffer
+                      if (!arrayBuffer) {
+                        throw new Error('无法读取文件内容')
+                      }
+                      
+                      // 转换为Uint8Array格式，这是AvatarCache.save所需的格式
+                      const uint8Array = new Uint8Array(arrayBuffer)
+                      
+                      // 直接使用AvatarCache对象保存，指定avatarType为group
+                      // 使用groupId作为userId参数，使用avatarUrl作为objectKey参数
+                      await AvatarCache.save({
+                        userId: groupId,
+                        objectKey: avatarUrl, // 使用头像URL作为objectKey
+                        data: uint8Array,
+                        avatarType: 'group'
+                      })
+                      console.log('✅ 群头像缓存更新成功，groupId:', groupId)
+                      resolve()
+                    } catch (error) {
+                      console.error('❌ 群头像缓存更新失败:', error)
+                      reject(error)
+                    }
+                  }
+                  fileReader.onerror = () => reject(new Error('文件读取失败'))
+                  fileReader.readAsArrayBuffer(file)
+                })
         }
 
         // 发送群头像修改的系统消息（与bear-chat-uniapp保持一致）
