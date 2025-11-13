@@ -7,6 +7,7 @@ import localeMonitor from '@/views/dashboard/monitor/locale/zh-CN';
 
 import localeUserManagement from '@/views/user-management/list/locale/zh-CN';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/zh-CN';
+import localeChatHistory from '@/views/chat-history/locale/zh-CN';
 /** simple end */
 import localeSettings from './zh-CN/settings';
 
@@ -17,6 +18,10 @@ export default {
   'menu.server.monitor': '实时监控-服务端',
   'menu.userManagement': '用户管理',
   'menu.userManagement.list': '用户列表',
+  'menu.chatHistory': '聊天记录',
+  'menu.chatHistory.list': '聊天记录列表',
+  'menu.chatHistory.room': '房间聊天记录',
+  'menu.chatHistory.user': '用户聊天记录',
   'menu.settings': '系统设置',
   'menu.settings.captcha': '验证码设置',
   'menu.settings.privacyPolicy': '隐私政策',
@@ -42,5 +47,6 @@ export default {
   ...localeMonitor,
   ...localeUserManagement,
   ...localeCaptchaSettings,
+  ...localeChatHistory,
   /** simple end */
 };
