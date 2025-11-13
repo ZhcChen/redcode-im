@@ -1606,7 +1606,9 @@ const loadGroupDetailInfo = async (groupId: string) => {
       console.log('✅ 群组信息获取成功:', {
         id: groupInfo.id,
         name: groupInfo.name,
-        description
+        description,
+        avatar: groupInfo.avatar,
+        extra: groupInfo.extra
       })
 
       // 获取群头像的临时下载URL
@@ -1614,19 +1616,44 @@ const loadGroupDetailInfo = async (groupId: string) => {
       const roomAvatarObjectKey = groupInfo.extra?.room_avatar_object_key ||
                                    groupInfo.extra?.roomAvatarObjectKey
 
+      console.log('🔍 [loadGroupDetailInfo] 头像信息:', {
+        groupId,
+        原始avatarUrl: avatarUrl,
+        roomAvatarObjectKey,
+        hasExtra: !!groupInfo.extra,
+        extraKeys: groupInfo.extra ? Object.keys(groupInfo.extra) : []
+      })
+
       if (roomAvatarObjectKey) {
         try {
+          console.log('🔄 [loadGroupDetailInfo] 开始获取群头像临时URL:', {
+            groupId,
+            roomAvatarObjectKey
+          })
           const localPath = await UserApi.syncGroupAvatarCache(
             groupId,
             roomAvatarObjectKey,
             false
           )
+          console.log('✅ [loadGroupDetailInfo] 获取群头像临时URL成功:', {
+            groupId,
+            localPath
+          })
           if (localPath) {
             avatarUrl = localPath
           }
         } catch (error) {
-          console.warn('获取群头像临时URL失败:', error)
+          console.error('❌ [loadGroupDetailInfo] 获取群头像临时URL失败:', {
+            groupId,
+            error
+          })
         }
+      } else {
+        console.warn('⚠️ [loadGroupDetailInfo] 未找到 roomAvatarObjectKey，将使用原始 URL:', {
+          groupId,
+          avatarUrl,
+          extra: groupInfo.extra
+        })
       }
 
       if (selectedChat.value) {

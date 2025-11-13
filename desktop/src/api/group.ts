@@ -172,6 +172,15 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
 };
 
 const mapRoomInfo = (room: BackendRoomInfo): Chat => {
+  console.log('🔍 [mapRoomInfo] 开始映射房间信息:', {
+    roomId: room.id,
+    roomName: room.name,
+    avatar_url: room.avatar_url,
+    avatar_object_key: room.avatar_object_key,
+    description: room.description,
+    extra: room.extra
+  });
+
   const roomExtra = room.extra as Record<string, unknown> | null;
   const memberCountRaw = roomExtra ? roomExtra["member_count"] : undefined;
   const memberCount =
@@ -184,8 +193,11 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
 
   // 添加 room_avatar_object_key 到 extra
   if (room.avatar_object_key) {
+    console.log('✅ [mapRoomInfo] 找到 avatar_object_key，添加到 extra:', room.avatar_object_key);
     extra.room_avatar_object_key = room.avatar_object_key;
     extra.roomAvatarObjectKey = room.avatar_object_key;
+  } else {
+    console.warn('⚠️ [mapRoomInfo] 未找到 avatar_object_key');
   }
 
   // 添加 description 到 extra
@@ -193,7 +205,7 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
     extra.description = room.description;
   }
 
-  return {
+  const result = {
     id: room.id,
     roomId: room.id,
     name: room.name,
@@ -208,6 +220,17 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
     memberCount,
     extra: Object.keys(extra).length > 0 ? extra : null,
   };
+
+  console.log('✅ [mapRoomInfo] 映射完成:', {
+    roomId: result.roomId,
+    avatar: result.avatar,
+    hasExtra: !!result.extra,
+    extraKeys: result.extra ? Object.keys(result.extra) : [],
+    room_avatar_object_key: result.extra?.room_avatar_object_key,
+    roomAvatarObjectKey: result.extra?.roomAvatarObjectKey
+  });
+
+  return result;
 };
 
 const mapRoomMemberRole = (role: string): RoomMemberRole => {
@@ -264,17 +287,29 @@ export class GroupApi {
   static async getChatGroupInfo(params: {
     chatGroupId: string;
   }): Promise<ApiResponse<Chat>> {
+    console.log('🔄 [getChatGroupInfo] 开始请求群组信息:', params.chatGroupId);
     const response = await get<BackendRoomInfo>(`/rooms/${params.chatGroupId}`);
+
+    console.log('📥 [getChatGroupInfo] 后端返回原始数据:', {
+      success: response.success,
+      data: response.data,
+      message: response.message
+    });
+
     if (!response.success || !response.data) {
+      console.error('❌ [getChatGroupInfo] 请求失败或无数据');
       return {
         ...response,
         data: null,
       };
     }
 
+    const mappedData = mapRoomInfo(response.data);
+    console.log('✅ [getChatGroupInfo] 数据映射完成');
+
     return {
       ...response,
-      data: mapRoomInfo(response.data),
+      data: mappedData,
     };
   }
 
