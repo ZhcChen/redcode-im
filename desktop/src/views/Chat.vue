@@ -2262,6 +2262,14 @@ const mapDomainMessageToUi = (msg: DomainMessage): Message => {
   const baseContentType = messageTypeToContentType[msg.type] || MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE
   const resolvedContentType = resolveContentTypeFromParts(parts, baseContentType)
 
+  // 过滤掉相对路径的 senderAvatar,避免浏览器尝试加载导致 403 错误
+  // 只保留完整的 http/https URL 或 blob URL
+  const isValidUrl = (url: string | undefined) => {
+    if (!url) return false
+    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')
+  }
+  const senderAvatar = isValidUrl(msg.senderAvatar) ? msg.senderAvatar : undefined
+
   return {
     id: msg.id,
     content: normalizedContent,
@@ -2269,7 +2277,8 @@ const mapDomainMessageToUi = (msg: DomainMessage): Message => {
     time: formatTime(timestamp.toISOString()),
     senderId: msg.senderId,
     senderName: msg.senderName,
-    senderAvatar: msg.senderAvatar || '',
+    senderAvatar: senderAvatar,
+    senderAvatarObjectKey: msg.senderAvatarObjectKey,
     messageType,
     contentType: resolvedContentType,
     status: messageStatusToUiStatus[msg.status] || 2,
