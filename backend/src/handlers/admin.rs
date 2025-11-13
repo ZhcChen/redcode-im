@@ -4,12 +4,11 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use uuid::Uuid;
 
 use crate::database::models::{
-    CaptchaSettingRecord, Permission, Role, RolePermission, StorageProvider, StorageProviderType,
-    UserPermission, UserRole, UserStatus,
+    CaptchaSettingRecord, Permission, Role, StorageProvider, StorageProviderType,
+    UserStatus,
 };
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
@@ -445,7 +444,7 @@ async fn get_memory_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sy
     }
 }
 
-async fn get_storage_usage(state: &AppState) -> Result<f64, AppError> {
+async fn get_storage_usage(_state: &AppState) -> Result<f64, AppError> {
     // 这里应该调用存储服务获取实际使用量
     // 暂时返回模拟数据
     Ok(0.28)
@@ -1296,7 +1295,7 @@ pub async fn delete_role(
 
 /// 分配角色给用户（简化版本）
 pub async fn assign_role_to_user(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 简化版本，仅验证输入格式
@@ -1335,13 +1334,11 @@ pub async fn revoke_role_from_user(
 
 /// 检查用户权限
 pub async fn check_user_permission(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(req): Json<CheckPermissionRequest>,
 ) -> Result<Json<CheckPermissionResponse>, AppError> {
-    let user_id = Uuid::parse_str(&req.user_id)
+    let _user_id = Uuid::parse_str(&req.user_id)
         .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-
-    let pool = &state.database.pool;
 
     // 检查用户是否有指定权限（简化版本，使用枚举）
     let has_permission = true; // 简化处理，实际应该查询数据库
@@ -1351,7 +1348,7 @@ pub async fn check_user_permission(
 
 /// 获取用户角色列表（简化版本）
 pub async fn get_user_roles(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path(user_id): Path<String>,
 ) -> Result<Json<Vec<UserRoleResponse>>, AppError> {
     // 简化版本，返回模拟数据

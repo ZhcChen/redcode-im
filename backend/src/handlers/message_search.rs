@@ -5,9 +5,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::database::models::MessageWithSender;
+use crate::database::message_store::MessageStore;
 use crate::error::AppError;
-use crate::models::Claims;
 use crate::AppState;
 
 // 搜索参数
@@ -168,7 +167,7 @@ pub async fn search_messages(
     let pool = &state.database.pool;
 
     // 执行搜索
-    let _search_query = sqlx::query_as::<_, MessageSearchRow>(&search_sql);
+    let search_query = sqlx::query_as::<_, MessageSearchRow>(&search_sql);
 
     // 绑定参数（这里需要根据实际的SQL库调整）
     // 注意：这是一个简化的实现，实际使用时需要正确处理参数绑定

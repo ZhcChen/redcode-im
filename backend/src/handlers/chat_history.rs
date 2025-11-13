@@ -1,15 +1,12 @@
 use axum::{
-    extract::{Extension, Path, Query, State},
-    http::StatusCode,
+    extract::{Path, Query, State},
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::database::models::{Message, MessageWithSender, Room, RoomMember};
 use crate::database::message_store::MessageStore;
-use crate::database::room_store::RoomStore;
 use crate::error::AppError;
 use crate::AppState;
 use chrono::{DateTime, Utc};

@@ -83,7 +83,7 @@ pub async fn create_room(
         ));
     }
 
-    let _store = RoomStore::new(state.database.pool());
+    let store = RoomStore::new(state.database.pool());
     let room = store
         .create_room_with_members(
             owner,
@@ -138,7 +138,7 @@ pub async fn join_room(
     let user = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
-    let _store = RoomStore::new(state.database.pool());
+    let store = RoomStore::new(state.database.pool());
     let _ = store
         .add_member(room_id, user, Some(MemberRole::Member))
         .await?;
@@ -166,7 +166,7 @@ pub async fn leave_room(
     let user = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
-    let _store = RoomStore::new(state.database.pool());
+    let store = RoomStore::new(state.database.pool());
     let ok = store.remove_member(room_id, user).await?;
 
     if !ok {
@@ -198,7 +198,7 @@ pub async fn list_members(
     State(state): State<AppState>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoomMemberDto>>, AppError> {
-    let _store = RoomStore::new(state.database.pool());
+    let store = RoomStore::new(state.database.pool());
     let rows = store.list_members_with_user_info(room_id).await?;
 
     let items = rows
@@ -594,7 +594,7 @@ pub async fn get_room_avatar_download_url(
     Extension(_claims): Extension<Claims>,
     Query(params): Query<RoomAvatarDownloadUrlRequest>,
 ) -> Result<Json<RoomAvatarDownloadUrlResponse>, AppError> {
-    let _store = RoomStore::new(state.database.pool());
+    let store = RoomStore::new(state.database.pool());
 
     // 获取房间信息
     let room = sqlx::query_as::<_, crate::database::models::Room>(

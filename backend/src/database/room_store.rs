@@ -472,7 +472,7 @@ impl<'a> RoomStore<'a> {
         .await?;
 
         // 软删除所有房间成员关系
-        let members_result = sqlx::query(
+        let _members_result = sqlx::query(
             r#"
             UPDATE room_members
             SET deleted_at = NOW()
