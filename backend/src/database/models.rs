@@ -482,6 +482,7 @@ pub struct ChatSummaryRow {
     pub room_type: RoomType,
     pub room_description: Option<String>,
     pub room_avatar_url: Option<String>,
+    pub room_avatar_object_key: Option<String>,
     pub is_pinned: bool,
     pub last_message_id: Option<Uuid>,
     pub last_message_content: Option<String>,

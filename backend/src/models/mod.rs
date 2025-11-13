@@ -481,6 +481,8 @@ pub struct ChatSummary {
     pub name: String,
     pub room_type: RoomType,
     pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub room_avatar_object_key: Option<String>,
     pub description: Option<String>,
     pub unread_count: i64,
     pub last_read_message_id: Option<String>,

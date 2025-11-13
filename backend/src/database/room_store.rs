@@ -332,6 +332,7 @@ impl<'a> RoomStore<'a> {
                 r.room_type AS room_type,
                 r.description AS room_description,
                 r.avatar_url AS room_avatar_url,
+                r.avatar_object_key AS room_avatar_object_key,
                 CASE WHEN urp.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_pinned,
                 lm.id AS last_message_id,
                 lm.content AS last_message_content,

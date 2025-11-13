@@ -1522,8 +1522,16 @@ export const store = createStore<State>({
                     await Promise.all(
                         validChatList.map(async (chatItem) => {
                             // 只处理群聊(不是私聊)的头像
-                            if (chatItem.groupType !== 1 || !chatItem.avatar) {
+                            if (chatItem.groupType !== 1) {
                                 return
+                            }
+
+                            // 从 extra 中获取 room_avatar_object_key
+                            const roomAvatarObjectKey = chatItem.extra?.room_avatar_object_key ||
+                                                        chatItem.extra?.roomAvatarObjectKey;
+
+                            if (!roomAvatarObjectKey) {
+                                return;
                             }
 
                             try {
@@ -1531,7 +1539,7 @@ export const store = createStore<State>({
                                 const { UserApi } = await import('../api/user')
                                 const localPath = await UserApi.syncGroupAvatarCache(
                                     chatItem.groupId,
-                                    chatItem.avatar,
+                                    roomAvatarObjectKey,
                                     false // 不强制刷新,优先使用缓存
                                 )
                                 if (localPath) {

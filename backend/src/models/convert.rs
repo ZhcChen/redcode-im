@@ -277,6 +277,7 @@ pub fn db_chat_summary_to_api(
         name: row.room_name.clone(),
         room_type: db_room_type_to_api(&row.room_type),
         avatar_url: row.room_avatar_url.clone(),
+        room_avatar_object_key: row.room_avatar_object_key.clone(),
         description: row.room_description.clone(),
         unread_count: row.unread_count,
         last_read_message_id: row.last_read_message_id.map(|id| id.to_string()),

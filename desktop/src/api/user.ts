@@ -556,16 +556,18 @@ export class UserApi {
       }
 
       // 获取临时下载 URL
-      const downloadResp = await this.getFileDownloadUrl({
-        fileUrl: avatarObjectKey,
+      const { GroupApi } = await import('./group');
+      const downloadResp = await GroupApi.getRoomAvatarDownloadUrl({
+        roomId: groupId,
         expiresInSeconds: 3600
       });
 
-      const payload = downloadResp.data;
-      if (!payload || !payload.success || !payload.download_url) {
+      if (!downloadResp.success || !downloadResp.data || !downloadResp.data.downloadUrl) {
         console.error(`[${logId}] ❌ 获取下载 URL 失败:`, downloadResp.message);
         return null;
       }
+
+      const downloadUrl = downloadResp.data.downloadUrl;
 
       // 下载头像文件
       console.log(`[${logId}] 📥 下载群头像文件...`);
@@ -573,7 +575,7 @@ export class UserApi {
         base64?: string;
         headers?: Record<string, string>
       }>({
-        path: payload.download_url,
+        path: downloadUrl,
         method: 'GET',
         responseType: 'binary',
         injectToken: false

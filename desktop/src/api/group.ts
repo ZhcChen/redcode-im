@@ -26,6 +26,7 @@ interface BackendChatSummary {
   name: string;
   room_type: BackendRoomType;
   avatar_url?: string | null;
+  room_avatar_object_key?: string | null;
   description?: string | null;
   unread_count: number;
   last_message?: BackendChatMessagePreview | null;
@@ -146,6 +147,10 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
   }
   if (summary.description) {
     extra.description = summary.description;
+  }
+  if (summary.room_avatar_object_key) {
+    extra.room_avatar_object_key = summary.room_avatar_object_key;
+    extra.roomAvatarObjectKey = summary.room_avatar_object_key;
   }
 
   return {
