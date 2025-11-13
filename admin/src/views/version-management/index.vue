@@ -256,6 +256,8 @@
     type CreateAppVersionPayload,
     type UpdateAppVersionPayload,
     type ListAppVersionsParams,
+    AppPlatform,
+    PlatformLabels,
   } from '@/api/app-version';
   import { uploadWithSignature } from '@/utils/direct-upload';
 
@@ -264,6 +266,7 @@
   }>();
 
   interface VersionFormState {
+    platform: AppPlatform;
     version: string;
     build_number: number;
     channel: string;

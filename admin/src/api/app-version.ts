@@ -1,8 +1,27 @@
 import axios from 'axios';
 
+// 平台枚举类型
+// eslint-disable-next-line no-shadow
+export enum AppPlatform {
+  Android = 'android',
+  IOS = 'ios',
+  Windows = 'windows',
+  MacOS = 'macos',
+  Web = 'web',
+}
+
+// 平台显示名称映射
+export const PlatformLabels: Record<AppPlatform, string> = {
+  [AppPlatform.Android]: 'Android',
+  [AppPlatform.IOS]: 'iOS',
+  [AppPlatform.Windows]: 'Windows',
+  [AppPlatform.MacOS]: 'macOS',
+  [AppPlatform.Web]: 'Web',
+};
+
 export interface AppVersionInfo {
   id: string;
-  platform: string;
+  platform: AppPlatform;
   version: string;
   build_number: number;
   channel: string;
@@ -25,7 +44,7 @@ export interface ListAppVersionsResponse {
 }
 
 export interface ListAppVersionsParams {
-  platform: string;
+  platform: AppPlatform;
   channel?: string;
   limit?: number;
   offset?: number;
@@ -38,7 +57,7 @@ export function listAppVersions(params: ListAppVersionsParams) {
 }
 
 export interface CreateAppVersionPayload {
-  platform: string;
+  platform: AppPlatform;
   version: string;
   build_number: number;
   channel: string;
@@ -86,7 +105,7 @@ export function deactivateAppVersion(id: string) {
 }
 
 export interface VersionUploadSignatureRequest {
-  platform: string;
+  platform: AppPlatform;
   channel: string;
   filename?: string;
 }
