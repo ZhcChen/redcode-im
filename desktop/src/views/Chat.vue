@@ -1805,7 +1805,17 @@ const loadMessages = async (groupId: string) => {
             let avatarObjectKey: string | undefined
             let userName: string | undefined
 
-            if (isPrivateChat) {
+            // 优先从消息本身获取 avatarObjectKey(可能来自后端的相对路径 avatar_url)
+            const senderMessage = sortedMessages.find(msg => msg.senderId === senderId && !msg.isSelf)
+            if (senderMessage?.senderAvatarObjectKey) {
+              avatarObjectKey = senderMessage.senderAvatarObjectKey
+              userName = senderMessage.senderName
+              console.log('🔍 从消息对象获取 avatarObjectKey:', {
+                senderId,
+                userName,
+                avatarObjectKey
+              })
+            } else if (isPrivateChat) {
               // 私聊:从 selectedChat.extra 中获取对方用户的 avatar_object_key
               const friendAvatarObjectKey = selectedChat.value?.extra?.friend_avatar_object_key ||
                                            selectedChat.value?.extra?.friendAvatarObjectKey ||

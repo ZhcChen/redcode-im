@@ -363,6 +363,18 @@ const mapPartPayloadInput = (
   return payload;
 };
 
+/**
+ * 检查 URL 是否是有效的完整 URL(以 http:// 或 https:// 开头)
+ * 如果是相对路径或 object key,返回 false
+ */
+const isValidHttpUrl = (url: string | null | undefined): boolean => {
+  if (!url || typeof url !== 'string' || url.trim() === '') {
+    return false;
+  }
+  const trimmed = url.trim();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+};
+
 export const transformBackendMessage = (
   message: BackendMessageInfo,
   currentUserId?: string,
@@ -373,6 +385,15 @@ export const transformBackendMessage = (
 
   const timestamp = parseTimestamp(message.created_at);
 
+  // 检查 sender_avatar_url 是否是有效的完整 URL
+  // 如果是相对路径(如 "avatars/xxx/file.png")则将其作为 object key
+  // 避免浏览器尝试加载相对路径导致 403 错误
+  let senderAvatarObjectKey: string | undefined;
+  if (message.sender_avatar_url && !isValidHttpUrl(message.sender_avatar_url)) {
+    // sender_avatar_url 看起来像相对路径,将其作为 object key
+    senderAvatarObjectKey = message.sender_avatar_url;
+  }
+
   return {
     id: message.id,
     roomId: message.room_id,
@@ -382,6 +403,7 @@ export const transformBackendMessage = (
     // 不设置 senderAvatar，等待后续通过 avatarObjectKey 同步头像为 blob URL
     // 这样可以避免直接使用 COS URL 导致 403 错误
     senderAvatar: undefined,
+    senderAvatarObjectKey: senderAvatarObjectKey,
     content: message.content,
     type: parseMessageType(message.message_type),
     status: parseMessageStatus(message.status),
