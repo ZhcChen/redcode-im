@@ -605,6 +605,7 @@ CREATE TABLE IF NOT EXISTS user_room_pins (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notification_settings JSONB,
     UNIQUE(user_id, room_id)
 );
 
