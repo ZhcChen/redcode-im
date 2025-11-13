@@ -1412,6 +1412,22 @@ export const store = createStore<State>({
                             }
                         }
 
+                        // 获取 friend_avatar_object_key
+                        let friendAvatarObjectKey: string | null = null
+                        const avatarObjectKeyCandidates = [
+                            extra?.friend_avatar_object_key,
+                            extra?.friendAvatarObjectKey,
+                            extra?.avatar_object_key,
+                            extra?.avatarObjectKey,
+                        ]
+                        for (const candidate of avatarObjectKeyCandidates) {
+                            const normalized = normalizeString(candidate)
+                            if (normalized) {
+                                friendAvatarObjectKey = normalized
+                                break
+                            }
+                        }
+
                         let friendRemark: string | null = null
                         if (!resolvedName && friendId && contactsMap.has(friendId)) {
                             const contact = contactsMap.get(friendId)
@@ -1421,6 +1437,9 @@ export const store = createStore<State>({
                             resolvedName = remark || contactName || resolvedName
                             if (!avatar) {
                                 avatar = normalizeString(contact?.avatar)
+                            }
+                            if (!friendAvatarObjectKey) {
+                                friendAvatarObjectKey = normalizeString(contact?.avatarObjectKey)
                             }
                         }
 
@@ -1445,6 +1464,8 @@ export const store = createStore<State>({
                             friendName: resolvedName,
                             avatar,
                             remark: friendRemark,
+                            friendAvatarObjectKey,
+                            friendId,
                         }
                     }
 
@@ -1527,72 +1548,144 @@ export const store = createStore<State>({
                     //    - 获取临时下载地址
                     //    - 下载到本地
                     //    - 返回本地 Blob URL
-                    console.log('🔍 [loadChatList] 开始同步群头像缓存, 会话列表数量:', validChatList.length)
+                    console.log('🔍 [loadChatList] 开始同步头像缓存, 会话列表数量:', validChatList.length)
                     await Promise.all(
                         validChatList.map(async (chatItem) => {
-                            // 只处理群聊(不是私聊)的头像
-                            if (chatItem.groupType !== 1) {
-                                return
-                            }
-
-                            console.log('🔍 [loadChatList] 检查群聊头像:', {
-                                groupId: chatItem.groupId,
-                                name: chatItem.name,
-                                hasExtra: !!chatItem.extra,
-                                extra: chatItem.extra
-                            })
-
-                            // 从 extra 中获取 room_avatar_object_key
-                            const roomAvatarObjectKey = chatItem.extra?.room_avatar_object_key ||
-                                                        chatItem.extra?.roomAvatarObjectKey;
-
-                            console.log('🔍 [loadChatList] 提取 roomAvatarObjectKey:', {
-                                groupId: chatItem.groupId,
-                                name: chatItem.name,
-                                roomAvatarObjectKey
-                            })
-
-                            if (!roomAvatarObjectKey) {
-                                console.warn('⚠️ [loadChatList] 群聊缺少 avatar_object_key:', {
+                            // 处理群聊头像
+                            if (chatItem.groupType === 1) {
+                                console.log('🔍 [loadChatList] 检查群聊头像:', {
                                     groupId: chatItem.groupId,
-                                    name: chatItem.name
+                                    name: chatItem.name,
+                                    hasExtra: !!chatItem.extra,
+                                    extra: chatItem.extra
                                 })
-                                return;
-                            }
 
-                            try {
-                                console.log('🔄 [loadChatList] 开始获取群头像临时URL:', {
+                                // 从 extra 中获取 room_avatar_object_key
+                                const roomAvatarObjectKey = chatItem.extra?.room_avatar_object_key ||
+                                                            chatItem.extra?.roomAvatarObjectKey;
+
+                                console.log('🔍 [loadChatList] 提取 roomAvatarObjectKey:', {
                                     groupId: chatItem.groupId,
                                     name: chatItem.name,
                                     roomAvatarObjectKey
                                 })
-                                // 检查本地缓存
-                                const { UserApi } = await import('../api/user')
-                                const localPath = await UserApi.syncGroupAvatarCache(
-                                    chatItem.groupId,
-                                    roomAvatarObjectKey,
-                                    false // 不强制刷新,优先使用缓存
-                                )
-                                console.log('✅ [loadChatList] 获取群头像临时URL成功:', {
-                                    groupId: chatItem.groupId,
-                                    name: chatItem.name,
-                                    localPath
-                                })
-                                if (localPath) {
-                                    chatItem.avatarLocalPath = localPath
-                                    // 同时更新store中的对应项
-                                    const storeChatItem = state.chatList.list.find(item => item.groupId === chatItem.groupId)
-                                    if (storeChatItem) {
-                                        storeChatItem.avatarLocalPath = localPath
-                                    }
+
+                                if (!roomAvatarObjectKey) {
+                                    console.warn('⚠️ [loadChatList] 群聊缺少 avatar_object_key:', {
+                                        groupId: chatItem.groupId,
+                                        name: chatItem.name
+                                    })
+                                    return;
                                 }
-                            } catch (error) {
-                                // 静默失败,使用默认头像
-                                console.error('❌ [loadChatList] 群头像缓存同步失败:', {
-                                    groupId: chatItem.groupId,
+
+                                try {
+                                    console.log('🔄 [loadChatList] 开始获取群头像临时URL:', {
+                                        groupId: chatItem.groupId,
+                                        name: chatItem.name,
+                                        roomAvatarObjectKey
+                                    })
+                                    // 检查本地缓存
+                                    const { UserApi } = await import('../api/user')
+                                    const localPath = await UserApi.syncGroupAvatarCache(
+                                        chatItem.groupId,
+                                        roomAvatarObjectKey,
+                                        false // 不强制刷新,优先使用缓存
+                                    )
+                                    console.log('✅ [loadChatList] 获取群头像临时URL成功:', {
+                                        groupId: chatItem.groupId,
+                                        name: chatItem.name,
+                                        localPath
+                                    })
+                                    if (localPath) {
+                                        chatItem.avatarLocalPath = localPath
+                                        // 同时更新store中的对应项
+                                        const storeChatItem = state.chatList.list.find(item => item.groupId === chatItem.groupId)
+                                        if (storeChatItem) {
+                                            storeChatItem.avatarLocalPath = localPath
+                                        }
+                                    }
+                                } catch (error) {
+                                    // 静默失败,使用默认头像
+                                    console.error('❌ [loadChatList] 群头像缓存同步失败:', {
+                                        groupId: chatItem.groupId,
+                                        name: chatItem.name,
+                                        error
+                                    })
+                                }
+                            }
+                            // 处理私聊头像
+                            else if (chatItem.groupType === 0) {
+                                console.log('🔍 [loadChatList] 检查私聊头像:', {
+                                    roomId: chatItem.roomId,
                                     name: chatItem.name,
-                                    error
+                                    hasExtra: !!chatItem.extra,
+                                    extra: chatItem.extra
                                 })
+
+                                // 从 extra 中获取 friend_avatar_object_key 和 friend_id
+                                const friendAvatarObjectKey = chatItem.extra?.friend_avatar_object_key ||
+                                                              chatItem.extra?.friendAvatarObjectKey ||
+                                                              chatItem.extra?.avatar_object_key ||
+                                                              chatItem.extra?.avatarObjectKey;
+                                const friendId = chatItem.extra?.friend_id ||
+                                                chatItem.extra?.friendId ||
+                                                chatItem.extra?.friend_user_id ||
+                                                chatItem.extra?.friendUserId;
+
+                                console.log('🔍 [loadChatList] 提取私聊头像信息:', {
+                                    roomId: chatItem.roomId,
+                                    name: chatItem.name,
+                                    friendId,
+                                    friendAvatarObjectKey
+                                })
+
+                                if (!friendAvatarObjectKey || !friendId) {
+                                    console.warn('⚠️ [loadChatList] 私聊缺少 avatar_object_key 或 friend_id:', {
+                                        roomId: chatItem.roomId,
+                                        name: chatItem.name,
+                                        friendId,
+                                        friendAvatarObjectKey
+                                    })
+                                    return;
+                                }
+
+                                try {
+                                    console.log('🔄 [loadChatList] 开始获取私聊用户头像临时URL:', {
+                                        roomId: chatItem.roomId,
+                                        name: chatItem.name,
+                                        friendId,
+                                        friendAvatarObjectKey
+                                    })
+                                    // 检查本地缓存
+                                    const { UserApi } = await import('../api/user')
+                                    const localPath = await UserApi.syncUserAvatarCache(
+                                        friendId,
+                                        friendAvatarObjectKey,
+                                        false // 不强制刷新,优先使用缓存
+                                    )
+                                    console.log('✅ [loadChatList] 获取私聊用户头像临时URL成功:', {
+                                        roomId: chatItem.roomId,
+                                        name: chatItem.name,
+                                        friendId,
+                                        localPath
+                                    })
+                                    if (localPath) {
+                                        chatItem.avatarLocalPath = localPath
+                                        // 同时更新store中的对应项
+                                        const storeChatItem = state.chatList.list.find(item => item.roomId === chatItem.roomId)
+                                        if (storeChatItem) {
+                                            storeChatItem.avatarLocalPath = localPath
+                                        }
+                                    }
+                                } catch (error) {
+                                    // 静默失败,使用默认头像
+                                    console.error('❌ [loadChatList] 私聊用户头像缓存同步失败:', {
+                                        roomId: chatItem.roomId,
+                                        name: chatItem.name,
+                                        friendId,
+                                        error
+                                    })
+                                }
                             }
                         })
                     )
