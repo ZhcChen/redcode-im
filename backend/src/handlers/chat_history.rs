@@ -147,7 +147,7 @@ pub async fn get_chat_history(
     // 用户ID条件
     if let Some(user_id) = &params.user_id {
         if let Ok(uuid) = Uuid::parse_str(user_id) {
-            query_conditions.push(format!("m.user_id = ${}", param_index));
+            query_conditions.push(format!("m.sender_id = ${}", param_index));
             query_params.push(user_id.clone());
             param_index += 1;
         }
@@ -173,7 +173,7 @@ pub async fn get_chat_history(
     // 关键词搜索条件
     if let Some(keyword) = &params.keyword {
         if !keyword.trim().is_empty() {
-            query_conditions.push(format!("(m.content ILIKE ${} OR EXISTS (SELECT 1 FROM message_parts mp WHERE mp.message_id = m.id AND mp.content ILIKE ${} AND mp.deleted_at IS NULL))", param_index, param_index + 1));
+            query_conditions.push(format!("(m.content ILIKE ${} OR EXISTS (SELECT 1 FROM message_parts mp WHERE mp.message_id = m.id AND mp.text_content ILIKE ${}))", param_index, param_index + 1));
             query_params.push(format!("%{}%", keyword.trim()));
             query_params.push(format!("%{}%", keyword.trim()));
             param_index += 2;
@@ -210,12 +210,12 @@ pub async fn get_chat_history(
     let data_query = format!(
         r#"
         SELECT 
-            m.id, m.room_id, m.user_id, m.message_type, m.content,
+            m.id, m.room_id, m.sender_id, m.message_type, m.content,
             m.created_at, m.updated_at, m.deleted_at,
             u.username as sender_name, u.avatar_url as sender_avatar,
             r.name as room_name
         FROM messages m
-        LEFT JOIN users u ON m.user_id = u.id
+        LEFT JOIN users u ON m.sender_id = u.id
         LEFT JOIN rooms r ON m.room_id = r.id
         {}
         ORDER BY m.created_at DESC
@@ -244,7 +244,7 @@ pub async fn get_chat_history(
     for row in rows {
         let message_id: Uuid = row.get("id");
         let room_id: Uuid = row.get("room_id");
-        let user_id: Uuid = row.get("user_id");
+        let sender_id: Uuid = row.get("sender_id");
         
         // 获取消息部件
         let parts_map = message_store.get_message_parts_map(&[message_id])
@@ -264,7 +264,7 @@ pub async fn get_chat_history(
             id: message_id.to_string(),
             room_id: room_id.to_string(),
             room_name: row.get("room_name"),
-            sender_id: user_id.to_string(),
+            sender_id: sender_id.to_string(),
             sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
             sender_avatar: row.get("sender_avatar"),
             message_type: row.get::<String, _>("message_type"),
@@ -299,7 +299,7 @@ pub async fn get_user_rooms(
     // 获取用户参与的房间
     let query = r#"
     SELECT 
-        r.id, r.name, r.description, r.avatar_url, r.is_private, r.is_group,
+        r.id, r.name, r.description, r.avatar_url, r.room_type,
         r.created_at, r.updated_at,
         (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id AND rm.deleted_at IS NULL) as member_count
     FROM rooms r
@@ -325,11 +325,11 @@ pub async fn get_user_rooms(
         // 获取房间最后一条消息
         let last_message_query = r#"
         SELECT 
-            m.id, m.user_id, m.message_type, m.content,
+            m.id, m.sender_id, m.message_type, m.content,
             m.created_at, m.updated_at,
             u.username as sender_name, u.avatar_url as sender_avatar
         FROM messages m
-        LEFT JOIN users u ON m.user_id = u.id
+        LEFT JOIN users u ON m.sender_id = u.id
         WHERE m.room_id = $1 AND m.deleted_at IS NULL
         ORDER BY m.created_at DESC
         LIMIT 1
@@ -349,7 +349,7 @@ pub async fn get_user_rooms(
                 id: row.get::<Uuid, _>("id").to_string(),
                 room_id: room_id.to_string(),
                 room_name: row.get::<Option<String>, _>("name"),
-                sender_id: row.get::<Uuid, _>("user_id").to_string(),
+                sender_id: row.get::<Uuid, _>("sender_id").to_string(),
                 sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
                 sender_avatar: row.get("sender_avatar"),
                 message_type: row.get::<String, _>("message_type"),
@@ -368,8 +368,8 @@ pub async fn get_user_rooms(
             name: row.get::<Option<String>, _>("name").unwrap_or_else(|| "未命名房间".to_string()),
             description: row.get("description"),
             avatar_url: row.get("avatar_url"),
-            is_private: row.get("is_private"),
-            is_group: row.get("is_group"),
+            is_private: row.get::<i16, _>("room_type") == 0, // 0=private
+            is_group: row.get::<i16, _>("room_type") == 1,  // 1=group
             member_count: row.get("member_count"),
             last_message,
             created_at: row.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
