@@ -260,14 +260,20 @@ pub async fn get_chat_history(
             .map(|part| MessagePart::from(part.clone()))
             .collect();
         
-        let chat_message = ChatMessage {
+            let chat_message = ChatMessage {
             id: message_id.to_string(),
             room_id: room_id.to_string(),
             room_name: row.get("room_name"),
             sender_id: sender_id.to_string(),
             sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
             sender_avatar: row.get("sender_avatar"),
-            message_type: row.get::<String, _>("message_type"),
+            message_type: match row.get::<i16, _>("message_type") {
+                0 => "text".to_string(),
+                1 => "image".to_string(),
+                2 => "file".to_string(),
+                3 => "system".to_string(),
+                _ => "unknown".to_string(),
+            },
             content: row.get("content"),
             parts: message_parts,
             created_at: row.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),
@@ -344,7 +350,7 @@ pub async fn get_user_rooms(
                 AppError::DatabaseError(e)
             })?;
         
-        let last_message = if let Some(row) = last_message_row {
+            let last_message = if let Some(row) = last_message_row {
             Some(ChatMessage {
                 id: row.get::<Uuid, _>("id").to_string(),
                 room_id: room_id.to_string(),
@@ -352,7 +358,13 @@ pub async fn get_user_rooms(
                 sender_id: row.get::<Uuid, _>("sender_id").to_string(),
                 sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
                 sender_avatar: row.get("sender_avatar"),
-                message_type: row.get::<String, _>("message_type"),
+                message_type: match row.get::<i16, _>("message_type") {
+                    0 => "text".to_string(),
+                    1 => "image".to_string(),
+                    2 => "file".to_string(),
+                    3 => "system".to_string(),
+                    _ => "unknown".to_string(),
+                },
                 content: row.get("content"),
                 parts: Vec::new(),
                 created_at: row.get::<chrono::DateTime<Utc>, _>("created_at").to_rfc3339(),

@@ -248,8 +248,10 @@
   const fetchData = async (
     params: ChatHistoryParams = { page: 1, pageSize: 20 }
   ) => {
+    console.log('fetchData called with params:', params);
     setLoading(true);
     try {
+      console.log('Calling getChatHistory API...');
       const { data } = await getChatHistory({
         ...params,
         room_id: formModel.value.room_id || undefined,
@@ -258,10 +260,12 @@
         start_date: formModel.value.start_date || undefined,
         end_date: formModel.value.end_date || undefined,
       });
+      console.log('API response:', data);
       renderData.value = data.messages;
       pagination.current = data.page;
       pagination.total = data.total;
     } catch (err) {
+      console.error('API error:', err);
       Message.error(t('chatHistory.fetchError'));
     } finally {
       setLoading(false);
