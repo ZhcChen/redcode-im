@@ -370,7 +370,7 @@ export class GroupApi {
     }
 
     // 调用后端 API 更新群信息
-    const response = await patch<null>(`/rooms/${params.groupId}/settings`, payload);
+    const response = await patch<null>(`/rooms/${params.groupId}`, payload);
 
     return {
       ...response,
