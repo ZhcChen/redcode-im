@@ -64,13 +64,13 @@ pub struct MessagePart {
     pub id: String,
     pub message_id: String,
     pub part_type: String,
-    pub content: String,
-    pub content_type: Option<String>,
-    pub object_key: Option<String>,
-    pub file_name: Option<String>,
-    pub file_size: Option<i64>,
+    pub text_content: Option<String>,
+    pub attachment_key: Option<String>,
+    pub attachment_name: Option<String>,
+    pub attachment_mime: Option<String>,
+    pub attachment_size: Option<i64>,
     pub thumbnail_key: Option<String>,
-    pub duration: Option<i32>,
+    pub duration_ms: Option<i32>,
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub created_at: String,
@@ -82,13 +82,13 @@ impl From<crate::database::models::MessagePart> for MessagePart {
             id: part.id.to_string(),
             message_id: part.message_id.to_string(),
             part_type: part.part_type.to_string(),
-            content: part.content,
-            content_type: part.content_type,
-            object_key: part.object_key,
-            file_name: part.file_name,
-            file_size: part.file_size,
+            text_content: part.text_content,
+            attachment_key: part.attachment_key,
+            attachment_name: part.attachment_name,
+            attachment_mime: part.attachment_mime,
+            attachment_size: part.attachment_size,
             thumbnail_key: part.thumbnail_key,
-            duration: part.duration,
+            duration_ms: part.duration_ms,
             width: part.width,
             height: part.height,
             created_at: part.created_at.to_rfc3339(),
@@ -122,7 +122,7 @@ pub async fn get_chat_history(
     Query(params): Query<ChatHistoryParams>,
 ) -> Result<Json<ChatHistoryResponse>, AppError> {
     let pool = &state.database.pool;
-    let message_store = MessageStore::new(state.database.clone());
+    let message_store = MessageStore::new(&state.database.pool);
     
     let page = params.page.max(1);
     let page_size = params.page_size.max(1).min(100);
@@ -247,14 +247,14 @@ pub async fn get_chat_history(
         let user_id: Uuid = row.get("user_id");
         
         // 获取消息部件
-        let parts = message_store.get_message_parts(&[message_id])
+        let parts_map = message_store.get_message_parts_map(&[message_id])
             .await
             .map_err(|e| {
                 tracing::error!("获取消息部件失败: {}", e);
                 AppError::DatabaseError(e)
             })?;
         
-        let message_parts: Vec<MessagePart> = parts.get(&message_id)
+        let message_parts: Vec<MessagePart> = parts_map.get(&message_id)
             .unwrap_or(&Vec::new())
             .iter()
             .map(|part| MessagePart::from(part.clone()))
@@ -379,9 +379,10 @@ pub async fn get_user_rooms(
         rooms.push(room);
     }
     
+    let total = rooms.len();
     Ok(Json(UserRoomResponse {
         rooms,
-        total: rooms.len(),
+        total,
     }))
 }
 
