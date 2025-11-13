@@ -3262,11 +3262,11 @@ const handleCreateGroupConfirm = async (data: {
         
         // 上传文件
         const uploadResult = await FileApi.uploadFile({
-          file,
-          category: 'avatar',
-          isPublic: true,
-          description: '群头像'
-        })
+        file,
+        category: 'group_avatar',
+        isPublic: true,
+        description: '群头像'
+      })
 
         if (uploadResult.code === 200 && uploadResult.data) {
           avatarUrl = FileApi.buildImageUrl(uploadResult.data)
@@ -3583,7 +3583,7 @@ const updateGroupAvatar = async (file: File) => {
     const { FileApi } = await import('../api/file')
     const uploadResult = await FileApi.uploadFile({
       file,
-      category: 'avatar',
+      category: 'group_avatar',
       isPublic: true,
       description: '群头像'
     })

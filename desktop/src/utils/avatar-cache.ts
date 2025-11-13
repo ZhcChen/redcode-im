@@ -127,7 +127,9 @@ function fromBase64(value: string): Uint8Array {
 }
 
 function createBlobUrl(record: AvatarRecord, data: Uint8Array): string {
-  const blob = new Blob([data], { type: record.contentType || 'application/octet-stream' })
+  // 确保数据可以正确转换为BlobPart
+  const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  const blob = new Blob([arrayBuffer], { type: record.contentType || 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   memoryBlobs[record.storageKey] = url
   return url
@@ -151,6 +153,7 @@ export interface SaveAvatarOptions {
   data: Uint8Array
   filename?: string
   contentType?: string
+  avatarType?: 'user' | 'group' // 头像类型，默认为'user'
 }
 
 export interface AvatarCacheResult {
@@ -177,9 +180,10 @@ export const AvatarCache = {
     writeIndex(index)
   },
 
-  async resolve(userId: string, objectKey: string): Promise<AvatarCacheResult | null> {
+  async resolve(userId: string, objectKey: string, avatarType: 'user' | 'group' = 'user'): Promise<AvatarCacheResult | null> {
     const index = readIndex()
-    const record = index[userId]
+    const cacheKey = `${userId}_${avatarType}`
+    const record = index[cacheKey]
     if (!record || record.key !== objectKey) {
       return null
     }
@@ -204,7 +208,7 @@ export const AvatarCache = {
 
     const stored = window.localStorage.getItem(record.storageKey)
     if (!stored) {
-      delete index[userId]
+      delete index[cacheKey]
       writeIndex(index)
       return null
     }
@@ -216,11 +220,12 @@ export const AvatarCache = {
   },
 
   async save(options: SaveAvatarOptions): Promise<AvatarCacheResult> {
-    const { userId, objectKey, data, contentType } = options
+    const { userId, objectKey, data, contentType, avatarType = 'user' } = options
 
     const index = readIndex()
-    const storageKey = `${DATA_PREFIX}${userId}`
-    const previous = index[userId]
+    const cacheKey = `${userId}_${avatarType}`
+    const storageKey = `${DATA_PREFIX}${userId}_${avatarType}`
+    const previous = index[cacheKey]
 
     if (previous) {
       if (previous.storageType === 'indexedDB') {
@@ -264,7 +269,7 @@ export const AvatarCache = {
       }
     }
 
-    index[userId] = record
+    index[cacheKey] = record
     writeIndex(index)
 
     revokeBlob(storageKey)

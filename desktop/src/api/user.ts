@@ -388,7 +388,8 @@ export class UserApi {
       objectKey: key,
       data: fileBuffer,
       filename: file.name,
-      contentType
+      contentType,
+      avatarType: 'user'
     });
     await emitClientDebug('USER_AVATAR_CACHE_SAVED', { webPath: saved.webPath });
     console.log('[UserApi] 💾 头像缓存完成', { webPath: saved.webPath });
@@ -465,7 +466,7 @@ export class UserApi {
 
       // 如果不强制刷新，检查本地缓存
       if (!force) {
-        const cached = await AvatarCache.resolve(userId, avatarObjectKey);
+        const cached = await AvatarCache.resolve(userId, avatarObjectKey, 'user');
         if (cached) {
           console.log(`[${logId}] ✅ 缓存命中: ${cached.webPath}`);
           return cached.webPath;
@@ -510,7 +511,8 @@ export class UserApi {
         userId,
         objectKey: avatarObjectKey,
         data: buffer,
-        contentType
+        contentType,
+        avatarType: 'user'
       });
 
       console.log(`[${logId}] ✅ 缓存保存成功: ${saved.webPath}`);
