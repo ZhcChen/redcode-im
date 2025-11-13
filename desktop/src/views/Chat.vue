@@ -32,7 +32,7 @@
         
       </div>
       <div class="chat-header-right" v-if="selectedChat">
-        <Avatar :src="selectedChat.avatarLocalPath || selectedChat.avatar" :text="selectedChat.name" :size="42" />
+        <Avatar :src="selectedChat.avatarLocalPath" :text="selectedChat.name" :size="42" />
         <div class="chat-info">
           <h2 class="chat-title">{{ selectedChat.name }}</h2>
           <div v-if="selectedChat.groupType === 1" class="chat-member-count">
@@ -66,7 +66,7 @@
         </div>
         <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" @contextmenu.prevent="handleChatContextMenu(chat, $event)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
           <div class="avatar-container">
-            <Avatar :src="chat.avatarLocalPath || chat.avatar" :text="chat.name" :size="48" />
+            <Avatar :src="chat.avatarLocalPath" :text="chat.name" :size="48" />
             <!-- 免打扰状态的小红点 -->
             <div v-if="chat.chatStatus === 1 && chat.unreadCount > 0" class="mute-dot"></div>
           </div>
@@ -110,7 +110,7 @@
 
             <!-- 普通用户消息 -->
             <template v-else>
-            <Avatar v-if="!message.isSelf" :src="message.senderAvatarLocalPath || message.senderAvatar" :text="message.senderName" :size="40" />
+            <Avatar v-if="!message.isSelf" :src="message.senderAvatarLocalPath" :text="message.senderName" :size="40" />
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
               <div class="message-content">
@@ -1859,8 +1859,20 @@ const loadMessages = async (groupId: string) => {
               // 更新消息列表中该发送者的所有消息
               sortedMessages.forEach(msg => {
                 if (msg.senderId === senderId && !msg.isSelf) {
+                  console.log('🔍 [DEBUG] 同步前消息字段:', JSON.stringify({
+                    senderId: msg.senderId,
+                    senderAvatar: msg.senderAvatar,
+                    senderAvatarLocalPath: msg.senderAvatarLocalPath,
+                    senderAvatarObjectKey: msg.senderAvatarObjectKey
+                  }, null, 2))
                   msg.senderAvatarLocalPath = localPath
                   msg.senderAvatarObjectKey = avatarObjectKey
+                  console.log('🔍 [DEBUG] 同步后消息字段:', JSON.stringify({
+                    senderId: msg.senderId,
+                    senderAvatar: msg.senderAvatar,
+                    senderAvatarLocalPath: msg.senderAvatarLocalPath,
+                    senderAvatarObjectKey: msg.senderAvatarObjectKey
+                  }, null, 2))
                 }
               })
 
