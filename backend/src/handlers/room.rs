@@ -4,6 +4,7 @@ use axum::{
     extract::{Extension, Path, State},
     response::Json,
 };
+use chrono;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -371,5 +372,188 @@ pub async fn unpin_room(
     Ok(Json(PinRoomResponse {
         is_pinned: false,
         pinned_at: None,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateRoomRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct UpdateRoomResponse {
+    pub success: bool,
+    pub message: String,
+    pub room: Option<Room>,
+}
+
+pub async fn update_room(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
+    Json(request): Json<UpdateRoomRequest>,
+) -> Result<Json<UpdateRoomResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    
+    // 检查用户权限
+    let member = store
+        .get_member(room_id, user_id)
+        .await?
+        .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
+    
+    let is_owner = member.user_id == store.get_room_owner(room_id).await?;
+    if !is_owner && member.role != MemberRole::Admin {
+        return Err(AppError::Forbidden("Only room owner or admin can update room".to_string()));
+    }
+
+    let room = store
+        .update_room(room_id, request.name, request.description, request.avatar_url)
+        .await?;
+
+    Ok(Json(UpdateRoomResponse {
+        success: true,
+        message: "Room updated successfully".to_string(),
+        room: Some(room),
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct RoomAvatarDirectUploadRequest {
+    pub filename: String,
+    pub content_type: String,
+    #[serde(default)]
+    pub file_size: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct RoomAvatarDirectUploadResponse {
+    pub success: bool,
+    pub message: String,
+    pub upload_url: Option<String>,
+    pub object_key: Option<String>,
+    pub expires_at: Option<String>,
+}
+
+pub async fn generate_room_avatar_direct_upload(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<RoomAvatarDirectUploadRequest>,
+) -> Result<Json<RoomAvatarDirectUploadResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    // 验证文件类型
+    if !req.content_type.starts_with("image/") {
+        return Ok(Json(RoomAvatarDirectUploadResponse {
+            success: false,
+            message: "Only image files are allowed".to_string(),
+            upload_url: None,
+            object_key: None,
+            expires_at: None,
+        }));
+    }
+
+    // 验证文件大小
+    if let Some(file_size) = req.file_size {
+        if file_size > crate::constants::AVATAR_MAX_SIZE_BYTES as i64 {
+            return Ok(Json(RoomAvatarDirectUploadResponse {
+                success: false,
+                message: format!(
+                    "文件大小超出限制，最大允许{}MB",
+                    crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024
+                ),
+                upload_url: None,
+                object_key: None,
+                expires_at: None,
+            }));
+        }
+    }
+
+    let store = RoomStore::new(state.database.pool());
+    
+    // 检查用户权限（只有房主或管理员可以上传头像）
+    let member = store
+        .get_member(room_id, user_id)
+        .await?
+        .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
+    
+    let is_owner = member.user_id == store.get_room_owner(room_id).await?;
+    if !is_owner && member.role != MemberRole::Admin {
+        return Err(AppError::Forbidden("Only room owner or admin can upload avatar".to_string()));
+    }
+
+    // 生成唯一的对象键
+    let object_key = format!("room_avatars/{}/{}", room_id, req.filename);
+
+    // 模拟签名生成（实际应该调用存储服务）
+    let upload_url = format!("https://example.com/upload/{}", object_key);
+    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+
+    Ok(Json(RoomAvatarDirectUploadResponse {
+        success: true,
+        message: "Upload URL generated successfully".to_string(),
+        upload_url: Some(upload_url),
+        object_key: Some(object_key.clone()),
+        expires_at: Some(expires_at),
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct CommitRoomAvatarUploadRequest {
+    pub object_key: String,
+}
+
+#[derive(Serialize)]
+pub struct CommitRoomAvatarUploadResponse {
+    pub success: bool,
+    pub message: String,
+    pub avatar_url: Option<String>,
+}
+
+pub async fn commit_room_avatar_upload(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<CommitRoomAvatarUploadRequest>,
+) -> Result<Json<CommitRoomAvatarUploadResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    
+    // 检查用户权限
+    let member = store
+        .get_member(room_id, user_id)
+        .await?
+        .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
+    
+    let is_owner = member.user_id == store.get_room_owner(room_id).await?;
+    if !is_owner && member.role != MemberRole::Admin {
+        return Err(AppError::Forbidden("Only room owner or admin can upload avatar".to_string()));
+    }
+
+    // 验证对象键格式
+    if !req.object_key.starts_with(&format!("room_avatars/{}/", room_id)) {
+        return Err(AppError::InvalidInput("Invalid object key".to_string()));
+    }
+
+    // 构建头像URL（这里简化处理，实际应该从存储服务获取）
+    let avatar_url = format!("https://example.com/files/{}", req.object_key);
+
+    // 更新房间头像URL
+    let room = store
+        .update_room(room_id, None, None, Some(avatar_url.clone()))
+        .await?;
+
+    Ok(Json(CommitRoomAvatarUploadResponse {
+        success: true,
+        message: "Avatar uploaded successfully".to_string(),
+        avatar_url: Some(avatar_url),
     }))
 }
