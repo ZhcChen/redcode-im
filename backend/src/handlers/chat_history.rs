@@ -129,7 +129,8 @@ pub async fn get_chat_history(
     
     // 构建查询条件
     let mut query_conditions = Vec::new();
-    let mut query_params: Vec<String> = Vec::new();
+    let mut uuid_params: Vec<Uuid> = Vec::new();
+    let mut string_params: Vec<String> = Vec::new();
     let mut param_index = 1;
     
     // 基础条件：未删除的消息
@@ -139,7 +140,7 @@ pub async fn get_chat_history(
     if let Some(room_id) = &params.room_id {
         if let Ok(uuid) = Uuid::parse_str(room_id) {
             query_conditions.push(format!("m.room_id = ${}", param_index));
-            query_params.push(room_id.clone());
+            uuid_params.push(uuid);
             param_index += 1;
         }
     }
@@ -148,7 +149,7 @@ pub async fn get_chat_history(
     if let Some(user_id) = &params.user_id {
         if let Ok(uuid) = Uuid::parse_str(user_id) {
             query_conditions.push(format!("m.sender_id = ${}", param_index));
-            query_params.push(user_id.clone());
+            uuid_params.push(uuid);
             param_index += 1;
         }
     }
@@ -157,7 +158,7 @@ pub async fn get_chat_history(
     if let Some(start_date) = &params.start_date {
         if let Ok(dt) = DateTime::parse_from_rfc3339(start_date) {
             query_conditions.push(format!("m.created_at >= ${}", param_index));
-            query_params.push(dt.with_timezone(&Utc).to_rfc3339());
+            string_params.push(dt.with_timezone(&Utc).to_rfc3339());
             param_index += 1;
         }
     }
@@ -165,7 +166,7 @@ pub async fn get_chat_history(
     if let Some(end_date) = &params.end_date {
         if let Ok(dt) = DateTime::parse_from_rfc3339(end_date) {
             query_conditions.push(format!("m.created_at <= ${}", param_index));
-            query_params.push(dt.with_timezone(&Utc).to_rfc3339());
+            string_params.push(dt.with_timezone(&Utc).to_rfc3339());
             param_index += 1;
         }
     }
@@ -174,8 +175,8 @@ pub async fn get_chat_history(
     if let Some(keyword) = &params.keyword {
         if !keyword.trim().is_empty() {
             query_conditions.push(format!("(m.content ILIKE ${} OR EXISTS (SELECT 1 FROM message_parts mp WHERE mp.message_id = m.id AND mp.text_content ILIKE ${}))", param_index, param_index + 1));
-            query_params.push(format!("%{}%", keyword.trim()));
-            query_params.push(format!("%{}%", keyword.trim()));
+            string_params.push(format!("%{}%", keyword.trim()));
+            string_params.push(format!("%{}%", keyword.trim()));
             param_index += 2;
         }
     }
@@ -193,7 +194,14 @@ pub async fn get_chat_history(
     );
     
     let mut count_query_builder = sqlx::query_scalar(&count_query);
-    for param in &query_params {
+    
+    // 先绑定UUID参数
+    for param in &uuid_params {
+        count_query_builder = count_query_builder.bind(param);
+    }
+    
+    // 再绑定字符串参数
+    for param in &string_params {
         count_query_builder = count_query_builder.bind(param);
     }
     
@@ -225,9 +233,17 @@ pub async fn get_chat_history(
     );
     
     let mut data_query_builder = sqlx::query(&data_query);
-    for param in &query_params {
+    
+    // 先绑定UUID参数
+    for param in &uuid_params {
         data_query_builder = data_query_builder.bind(param);
     }
+    
+    // 再绑定字符串参数
+    for param in &string_params {
+        data_query_builder = data_query_builder.bind(param);
+    }
+    
     data_query_builder = data_query_builder.bind(page_size as i64);
     data_query_builder = data_query_builder.bind(offset as i64);
     
