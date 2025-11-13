@@ -333,9 +333,11 @@ pub async fn get_user_rooms(
         SELECT 
             m.id, m.sender_id, m.message_type, m.content,
             m.created_at, m.updated_at,
-            u.username as sender_name, u.avatar_url as sender_avatar
+            u.username as sender_name, u.avatar_url as sender_avatar,
+            r.name as room_name
         FROM messages m
         LEFT JOIN users u ON m.sender_id = u.id
+        LEFT JOIN rooms r ON m.room_id = r.id
         WHERE m.room_id = $1 AND m.deleted_at IS NULL
         ORDER BY m.created_at DESC
         LIMIT 1
@@ -354,7 +356,7 @@ pub async fn get_user_rooms(
             Some(ChatMessage {
                 id: row.get::<Uuid, _>("id").to_string(),
                 room_id: room_id.to_string(),
-                room_name: row.get::<Option<String>, _>("name"),
+                room_name: row.get::<Option<String>, _>("room_name"),
                 sender_id: row.get::<Uuid, _>("sender_id").to_string(),
                 sender_name: row.get::<Option<String>, _>("sender_name").unwrap_or_else(|| "未知用户".to_string()),
                 sender_avatar: row.get("sender_avatar"),
