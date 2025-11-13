@@ -1,6 +1,6 @@
 import { get, post, del, patch } from "./http";
 import type { ApiResponse } from "./http";
-import rustHttp from "./rust-http";
+import { rustHttp } from "./rust-http";
 import type {
   Chat,
   RoomMember,
