@@ -129,7 +129,7 @@ class VersionService {
     required AppVersionInfo version,
     int expiresInSeconds = 600,
   }) async {
-    final signedUrl = await _fetchDownloadUrl(
+    final signedUrl = await fetchDownloadUrl(
       id: version.id,
       expiresInSeconds: expiresInSeconds,
     );
@@ -177,9 +177,9 @@ class VersionService {
     return 'bear_chat_${version.platform}_${safeChannel}_${version.version}$extension';
   }
 
-  Future<String> _fetchDownloadUrl({
+  Future<String> fetchDownloadUrl({
     required String id,
-    required int expiresInSeconds,
+    int expiresInSeconds = 600,
   }) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/versions/download')
         .replace(queryParameters: <String, String>{

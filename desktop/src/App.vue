@@ -21,6 +21,8 @@ const user = computed(() => store.getters.currentUser);
 const websocket = computed(() => store.state.websocket);
 const networkState = computed(() => store.state.networkState);
 const globalLoading = computed(() => store.getters.globalLoading);
+const versionState = computed(() => store.getters.appVersion);
+const currentVersionInfo = computed(() => versionState.value.current);
 
 // 多账号相关计算属性
 const accounts = computed(() => store.getters['accounts/allAccounts']);
@@ -29,6 +31,15 @@ const isLoggedIn = computed(() => store.getters.isLoggedIn);
 // 只有多个账号时才显示切换标签
 const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.value);
 const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
+const latestVersion = computed(() => store.getters.latestVersionInfo);
+const hasAppUpdate = computed(() => store.getters.hasAppUpdate);
+
+const showUpdateDialog = ref(false);
+const updateMandatory = ref(false);
+const updateDownloadInProgress = ref(false);
+const updatePromptHandled = ref(false);
+const updateNotice = ref('');
+const lastPromptedVersion = ref<string | null>(null);
 
 // 定时器相关
 const CROSS_ACCOUNT_REFRESH_INTERVAL = 5000;
@@ -628,6 +639,59 @@ watch(isLoggedIn, (loggedIn) => {
   }
 })
 
+watch(
+  () => [hasAppUpdate.value, latestVersion.value?.version],
+  ([hasUpdate, version]) => {
+    const info = latestVersion.value;
+    if (hasUpdate && info) {
+      const versionChanged = version && version !== lastPromptedVersion.value;
+      if (versionChanged) {
+        lastPromptedVersion.value = version ?? null;
+        updatePromptHandled.value = false;
+      }
+      if (!updatePromptHandled.value || info.mandatory) {
+        updateMandatory.value = !!info.mandatory;
+        updateNotice.value = '';
+        showUpdateDialog.value = true;
+      }
+    }
+  },
+  { immediate: true }
+);
+
+function handleUpdateLater() {
+  showUpdateDialog.value = false;
+  updatePromptHandled.value = true;
+}
+
+async function handleDownloadNow() {
+  if (!latestVersion.value) return;
+  updateDownloadInProgress.value = true;
+  updateNotice.value = '';
+  try {
+    await store.dispatch('downloadLatestVersion');
+    toast.success('已打开下载链接');
+    if (updateMandatory.value) {
+      updateNotice.value = '下载链接已打开，请安装完成后重新启动。';
+    } else {
+      showUpdateDialog.value = false;
+      updatePromptHandled.value = true;
+    }
+  } catch (error) {
+    toast.error('下载更新失败');
+  } finally {
+    updateDownloadInProgress.value = false;
+  }
+}
+
+async function handleQuitApp() {
+  try {
+    await invoke('quit_app');
+  } catch (error) {
+    window.close();
+  }
+}
+
 // 监听 WebSocket 连接状态变化
 watch(websocket, (newWebSocket) => {
   if (newWebSocket) {
@@ -657,6 +721,10 @@ function enableContextMenu() {
 
 // 组件挂载时设置事件监听
 onMounted(async () => {
+  try {
+    await store.dispatch('checkAppUpdate');
+  } catch (error) {
+  }
 
   // 检查是否是独立登录窗口
   let isLoginWindow = false;
@@ -852,6 +920,50 @@ onUnmounted(() => {
       :text="globalLoading.text"
     />
   </div>
+
+    <div
+      v-if="showUpdateDialog && latestVersion"
+      class="update-dialog"
+    >
+      <div class="update-dialog__panel">
+        <div class="update-dialog__title">
+          {{ updateMandatory ? '必须更新至最新版本' : '发现新版本' }}
+        </div>
+        <div class="update-dialog__content">
+          <p>当前版本：v{{ currentVersionInfo.version }}</p>
+          <p>最新版本：v{{ latestVersion.version }}（{{ latestVersion.channel }}）</p>
+          <p v-if="latestVersion.release_notes" class="update-dialog__notes">
+            {{ latestVersion.release_notes }}
+          </p>
+          <p v-if="updateNotice" class="update-dialog__notice">
+            {{ updateNotice }}
+          </p>
+        </div>
+        <div class="update-dialog__actions">
+          <button
+            v-if="!updateMandatory"
+            class="update-dialog__btn"
+            @click="handleUpdateLater"
+          >
+            稍后再说
+          </button>
+          <button
+            class="update-dialog__btn primary"
+            :disabled="updateDownloadInProgress"
+            @click="handleDownloadNow"
+          >
+            {{ updateDownloadInProgress ? '打开中...' : '立即更新' }}
+          </button>
+          <button
+            v-if="updateMandatory"
+            class="update-dialog__btn danger"
+            @click="handleQuitApp"
+          >
+            退出应用
+          </button>
+        </div>
+      </div>
+    </div>
 </template>
 
 <style>
@@ -894,5 +1006,85 @@ body {
 /* 移除固定高度，让 flexbox 自动处理高度分配 */
 .app-main--with-tabs {
   /* height 属性已移除，使用 flex: 1 自动计算高度 */
+}
+
+.update-dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+}
+
+.update-dialog__panel {
+  width: 360px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.update-dialog__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.update-dialog__content p {
+  margin: 6px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.update-dialog__notes {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.update-dialog__notice {
+  color: #ea580c;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.update-dialog__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.update-dialog__btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  background: #e2e8f0;
+  color: #0f172a;
+  transition: background 0.2s;
+}
+
+.update-dialog__btn.primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.update-dialog__btn.danger {
+  background: #fda4af;
+  color: #881337;
+}
+
+.update-dialog__btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 </style>
