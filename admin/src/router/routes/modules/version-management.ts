@@ -44,6 +44,17 @@ const VERSION_MANAGEMENT: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'hot-update-events',
+      name: 'VersionHotUpdateEvents',
+      component: () =>
+        import('@/views/version-management/hot-update-events.vue'),
+      meta: {
+        locale: 'menu.version.hotUpdateEvents',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

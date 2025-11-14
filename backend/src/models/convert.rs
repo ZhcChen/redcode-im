@@ -570,6 +570,28 @@ pub fn db_hot_updates_to_api_list(
     models.iter().map(db_hot_update_to_api).collect()
 }
 
+pub fn db_hot_update_event_to_api(
+    model: &crate::database::models::HotUpdateEvent,
+) -> crate::models::HotUpdateEventInfo {
+    crate::models::HotUpdateEventInfo {
+        id: model.id.to_string(),
+        platform: model.platform.to_string(),
+        channel: model.channel.clone(),
+        base_version: model.base_version.clone(),
+        patch_version: model.patch_version.clone(),
+        event_type: model.event_type.clone(),
+        client_id: model.client_id.clone(),
+        message: model.message.clone(),
+        created_at: model.created_at.to_rfc3339(),
+    }
+}
+
+pub fn db_hot_update_events_to_api_list(
+    models: &[crate::database::models::HotUpdateEvent],
+) -> Vec<crate::models::HotUpdateEventInfo> {
+    models.iter().map(db_hot_update_event_to_api).collect()
+}
+
 pub fn api_create_version_to_db(
     req: &crate::models::CreateAppVersionRequest,
     operator: Option<uuid::Uuid>,

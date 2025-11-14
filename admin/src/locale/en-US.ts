@@ -25,6 +25,7 @@ export default {
   'menu.version.frontend': 'App Client',
   'menu.version.desktop': 'Desktop Client',
   'menu.version.hotUpdate': 'Hot Updates',
+  'menu.version.hotUpdateEvents': 'Hot Update Events',
   'menu.list': 'List',
   'menu.result': 'Result',
   'menu.exception': 'Exception',

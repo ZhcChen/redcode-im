@@ -173,6 +173,10 @@ pub fn create_routes() -> Router<AppState> {
             get(version::list_hot_updates).post(version::create_hot_update),
         )
         .route(
+            "/api/admin/hot-updates/events",
+            get(version::list_hot_update_events),
+        )
+        .route(
             "/api/admin/hot-updates/{id}",
             get(version::get_hot_update)
                 .patch(version::update_hot_update)

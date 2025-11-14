@@ -6,13 +6,14 @@ use crate::database::version_store::{
 use crate::error::AppError;
 use crate::models::convert::{
     api_create_hot_update_to_db, api_create_version_to_db, api_update_hot_update_to_db,
-    api_update_version_to_db, db_app_version_to_api, db_hot_update_to_api,
-    db_hot_updates_to_api_list, db_versions_to_api_list,
+    api_update_version_to_db, db_app_version_to_api, db_hot_update_events_to_api_list,
+    db_hot_update_to_api, db_hot_updates_to_api_list, db_versions_to_api_list,
 };
 use crate::models::{
-    Claims, CreateAppVersionRequest, CreateHotUpdateRequest, HotUpdateEventReport, HotUpdateQuery,
-    HotUpdateResponse, LatestVersionQuery, LatestVersionResponse, ListAppVersionsQuery,
-    ListHotUpdatesQuery, UpdateAppVersionRequest, UpdateHotUpdateRequest,
+    Claims, CreateAppVersionRequest, CreateHotUpdateRequest, HotUpdateEventListQuery,
+    HotUpdateEventListResponse, HotUpdateEventReport, HotUpdateQuery, HotUpdateResponse,
+    LatestVersionQuery, LatestVersionResponse, ListAppVersionsQuery, ListHotUpdatesQuery,
+    UpdateAppVersionRequest, UpdateHotUpdateRequest,
 };
 use crate::storage;
 use crate::storage::DirectUploadSignature;
@@ -21,7 +22,7 @@ use axum::{
     extract::{Extension, Path, Query, State},
     Json,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
@@ -626,6 +627,67 @@ pub async fn report_hot_update_event(
     store.insert_hot_update_event(&insert).await?;
 
     Ok(Json(json!({ "success": true })))
+}
+
+pub async fn list_hot_update_events(
+    State(state): State<AppState>,
+    Query(query): Query<HotUpdateEventListQuery>,
+) -> Result<Json<HotUpdateEventListResponse>, AppError> {
+    let platform = if let Some(value) = query.platform.as_deref() {
+        Some(Platform::from_str(value).ok_or_else(|| {
+            AppError::ValidationError(format!(
+                "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+                value
+            ))
+        })?)
+    } else {
+        None
+    };
+
+    let start_time = parse_optional_timestamp(query.start_time.as_deref())?;
+    let end_time = parse_optional_timestamp(query.end_time.as_deref())?;
+    let limit = query.limit.clamp(1, 100);
+    let offset = query.offset.max(0);
+
+    let params = crate::database::version_store::HotUpdateEventQueryParams {
+        platform,
+        channel: query
+            .channel
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty()),
+        event_type: query
+            .event_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty()),
+        start_time,
+        end_time,
+        limit,
+        offset,
+    };
+
+    let store = VersionStore::new(state.database.clone());
+    let events = store.list_hot_update_events(&params).await?;
+    let total = store.count_hot_update_events(&params).await?;
+
+    Ok(Json(HotUpdateEventListResponse {
+        total,
+        items: db_hot_update_events_to_api_list(&events),
+    }))
+}
+
+fn parse_optional_timestamp(value: Option<&str>) -> Result<Option<DateTime<Utc>>, AppError> {
+    if let Some(text) = value {
+        if text.trim().is_empty() {
+            return Ok(None);
+        }
+        let parsed = DateTime::parse_from_rfc3339(text.trim())
+            .map_err(|_| AppError::ValidationError("时间格式必须为 RFC3339".to_string()))?;
+        Ok(Some(parsed.with_timezone(&Utc)))
+    } else {
+        Ok(None)
+    }
 }
 
 fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppError> {

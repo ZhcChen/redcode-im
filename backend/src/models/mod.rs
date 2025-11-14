@@ -290,6 +290,44 @@ pub struct HotUpdateEventReport {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct HotUpdateEventListQuery {
+    pub platform: Option<String>,
+    pub channel: Option<String>,
+    pub event_type: Option<String>,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    #[serde(default = "HotUpdateEventListQuery::default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+impl HotUpdateEventListQuery {
+    fn default_limit() -> i64 {
+        20
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct HotUpdateEventListResponse {
+    pub total: i64,
+    pub items: Vec<HotUpdateEventInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HotUpdateEventInfo {
+    pub id: String,
+    pub platform: String,
+    pub channel: Option<String>,
+    pub base_version: String,
+    pub patch_version: String,
+    pub event_type: String,
+    pub client_id: Option<String>,
+    pub message: Option<String>,
+    pub created_at: String,
+}
+
 // ==================== JWT Claims ====================
 
 /// JWT Token Claims

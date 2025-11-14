@@ -1,4 +1,4 @@
-use crate::database::models::{AppVersion, HotUpdate, Platform};
+use crate::database::models::{AppVersion, HotUpdate, HotUpdateEvent, Platform};
 use crate::database::Database;
 use chrono::{DateTime, Utc};
 use sqlx::{query_as, query_scalar, Error, QueryBuilder};
@@ -306,6 +306,17 @@ pub struct HotUpdateEventInsert {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct HotUpdateEventQueryParams<'a> {
+    pub platform: Option<Platform>,
+    pub channel: Option<&'a str>,
+    pub event_type: Option<&'a str>,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub limit: i64,
+    pub offset: i64,
+}
+
 impl VersionStore {
     pub async fn create_hot_update(&self, insert: &HotUpdateInsert) -> Result<HotUpdate, Error> {
         let record = query_as::<_, HotUpdate>(
@@ -448,6 +459,69 @@ impl VersionStore {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn list_hot_update_events(
+        &self,
+        params: &HotUpdateEventQueryParams<'_>,
+    ) -> Result<Vec<HotUpdateEvent>, Error> {
+        let mut builder = QueryBuilder::new(
+            "SELECT id, platform, channel, base_version, patch_version, event_type, client_id, message, created_at FROM hot_update_events WHERE 1=1",
+        );
+        if let Some(platform) = params.platform {
+            builder
+                .push(" AND platform = ")
+                .push_bind(platform.as_str());
+        }
+        if let Some(channel) = params.channel {
+            builder.push(" AND channel = ").push_bind(channel);
+        }
+        if let Some(event_type) = params.event_type {
+            builder.push(" AND event_type = ").push_bind(event_type);
+        }
+        if let Some(start) = params.start_time {
+            builder.push(" AND created_at >= ").push_bind(start);
+        }
+        if let Some(end) = params.end_time {
+            builder.push(" AND created_at <= ").push_bind(end);
+        }
+        builder
+            .push(" ORDER BY created_at DESC LIMIT ")
+            .push_bind(params.limit)
+            .push(" OFFSET ")
+            .push_bind(params.offset);
+
+        let query = builder.build_query_as::<HotUpdateEvent>();
+        let records = query.fetch_all(&self.database.pool).await?;
+        Ok(records)
+    }
+
+    pub async fn count_hot_update_events(
+        &self,
+        params: &HotUpdateEventQueryParams<'_>,
+    ) -> Result<i64, Error> {
+        let mut builder = QueryBuilder::new("SELECT COUNT(*) FROM hot_update_events WHERE 1=1");
+        if let Some(platform) = params.platform {
+            builder
+                .push(" AND platform = ")
+                .push_bind(platform.as_str());
+        }
+        if let Some(channel) = params.channel {
+            builder.push(" AND channel = ").push_bind(channel);
+        }
+        if let Some(event_type) = params.event_type {
+            builder.push(" AND event_type = ").push_bind(event_type);
+        }
+        if let Some(start) = params.start_time {
+            builder.push(" AND created_at >= ").push_bind(start);
+        }
+        if let Some(end) = params.end_time {
+            builder.push(" AND created_at <= ").push_bind(end);
+        }
+
+        let query = builder.build_query_scalar();
+        let total: i64 = query.fetch_one(&self.database.pool).await?;
+        Ok(total)
     }
 
     pub async fn list_hot_updates(

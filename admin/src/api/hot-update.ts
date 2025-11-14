@@ -26,9 +26,36 @@ export interface ListHotUpdatesResponse {
   items: HotUpdateInfo[];
 }
 
+export interface HotUpdateEventInfo {
+  id: string;
+  platform: string;
+  channel?: string;
+  base_version: string;
+  patch_version: string;
+  event_type: string;
+  client_id?: string;
+  message?: string;
+  created_at: string;
+}
+
+export interface ListHotUpdateEventsResponse {
+  total: number;
+  items: HotUpdateEventInfo[];
+}
+
 export interface ListHotUpdatesParams {
   platform?: AppPlatform | string;
   channel?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListHotUpdateEventsParams {
+  platform?: AppPlatform | string;
+  channel?: string;
+  event_type?: string;
+  start_time?: string;
+  end_time?: string;
   limit?: number;
   offset?: number;
 }
@@ -72,6 +99,15 @@ export function listHotUpdates(params: ListHotUpdatesParams) {
 
 export function createHotUpdate(payload: CreateHotUpdatePayload) {
   return axios.post<HotUpdateInfo>('/api/admin/hot-updates', payload);
+}
+
+export function listHotUpdateEvents(params: ListHotUpdateEventsParams) {
+  return axios.get<ListHotUpdateEventsResponse>(
+    '/api/admin/hot-updates/events',
+    {
+      params,
+    }
+  );
 }
 
 export function updateHotUpdate(id: string, payload: UpdateHotUpdatePayload) {
