@@ -6,6 +6,10 @@
 import viteImagemin from 'vite-plugin-imagemin';
 
 export default function configImageminPlugin() {
+  if (process.env.VITE_ENABLE_IMAGEMIN !== 'true') {
+    return null;
+  }
+
   const imageminPlugin = viteImagemin({
     gifsicle: {
       optimizationLevel: 7,

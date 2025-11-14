@@ -12,10 +12,16 @@ export default mergeConfig(
       configCompressPlugin('gzip'),
       configVisualizerPlugin(),
       configArcoResolverPlugin(),
-      configImageminPlugin(),
+      ...[configImageminPlugin()].filter(Boolean),
     ],
     build: {
       rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.code === 'EVAL') {
+            return;
+          }
+          warn(warning);
+        },
         output: {
           manualChunks: {
             arco: ['@arco-design/web-vue'],
