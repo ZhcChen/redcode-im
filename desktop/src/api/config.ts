@@ -36,20 +36,11 @@ const inferredWsUrl = (() => {
 const rawWsUrl = resolveEnv('VITE_WS_URL', inferredWsUrl);
 
 const rawFileBase = resolveEnv('VITE_FILE_BASE_URL', apiBaseUrl);
-const detectDefaultChannel = () => {
-  const platform = typeof process !== 'undefined' ? process.platform : undefined;
-  const arch = typeof process !== 'undefined' ? process.arch : undefined;
-  if (platform === 'darwin') {
-    const suffix = arch === 'arm64' ? 'macos-arm64' : 'macos-intel';
-    return `stable-${suffix}`;
-  }
-  return 'stable';
-};
 
 const appSemver = resolveEnv('VITE_APP_VERSION', DEFAULT_APP_VERSION) ?? DEFAULT_APP_VERSION;
 const parsedBuild = Number(resolveEnv('VITE_APP_BUILD', DEFAULT_APP_BUILD));
 const appBuild = Number.isFinite(parsedBuild) && parsedBuild > 0 ? parsedBuild : 100;
-const appChannel = resolveEnv('VITE_APP_CHANNEL', detectDefaultChannel()) ?? detectDefaultChannel();
+const appChannel = resolveEnv('VITE_APP_CHANNEL', 'stable') ?? 'stable';
 
 export const apiConfig = {
   API_BASE_URL: apiBaseUrl,
