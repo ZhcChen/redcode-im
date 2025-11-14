@@ -7,11 +7,13 @@ export default {
     'When set, testers can use this captcha to bypass verification during login or registration.',
   'captcha.description.label': 'Description',
   'captcha.description.placeholder': 'Provide usage notes for this captcha',
-  'captcha.description.help': 'Optional: record the usage scenario for this captcha.',
+  'captcha.description.help':
+    'Optional: record the usage scenario for this captcha.',
   'captcha.preview.label': 'Preview',
   'captcha.demo.label': 'Login/registration page preview:',
   'captcha.demo.placeholder': 'Captcha',
-  'captcha.demo.help': 'Testers can enter this value directly to pass verification.',
+  'captcha.demo.help':
+    'Testers can enter this value directly to pass verification.',
   'captcha.demo.disabled': 'Captcha feature is disabled.',
   'captcha.warning':
     '⚠️ Test environment only: do not use the universal captcha in production to avoid security risks.',
