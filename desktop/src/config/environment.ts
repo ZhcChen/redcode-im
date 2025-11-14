@@ -149,7 +149,6 @@ export const isProduction = (): boolean => {
 export const debugLog = (...args: any[]): void => {
   const config = getEnvironmentConfig()
   if (config.enableDebugLog) {
-    console.log('[DEBUG]', ...args)
   }
 }
 
@@ -158,7 +157,6 @@ export const performanceLog = (label: string, startTime: number): void => {
   const config = getEnvironmentConfig()
   if (config.enablePerformanceMonitor) {
     const duration = performance.now() - startTime
-    console.log(`[PERFORMANCE] ${label}: ${duration.toFixed(2)}ms`)
   }
 }
 
@@ -167,7 +165,6 @@ export const reportError = (error: Error, context?: any): void => {
   const config = getEnvironmentConfig()
 
   // 总是在控制台输出错误
-  console.error('[ERROR]', error, context)
 
   // 如果启用了错误报告，发送到远程服务
   if (config.enableErrorReporting && config.sentryDsn) {
@@ -190,5 +187,4 @@ export const getEnvironmentInfo = () => {
 
 // 在控制台输出环境信息（仅开发环境）
 if (isDevelopment()) {
-  console.log('🌍 Environment Info:', getEnvironmentInfo())
 }

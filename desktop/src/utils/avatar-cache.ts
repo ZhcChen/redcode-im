@@ -92,7 +92,6 @@ function readIndex(): AvatarIndex {
     }
     return JSON.parse(raw) as AvatarIndex
   } catch (error) {
-    console.warn('[AvatarCache] 读取索引失败，已重置:', error)
     return {}
   }
 }
@@ -104,7 +103,6 @@ function writeIndex(index: AvatarIndex) {
   try {
     window.localStorage.setItem(INDEX_KEY, JSON.stringify(index))
   } catch (error) {
-    console.warn('[AvatarCache] 写入索引失败:', error)
   }
 }
 
@@ -169,7 +167,6 @@ export const AvatarCache = {
 
     if (record.storageType === 'indexedDB') {
       await deleteFromIndexedDB(record.storageKey).catch((error) => {
-        console.warn('[AvatarCache] 清理 indexedDB 失败:', error)
       })
     } else if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.removeItem(record.storageKey)
@@ -230,7 +227,6 @@ export const AvatarCache = {
     if (previous) {
       if (previous.storageType === 'indexedDB') {
         await deleteFromIndexedDB(previous.storageKey).catch((error) => {
-          console.warn('[AvatarCache] 删除旧 indexedDB 缓存失败:', error)
         })
       } else if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(previous.storageKey)
@@ -253,13 +249,11 @@ export const AvatarCache = {
         if (!(error instanceof DOMException) || error.name !== 'QuotaExceededError') {
           throw error
         }
-        console.warn('[AvatarCache] localStorage 容量不足，切换 IndexedDB 存储')
       }
     }
 
     if (!record) {
       await saveToIndexedDB(storageKey, data, contentType).catch((err) => {
-        console.error('[AvatarCache] 保存到 IndexedDB 失败:', err)
       })
       record = {
         key: objectKey,

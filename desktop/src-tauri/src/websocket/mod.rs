@@ -11,6 +11,4 @@ pub mod client;
 pub mod commands;
 pub mod types;
 
-pub use client::WebSocketClient;
 pub use commands::*;
-pub use types::*;

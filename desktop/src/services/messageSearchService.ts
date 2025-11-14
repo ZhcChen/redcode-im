@@ -40,7 +40,6 @@ export class MessageSearchService {
     // 调试：检查是否有消息缺少 roomId
     const missingRoomId = indexMessages.filter(m => !m.roomId);
     if (missingRoomId.length > 0) {
-      console.error('⚠️ 发现缺少 roomId 的消息:', missingRoomId.map(m => ({ id: m.id, roomName: m.roomName })));
     }
 
     // 分批处理，避免一次性索引太多消息
@@ -155,7 +154,6 @@ export class MessageSearchService {
         this.scheduleIndexing();
       }
     } catch (error) {
-      console.error('消息索引失败:', error);
     } finally {
       this.isIndexing = false;
     }
@@ -178,7 +176,6 @@ export class MessageSearchService {
   async initializeSearchIndex(messages: Message[], roomName: string, roomId?: string): Promise<void> {
     if (messages.length === 0) return;
 
-    console.log(`🔍 初始化搜索索引，消息数量: ${messages.length}`);
 
     try {
       // 先清空旧索引（可选，根据需求决定）
@@ -187,9 +184,7 @@ export class MessageSearchService {
       // 批量索引所有消息
       await this.indexMessages(messages, roomName, roomId);
 
-      console.log('✅ 搜索索引初始化完成');
     } catch (error) {
-      console.error('❌ 搜索索引初始化失败:', error);
     }
   }
 

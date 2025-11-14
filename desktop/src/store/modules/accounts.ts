@@ -82,14 +82,12 @@ const accountsModule = {
      */
     ADD_ACCOUNT(state, account: AccountInfo) {
       if (state.accounts.length >= state.maxAccounts) {
-        console.warn(`已达到最大账号数量限制: ${state.maxAccounts}`)
         return
       }
 
       // 检查账号是否已存在
       const exists = state.accounts.some(acc => acc.id === account.id)
       if (exists) {
-        console.warn(`账号 ${account.id} 已存在`)
         return
       }
 
@@ -137,7 +135,6 @@ const accountsModule = {
       if (account) {
         state.currentAccountId = accountId
       } else {
-        console.warn(`账号 ${accountId} 不存在`)
       }
     },
 
@@ -292,13 +289,11 @@ const accountsModule = {
     async syncAccountProfile({ state, commit }, payload: { accountId?: string; userInfo?: Partial<AccountInfo['userInfo']>; token?: string }) {
       const targetAccountId = payload.accountId || state.currentAccountId
       if (!targetAccountId) {
-        console.warn('syncAccountProfile: 无可用账号ID')
         return
       }
 
       const account = state.accounts.find(acc => acc.id === targetAccountId)
       if (!account) {
-        console.warn(`syncAccountProfile: 账号 ${targetAccountId} 不存在`)
         return
       }
 
@@ -314,7 +309,6 @@ const accountsModule = {
       try {
         await addAccountToRust(nextAccount)
       } catch (error) {
-        console.error('同步账号信息到 SQLite 失败:', error)
       }
 
       commit('UPDATE_ACCOUNT', {
@@ -349,7 +343,6 @@ const accountsModule = {
         // 注意：头像缓存同步在 App.vue 的 ensureAvatarCacheConsistency 中处理
         // 这里不调用 syncAvatarCache，因为此时 SET_USER 还没有执行，currentUser 可能还没有正确的数据
       } catch (error) {
-        console.error('加载账号列表失败:', error)
       }
     },
 
@@ -361,9 +354,7 @@ const accountsModule = {
       try {
         // 目前 Rust 后端可能没有此命令，暂时注释
         // await invoke('logout_account', { account_id: accountId })
-        console.log('登出账号:', accountId)
       } catch (error) {
-        console.error('登出账号失败:', error)
       }
 
       // 移除账号
@@ -380,7 +371,6 @@ const accountsModule = {
       )
 
       if (validIds.length !== state.accounts.length) {
-        console.warn('重新排序失败: 账号 ID 不匹配')
         return
       }
 
@@ -399,7 +389,6 @@ const accountsModule = {
         // 更新本地状态
         commit('REORDER_ACCOUNTS', validIds)
       } catch (error) {
-        console.error('重新排序账号失败:', error)
         throw error
       }
     },
@@ -476,7 +465,6 @@ const accountsModule = {
               }
             }
           } catch (error) {
-            console.error(`刷新账号 ${account.userInfo.nickname} 未读数失败:`, error)
           }
         })
       )
@@ -560,7 +548,6 @@ async function addAccountToRust(account: AccountInfo): Promise<void> {
 
     await invoke('account_add', { account: rustAccount })
   } catch (error) {
-    console.error('添加账号到 Rust 失败:', error)
     throw error
   }
 }
@@ -587,7 +574,6 @@ async function loadAccountsFromRust(): Promise<AccountInfo[]> {
       createdAt: acc.created_at
     }))
   } catch (error) {
-    console.error('从 Rust 加载账号列表失败:', error)
     return []
   }
 }
@@ -599,7 +585,6 @@ async function setCurrentAccountInRust(accountId: string): Promise<void> {
   try {
     await invoke('account_set_current', { accountId })
   } catch (error) {
-    console.error('设置当前账号失败:', error)
     throw error
   }
 }
@@ -612,7 +597,6 @@ async function loadCurrentAccountFromRust(): Promise<string | null> {
     const account = await invoke<RustAccountOutput | null>('account_get_current')
     return account ? account.id : null
   } catch (error) {
-    console.error('加载当前账号失败:', error)
     return null
   }
 }
@@ -624,7 +608,6 @@ async function removeAccountFromRust(accountId: string): Promise<void> {
   try {
     await invoke('account_remove', { accountId })
   } catch (error) {
-    console.error('移除账号失败:', error)
     throw error
   }
 }

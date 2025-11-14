@@ -32,11 +32,9 @@ const readLocalStorage = <T>(key: string): CacheEnvelope<T> | null => {
     }
     return parsed;
   } catch (error) {
-    console.warn('[cache] 读取失败，移除损坏的缓存:', key, error);
     try {
       window.localStorage.removeItem(key);
     } catch (removeError) {
-      console.warn('[cache] 移除损坏缓存失败:', removeError);
     }
     return null;
   }
@@ -54,11 +52,9 @@ const writeLocalStorage = <T>(key: string, data: T) => {
   try {
     window.localStorage.setItem(key, JSON.stringify(envelope));
   } catch (error) {
-    console.warn('[cache] 写入失败，尝试移除旧缓存:', key, error);
     try {
       window.localStorage.removeItem(key);
     } catch (removeError) {
-      console.warn('[cache] 移除旧缓存失败:', removeError);
     }
   }
 };
@@ -70,7 +66,6 @@ const deleteLocalStorage = (key: string) => {
   try {
     window.localStorage.removeItem(key);
   } catch (error) {
-    console.warn('[cache] 删除缓存失败:', key, error);
   }
 };
 
@@ -87,7 +82,6 @@ export const loadCache = async <T>(key: string): Promise<CacheSnapshot<T> | null
       const result = await invoke<{ data: T; updatedAt: number } | null>('cache_load_value', { key });
       return result ? { data: result.data, updatedAt: result.updatedAt } : null;
     } catch (error) {
-      console.warn('[cache] 读取本地数据库失败，回退到浏览器缓存:', error);
     }
   }
 
@@ -101,7 +95,6 @@ export const saveCache = async <T>(key: string, data: T) => {
       await invoke('cache_save_value', { key, payload: data });
       return;
     } catch (error) {
-      console.warn('[cache] 写入本地数据库失败，回退到浏览器缓存:', error);
     }
   }
 
@@ -113,7 +106,6 @@ export const removeCache = async (key: string) => {
     try {
       await invoke('cache_clear_value', { key });
     } catch (error) {
-      console.warn('[cache] 清除本地数据库缓存失败:', error);
     }
   }
 

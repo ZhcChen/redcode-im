@@ -173,14 +173,6 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
 };
 
 const mapRoomInfo = (room: BackendRoomInfo): Chat => {
-  console.log('🔍 [mapRoomInfo] 开始映射房间信息:', {
-    roomId: room.id,
-    roomName: room.name,
-    avatar_url: room.avatar_url,
-    avatar_object_key: room.avatar_object_key,
-    description: room.description,
-    extra: room.extra
-  });
 
   const roomExtra = room.extra as Record<string, unknown> | null;
   const memberCountRaw = roomExtra ? roomExtra["member_count"] : undefined;
@@ -194,11 +186,9 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
 
   // 添加 room_avatar_object_key 到 extra
   if (room.avatar_object_key) {
-    console.log('✅ [mapRoomInfo] 找到 avatar_object_key，添加到 extra:', room.avatar_object_key);
     extra.room_avatar_object_key = room.avatar_object_key;
     extra.roomAvatarObjectKey = room.avatar_object_key;
   } else {
-    console.warn('⚠️ [mapRoomInfo] 未找到 avatar_object_key');
   }
 
   // 添加 description 到 extra
@@ -222,14 +212,6 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
     extra: Object.keys(extra).length > 0 ? extra : null,
   };
 
-  console.log('✅ [mapRoomInfo] 映射完成:', {
-    roomId: result.roomId,
-    avatar: result.avatar,
-    hasExtra: !!result.extra,
-    extraKeys: result.extra ? Object.keys(result.extra) : [],
-    room_avatar_object_key: result.extra?.room_avatar_object_key,
-    roomAvatarObjectKey: result.extra?.roomAvatarObjectKey
-  });
 
   return result;
 };
@@ -289,17 +271,10 @@ export class GroupApi {
   static async getChatGroupInfo(params: {
     chatGroupId: string;
   }): Promise<ApiResponse<Chat>> {
-    console.log('🔄 [getChatGroupInfo] 开始请求群组信息:', params.chatGroupId);
     const response = await get<{ info: BackendRoomInfo }>(`/rooms/${params.chatGroupId}/detail`);
 
-    console.log('📥 [getChatGroupInfo] 后端返回原始数据:', {
-      success: response.success,
-      data: response.data,
-      message: response.message
-    });
 
     if (!response.success || !response.data || !response.data.info) {
-      console.error('❌ [getChatGroupInfo] 请求失败或无数据');
       return {
         ...response,
         data: null,
@@ -307,7 +282,6 @@ export class GroupApi {
     }
 
     const mappedData = mapRoomInfo(response.data.info);
-    console.log('✅ [getChatGroupInfo] 数据映射完成');
 
     return {
       ...response,
@@ -443,15 +417,8 @@ export class GroupApi {
     groupId: string,
     file: File
   ): Promise<ApiResponse<{ avatarUrl: string }>> {
-    console.log('[GroupApi] 🧾 收到群头像上传请求', {
-      groupId,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size
-    });
 
     const contentType = file.type || 'application/octet-stream';
-    console.log('[GroupApi] 🔐 请求群头像直传签名', { contentType });
 
     const directResp = await rustHttp.post<{
       success: boolean;
@@ -469,19 +436,8 @@ export class GroupApi {
     });
 
     const directData = directResp.data;
-    console.log('[GroupApi] 🔐 直传签名响应', {
-      success: directResp.success,
-      code: directResp.code,
-      key: directData?.key,
-      hasSignature: Boolean(directData?.signature)
-    });
 
     if (!directResp.success || !directData || !directData.success || !directData.key || !directData.signature) {
-      console.error('[GroupApi] ❌ 获取上传签名失败', {
-        code: directResp.code,
-        message: directResp.message,
-        payload: directData
-      });
       return {
         code: directResp.code || 500,
         success: false,
@@ -491,14 +447,12 @@ export class GroupApi {
     }
 
     const { key, signature } = directData;
-    console.log('[GroupApi] 📋 服务端返回的签名 headers:', signature.headers);
 
     const headers = new Headers();
     // 过滤掉 Host 头，避免浏览器 CORS 限制
     Object.entries(signature.headers || {}).forEach(
       ([headerKey, headerValue]) => {
         if (headerKey.toLowerCase() === 'host') {
-          console.log('[GroupApi] 🚫 已过滤 Host 头:', headerValue);
           return;
         }
         headers.set(headerKey, headerValue);
@@ -519,7 +473,6 @@ export class GroupApi {
     }
     finalHeaders['Content-Length'] = headers.get('Content-Length') || contentLength;
 
-    console.log('[GroupApi] ☁️ 准备执行对象存储上传');
 
     const uploadResponse = await rustHttp.requestRaw<{ base64?: string }>({
       path: signature.url,
@@ -539,10 +492,6 @@ export class GroupApi {
         errorMessage = '网络连接失败，请检查网络设置';
       }
 
-      console.error('[GroupApi] ❌ 对象存储上传失败', {
-        status,
-        message: uploadResponse.message
-      });
       return {
         code: status,
         success: false,
@@ -551,12 +500,7 @@ export class GroupApi {
       };
     }
 
-    console.log('[GroupApi] ✅ 对象存储上传成功，等待提交', {
-      status: uploadResponse.code,
-      key
-    });
 
-    console.log('[GroupApi] 🔄 提交群头像配置', { key });
     const commitResp = await rustHttp.post<{
       success: boolean;
       message: string;
@@ -566,21 +510,8 @@ export class GroupApi {
     });
 
     const commitData = commitResp.data;
-    console.log('[GroupApi] 📝 提交群头像配置响应', {
-      success: commitResp.success,
-      code: commitResp.code,
-      message: commitResp.message,
-      hasData: Boolean(commitData),
-      dataSuccess: commitData?.success,
-      avatarUrl: commitData?.avatar_url
-    });
 
     if (!commitResp.success || !commitData || !commitData.success || !commitData.avatar_url) {
-      console.error('[GroupApi] ❌ 提交群头像配置失败', {
-        code: commitResp.code,
-        message: commitResp.message,
-        payload: commitData
-      });
       return {
         code: commitResp.code || 500,
         success: false,
@@ -589,9 +520,6 @@ export class GroupApi {
       };
     }
 
-    console.log('[GroupApi] ✅ 群头像上传成功', {
-      avatarUrl: commitData.avatar_url
-    });
 
     return {
       code: 200,

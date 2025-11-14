@@ -302,7 +302,6 @@ class WebSocketManager {
 
   public async initWebSocketSafely(params: WebSocketParams): Promise<void> {
     if (!params?.userId || !params?.token) {
-      console.warn('WebSocket 参数缺失，跳过连接');
       return;
     }
 
@@ -368,7 +367,6 @@ class WebSocketManager {
             return;
           }
 
-          console.warn('未能解析的 WebSocket 文本帧:', payload);
           return;
         }
 
@@ -389,28 +387,23 @@ class WebSocketManager {
             const buffer = await arrayBufferFromBinaryData(payload);
             this.processBinaryFrame(buffer);
           } catch (error) {
-            console.error('解析 Blob 数据失败:', error);
           }
           return;
         }
 
-        console.warn('收到未知类型的 WebSocket 消息:', payload);
       };
 
       socket.onerror = (error) => {
-        console.error('WebSocket 发生错误:', error);
         this.scheduleReconnect();
       };
 
       socket.onclose = (event) => {
-        console.warn('WebSocket 连接关闭:', event.code, event.reason);
         if (this.state.status === 'authenticated') {
           toast.warning('消息服务连接已断开，正在尝试重连');
         }
         this.scheduleReconnect();
       };
     } catch (error) {
-      console.error('创建 WebSocket 连接失败:', error);
       this.scheduleReconnect();
     }
   }
@@ -420,7 +413,6 @@ class WebSocketManager {
       const serverEvent = decodeServerEvent(new Uint8Array(buffer));
       this.handleServerEvent(serverEvent);
     } catch (error) {
-      console.error('解析服务器事件失败:', error);
     }
   }
 
@@ -506,7 +498,6 @@ class WebSocketManager {
         break;
       default:
         if (code) {
-          console.warn('未识别的 WebSocket 业务事件:', code, payload);
         }
         break;
     }
@@ -602,14 +593,12 @@ class WebSocketManager {
         break;
       case 'error':
         if (message.message) {
-          console.error('WebSocket 错误:', message.message);
           toast.error(message.message);
         }
         break;
       case 'pong':
         break;
       default:
-        console.warn('未识别的 JSON 消息类型:', type, message);
         break;
     }
   }
@@ -674,7 +663,6 @@ class WebSocketManager {
     }
 
     if (payload.error) {
-      console.error('WebSocket 错误:', payload.error.message);
       toast.error(payload.error.message || '消息服务错误');
       return;
     }
@@ -693,7 +681,6 @@ class WebSocketManager {
     try {
       normalized = normalizeServerMessage(rawMessage, this.state.lastUserId);
     } catch (error) {
-      console.error('标准化聊天消息失败:', error, rawMessage);
     }
 
     this.dispatchDomEvent('websocket-chat-message', {
@@ -715,7 +702,6 @@ class WebSocketManager {
       try {
         detail.message = normalizeServerMessage(detail.message, this.state.lastUserId);
       } catch (error) {
-        console.error('标准化消息更新失败:', error, detail.message);
       }
     }
     this.dispatchDomEvent('websocket-message-update', detail);
@@ -728,7 +714,6 @@ class WebSocketManager {
       try {
         detail.message = normalizeServerMessage(detail.message, this.state.lastUserId);
       } catch (error) {
-        console.error('标准化置顶消息失败:', error, detail.message);
       }
     }
     this.dispatchDomEvent('websocket-pin-update', detail);
@@ -749,7 +734,6 @@ class WebSocketManager {
     this.refreshContacts(true);
     void store
       .dispatch('updatePendingFriendRequests')
-      .catch((error: unknown) => console.warn('更新待处理好友申请失败:', error));
   }
 
   private refreshChatList(force = false): void {
@@ -760,7 +744,6 @@ class WebSocketManager {
     this.lastChatListRefreshAt = now;
     void store
       .dispatch('loadChatList', { forceRefresh: true })
-      .catch((error: unknown) => console.warn('刷新聊天列表失败:', error));
   }
 
   private refreshContacts(force = false): void {
@@ -771,7 +754,6 @@ class WebSocketManager {
     this.lastContactRefreshAt = now;
     void store
       .dispatch('loadContacts', { forceRefresh: true })
-      .catch((error: unknown) => console.warn('刷新联系人列表失败:', error));
   }
 
   private onRoomJoined(roomId: string): void {
@@ -847,7 +829,6 @@ class WebSocketManager {
     ];
 
     if (!supportedCodes.includes(code as any)) {
-      console.warn('暂未实现该类型的发送:', code);
       callback?.(false);
       throw new Error('暂未实现的消息类型');
     }
@@ -866,17 +847,14 @@ class WebSocketManager {
         case BUSINESS_CODE.deleteGroup:
         case BUSINESS_CODE.DeleteFriend:
         case BUSINESS_CODE.FriendBindChange:
-          console.error('❌ 错误：该操作应通过 HTTP API 调用，而非 WebSocket');
           callback?.(false);
           throw new Error('该操作应通过 HTTP API 调用');
 
         default:
-          console.warn('未知消息类型:', code);
           callback?.(false);
           throw new Error('未知的消息类型');
       }
     } catch (error: any) {
-      console.error('发送消息失败:', error);
       callback?.(false);
       throw error;
     }
@@ -959,7 +937,6 @@ class WebSocketManager {
       try {
         this.state.socket.close();
       } catch (error) {
-        console.warn('关闭 WebSocket 失败:', error);
       }
     }
     this.state.socket = null;
@@ -968,7 +945,6 @@ class WebSocketManager {
     this.state.status = 'disconnected';
 
     if (this.state.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('WebSocket 重连超过最大次数');
       toast.error('消息服务连接失败，请检查网络或稍后再试');
       return;
     }
@@ -1000,7 +976,6 @@ class WebSocketManager {
       try {
         this.state.socket.close();
       } catch (error) {
-        console.warn('关闭 WebSocket 失败:', error);
       }
     }
 

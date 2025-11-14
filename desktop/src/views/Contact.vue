@@ -74,7 +74,12 @@
               <div class="request-info">
                 <div class="request-name-status">
                   <div class="request-name">{{ request.name }}</div>
-                  <div class="request-status">{{ request.status }}</div>
+                  <div
+                    class="request-status"
+                    :class="getRequestStatusClass(request.status)"
+                  >
+                    {{ request.status }}
+                  </div>
                 </div>
                 <div class="request-message">{{ request.message || '请求添加您为好友' }}</div>
               </div>
@@ -242,6 +247,7 @@
           v-model="addContactInput"
           placeholder="请输入手机号、用户名或聊天号..."
           :disabled="isSearching"
+          @keyup.enter="triggerAddContactSearch"
         />
         
         <!-- 错误提示 -->
@@ -436,6 +442,13 @@ const pendingFriendRequests = computed(() => {
   return store.getters.pendingFriendRequests
 })
 
+const getRequestStatusClass = (status: string) => {
+  if (status === '待验证') return 'status-pending'
+  if (status === '已通过') return 'status-approved'
+  if (status === '已拒绝') return 'status-rejected'
+  return ''
+}
+
 // 动态页面标题
 const pageTitle = computed(() => {
   if (showFriendRequests.value) {
@@ -464,7 +477,6 @@ const loadContactsList = async (forceRefresh = false) => {
 
     // 如果不强制刷新且store中有数据，直接返回
     if (!forceRefresh && contacts.value.length > 0) {
-      console.log('✅ 从store中加载联系人列表:', contacts.value.length, '个联系人')
       return
     }
 
@@ -473,9 +485,7 @@ const loadContactsList = async (forceRefresh = false) => {
       forceRefresh,
       compareWithStore: true // 启用与store的数据比对
     })
-    console.log('✅ 联系人列表加载完成')
   } catch (error: any) {
-    console.error('❌ 加载联系人列表失败:', error)
     toast.error(error.message || '加载联系人列表失败')
   } finally {
     isLoadingContacts.value = false
@@ -492,7 +502,6 @@ const closeModal = () => {
 }
 
 const startChat = (contact: Contact) => {
-  console.log('🚀 发起聊天:', contact.name, 'ID:', contact.id)
   
   // 跳转到聊天页面，传递联系人信息
   // contactId 和 contactName 都会被 Chat.vue 用于创建单聊
@@ -507,7 +516,6 @@ const startChat = (contact: Contact) => {
   // 清除选中状态
   selectedContact.value = null
   
-  console.log('✅ 已跳转到聊天页面')
 }
 
 const viewProfile = (contact: Contact) => {
@@ -516,12 +524,10 @@ const viewProfile = (contact: Contact) => {
 
 const makeCall = (contact: Contact) => {
   // 发起语音通话逻辑
-  console.log('发起通话:', contact.name)
   selectedContact.value = null
 }
 
 const handleSearch = async (value: string) => {
-  console.log('搜索联系人:', value)
   searchQuery.value = value
   
   // 如果有搜索关键词，触发 API 搜索
@@ -529,7 +535,6 @@ const handleSearch = async (value: string) => {
     try {
       await store.dispatch('searchContacts', value.trim())
     } catch (error: any) {
-      console.error('❌ 搜索联系人失败:', error)
       toast.error(error.message || '搜索联系人失败')
     }
   } else {
@@ -549,7 +554,6 @@ const handleAddContact = () => {
 }
 
 const handleNewFriends = async () => {
-  console.log('📱 点击新的朋友，准备加载好友申请列表')
 
   // 清除选中的联系人
   selectedContact.value = null
@@ -571,7 +575,6 @@ const handleNewFriends = async () => {
       try {
         await loadFriendRequests(true) // 强制刷新API数据
       } catch (error: any) {
-        console.warn('⚠️ 后台刷新好友申请数据失败:', error)
         // 即使失败也不影响用户体验，用户可以看到store中的数据
       }
     }, 500) // 500ms 后开始后台刷新
@@ -601,17 +604,14 @@ const isMyFriendRequest = (request: FriendRequest): boolean => {
 // 加载好友申请列表 - 优化为使用store持久化
 const loadFriendRequests = async (forceRefresh = false) => {
   try {
-    console.log('🔄 开始加载好友申请列表...', { forceRefresh, isInitialized: isFriendRequestsInitialized.value })
 
     // 如果已经初始化过且不强制刷新，直接返回
     if (isFriendRequestsInitialized.value && !forceRefresh) {
-      console.log('✅ 好友申请列表已初始化，跳过重复加载')
       return
     }
 
     // 如果不强制刷新且store中有数据，优先从store加载
     if (!forceRefresh && friendRequests.value.length > 0) {
-      console.log('✅ 从store中加载好友申请列表:', friendRequests.value.length, '个申请')
       isFriendRequestsInitialized.value = true
       return
     }
@@ -623,9 +623,7 @@ const loadFriendRequests = async (forceRefresh = false) => {
     })
 
     isFriendRequestsInitialized.value = true
-    console.log('✅ 好友申请列表加载完成')
   } catch (error: any) {
-    console.error('❌ 加载好友申请列表失败:', error)
     // 静默处理错误，不显示toast
   }
 }
@@ -636,20 +634,20 @@ const updatePendingFriendRequestsCount = async () => {
     const response = await FriendApi.getPendingFriendRequestCount()
     if (response.success && typeof response.data === 'number') {
       store.commit('SET_PENDING_FRIEND_REQUESTS', response.data)
-      console.log('✅ 更新待处理好友申请数量:', response.data)
     }
   } catch (error: any) {
-    console.warn('⚠️ 更新待处理好友申请数量失败:', error)
   }
 }
 
 const handleGroups = () => {
-  console.log('群组')
   // 这里可以添加查看群组列表的逻辑
 }
 
 // 处理添加联系人对话框确定按钮
 const handleConfirmAddContact = async () => {
+  if (isSearching.value) {
+    return
+  }
   const keyword = addContactInput.value.trim()
   if (!keyword) {
     searchError.value = '请输入要搜索的账号'
@@ -671,7 +669,6 @@ const handleConfirmAddContact = async () => {
       if (response.data && response.data.length > 0) {
         // 搜索成功，有结果
         searchResults.value = response.data
-        console.log('搜索到用户:', response.data.length, '个')
       } else {
         // 搜索成功但无结果，或者 data 为 null
         searchError.value = response.message || '该用户不存在!'
@@ -683,12 +680,16 @@ const handleConfirmAddContact = async () => {
       searchResults.value = []
     }
   } catch (error: any) {
-    console.error('搜索用户失败:', error)
     searchError.value = error.message || '网络错误，请稍后重试'
     searchResults.value = []
   } finally {
     isSearching.value = false
   }
+}
+
+const triggerAddContactSearch = () => {
+  if (isSearching.value) return
+  handleConfirmAddContact()
 }
 
 // 处理添加联系人对话框取消按钮
@@ -698,18 +699,15 @@ const handleCancelAddContact = () => {
 
 // 处理选择用户
 const handleSelectUser = async (user: UserInfo) => {
-  console.log('选择用户:', user)
 
   if (user.isFriend) {
     // 如果已经是好友，跳转到聊天
-    console.log('用户已是好友，可以直接聊天')
     try {
       const response = await FriendApi.ensureChat({
         friendId: user.id,
       })
 
       if (response.success && response.data) {
-        console.log('✅ 获取聊天房间成功:', response.data)
         // 跳转到聊天页面
         await router.push({
           name: 'Chat',
@@ -725,7 +723,6 @@ const handleSelectUser = async (user: UserInfo) => {
         throw new Error(response.message || '获取聊天房间失败')
       }
     } catch (error: any) {
-      console.error('跳转到聊天失败:', error)
       toast.error('跳转失败: ' + (error.message || '网络错误'))
     }
     return
@@ -748,7 +745,6 @@ const handleSelectUser = async (user: UserInfo) => {
     })
 
     if (response.success) {
-      console.log('好友申请发送成功:', response.data)
       // 显示成功提示
       toast.success('好友添加邀请已发送')
       searchError.value = ''
@@ -761,7 +757,6 @@ const handleSelectUser = async (user: UserInfo) => {
       searchError.value = response.message || '发送好友申请失败'
     }
   } catch (error: any) {
-    console.error('添加好友失败:', error)
     searchError.value = error.message || '网络错误，请稍后重试'
   } finally {
     isAddingFriend.value = false
@@ -783,7 +778,6 @@ const closeAddContactDialog = () => {
 // 接受好友申请
 const handleAcceptFriendRequest = async (request: FriendRequest) => {
   try {
-    console.log('接受好友申请:', request)
 
     // 调用处理好友申请API，status: 1 表示同意
     // 使用 fromUserId 作为 applyUserId，因为这是申请人的用户ID
@@ -797,6 +791,7 @@ const handleAcceptFriendRequest = async (request: FriendRequest) => {
       // 更新store中的好友申请状态
       const updatedRequest = { ...request, status: '已通过' as const }
       store.dispatch('updateFriendRequest', updatedRequest)
+      selectedFriendRequest.value = updatedRequest
       // 重新加载好友申请列表，使用后台同步模式
       setTimeout(async () => {
         await loadFriendRequests(true)
@@ -807,7 +802,6 @@ const handleAcceptFriendRequest = async (request: FriendRequest) => {
       toast.error(response.message || '接受好友申请失败')
     }
   } catch (error: any) {
-    console.error('接受好友申请失败:', error)
     toast.error(error.message || '接受好友申请失败')
   }
 }
@@ -815,7 +809,6 @@ const handleAcceptFriendRequest = async (request: FriendRequest) => {
 // 拒绝好友申请
 const handleRejectFriendRequest = async (request: FriendRequest) => {
   try {
-    console.log('拒绝好友申请:', request)
 
     // 调用处理好友申请API，status: 2 表示拒绝
     // 使用 fromUserId 作为 applyUserId，因为这是申请人的用户ID
@@ -829,6 +822,7 @@ const handleRejectFriendRequest = async (request: FriendRequest) => {
       // 更新store中的好友申请状态
       const updatedRequest = { ...request, status: '已拒绝' as const }
       store.dispatch('updateFriendRequest', updatedRequest)
+      selectedFriendRequest.value = updatedRequest
       // 重新加载好友申请列表，使用后台同步模式
       setTimeout(async () => {
         await loadFriendRequests(true)
@@ -839,14 +833,12 @@ const handleRejectFriendRequest = async (request: FriendRequest) => {
       toast.error(response.message || '拒绝好友申请失败')
     }
   } catch (error: any) {
-    console.error('拒绝好友申请失败:', error)
     toast.error(error.message || '拒绝好友申请失败')
   }
 }
 
 // 与好友申请用户发起聊天
 const startChatWithFriendRequest = (request: FriendRequest) => {
-  console.log('🚀 从好友申请发起聊天:', request.name, 'fromUserId:', request.fromUserId, 'id:', request.id)
   
   // 跳转到聊天页面，传递用户信息
   // 优先使用 fromUserId，因为这是申请人的真实用户ID
@@ -861,7 +853,6 @@ const startChatWithFriendRequest = (request: FriendRequest) => {
   // 清除选中状态
   selectedFriendRequest.value = null
   
-  console.log('✅ 已跳转到聊天页面')
 }
 
 // 撤销我发起的好友申请
@@ -870,7 +861,6 @@ const cancelMyFriendRequest = async (request: FriendRequest) => {
     const confirmed = confirm(`确定要撤销向 ${request.addressee.nickname || request.addressee.username} 发送的好友申请吗？`)
     if (!confirmed) return
 
-    console.log('撤销好友申请:', request)
     const response = await FriendApi.cancelFriendRequest({
       requestId: request.id,
     })
@@ -883,7 +873,6 @@ const cancelMyFriendRequest = async (request: FriendRequest) => {
       throw new Error(response.message || '撤销失败')
     }
   } catch (error: any) {
-    console.error('撤销好友申请失败:', error)
     toast.error('撤销失败: ' + (error.message || '网络错误'))
   }
 }
@@ -948,18 +937,15 @@ const saveCurrentAccountState = (accountId: string) => {
     searchQuery: searchQuery.value,
     currentFilter: currentFilter.value
   })
-  console.log(`💾 已保存账号 ${accountId} 的 Contact 状态`)
 }
 
 // 恢复指定账号的状态
 const restoreAccountState = (accountId: string) => {
   const state = accountStates.get(accountId)
   if (state) {
-    console.log(`📂 恢复账号 ${accountId} 的 Contact 状态`)
     searchQuery.value = state.searchQuery
     currentFilter.value = state.currentFilter
   } else {
-    console.log(`🆕 账号 ${accountId} 无缓存状态，使用初始状态`)
     searchQuery.value = ''
     currentFilter.value = 'all'
   }
@@ -979,10 +965,6 @@ watch(
   () => store.state.accounts?.currentAccountId,
   (newAccountId, oldAccountId) => {
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
-      console.log('🔄 检测到账号切换 (Contact)', {
-        from: oldAccountId,
-        to: newAccountId
-      })
       
       // 保存旧账号的状态
       saveCurrentAccountState(oldAccountId)
@@ -990,7 +972,6 @@ watch(
       // 恢复新账号的状态
       restoreAccountState(newAccountId)
       
-      console.log('✅ Contact 账号状态切换完成')
     }
   }
 )
@@ -1001,19 +982,12 @@ onMounted(async () => {
 
   // 等待用户登录状态完全稳定后再发起API请求，避免401错误
   const checkAndLoadData = async () => {
-    console.log('🔍 Contact.vue - 检查登录状态:', {
-      isLoggedIn: store.getters.isLoggedIn,
-      hasToken: !!store.getters.token,
-      tokenPreview: store.getters.token ? `${store.getters.token.substring(0, 10)}...` : '无token',
-      userId: store.getters.currentUser?.id
-    });
 
     // 检查用户是否已完全登录（包括用户信息）
     if (store.getters.isLoggedIn && 
         store.getters.token && 
         store.getters.currentUser?.id) {
       try {
-        console.log('✅ 用户状态已确认，开始加载联系人数据');
         
         // 加载好友申请数量
         store.dispatch('updatePendingFriendRequests')
@@ -1026,20 +1000,16 @@ onMounted(async () => {
           try {
             await loadContactsList(true) // 强制刷新API数据
           } catch (error: any) {
-            console.warn('⚠️ 后台刷新联系人数据失败:', error)
             // 即使失败也不影响用户体验，用户可以看到store中的数据
           }
         }, 500) // 500ms 后开始后台刷新
       } catch (error: any) {
-        console.warn('❌ 加载联系人数据失败:', error);
         // 如果是认证错误，不要重试，让系统自动处理登出
         if (error.message && error.message.includes('认证')) {
-          console.log('🚫 认证错误，停止重试');
           return;
         }
       }
     } else {
-      console.warn('⚠️ 用户登录状态不完整，等待状态同步...');
       // 如果状态不完整，再等待一段时间重试
       setTimeout(checkAndLoadData, 300);
     }
@@ -1600,6 +1570,19 @@ onUnmounted(() => {
         color: $chat-message-color; // 使用全局定义的 #707991 颜色
         white-space: nowrap;
         flex-shrink: 0;
+        font-weight: 500;
+
+        &.status-pending {
+          color: $primary-color;
+        }
+
+        &.status-approved {
+          color: #2ebd85;
+        }
+
+        &.status-rejected {
+          color: #ff5d52;
+        }
       }
     }
     
@@ -1748,7 +1731,7 @@ onUnmounted(() => {
     align-items: center;
     
     .success-text {
-      color: #52c41a;
+      color: #2ebd85;
       font-size: 14px;
       margin: 0 0 20px 0;
       font-weight: 500;
@@ -1756,7 +1739,7 @@ onUnmounted(() => {
     }
     
     .error-text {
-      color: #ff4d4f;
+      color: #ff5d52;
       font-size: 14px;
       margin: 0;
       font-weight: 500;

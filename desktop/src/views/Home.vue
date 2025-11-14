@@ -39,10 +39,6 @@ async function setMainWindowSize() {
     
     // 记录调整前的尺寸
     const beforeSize = await currentWindow.innerSize();
-    console.log(`[${logId}] ========== 设置主窗口尺寸 ==========`);
-    console.log(`[${logId}] 调整前尺寸: ${beforeSize.width}x${beforeSize.height}`);
-    console.log(`[${logId}] 目标尺寸: ${DEFAULT_MAIN_WINDOW_SIZE.width}x${DEFAULT_MAIN_WINDOW_SIZE.height}`);
-    console.log(`[${logId}] 调用栈:`, new Error().stack);
     
     // 设置为默认主窗口尺寸
     await currentWindow.setSize({
@@ -55,52 +51,38 @@ async function setMainWindowSize() {
     
     // 记录调整后的尺寸
     const afterSize = await currentWindow.innerSize();
-    console.log(`[${logId}] 调整后尺寸: ${afterSize.width}x${afterSize.height}`);
-    console.log(`[${logId}] ========== 设置完成 ==========`);
   } catch (error) {
-    console.error(`[${logId}] 设置主窗口尺寸失败:`, error);
   }
 }
 
 // 登录后窗口尺寸调整逻辑
 async function prepareWindowOnLogin() {
   const logId = `HOME_PREPARE_${Date.now()}`;
-  console.log(`[${logId}] ========== 准备主窗口 ==========`);
-  console.log(`[${logId}] windowStateInitialized: ${windowStateInitialized}`);
   
   try {
     const currentWindow = getCurrentWebviewWindow();
     const isCurrentlyMaximized = await currentWindow.isMaximized();
     const currentSize = await currentWindow.innerSize();
     
-    console.log(`[${logId}] 当前状态:`, {
-      isMaximized: isCurrentlyMaximized,
-      currentSize: `${currentSize.width}x${currentSize.height}`
-    });
     
     // 如果不是最大化，设置为默认主窗口尺寸
     if (!isCurrentlyMaximized) {
       await setMainWindowSize();
     } else {
-      console.log(`[${logId}] 窗口已最大化，跳过尺寸设置`);
     }
     
     windowStateInitialized = true;
-    console.log(`[${logId}] ========== 准备完成 ==========`);
   } catch (error) {
-    console.error(`[${logId}] 准备窗口尺寸失败:`, error);
     windowStateInitialized = true;
   }
 }
 
 // 清理所有窗口监听器
 function clearAllWindowListeners() {
-  console.log('🧹 清理所有窗口监听器，当前数量:', globalWindowListeners.length);
   globalWindowListeners.forEach(unlisten => {
     try {
       unlisten();
     } catch (error) {
-      console.warn('清理窗口监听器失败:', error);
     }
   });
   globalWindowListeners = [];
@@ -110,7 +92,6 @@ function clearAllWindowListeners() {
     try {
       resizeUnlisten();
     } catch (error) {
-      console.warn('清理resize监听器失败:', error);
     }
     resizeUnlisten = null;
   }
@@ -119,8 +100,6 @@ function clearAllWindowListeners() {
 // 组件激活时（用于 keep-alive）
 onActivated(() => {
   const logId = `HOME_ACTIVATED_${Date.now()}`;
-  console.log(`[${logId}] ========== Home 组件激活 ==========`);
-  console.log(`[${logId}] 重置 windowStateInitialized`);
   
   // 重置状态，确保每次激活都重新设置窗口
   windowStateInitialized = false;
@@ -132,14 +111,12 @@ onActivated(() => {
 // 组件失活时（用于 keep-alive）
 onDeactivated(() => {
   const logId = `HOME_DEACTIVATED_${Date.now()}`;
-  console.log(`[${logId}] ========== Home 组件失活 ==========`);
   clearAllWindowListeners();
 })
 
 // 组件挂载时
 onMounted(() => {
   const logId = `HOME_MOUNTED_${Date.now()}`;
-  console.log(`[${logId}] ========== Home 组件挂载 ==========`);
   // 立即设置窗口尺寸，避免闪烁
   prepareWindowOnLogin();
 });
@@ -147,7 +124,6 @@ onMounted(() => {
 // 组件卸载时
 onUnmounted(() => {
   const logId = `HOME_UNMOUNTED_${Date.now()}`;
-  console.log(`[${logId}] ========== Home 组件卸载 ==========`);
   clearAllWindowListeners();
 });
 </script>

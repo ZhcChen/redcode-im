@@ -248,69 +248,56 @@ const handleMaskClick = () => {
 }
 
 const handleEditGroupName = () => {
-  console.log('编辑群名称')
   emit('edit-group-name')
 }
 
 const handleEditGroupAvatar = () => {
-  console.log('编辑群头像')
   emit('edit-group-avatar')
 }
 
 const handleEditGroupNotice = () => {
-  console.log('编辑群公告')
   emit('edit-group-notice')
 }
 
 const handleEditRemark = () => {
-  console.log('编辑备注')
   emit('edit-remark')
 }
 
 const handleAddMember = () => {
-  console.log('添加成员')
   // 显示添加成员对话框
   emit('add-member')
 }
 
 const handleRemoveMember = () => {
-  console.log('删除成员')
   // 显示删除成员对话框
   emit('remove-member')
 }
 
 const toggleMemberExpansion = () => {
   isExpanded.value = !isExpanded.value
-  console.log('切换群成员展示状态:', isExpanded.value ? '展开' : '收起')
 }
 
 const handleViewAllMembers = () => {
-  console.log('查看所有成员')
   // 已合并到 toggleMemberExpansion
 }
 
 const handleMuteChange = (value: boolean) => {
-  console.log('消息免打扰:', value)
   emit('toggle-mute', value)
 }
 
 const handleTopChange = (value: boolean) => {
-  console.log('置顶聊天:', value)
   emit('toggle-top', value)
 }
 
 const handleClearHistory = () => {
-  console.log('清除聊天记录')
   emit('clear-history')
 }
 
 const handleReport = () => {
-  console.log('举报群聊')
   emit('report-group')
 }
 
 const handleLeaveGroup = () => {
-  console.log('退出群聊')
   emit('leave-group')
 }
 </script>

@@ -278,12 +278,7 @@ export const store = createStore<State>({
         // 授权 Token
         SET_TOKEN(state: State, token: string) {
             const mutationId = `MUTATION_${Date.now()}`;
-            console.log(`[${mutationId}] ========== SET_TOKEN 被调用 ==========`);
-            console.log(`[${mutationId}] 旧token:`, state.token ? `${state.token.substring(0, 10)}...` : '无token');
-            console.log(`[${mutationId}] 新token:`, token ? `${token.substring(0, 10)}...` : '无token');
-            console.log(`[${mutationId}] 调用栈:`, new Error().stack);
             state.token = token
-            console.log(`[${mutationId}] ========== SET_TOKEN 完成 ==========`);
         },
 
         // 用户相关
@@ -358,12 +353,6 @@ export const store = createStore<State>({
             // 创建新对象引用，触发响应式更新
             state.user = Object.assign({}, state.user, updates)
 
-            console.log('[Store] ✅ UPDATE_USER_INFO 完成:', {
-                hasUpdates: Object.keys(updates).length > 0,
-                updatedFields: Object.keys(updates),
-                avatar: state.user.avatar,
-                avatarLocalPath: state.user.avatarLocalPath
-            })
         },
 
         SET_VERSION_CHECKING(state: State, checking: boolean) {
@@ -475,7 +464,6 @@ export const store = createStore<State>({
                 const index = state.contacts.list.findIndex(c => c.id === contact.id)
                 if (index !== -1) {
                     state.contacts.list.splice(index, 1)
-                    console.log('🗑️ 删除不存在的联系人:', contact.name)
                 }
             })
 
@@ -483,7 +471,6 @@ export const store = createStore<State>({
             const contactsToAdd = newContacts.filter(contact => !currentContactIds.has(contact.id))
             contactsToAdd.forEach(contact => {
                 state.contacts.list.push(contact)
-                console.log('➕ 添加新联系人:', contact.name)
             })
 
             // 3. 更新已存在的联系人信息
@@ -503,7 +490,6 @@ export const store = createStore<State>({
 
                         if (hasChanged) {
                             state.contacts.list.splice(index, 1, newContact)
-                            console.log('🔄 更新联系人信息:', newContact.name)
                         }
                     }
                 }
@@ -513,7 +499,6 @@ export const store = createStore<State>({
             state.contacts.lastUpdateTime = Date.now()
             state.contacts.error = null
 
-            console.log('✅ 联系人数据同步完成，总数:', state.contacts.list.length)
         },
 
         SET_CONTACTS_ERROR(state: State, error: string | null) {
@@ -576,7 +561,6 @@ export const store = createStore<State>({
                 const index = state.chatList.list.findIndex(c => c.id === chat.id)
                 if (index !== -1) {
                     state.chatList.list.splice(index, 1)
-                    console.log('🗑️ 删除不存在的聊天:', chat.name)
                 }
             })
 
@@ -584,7 +568,6 @@ export const store = createStore<State>({
             const chatsToAdd = newChatList.filter(chat => !currentChatIds.has(chat.id))
             chatsToAdd.forEach(chat => {
                 state.chatList.list.push(chat)
-                console.log('➕ 添加新聊天:', chat.name)
             })
 
             // 3. 更新已存在的聊天信息
@@ -605,7 +588,6 @@ export const store = createStore<State>({
 
                         if (hasChanged) {
                             state.chatList.list.splice(index, 1, newChat)
-                            console.log('🔄 更新聊天信息:', newChat.name)
                         }
                     }
                 }
@@ -618,7 +600,6 @@ export const store = createStore<State>({
             state.chatList.lastUpdateTime = Date.now()
             state.chatList.error = null
 
-            console.log('✅ 聊天列表数据同步完成，总数:', state.chatList.list.length)
         },
 
         UPDATE_CHAT_ITEM(state: State, updatedChat: ChatItem) {
@@ -648,25 +629,17 @@ export const store = createStore<State>({
         },
 
         REMOVE_CHAT_ITEM(state: State, chatId: string) {
-            console.log('🗑️ REMOVE_CHAT_ITEM mutation 被调用:', chatId)
-            console.log('📋 删除前的聊天列表:', state.chatList.list.map(c => ({ id: c.id, name: c.name })))
             // ...
             
             const beforeCount = state.chatList.list.length
             state.chatList.list = state.chatList.list.filter(chat => {
                 const keep = chat.id !== chatId
                 if (!keep) {
-                    console.log('🎯 找到并删除:', chat.name, chat.id)
                 }
                 return keep
             })
             const afterCount = state.chatList.list.length
             
-            console.log('📊 删除结果:', {
-                删除前数量: beforeCount,
-                删除后数量: afterCount,
-                是否成功: beforeCount > afterCount
-            })
         },
 
         // 好友申请相关 mutations
@@ -693,7 +666,6 @@ export const store = createStore<State>({
                 const index = state.friendRequests.list.findIndex(r => r.id === request.id)
                 if (index !== -1) {
                     state.friendRequests.list.splice(index, 1)
-                    console.log('🗑️ 删除不存在的好友申请:', request.name)
                 }
             })
 
@@ -701,7 +673,6 @@ export const store = createStore<State>({
             const requestsToAdd = newFriendRequests.filter(request => !currentRequestIds.has(request.id))
             requestsToAdd.forEach(request => {
                 state.friendRequests.list.push(request)
-                console.log('➕ 添加新好友申请:', request.name)
             })
 
             // 3. 更新已存在的好友申请信息
@@ -720,7 +691,6 @@ export const store = createStore<State>({
 
                         if (hasChanged) {
                             state.friendRequests.list.splice(index, 1, newRequest)
-                            console.log('🔄 更新好友申请信息:', newRequest.name)
                         }
                     }
                 }
@@ -735,7 +705,6 @@ export const store = createStore<State>({
             state.friendRequests.lastUpdateTime = Date.now()
             state.friendRequests.error = null
 
-            console.log('✅ 好友申请数据同步完成，总数:', state.friendRequests.list.length)
         },
 
         SET_FRIEND_REQUESTS_ERROR(state: State, error: string | null) {
@@ -816,7 +785,6 @@ export const store = createStore<State>({
         }) {
             try {
                 // 登录前先清理任何残留状态，确保干净的登录环境
-                console.log('🔄 登录前清理残留状态...');
 
                 // 取消所有pending的请求，避免旧请求干扰新的登录状态
                 try {
@@ -824,7 +792,6 @@ export const store = createStore<State>({
                     cancelAllPendingRequests();
                     setLoggingOut(false); // 重置登出状态
                 } catch (httpError) {
-                    console.warn('清理HTTP状态失败:', httpError);
                 }
 
                 // 清理其他状态
@@ -834,21 +801,13 @@ export const store = createStore<State>({
                     commit('SET_CURRENT_CHAT_GROUP_ID', null);
                     commit('SET_PENDING_FRIEND_REQUESTS', 0);
                 } catch (commitError) {
-                    console.warn('清理状态commit失败:', commitError);
                 }
 
                 // 设置token和用户信息
-                console.log('🔑 准备设置token:', {
-                    tokenPreview: loginData.token ? `${loginData.token.substring(0, 10)}...` : '无token',
-                    userId: loginData.userInfo.id,
-                    userFields: Object.keys(loginData.userInfo)
-                });
 
                 try {
                     commit('SET_TOKEN', loginData.token);
-                    console.log('✅ Token设置成功');
                 } catch (tokenError) {
-                    console.error('❌ Token设置失败:', tokenError);
                     throw tokenError;
                 }
 
@@ -856,52 +815,33 @@ export const store = createStore<State>({
                     const { syncRustBackendToken } = await import('../api/http');
                     await syncRustBackendToken(loginData.token);
                 } catch (syncError) {
-                    console.warn('同步 Rust HTTP token 失败:', syncError);
                 }
 
                 try {
                     commit('SET_USER', loginData.userInfo);
-                    console.log('✅ 用户信息设置成功');
                 } catch (userError) {
-                    console.error('❌ 用户信息设置失败:', userError);
-                    console.error('用户信息结构:', loginData.userInfo);
                     throw userError;
                 }
 
                 try {
-                    console.log('🔄 准备同步头像缓存...');
-                    console.log('🔄 UserApi:', UserApi);
-                    console.log('🔄 syncAvatarCache:', UserApi.syncAvatarCache);
                     await UserApi.syncAvatarCache(true);
-                    console.log('✅ 头像缓存同步完成');
                 } catch (cacheError) {
-                    console.error('❌ 同步头像缓存失败:', cacheError);
-                    console.error('❌ 错误堆栈:', cacheError.stack);
                 }
 
                 try {
                     await dispatch('checkAppUpdate');
                 } catch (versionError) {
-                    console.warn('版本检查失败:', versionError);
                 }
 
                 // 立即验证token是否正确设置
                 const verifyToken = state.token;
                 const verifyLoggedIn = getters.isLoggedIn;
-                console.log('🔍 Token设置验证:', {
-                    stateTokenSet: !!verifyToken,
-                    stateTokenPreview: verifyToken ? `${verifyToken.substring(0, 10)}...` : '无token',
-                    isLoggedIn: verifyLoggedIn,
-                    tokenMatch: verifyToken === loginData.token
-                });
 
                 // 注意：不使用localStorage持久化存储
                 // 因为应用需求是每次打开都要重新登录
 
-                console.log('✅ 登录成功，状态已清理并设置');
                 return { success: true, userInfo: loginData.userInfo, token: loginData.token };
             } catch (error) {
-                console.error('❌ 登录action失败:', error);
                 throw new Error(`登录失败: ${error instanceof Error ? error.message : '未知错误'}`);
             }
         },
@@ -909,20 +849,10 @@ export const store = createStore<State>({
         // 登出 - 显示加载蒙版，快速清除客户端状态，立即关闭WebSocket防止账户混乱
         async logout({commit, state, dispatch, rootGetters}: { commit: any; state: State; dispatch: any; rootGetters: any }) {
             const logoutId = `LOGOUT_${Date.now()}`;
-            console.log(`[${logoutId}] ========== 开始退出登录 ==========`);
-            console.log(`[${logoutId}] 当前状态:`, {
-                hasToken: !!state.token,
-                tokenPreview: state.token ? `${state.token.substring(0, 10)}...` : '无token',
-                isLoggedIn: state.user.isLoggedIn,
-                userId: state.user.id
-            });
-            console.log(`[${logoutId}] 调用栈:`, new Error().stack);
 
             // 如果已经处于未登录状态，立即收起蒙版并退出
             if (!state.token && !state.user.isLoggedIn) {
-                console.log(`[${logoutId}] ⚠️ 已是未登录状态，跳过登出流程`);
                 commit('HIDE_GLOBAL_LOADING')
-                console.log(`[${logoutId}] ========== 退出登录结束 (已未登录) ==========`);
                 return
             }
 
@@ -932,9 +862,7 @@ export const store = createStore<State>({
             for (const accountId of accountIds) {
                 try {
                     await dispatch('accounts/logoutAccount', accountId)
-                    console.log('✅ 已从多账号列表移除账号', accountId)
                 } catch (error) {
-                    console.warn('⚠️ 从多账号列表移除账号失败:', accountId, error)
                 }
             }
 
@@ -946,17 +874,13 @@ export const store = createStore<State>({
                 setLoggingOut(true);
                 cancelAllPendingRequests();
                 syncRustBackendToken(null).catch(() => {});
-                console.log('⚡ 所有待完成请求已取消')
             }).catch((error) => {
-                console.warn('⚠️ 设置登出状态失败:', error)
             })
 
             // 第三步：立即关闭WebSocket连接，防止账户切换混乱
             import('../utils/websocket').then(({ webSocketManager }) => {
                 webSocketManager.closeWebSocket()
-                console.log('⚡ WebSocket连接已立即关闭')
             }).catch((error) => {
-                console.warn('⚠️ WebSocket关闭失败:', error)
                 // 即使WebSocket关闭失败，也要清除状态
                 commit('SET_WEBSOCKET', null)
                 commit('SET_NETWORK_STATE', false)
@@ -978,7 +902,6 @@ export const store = createStore<State>({
 
                 // 强制清除认证状态的函数
                 const forceLogout = async () => {
-                    console.log(`[${logoutId}] 🔥 执行强制清除认证状态`);
                     commit('SET_TOKEN', null)
                     commit('LOGOUT_USER')
 
@@ -986,9 +909,7 @@ export const store = createStore<State>({
                     try {
                         const { setLoggingOut } = await import('../api/http')
                         setLoggingOut(false)
-                        console.log(`[${logoutId}] 📝 已重置登出状态，允许重新登录`)
                     } catch (error) {
-                        console.warn(`[${logoutId}] 重置登出状态失败:`, error)
                     }
 
                     // 重置窗口标题
@@ -996,19 +917,15 @@ export const store = createStore<State>({
                         const { updateWindowTitle } = await import('../utils')
                         await updateWindowTitle() // 不传参数，显示默认标题
                     } catch (error) {
-                        console.warn(`[${logoutId}] 重置窗口标题失败:`, error)
                     }
 
-                    console.log(`[${logoutId}] ✅ 认证状态已清除，将触发路由跳转`)
 
                     // 确保全局加载蒙版被关闭
                     commit('HIDE_GLOBAL_LOADING')
-                    console.log(`[${logoutId}] ========== 退出登录结束 (强制清除) ==========`);
                 }
 
                 // 设置超时保护，确保1.5秒内必须清除token
                 const timeoutId = setTimeout(() => {
-                    console.warn('⚠️ 登出超时，强制清除认证状态')
                     forceLogout()
                 }, 1500)
 
@@ -1017,9 +934,7 @@ export const store = createStore<State>({
                     import('../api/system').then(({ SystemApi }) => {
                         return SystemApi.logout()
                     }).then(() => {
-                        console.log('✅ 服务器端登出成功')
                     }).catch((error) => {
-                        console.warn('⚠️ 服务器端登出失败:', error)
                     }).finally(() => {
                         // 清除超时定时器
                         clearTimeout(timeoutId)
@@ -1027,17 +942,14 @@ export const store = createStore<State>({
                         forceLogout()
                     })
                 } catch (error) {
-                    console.warn('⚠️ 无法加载API模块:', error)
                     // 清除超时定时器
                     clearTimeout(timeoutId)
                     // 立即清除认证状态
                     forceLogout()
                 }
 
-                console.log('✅ 后台清理已启动，等待完成...')
             }, 300) // 给用户一点反馈时间
 
-            console.log('✅ WebSocket已关闭，正在处理后台清理...')
         },
 
         // 切换主题
@@ -1075,7 +987,6 @@ export const store = createStore<State>({
                     commit('SET_PENDING_FRIEND_REQUESTS', 0)
                 }
             } catch (error) {
-                console.error('❌ 获取好友申请数量失败:', error)
                 // 如果发生错误，使用默认值0
                 commit('SET_PENDING_FRIEND_REQUESTS', 0)
             }
@@ -1115,7 +1026,6 @@ export const store = createStore<State>({
                 })
             } catch (error: any) {
                 const message = error?.message || '检查更新失败'
-                console.warn('桌面端检查更新失败:', message)
                 commit('SET_VERSION_ERROR', message)
                 commit('SET_VERSION_INFO', { hasUpdate: false, info: null })
             } finally {
@@ -1158,7 +1068,6 @@ export const store = createStore<State>({
                     const cached = await loadCache<Contact[]>(CACHE_KEYS.contacts)
                     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
                         commit('SET_CONTACTS_LIST', cached.data)
-                        console.log('💾 使用缓存的联系人列表，数量:', cached.data.length)
                     }
                 }
 
@@ -1244,18 +1153,15 @@ export const store = createStore<State>({
                     if (params.compareWithStore && state.contacts.list.length > 0) {
                         // 使用智能同步，避免列表闪烁
                         commit('SYNC_CONTACTS_LIST', contacts)
-                        console.log('🔄 使用智能同步模式更新联系人列表')
                     } else {
                         // 直接替换，用于首次加载或搜索
                         commit('SET_CONTACTS_LIST', contacts)
-                        console.log('📝 使用替换模式设置联系人列表')
                     }
 
                     if (params.keyword) {
                         commit('SET_CONTACTS_SEARCH_KEYWORD', params.keyword)
                     }
 
-                    console.log('✅ 联系人列表加载成功:', contacts.length, '个联系人')
 
                     if (!isSearchMode) {
                         const snapshot = JSON.parse(JSON.stringify(contacts)) as Contact[]
@@ -1263,10 +1169,8 @@ export const store = createStore<State>({
                     }
                 } else {
                     commit('SET_CONTACTS_ERROR', response.message || '加载联系人列表失败')
-                    console.warn('❌ 联系人列表API调用失败:', response.message)
                 }
             } catch (error: any) {
-                console.error('❌ 加载联系人列表异常:', error)
                 commit('SET_CONTACTS_ERROR', error.message || '网络错误，请稍后重试')
             } finally {
                 if (shouldResetLoading) {
@@ -1308,7 +1212,6 @@ export const store = createStore<State>({
                             avatarLocalPath: undefined,
                         }))
                         commit('SET_CHAT_LIST', sanitizedData)
-                        console.log('💾 使用缓存的聊天列表，数量:', cached.data.length)
                     }
                 }
 
@@ -1324,7 +1227,6 @@ export const store = createStore<State>({
 
                 if (response.success && Array.isArray(response.data)) {
                     const groups = response.data
-                    console.log('🔍 API响应的原始群组数据:', groups)
 
                     const contactsMap = new Map<string, any>((state.contacts?.list || []).map((contact: any) => [String(contact.id), contact]))
                     const currentNameSet = new Set<string>()
@@ -1547,42 +1449,21 @@ export const store = createStore<State>({
                     //    - 获取临时下载地址
                     //    - 下载到本地
                     //    - 返回本地 Blob URL
-                    console.log('🔍 [loadChatList] 开始同步头像缓存, 会话列表数量:', validChatList.length)
                     await Promise.all(
                         validChatList.map(async (chatItem) => {
                             // 处理群聊头像
                             if (chatItem.groupType === 1) {
-                                console.log('🔍 [loadChatList] 检查群聊头像:', {
-                                    groupId: chatItem.groupId,
-                                    name: chatItem.name,
-                                    hasExtra: !!chatItem.extra,
-                                    extra: chatItem.extra
-                                })
 
                                 // 从 extra 中获取 room_avatar_object_key
                                 const roomAvatarObjectKey = chatItem.extra?.room_avatar_object_key ||
                                                             chatItem.extra?.roomAvatarObjectKey;
 
-                                console.log('🔍 [loadChatList] 提取 roomAvatarObjectKey:', {
-                                    groupId: chatItem.groupId,
-                                    name: chatItem.name,
-                                    roomAvatarObjectKey
-                                })
 
                                 if (!roomAvatarObjectKey) {
-                                    console.warn('⚠️ [loadChatList] 群聊缺少 avatar_object_key:', {
-                                        groupId: chatItem.groupId,
-                                        name: chatItem.name
-                                    })
                                     return;
                                 }
 
                                 try {
-                                    console.log('🔄 [loadChatList] 开始获取群头像临时URL:', {
-                                        groupId: chatItem.groupId,
-                                        name: chatItem.name,
-                                        roomAvatarObjectKey
-                                    })
                                     // 检查本地缓存
                                     const { UserApi } = await import('../api/user')
                                     const localPath = await UserApi.syncGroupAvatarCache(
@@ -1590,11 +1471,6 @@ export const store = createStore<State>({
                                         roomAvatarObjectKey,
                                         false // 不强制刷新,优先使用缓存
                                     )
-                                    console.log('✅ [loadChatList] 获取群头像临时URL成功:', {
-                                        groupId: chatItem.groupId,
-                                        name: chatItem.name,
-                                        localPath
-                                    })
                                     if (localPath) {
                                         chatItem.avatarLocalPath = localPath
                                         // 同时更新store中的对应项
@@ -1605,21 +1481,10 @@ export const store = createStore<State>({
                                     }
                                 } catch (error) {
                                     // 静默失败,使用默认头像
-                                    console.error('❌ [loadChatList] 群头像缓存同步失败:', {
-                                        groupId: chatItem.groupId,
-                                        name: chatItem.name,
-                                        error
-                                    })
                                 }
                             }
                             // 处理私聊头像
                             else if (chatItem.groupType === 0) {
-                                console.log('🔍 [loadChatList] 检查私聊头像:', {
-                                    roomId: chatItem.roomId,
-                                    name: chatItem.name,
-                                    hasExtra: !!chatItem.extra,
-                                    extra: chatItem.extra
-                                })
 
                                 // 从 extra 中获取 friend_avatar_object_key 和 friend_id
                                 const friendAvatarObjectKey = chatItem.extra?.friend_avatar_object_key ||
@@ -1631,30 +1496,12 @@ export const store = createStore<State>({
                                                 chatItem.extra?.friend_user_id ||
                                                 chatItem.extra?.friendUserId;
 
-                                console.log('🔍 [loadChatList] 提取私聊头像信息:', {
-                                    roomId: chatItem.roomId,
-                                    name: chatItem.name,
-                                    friendId,
-                                    friendAvatarObjectKey
-                                })
 
                                 if (!friendAvatarObjectKey || !friendId) {
-                                    console.warn('⚠️ [loadChatList] 私聊缺少 avatar_object_key 或 friend_id:', {
-                                        roomId: chatItem.roomId,
-                                        name: chatItem.name,
-                                        friendId,
-                                        friendAvatarObjectKey
-                                    })
                                     return;
                                 }
 
                                 try {
-                                    console.log('🔄 [loadChatList] 开始获取私聊用户头像临时URL:', {
-                                        roomId: chatItem.roomId,
-                                        name: chatItem.name,
-                                        friendId,
-                                        friendAvatarObjectKey
-                                    })
                                     // 检查本地缓存
                                     const { UserApi } = await import('../api/user')
                                     const localPath = await UserApi.syncUserAvatarCache(
@@ -1662,12 +1509,6 @@ export const store = createStore<State>({
                                         friendAvatarObjectKey,
                                         false // 不强制刷新,优先使用缓存
                                     )
-                                    console.log('✅ [loadChatList] 获取私聊用户头像临时URL成功:', {
-                                        roomId: chatItem.roomId,
-                                        name: chatItem.name,
-                                        friendId,
-                                        localPath
-                                    })
                                     if (localPath) {
                                         chatItem.avatarLocalPath = localPath
                                         // 同时更新store中的对应项
@@ -1678,12 +1519,6 @@ export const store = createStore<State>({
                                     }
                                 } catch (error) {
                                     // 静默失败,使用默认头像
-                                    console.error('❌ [loadChatList] 私聊用户头像缓存同步失败:', {
-                                        roomId: chatItem.roomId,
-                                        name: chatItem.name,
-                                        friendId,
-                                        error
-                                    })
                                 }
                             }
                         })
@@ -1693,11 +1528,9 @@ export const store = createStore<State>({
                     if (compareWithStore && state.chatList.list.length > 0) {
                         // 使用智能同步，避免列表闪烁
                         commit('SYNC_CHAT_LIST', validChatList)
-                        console.log('🔄 使用智能同步模式更新聊天列表')
                     } else {
                         // 直接替换，用于首次加载
                         commit('SET_CHAT_LIST', validChatList)
-                        console.log('📝 使用替换模式设置聊天列表')
                     }
 
                     // 同步更新当前账号的未读数
@@ -1709,13 +1542,10 @@ export const store = createStore<State>({
                     const snapshot = JSON.parse(JSON.stringify(validChatList)) as ChatItem[]
                     await saveCache(CACHE_KEYS.chatList, snapshot)
 
-                    console.log('✅ 聊天列表加载成功:', validChatList.length, '个聊天')
                 } else {
                     commit('SET_CHAT_LIST_ERROR', response.message || '加载聊天列表失败')
-                    console.warn('❌ 聊天列表API调用失败:', response.message)
                 }
             } catch (error: any) {
-                console.error('❌ 加载聊天列表异常:', error)
                 commit('SET_CHAT_LIST_ERROR', error.message || '网络错误，请稍后重试')
             } finally {
                 if (shouldResetLoading) {
@@ -1771,7 +1601,6 @@ export const store = createStore<State>({
                     const cached = await loadCache<FriendRequest[]>(CACHE_KEYS.friendRequests)
                     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
                         commit('SET_FRIEND_REQUESTS', cached.data)
-                        console.log('💾 使用缓存的好友申请列表，数量:', cached.data.length)
                     }
                 }
 
@@ -1785,7 +1614,6 @@ export const store = createStore<State>({
                 const { FriendApi } = await import('../api/friend')
                 const response = await FriendApi.getFriendRequests({})
 
-                console.log('好友申请API响应:', response)
 
                 if (response.success) {
                     const formatTime = (date: Date | string | null | undefined) => {
@@ -1838,17 +1666,14 @@ export const store = createStore<State>({
                         }))
                         : []
 
-                    console.log('✅ 加载好友申请成功:', friendRequests.length, '条申请')
 
                     // 根据参数选择使用同步模式还是替换模式
                     if (compareWithStore && state.friendRequests.list.length > 0) {
                         // 使用智能同步，避免列表闪烁
                         commit('SYNC_FRIEND_REQUESTS_LIST', friendRequests)
-                        console.log('🔄 使用智能同步模式更新好友申请列表')
                     } else {
                         // 直接替换，用于首次加载
                         commit('SET_FRIEND_REQUESTS_LIST', friendRequests)
-                        console.log('📝 使用替换模式设置好友申请列表')
                     }
 
                     const snapshot = JSON.parse(JSON.stringify(friendRequests)) as FriendRequest[]
@@ -1867,7 +1692,6 @@ export const store = createStore<State>({
                     }
                 } else {
                     // API调用失败
-                    console.warn('❌ 好友申请API调用失败:', response.message)
                     commit('SET_FRIEND_REQUESTS_ERROR', response.message || '获取好友申请失败')
                     const currentAccountId = state.accounts?.currentAccountId
                     if (currentAccountId) {
@@ -1883,7 +1707,6 @@ export const store = createStore<State>({
                     }
                 }
             } catch (error: any) {
-                console.error('❌ 加载好友申请异常:', error)
                 commit('SET_FRIEND_REQUESTS_ERROR', error.message || '网络错误，请稍后重试')
                 const currentAccountId = state.accounts?.currentAccountId
                 if (currentAccountId) {
@@ -1927,7 +1750,6 @@ export const store = createStore<State>({
         // 更新当前聊天群头像
         async updateCurrentChatAvatar({commit, state}: { commit: any; state: any }, payload: { groupId: string; avatarUrl: string }) {
             const { groupId, avatarUrl } = payload;
-            console.log('🔄 更新当前聊天群头像:', { groupId, avatarUrl });
             
             // 更新当前聊天群ID对应的群聊头像
             commit('UPDATE_CURRENT_CHAT_AVATAR', { groupId, avatarUrl });

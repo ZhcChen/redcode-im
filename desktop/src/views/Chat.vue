@@ -75,16 +75,18 @@
               <div class="chat-name">
                 {{ chat.name }}
                 <span v-if="chat.isTop" class="top-indicator">📌</span>
-                <span class="chat-type">
-                  {{ chat.groupType === 1 ? '[群聊]' : chat.groupType === 2 ? '[收藏夹]' : '[单聊]' }}
-                </span>
               </div>
               <div class="chat-time">{{ chat.time }}</div>
             </div>
             <div class="chat-message-badge">
               <div class="chat-message">{{ chat.lastMessage }}</div>
               <!-- 非免打扰状态显示未读角标 -->
-              <div v-if="chat.unreadCount > 0 && chat.chatStatus !== 1" class="chat-badge">{{ chat.unreadCount }}</div>
+              <div
+                v-if="chat.unreadCount > 0 && chat.chatStatus !== 1"
+                :class="['chat-badge', { 'is-single-digit': chat.unreadCount < 10 }]"
+              >
+                {{ chat.unreadCount }}
+              </div>
             </div>
           </div>
         </div>
@@ -612,7 +614,6 @@ const releaseBlobUrl = (url: string | null) => {
     try {
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.warn('释放本地URL失败:', error);
     }
     blobUrlRegistry.delete(url);
   }
@@ -732,7 +733,6 @@ const scheduleMessagesCachePersist = (groupId: string | null | undefined, messag
   }
   messageCachePersistTimer = setTimeout(() => {
     persistMessagesCache(groupId, messageList).catch((error) => {
-      console.warn('[cache] 持久化消息缓存失败:', error)
     })
   }, 400)
 }
@@ -838,7 +838,6 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
         summary: buildAttachmentSummary('image', file.name)
       };
     } catch (error) {
-      console.warn('获取图片尺寸失败:', error);
       return {
         partType: 'image',
         mime,
@@ -859,7 +858,6 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
         summary: buildAttachmentSummary('video', file.name)
       };
     } catch (error) {
-      console.warn('获取视频元数据失败:', error);
       return {
         partType: 'video',
         mime,
@@ -878,7 +876,6 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
         summary: buildAttachmentSummary('audio', file.name)
       };
     } catch (error) {
-      console.warn('获取音频时长失败:', error);
       return {
         partType: 'audio',
         mime,
@@ -1082,7 +1079,6 @@ const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string |
     const objectUrl = URL.createObjectURL(blob);
     return { localPath: objectUrl, fromBlob: true };
   } catch (error) {
-    console.error('下载附件失败，回退至签名URL:', error);
     return { localPath: downloadUrl, fromBlob: false };
   }
 };
@@ -1199,7 +1195,6 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
         });
         return { localPath, downloadUrl: payload.downloadUrl };
       } catch (error: any) {
-        console.error('获取附件本地缓存失败:', error);
         toast.error(error?.message || '图片加载失败');
         return null;
       }
@@ -1360,15 +1355,9 @@ const groupMembers = ref<RoomMember[]>([])
 const handleShowGroupSettings = async () => {
   if (!selectedChat.value) return
 
-  console.log('🔧 打开群设置抽屉', {
-    groupId: selectedChat.value.groupId,
-    groupType: selectedChat.value.groupType,
-    currentMemberCount: groupMembers.value.length
-  })
 
   // 如果是群聊且成员列表为空，先加载群成员
   if (selectedChat.value.groupType === 1 && groupMembers.value.length === 0) {
-    console.log('🔄 群成员列表为空，重新加载...')
     await loadGroupMembers(selectedChat.value.groupId)
   }
 
@@ -1451,17 +1440,14 @@ const chatListWidth = computed({
 // API调用函数 - 优化为使用store持久化
 const loadChatList = async (forceRefresh = false) => {
   try {
-    console.log('🔄 开始加载聊天列表...', { forceRefresh, isInitialized: isInitialized.value })
 
     // 如果已经初始化过且不强制刷新，直接返回
     if (isInitialized.value && !forceRefresh) {
-      console.log('✅ 聊天列表已初始化，跳过重复加载')
       return
     }
 
     // 如果不强制刷新且store中有数据，优先从store加载
     if (!forceRefresh && chatList.value.length > 0) {
-      console.log('✅ 从store中加载聊天列表:', chatList.value.length, '个聊天')
       isInitialized.value = true
       return
     }
@@ -1479,9 +1465,7 @@ const loadChatList = async (forceRefresh = false) => {
     webSocketManager.ensureRoomsSubscribed(roomIds, false)
 
     isInitialized.value = true
-    console.log('✅ 聊天列表加载完成')
   } catch (error: any) {
-    console.error('❌ 加载聊天列表失败:', error)
     // 静默处理错误，不显示toast
   }
 }
@@ -1492,7 +1476,6 @@ const sendGroupNoticeUpdateSystemMessage = async (groupId: string, groupNotice: 
     const user = store.getters.currentUser
     const timestamp = Date.now()
 
-    console.log('🔄 发送群公告修改系统消息...', { groupId, groupNotice })
 
     // 构造系统消息对象，参考bear-chat-uniapp的格式
     const systemMessage = {
@@ -1519,23 +1502,19 @@ const sendGroupNoticeUpdateSystemMessage = async (groupId: string, groupNotice: 
       showTimeFlag: true
     }
 
-    console.log('📤 准备发送的群公告修改系统消息:', systemMessage)
 
     // 通过WebSocket发送系统消息
     await new Promise((resolve, reject) => {
       webSocketManager.sendMessage(systemMessage, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
         if (success) {
-          console.log('✅ 群公告修改系统消息发送成功')
           resolve(true)
         } else {
-          console.error('❌ 群公告修改系统消息发送失败')
           reject(new Error('系统消息发送失败'))
         }
       })
     })
 
   } catch (error: any) {
-    console.error('❌ 发送群公告修改系统消息失败:', error)
     // 静默处理错误，不影响用户体验
   }
 }
@@ -1546,7 +1525,6 @@ const sendGroupAvatarUpdateSystemMessage = async (groupId: string, avatarUrl: st
     const user = store.getters.currentUser
     const timestamp = Date.now()
 
-    console.log('🔄 发送群头像修改系统消息...', { groupId, avatarUrl })
 
     // 构造系统消息对象，参考bear-chat-uniapp的格式
     const systemMessage = {
@@ -1572,23 +1550,19 @@ const sendGroupAvatarUpdateSystemMessage = async (groupId: string, avatarUrl: st
       showTimeFlag: true
     }
 
-    console.log('📤 准备发送的群头像修改系统消息:', systemMessage)
 
     // 通过WebSocket发送系统消息
     await new Promise((resolve, reject) => {
       webSocketManager.sendMessage(systemMessage, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
         if (success) {
-          console.log('✅ 群头像修改系统消息发送成功')
           resolve(true)
         } else {
-          console.error('❌ 群头像修改系统消息发送失败')
           reject(new Error('系统消息发送失败'))
         }
       })
     })
 
   } catch (error: any) {
-    console.error('❌ 发送群头像修改系统消息失败:', error)
     // 静默处理错误，不影响用户体验
   }
 }
@@ -1596,7 +1570,6 @@ const sendGroupAvatarUpdateSystemMessage = async (groupId: string, avatarUrl: st
 // 加载群组详细信息和成员列表（与bear-chat-uniapp保持一致）
 const loadGroupDetailInfo = async (groupId: string) => {
   try {
-    console.log('🔄 开始加载群组详细信息:', groupId)
 
     // 1. 获取群组基本信息
     const groupInfoResponse = await GroupApi.getChatGroupInfo({
@@ -1610,57 +1583,26 @@ const loadGroupDetailInfo = async (groupId: string) => {
           ? groupInfo.extra.description
           : '') || ''
 
-      console.log('✅ 群组信息获取成功:', {
-        id: groupInfo.id,
-        name: groupInfo.name,
-        description,
-        avatar: groupInfo.avatar,
-        extra: groupInfo.extra
-      })
 
       // 获取群头像的临时下载URL
       let avatarUrl = groupInfo.avatar || selectedChat.value?.avatar
       const roomAvatarObjectKey = groupInfo.extra?.room_avatar_object_key ||
                                    groupInfo.extra?.roomAvatarObjectKey
 
-      console.log('🔍 [loadGroupDetailInfo] 头像信息:', {
-        groupId,
-        原始avatarUrl: avatarUrl,
-        roomAvatarObjectKey,
-        hasExtra: !!groupInfo.extra,
-        extraKeys: groupInfo.extra ? Object.keys(groupInfo.extra) : []
-      })
 
       if (roomAvatarObjectKey) {
         try {
-          console.log('🔄 [loadGroupDetailInfo] 开始获取群头像临时URL:', {
-            groupId,
-            roomAvatarObjectKey
-          })
           const localPath = await UserApi.syncGroupAvatarCache(
             groupId,
             roomAvatarObjectKey,
             false
           )
-          console.log('✅ [loadGroupDetailInfo] 获取群头像临时URL成功:', {
-            groupId,
-            localPath
-          })
           if (localPath) {
             avatarUrl = localPath
           }
         } catch (error) {
-          console.error('❌ [loadGroupDetailInfo] 获取群头像临时URL失败:', {
-            groupId,
-            error
-          })
         }
       } else {
-        console.warn('⚠️ [loadGroupDetailInfo] 未找到 roomAvatarObjectKey，将使用原始 URL:', {
-          groupId,
-          avatarUrl,
-          extra: groupInfo.extra
-        })
       }
 
       if (selectedChat.value) {
@@ -1675,11 +1617,6 @@ const loadGroupDetailInfo = async (groupId: string) => {
           showNoticeFlag: description.trim().length > 0
         }
 
-        console.log('📋 更新后的selectedChat数据:', {
-          name: selectedChat.value.name,
-          groupNotice: selectedChat.value.groupNotice,
-          showNoticeFlag: selectedChat.value.showNoticeFlag
-        })
       }
     }
 
@@ -1689,15 +1626,6 @@ const loadGroupDetailInfo = async (groupId: string) => {
     })
 
     if (membersResponse.success && membersResponse.data) {
-      console.log('✅ 群成员列表获取成功:', {
-        count: membersResponse.data.length,
-        members: membersResponse.data.map(m => ({
-          userId: m.userId,
-          username: m.username,
-          nickname: m.nickname,
-          avatarUrl: m.avatarUrl
-        }))
-      })
 
       // 保存群成员数据
       groupMembers.value = membersResponse.data
@@ -1707,13 +1635,11 @@ const loadGroupDetailInfo = async (groupId: string) => {
         selectedChat.value.memberCount = membersResponse.data.length
       }
     } else {
-      console.warn('❌ 群成员列表获取失败:', membersResponse.message)
       // 清空群成员数据
       groupMembers.value = []
     }
 
   } catch (error: any) {
-    console.error('❌ 加载群组详细信息失败:', error)
     // 静默处理错误，不影响聊天功能
   }
 }
@@ -1737,14 +1663,12 @@ const loadMessages = async (groupId: string) => {
         return restoredMessage
       })
       usedCache = true
-      console.log('💾 使用缓存的消息列表，数量:', cached.data.length)
     }
 
     if (!usedCache) {
       messagesLoading.value = true
     }
 
-    console.log('🔄 开始加载群聊消息:', groupId)
     const response = await MessageApi.getMessageListByChatGroupId({
       groupId,
       limit: 50,
@@ -1775,15 +1699,6 @@ const loadMessages = async (groupId: string) => {
       messages.value = sortedMessages
       await persistMessagesCache(groupId, sortedMessages)
 
-      console.log('✅ 消息加载成功:', messages.value.length, '条消息')
-      console.log('📋 消息详情（按时间排序）:', messages.value.map((msg: Message) => ({
-        id: msg.id,
-        content: msg.content,
-        isSelf: msg.isSelf,
-        senderName: msg.senderName,
-        time: msg.time,
-        createTime: msg.createTime
-      })))
 
       // 同步消息发送者头像缓存
       const uniqueSenderIds = new Set<string>()
@@ -1794,7 +1709,6 @@ const loadMessages = async (groupId: string) => {
       })
 
       if (uniqueSenderIds.size > 0) {
-        console.log('🔄 开始同步消息发送者头像，数量:', uniqueSenderIds.size)
 
         // 判断是否为私聊
         const isPrivateChat = selectedChat.value?.groupType === 0
@@ -1810,11 +1724,6 @@ const loadMessages = async (groupId: string) => {
             if (senderMessage?.senderAvatarObjectKey) {
               avatarObjectKey = senderMessage.senderAvatarObjectKey
               userName = senderMessage.senderName
-              console.log('🔍 从消息对象获取 avatarObjectKey:', {
-                senderId,
-                userName,
-                avatarObjectKey
-              })
             } else if (isPrivateChat) {
               // 私聊:从 selectedChat.extra 中获取对方用户的 avatar_object_key
               const friendAvatarObjectKey = selectedChat.value?.extra?.friend_avatar_object_key ||
@@ -1824,32 +1733,15 @@ const loadMessages = async (groupId: string) => {
               avatarObjectKey = friendAvatarObjectKey
               userName = selectedChat.value?.friendName || selectedChat.value?.name
 
-              console.log('🔍 [私聊] 提取对方用户头像信息:', {
-                senderId,
-                userName,
-                avatarObjectKey,
-                extra: selectedChat.value?.extra
-              })
             } else {
               // 群聊:从群成员列表中找到对应的成员
               const member = groupMembers.value?.find(m => m.userId === senderId)
               avatarObjectKey = member?.avatarObjectKey
               userName = member?.nickname || member?.username
 
-              console.log('🔍 [群聊] 从成员列表查找:', {
-                senderId,
-                userName,
-                avatarObjectKey
-              })
             }
 
             if (!avatarObjectKey) {
-              console.warn('⚠️ 未找到用户的 avatarObjectKey:', {
-                senderId,
-                userName,
-                isPrivateChat,
-                chatType: selectedChat.value?.groupType
-              })
               return
             }
 
@@ -1859,45 +1751,27 @@ const loadMessages = async (groupId: string) => {
               // 更新消息列表中该发送者的所有消息
               sortedMessages.forEach(msg => {
                 if (msg.senderId === senderId && !msg.isSelf) {
-                  console.log('🔍 [DEBUG] 同步前消息字段:', JSON.stringify({
-                    senderId: msg.senderId,
-                    senderAvatar: msg.senderAvatar,
-                    senderAvatarLocalPath: msg.senderAvatarLocalPath,
-                    senderAvatarObjectKey: msg.senderAvatarObjectKey
-                  }, null, 2))
                   msg.senderAvatarLocalPath = localPath
                   msg.senderAvatarObjectKey = avatarObjectKey
-                  console.log('🔍 [DEBUG] 同步后消息字段:', JSON.stringify({
-                    senderId: msg.senderId,
-                    senderAvatar: msg.senderAvatar,
-                    senderAvatarLocalPath: msg.senderAvatarLocalPath,
-                    senderAvatarObjectKey: msg.senderAvatarObjectKey
-                  }, null, 2))
                 }
               })
 
-              console.log('✅ 同步用户头像成功:', { senderId, userName, localPath })
             } catch (error) {
-              console.error('❌ 同步用户头像失败:', { senderId, userName, error })
             }
           })
         )
 
-        console.log('✅ 消息发送者头像同步完成')
       }
 
       // 初始化消息搜索索引
       if (messages.value.length > 0 && selectedChat.value) {
         messageSearchService.initializeSearchIndex(messages.value, selectedChat.value.name, selectedChat.value.groupId).catch(error => {
-          console.warn('⚠️ 搜索索引初始化失败:', error)
         })
       }
     } else {
-      console.warn('❌ 消息加载失败:', response.message)
       messages.value = []
     }
   } catch (error: any) {
-    console.error('❌ 消息加载异常:', error)
     messages.value = []
     toast.error('加载消息失败: ' + (error.message || '网络错误'))
   } finally {
@@ -1996,11 +1870,6 @@ const parseVideoScreenShotSrc = (message: Message): string => {
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
 
-    console.log('🎬 parseVideoScreenShotSrc - 解析视频缩略图:', {
-      messageId: message.id,
-      status: message.status,
-      content: content
-    })
 
     // 只处理专门的缩略图字段，不使用视频文件本身
     if (content.screenShot) {
@@ -2008,12 +1877,10 @@ const parseVideoScreenShotSrc = (message: Message): string => {
       const thumbnailUrl = target === 'local'
         ? `${fileConfig.getFileByPath}${content.screenShot}`
         : content.screenShot
-      console.log('✅ 使用视频专用缩略图:', thumbnailUrl)
       return thumbnailUrl
     }
 
     // 对于没有缩略图的视频，返回空字符串，让模板显示默认占位符
-    console.log('ℹ️ 视频消息无专用缩略图，将显示默认占位符')
     return ''
   }
 
@@ -2038,17 +1905,11 @@ const parseVideoSrc = (message: Message): string => {
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
 
-    console.log('🎬 parseVideoSrc - 解析视频URL:', {
-      messageId: message.id,
-      status: message.status,
-      content: content
-    })
 
     // 1. 消息发送成功或历史消息，优先使用服务器地址
     if ((message.status >= 2 && message.status <= 4) || !message.status) {
       // 优先使用现有的完整 URL
       if (content.url && content.url.trim() !== '' && (content.url.startsWith('http://') || content.url.startsWith('https://'))) {
-        console.log('✅ 视频使用完整 URL:', content.url)
         return content.url
       }
 
@@ -2058,7 +1919,6 @@ const parseVideoSrc = (message: Message): string => {
         const serverUrl = target === 'local'
           ? `${fileConfig.showFile}${content.fullPath}`
           : content.fullPath
-        console.log('✅ 视频使用 fullPath 构建URL:', serverUrl)
         return serverUrl
       }
 
@@ -2067,7 +1927,6 @@ const parseVideoSrc = (message: Message): string => {
         const target = content.fileSaveTarget || 'local'
         if (target === 'local') {
           const constructedUrl = `${fileConfig.showFile}chattingFiles/${content.fileName}`
-          console.log('✅ 视频历史消息使用 fileName 构建URL:', constructedUrl)
           return constructedUrl
         }
       }
@@ -2076,17 +1935,14 @@ const parseVideoSrc = (message: Message): string => {
     // 2. 发送中或失败时，使用本地预览
     if (message.status === 1 || message.status === 5) {
       if (content.localUrl) {
-        console.log('🔄 视频发送中/失败，使用本地预览:', content.localUrl)
         return content.localUrl
       }
 
       if (content.url && (content.url.startsWith('blob:') || content.url.startsWith('data:'))) {
-        console.log('🔄 视频发送中/失败，使用blob URL:', content.url)
         return content.url
       }
     }
 
-    console.warn('❌ 无法构建视频URL')
     return ''
   }
 
@@ -2512,20 +2368,12 @@ const saveCurrentAccountState = (accountId: string) => {
     editingGroupNotice: editingGroupNotice.value,
     editingRemark: editingRemark.value
   })
-  console.log(`💾 已保存账号 ${accountId} 的 Chat 状态`, {
-    hasSelectedChat: !!selectedChat.value,
-    messagesCount: messages.value.length
-  })
 }
 
 // 恢复指定账号的状态
 const restoreAccountState = (accountId: string) => {
   const state = accountStates.get(accountId)
   if (state) {
-    console.log(`📂 恢复账号 ${accountId} 的 Chat 状态`, {
-      hasSelectedChat: !!state.selectedChat,
-      messagesCount: state.messages.length
-    })
     
     selectedChat.value = state.selectedChat
     messages.value = [...state.messages]
@@ -2543,7 +2391,6 @@ const restoreAccountState = (accountId: string) => {
       webSocketManager.joinRoom(state.selectedChat.groupId)
     }
   } else {
-    console.log(`🆕 账号 ${accountId} 无缓存状态，使用初始状态`)
     
     // 初始化为空状态
     selectedChat.value = null
@@ -2579,10 +2426,6 @@ watch(
   () => store.state.accounts?.currentAccountId,
   (newAccountId: any, oldAccountId: any) => {
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
-      console.log('🔄 检测到账号切换', {
-        from: oldAccountId,
-        to: newAccountId
-      })
       
       // 保存旧账号的状态
       saveCurrentAccountState(oldAccountId)
@@ -2590,7 +2433,6 @@ watch(
       // 恢复新账号的状态
       restoreAccountState(newAccountId)
       
-      console.log('✅ 账号状态切换完成')
     }
   }
 )
@@ -2613,7 +2455,6 @@ const selectChat = async (chat: ChatItem) => {
 
     // 异步调用API更新服务器状态
     markChatAsRead(chat).catch(error => {
-      console.error('标记已读失败，回滚本地状态:', error)
       // 如果API调用失败，回滚本地状态
       store.dispatch('updateChatItem', chat)
     })
@@ -2629,39 +2470,20 @@ const selectChat = async (chat: ChatItem) => {
 const markChatAsRead = async (chat: ChatItem) => {
   try {
     const currentUser = store.getters.currentUser
-    console.log('🔄 标记聊天为已读:', {
-      chatName: chat.name,
-      chatId: chat.id,
-      groupId: chat.groupId,
-      currentUnreadCount: chat.unreadCount,
-      userId: currentUser?.id,
-      currentTime: getTimeStr(Date.now())
-    })
     
     if (!currentUser?.id) {
-      console.warn('❌ 用户信息缺失，无法标记已读')
       return
     }
     
     if (!chat.groupId) {
-      console.warn('❌ 群组ID为空，无法标记已读:', {
-        chat: chat,
-        chatId: chat.id,
-        groupId: chat.groupId
-      })
       toast.error('群组ID为空，无法标记已读')
       return
     }
     
     if (!chat.lastMessageId) {
-      console.warn('⚠️ 未找到最新消息 ID，跳过远端标记已读')
       return
     }
 
-    console.log('📤 发送标记已读请求:', {
-      groupId: chat.groupId,
-      lastMessageId: chat.lastMessageId
-    })
 
     const response = await MessageApi.markMessagesAsRead({
       groupId: chat.groupId,
@@ -2671,13 +2493,10 @@ const markChatAsRead = async (chat: ChatItem) => {
     if (response.success) {
       const updatedChat = { ...chat, unreadCount: 0 }
       store.dispatch('updateChatItem', updatedChat)
-      console.log('✅ 聊天已标记为已读:', chat.name)
     } else {
-      console.warn('❌ 标记聊天已读失败:', response.message)
       toast.error('标记已读失败: ' + (response.message || '未知错误'))
     }
   } catch (error: any) {
-    console.error('❌ 标记聊天已读异常:', error)
     toast.error('标记已读失败: ' + (error.message || '网络错误'))
   }
 }
@@ -2737,7 +2556,6 @@ const sendMessage = async () => {
     timestamp
   }
 
-  console.log('📤 [sendMessage] 添加临时消息:', { tempId, content })
   messages.value.push(tempMessage)
   // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
   recentSentMessages.value.add(tempId)
@@ -2752,18 +2570,10 @@ const sendMessage = async () => {
 
     if (apiMessage) {
       const uiMessage = mapDomainMessageToUi(apiMessage)
-      console.log('📥 [sendMessage] API 返回:', { 
-        realId: apiMessage.id, 
-        tempId, 
-        recentSentMessages: Array.from(recentSentMessages.value),
-        messagesCount: messages.value.length,
-        messageIds: messages.value.map(m => m.id)
-      })
       
       // 先检查是否已经存在真实消息（可能 WebSocket 先到达）
       const existingRealMessageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
       if (existingRealMessageIndex !== -1) {
-        console.log('✅ [sendMessage] 真实消息已存在，更新状态:', existingRealMessageIndex)
         // 如果真实消息已存在，更新状态即可，不需要重复添加
         messages.value[existingRealMessageIndex] = {
           ...messages.value[existingRealMessageIndex],
@@ -2782,16 +2592,13 @@ const sendMessage = async () => {
       // 查找临时消息并替换
       // 注意：临时消息可能已经被 WebSocket 替换为真实消息 ID，所以需要同时检查 tempId 和真实消息 ID
       let messageIndex = messages.value.findIndex(msg => msg.id === tempId)
-      console.log('🔍 [sendMessage] 查找临时消息:', { tempId, found: messageIndex !== -1 })
       
       // 如果找不到 tempId，可能是已经被 WebSocket 替换了，检查真实消息 ID
       if (messageIndex === -1) {
         messageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
-        console.log('🔍 [sendMessage] 临时消息不存在，查找真实消息ID:', { realId: apiMessage.id, found: messageIndex !== -1 })
       }
       
       if (messageIndex !== -1) {
-        console.log('✅ [sendMessage] 找到消息，替换为真实消息:', messageIndex)
         // 找到消息，更新为真实消息（确保状态为2，移除转圈圈）
         messages.value[messageIndex] = {
           ...uiMessage,
@@ -2803,26 +2610,18 @@ const sendMessage = async () => {
         setTimeout(() => {
           recentSentMessages.value.delete(apiMessage.id)
         }, 10000)
-        console.log('✅ [sendMessage] 消息已替换，添加到 recentSentMessages:', apiMessage.id)
         return // 消息已更新，直接返回，避免后续重复处理
       } else {
         // 临时消息不存在，检查真实消息是否已经在列表中（WebSocket可能已经替换了）
         const realMessageExists = messages.value.some((msg) => msg.id === apiMessage.id)
-        console.log('⚠️ [sendMessage] 消息不存在，检查真实消息:', { 
-          realMessageExists,
-          hasInRecent: recentSentMessages.value.has(apiMessage.id),
-          recentSentMessages: Array.from(recentSentMessages.value)
-        })
         
         if (!realMessageExists) {
           // 真实消息也不存在，才添加新消息
-          console.log('➕ [sendMessage] 添加新消息到列表')
           messages.value.push({
             ...uiMessage,
             status: 2
           })
         } else {
-          console.log('✅ [sendMessage] 真实消息已存在（WebSocket已替换），跳过添加:', apiMessage.id)
         }
         
         // 删除临时消息ID，添加真实消息ID到 recentSentMessages 用于去重
@@ -2840,7 +2639,6 @@ const sendMessage = async () => {
     }
     // 发送失败时，从 recentSentMessages 中删除临时消息ID
     recentSentMessages.value.delete(tempId)
-    console.error('❌ 消息发送失败:', error)
     toast.error('消息发送失败: ' + (error.message || '网络错误'))
   }
 }
@@ -2851,7 +2649,6 @@ const resendMessage = async (message: Message) => {
     return
   }
 
-  console.log('🔄 重发消息:', message.content)
 
   const messageIndex = messages.value.findIndex(msg => msg.id === message.id)
   if (messageIndex !== -1) {
@@ -2902,13 +2699,11 @@ const resendMessage = async (message: Message) => {
     if (messageIndex !== -1) {
       messages.value[messageIndex].status = 5
     }
-    console.error('❌ 消息重发失败:', error)
     toast.error('消息重发失败: ' + (error.message || '网络错误'))
   }
 }
 
 const handleSearch = (value: string) => {
-  console.log('搜索聊天:', value)
   if (value.trim()) {
     showSearchDialog.value = true
   }
@@ -2968,13 +2763,11 @@ const prepareSearchData = () => {
 
 // 处理表情点击
 const handleEmojiClick = () => {
-  console.log('点击表情按钮')
   showEmojiPicker.value = !showEmojiPicker.value
 }
 
 // 处理表情选择
 const handleEmojiSelect = (emoji: string) => {
-  console.log('选择表情:', emoji)
 
   // 将表情插入到当前光标位置
   if (messageInput.value) {
@@ -3025,7 +2818,6 @@ const handleClickOutside = (event: Event) => {
 
 // 处理图片预览
 const handleImagePreview = (imageUrl: string, message?: Message) => {
-  console.log('预览图片:', imageUrl)
   if (imageUrl) {
     previewMediaSrc.value = imageUrl
     previewMediaType.value = 'image'
@@ -3056,13 +2848,11 @@ const closeMediaPreview = () => {
 // 处理图片加载错误
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  console.error('图片加载失败:', img.src)
 }
 
 // 处理视频缩略图加载错误
 const handleVideoThumbnailError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  console.error('视频缩略图加载失败:', img.src)
   // 隐藏缩略图，显示默认视频图标
   const thumbnailWrapper = img.closest('.video-thumbnail-wrapper') as HTMLElement
   if (thumbnailWrapper) {
@@ -3086,7 +2876,6 @@ const formatFileSize = (bytes: number): string => {
 // 处理视频播放
 const handleVideoPlay = (message: Message) => {
   const videoSrc = parseVideoSrc(message)
-  console.log('播放视频:', videoSrc)
   if (videoSrc) {
     // 设置媒体信息并显示预览
     previewMediaSrc.value = videoSrc
@@ -3103,15 +2892,9 @@ const handleVideoPlay = (message: Message) => {
 
 // 处理上传点击
 const handleUploadClick = () => {
-  console.log('点击上传按钮', {
-    hasSelectedChat: !!selectedChat.value,
-    chatId: selectedChat.value?.groupId,
-    chatName: selectedChat.value?.name
-  })
   
   // 检查是否有选中的聊天
   if (!selectedChat.value || !selectedChat.value.groupId) {
-    console.error('❌ 无法上传：selectedChat 未初始化', selectedChat.value)
     toast.error('请先选择聊天对象')
     return
   }
@@ -3125,7 +2908,6 @@ const handleUploadClick = () => {
   // 使用 addEventListener 而不是 onchange，确保事件正确绑定
   input.addEventListener('change', handleFileUpload, { once: true })
   
-  console.log('📂 打开文件选择对话框')
   input.click()
 }
 
@@ -3134,15 +2916,8 @@ const handleFileUpload = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const files = target.files
 
-  console.log('📎 handleFileUpload 被调用', {
-    filesCount: files?.length || 0,
-    hasFiles: !!files,
-    hasSelectedChat: !!selectedChat.value,
-    chatId: selectedChat.value?.groupId
-  })
 
   if (!files || files.length === 0) {
-    console.log('⚠️ 没有选择文件')
     return
   }
 
@@ -3151,7 +2926,6 @@ const handleFileUpload = async (event: Event) => {
   
   for (let i = 0; i < fileArray.length; i++) {
     const file = fileArray[i]
-    console.log(`📤 开始上传文件 ${i + 1}/${fileArray.length}:`, file.name)
     await uploadAndSendFile(file)
   }
   
@@ -3173,11 +2947,9 @@ const preloadImage = (url: string): Promise<void> => {
     const img = new Image()
     img.onload = () => {
       imagePreloadCache.value.set(url, img)
-      console.log('✅ 图片预加载完成:', url)
       resolve()
     }
     img.onerror = () => {
-      console.warn('❌ 图片预加载失败:', url)
       reject(new Error('图片预加载失败'))
     }
     img.src = url
@@ -3315,9 +3087,7 @@ const uploadAndSendFile = async (file: File) => {
               status: 2,
               roomId: uiMessage.roomId ?? selectedChat.value.groupId,
             })
-            console.log('📝 [API] 临时消息和真实消息都不存在，添加新消息:', apiMessage.id)
           } else {
-            console.log('✅ [API] 真实消息已存在（WebSocket已替换），跳过添加:', apiMessage.id)
           }
           // 消息不存在，可能已被WebSocket替换，删除临时ID
           recentSentMessages.value.delete(tempId)
@@ -3338,7 +3108,6 @@ const uploadAndSendFile = async (file: File) => {
 
     scrollToBottom()
   } catch (error: any) {
-    console.error('文件上传或发送失败:', error)
     if (tempId) {
       const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
       if (messageIndex !== -1) {
@@ -3353,7 +3122,6 @@ const uploadAndSendFile = async (file: File) => {
 }
 
 const handleCreateGroup = async () => {
-  console.log('🔄 用户点击创建群组...')
   // 显示创建群聊对话框
   showCreateGroupDialog.value = true
 }
@@ -3362,7 +3130,6 @@ const handleCreateGroup = async () => {
 const loadContactsForGroup = async () => {
   isLoadingContacts.value = true
   try {
-    console.log('🔄 加载联系人列表用于群组创建...')
 
     // 获取好友列表
     const response = await FriendApi.getMyFriendList({
@@ -3383,17 +3150,11 @@ const loadContactsForGroup = async () => {
       })
 
       contacts.value = allContacts
-      console.log('✅ 联系人列表加载成功:', {
-        count: contacts.value.length,
-        contacts: contacts.value.slice(0, 5).map(c => ({ id: c.id, nickname: c.nickname, username: c.username }))
-      })
     } else {
-      console.warn('❌ 联系人列表获取失败:', response.message)
       toast.error('获取联系人列表失败: ' + (response.message || '未知错误'))
       contacts.value = []
     }
   } catch (error: any) {
-    console.error('❌ 获取联系人列表异常:', error)
     toast.error('获取联系人列表失败: ' + (error.message || '网络错误'))
     contacts.value = []
   } finally {
@@ -3408,7 +3169,6 @@ const handleCreateGroupConfirm = async (data: {
   avatar?: string
   memberIds: string[]
 }) => {
-  console.log('🔄 创建群组:', data)
 
   try {
     isCreatingGroup.value = true
@@ -3417,7 +3177,6 @@ const handleCreateGroupConfirm = async (data: {
     let avatarUrl: string | undefined
     if (data.avatar && data.avatar.startsWith('data:')) {
       try {
-        console.log('🔄 开始上传群头像...')
         
         // 将 base64 转换为 Blob
         const response = await fetch(data.avatar)
@@ -3434,13 +3193,9 @@ const handleCreateGroupConfirm = async (data: {
 
         if (uploadResult.code === 200 && uploadResult.data) {
           avatarUrl = FileApi.buildImageUrl(uploadResult.data)
-          console.log('✅ 群头像上传成功:', avatarUrl)
         } else {
-          console.warn('⚠️ 群头像上传失败，将使用默认头像')
         }
       } catch (error: any) {
-        console.error('❌ 群头像上传异常:', error)
-        console.warn('⚠️ 群头像上传失败，将使用默认头像')
       }
     }
 
@@ -3448,14 +3203,6 @@ const handleCreateGroupConfirm = async (data: {
     const currentUser = store.getters.currentUser
     const membersWithCreator = [...data.memberIds, currentUser.id] // 成员列表必须包含创建者
 
-    console.log('🔄 准备创建群组，参数构建:', {
-      groupName: data.name,
-      selectedMembers: data.memberIds,
-      currentUser: currentUser.id,
-      finalMembers: membersWithCreator,
-      notice: data.notice,
-      avatarUrl
-    })
 
     const response = await GroupApi.launchChatGroup({
       name: data.name,
@@ -3465,7 +3212,6 @@ const handleCreateGroupConfirm = async (data: {
     })
 
     if (response.success && response.data) {
-      console.log('✅ 群组创建成功:', response.data)
       toast.success('群组创建成功')
 
       // 关闭对话框
@@ -3474,7 +3220,6 @@ const handleCreateGroupConfirm = async (data: {
       // 提取返回的群组信息
       const groupId = response.data.roomId
       const groupName = data.name
-      console.log('📋 新群组信息:', { groupId, groupName })
 
       // 重新加载聊天列表以显示新创建的群组
       await loadChatList(true) // 强制刷新获取最新数据
@@ -3484,7 +3229,6 @@ const handleCreateGroupConfirm = async (data: {
 
       // 尝试多次查找新创建的群组（因为可能需要时间同步）
       for (let attempt = 0; attempt < 3; attempt++) {
-        console.log(`🔍 第${attempt + 1}次尝试查找新创建的群组:`, { groupId, groupName })
 
         // 优先使用 groupId 查找，其次使用 groupName
         newGroup = chatList.value.find(chat =>
@@ -3495,18 +3239,12 @@ const handleCreateGroupConfirm = async (data: {
         )
 
         if (newGroup) {
-          console.log('✅ 找到新创建的群组:', newGroup)
           await selectChat(newGroup)
 
           // 发送群组创建的系统消息
           await sendGroupCreationSystemMessage(groupId, groupName)
           break
         } else {
-          console.log(`⏳ 第${attempt + 1}次未找到群组，当前聊天列表:`, chatList.value.map(c => ({
-            id: c.id,
-            groupId: c.groupId,
-            name: c.name
-          })))
 
           if (attempt < 2) { // 只在前两次尝试时等待
             await new Promise(resolve => setTimeout(resolve, 1000))
@@ -3517,20 +3255,12 @@ const handleCreateGroupConfirm = async (data: {
 
       // 如果最终没找到群组，提供备用方案
       if (!newGroup) {
-        console.warn('⚠️ 多次尝试后仍未找到新创建的群组')
-        console.warn('📊 查找条件:', {
-          targetGroupId: groupId,
-          targetGroupName: groupName,
-          currentChatList: chatList.value.length
-        })
         toast.warning('群组创建成功，但无法自动打开，请手动选择群组')
       }
     } else {
-      console.warn('❌ 群组创建失败:', response.message)
       toast.error('群组创建失败: ' + (response.message || '未知错误'))
     }
   } catch (error: any) {
-    console.error('❌ 群组创建异常:', error)
     toast.error('群组创建失败: ' + (error.message || '网络错误'))
   } finally {
     isCreatingGroup.value = false
@@ -3557,14 +3287,12 @@ const handleChatContextMenu = (chat: ChatItem, event: MouseEvent) => {
   }
   showContextMenu.value = true
   
-  console.log('🖱️ 显示聊天右键菜单:', chat.name)
 }
 
 // 处理置顶/取消置顶
 const handleContextMenuPin = async (chat: ChatItem) => {
   try {
     const targetState = !chat.isTop
-    console.log(`🔄 ${targetState ? '置顶' : '取消置顶'}对话:`, chat.name)
     
     // 调用API
     const response = targetState 
@@ -3592,7 +3320,6 @@ const handleContextMenuPin = async (chat: ChatItem) => {
       toast.error(response.message || (targetState ? '置顶失败' : '取消置顶失败'))
     }
   } catch (error: any) {
-    console.error('置顶操作失败:', error)
     toast.error(error.message || '操作失败')
   }
 }
@@ -3601,7 +3328,6 @@ const handleContextMenuPin = async (chat: ChatItem) => {
 const handleContextMenuMute = async (chat: ChatItem) => {
   try {
     const targetState = chat.chatStatus === 1 ? 0 : 2 // 0=允许通知, 2=免打扰
-    console.log(`🔄 ${targetState === 2 ? '设置免打扰' : '允许消息通知'}:`, chat.name)
     
     // 调用API
     const response = await MessageApi.updateNotificationSettings({
@@ -3627,18 +3353,12 @@ const handleContextMenuMute = async (chat: ChatItem) => {
       toast.error(response.message || '设置失败')
     }
   } catch (error: any) {
-    console.error('消息免打扰设置失败:', error)
     toast.error(error.message || '操作失败')
   }
 }
 
 // 处理删除对话 - 显示确认对话框
 const handleContextMenuDelete = (chat: ChatItem) => {
-  console.log('🖱️ 右键删除对话被触发:', {
-    chatId: chat.id,
-    chatName: chat.name,
-    groupId: chat.groupId
-  })
   
   // 保存要删除的对话信息
   deleteTargetChat.value = chat
@@ -3649,22 +3369,18 @@ const handleContextMenuDelete = (chat: ChatItem) => {
 
 // 取消删除
 const cancelDelete = () => {
-  console.log('❌ 用户取消删除')
   deleteTargetChat.value = null
 }
 
 // 确认删除对话
 const confirmDelete = async () => {
   if (!deleteTargetChat.value) {
-    console.error('❌ 删除目标为空')
     return
   }
   
   const chat = deleteTargetChat.value
   
   try {
-    console.log('✅ 用户确认删除，开始执行...')
-    console.log('🔄 删除对话:', chat.name, 'ID:', chat.id)
     
     // 调用后端 API 删除对话
     const response = await GroupApi.deleteChat({ roomId: chat.groupId })
@@ -3673,11 +3389,9 @@ const confirmDelete = async () => {
       throw new Error(response.message || '删除失败')
     }
     
-    console.log('✅ 后端删除成功')
     
     // 如果删除的是当前选中的对话，清空选中状态
     if (selectedChat.value && selectedChat.value.id === chat.id) {
-      console.log('🎯 删除的是当前选中的对话，清空选中状态')
       selectedChat.value = null
       messages.value = []
       
@@ -3686,17 +3400,13 @@ const confirmDelete = async () => {
     }
     
     // 通过 store 删除（这会触发 computed 重新计算）
-    console.log('📤 调用 store.dispatch removeChatItem, chatId:', chat.id)
     await store.dispatch('removeChatItem', chat.id)
     
     // 删除成功后立即刷新聊天列表，确保数据同步
-    console.log('🔄 删除后刷新聊天列表...')
     await loadChatList(true) // 强制刷新API数据
     
-    console.log('✅ 对话已永久删除:', chat.name)
     toast.success('对话已永久删除')
   } catch (error: any) {
-    console.error('❌ 删除对话失败:', error)
     toast.error(error.message || '删除失败')
   } finally {
     // 清理状态
@@ -3707,7 +3417,6 @@ const confirmDelete = async () => {
 
 // 旧的添加成员对话框处理函数（已废弃，保留以避免模板引用错误）
 const handleConfirmAddMembers = () => {
-  console.warn('⚠️ handleConfirmAddMembers 已废弃，请使用 CreateGroupDialog')
   showAddMemberDialog.value = false
 }
 
@@ -3719,7 +3428,6 @@ const handleCancelAddMembers = () => {
 const handleEditGroupAvatar = () => {
   if (!selectedChat.value) return
 
-  console.log('🔄 打开群头像修改功能')
 
   // 创建文件输入元素用于选择头像
   const input = document.createElement('input')
@@ -3741,13 +3449,11 @@ const updateGroupAvatar = async (file: File) => {
   if (!selectedChat.value) return
 
   try {
-    console.log('🔄 开始上传群头像（使用COS直传）:', file.name)
 
     // 使用 GroupApi.uploadGroupAvatar 上传到 COS
     const uploadResult = await GroupApi.uploadGroupAvatar(selectedChat.value.groupId, file)
 
     if (uploadResult.success && uploadResult.data) {
-      console.log('✅ 群头像上传成功')
       toast.success('群头像修改成功')
 
       // 获取临时下载URL用于显示
@@ -3758,17 +3464,14 @@ const updateGroupAvatar = async (file: File) => {
 
       if (downloadUrlResult.success && downloadUrlResult.data) {
         const downloadUrl = downloadUrlResult.data.downloadUrl
-        console.log('✅ 获取群头像临时下载URL成功:', downloadUrl)
 
         // 更新本地数据
         if (selectedChat.value) {
           // 1. 更新当前选中的聊天项
           selectedChat.value.avatar = downloadUrl
-          console.log('🔄 [头像更新] selectedChat.value.avatar 已更新为:', downloadUrl)
 
           // 2. 同步更新store中的聊天列表
           const updatedChat = { ...selectedChat.value, avatar: downloadUrl }
-          console.log('🔄 [头像更新] 准备更新store，updatedChat.avatar:', updatedChat.avatar)
           store.dispatch('updateChatItem', updatedChat)
 
           // 3. 发送群头像修改的系统消息（使用downloadUrl）
@@ -3781,7 +3484,6 @@ const updateGroupAvatar = async (file: File) => {
       throw new Error(uploadResult.message || '群头像上传失败')
     }
   } catch (error: any) {
-    console.error('❌ 群头像修改异常:', error)
     toast.error('群头像修改失败: ' + (error.message || '网络错误'))
   }
 }
@@ -3790,7 +3492,6 @@ const updateGroupAvatar = async (file: File) => {
 const handleEditGroupNotice = () => {
   if (!selectedChat.value) return
 
-  console.log('🔄 打开群公告修改弹窗')
 
   // 设置当前群公告作为默认值（如果有的话）
   editingGroupNotice.value = selectedChat.value.groupNotice || ''
@@ -3826,10 +3527,6 @@ const handleConfirmEditGroupNotice = async () => {
 
   try {
     const roomId = selectedChat.value.groupId
-    console.log('🔄 开始修改群公告:', {
-      roomId,
-      newNotice: newGroupNotice
-    })
 
     // 1. 先获取现有的群公告列表
     const listResponse = await GroupApi.listAnnouncements({ roomId })
@@ -3839,7 +3536,6 @@ const handleConfirmEditGroupNotice = async () => {
     if (listResponse.success && listResponse.data && listResponse.data.length > 0) {
       // 如果有现有公告，更新最新的一条
       const latestAnnouncement = listResponse.data[0]
-      console.log('🔄 更新现有群公告:', latestAnnouncement.id)
 
       response = await GroupApi.updateAnnouncement({
         roomId,
@@ -3848,7 +3544,6 @@ const handleConfirmEditGroupNotice = async () => {
       })
     } else {
       // 如果没有公告，创建新的
-      console.log('🔄 创建新的群公告')
 
       response = await GroupApi.createAnnouncement({
         roomId,
@@ -3857,7 +3552,6 @@ const handleConfirmEditGroupNotice = async () => {
     }
 
     if (response.success) {
-      console.log('✅ 群公告修改成功')
       toast.success('群公告修改成功')
 
       // 更新本地数据
@@ -3865,10 +3559,6 @@ const handleConfirmEditGroupNotice = async () => {
         selectedChat.value.groupNotice = newGroupNotice
         selectedChat.value.showNoticeFlag = 1
 
-        console.log('✅ 群公告本地数据已更新:', {
-          groupNotice: selectedChat.value.groupNotice,
-          showNoticeFlag: selectedChat.value.showNoticeFlag
-        })
       }
 
       // 发送群公告修改的系统消息
@@ -3881,10 +3571,8 @@ const handleConfirmEditGroupNotice = async () => {
       showEditGroupNoticeDialog.value = false
     } else {
       groupNameError.value = response.message || '修改失败'
-      console.warn('❌ 群公告修改失败:', response.message)
     }
   } catch (error: any) {
-    console.error('❌ 群公告修改异常:', error)
     groupNameError.value = error.message || '网络错误，请稍后重试'
   } finally {
     isUpdatingGroupNotice.value = false
@@ -3903,7 +3591,6 @@ const handleCancelEditGroupNotice = () => {
 const handleEditRemark = () => {
   if (!selectedChat.value) return
 
-  console.log('🔄 打开备注修改弹窗')
 
   // 设置当前备注作为默认值（如果有的话）
   editingRemark.value = selectedChat.value.remark || ''
@@ -3933,7 +3620,6 @@ const handleConfirmEditRemark = async () => {
     isUpdatingRemark.value = true
     groupNameError.value = ''
 
-    console.log('🔄 正在更新备注:', newRemark)
 
     // 调用API更新备注
     const response = await FriendApi.updateRemark({
@@ -3958,7 +3644,6 @@ const handleConfirmEditRemark = async () => {
       // 刷新联系人列表以同步备注
       await store.dispatch('getFriendList')
 
-      console.log('✅ 备注修改成功:', newRemark)
       toast.success('备注修改成功')
 
       // 关闭弹窗
@@ -3967,7 +3652,6 @@ const handleConfirmEditRemark = async () => {
       groupNameError.value = response.message || '修改失败'
     }
   } catch (error: any) {
-    console.error('❌ 备注修改失败:', error)
     groupNameError.value = error.message || '网络错误'
   } finally {
     isUpdatingRemark.value = false
@@ -3989,7 +3673,6 @@ const handleToggleMute = async (value: boolean) => {
   const oldValue = selectedChat.value.chatStatus
 
   try {
-    console.log('🔄 切换消息免打扰:', value)
 
     // 调用API更新通知设置
     const response = await MessageApi.updateNotificationSettings({
@@ -4005,7 +3688,6 @@ const handleToggleMute = async (value: boolean) => {
       throw new Error(response.message || '设置失败')
     }
   } catch (error: any) {
-    console.error('❌ 免打扰设置异常:', error)
     toast.error('设置失败: ' + (error.message || '网络错误'))
 
     // 回滚本地状态
@@ -4021,7 +3703,6 @@ const handleToggleTop = async (value: boolean) => {
 
   try {
     const targetState = !value
-    console.log(`🔄 ${targetState ? '置顶' : '取消置顶'}聊天:`, selectedChat.value.name)
     
     // 调用API
     const response = targetState 
@@ -4052,7 +3733,6 @@ const handleToggleTop = async (value: boolean) => {
       toast.error(response.message || (targetState ? '置顶失败' : '取消置顶失败'))
     }
   } catch (error: any) {
-    console.error('❌ 置顶设置异常:', error)
     toast.error('设置失败: ' + (error.message || '网络错误'))
 
     // 回滚本地状态
@@ -4066,7 +3746,6 @@ const handleToggleTop = async (value: boolean) => {
 const handleEditGroupName = () => {
   if (!selectedChat.value) return
 
-  console.log('🔄 打开群名修改弹窗')
 
   // 设置当前群名作为默认值
   editingGroupName.value = selectedChat.value.name || ''
@@ -4101,11 +3780,6 @@ const handleConfirmEditGroupName = async () => {
   groupNameError.value = ''
 
   try {
-    console.log('🔄 开始修改群名称:', {
-      groupId: selectedChat.value?.groupId,
-      oldName: selectedChat.value?.name,
-      newName: newGroupName
-    })
 
     const response = await GroupApi.updateGroupInfo({
       groupId: selectedChat.value?.groupId || '',
@@ -4113,7 +3787,6 @@ const handleConfirmEditGroupName = async () => {
     })
 
     if (response.success) {
-      console.log('✅ 群名修改成功')
       toast.success('群名修改成功')
 
       // 更新本地数据
@@ -4129,10 +3802,8 @@ const handleConfirmEditGroupName = async () => {
       showEditGroupNameDialog.value = false
     } else {
       groupNameError.value = response.message || '修改失败'
-      console.warn('❌ 群名修改失败:', response.message)
     }
   } catch (error: any) {
-    console.error('❌ 群名修改异常:', error)
     groupNameError.value = error.message || '网络错误，请稍后重试'
   } finally {
     isUpdatingGroupName.value = false
@@ -4156,7 +3827,6 @@ const handleCancelEditGroupName = () => {
 // 4. 客户端接收 'message' 事件并显示
 const sendGroupCreationSystemMessage = async (groupId: string, groupName: string) => {
   // 功能已废弃，保留函数以避免调用处报错
-  console.warn('⚠️ sendGroupCreationSystemMessage 已废弃：系统消息应由服务器生成');
   return;
 
   /* 原实现已注释
@@ -4164,7 +3834,6 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
     const user = store.getters.currentUser
     const timestamp = Date.now()
 
-    console.log('🔄 发送群组创建系统消息...', { groupId, groupName, user: user.username })
 
     // 构造系统消息对象，参考bear-chat-uniapp的格式
     const systemMessage = {
@@ -4185,7 +3854,6 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
       showTimeFlag: true
     }
 
-    console.log('📤 准备发送的群组创建系统消息:', systemMessage)
 
     // 立即在本地显示系统消息
     const localSystemMessage: Message = {
@@ -4211,7 +3879,6 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
     await new Promise((resolve, reject) => {
       webSocketManager.sendMessage(systemMessage, MESSAGE_CONSTANTS.BUSINESS_CODE.launchGroup, (success: boolean) => {
         if (success) {
-          console.log('✅ 群组创建系统消息发送成功')
 
           // 更新本地消息状态为成功
           const messageIndex = messages.value.findIndex(msg => msg.id === localSystemMessage.id)
@@ -4221,7 +3888,6 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
 
           resolve(true)
         } else {
-          console.error('❌ 群组创建系统消息发送失败')
 
           // 更新本地消息状态为失败
           const messageIndex = messages.value.findIndex(msg => msg.id === localSystemMessage.id)
@@ -4235,7 +3901,6 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
     })
 
   } catch (error: any) {
-    console.error('❌ 发送群组创建系统消息失败:', error)
     // 静默处理错误，不影响用户体验
   }
   */
@@ -4292,7 +3957,6 @@ const handleRouteParams = async () => {
   const { contactId, contactName } = route.query
   
   if (contactId) {
-    console.log('从联系人页面发起聊天:', { contactId, contactName })
     
     // 先加载现有的聊天列表
     await loadChatList()
@@ -4308,13 +3972,11 @@ const handleRouteParams = async () => {
     if (existingChat) {
       // 找到现有聊天，直接选中
       selectChat(existingChat)
-      console.log('✅ 选中已存在的聊天会话:', existingChat.name)
       return
     }
     
     // 没找到现有聊天，尝试创建新的单聊
     try {
-      console.log('🔄 创建新的单聊...')
       // 创建单聊 - 使用与bear-chat-uniapp相同的参数格式
       const response = await GroupApi.createSingleChat({
         friendId: contactId as string
@@ -4322,24 +3984,17 @@ const handleRouteParams = async () => {
       
       if (response.success) {
         const createdRoomId = response.data?.roomId || ''
-        console.log('✅ 单聊创建成功，响应数据:', response.data)
 
         // 同步好友头像到本地缓存
         if (response.data?.friendAvatarObjectKey && response.data?.friendId) {
           try {
             const { UserApi } = await import('../api/user')
-            console.log('🔄 同步好友头像:', {
-              friendId: response.data.friendId,
-              objectKey: response.data.friendAvatarObjectKey
-            })
             await UserApi.syncUserAvatarCache(
               response.data.friendId,
               response.data.friendAvatarObjectKey,
               false
             )
-            console.log('✅ 好友头像同步完成')
           } catch (error) {
-            console.warn('⚠️ 同步好友头像失败:', error)
           }
         }
 
@@ -4352,7 +4007,6 @@ const handleRouteParams = async () => {
         
         const findAndSelectChat = async () => {
           attempts++
-          console.log(`🔍 第${attempts}次尝试查找新聊天...`)
           
           // 重新加载聊天列表以确保获取最新数据
           if (attempts > 1) {
@@ -4378,37 +4032,20 @@ const handleRouteParams = async () => {
               chat.extra?.friendId === contactId
             )
 
-            console.log(`🔍 检查聊天 ${chat.name} (${chat.id}):`, {
-              matchesId,
-              matchesName,
-              matchesFriendId,
-              chatGroupId: chat.groupId,
-              chatExtra: chat.extra
-            })
 
             return matchesId || matchesName || matchesFriendId
           })
           
           if (newChat) {
             selectChat(newChat)
-            console.log('✅ 选中新创建的聊天会话:', newChat.name)
             return true
           }
           
           if (attempts < maxAttempts) {
-            console.log(`⏳ 未找到聊天，${300 * attempts}ms后重试...`)
             setTimeout(async () => {
               await findAndSelectChat()
             }, 300 * attempts) // 减少等待时间
           } else {
-            console.warn('❌ 经过多次尝试仍未找到新创建的聊天')
-            console.log('📊 当前聊天列表:', chatList.value.map((c: any) => ({
-              name: c.name,
-              id: c.id,
-              groupId: c.groupId,
-              groupType: c.groupType,
-              extra: c.extra
-            })))
             // 如果实在找不到，至少显示一个提示
             toast.error('聊天创建成功，但无法自动打开，请手动选择')
           }
@@ -4419,11 +4056,9 @@ const handleRouteParams = async () => {
         await findAndSelectChat()
         
       } else {
-        console.warn('❌ 单聊创建失败:', response.message)
         toast.error('创建聊天失败: ' + (response.message || '未知错误'))
       }
     } catch (error: any) {
-      console.error('❌ 单聊创建异常:', error)
       toast.error('创建聊天失败: ' + (error.message || '网络错误'))
     }
     
@@ -4434,12 +4069,10 @@ const handleRouteParams = async () => {
 
 // 比较消息内容是否匹配（用于识别重复消息）
 const isContentMatch = (content1: any, content2: any): boolean => {
-  console.log('🔍 比较消息内容:', { content1, content2 })
 
   // 如果都是字符串，直接比较
   if (typeof content1 === 'string' && typeof content2 === 'string') {
     const match = content1 === content2
-    console.log('📝 字符串比较结果:', match)
     return match
   }
 
@@ -4448,45 +4081,37 @@ const isContentMatch = (content1: any, content2: any): boolean => {
     // 对于附件消息，优先比较 key（附件的唯一标识）
     if (content1.key && content2.key) {
       const match = content1.key === content2.key
-      console.log('🔑 attachment key比较结果:', match, { key1: content1.key, key2: content2.key })
       return match
     }
     // 对于图片/视频消息，比较文件名或URL
     if (content1.name && content2.name) {
       const match = content1.name === content2.name
-      console.log('📷 文件名比较结果:', match, { name1: content1.name, name2: content2.name })
       return match
     }
     if (content1.url && content2.url) {
       const match = content1.url === content2.url
-      console.log('🔗 URL比较结果:', match, { url1: content1.url, url2: content2.url })
       return match
     }
     if (content1.fullPath && content2.fullPath) {
       const match = content1.fullPath === content2.fullPath
-      console.log('📁 fullPath比较结果:', match, { fullPath1: content1.fullPath, fullPath2: content2.fullPath })
       return match
     }
     if (content1.fileName && content2.fileName) {
       const match = content1.fileName === content2.fileName
-      console.log('📄 fileName比较结果:', match, { fileName1: content1.fileName, fileName2: content2.fileName })
       return match
     }
     // 对于文本消息，比较text字段
     if (content1.text && content2.text) {
       const match = content1.text === content2.text
-      console.log('💬 text字段比较结果:', match)
       return match
     }
     // 如果一个有text，另一个是字符串
     if (content1.text && typeof content2 === 'string') {
       const match = content1.text === content2
-      console.log('💬 text vs string比较结果:', match)
       return match
     }
     if (content2.text && typeof content1 === 'string') {
       const match = content2.text === content1
-      console.log('💬 string vs text比较结果:', match)
       return match
     }
   }
@@ -4494,17 +4119,14 @@ const isContentMatch = (content1: any, content2: any): boolean => {
   // 如果一个是对象，一个是字符串
   if (typeof content1 === 'object' && typeof content2 === 'string') {
     const match = content1.text === content2
-    console.log('🔄 对象 vs 字符串比较结果:', match)
     return match
   }
   if (typeof content2 === 'object' && typeof content1 === 'string') {
     const match = content2.text === content1
-    console.log('🔄 字符串 vs 对象比较结果:', match)
     return match
   }
 
   // 默认不匹配
-  console.log('❌ 无法匹配，返回false')
   return false
 }
 
@@ -4512,27 +4134,12 @@ const isContentMatch = (content1: any, content2: any): boolean => {
 const handleWebSocketMessage = (event: CustomEvent) => {
   const detail = event.detail as { message?: DomainMessage; raw?: any }
   if (!detail?.message) {
-    console.warn('⚠️ WebSocket 消息缺少 message 字段，忽略:', detail)
     return
   }
 
   const messageData = detail.message
-  console.log('📨 [WebSocket] 原始消息数据:', { 
-    id: messageData.id,
-    roomId: messageData.roomId,
-    parts: messageData.parts,
-    partsLength: messageData.parts?.length,
-    content: messageData.content
-  })
   
   const uiMessage = mapDomainMessageToUi(messageData)
-  console.log('📨 [WebSocket] 转换后的UI消息:', {
-    id: uiMessage.id,
-    roomId: uiMessage.roomId,
-    parts: uiMessage.parts,
-    partsLength: uiMessage.parts?.length,
-    content: uiMessage.content
-  })
   
   // 确保消息有 roomId
   if (!uiMessage.roomId && messageData.roomId) {
@@ -4541,24 +4148,13 @@ const handleWebSocketMessage = (event: CustomEvent) => {
   const messageGroupId = messageData.roomId
   const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === messageGroupId
 
-  console.log('📨 [WebSocket] 收到消息:', { 
-    id: uiMessage.id, 
-    isSelf: messageData.isSelf, 
-    isCurrentRoom,
-    content: typeof messageData.content === 'string' ? messageData.content.substring(0, 20) : 'object',
-    recentSentMessages: Array.from(recentSentMessages.value),
-    messagesCount: messages.value.length,
-    messageIds: messages.value.map(m => m.id)
-  })
 
   if (isCurrentRoom) {
     const existingMessageIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
-    console.log('🔍 [WebSocket] 检查消息是否存在:', { id: uiMessage.id, found: existingMessageIndex !== -1 })
 
     if (existingMessageIndex !== -1) {
       // 如果消息已存在，检查是否需要更新
       if (messageData.isSelf) {
-        console.log('✅ [WebSocket] 消息已存在（自己发送），合并更新:', existingMessageIndex)
         // 如果是自己发送的消息，无论状态如何都应该合并（避免重复）
         const mergedMessage = mergeMessagePreservingLocalData(
           messages.value[existingMessageIndex],
@@ -4579,11 +4175,9 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         setTimeout(() => {
           recentSentMessages.value.delete(uiMessage.id)
         }, 10000)
-        console.log('✅ [WebSocket] 消息已更新，添加到 recentSentMessages:', uiMessage.id)
         // 消息已存在且已更新，直接返回，避免重复添加
         return
       } else {
-        console.log('⏭️ [WebSocket] 消息已存在（他人发送），跳过')
         // 如果是他人发送的消息且已存在，说明可能是重复推送，直接返回
         return
       }
@@ -4593,11 +4187,9 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         // 如果 recentSentMessages 中已经有真实消息 ID，说明 API 已经返回了
         // 即使消息不存在（可能是时序问题），也应该直接返回，避免重复添加
         if (recentSentMessages.value.has(uiMessage.id)) {
-          console.log('⚠️ [WebSocket] recentSentMessages 中已有真实消息ID，再次检查消息是否存在')
           // 再次检查消息是否存在（可能是时序问题导致第一次检查时不存在）
           const existingIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
           if (existingIndex !== -1) {
-            console.log('✅ [WebSocket] 消息存在，更新状态:', existingIndex)
             // 消息存在，更新状态
             messages.value[existingIndex] = {
               ...messages.value[existingIndex],
@@ -4605,36 +4197,19 @@ const handleWebSocketMessage = (event: CustomEvent) => {
               status: 2
             }
           } else {
-            console.log('⚠️ [WebSocket] 消息不存在但 recentSentMessages 中有，可能是时序问题，跳过')
           }
           // 无论消息是否存在，都直接返回，避免重复添加
           return
         } else {
-          console.log('🔍 [WebSocket] 尝试匹配临时消息', {
-            recentSentMessages: Array.from(recentSentMessages.value),
-            wsMessageContent: uiMessage.content,
-            wsContentType: uiMessage.contentType,
-            wsParts: uiMessage.parts
-          })
           const resendMatchId = Array.from(recentSentMessages.value).find((sentId: string) =>
             sentId.startsWith('resend_') && messageData.content
           )
           if (resendMatchId) {
-            console.log('✅ [WebSocket] 匹配到重发消息ID:', resendMatchId)
             recentSentMessages.value.delete(resendMatchId)
             return
           }
           for (const sentId of Array.from(recentSentMessages.value)) {
             const localMessage = messages.value.find(msg => msg.id === sentId)
-            console.log('🔍 [WebSocket] 检查临时消息:', {
-              sentId,
-              found: !!localMessage,
-              localContent: localMessage?.content,
-              localContentType: localMessage?.contentType,
-              localParts: localMessage?.parts,
-              wsContent: uiMessage.content,
-              wsParts: uiMessage.parts
-            })
             
             // 优先通过 parts 匹配（对于附件消息）
             let isMatch = false
@@ -4645,11 +4220,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
               
               if (localAttachment?.key && wsAttachment?.key) {
                 isMatch = localAttachment.key === wsAttachment.key
-                console.log('🔑 [WebSocket] 通过 attachment.key 匹配:', { 
-                  match: isMatch, 
-                  localKey: localAttachment.key, 
-                  wsKey: wsAttachment.key 
-                })
               } else if (localAttachment?.key && !wsAttachment) {
                 // WebSocket 消息没有 parts，但有 content 字符串
                 // 尝试从 WebSocket content 中提取文件名，与临时消息的 attachment.key 匹配
@@ -4661,12 +4231,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
                   
                   if (wsFileName && localFileName) {
                     isMatch = wsFileName === localFileName || localFileName.includes(wsFileName) || wsFileName.includes(localFileName)
-                    console.log('📝 [WebSocket] 通过文件名匹配:', { 
-                      match: isMatch, 
-                      wsFileName, 
-                      localFileName,
-                      localKey: localAttachment.key
-                    })
                   }
                 }
                 
@@ -4681,7 +4245,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
               
               if (isMatch) {
                 matchedLocalMessageId = sentId as string
-                console.log('✅ [WebSocket] 匹配到临时消息:', matchedLocalMessageId)
                 break
               }
             }
@@ -4695,7 +4258,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         // 这里只处理临时消息的情况
         const localMessageIndex = messages.value.findIndex(msg => msg.id === matchedLocalMessageId)
         if (localMessageIndex !== -1) {
-          console.log('✅ [WebSocket] 替换临时消息为真实消息:', { tempId: matchedLocalMessageId, realId: uiMessage.id, index: localMessageIndex })
           const mergedMessage = mergeMessagePreservingLocalData(
             {
               ...messages.value[localMessageIndex],
@@ -4720,18 +4282,15 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           setTimeout(() => {
             recentSentMessages.value.delete(uiMessage.id)
           }, 10000)
-          console.log('✅ [WebSocket] 临时消息已替换，添加到 recentSentMessages:', uiMessage.id)
         }
       } else {
         // 如果没有匹配到临时消息，检查是否应该添加
         // 对于自己发送的消息，如果已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
         if (messageData.isSelf && recentSentMessages.value.has(uiMessage.id)) {
-          console.log('⏭️ [WebSocket] recentSentMessages 中已有，跳过添加')
           // 消息已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
           return
         }
         
-        console.log('➕ [WebSocket] 添加新消息到列表')
         messages.value.push(uiMessage)
         // 如果是自己发送的消息，应该添加到 recentSentMessages，防止 API 返回时重复添加
         if (messageData.isSelf) {
@@ -4744,7 +4303,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         // 索引新消息
         if (selectedChat.value) {
           messageSearchService.indexMessageAsync(uiMessage, selectedChat.value.name, selectedChat.value.groupId).catch(error => {
-            console.warn('⚠️ 消息索引失败:', error)
           })
         }
 
@@ -4788,7 +4346,6 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 const handleWebSocketMessageUpdate = (event: CustomEvent) => {
   const detail = event.detail as { message?: DomainMessage; action?: string } | undefined
   if (!detail?.message) {
-    console.warn('⚠️ WebSocket 消息更新缺少 message 字段，忽略:', detail)
     return
   }
 
@@ -4890,7 +4447,6 @@ const handleWebSocketPinUpdate = (event: CustomEvent) => {
 
 const handleWebSocketGroupMessage = (event: CustomEvent) => {
   const groupData = event.detail
-  console.log('收到WebSocket群组消息:', groupData)
 
   // 重新加载聊天列表，使用后台同步方式避免闪烁
   store.dispatch('loadChatList', { forceRefresh: true, compareWithStore: true })
@@ -4915,7 +4471,6 @@ onMounted(async () => {
   if (currentAccountId) {
     const hasCache = accountStates.has(currentAccountId)
     if (hasCache) {
-      console.log('📂 页面加载时恢复账号缓存状态:', currentAccountId)
       restoreAccountState(currentAccountId)
     }
   }
@@ -4935,7 +4490,6 @@ onMounted(async () => {
         try {
           await loadChatList(true) // 强制刷新API数据
         } catch (error: any) {
-          console.warn('⚠️ 后台刷新聊天列表数据失败:', error)
           // 即使失败也不影响用户体验，用户可以看到store中的数据
         }
       }, 500) // 500ms 后开始后台刷新
@@ -4982,16 +4536,12 @@ const updateReadTimeOnLeave = async (chat: ChatItem) => {
     const currentUser = store.getters.currentUser
     const currentTime = getTimeStr(Date.now())
     
-    console.log('🔄 离开聊天，更新已读时间:', chat.name)
     
     if (!chat.groupId) {
-      console.warn('❌ 群组ID为空，无法更新已读时间:', chat.name)
       return
     }
     
-    console.log('ℹ️ 当前版本离开聊天不再调用旧的群用户接口，稍后将接入新的阅读状态接口')
   } catch (error: any) {
-    console.error('❌ 已读时间更新异常:', error)
   }
 }
 
@@ -5013,7 +4563,6 @@ const handleAddMember = async () => {
     toast.error('请先选择一个群聊')
     return
   }
-  console.log('打开添加成员对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
   
   // 加载联系人列表
   await loadContactsForGroup()
@@ -5033,12 +4582,6 @@ const handleConfirmAddExistingGroupMembers = async (selectedMemberIds: string[])
     return
   }
 
-  console.log('🔄 添加成员到群聊:', {
-    groupId: selectedChat.value.id,
-    groupName: selectedChat.value.name,
-    memberCount: selectedMemberIds.length,
-    memberIds: selectedMemberIds
-  })
 
   try {
     isAddingMembers.value = true
@@ -5050,7 +4593,6 @@ const handleConfirmAddExistingGroupMembers = async (selectedMemberIds: string[])
     })
 
     if (response.success) {
-      console.log('✅ 成员添加成功')
       toast.success(`成功添加 ${selectedMemberIds.length} 位成员`)
 
       // 刷新群成员列表
@@ -5062,7 +4604,6 @@ const handleConfirmAddExistingGroupMembers = async (selectedMemberIds: string[])
       throw new Error(response.message || '添加成员失败')
     }
   } catch (error: any) {
-    console.error('❌ 添加成员失败:', error)
     toast.error('添加成员失败: ' + (error.message || '网络错误'))
   } finally {
     isAddingMembers.value = false
@@ -5074,17 +4615,6 @@ const handleRemoveMember = () => {
     toast.error('请先选择一个群聊')
     return
   }
-  console.log('🗑️ 打开删除成员对话框', {
-    groupId: selectedChat.value.id,
-    groupName: selectedChat.value.name,
-    memberCount: groupMembers.value.length,
-    members: groupMembers.value.map(m => ({
-      userId: m.userId,
-      username: m.username,
-      nickname: m.nickname,
-      avatarUrl: m.avatarUrl
-    }))
-  })
   showRemoveMemberDialog.value = true
 }
 
@@ -5100,12 +4630,6 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
     return
   }
 
-  console.log('🔄 从群聊中删除成员:', {
-    groupId: selectedChat.value.id,
-    groupName: selectedChat.value.name,
-    memberCount: selectedMemberIds.length,
-    memberIds: selectedMemberIds
-  })
 
   try {
     isRemovingMembers.value = true
@@ -5125,7 +4649,6 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
     const failedCount = results.length - successCount
 
     if (successCount > 0) {
-      console.log(`✅ 成功删除 ${successCount} 位成员`)
       toast.success(`成功删除 ${successCount} 位成员${failedCount > 0 ? `，${failedCount} 位失败` : ''}`)
 
       // 刷新群成员列表
@@ -5139,7 +4662,6 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
       throw new Error('所有成员删除失败')
     }
   } catch (error: any) {
-    console.error('❌ 删除成员失败:', error)
     toast.error('删除成员失败: ' + (error.message || '网络错误'))
   } finally {
     isRemovingMembers.value = false
@@ -5153,7 +4675,6 @@ const handleClearHistory = async () => {
     const confirmed = confirm('确定要清除该群聊的所有聊天记录吗？此操作不可撤销。')
     if (!confirmed) return
 
-    console.log('清除聊天记录:', selectedChat.value.id)
     const response = await MessageApi.clearGroupHistory({
       roomId: selectedChat.value.id,
     })
@@ -5170,7 +4691,6 @@ const handleClearHistory = async () => {
       throw new Error(response.message || '清除失败')
     }
   } catch (error: any) {
-    console.error('清除聊天记录失败:', error)
     toast.error('清除失败: ' + (error.message || '网络错误'))
   }
 }
@@ -5180,7 +4700,6 @@ const handleReportGroup = () => {
     toast.error('请先选择一个群聊')
     return
   }
-  console.log('打开举报群聊对话框', { groupId: selectedChat.value.id, groupName: selectedChat.value.name })
   showReportDialog.value = true
 }
 
@@ -5196,11 +4715,6 @@ const handleConfirmReport = async (reason: string) => {
     return
   }
 
-  console.log('🔄 举报群聊:', {
-    groupId: selectedChat.value.id,
-    groupName: selectedChat.value.name,
-    reason
-  })
 
   try {
     isReportingGroup.value = true
@@ -5212,7 +4726,6 @@ const handleConfirmReport = async (reason: string) => {
     })
 
     if (response.success) {
-      console.log('✅ 举报成功')
       toast.success('举报已提交，感谢您的反馈')
 
       // 关闭对话框
@@ -5221,7 +4734,6 @@ const handleConfirmReport = async (reason: string) => {
       throw new Error(response.message || '举报失败')
     }
   } catch (error: any) {
-    console.error('❌ 举报失败:', error)
     toast.error('举报失败: ' + (error.message || '网络错误'))
   } finally {
     isReportingGroup.value = false
@@ -5235,7 +4747,6 @@ const handleLeaveGroup = async () => {
     const confirmed = confirm('确定要退出该群聊吗？')
     if (!confirmed) return
 
-    console.log('退出群聊:', selectedChat.value.id)
     const response = await MessageApi.leaveGroup({
       roomId: selectedChat.value.id,
     })
@@ -5256,19 +4767,16 @@ const handleLeaveGroup = async () => {
       throw new Error(response.message || '退出失败')
     }
   } catch (error: any) {
-    console.error('退出群聊失败:', error)
     toast.error('退出失败: ' + (error.message || '网络错误'))
   }
 }
 
 // 语音功能
 const handleVoiceClick = () => {
-  console.log('打开语音录制')
   showVoiceRecorder.value = true
 }
 
 const closeVoiceRecorder = () => {
-  console.log('关闭语音录制')
   showVoiceRecorder.value = false
 }
 
@@ -5276,7 +4784,6 @@ const handleVoiceSend = async (recording: any) => {
   if (!selectedChat.value) return
 
   try {
-    console.log('发送语音消息:', recording)
 
     // 1. 获取语音上传签名
     const signatureResponse = await MessageApi.generateMessageAttachmentSignature({
@@ -5341,7 +4848,6 @@ const handleVoiceSend = async (recording: any) => {
       throw new Error(messageResponse.message || '发送消息失败')
     }
   } catch (error: any) {
-    console.error('发送语音消息失败:', error)
     toast.error('发送失败: ' + (error.message || '网络错误'))
   }
 }
@@ -5349,26 +4855,13 @@ const handleVoiceSend = async (recording: any) => {
 // 加载群成员列表
 const loadGroupMembers = async (groupId: string) => {
   try {
-    console.log('🔄 加载群成员列表:', groupId)
     const response = await GroupApi.getChatGroupMembers({ chatGroupId: groupId })
     if (response.success && response.data) {
       groupMembers.value = response.data
-      console.log('✅ 群成员列表加载成功:', {
-        count: response.data.length,
-        members: response.data.map(m => ({
-          userId: m.userId,
-          username: m.username,
-          nickname: m.nickname,
-          avatarUrl: m.avatarUrl,
-          role: m.role
-        }))
-      })
     } else {
-      console.warn('❌ 群成员列表获取失败:', response.message)
       groupMembers.value = []
     }
   } catch (error: any) {
-    console.error('❌ 加载群成员失败:', error)
     groupMembers.value = []
   }
 }
@@ -5387,7 +4880,6 @@ const loadMessageList = async (groupId: string) => {
       messages.value = response.data
     }
   } catch (error: any) {
-    console.error('加载消息失败:', error)
   } finally {
     messagesLoading.value = false
   }
@@ -5960,15 +5452,25 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .chat-badge {
-  background: #ff4757;
-  color: white;
-  border-radius: 10px;
-  padding: 2px 6px;
-  font-size: 12px;
-  font-weight: bold;
+  background: var(--primary-color, #00C2B3);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
   min-width: 18px;
-  text-align: center;
-  line-height: 14px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.chat-badge.is-single-digit {
+  width: 18px;
+  min-width: 18px;
+  padding: 0;
+  border-radius: 50%;
 }
 
 .top-indicator {
@@ -5995,15 +5497,6 @@ const loadMessageList = async (groupId: string) => {
   border-radius: 50%;
   border: 2px solid #ffffff;
   z-index: 1;
-}
-
-.chat-type {
-  font-size: 10px;
-  color: #999;
-  margin-left: 4px;
-  background: #f0f0f0;
-  padding: 1px 4px;
-  border-radius: 3px;
 }
 
 // 重发按钮样式

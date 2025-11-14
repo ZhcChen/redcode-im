@@ -138,15 +138,12 @@ let originalResizable: boolean = true;
 // 设置登录页面窗口大小
 async function setLoginWindowSize() {
   const logId = `LOGIN_RESIZE_${Date.now()}`;
-  console.log(`[${logId}] ========== 设置登录窗口尺寸 ==========`);
   
   if (isModalMode.value) {
-    console.log(`[${logId}] 模态模式，跳过窗口尺寸设置`);
     return;
   }
 
   if (store.getters.isLoggedIn) {
-    console.log(`[${logId}] 检测到已有登录态，跳过窗口尺寸调整`);
     return;
   }
 
@@ -155,8 +152,6 @@ async function setLoginWindowSize() {
 
     // 保存原始窗口大小和可调整状态
     const currentSize = await currentWindow.innerSize();
-    console.log(`[${logId}] 调整前尺寸: ${currentSize.width}x${currentSize.height}`);
-    console.log(`[${logId}] 保存原始尺寸: ${currentSize.width}x${currentSize.height}`);
     
     originalSize = {
       width: currentSize.width,
@@ -171,28 +166,20 @@ async function setLoginWindowSize() {
     try {
       await currentWindow.setResizable(false);
     } catch (error) {
-      console.warn(`[${logId}] 设置窗口可调整状态失败:`, error);
     }
 
-    console.log(`[${logId}] 目标尺寸: 400x600`);
-    console.log(`[${logId}] 调用栈:`, new Error().stack);
     
     // 使用 Rust 后端设置窗口大小并居中
     await invoke("set_window_size_and_center", { width: 400, height: 600 });
 
     const afterSize = await currentWindow.innerSize();
-    console.log(`[${logId}] 调整后尺寸: ${afterSize.width}x${afterSize.height}`);
-    console.log(`[${logId}] ========== 设置完成 ==========`);
   } catch (error) {
-    console.error(`[${logId}] 设置登录页面窗口大小失败:`, error);
     // 回退到前端方法
     try {
       const currentWindow = getCurrentWebviewWindow();
       await currentWindow.setSize(new LogicalSize(400, 600));
       await currentWindow.center();
-      console.log(`[${logId}] 使用前端方法设置成功`);
     } catch (fallbackError) {
-      console.error(`[${logId}] 回退方法也失败:`, fallbackError);
     }
   }
 }
@@ -210,15 +197,11 @@ async function restoreOriginalWindowSize() {
     try {
       await currentWindow.setResizable(originalResizable);
     } catch (error) {
-      console.warn('恢复窗口可调整状态失败:', error);
     }
 
     const sizeToRestore = originalSize ?? DEFAULT_MAIN_WINDOW_SIZE;
 
     if (!originalSize) {
-      console.warn(
-        `[Login] 未捕获原始窗口尺寸，使用默认主窗口 ${sizeToRestore.width}x${sizeToRestore.height} 恢复`,
-      );
     }
 
     await invoke("set_window_size_and_center", {
@@ -226,11 +209,7 @@ async function restoreOriginalWindowSize() {
       height: sizeToRestore.height,
     });
 
-    console.log(
-      "窗口大小和可调整状态已通过 Rust 后端恢复为原始设置（保持标题不变）",
-    );
   } catch (error) {
-    console.error("恢复窗口大小失败:", error);
     // 回退到前端方法
     const fallbackSize = originalSize ?? DEFAULT_MAIN_WINDOW_SIZE;
     try {
@@ -240,18 +219,15 @@ async function restoreOriginalWindowSize() {
       );
       await currentWindow.center();
     } catch (fallbackError) {
-      console.error("回退方法也失败:", fallbackError);
     }
   }
 }
 
 // 组件挂载时设置窗口大小
 onMounted(() => {
-  console.log("[Login] 页面已挂载，准备隐藏全局加载蒙版");
   try {
     store.dispatch("hideGlobalLoading");
   } catch (error) {
-    console.warn("[Login] 隐藏全局加载蒙版失败:", error);
   }
 
   // 添加短暂延迟确保路由跳转完成
@@ -265,31 +241,25 @@ onMounted(() => {
 
 // 处理登录
 async function handleLogin() {
-  console.log("[Login] handleLogin invoked");
   // 表单验证
   if (!validateForm()) {
-    console.warn("[Login] 表单验证未通过, 阻止登录");
     return;
   }
 
   isLoading.value = true;
-  console.log("[Login] isLoading -> true");
 
   try {
     // 在开始登录前立即重置登出状态，确保可以发起API请求
     const { setLoggingOut, setLoginTime, clearLoginTime } = await import(
       "@/api/http"
     );
-    console.log("[Login] 已加载 http 模块, 重置登出状态");
     setLoggingOut(false);
     clearLoginTime(); // 清除之前的登录时间
-    console.log("📝 已重置登出状态和登录时间，开始登录流程");
 
     let response;
 
     if (loginType.value === "password") {
       // 密码登录
-      console.log("[Login] 发起密码登录请求");
       response = await SystemApi.login({
         mobile: loginForm.value.phone,
         password: loginForm.value.password,
@@ -297,7 +267,6 @@ async function handleLogin() {
       });
     } else {
       // 验证码登录
-      console.log("[Login] 发起验证码登录请求");
       response = await SystemApi.loginWithSMS({
         phone: loginForm.value.phone,
         code: loginForm.value.captcha,
@@ -307,7 +276,6 @@ async function handleLogin() {
     if (response.success && response.data) {
       // 登录成功，立即设置登录时间（在状态更新之前）
       setLoginTime();
-      console.log("⏰ 已设置登录时间戳");
 
       // 登录成功，保存用户信息和token到store
       // 将API返回的数据格式映射为Store期望的格式
@@ -335,17 +303,11 @@ async function handleLogin() {
         powerList: userInfo.powerList ?? null,
       };
 
-      console.log("📸 登录响应中的头像信息:", {
-        originalAvatar: userInfo.avatar,
-        mappedAvatar: mappedUserInfo.avatar,
-        fullUserInfo: userInfo,
-      });
 
       await store.dispatch("login", {
         token: response.data.token,
         userInfo: mappedUserInfo,
       });
-      console.log("[Login] 首次 dispatch login 完成");
 
       // 将账号添加到 accounts 模块（支持多账号）
       try {
@@ -365,22 +327,17 @@ async function handleLogin() {
             accountId: mappedUserInfo.id,
             data: accountInfo
           });
-          console.log('✅ 账号已存在，已更新账号信息');
         } else {
           // 添加新账号
           await store.dispatch('accounts/addAccount', accountInfo);
-          console.log('✅ 新账号已添加到 accounts 模块');
         }
 
         // 设置为当前账号
         await store.dispatch('accounts/switchAccount', mappedUserInfo.id);
-        console.log('✅ 已切换到当前账号');
       } catch (accountError) {
-        console.error('❌ 添加账号到 accounts 模块失败:', accountError);
         // 不阻断登录流程，只记录错误
       }
 
-      console.log("登录成功:", response.data);
 
       // 等待更长时间确保状态完全同步，避免竞态条件
       await new Promise((resolve) => setTimeout(resolve, 800)); // 增加延迟
@@ -388,47 +345,29 @@ async function handleLogin() {
       // 验证token是否正确设置到store中
       const verifyToken = store.state.token;
       const verifyLoggedIn = store.getters.isLoggedIn;
-      console.log("🔍 登录完成后状态验证:", {
-        storeTokenSet: !!verifyToken,
-        storeTokenPreview: verifyToken
-          ? `${verifyToken.substring(0, 10)}...`
-          : "无token",
-        isLoggedIn: verifyLoggedIn,
-        tokenMatch: verifyToken === response.data.token,
-        userInfo: mappedUserInfo,
-        currentTime: new Date().toISOString(),
-      });
 
       // 如果token验证失败，重新设置
       if (!verifyToken || verifyToken !== response.data.token) {
-        console.warn("⚠️ Token验证失败，重新设置...");
         await store.dispatch("login", {
           token: response.data.token,
           userInfo: mappedUserInfo,
         });
         // 再次等待确保设置完成
         await new Promise((resolve) => setTimeout(resolve, 500));
-        console.log("[Login] 第二次 dispatch login 完成");
       }
 
       // 更新窗口标题
       try {
-        console.log("🔄 准备更新窗口标题，用户信息:", mappedUserInfo);
         const { updateWindowTitle } = await import("@/utils");
         await updateWindowTitle(mappedUserInfo);
-        console.log("✅ 窗口标题更新完成");
       } catch (error) {
-        console.error("❌ 更新窗口标题失败:", error);
       }
 
       // 同步头像缓存
       try {
-        console.log("🔄 [Login] 准备同步头像缓存...");
         const { UserApi } = await import("@/api");
         await UserApi.syncAvatarCache(true);
-        console.log("✅ [Login] 头像缓存同步完成");
       } catch (avatarError) {
-        console.error("❌ [Login] 同步头像缓存失败:", avatarError);
       }
 
       // 最后等待确保所有异步操作完成
@@ -437,17 +376,9 @@ async function handleLogin() {
       // 登录成功跳转前的最终状态确认
       const finalToken = store.state.token;
       const finalLoggedIn = store.getters.isLoggedIn;
-      console.log("🏁 登录流程最终状态确认:", {
-        hasToken: !!finalToken,
-        isLoggedIn: finalLoggedIn,
-        readyToNavigate: !!(finalToken && finalLoggedIn),
-        currentPath: window.location.pathname,
-        targetPath: "/home",
-      });
 
       // 只有在状态确认无误时才跳转
       if (finalToken && finalLoggedIn) {
-        console.log("✅ 状态验证通过，开始页面跳转...");
 
         const successPayload = {
           accountId: mappedUserInfo.id,
@@ -465,11 +396,9 @@ async function handleLogin() {
           const currentWindow = getCurrentWebviewWindow();
           const windowLabel = currentWindow.label;
 
-          console.log('当前窗口label:', windowLabel);
 
           // 如果是独立的登录窗口（label以'login-'开头）
           if (windowLabel.startsWith('login-')) {
-            console.log('✅ 在独立登录窗口中，账号已添加，关闭窗口');
 
             // 通知主窗口刷新账号列表
             try {
@@ -478,9 +407,7 @@ async function handleLogin() {
                 accountId: mappedUserInfo.id,
                 nickname: mappedUserInfo.nickname
               });
-              console.log('✅ 已通知主窗口刷新账号列表');
             } catch (error) {
-              console.warn('通知主窗口失败:', error);
             }
 
             // 延迟关闭窗口，让用户看到成功提示
@@ -489,25 +416,20 @@ async function handleLogin() {
             return;
           }
         } catch (error) {
-          console.warn('检查窗口类型失败:', error);
         }
 
         // 主窗口登录，跳转到首页
         router.replace({ name: "Home" });
       } else {
-        console.error("❌ 登录状态验证失败，无法跳转");
         toast.error("登录状态异常，请重试");
       }
     } else {
       // 登录失败
       toast.error(response.message || "登录失败，请检查账号密码");
-      console.error("登录失败:", response.message || "未知错误");
     }
   } catch (error: any) {
-    console.error("登录请求失败:", error);
     toast.error(error.message || "网络错误，请稍后重试");
   } finally {
-    console.log("[Login] handleLogin finally, isLoading -> false");
     isLoading.value = false;
   }
 }
@@ -662,7 +584,6 @@ async function handleSendCaptcha() {
       toast.error(response.message || "发送验证码失败");
     }
   } catch (error: any) {
-    console.error("发送验证码失败:", error);
     toast.error(error.message || "网络错误，请稍后重试");
   } finally {
     isSendingCaptcha.value = false;

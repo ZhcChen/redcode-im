@@ -32,7 +32,6 @@ export class VoiceRecorder {
       stream.getTracks().forEach(track => track.stop());
       return true;
     } catch (error) {
-      console.error('麦克风权限请求失败:', error);
       return false;
     }
   }
@@ -62,9 +61,7 @@ export class VoiceRecorder {
       };
 
       this.mediaRecorder.start();
-      console.log('开始录音...');
     } catch (error) {
-      console.error('开始录音失败:', error);
       this.cleanup();
       throw new Error('无法访问麦克风');
     }
@@ -100,7 +97,6 @@ export class VoiceRecorder {
       };
 
       this.mediaRecorder.stop();
-      console.log('录音停止');
     });
   }
 
@@ -113,7 +109,6 @@ export class VoiceRecorder {
     }
     this.audioChunks = [];
     this.cleanup();
-    console.log('录音已取消');
   }
 
   /**
@@ -176,17 +171,14 @@ export class VoicePlayer {
       }
 
       this.audio.onplay = () => {
-        console.log('开始播放语音');
       };
 
       this.audio.onended = () => {
-        console.log('语音播放结束');
         this.cleanup();
         resolve();
       };
 
       this.audio.onerror = (error) => {
-        console.error('语音播放错误:', error);
         this.cleanup();
         reject(new Error('语音播放失败'));
       };
@@ -202,7 +194,6 @@ export class VoicePlayer {
     if (this.audio && !this.audio.paused) {
       this.audio.pause();
       this.audio.currentTime = 0;
-      console.log('语音播放已停止');
     }
   }
 
@@ -212,7 +203,6 @@ export class VoicePlayer {
   public pause(): void {
     if (this.audio && !this.audio.paused) {
       this.audio.pause();
-      console.log('语音播放已暂停');
     }
   }
 
@@ -221,8 +211,6 @@ export class VoicePlayer {
    */
   public resume(): void {
     if (this.audio && this.audio.paused) {
-      this.audio.play().catch(console.error);
-      console.log('语音播放已恢复');
     }
   }
 
@@ -330,6 +318,5 @@ export class VoiceUtils {
    */
   public static createWaveform(canvas: HTMLCanvasElement, audioBuffer: AudioBuffer): void {
     // TODO: 实现音频波形可视化
-    console.log('音频波形可视化功能待实现');
   }
 }

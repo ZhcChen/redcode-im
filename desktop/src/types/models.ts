@@ -136,6 +136,7 @@ export interface Message {
   senderUsername: string;
   senderName: string;
   senderAvatar?: string | null;
+  senderAvatarObjectKey?: string | null;
   content: string;
   type: MessageType;
   status: MessageStatus;

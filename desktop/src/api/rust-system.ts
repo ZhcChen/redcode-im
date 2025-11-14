@@ -85,7 +85,6 @@ export class RustSystemApi {
   }>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 登录 API...')
         const response = await rustHttp.post<BackendLoginResponse>('/auth/login/sms', {
           username: params.username,
           password: params.password,
@@ -113,7 +112,6 @@ export class RustSystemApi {
           }
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 登录失败，回退到 TypeScript:', error)
         // 失败时回退到 TypeScript
         return await this.loginWithTs(params)
       }
@@ -142,7 +140,6 @@ export class RustSystemApi {
   }>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 短信登录 API...')
         const response = await rustHttp.post<BackendLoginResponse>('/auth/login/sms', {
           phone: params.phone,
           code: params.code
@@ -168,7 +165,6 @@ export class RustSystemApi {
           }
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 短信登录失败，回退到 TypeScript:', error)
         const { SystemApi } = await import('./system')
         return await SystemApi.smsLogin(params)
       }
@@ -184,7 +180,6 @@ export class RustSystemApi {
   static async logout(): Promise<ApiResponse<any>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 登出 API...')
         const response = await rustHttp.post('/auth/logout')
 
         // 清除 token
@@ -197,7 +192,6 @@ export class RustSystemApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 登出失败，使用 TypeScript:', error)
         const { SystemApi } = await import('./system')
         return await SystemApi.logout()
       }
@@ -216,7 +210,6 @@ export class RustSystemApi {
   }): Promise<ApiResponse<any>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 发送验证码 API...')
         const response = await rustHttp.post('/auth/sms/send', {
           phone: params.mobile,
           type: params.type
@@ -229,7 +222,6 @@ export class RustSystemApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 发送验证码失败，回退到 TypeScript:', error)
         const { SystemApi } = await import('./system')
         return await SystemApi.sendVerificationCode(params)
       }
@@ -248,7 +240,6 @@ export class RustSystemApi {
   }): Promise<ApiResponse<any>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 验证验证码 API...')
         const response = await rustHttp.post('/auth/sms/verify', {
           phone: params.mobile,
           code: params.code
@@ -261,7 +252,6 @@ export class RustSystemApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 验证验证码失败，回退到 TypeScript:', error)
         const { SystemApi } = await import('./system')
         return await SystemApi.verifyCode(params)
       }
@@ -282,7 +272,6 @@ export class RustSystemApi {
   }): Promise<ApiResponse<any>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 注册 API...')
         const response = await rustHttp.post('/auth/register', params)
 
         return {
@@ -292,7 +281,6 @@ export class RustSystemApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 注册失败，回退到 TypeScript:', error)
         const { SystemApi } = await import('./system')
         return await SystemApi.register(params)
       }
@@ -313,7 +301,6 @@ export class RustSystemApi {
       const response = await get('/health')
       return response.success
     } catch (error) {
-      console.warn('TypeScript 健康检查失败:', error)
       return false
     }
   }
@@ -324,7 +311,6 @@ export class RustSystemApi {
   static async getSystemInfo(): Promise<ApiResponse<any>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 获取系统信息 API...')
         const response = await rustHttp.get('/system/info')
 
         return {
@@ -334,7 +320,6 @@ export class RustSystemApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 获取系统信息失败，回退到 TypeScript:', error)
         const { SystemApi } = await import('./system')
         return await SystemApi.getSystemInfo()
       }

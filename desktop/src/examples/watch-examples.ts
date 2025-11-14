@@ -36,14 +36,12 @@ const apiData = ref(null);
 export function basicWatchExample() {
   // 监听单个 ref
   const stopWatcher1 = watch(searchQuery, (newValue, oldValue) => {
-    console.log(`搜索查询从 "${oldValue}" 变为 "${newValue}"`);
   });
 
   // 监听多个源
   const stopWatcher2 = watch(
     [searchQuery, isLoggedIn],
     ([newQuery, newLoginStatus], [oldQuery, oldLoginStatus]) => {
-      console.log('搜索查询或登录状态发生变化');
     }
   );
 
@@ -51,7 +49,6 @@ export function basicWatchExample() {
   const stopWatcher3 = watch(
     userSettings,
     (newSettings, oldSettings) => {
-      console.log('用户设置发生变化:', newSettings);
     },
     { deep: true }
   );
@@ -70,7 +67,6 @@ export function watchEffectExample() {
   const stopEffect = watchEffect(() => {
     // 自动追踪依赖
     if (isLoggedIn.value && searchQuery.value) {
-      console.log(`已登录用户搜索: ${searchQuery.value}`);
     }
   });
 
@@ -85,7 +81,6 @@ export function debouncedSearchExample() {
     searchQuery,
     (newQuery) => {
       if (newQuery.trim()) {
-        console.log(`执行搜索: ${newQuery}`);
         // 这里可以调用搜索 API
       }
     },
@@ -104,7 +99,6 @@ export function throttledScrollExample() {
   const stopWatcher = createThrottledWatcher(
     scrollY,
     (newY) => {
-      console.log(`滚动位置: ${newY}`);
       // 更新导航栏状态等
     },
     100 // 100ms 节流
@@ -131,7 +125,6 @@ export function conditionalWatchExample() {
     userSettings,
     () => isLoggedIn.value, // 只有登录时才监听设置变化
     (newSettings) => {
-      console.log('已登录用户的设置发生变化:', newSettings);
       // 保存设置到服务器
     },
     { deep: true }
@@ -151,11 +144,6 @@ export function batchWatchExample() {
   const stopWatcher = createBatchWatcher(
     [name, email, age],
     ([newName, newEmail, newAge], [oldName, oldEmail, oldAge]) => {
-      console.log('用户信息发生变化:', {
-        name: { old: oldName, new: newName },
-        email: { old: oldEmail, new: newEmail },
-        age: { old: oldAge, new: newAge }
-      });
     }
   );
 
@@ -170,7 +158,6 @@ export function onceWatchExample() {
     isLoggedIn,
     (isLoggedIn) => {
       if (isLoggedIn) {
-        console.log('用户首次登录，执行初始化操作');
         // 加载用户数据、设置等
       }
     },
@@ -190,7 +177,6 @@ export function asyncWatchExample() {
     userId,
     async (newUserId, oldUserId, onCleanup) => {
       if (newUserId) {
-        console.log(`加载用户 ${newUserId} 的数据`);
         
         // 模拟 API 调用
         const cancellation = { cancelled: false };
@@ -204,10 +190,8 @@ export function asyncWatchExample() {
             return;
           }
           apiData.value = response.data;
-          console.log('用户数据加载完成:', response.data);
         } catch (error) {
           if (!cancellation.cancelled) {
-            console.error('加载用户数据失败:', error);
           }
         }
       }
@@ -228,10 +212,8 @@ export function safeWatchExample() {
     (newData) => {
       // 可能抛出错误的操作
       const result = newData.someProperty.deepProperty.value;
-      console.log('处理结果:', result);
     },
     (error) => {
-      console.error('监听器执行出错:', error.message);
       // 可以发送错误报告、显示用户友好的错误信息等
     }
   );
@@ -247,16 +229,13 @@ export function watcherChainExample() {
 
   const chain = createWatcherChain(input)
     .debounce((value) => {
-      console.log('防抖处理:', value);
     }, 300)
     .condition(
       () => input.value.length > 2,
       (value) => {
-        console.log('长度大于2的输入:', value);
       }
     )
     .once((value) => {
-      console.log('首次输入:', value);
     });
 
   return () => chain.stop();
@@ -270,18 +249,14 @@ export function watcherManagerExample() {
 
   // 添加多个监听器
   manager.add(watch(searchQuery, (value) => {
-    console.log('搜索查询变化:', value);
   }));
 
   manager.add(watch(isLoggedIn, (status) => {
-    console.log('登录状态变化:', status);
   }));
 
   manager.add(watchEffect(() => {
-    console.log('响应式效果:', searchQuery.value, isLoggedIn.value);
   }));
 
-  console.log(`管理器中有 ${manager.size()} 个监听器`);
 
   // 清理所有监听器
   return () => manager.clear();
@@ -295,7 +270,6 @@ export function watchPatternsExample() {
   const stopImmediate = watchPatterns.immediate(
     userSettings,
     (settings) => {
-      console.log('立即执行 - 当前设置:', settings);
     },
     { deep: true }
   );
@@ -304,7 +278,6 @@ export function watchPatternsExample() {
   const stopDeep = watchPatterns.deep(
     userSettings,
     (settings) => {
-      console.log('深度监听 - 设置变化:', settings);
     }
   );
 
@@ -312,7 +285,6 @@ export function watchPatternsExample() {
   const stopSync = watchPatterns.sync(
     searchQuery,
     (query) => {
-      console.log('同步执行 - 搜索查询:', query);
     }
   );
 
@@ -338,7 +310,6 @@ export function computedWithWatchExample() {
   // 监听计算属性
   const stopWatcher = watch(fullName, (newFullName, oldFullName) => {
     if (newFullName && newFullName !== oldFullName) {
-      console.log(`全名从 "${oldFullName}" 变为 "${newFullName}"`);
     }
   });
 

@@ -193,20 +193,17 @@ const handleOverlayClick = (event: MouseEvent) => {
 // 图片加载完成
 const handleImageLoad = () => {
   loading.value = false
-  console.log('图片预览加载完成')
 }
 
 // 图片加载错误
 const handleImageError = () => {
   loading.value = false
-  console.error('图片预览加载失败')
 }
 
 // 视频开始加载
 const handleVideoLoadStart = () => {
   loading.value = true
   videoReady.value = false
-  console.log('视频开始加载')
 }
 
 // 视频可以播放
@@ -221,13 +218,10 @@ const handleVideoCanPlay = () => {
     // 自动播放视频
     videoElement.value.play().then(() => {
       isPlaying.value = true
-      console.log('视频自动播放开始')
     }).catch(error => {
-      console.warn('自动播放被阻止:', error)
       isPlaying.value = false
     })
   }
-  console.log('视频可以播放')
 }
 
 // 时间更新
@@ -251,14 +245,12 @@ const handleTimeUpdate = () => {
 const handleVideoEnded = () => {
   isPlaying.value = false
   playProgress.value = 100
-  console.log('视频播放结束')
 }
 
 // 视频加载错误
 const handleVideoError = () => {
   loading.value = false
   videoReady.value = false
-  console.error('视频预览加载失败')
 }
 
 // 播放/暂停切换

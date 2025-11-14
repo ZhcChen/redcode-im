@@ -183,15 +183,7 @@ export class UserApi {
     avatarLocalPath: string;
   }>> {
     const currentUser = store.getters.currentUser as LegacyUserInfo | undefined;
-    console.log('[UserApi] 🧾 收到头像上传请求', {
-      hasUser: Boolean(currentUser?.id),
-      userId: currentUser?.id,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size
-    });
     if (!currentUser || !currentUser.id) {
-      console.warn('[UserApi] ⚠️ uploadAvatar 调用失败：当前未登录');
       return {
         code: 400,
         success: false,
@@ -201,7 +193,6 @@ export class UserApi {
     }
 
     const contentType = file.type || 'application/octet-stream';
-    console.log('[UserApi] 🔐 请求头像直传签名', { contentType });
     const directResp = await rustHttp.post<{
       success: boolean;
       message: string;
@@ -214,18 +205,7 @@ export class UserApi {
     }>('/users/me/avatar/direct-upload', { content_type: contentType });
 
     const directData = directResp.data;
-    console.log('[UserApi] 🔐 直传签名响应', {
-      success: directResp.success,
-      code: directResp.code,
-      key: directData?.key,
-      hasSignature: Boolean(directData?.signature)
-    });
     if (!directResp.success || !directData || !directData.success || !directData.key || !directData.signature) {
-      console.error('[UserApi] ❌ 获取上传签名失败', {
-        code: directResp.code,
-        message: directResp.message,
-        payload: directData
-      });
       return {
         code: directResp.code,
         success: false,
@@ -235,14 +215,12 @@ export class UserApi {
     }
 
     const { key, signature } = directData;
-    console.log('[UserApi] 📋 服务端返回的签名 headers:', signature.headers);
 
     const headers = new Headers();
     // 过滤掉 Host 头，避免浏览器 CORS 限制
     Object.entries(signature.headers || {}).forEach(
       ([headerKey, headerValue]) => {
         if (headerKey.toLowerCase() === 'host') {
-          console.log('[UserApi] 🚫 已过滤 Host 头:', headerValue);
           return;
         }
         headers.set(headerKey, headerValue);
@@ -270,7 +248,6 @@ export class UserApi {
       forceStreaming: true,
       contentLength
     };
-    console.log('[UserApi] ☁️ 准备执行对象存储上传', uploadMeta);
     await emitClientDebug('avatarUploadPrepared', uploadMeta);
 
     const uploadResponse = await rustHttp.requestRaw<{ base64?: string }>({
@@ -298,10 +275,6 @@ export class UserApi {
         errorMessage = '网络连接失败，请检查网络设置';
       }
 
-      console.error('[UserApi] ❌ 对象存储上传失败', {
-        status,
-        message: uploadResponse.message
-      });
       return {
         code: status,
         success: false,
@@ -310,17 +283,11 @@ export class UserApi {
       };
     }
 
-    console.log('[UserApi] ✅ 对象存储上传成功，等待提交', {
-      status: uploadResponse.code,
-      key
-    });
 
-    console.log('[UserApi] 🔄 提交头像配置', { key, delete_previous: true });
     await emitClientDebug('USER_AVATAR_COMMIT_START', { key });
     let commitResp;
     try {
       await emitClientDebug('USER_AVATAR_CALLING_POST', { path: '/users/me/avatar/commit' });
-      console.log('[UserApi] ⏳ 准备调用 rustHttp.post...');
       commitResp = await rustHttp.post<{
         success: boolean;
         message: string;
@@ -331,10 +298,7 @@ export class UserApi {
         expires_in_seconds: 600
       });
       await emitClientDebug('USER_AVATAR_POST_COMPLETE', { success: commitResp.success });
-      console.log('[UserApi] ✅ commit请求完成,开始处理响应');
-      console.log('[UserApi] 🔍 commitResp 完整结构:', JSON.stringify(commitResp, null, 2));
     } catch (commitError) {
-      console.error('[UserApi] ❌ commit请求异常:', commitError);
       await emitClientDebug('USER_AVATAR_COMMIT_ERROR', { error: String(commitError) });
       return {
         code: 500,
@@ -352,22 +316,7 @@ export class UserApi {
       dataKeys: commitData ? Object.keys(commitData) : null,
       dataSuccess: commitData?.success
     });
-    console.log('[UserApi] 📝 提交头像配置响应', {
-      success: commitResp.success,
-      code: commitResp.code,
-      message: commitResp.message,
-      hasData: Boolean(commitData),
-      dataType: typeof commitData,
-      dataKeys: commitData ? Object.keys(commitData) : null,
-      dataSuccess: commitData?.success,
-      downloadUrl: commitData?.download_url
-    });
     if (!commitResp.success || !commitData || !commitData.success) {
-      console.error('[UserApi] ❌ 提交头像配置失败', {
-        code: commitResp.code,
-        message: commitResp.message,
-        payload: commitData
-      });
       await emitClientDebug('USER_AVATAR_VALIDATION_FAILED', {
         respSuccess: commitResp.success,
         hasData: Boolean(commitData),
@@ -382,7 +331,6 @@ export class UserApi {
     }
 
     await emitClientDebug('USER_AVATAR_SAVING_CACHE', { key });
-    console.log('[UserApi] 💾 保存头像缓存文件', { key });
     const saved = await AvatarCache.save({
       userId: currentUser.id,
       objectKey: key,
@@ -392,14 +340,8 @@ export class UserApi {
       avatarType: 'user'
     });
     await emitClientDebug('USER_AVATAR_CACHE_SAVED', { webPath: saved.webPath });
-    console.log('[UserApi] 💾 头像缓存完成', { webPath: saved.webPath });
 
     const avatarUrl = commitData.download_url || currentUser.avatar || '';
-    console.log('[UserApi] 🔁 同步头像信息到 store', {
-      avatarUrl,
-      avatarObjectKey: key,
-      avatarLocalPath: saved.webPath
-    });
     await emitClientDebug('USER_AVATAR_UPDATING_STORE', {
       avatarUrl,
       avatarObjectKey: key,
@@ -424,11 +366,9 @@ export class UserApi {
         token: store.state.token || undefined
       });
     } catch (error) {
-      console.warn('[UserApi] ⚠️ 同步多账号头像失败:', error);
     }
     await emitClientDebug('USER_AVATAR_STORE_UPDATED', { success: true });
 
-    console.log('[UserApi] 🎉 头像上传流程完成');
     await emitClientDebug('USER_AVATAR_UPLOAD_COMPLETE', { success: true });
     return {
       code: commitResp.code,
@@ -456,11 +396,9 @@ export class UserApi {
     force = false
   ): Promise<string | null> {
     const logId = `USER_AVATAR_SYNC_${userId.substring(0, 8)}_${Date.now()}`;
-    console.log(`[${logId}] 同步用户头像缓存`, { userId, avatarObjectKey, force });
 
     try {
       if (!avatarObjectKey) {
-        console.log(`[${logId}] 无 avatarObjectKey，跳过`);
         return null;
       }
 
@@ -468,10 +406,8 @@ export class UserApi {
       if (!force) {
         const cached = await AvatarCache.resolve(userId, avatarObjectKey, 'user');
         if (cached) {
-          console.log(`[${logId}] ✅ 缓存命中: ${cached.webPath}`);
           return cached.webPath;
         }
-        console.log(`[${logId}] ⚠️ 缓存未命中，需要下载`);
       }
 
       // 获取临时下载 URL
@@ -482,12 +418,10 @@ export class UserApi {
 
       const payload = downloadResp.data;
       if (!payload || !payload.success || !payload.download_url) {
-        console.error(`[${logId}] ❌ 获取下载 URL 失败:`, downloadResp.message);
         return null;
       }
 
       // 下载头像文件
-      console.log(`[${logId}] 📥 下载头像文件...`);
       const downloadResponse = await rustHttp.requestRaw<{
         base64?: string;
         headers?: Record<string, string>
@@ -499,12 +433,10 @@ export class UserApi {
       });
 
       if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
-        console.error(`[${logId}] ❌ 下载头像失败: HTTP ${downloadResponse.code}`);
         return null;
       }
 
       // 保存到本地缓存
-      console.log(`[${logId}] 💾 保存到本地缓存...`);
       const buffer = base64ToUint8Array(downloadResponse.data.base64);
       const contentType = downloadResponse.data.headers?.['content-type'] || 'image/jpeg';
       const saved = await AvatarCache.save({
@@ -515,10 +447,8 @@ export class UserApi {
         avatarType: 'user'
       });
 
-      console.log(`[${logId}] ✅ 缓存保存成功: ${saved.webPath}`);
       return saved.webPath;
     } catch (error) {
-      console.error(`[${logId}] ❌ 同步头像缓存失败:`, error);
       return null;
     }
   }
@@ -537,11 +467,9 @@ export class UserApi {
     force = false
   ): Promise<string | null> {
     const logId = `GROUP_AVATAR_SYNC_${groupId.substring(0, 8)}_${Date.now()}`;
-    console.log(`[${logId}] 同步群头像缓存`, { groupId, avatarObjectKey, force });
 
     try {
       if (!avatarObjectKey) {
-        console.log(`[${logId}] 无 avatarObjectKey，跳过`);
         return null;
       }
 
@@ -549,10 +477,8 @@ export class UserApi {
       if (!force) {
         const cached = await AvatarCache.resolve(groupId, avatarObjectKey, 'group');
         if (cached) {
-          console.log(`[${logId}] ✅ 缓存命中: ${cached.webPath}`);
           return cached.webPath;
         }
-        console.log(`[${logId}] ⚠️ 缓存未命中，需要下载`);
       }
 
       // 获取临时下载 URL
@@ -563,14 +489,12 @@ export class UserApi {
       });
 
       if (!downloadResp.success || !downloadResp.data || !downloadResp.data.downloadUrl) {
-        console.error(`[${logId}] ❌ 获取下载 URL 失败:`, downloadResp.message);
         return null;
       }
 
       const downloadUrl = downloadResp.data.downloadUrl;
 
       // 下载头像文件
-      console.log(`[${logId}] 📥 下载群头像文件...`);
       const downloadResponse = await rustHttp.requestRaw<{
         base64?: string;
         headers?: Record<string, string>
@@ -582,12 +506,10 @@ export class UserApi {
       });
 
       if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
-        console.error(`[${logId}] ❌ 下载群头像失败: HTTP ${downloadResponse.code}`);
         return null;
       }
 
       // 保存到本地缓存
-      console.log(`[${logId}] 💾 保存到本地缓存...`);
       const buffer = base64ToUint8Array(downloadResponse.data.base64);
       const contentType = downloadResponse.data.headers?.['content-type'] || 'image/jpeg';
       const saved = await AvatarCache.save({
@@ -598,78 +520,48 @@ export class UserApi {
         avatarType: 'group'
       });
 
-      console.log(`[${logId}] ✅ 缓存保存成功: ${saved.webPath}`);
       return saved.webPath;
     } catch (error) {
-      console.error(`[${logId}] ❌ 同步群头像缓存失败:`, error);
       return null;
     }
   }
 
   static async syncAvatarCache(force = false): Promise<void> {
     const logId = `AVATAR_SYNC_${Date.now()}`;
-    console.log(`[${logId}] ========== 同步头像缓存 ==========`);
-    console.log(`[${logId}] force: ${force}`);
     
     try {
       const currentUser = store.getters.currentUser as LegacyUserInfo | undefined;
-      console.log(`[${logId}] 当前用户:`, {
-        hasUser: !!currentUser,
-        userId: currentUser?.id,
-        avatar: currentUser?.avatar,
-        avatarObjectKey: currentUser?.avatarObjectKey,
-        avatarLocalPath: currentUser?.avatarLocalPath
-      });
       
       if (!currentUser || !currentUser.id) {
-        console.log(`[${logId}] 无当前用户，跳过`);
         return;
       }
       
       // 关键修改：如果没有 avatarObjectKey，清除缓存并返回
       if (!currentUser.avatarObjectKey) {
-        console.log(`[${logId}] 无 avatarObjectKey，清除缓存`);
         await AvatarCache.clear(currentUser.id);
         store.commit('UPDATE_USER_INFO', { avatarLocalPath: null });
-        console.log(`[${logId}] ========== 同步完成（无 key） ==========`);
         return;
       }
 
       // 如果不强制刷新，检查本地缓存
       if (!force) {
-        console.log(`[${logId}] 检查本地缓存...`);
         const cached = await AvatarCache.resolve(currentUser.id, currentUser.avatarObjectKey);
         if (cached) {
-          console.log(`[${logId}] 找到本地缓存: ${cached.webPath}`);
           store.commit('UPDATE_USER_INFO', { avatarLocalPath: cached.webPath });
-          console.log(`[${logId}] ========== 同步完成（使用缓存） ==========`);
           return;
         }
-        console.log(`[${logId}] 本地缓存不存在，需要下载`);
       } else {
-        console.log(`[${logId}] 强制刷新，跳过缓存检查`);
       }
 
       // 获取临时下载 URL
-      console.log(`[${logId}] 获取临时下载 URL...`);
       const downloadResp = await this.getAvatarDownloadUrl({ expiresInSeconds: 3600 }); // 1小时有效期
-      console.log(`[${logId}] 下载 URL 响应:`, {
-        success: downloadResp.success,
-        code: downloadResp.code,
-        hasData: !!downloadResp.data,
-        dataSuccess: downloadResp.data?.success,
-        hasUrl: !!downloadResp.data?.download_url
-      });
       
       const payload = downloadResp.data;
       if (!payload || !payload.success || !payload.download_url) {
-        console.error(`[${logId}] 获取下载 URL 失败:`, downloadResp.message);
         store.commit('UPDATE_USER_INFO', { avatarLocalPath: null });
-        console.log(`[${logId}] ========== 同步完成（获取 URL 失败） ==========`);
         return;
       }
 
-      console.log(`[${logId}] 下载头像文件: ${payload.download_url.substring(0, 50)}...`);
       const downloadResponse = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
         path: payload.download_url,
         method: 'GET',
@@ -677,20 +569,11 @@ export class UserApi {
         injectToken: false
       });
 
-      console.log(`[${logId}] 下载响应:`, {
-        success: downloadResponse.success,
-        code: downloadResponse.code,
-        hasData: !!downloadResponse.data,
-        hasBase64: !!downloadResponse.data?.base64,
-        base64Length: downloadResponse.data?.base64?.length
-      });
 
       if (!downloadResponse.success || !downloadResponse.data || !downloadResponse.data.base64) {
-        console.error(`[${logId}] 下载头像失败: HTTP ${downloadResponse.code}`);
         throw new Error(`下载头像失败: HTTP ${downloadResponse.code}`);
       }
 
-      console.log(`[${logId}] 保存到本地缓存...`);
       const buffer = base64ToUint8Array(downloadResponse.data.base64);
       const contentType = downloadResponse.data.headers?.['content-type'] || 'image/jpeg';
       const saved = await AvatarCache.save({
@@ -700,7 +583,6 @@ export class UserApi {
         contentType
       });
 
-      console.log(`[${logId}] 缓存保存成功: ${saved.webPath}`);
       
       // 更新 store，设置 avatarLocalPath
       store.commit('UPDATE_USER_INFO', {
@@ -716,14 +598,9 @@ export class UserApi {
           }
         });
       } catch (error) {
-        console.warn(`[${logId}] ⚠️ 同步本地缓存路径到多账号失败:`, error);
       }
       
-      console.log(`[${logId}] ========== 同步完成（成功） ==========`);
     } catch (error) {
-      console.error(`[${logId}] 同步头像缓存失败:`, error);
-      console.error(`[${logId}] 错误堆栈:`, error instanceof Error ? error.stack : 'N/A');
-      console.log(`[${logId}] ========== 同步完成（异常） ==========`);
     }
   }
 }

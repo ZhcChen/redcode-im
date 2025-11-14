@@ -242,7 +242,6 @@ const debouncedGetSuggestions = SearchUtils.debounceSuggestions(async (query: st
       suggestions.value = await SearchApi.getSearchSuggestions(query, 10);
       showSuggestions.value = true;
     } catch (error) {
-      console.error('获取搜索建议失败:', error);
       suggestions.value = [];
     }
   } else {
@@ -285,7 +284,6 @@ const handleSearch = async () => {
     hasMoreResults.value = results.length === params.limit;
     currentOffset.value = results.length;
   } catch (error) {
-    console.error('搜索失败:', error);
   } finally {
     isSearching.value = false;
   }
@@ -306,7 +304,6 @@ const loadMoreResults = async () => {
     currentOffset.value += results.length;
     hasMoreResults.value = results.length === params.limit;
   } catch (error) {
-    console.error('加载更多结果失败:', error);
   } finally {
     isLoadingMore.value = false;
   }

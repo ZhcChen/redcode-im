@@ -29,7 +29,6 @@ const isMac = typeof navigator !== 'undefined'
 const STOP_EVENT = (event: Event, reason: string) => {
   event.preventDefault();
   event.stopImmediatePropagation();
-  console.log(`🚫 已阻止 ${reason}`);
   return false;
 };
 
@@ -37,7 +36,6 @@ const pushDummyHistoryEntry = () => {
   try {
     window.history.pushState({ __navLocked: true, ts: Date.now() }, '', window.location.href);
   } catch (error) {
-    console.warn('⚠️ 无法推入历史记录状态以锁定导航:', error);
   }
 };
 
@@ -88,11 +86,9 @@ const shouldBlockMouseNavigation = (button: number) => button === 3 || button ==
  */
 export function disableNavigationShortcuts() {
   if (isDisabled) {
-    console.log('⚠️ 快捷键已经处于禁用状态');
     return;
   }
 
-  console.log('🔒 禁用浏览器前进后退快捷键');
 
   // 1. 禁用键盘快捷键
   keydownHandler = (event) => {
@@ -128,7 +124,6 @@ export function disableNavigationShortcuts() {
       if (event.ctrlKey && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
         event.preventDefault();
         event.stopPropagation();
-        console.log('🚫 已阻止水平滚轮手势');
         return false;
       }
     };
@@ -142,7 +137,6 @@ export function disableNavigationShortcuts() {
     if (now - lastTouchEnd <= 300) {
       event.preventDefault();
       event.stopPropagation();
-      console.log('🚫 已阻止双击缩放');
     }
     lastTouchEnd = now;
   };
@@ -152,7 +146,6 @@ export function disableNavigationShortcuts() {
   popstateHandler = (event) => {
     // 阻止浏览器的前进后退
     event.preventDefault();
-    console.log('🚫 已阻止 popstate 事件 (浏览器前进后退)');
     // 重新推入当前状态，避免影响 SPA 路由
     pushDummyHistoryEntry();
   };
@@ -165,13 +158,10 @@ export function disableNavigationShortcuts() {
   const originalGo = history.go.bind(history);
 
   history.back = (() => {
-    console.log('🚫 已拦截 history.back 调用');
   }) as History['back'];
   history.forward = (() => {
-    console.log('🚫 已拦截 history.forward 调用');
   }) as History['forward'];
   history.go = ((delta?: number) => {
-    console.log('🚫 已拦截 history.go 调用，delta:', delta);
   }) as History['go'];
 
   historyOverrideCleanup = () => {
@@ -184,7 +174,6 @@ export function disableNavigationShortcuts() {
   pushDummyHistoryEntry();
 
   isDisabled = true;
-  console.log('✅ 所有前进后退快捷键已禁用');
 }
 
 /**
@@ -192,11 +181,9 @@ export function disableNavigationShortcuts() {
  */
 export function enableNavigationShortcuts() {
   if (!isDisabled) {
-    console.log('⚠️ 快捷键已经处于启用状态');
     return;
   }
 
-  console.log('🔓 恢复浏览器前进后退快捷键');
 
   // 移除所有事件监听器
   if (keydownHandler) {
@@ -246,7 +233,6 @@ export function enableNavigationShortcuts() {
   }
 
   isDisabled = false;
-  console.log('✅ 快捷键已恢复');
 }
 
 /**

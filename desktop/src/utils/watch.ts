@@ -220,7 +220,6 @@ export function createAsyncWatcher<T>(
       try {
         await callback(newValue, oldValue, onCleanup);
       } catch (error) {
-        console.error('Async watcher error:', error);
       }
     },
     options
@@ -246,7 +245,6 @@ export function createSafeWatcher<T>(
         if (errorHandler) {
           errorHandler(error as Error);
         } else {
-          console.error('Watcher error:', error);
         }
       }
     },

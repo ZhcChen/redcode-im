@@ -30,17 +30,14 @@ class MemoryMonitor {
    */
   public startMonitoring(): void {
     if (this.isMonitoring) {
-      console.log('内存监控已在运行中');
       return;
     }
 
     if (!this.isMemoryAPIAvailable()) {
-      console.warn('内存API不可用，无法进行内存监控');
       return;
     }
 
     this.isMonitoring = true;
-    console.log('🔍 开始内存监控，每10秒检查一次');
 
     this.monitoringInterval = window.setInterval(() => {
       this.checkMemoryUsage();
@@ -65,7 +62,6 @@ class MemoryMonitor {
       this.monitoringInterval = null;
     }
 
-    console.log('🛑 内存监控已停止');
   }
 
   /**
@@ -94,16 +90,9 @@ class MemoryMonitor {
     const usagePercentage = (memoryInfo.used / memoryInfo.limit) * 100;
     
     // 输出内存使用情况
-    console.log('📊 内存使用情况:', {
-      used: `${memoryInfo.used}MB`,
-      total: `${memoryInfo.total}MB`,
-      limit: `${memoryInfo.limit}MB`,
-      usage: `${usagePercentage.toFixed(1)}%`
-    });
 
     // 内存使用率警告
     if (usagePercentage > 80) {
-      console.warn('⚠️ 内存使用率过高:', `${usagePercentage.toFixed(1)}%`);
     }
 
     // 检查内存泄漏趋势
@@ -131,11 +120,6 @@ class MemoryMonitor {
     const growthRate = ((recentAvg - olderAvg) / olderAvg) * 100;
 
     if (growthRate > 20) {
-      console.warn('🚨 检测到可能的内存泄漏趋势:', {
-        growthRate: `${growthRate.toFixed(1)}%`,
-        recentAvg: `${recentAvg.toFixed(1)}MB`,
-        olderAvg: `${olderAvg.toFixed(1)}MB`
-      });
     }
   }
 
@@ -175,7 +159,6 @@ class MemoryMonitor {
    */
   public clearHistory(): void {
     this.memoryHistory = [];
-    console.log('🧹 内存历史记录已清理');
   }
 
   /**
@@ -213,10 +196,8 @@ class MemoryMonitor {
    */
   public forceGarbageCollection(): void {
     if (window.gc) {
-      console.log('🗑️ 执行强制垃圾回收');
       window.gc();
     } else {
-      console.log('⚠️ 垃圾回收API不可用');
     }
   }
 }

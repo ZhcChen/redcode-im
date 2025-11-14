@@ -176,10 +176,6 @@ watch(
   () => store.state.accounts?.currentAccountId,
   (newAccountId, oldAccountId) => {
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
-      console.log('🔄 检测到账号切换 (Settings)', {
-        from: oldAccountId,
-        to: newAccountId
-      })
       
       // 重置对话框状态（Settings 页面的操作是即时的，不需要保存）
       showNicknameDialog.value = false
@@ -189,7 +185,6 @@ watch(
       previewImageUrl.value = ''
       downloadInProgress.value = false
       
-      console.log('✅ Settings 状态已重置')
     }
   }
 )
@@ -198,7 +193,6 @@ onMounted(async () => {
   try {
     await store.dispatch('checkAppUpdate')
   } catch (error: any) {
-    console.warn('初始化版本检查失败:', error)
   }
 })
 
@@ -221,10 +215,6 @@ const userAvatarLocalPath = computed(() => {
 
 // 处理更换头像
 const handleChangeAvatar = () => {
-  console.log('[Settings] 🖼️ 用户点击更换头像', {
-    userId: currentUser.value?.id,
-    username: currentUser.value?.userName || currentUser.value?.username
-  })
   // 触发文件选择
   const input = document.createElement('input')
   input.type = 'file'
@@ -239,15 +229,9 @@ const handleFileSelect = async (event: Event) => {
   const file = target.files?.[0]
 
   if (!file) {
-    console.warn('[Settings] ⚠️ 文件选择对话框被关闭，未获取到文件')
     return
   }
 
-  console.log('[Settings] 📥 捕获到待上传头像', {
-    name: file.name,
-    type: file.type,
-    size: file.size
-  })
 
   // ✅ 增强文件类型验证
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -255,7 +239,6 @@ const handleFileSelect = async (event: Event) => {
 
   // 验证 MIME 类型
   if (!allowedTypes.includes(file.type)) {
-    console.warn('[Settings] ⚠️ 不支持的 MIME 类型被拦截', { type: file.type })
     toast.warning('仅支持 JPG、PNG、WebP、GIF 格式的图片')
     return
   }
@@ -264,7 +247,6 @@ const handleFileSelect = async (event: Event) => {
   const fileName = file.name.toLowerCase()
   const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext))
   if (!hasValidExtension) {
-    console.warn('[Settings] ⚠️ 非法文件扩展名被拦截', { fileName })
     toast.warning('文件扩展名不合法')
     return
   }
@@ -272,7 +254,6 @@ const handleFileSelect = async (event: Event) => {
   // 验证文件大小（限制为 10MB）
   const maxSize = 10 * 1024 * 1024
   if (file.size > maxSize) {
-    console.warn('[Settings] ⚠️ 图片超过大小限制', { size: file.size, maxSize })
     toast.warning('图片大小不能超过 10MB')
     return
   }
@@ -304,7 +285,6 @@ const handleFileSelect = async (event: Event) => {
       img.src = objectUrl
     })
   } catch (error: any) {
-    console.warn('[Settings] ⚠️ 图片验证失败', error)
     toast.warning(error.message || '图片文件无效')
     return
   }
@@ -312,13 +292,10 @@ const handleFileSelect = async (event: Event) => {
   // 创建预览URL并显示预览
   const previewUrl = URL.createObjectURL(file)
   previewImageUrl.value = previewUrl
-  console.log('[Settings] 🖥️ 生成头像预览 URL', previewUrl)
 
   try {
-    console.log('[Settings] 🚀 准备调度头像上传流程')
     store.dispatch('showGlobalLoading', '正在上传头像...')
 
-    console.log('[Settings] 📤 调用 FileApi.uploadFile 提交头像...')
     const uploadResult = await FileApi.uploadFile({
       file,
       category: 'avatar',
@@ -326,16 +303,9 @@ const handleFileSelect = async (event: Event) => {
       description: '用户头像'
     })
 
-    console.log('[Settings] 📦 FileApi 返回结果', uploadResult)
 
     if (uploadResult.code === 200 && uploadResult.data) {
-      console.log('[Settings] ✅ 头像上传成功，服务器响应', uploadResult.data)
 
-      console.log('[Settings] 📊 检查返回的数据:', {
-        avatarUrl: uploadResult.data.fileUrl,
-        objectKey: uploadResult.data.objectKey,
-        localPath: uploadResult.data.localPath
-      })
 
       // ✅ 修复：UserApi.uploadAvatar() 已完成所有必要的更新（包括 store 更新）
       // 无需再次调用 updateUserInfo() 和 UPDATE_USER_INFO
@@ -343,43 +313,29 @@ const handleFileSelect = async (event: Event) => {
 
       // 等待下一个 tick 确保 store 更新已完成，再清理预览URL
       await nextTick()
-      console.log('[Settings] 📊 nextTick 后检查 currentUser 状态:', {
-        avatar: currentUser.value.avatar,
-        avatarObjectKey: currentUser.value.avatarObjectKey,
-        avatarLocalPath: currentUser.value.avatarLocalPath
-      })
 
       // 延迟清理预览URL，确保 Avatar 组件已加载新图片
       if (previewImageUrl.value) {
         const oldPreviewUrl = previewImageUrl.value
         previewImageUrl.value = '' // 先清空引用，触发 computed 重新计算
 
-        console.log('[Settings] 📊 清理预览后 userAvatarLocalPath 计算值:', userAvatarLocalPath.value)
 
         // 延迟释放 Blob URL，给 Avatar 组件足够时间加载新图片
         setTimeout(() => {
           URL.revokeObjectURL(oldPreviewUrl)
-          console.log('[Settings] ♻️ 已释放预览 Blob URL')
         }, 1000)
       }
 
       toast.success('头像更新成功')
     } else {
       toast.error(uploadResult.message || '头像上传失败')
-      console.error('[Settings] ❌ 头像上传失败', {
-        message: uploadResult.message,
-        code: uploadResult.code
-      })
     }
   } catch (error) {
     toast.error('头像上传过程中发生错误')
-    console.error('[Settings] ❌ 头像上传过程中发生异常', error)
   } finally {
-    console.log('[Settings] 🧹 结束头像上传流程，隐藏全局 Loading')
     store.dispatch('hideGlobalLoading')
     // 如果上传失败，也要清理预览URL
     if (previewImageUrl.value) {
-      console.log('[Settings] ♻️ 清理未提交的头像预览资源')
       URL.revokeObjectURL(previewImageUrl.value)
       previewImageUrl.value = ''
     }
@@ -388,7 +344,6 @@ const handleFileSelect = async (event: Event) => {
 
 // 处理编辑用户名
 const handleEditUsername = () => {
-  console.log('编辑用户名')
   // 打开昵称修改对话框
   newNickname.value = currentUser.value.userName || currentUser.value.username || ''
   nicknameError.value = ''
@@ -422,7 +377,6 @@ const handleConfirmUpdateNickname = async () => {
   nicknameError.value = ''
   
   try {
-    console.log('开始更新昵称:', nickname)
     store.dispatch('showGlobalLoading', '正在更新昵称...')
     
     // 获取当前完整的用户信息，与bear-chat-uniapp保持一致
@@ -432,7 +386,6 @@ const handleConfirmUpdateNickname = async () => {
       userName: nickname  // userName 才是真正的用户昵称字段
     }
     
-    console.log('更新参数:', updateParams)
     
     // 调用更新用户信息API
     const updateResult = await UserApi.updateUserInfo(updateParams)
@@ -443,7 +396,6 @@ const handleConfirmUpdateNickname = async () => {
         userName: nickname  // 更新userName字段，这是真正的用户昵称字段
       })
       
-      console.log('昵称更新成功')
       toast.success('昵称修改成功')
       
       // 关闭对话框
@@ -451,10 +403,8 @@ const handleConfirmUpdateNickname = async () => {
       newNickname.value = ''
     } else {
       nicknameError.value = updateResult.message || '昵称修改失败'
-      console.error('昵称更新失败:', updateResult.message)
     }
   } catch (error: any) {
-    console.error('昵称修改过程中发生错误:', error)
     nicknameError.value = error.message || '网络错误，请稍后重试'
   } finally {
     store.dispatch('hideGlobalLoading')
@@ -472,23 +422,19 @@ const handleCancelUpdateNickname = () => {
 
 // 处理查看隐私政策
 const handleViewPrivacy = async () => {
-  console.log('查看隐私政策')
   try {
     await router.push('/home/privacy')
   } catch (error) {
-    console.error('跳转隐私政策失败:', error)
     toast.error('暂时无法打开隐私政策，请稍后重试')
   }
 }
 
 // 处理退出登录
 const handleLogout = async () => {
-  console.log('🔄 用户点击退出登录...')
   try {
     await store.dispatch('logout')
     // 不需要手动跳转，App.vue 中的 watch token 会自动处理跳转
   } catch (error: any) {
-    console.error('退出登录失败:', error)
     toast.error(error?.message || '退出登录失败，请稍后再试')
   }
 }

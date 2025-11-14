@@ -1,6 +1,37 @@
 import { get } from './http';
 import type { ApiResponse } from './http';
-import { platform } from '@tauri-apps/api/os';
+
+type SupportedPlatform = 'windows' | 'macos' | 'linux';
+
+const detectPlatform = (): SupportedPlatform => {
+  if (typeof navigator !== 'undefined') {
+    const ua = navigator.userAgent?.toLowerCase?.() ?? '';
+    if (ua.includes('mac') || ua.includes('darwin')) {
+      return 'macos';
+    }
+    if (ua.includes('win')) {
+      return 'windows';
+    }
+    if (ua.includes('linux')) {
+      return 'linux';
+    }
+  }
+
+  if (typeof process !== 'undefined' && typeof process.platform === 'string') {
+    switch (process.platform) {
+      case 'darwin':
+        return 'macos';
+      case 'win32':
+        return 'windows';
+      case 'linux':
+        return 'linux';
+      default:
+        break;
+    }
+  }
+
+  return 'windows';
+};
 
 export interface AppVersionInfo {
   id: string;
@@ -38,11 +69,8 @@ export class VersionApi {
     channel?: string;
     currentVersion?: string;
   }): Promise<ApiResponse<LatestVersionResponse>> {
-    // 自动识别平台：windows 或 macos
-    const osPlatform = await platform();
-    const platformName = osPlatform === 'darwin' ? 'macos' :
-                         osPlatform === 'win32' ? 'windows' :
-                         osPlatform === 'linux' ? 'linux' : 'windows';
+    // 自动识别平台：windows、macos、linux
+    const platformName = detectPlatform();
 
     const query: Record<string, string> = {
       platform: platformName,

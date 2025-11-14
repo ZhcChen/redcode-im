@@ -234,7 +234,6 @@ const toggleRecord = async () => {
       const recording = await voiceRecorder.stopRecording()
       previewRecording.value = recording
       isRecording.value = false
-      console.log('录音完成:', recording)
     } else {
       // 开始录音
       const hasPermission = await VoiceRecorder.requestPermission()
@@ -252,7 +251,6 @@ const toggleRecord = async () => {
     error.value = '录音失败: ' + err.message
     canRetry.value = true
     isRecording.value = false
-    console.error('录音错误:', err)
   }
 }
 

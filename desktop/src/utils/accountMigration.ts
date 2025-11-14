@@ -50,7 +50,6 @@ export async function needsMigration(): Promise<boolean> {
     // 如果 localStorage 有数据但 SQLite 没有，则需要迁移
     return accounts.length === 0
   } catch (error) {
-    console.error('检查迁移状态失败:', error)
     return false
   }
 }
@@ -79,7 +78,6 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
       }
     }
 
-    console.log(`开始迁移 ${legacyAccounts.length} 个账号...`)
 
     // 2. 初始化 Rust 账号管理器
     await invoke('account_init')
@@ -102,9 +100,7 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
 
         await invoke('account_add', { account: rustAccount })
         migratedCount++
-        console.log(`✅ 已迁移账号: ${account.userInfo.nickname} (${account.id})`)
       } catch (error) {
-        console.error(`❌ 迁移账号失败: ${account.userInfo.nickname}`, error)
       }
     }
 
@@ -113,9 +109,7 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
     if (currentAccountId) {
       try {
         await invoke('account_set_current', { accountId: currentAccountId })
-        console.log(`✅ 已迁移当前账号: ${currentAccountId}`)
       } catch (error) {
-        console.error('❌ 迁移当前账号失败:', error)
       }
     }
 
@@ -131,9 +125,7 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
       localStorage.removeItem('im_accounts')
       localStorage.removeItem('im_current_account_id')
 
-      console.log('✅ 已清理 localStorage 旧数据（已备份）')
     } catch (error) {
-      console.warn('⚠️ 清理 localStorage 失败:', error)
     }
 
     return {
@@ -142,7 +134,6 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
       migratedCount
     }
   } catch (error) {
-    console.error('数据迁移失败:', error)
     return {
       success: false,
       message: `迁移失败: ${error}`,
@@ -161,17 +152,14 @@ export async function rollbackMigration(): Promise<boolean> {
 
     if (backupData) {
       localStorage.setItem('im_accounts', backupData)
-      console.log('✅ 已恢复账号列表备份')
     }
 
     if (backupCurrentId) {
       localStorage.setItem('im_current_account_id', backupCurrentId)
-      console.log('✅ 已恢复当前账号备份')
     }
 
     return true
   } catch (error) {
-    console.error('回滚迁移失败:', error)
     return false
   }
 }
@@ -182,5 +170,4 @@ export async function rollbackMigration(): Promise<boolean> {
 export function clearBackup(): void {
   localStorage.removeItem('im_accounts_backup')
   localStorage.removeItem('im_current_account_id_backup')
-  console.log('✅ 已删除备份数据')
 }

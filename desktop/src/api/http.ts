@@ -87,7 +87,6 @@ const ensureRustBridgeReady = async (token?: string | null): Promise<boolean> =>
         return true;
       })
       .catch((error) => {
-        console.warn('[HTTP] Rust 客户端初始化失败，回退到 fetch:', error);
         rustDisabled = true;
         return false;
       })
@@ -169,7 +168,6 @@ class HttpClient {
    * @deprecated 不再需要手动设置 token，系统会自动从 store 中获取并添加到请求头
    */
   setAuthToken(token: string) {
-    console.warn('setAuthToken 方法已废弃，系统会自动从 store 中获取 token');
   }
 
   /**
@@ -177,7 +175,6 @@ class HttpClient {
    * @deprecated 不再需要手动移除 token，登出时清除 store 中的 token 即可
    */
   removeAuthToken() {
-    console.warn('removeAuthToken 方法已废弃，登出时清除 store 中的 token 即可');
   }
 
   /**
@@ -217,13 +214,10 @@ class HttpClient {
    * 取消所有pending的请求
    */
   cancelAllPendingRequests() {
-    console.log('取消所有pending请求，数量:', this.pendingRequests.size);
     this.pendingRequests.forEach((controller, requestId) => {
       try {
         controller.abort();
-        console.log('已取消请求:', requestId);
       } catch (error) {
-        console.warn('取消请求失败:', requestId, error);
       }
     });
     this.pendingRequests.clear();
@@ -330,7 +324,6 @@ class HttpClient {
         }
 
         if (attempt > 0) {
-          console.warn(`请求失败，${retryDelay}ms后进行第${retryTimes - attempt + 1}次重试:`, lastError.message);
           await this.sleep(retryDelay);
         }
         
@@ -429,7 +422,6 @@ class HttpClient {
     const retryCount = options.retryTimes ?? requestConfig.retryTimes;
     const path = originalUrl.startsWith('http') ? originalUrl : originalUrl;
 
-    console.log(`[${requestId}] 🦀 使用 Rust HTTP 发送请求:`, method, fullUrl);
 
     const response = await rustHttp.requestRaw<T>({
       path,
@@ -461,64 +453,39 @@ class HttpClient {
     const authorizationHeader = requestHeaders['Authorization'] || '';
     const handle401Id = `401_${Date.now()}`;
     
-    console.error(`[${handle401Id}] ========== 401 错误处理开始 ==========`);
-    console.error(`[${handle401Id}] 🚫 [${requestId}] 401认证失败:`, {
-      url: fullUrl,
-      method,
-      hasAuthorization: !!authorizationHeader,
-      tokenPreview: authorizationHeader ? `${authorizationHeader.slice(0, 20)}...` : '无token',
-      isLoggingOut: this.isLoggingOut,
-      storeToken: store.state.token ? `${store.state.token.substring(0, 10)}...` : '无token',
-      isLoggedIn: store.getters.isLoggedIn,
-      currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
-      lastLoginTime: this.lastLoginTime,
-      timeSinceLogin: this.lastLoginTime ? Date.now() - this.lastLoginTime : 'unknown',
-      responseMessage: responseMessage || '无'
-    });
 
     // 登录后 60 秒宽容期，避免登录过程中的 401 导致自动登出
     const isInLoginGracePeriod = this.lastLoginTime && (Date.now() - this.lastLoginTime) < 60000;
     
     if (isInLoginGracePeriod) {
-      console.warn(`[${handle401Id}] ⚠️ [${requestId}] 登录后宽容期内的401错误，跳过自动登出处理`);
-      console.error(`[${handle401Id}] ========== 401 错误处理结束 (宽容期) ==========`);
       throw new Error('登录验证中，请稍后重试');
     }
 
     if (!store.getters.isLoggedIn || !store.state.token) {
-      console.warn(`[${handle401Id}] [${requestId}] 未登录状态收到401，跳过自动登出流程`);
       this.setLoggingOut(false);
       try {
         store.dispatch('hideGlobalLoading');
       } catch (dispatchError) {
-        console.warn(`[${handle401Id}] 尝试隐藏全局加载蒙版失败:`, dispatchError);
       }
-      console.error(`[${handle401Id}] ========== 401 错误处理结束 (未登录) ==========`);
       throw new Error('未登录，无需重复登出');
     }
 
     if (!this.isLoggingOut) {
-      console.error(`[${handle401Id}] 🚫 认证失败，准备自动登出`);
-      console.error(`[${handle401Id}] 调用栈:`, new Error().stack);
       this.setLoggingOut(true);
 
       setTimeout(() => {
         if (store.getters.isLoggedIn && store.state.token) {
-          console.log(`[${handle401Id}] ===============最终确认：身份验证失效，执行自动登出===========`);
           store.dispatch('logout');
           if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
             window.location.href = '/login';
           }
         } else {
-          console.log(`[${handle401Id}] 用户已手动登出，取消自动登出操作`);
           this.setLoggingOut(false);
         }
       }, 3000);
     } else {
-      console.log(`[${handle401Id}] [${requestId}] 已在登出状态，跳过重复401处理`);
     }
 
-    console.error(`[${handle401Id}] ========== 401 错误处理结束 (触发登出) ==========`);
     throw new Error('身份验证失效，请重新登录');
   }
 
@@ -663,7 +630,6 @@ const checkApiNeedsToken = (url: string): boolean => {
 // 添加默认请求拦截器 - 添加时间戳、请求ID和 token
 httpClient.addRequestInterceptor((config) => {
   const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-  console.log(`[${requestId}] 📤 发送请求:`, config.method || 'GET', config.url);
 
   const headers: Record<string, string> = {
     ...config.headers,
@@ -676,28 +642,18 @@ httpClient.addRequestInterceptor((config) => {
     const token = store.state.token;
     const isLoggedIn = store.getters.isLoggedIn;
 
-    console.log(`[${requestId}] 🔑 Token检查:`, {
-      hasToken: !!token,
-      isLoggedIn,
-      tokenPreview: token ? `${token.substring(0, 10)}...` : '无token',
-      url: config.url
-    });
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
-      console.log(`[${requestId}] ✅ 已添加 Authorization 头`);
 
       // 如果状态不同步，给出警告但不阻止请求
       if (!isLoggedIn) {
-        console.warn(`[${requestId}] ⚠️ 有token但登录状态未同步，这可能是登录过程中的正常现象`);
       }
     } else {
-      console.warn(`[${requestId}] ⚠️ 接口需要token但token不存在:`, config.url);
       // 对于需要token但没有token的请求，直接拒绝
       throw new Error('未登录或登录已过期，请重新登录');
     }
   } else {
-    console.log(`[${requestId}] 🏠 白名单接口，不需要token:`, config.url);
   }
 
   return {
@@ -709,9 +665,7 @@ httpClient.addRequestInterceptor((config) => {
 // 添加默认响应拦截器 - 根据code字段添加success字段
 httpClient.addResponseInterceptor((response) => {
   if (response.success) {
-    console.log(`请求成功:`, response.code, response.message);
   } else {
-    console.warn(`请求失败:`, response.code, response.message);
   }
 
   return response;
@@ -725,7 +679,6 @@ httpClient.addErrorInterceptor((error) => {
     if (error.message.includes('登出中')) {
       return error;
     }
-    console.error('请求超时:', error.message);
     return new Error('请求超时，请稍后重试');
   }
 
@@ -735,22 +688,18 @@ httpClient.addErrorInterceptor((error) => {
   // }
 
   if (error.message.includes('HTTP 403')) {
-    console.error('权限不足');
     return new Error('权限不足，无法访问该资源');
   }
 
   if (error.message.includes('HTTP 5')) {
-    console.error('服务器错误:', error.message);
     return new Error('服务器错误，请稍后重试');
   }
 
   if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-    console.error('网络连接失败:', error.message);
     return new Error('网络连接失败，请检查网络连接');
   }
 
   // 默认错误处理
-  console.error('请求异常:', error.message);
   return error;
 });
 

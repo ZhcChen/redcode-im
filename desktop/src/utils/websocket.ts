@@ -76,7 +76,6 @@ class WebSocketManager {
    */
   public async initWebSocketSafely(params: WebSocketParams): Promise<void> {
     if (!params?.userId || !params?.token) {
-      console.warn('WebSocket 参数缺失，跳过连接');
       return;
     }
 
@@ -87,7 +86,6 @@ class WebSocketManager {
       this.lastUserId === params.userId &&
       this.lastAuthToken === params.token
     ) {
-      console.log('WebSocket 已连接，跳过重复连接');
       return;
     }
 
@@ -104,9 +102,7 @@ class WebSocketManager {
     // 连接 WebSocket
     try {
       await WebSocketApi.connect(params, apiConfig.WS_URL);
-      console.log('WebSocket 连接成功');
     } catch (error) {
-      console.error('WebSocket 连接失败:', error);
       toast.error('消息服务连接失败');
       throw error;
     }
@@ -135,7 +131,6 @@ class WebSocketManager {
       const isConnected = event.payload;
       store.commit('SET_NETWORK_STATE', isConnected);
       if (!isConnected) {
-        console.warn('网络连接已断开');
       }
     });
     this.eventUnlisteners.push(networkUnlisten);
@@ -150,7 +145,6 @@ class WebSocketManager {
     switch (eventType) {
       case 'authed': {
         const data = payload.payload as { user_id: string; conn_id: string };
-        console.log('WebSocket 认证成功:', data);
         store.commit('SET_NETWORK_STATE', true);
         this.onAuthenticated();
         break;
@@ -158,13 +152,11 @@ class WebSocketManager {
 
       case 'joined': {
         const data = payload.payload as { room_id: string };
-        console.log('已加入房间:', data.room_id);
         break;
       }
 
       case 'left': {
         const data = payload.payload as { room_id: string };
-        console.log('已离开房间:', data.room_id);
         break;
       }
 
@@ -217,7 +209,6 @@ class WebSocketManager {
 
       case 'error': {
         const data = payload.payload as { message: string };
-        console.error('WebSocket 错误:', data.message);
         toast.error(data.message || '消息服务错误');
         break;
       }
@@ -228,7 +219,6 @@ class WebSocketManager {
       }
 
       default:
-        console.warn('未识别的 WebSocket 事件类型:', eventType, payload);
         break;
     }
   }
@@ -252,7 +242,6 @@ class WebSocketManager {
     this.refreshContacts(true);
     void store
       .dispatch('updatePendingFriendRequests')
-      .catch((error: unknown) => console.warn('更新待处理好友申请失败:', error));
   }
 
   /**
@@ -266,7 +255,6 @@ class WebSocketManager {
     this.lastChatListRefreshAt = now;
     void store
       .dispatch('loadChatList', { forceRefresh: true })
-      .catch((error: unknown) => console.warn('刷新聊天列表失败:', error));
   }
 
   /**
@@ -280,7 +268,6 @@ class WebSocketManager {
     this.lastContactRefreshAt = now;
     void store
       .dispatch('loadContacts', { forceRefresh: true })
-      .catch((error: unknown) => console.warn('刷新联系人列表失败:', error));
   }
 
   /**
@@ -293,7 +280,6 @@ class WebSocketManager {
 
     const roomIds = Array.from(this.desiredRooms);
     WebSocketApi.joinRooms(roomIds).catch((error) => {
-      console.error('批量加入房间失败:', error);
     });
   }
 
@@ -317,7 +303,6 @@ class WebSocketManager {
       // 使用现有的消息转换函数
       normalized = transformBackendMessage(rawMessage, this.lastUserId ?? undefined);
     } catch (error) {
-      console.error('标准化聊天消息失败:', error, rawMessage);
     }
 
     this.dispatchDomEvent('websocket-chat-message', {
@@ -345,7 +330,6 @@ class WebSocketManager {
       try {
         detail.message = transformBackendMessage(detail.message, this.lastUserId ?? undefined);
       } catch (error) {
-        console.error('标准化消息更新失败:', error, detail.message);
       }
     }
     this.dispatchDomEvent('websocket-message-update', detail);
@@ -361,7 +345,6 @@ class WebSocketManager {
       try {
         detail.message = transformBackendMessage(detail.message, this.lastUserId ?? undefined);
       } catch (error) {
-        console.error('标准化置顶消息失败:', error, detail.message);
       }
     }
     this.dispatchDomEvent('websocket-pin-update', detail);
@@ -383,7 +366,6 @@ class WebSocketManager {
     // 立即加入房间
     if (normalized.size > 0) {
       WebSocketApi.joinRooms(Array.from(normalized)).catch((error) => {
-        console.error('批量加入房间失败:', error);
       });
     }
 
@@ -398,7 +380,6 @@ class WebSocketManager {
           });
         })
         .catch((error) => {
-          console.error('获取已订阅房间列表失败:', error);
         });
     }
   }
@@ -410,7 +391,6 @@ class WebSocketManager {
     if (!roomId) return;
     this.desiredRooms.add(roomId);
     WebSocketApi.joinRoom(roomId).catch((error) => {
-      console.error(`加入房间 ${roomId} 失败:`, error);
     });
   }
 
@@ -421,7 +401,6 @@ class WebSocketManager {
     if (!roomId) return;
     this.desiredRooms.delete(roomId);
     WebSocketApi.leaveRoom(roomId).catch((error) => {
-      console.error(`离开房间 ${roomId} 失败:`, error);
     });
   }
 
@@ -435,7 +414,6 @@ class WebSocketManager {
   ): Promise<any> {
     // 只支持聊天消息发送
     if (code !== BUSINESS_CODE.chatting) {
-      console.error('❌ 错误：该操作应通过 HTTP API 调用，而非 WebSocket');
       callback?.(false);
       throw new Error('该操作应通过 HTTP API 调用');
     }
@@ -443,7 +421,6 @@ class WebSocketManager {
     try {
       return await this._sendChatMessage(payload, callback);
     } catch (error: any) {
-      console.error('发送消息失败:', error);
       callback?.(false);
       throw error;
     }

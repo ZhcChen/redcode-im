@@ -51,8 +51,6 @@ pub struct WebSocketClient {
     tx: Option<mpsc::UnboundedSender<Vec<u8>>>,
 }
 
-const MAX_RECONNECT_ATTEMPTS: u32 = 5;
-const RECONNECT_DELAY_SECS: u64 = 3;
 const PING_INTERVAL_SECS: u64 = 30;
 
 impl WebSocketClient {
@@ -202,11 +200,7 @@ impl WebSocketClient {
                     let mut state_guard = state.write().await;
                     state_guard.status = ConnectionStatus::Authenticated;
 
-                    // 订阅待处理的房间
-                    let pending = state_guard.pending_rooms.clone();
                     drop(state_guard);
-
-                    // TODO: 发送加入房间消息
                 }
                 TauriEventPayload::Joined { room_id } => {
                     println!("已加入房间: {}", room_id);

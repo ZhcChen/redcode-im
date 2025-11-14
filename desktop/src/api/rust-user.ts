@@ -105,7 +105,6 @@ export class RustUserApi {
   static async getUserAccountInfo(params: { userId?: string } = {}): Promise<ApiResponse<LegacyUserInfo>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 获取用户信息 API...')
         const endpoint = params.userId && params.userId !== 'me' ? `/users/${params.userId}` : '/auth/me'
         const response = await rustHttp.get<BackendUserInfo>(endpoint)
 
@@ -121,7 +120,6 @@ export class RustUserApi {
           }
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 获取用户信息失败，回退到 TypeScript:', error)
         return await this.getUserAccountInfoWithTs(params)
       }
     } else {
@@ -144,7 +142,6 @@ export class RustUserApi {
   }>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 获取头像下载 URL API...')
         const query = params.expiresInSeconds ? { expires_in_seconds: params.expiresInSeconds } : {}
         const response = await rustHttp.get('/users/me/avatar/url', query)
 
@@ -159,7 +156,6 @@ export class RustUserApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 获取头像下载 URL 失败，回退到 TypeScript:', error)
         const { UserApi } = await import('./user')
         return await UserApi.getAvatarDownloadUrl(params)
       }
@@ -175,7 +171,6 @@ export class RustUserApi {
   static async updateUserInfo(params: Partial<UserInfo & LegacyUserInfo>): Promise<ApiResponse<LegacyUserInfo>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 更新用户信息 API...')
 
         const payload: Record<string, any> = {}
         if (params.userName || params.nickname || params.realName) {
@@ -199,7 +194,6 @@ export class RustUserApi {
           }
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 更新用户信息失败，回退到 TypeScript:', error)
         const { UserApi } = await import('./user')
         return await UserApi.updateUserInfo(params)
       }
@@ -215,7 +209,6 @@ export class RustUserApi {
   static async searchUser(params: { keyWord: string; limit?: number }): Promise<ApiResponse<UserInfo[]>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 搜索用户 API...')
         const keyword = params.keyWord.trim()
         if (!keyword) {
           return {
@@ -245,7 +238,6 @@ export class RustUserApi {
           }
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 搜索用户失败，回退到 TypeScript:', error)
         const { UserApi } = await import('./user')
         return await UserApi.searchUser(params)
       }
@@ -261,7 +253,6 @@ export class RustUserApi {
   static async updateUserPassword(params: { oldPwd: string; newPwd: string }): Promise<ApiResponse<{ success: boolean }>> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 更新用户密码 API...')
         const response = await rustHttp.post('/users/me/password', {
           current_password: params.oldPwd,
           new_password: params.newPwd
@@ -276,7 +267,6 @@ export class RustUserApi {
           success: true
         }
       } catch (error: any) {
-        console.warn('⚠️ Rust 更新用户密码失败，回退到 TypeScript:', error)
         const { UserApi } = await import('./user')
         return await UserApi.updateUserPassword(params)
       }
@@ -310,7 +300,6 @@ export class RustUserApi {
   static async syncAvatarCache(force = false): Promise<void> {
     if (this.useRust()) {
       try {
-        console.log('🚀 使用 Rust 同步头像缓存...')
         const currentUser = store.getters.currentUser as LegacyUserInfo | undefined
         if (!currentUser || !currentUser.id) {
           return
@@ -355,7 +344,6 @@ export class RustUserApi {
           avatar: payload.download_url
         })
       } catch (error) {
-        console.warn('[RustUserApi] 同步头像缓存失败:', error)
       }
     } else {
       const { UserApi } = await import('./user')

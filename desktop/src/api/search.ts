@@ -155,7 +155,6 @@ export class SearchUtils {
     // 确保 roomId 存在
     const finalRoomId = message.roomId || roomId || ''
     if (!finalRoomId) {
-      console.warn('⚠️ 消息缺少 roomId:', { id: message.id, roomName })
     }
     
     // 确保所有字段都是正确的类型（字符串或数字）

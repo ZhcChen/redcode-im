@@ -153,33 +153,28 @@ const isMenuItemActive = (itemPath: string) => {
 
 // 处理菜单项点击
 const handleMenuClick = (item: MenuItem) => {
-  console.log('菜单项被点击:', item.label, item.path)
   router.push(item.path)
 }
 
 
 // 处理头像点击
 const handleAvatarClick = () => {
-  console.log('头像被点击')
   router.push('/home/settings')
 }
 
 // 处理设置点击
 const handleSettings = () => {
-  console.log('设置被点击')
   router.push('/home/settings')
 }
 
 // 处理添加账号点击
 const handleAddAccount = async () => {
-  console.log('添加账号被点击')
 
   // 检查是否可以添加新账号
   const canAdd = store.getters['accounts/canAddAccount']
   if (!canAdd) {
     const maxAccounts = store.state.accounts.maxAccounts
     const currentCount = store.state.accounts.accounts.length
-    console.warn(`已达到最大账号数量限制: ${maxAccounts}`)
 
     // 导入 toast 提示
     const { toast } = await import('@/utils/toast')
@@ -192,7 +187,6 @@ const handleAddAccount = async () => {
 
 // 处理退出登录点击
 const handleLogout = () => {
-  console.log('🔄 用户点击退出登录...')
 
   // 设置退出登录标志
   isLoggingOut = true
@@ -201,21 +195,17 @@ const handleLogout = () => {
   if (logoutTimeoutId !== null) {
     clearTimeout(logoutTimeoutId)
     logoutTimeoutId = null
-    console.log('🧹 已清除之前的退出检查超时器')
   }
 
   // 立即设置登出状态，防止新的API请求
   import('@/api/http').then(({ setLoggingOut, clearLoginTime }) => {
     setLoggingOut(true);
     clearLoginTime(); // 清除登录时间
-    console.log('📝 已设置登出状态并清除登录时间');
   }).catch(error => {
-    console.warn('⚠️ 设置登出状态失败:', error)
   })
 
   // 调用 store 的 logout action
   store.dispatch('logout')
-  console.log('✅ 退出登录请求已发送')
 
   // 设置新的fallback机制
   logoutTimeoutId = setTimeout(() => {
@@ -223,18 +213,9 @@ const handleLogout = () => {
     const loadingVisible = store.getters.globalLoading.visible
     const isLoggedIn = store.getters.isLoggedIn
 
-    console.log('🔍 5秒后检查退出状态:', {
-      hasToken: !!currentToken,
-      isLoggedIn,
-      loadingVisible,
-      currentPath: window.location.pathname,
-      timeoutId: logoutTimeoutId,
-      isLoggingOut // 添加标志位到日志
-    });
 
     // 只有在退出登录过程中，且确实还在登录状态时才执行强制清除
     if (isLoggingOut && (currentToken || loadingVisible || isLoggedIn) && window.location.pathname !== '/login') {
-      console.warn('⚠️ 检测到退出登录可能卡住，执行强制清除')
 
       // 强制隐藏加载蒙版
       if (loadingVisible) {
@@ -251,12 +232,9 @@ const handleLogout = () => {
           import('@/api/http').then(({ setLoggingOut, clearLoginTime }) => {
             setLoggingOut(false)
             clearLoginTime()
-            console.log('📝 强制登出后已重置所有状态')
           }).catch(error => {
-            console.warn('重置状态失败:', error)
           })
         } catch (error) {
-          console.warn('无法加载http模块:', error)
         }
 
         // 重置窗口标题
@@ -264,17 +242,14 @@ const handleLogout = () => {
           import('@/utils').then(({ updateWindowTitle }) => {
             updateWindowTitle() // 不传参数，显示默认标题
           }).catch(error => {
-            console.warn('重置窗口标题失败:', error)
           })
         } catch (error) {
-          console.warn('无法加载utils模块:', error)
         }
       }
 
       // 强制跳转到登录页
       router.push('/login')
     } else {
-      console.log('✅ 退出登录状态正常或已在登录页，无需强制处理')
     }
 
     // 清除超时器引用和标志位
@@ -290,7 +265,6 @@ onActivated(() => {
     clearTimeout(logoutTimeoutId)
     logoutTimeoutId = null
     isLoggingOut = false
-    console.log('🧹 组件激活时清除遗留的退出检查超时器')
   }
 })
 
@@ -300,7 +274,6 @@ onUnmounted(() => {
     clearTimeout(logoutTimeoutId)
     logoutTimeoutId = null
     isLoggingOut = false
-    console.log('🧹 组件卸载时清除退出检查超时器')
   }
 })
 </script>

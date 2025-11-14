@@ -33,13 +33,11 @@ addRequestInterceptor((config) => {
 // 2. 添加加载状态拦截器
 addRequestInterceptor((config) => {
   // 显示加载动画
-  console.log('显示加载动画...');
   return config;
 });
 
 addResponseInterceptor((response) => {
   // 隐藏加载动画
-  console.log('隐藏加载动画...');
   return response;
 });
 
@@ -102,10 +100,8 @@ export async function loginWithRetry(username: string, password: string) {
       password
     });
     
-    console.log('登录成功:', result);
     return result;
   } catch (error) {
-    console.error('登录失败（已自动重试）:', error);
     throw error;
   }
 }
@@ -115,10 +111,8 @@ export async function uploadFileWithCustomRetry(file: File) {
   try {
     const result = await httpClient.upload('file/upload', file, undefined);
     
-    console.log('文件上传成功:', result);
     return result;
   } catch (error) {
-    console.error('文件上传失败:', error);
     throw error;
   }
 }
@@ -133,7 +127,6 @@ export async function getRealtimeData() {
     
     return result;
   } catch (error) {
-    console.error('获取实时数据失败:', error);
     throw error;
   }
 }
@@ -148,7 +141,6 @@ export async function criticalOperation(data: any) {
     
     return result;
   } catch (error) {
-    console.error('关键操作失败:', error);
     throw error;
   }
 }
@@ -167,10 +159,8 @@ export async function userLoginFlow() {
     // 3. 获取用户信息（自动添加认证头）
     const userInfo = await get('user/info');
     
-    console.log('用户登录完成:', userInfo);
     
   } catch (error) {
-    console.error('登录流程失败:', error);
   }
 }
 
@@ -178,13 +168,11 @@ export async function userLoginFlow() {
 export async function fileUploadWithProgress(file: File) {
   // 添加上传进度拦截器
   const progressInterceptor = (config: any) => {
-    console.log(`开始上传文件: ${file.name} (${file.size} bytes)`);
     return config;
   };
   
   const responseInterceptor = (response: any) => {
     if (response.success) {
-      console.log(`文件上传完成: ${file.name}`);
     }
     return response;
   };
@@ -223,7 +211,6 @@ export async function batchRequests() {
     .filter(result => result.status === 'rejected')
     .map(result => (result as any).reason);
   
-  console.log(`批量请求完成: ${successful.length} 成功, ${failed.length} 失败`);
   
   return { successful, failed };
 }

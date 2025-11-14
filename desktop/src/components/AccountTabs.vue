@@ -145,7 +145,6 @@ function handleMouseDown(event: MouseEvent, accountId: string, index: number) {
   draggedAccountId.value = accountId
   isDragging.value = false // 先设为 false，移动一定距离后才算拖拽
 
-  console.log('🖱️ 鼠标按下:', { accountId, index, x: dragStartX.value, y: dragStartY.value })
 
   // 添加全局事件监听
   document.addEventListener('mousemove', handleMouseMove)
@@ -165,7 +164,6 @@ function handleMouseMove(event: MouseEvent) {
   // 移动超过 5px 才算拖拽
   if (!isDragging.value && (deltaX > 5 || deltaY > 5)) {
     isDragging.value = true
-    console.log('🚀 开始拖拽账号:', draggedAccountId.value)
     // 设置全局光标样式
     document.body.style.cursor = 'grabbing'
   }
@@ -208,7 +206,6 @@ async function handleMouseUp(event: MouseEvent) {
     return
   }
 
-  console.log('🎯 鼠标释放，完成拖拽')
 
   // 查找鼠标下方的元素
   const elementBelow = document.elementFromPoint(event.clientX, event.clientY)
@@ -226,16 +223,9 @@ async function handleMouseUp(event: MouseEvent) {
   const targetAccountId = tabElement.dataset.accountId
   const targetIndex = parseInt(tabElement.dataset.index || '-1')
 
-  console.log('🎯 放置账号:', { 
-    targetAccountId, 
-    targetIndex,
-    draggedAccountId: draggedAccountId.value,
-    dragStartIndex: dragStartIndex.value
-  })
 
   const sourceAccountId = draggedAccountId.value
   if (!sourceAccountId || !targetAccountId || sourceAccountId === targetAccountId) {
-    console.log('ℹ️ 跳过放置: 源账号和目标账号相同或无效')
     resetDragState()
     return
   }
@@ -245,11 +235,8 @@ async function handleMouseUp(event: MouseEvent) {
   const sourceIndex = currentOrder.indexOf(sourceAccountId)
   const finalTargetIndex = targetIndex >= 0 ? targetIndex : currentOrder.indexOf(targetAccountId)
 
-  console.log('📊 当前顺序:', currentOrder)
-  console.log('📍 源索引:', sourceIndex, '目标索引:', finalTargetIndex)
 
   if (sourceIndex === -1 || finalTargetIndex === -1) {
-    console.error('❌ 索引无效:', { sourceIndex, finalTargetIndex })
     resetDragState()
     return
   }
@@ -259,17 +246,13 @@ async function handleMouseUp(event: MouseEvent) {
   newOrder.splice(sourceIndex, 1)
   newOrder.splice(finalTargetIndex, 0, sourceAccountId)
 
-  console.log('🔄 新顺序:', newOrder)
 
   resetDragState()
 
   try {
-    console.log('💾 开始保存账号顺序...')
     // 调用 store action 保存顺序
     await store.dispatch('accounts/reorderAccounts', newOrder)
-    console.log('✅ 账号顺序已更新成功')
   } catch (error) {
-    console.error('❌ 重新排序账号失败:', error)
   }
 }
 

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // 包含编译生成的 Proto 代码
+#[allow(dead_code)]
 pub mod ws {
     include!(concat!(env!("OUT_DIR"), "/ws.rs"));
 }
@@ -41,9 +42,6 @@ pub enum WebSocketError {
     #[error("WebSocket 连接错误: {0}")]
     ConnectionError(String),
 
-    #[error("认证失败: {0}")]
-    AuthError(String),
-
     #[error("编码错误: {0}")]
     EncodeError(#[from] prost::EncodeError),
 
@@ -52,12 +50,6 @@ pub enum WebSocketError {
 
     #[error("发送错误: {0}")]
     SendError(String),
-
-    #[error("未连接")]
-    NotConnected,
-
-    #[error("已连接")]
-    AlreadyConnected,
 
     #[error("tokio-tungstenite 错误: {0}")]
     TungsteniteError(#[from] tokio_tungstenite::tungstenite::Error),

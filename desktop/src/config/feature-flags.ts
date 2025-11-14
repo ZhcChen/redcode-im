@@ -82,11 +82,6 @@ export const getModuleConfig = (module: keyof typeof FEATURE_FLAGS) => {
 // 打印当前配置
 export const printCurrentConfig = () => {
   if (CONFIG.ENABLE_DEBUG_LOG) {
-    console.group('🔧 Rust HTTP 客户端配置')
-    console.log('基础配置:', CONFIG)
-    console.log('功能开关:', FEATURE_FLAGS)
-    console.log('环境:', import.meta.env.MODE)
-    console.groupEnd()
   }
 }
 
@@ -148,25 +143,18 @@ export const printSuggestions = () => {
   const suggestions = getAutoEnableSuggestions()
   const validation = validateConfig()
 
-  console.group('💡 Rust HTTP 客户端建议')
 
   if (suggestions.length > 0) {
-    console.log('建议:')
     suggestions.forEach(suggestion => {
-      console.log(`  - ${suggestion}`)
     })
   }
 
   if (!validation.valid) {
-    console.error('配置错误:')
     validation.errors.forEach(error => {
-      console.error(`  ❌ ${error}`)
     })
   } else {
-    console.log('✅ 配置验证通过')
   }
 
-  console.groupEnd()
 }
 
 // 初始化时自动打印配置

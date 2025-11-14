@@ -92,22 +92,10 @@ export class FileApi {
   static async uploadFile(params: FileUploadParams): Promise<ApiResponse<FileUploadResult>> {
     const { file, category } = params;
 
-    console.log('[FileApi] 📁 接收到文件上传请求', {
-      category,
-      name: file.name,
-      type: file.type,
-      size: file.size
-    });
 
     if (category === 'avatar') {
-      console.log('[FileApi] 🧷 走用户头像上传流程，调用 RustUserApi.uploadAvatar')
       const response = await RustUserApi.uploadAvatar(file);
-      console.log('[FileApi] 📨 RustUserApi.uploadAvatar 响应', response);
       if (!response.success || !response.data) {
-        console.error('[FileApi] ❌ 用户头像上传失败', {
-          code: response.code,
-          message: response.message
-        });
         return {
           code: response.code ?? 500,
           message: response.message || '用户头像上传失败，请稍后重试',
@@ -136,12 +124,10 @@ export class FileApi {
       };
     } else if (category === 'group_avatar') {
       // 群头像上传流程 - 使用 blob URL 作为临时方案
-      console.log('[FileApi] 🧷 走群头像上传流程（使用 blob URL）');
 
       try {
         // 创建 blob URL 作为临时头像显示
         const blobUrl = URL.createObjectURL(file);
-        console.log('[FileApi] ✅ 创建 blob URL:', blobUrl);
 
         const uploadResult: FileUploadResult = {
           id: '',
@@ -160,7 +146,6 @@ export class FileApi {
           data: uploadResult
         };
       } catch (error) {
-        console.error('[FileApi] ❌ 群头像处理失败', error);
         return {
           code: 500,
           message: '群头像处理失败，请稍后重试',
@@ -170,7 +155,6 @@ export class FileApi {
       }
     }
 
-    console.warn('[FileApi] ⚠️ 当前分类暂不支持上传', category);
     return {
       code: 501,
       message: '当前版本暂不支持文件上传，请稍后再试',
@@ -312,23 +296,19 @@ export class FileApi {
   static buildImageUrl(fileInfo: any): string {
     if (!fileInfo) return '';
 
-    console.log('🔧 FileApi.buildImageUrl 输入:', fileInfo);
 
     // 1. 优先使用已有的完整 URL（包括 blob URL）
     if (fileInfo.url && fileInfo.url.trim() !== '' && (fileInfo.url.startsWith('http://') || fileInfo.url.startsWith('https://') || fileInfo.url.startsWith('blob:'))) {
-      console.log('✅ 使用现有的完整 URL:', fileInfo.url);
       return fileInfo.url;
     }
 
     // 2. 检查 fileUrl 是否是 blob URL
     if (fileInfo.fileUrl && fileInfo.fileUrl.startsWith('blob:')) {
-      console.log('✅ 使用 blob URL (fileUrl):', fileInfo.fileUrl);
       return fileInfo.fileUrl;
     }
 
     // 3. 检查 filePath 是否是 blob URL
     if (fileInfo.filePath && fileInfo.filePath.startsWith('blob:')) {
-      console.log('✅ 使用 blob URL (filePath):', fileInfo.filePath);
       return fileInfo.filePath;
     }
 
@@ -338,7 +318,6 @@ export class FileApi {
       const constructedUrl = target === 'local'
         ? `${fileConfig.showFile}${fileInfo.fullPath}`
         : fileInfo.fullPath;
-      console.log('✅ 使用 fullPath 构建URL:', constructedUrl);
       return constructedUrl;
     }
 
@@ -349,10 +328,8 @@ export class FileApi {
       if (target === 'local') {
         // 假设fileName存储在chattingFiles目录下（与数据格式一致）
         const constructedUrl = `${fileConfig.showFile}chattingFiles/${fileInfo.fileName}`;
-        console.log('✅ 历史消息使用 fileName 构建URL:', constructedUrl);
         return constructedUrl;
       } else {
-        console.log('✅ 非本地模式直接使用 fileName:', fileInfo.fileName);
         return fileInfo.fileName;
       }
     }
@@ -360,7 +337,6 @@ export class FileApi {
     // 6. 使用 filePath 构建 URL
     if (fileInfo.filePath) {
       const constructedUrl = `${fileConfig.showFile}${fileInfo.filePath}`;
-      console.log('✅ 使用 filePath 构建URL:', constructedUrl);
       return constructedUrl;
     }
 
@@ -369,15 +345,12 @@ export class FileApi {
       const target = fileInfo.fileSaveTarget || fileConfig.target || 'local';
       if (target === 'local') {
         const constructedUrl = `${fileConfig.showFile}${fileInfo.fileUrl}`;
-        console.log('✅ 本地模式下使用 fileUrl 构建URL:', constructedUrl);
         return constructedUrl;
       } else {
-        console.log('✅ 非本地模式直接使用 fileUrl:', fileInfo.fileUrl);
         return fileInfo.fileUrl;
       }
     }
 
-    console.warn('❌ 无法构建图片URL，缺少必要字段:', fileInfo);
     return '';
   }
 
@@ -402,7 +375,6 @@ export class FileApi {
    * @returns Promise<ApiResponse<FileUploadResult>> 压缩后的文件信息
    */
   static async compressImage(params: ImageCompressParams): Promise<ApiResponse<FileUploadResult>> {
-    console.warn('compressImage 调用被忽略，文件服务暂未启用', params);
     return {
       code: 501,
       message: '文件服务暂未启用',
@@ -421,7 +393,6 @@ export class FileApi {
     width?: number;
     height?: number;
   }): Promise<ApiResponse<FileUploadResult>> {
-    console.warn('generateThumbnail 调用被忽略，文件服务暂未启用', params);
     return {
       code: 501,
       message: '文件服务暂未启用',
@@ -455,7 +426,6 @@ export class FileApi {
       size: number;
     }>;
   }>> {
-    console.warn('getStorageStatistics 调用被忽略，文件服务暂未启用', params);
     return {
       code: 501,
       message: '文件服务暂未启用',
@@ -473,7 +443,6 @@ export class FileApi {
     exists: boolean;
     fileInfo?: FileInfo;
   }>> {
-    console.warn('checkFileExists 调用被忽略，文件服务暂未启用', params);
     return {
       code: 501,
       message: '文件服务暂未启用',
@@ -492,7 +461,6 @@ export class FileApi {
     fileName: string;
     fileSize: number;
   }): Promise<ApiResponse<FileUploadResult>> {
-    console.warn('instantUpload 调用被忽略，文件服务暂未启用', params);
     return {
       code: 501,
       message: '文件服务暂未启用',

@@ -92,7 +92,6 @@ class RustHttpClient {
    */
   async initialize(token?: string): Promise<void> {
     try {
-      console.log('🚀 初始化 Rust HTTP 客户端...')
 
       await invoke('http_initialize', {
         baseUrl: this.config.baseUrl,
@@ -100,9 +99,7 @@ class RustHttpClient {
       })
 
       this.isInitialized = true
-      console.log('✅ Rust HTTP 客户端初始化成功')
     } catch (error) {
-      console.error('❌ Rust HTTP 客户端初始化失败:', error)
       throw new Error(`HTTP client initialization failed: ${error}`)
     }
   }
@@ -118,7 +115,6 @@ class RustHttpClient {
       const data: HttpResponseData = JSON.parse(result)
       return data.success
     } catch (error) {
-      console.warn('健康检查失败:', error)
       return false
     }
   }
@@ -134,7 +130,6 @@ class RustHttpClient {
       const data: HttpResponseData = JSON.parse(result)
       return data.data
     } catch (error) {
-      console.warn('获取统计信息失败:', error)
       return null
     }
   }
@@ -147,7 +142,6 @@ class RustHttpClient {
       await this.initialize()
     }
     await invoke('http_set_token', { token })
-    console.log('🔑 Token 设置成功')
   }
 
   /**
@@ -156,7 +150,6 @@ class RustHttpClient {
   async clearToken(): Promise<void> {
     if (!this.isInitialized) return
     await invoke('http_clear_token')
-    console.log('🗑️ Token 清除成功')
   }
 
   private async encodeBinaryBody(input?: ArrayBuffer | ArrayBufferView | Blob | string): Promise<string | undefined> {
@@ -211,14 +204,6 @@ class RustHttpClient {
             : null
       const binaryBodyEncoded = await this.encodeBinaryBody(binaryBody)
 
-      console.log('[RustHTTP] ⇢ request', {
-        method: methodUpper,
-        path,
-        headers: headers ? Object.keys(headers) : [],
-        hasBinaryBody: Boolean(binaryBodyEncoded),
-        injectToken: params.injectToken !== false,
-        forceStreaming: params.forceStreaming === true
-      })
 
       try {
         await invoke('client_debug', {
@@ -234,7 +219,6 @@ class RustHttpClient {
           }
         })
       } catch (debugError) {
-        console.warn('[RustHTTP] client_debug 调用失败:', debugError)
       }
 
       const args = {
@@ -254,14 +238,12 @@ class RustHttpClient {
       try {
         await invoke('client_debug', { payload: { tag: 'requestRawArgsFull', args } })
       } catch (debugError) {
-        console.warn('[RustHTTP] client_debug(Full) 失败:', debugError)
       }
 
       const emitDebug = async (msg: string, data: any) => {
         try {
           await invoke('client_debug', { payload: { tag: 'JSLOG', message: msg, data } })
         } catch {}
-        console.log(msg, data)
       }
 
       await emitDebug('[RustHTTP] 🔵 开始调用 Tauri invoke...', { method: methodUpper, path });
@@ -276,14 +258,6 @@ class RustHttpClient {
         await emitDebug('[RustHTTP] ❌ JSON.parse 失败', { error: String(parseError) });
         throw parseError;
       }
-      console.log('[RustHTTP] ⇠ response', {
-        method: methodUpper,
-        path,
-        success: response.success,
-        code: response.code,
-        message: response.message,
-        dataKeys: response.data ? Object.keys(response.data) : null
-      })
       return {
         code: response.code,
         message: response.message,
@@ -291,7 +265,6 @@ class RustHttpClient {
         success: response.success
       }
     } catch (error: any) {
-      console.error(`❌ HTTP 请求失败 [${method} ${path}]:`, error)
       return {
         code: error?.code || 500,
         message: error?.message || '请求失败',
@@ -346,7 +319,6 @@ class RustHttpClient {
    */
   async batch<T = any>(requests: HttpRequestParams[]): Promise<ApiResponse<T[]>> {
     if (!isRustEnabled('RUST_BATCH_REQUESTS')) {
-      console.warn('批量请求功能未启用')
       return {
         code: 501,
         message: '批量请求功能未启用',
@@ -378,7 +350,6 @@ class RustHttpClient {
         success: response.success
       }
     } catch (error: any) {
-      console.error('❌ 批量请求失败:', error)
       return {
         code: 500,
         message: error?.message || '批量请求失败',
@@ -427,7 +398,6 @@ class RustHttpClient {
         success: response.success
       }
     } catch (error: any) {
-      console.error('❌ 文件上传失败:', error)
       return {
         code: 500,
         message: error?.message || '文件上传失败',
@@ -459,7 +429,6 @@ class RustHttpClient {
         path: response.data?.path
       }
     } catch (error: any) {
-      console.error('❌ 文件下载失败:', error)
       return {
         success: false,
         message: error?.message || '文件下载失败'

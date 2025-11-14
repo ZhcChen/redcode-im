@@ -75,13 +75,11 @@ class EventManager {
    * 清理所有窗口事件监听器
    */
   public clearWindowListeners(): void {
-    console.log('🧹 清理所有窗口事件监听器，当前数量:', this.windowListeners.size);
     this.windowListeners.forEach(cleanups => {
       cleanups.forEach(cleanup => {
         try {
           cleanup();
         } catch (error) {
-          console.warn('清理窗口事件监听器失败:', error);
         }
       });
     });
@@ -92,13 +90,11 @@ class EventManager {
    * 清理所有文档事件监听器
    */
   public clearDocumentListeners(): void {
-    console.log('🧹 清理所有文档事件监听器，当前数量:', this.documentListeners.size);
     this.documentListeners.forEach(cleanups => {
       cleanups.forEach(cleanup => {
         try {
           cleanup();
         } catch (error) {
-          console.warn('清理文档事件监听器失败:', error);
         }
       });
     });
@@ -109,7 +105,6 @@ class EventManager {
    * 清理所有事件监听器
    */
   public clearAllListeners(): void {
-    console.log('🧹 清理所有事件监听器');
     
     // 清理窗口监听器
     this.clearWindowListeners();
@@ -118,13 +113,11 @@ class EventManager {
     this.clearDocumentListeners();
     
     // 清理通用监听器
-    console.log('🧹 清理所有通用事件监听器，当前数量:', this.listeners.size);
     this.listeners.forEach(cleanups => {
       cleanups.forEach(cleanup => {
         try {
           cleanup();
         } catch (error) {
-          console.warn('清理通用事件监听器失败:', error);
         }
       });
     });
