@@ -20,6 +20,10 @@ pub fn create_routes() -> Router<AppState> {
         .route("/versions/latest", get(version::latest_version))
         .route("/versions/hot-update", get(version::latest_hot_update))
         .route("/versions/download", get(version::download_version))
+        .route(
+            "/versions/hot-update/download",
+            get(version::download_hot_update),
+        )
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/login/sms", post(auth::login_with_sms))

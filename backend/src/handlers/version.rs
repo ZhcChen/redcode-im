@@ -273,6 +273,19 @@ pub struct VersionDownloadResponse {
     pub download_url: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct HotUpdateDownloadParams {
+    pub id: Uuid,
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HotUpdateDownloadResponse {
+    pub success: bool,
+    pub message: String,
+    pub download_url: Option<String>,
+}
+
 pub async fn download_version(
     State(state): State<AppState>,
     Query(params): Query<VersionDownloadParams>,
@@ -294,6 +307,33 @@ pub async fn download_version(
         success: true,
         message: "生成下载链接成功".to_string(),
         download_url: Some(download_url),
+    }))
+}
+
+pub async fn download_hot_update(
+    State(state): State<AppState>,
+    Query(params): Query<HotUpdateDownloadParams>,
+) -> Result<Json<HotUpdateDownloadResponse>, AppError> {
+    let store = VersionStore::new(state.database.clone());
+    let patch = store
+        .get_hot_update(params.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+
+    let signed_url = if let Some(explicit) = &patch.download_url {
+        explicit.clone()
+    } else {
+        let provider = load_default_storage_provider(&state).await?;
+        let storage_service = storage::create_storage_service(&provider)?;
+        storage_service
+            .generate_download_url(&patch.download_key, params.expires_in_seconds)
+            .await?
+    };
+
+    Ok(Json(HotUpdateDownloadResponse {
+        success: true,
+        message: "生成补丁下载链接成功".to_string(),
+        download_url: Some(signed_url),
     }))
 }
 

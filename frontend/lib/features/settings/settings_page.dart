@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,6 +11,9 @@ import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/version_service.dart';
+import '../../core/update/hot_update_manager.dart';
+import '../../core/update/hot_update_models.dart';
+import '../../core/update/update_center.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/login_page.dart';
 import '../auth/models/auth_user.dart';
@@ -28,6 +32,8 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final AuthRepository _authRepository = AuthRepository();
   final VersionService _versionService = VersionService();
+  HotUpdateManager? _hotUpdateManager;
+  HotUpdateState _hotUpdateState = const HotUpdateState();
   AuthUser? _user;
   bool _loading = true;
   bool _deactivating = false;
@@ -46,6 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _loadUser();
     _initVersionInfo();
+    _initHotUpdateManager();
   }
 
   Future<void> _editNickname() async {
@@ -153,9 +160,9 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('打开相册失败: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('打开相册失败: $error')));
       return;
     }
 
@@ -166,9 +173,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final file = File(pickedFile.path);
     if (!await file.exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未找到所选文件')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('未找到所选文件')));
       return;
     }
 
@@ -177,19 +184,19 @@ class _SettingsPageState extends State<SettingsPage> {
       final updatedUser = await _authRepository.uploadAvatar(file);
       if (!mounted) return;
       setState(() => _user = updatedUser);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('头像已更新')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('头像已更新')));
     } on AuthException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('头像更新失败: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('头像更新失败: $error')));
     } finally {
       if (mounted) {
         setState(() => _uploadingAvatar = false);
@@ -227,19 +234,42 @@ class _SettingsPageState extends State<SettingsPage> {
       await _checkForUpdate(auto: true);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法获取应用版本信息：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('无法获取应用版本信息：$error')));
     }
+  }
+
+  Future<void> _initHotUpdateManager() async {
+    try {
+      final manager = await UpdateCenter.ensureHotUpdateManager();
+      if (!mounted) return;
+      _hotUpdateManager = manager;
+      _hotUpdateState = manager.state;
+      manager.addListener(_handleHotUpdateChanged);
+      setState(() {});
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('热更新服务初始化失败：$error')));
+    }
+  }
+
+  void _handleHotUpdateChanged() {
+    if (!mounted || _hotUpdateManager == null) return;
+    setState(() {
+      _hotUpdateState = _hotUpdateManager!.state;
+    });
   }
 
   Future<void> _checkForUpdate({bool auto = false}) async {
     final currentVersion = _packageInfo?.version ?? '';
     if (currentVersion.isEmpty) {
       if (!auto && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('尚未获取当前版本信息')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('尚未获取当前版本信息')));
       }
       return;
     }
@@ -260,15 +290,15 @@ class _SettingsPageState extends State<SettingsPage> {
         final text = result.hasUpdate
             ? '检测到新版本 v${result.latest?.version ?? ''}'
             : '当前已是最新版本';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(text)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(text)));
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('检查更新失败：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('检查更新失败：$error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -284,9 +314,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final latest = _versionResult?.latest;
     if (latest == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('没有可下载的版本')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('没有可下载的版本')));
       }
       return;
     }
@@ -303,17 +333,14 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('安装包已保存至：${result.filePath}'),
-          action: SnackBarAction(
-            label: '打开',
-            onPressed: _openDownloadedFile,
-          ),
+          action: SnackBarAction(label: '打开', onPressed: _openDownloadedFile),
         ),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('下载更新失败：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('下载更新失败：$error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -333,14 +360,20 @@ class _SettingsPageState extends State<SettingsPage> {
     final uri = Uri.file(path);
     if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法打开已下载的文件')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法打开已下载的文件')));
     }
   }
 
   bool get _hasUpdate => _versionResult?.hasUpdate ?? false;
   AppVersionInfo? get _latestVersion => _versionResult?.latest;
+
+  @override
+  void dispose() {
+    _hotUpdateManager?.removeListener(_handleHotUpdateChanged);
+    super.dispose();
+  }
 
   String _formatFileSize(int? size) {
     if (size == null || size <= 0) return '-';
@@ -357,6 +390,55 @@ class _SettingsPageState extends State<SettingsPage> {
       return '${(size / kb).toStringAsFixed(1)} KB';
     }
     return '$size B';
+  }
+
+  String _hotStageLabel(HotUpdateStage stage) {
+    switch (stage) {
+      case HotUpdateStage.checking:
+        return '检查中';
+      case HotUpdateStage.available:
+        return '可用';
+      case HotUpdateStage.downloading:
+        return '下载中';
+      case HotUpdateStage.downloaded:
+        return '已下载';
+      case HotUpdateStage.applied:
+        return '已应用';
+      case HotUpdateStage.failed:
+        return '失败';
+      case HotUpdateStage.noUpdate:
+        return '暂无补丁';
+      case HotUpdateStage.applying:
+        return '应用中';
+      case HotUpdateStage.verifying:
+        return '校验中';
+      case HotUpdateStage.idle:
+      default:
+        return '待检测';
+    }
+  }
+
+  Color _hotStageColor(HotUpdateStage stage) {
+    switch (stage) {
+      case HotUpdateStage.available:
+        return AppColors.primary;
+      case HotUpdateStage.downloading:
+      case HotUpdateStage.verifying:
+      case HotUpdateStage.applying:
+        return Colors.orangeAccent;
+      case HotUpdateStage.downloaded:
+      case HotUpdateStage.applied:
+        return Colors.green;
+      case HotUpdateStage.failed:
+        return Colors.redAccent;
+      case HotUpdateStage.noUpdate:
+        return AppColors.settingsTextMuted;
+      case HotUpdateStage.checking:
+        return Colors.blueAccent;
+      case HotUpdateStage.idle:
+      default:
+        return AppColors.settingsTextMuted;
+    }
   }
 
   Widget _buildVersionCard(String currentVersionLabel) {
@@ -452,7 +534,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 Column(
                   children: [
                     OutlinedButton(
-                      onPressed: _checkingVersion ? null : () => _checkForUpdate(auto: false),
+                      onPressed: _checkingVersion
+                          ? null
+                          : () => _checkForUpdate(auto: false),
                       child: _checkingVersion
                           ? const SizedBox(
                               width: 16,
@@ -465,7 +549,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: FilledButton(
-                          onPressed: _downloadInProgress ? null : _downloadUpdate,
+                          onPressed: _downloadInProgress
+                              ? null
+                              : _downloadUpdate,
                           child: _downloadInProgress
                               ? const SizedBox(
                                   width: 16,
@@ -501,7 +587,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: _openDownloadedFile,
                   child: Row(
                     children: [
-                      const Icon(Icons.save_alt, size: 18, color: AppColors.primary),
+                      const Icon(
+                        Icons.save_alt,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -515,6 +605,182 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ],
                   ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHotUpdateCard() {
+    final stage = _hotUpdateState.stage;
+    final patch = _hotUpdateState.patch;
+    final downloaded = _hotUpdateState.downloaded;
+    final stageLabel = _hotStageLabel(stage);
+    final badgeColor = _hotStageColor(stage);
+    final checking = stage == HotUpdateStage.checking;
+    final downloading = stage == HotUpdateStage.downloading;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '热更新',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    stageLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: badgeColor == Colors.transparent
+                          ? AppColors.textPrimary
+                          : badgeColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (patch == null && stage == HotUpdateStage.noUpdate)
+              const Text(
+                '当前渠道暂无可用补丁，将在后台持续监测。',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.settingsTextMuted,
+                ),
+              ),
+            if (patch != null) ...[
+              Text(
+                '补丁版本：${patch.patchVersion}（${patch.channel}）',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '强制更新：${patch.mandatory ? '是' : '否'} · 灰度比例：${patch.rolloutPercentage}%',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.settingsTextMuted,
+                ),
+              ),
+              if (patch.description != null &&
+                  patch.description!.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    patch.description!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.settingsTextMuted,
+                    ),
+                  ),
+                ),
+            ],
+            if (_hotUpdateState.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _hotUpdateState.errorMessage ?? '未知错误',
+                  style: const TextStyle(fontSize: 13, color: Colors.redAccent),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton(
+                  onPressed: (_hotUpdateManager == null || checking)
+                      ? null
+                      : _handleManualHotUpdateCheck,
+                  child: checking
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('检查补丁'),
+                ),
+                const SizedBox(width: 12),
+                if (patch != null)
+                  FilledButton(
+                    onPressed: downloading ? null : _handleDownloadHotPatch,
+                    child: downloading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(downloaded != null ? '重新下载' : '下载补丁'),
+                  ),
+              ],
+            ),
+            if (downloaded != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '已下载补丁：${downloaded.filePath}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.settingsTextMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: _handleOpenHotPatchFile,
+                          child: const Text('打开补丁文件'),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _handleClearHotPatchFile,
+                          child: const Text('清除'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -649,14 +915,8 @@ class _SettingsPageState extends State<SettingsPage> {
         title: '账号与安全',
         onTap: () async => _openAccountSecurity(),
       ),
-      _SettingItemData(
-        title: '隐私政策',
-        onTap: () async => _openPrivacyPolicy(),
-      ),
-      _SettingItemData(
-        title: '意见反馈',
-        onTap: _openFeedback,
-      ),
+      _SettingItemData(title: '隐私政策', onTap: () async => _openPrivacyPolicy()),
+      _SettingItemData(title: '意见反馈', onTap: _openFeedback),
       _SettingItemData(
         title: '清理缓存',
         onTap: _clearingCache ? null : _clearLocalCache,
@@ -736,14 +996,14 @@ class _SettingsPageState extends State<SettingsPage> {
                             ? _editNickname
                             : null,
                         updatingNickname: _updatingNickname,
-                        onEditAvatar:
-                            (_user != null && !_uploadingAvatar)
-                                ? _handleEditAvatar
-                                : null,
+                        onEditAvatar: (_user != null && !_uploadingAvatar)
+                            ? _handleEditAvatar
+                            : null,
                         uploadingAvatar: _uploadingAvatar,
                       ),
                     const SizedBox(height: 32),
                     _buildVersionCard(currentVersionLabel),
+                    _buildHotUpdateCard(),
                     // 设置卡片
                     _SettingsCard(items: items),
                     const SizedBox(height: 24),
@@ -767,6 +1027,64 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+Future<void> _handleManualHotUpdateCheck() async {
+  final manager = _hotUpdateManager;
+  if (manager == null) return;
+  await manager.checkForUpdates();
+}
+
+Future<void> _handleDownloadHotPatch() async {
+  final manager = _hotUpdateManager;
+  if (manager == null) return;
+  try {
+    final record = await manager.downloadAvailablePatch();
+    if (!mounted || record == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('补丁已下载：${record.filePath}')));
+  } catch (error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('下载补丁失败：$error')));
+  }
+}
+
+Future<void> _handleOpenHotPatchFile() async {
+  final record = _hotUpdateState.downloaded;
+  if (record == null) return;
+  final file = File(record.filePath);
+  if (!await file.exists()) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('找不到已下载的补丁文件')));
+    await _hotUpdateManager?.resetDownloadedState();
+    return;
+  }
+  final result = await OpenFilex.open(file.path);
+  if (!mounted) return;
+  if (result.type != ResultType.done) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('无法打开补丁：${result.message}')));
+  }
+}
+
+Future<void> _handleClearHotPatchFile() async {
+  final record = _hotUpdateState.downloaded;
+  if (record == null) return;
+  final file = File(record.filePath);
+  if (await file.exists()) {
+    await file.delete();
+  }
+  await _hotUpdateManager?.resetDownloadedState();
+  if (!mounted) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('已清除补丁文件')));
+}
+
 class _UserInfoSection extends StatelessWidget {
   const _UserInfoSection({
     this.user,
@@ -787,12 +1105,12 @@ class _UserInfoSection extends StatelessWidget {
     final displayName = user?.displayName ?? '未命名用户';
     final username = user?.username ?? '';
     // 如果 username 是 11 位数字（手机号格式），则格式化显示
-    final phoneText = username.isNotEmpty && 
-            RegExp(r'^\d{11}$').hasMatch(username)
+    final phoneText =
+        username.isNotEmpty && RegExp(r'^\d{11}$').hasMatch(username)
         ? '${username.substring(0, 3)}****${username.substring(username.length - 4)}'
         : username.isNotEmpty
-            ? username
-            : '未绑定';
+        ? username
+        : '未绑定';
 
     final avatarPath = user?.localAvatarPath;
     final avatarUrl = user?.avatarUrl;
@@ -861,7 +1179,7 @@ class _UserInfoSection extends StatelessWidget {
               Positioned(
                 top: 0,
                 right: 0,
-                child: Opacity( 
+                child: Opacity(
                   opacity: onEditAvatar != null ? 1.0 : 0.4,
                   child: Container(
                     width: 36,
@@ -954,7 +1272,7 @@ class _DefaultAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = displayName.trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    
+
     return Container(
       width: 100,
       height: 100,
@@ -993,10 +1311,7 @@ class _SettingsCard extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < items.length; i++)
-            _SettingItem(
-              data: items[i],
-              showDivider: i != items.length - 1,
-            ),
+            _SettingItem(data: items[i], showDivider: i != items.length - 1),
         ],
       ),
     );
@@ -1004,17 +1319,15 @@ class _SettingsCard extends StatelessWidget {
 }
 
 class _SettingItem extends StatelessWidget {
-  const _SettingItem({
-    required this.data,
-    required this.showDivider,
-  });
+  const _SettingItem({required this.data, required this.showDivider});
 
   final _SettingItemData data;
   final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final trailing = data.trailingBuilder?.call(context) ??
+    final trailing =
+        data.trailingBuilder?.call(context) ??
         const SizedBox(
           width: 7,
           height: 15,
@@ -1068,10 +1381,7 @@ class _SettingItem extends StatelessWidget {
 }
 
 class _DeactivateButton extends StatelessWidget {
-  const _DeactivateButton({
-    required this.onTap,
-    required this.deactivating,
-  });
+  const _DeactivateButton({required this.onTap, required this.deactivating});
 
   final Future<void> Function()? onTap;
   final bool deactivating;
@@ -1092,9 +1402,7 @@ class _DeactivateButton extends StatelessWidget {
                 },
           borderRadius: BorderRadius.circular(8),
           child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1156,9 +1464,7 @@ class _LogoutButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

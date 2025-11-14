@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/debug/debug_logger.dart';
 import '../../core/auth/auth_guard.dart';
+import '../../core/update/update_center.dart';
 import '../auth/login_page.dart';
 import '../auth/data/auth_repository.dart';
 import '../home/home_shell_page.dart';
@@ -27,6 +28,13 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _bootstrap() async {
     Log.d('开始启动流程');
+
+    try {
+      final hotManager = await UpdateCenter.ensureHotUpdateManager();
+      unawaited(hotManager.checkForUpdates());
+    } catch (error) {
+      Log.e('初始化热更新失败: $error');
+    }
 
     final delay = Future<void>.delayed(const Duration(milliseconds: 800));
     const timeout = Duration(seconds: 10); // 设置10秒超时
