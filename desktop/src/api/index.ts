@@ -28,6 +28,8 @@ export * from './message';
 // 导出文件相关 API
 export * from './file';
 export * from './version';
+export { SettingsApi } from './settings';
+export type { DocumentContent } from './settings';
 
 // 统一的 API 对象，方便使用
 import { SystemApi } from './system';
@@ -37,6 +39,7 @@ import { GroupApi } from './group';
 import { MessageApi } from './message';
 import { FileApi } from './file';
 import { VersionApi } from './version';
+import { SettingsApi } from './settings';
 
 /**
  * 统一的 API 接口对象
@@ -64,7 +67,10 @@ export const api = {
   file: FileApi,
 
   // 版本相关接口
-  version: VersionApi
+  version: VersionApi,
+
+  // 系统设置相关接口
+  settings: SettingsApi
 };
 
 // 默认导出
