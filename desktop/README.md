@@ -92,8 +92,8 @@ export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner c
 |------|----------|----------|
 | macOS Intel | `./scripts/build-macos.sh intel` | `VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin` |
 | macOS Apple Silicon | `./scripts/build-macos.sh arm64` | `VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-darwin` |
-| Windows x86_64 | `bun run build:windows-x64` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc` |
-| Windows ARM64 | `bun run build:windows-arm` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc` |
+| Windows x86_64 | `VITE_APP_CHANNEL=stable-windows-x64 bun run build:windows-x64` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && VITE_APP_CHANNEL=stable-windows-x64 bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc` |
+| Windows ARM64 | `VITE_APP_CHANNEL=stable-windows-arm bun run build:windows-arm` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && VITE_APP_CHANNEL=stable-windows-arm bun run tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc` |
 | 所有平台 | `bun run build:all-platforms` | 依次构建所有平台版本 |
 
 ### 图标生成命令
