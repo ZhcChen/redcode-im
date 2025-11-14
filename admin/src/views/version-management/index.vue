@@ -19,7 +19,7 @@
             v-model="channelFilter"
             allow-clear
             allow-create
-            placeholder="选择渠道（默认 stable）"
+            placeholder="选择渠道（如 stable / stable-macos-arm64）"
             style="min-width: 180px"
           >
             <a-option
@@ -171,7 +171,7 @@
         <a-form-item field="channel" label="渠道">
           <a-input
             v-model="formState.channel"
-            placeholder="例如：stable / beta"
+            placeholder="例如：stable / stable-macos-arm64"
             :disabled="isEditing"
           />
         </a-form-item>
@@ -299,7 +299,14 @@
     file_size?: number | null;
   }
 
-  const channelDefaults = ['stable', 'beta', 'alpha', 'dev'];
+  const channelDefaults = [
+    'stable',
+    'stable-macos-intel',
+    'stable-macos-arm64',
+    'beta',
+    'alpha',
+    'dev',
+  ];
 
   const listLoading = ref(false);
   const actionLoading = ref(false);

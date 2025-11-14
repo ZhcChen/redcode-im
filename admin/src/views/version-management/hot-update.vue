@@ -267,7 +267,14 @@
   } from '@/api/app-version';
   import { uploadWithSignature } from '@/utils/direct-upload';
 
-  const channelOptions = ['stable', 'beta', 'alpha', 'dev'];
+  const channelOptions = [
+    'stable',
+    'stable-macos-intel',
+    'stable-macos-arm64',
+    'beta',
+    'alpha',
+    'dev',
+  ];
 
   const platformFilter = ref<AppPlatform>(AppPlatform.Android);
   const channelFilter = ref<string | undefined>('stable');
