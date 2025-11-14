@@ -13,13 +13,13 @@ const normalizeUrl = (value: string): string => {
   return value.replace(/\/+$/, '');
 };
 
-const resolveEnv = (key: string, fallback?: string): string | undefined => {
-  const metaEnv = ((import.meta as any)?.env ?? {}) as Record<string, string | undefined>;
-  const processEnv = ((globalThis as any)?.process?.env ?? {}) as Record<string, string | undefined>;
-  return metaEnv[key] ?? processEnv[key] ?? fallback;
+const processEnv = ((globalThis as any)?.process?.env ?? {}) as Record<string, string | undefined>;
+
+const resolveEnv = (valueFromMeta: string | undefined, key: keyof typeof processEnv, fallback?: string) => {
+  return valueFromMeta ?? processEnv[key as string] ?? fallback;
 };
 
-const rawApiBase = resolveEnv('VITE_API_BASE_URL', getApiBaseUrl());
+const rawApiBase = resolveEnv(import.meta.env.VITE_API_BASE_URL, 'VITE_API_BASE_URL', getApiBaseUrl());
 
 const apiBaseUrl = normalizeUrl(rawApiBase);
 
@@ -33,14 +33,14 @@ const inferredWsUrl = (() => {
   return `${apiBaseUrl}/ws`;
 })();
 
-const rawWsUrl = resolveEnv('VITE_WS_URL', inferredWsUrl);
+const rawWsUrl = resolveEnv(import.meta.env.VITE_WS_URL, 'VITE_WS_URL', inferredWsUrl);
 
-const rawFileBase = resolveEnv('VITE_FILE_BASE_URL', apiBaseUrl);
+const rawFileBase = resolveEnv(import.meta.env.VITE_FILE_BASE_URL, 'VITE_FILE_BASE_URL', apiBaseUrl);
 
-const appSemver = resolveEnv('VITE_APP_VERSION', DEFAULT_APP_VERSION) ?? DEFAULT_APP_VERSION;
-const parsedBuild = Number(resolveEnv('VITE_APP_BUILD', DEFAULT_APP_BUILD));
+const appSemver = resolveEnv(import.meta.env.VITE_APP_VERSION, 'VITE_APP_VERSION', DEFAULT_APP_VERSION) ?? DEFAULT_APP_VERSION;
+const parsedBuild = Number(resolveEnv(import.meta.env.VITE_APP_BUILD, 'VITE_APP_BUILD', DEFAULT_APP_BUILD));
 const appBuild = Number.isFinite(parsedBuild) && parsedBuild > 0 ? parsedBuild : 100;
-const appChannel = resolveEnv('VITE_APP_CHANNEL', 'stable') ?? 'stable';
+const appChannel = resolveEnv(import.meta.env.VITE_APP_CHANNEL, 'VITE_APP_CHANNEL', 'stable') ?? 'stable';
 
 export const apiConfig = {
   API_BASE_URL: apiBaseUrl,
