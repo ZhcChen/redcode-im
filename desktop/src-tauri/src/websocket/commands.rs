@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 use super::client::WebSocketClient;
 use super::types::{ConnectionStatus, WebSocketParams};
+use crate::logger;
 
 /// WebSocket 客户端管理器
 pub struct WebSocketManager {
@@ -28,10 +29,10 @@ pub async fn ws_connect(
     app_handle: AppHandle,
     manager: State<'_, WebSocketManager>,
 ) -> Result<(), String> {
-    println!(
+    logger::log_message(format!(
         "ws_connect 调用: user_id={}, ws_url={}",
         params.user_id, ws_url
-    );
+    ));
 
     let mut client_guard = manager.client.write().await;
 
@@ -56,7 +57,7 @@ pub async fn ws_connect(
 /// 断开 WebSocket 连接
 #[tauri::command]
 pub async fn ws_disconnect(manager: State<'_, WebSocketManager>) -> Result<(), String> {
-    println!("ws_disconnect 调用");
+    logger::log_message("ws_disconnect 调用");
 
     let mut client_guard = manager.client.write().await;
 
@@ -75,7 +76,7 @@ pub async fn ws_join_room(
     room_id: String,
     manager: State<'_, WebSocketManager>,
 ) -> Result<(), String> {
-    println!("ws_join_room 调用: room_id={}", room_id);
+    logger::log_message(format!("ws_join_room 调用: room_id={}", room_id));
 
     let client_guard = manager.client.read().await;
 
@@ -96,7 +97,7 @@ pub async fn ws_leave_room(
     room_id: String,
     manager: State<'_, WebSocketManager>,
 ) -> Result<(), String> {
-    println!("ws_leave_room 调用: room_id={}", room_id);
+    logger::log_message(format!("ws_leave_room 调用: room_id={}", room_id));
 
     let client_guard = manager.client.read().await;
 
@@ -117,7 +118,7 @@ pub async fn ws_join_rooms(
     room_ids: Vec<String>,
     manager: State<'_, WebSocketManager>,
 ) -> Result<(), String> {
-    println!("ws_join_rooms 调用: {} 个房间", room_ids.len());
+    logger::log_message(format!("ws_join_rooms 调用: {} 个房间", room_ids.len()));
 
     let client_guard = manager.client.read().await;
 

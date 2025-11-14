@@ -86,7 +86,7 @@ fn open_search_connection(db_path: &PathBuf) -> Result<Connection, String> {
         Ok(mode)
     })
     .map_err(|e| format!("failed to set WAL mode: {e}"))?;
-    
+
     // PRAGMA synchronous 和 cache_size 不返回结果，使用 execute
     conn.execute("PRAGMA synchronous = NORMAL", [])
         .map_err(|e| format!("failed to set synchronous mode: {e}"))?;

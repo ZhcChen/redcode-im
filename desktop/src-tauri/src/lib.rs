@@ -52,12 +52,12 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
 
     // 获取当前尺寸
     let current_size = window.inner_size().map_err(|e| e.to_string())?;
-    println!("[RUST_RESIZE] ========== 设置窗口尺寸 ==========");
-    println!(
+    logger::log_message("[RUST_RESIZE] ========== 设置窗口尺寸 ==========");
+    logger::log_message(format!(
         "[RUST_RESIZE] 调整前尺寸: {}x{}",
         current_size.width, current_size.height
-    );
-    println!("[RUST_RESIZE] 目标尺寸: {}x{}", width, height);
+    ));
+    logger::log_message(format!("[RUST_RESIZE] 目标尺寸: {}x{}", width, height));
 
     window
         .set_size(LogicalSize::new(width, height))
@@ -67,11 +67,11 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
 
     // 获取调整后的尺寸
     let after_size = window.inner_size().map_err(|e| e.to_string())?;
-    println!(
+    logger::log_message(format!(
         "[RUST_RESIZE] 调整后尺寸: {}x{}",
         after_size.width, after_size.height
-    );
-    println!("[RUST_RESIZE] ========== 设置完成 ==========");
+    ));
+    logger::log_message("[RUST_RESIZE] ========== 设置完成 ==========");
 
     Ok(())
 }
@@ -79,7 +79,7 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
 // 自定义命令：应用准备就绪
 #[tauri::command]
 async fn app_ready(app: AppHandle) -> Result<(), String> {
-    println!("应用已准备就绪，准备显示主窗口");
+    logger::log_message("应用已准备就绪，准备显示主窗口");
 
     // 关闭启动画面并显示主窗口
     if let Some(splash_window) = app.get_webview_window("splashscreen") {
@@ -97,7 +97,7 @@ async fn app_ready(app: AppHandle) -> Result<(), String> {
 // 自定义命令：关闭启动画面
 #[tauri::command]
 async fn close_splashscreen(app: AppHandle) -> Result<(), String> {
-    println!("关闭启动画面");
+    logger::log_message("关闭启动画面");
 
     if let Some(splash_window) = app.get_webview_window("splashscreen") {
         let _ = splash_window.close();
@@ -114,7 +114,7 @@ async fn close_splashscreen(app: AppHandle) -> Result<(), String> {
 // 自定义命令：设置窗口标题
 #[tauri::command]
 async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
-    println!("设置窗口标题: {}", title);
+    logger::log_message(format!("设置窗口标题: {}", title));
 
     if let Some(main_window) = app.get_webview_window("main") {
         main_window.set_title(&title).map_err(|e| e.to_string())?;
@@ -263,19 +263,19 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 // 等待主窗口加载
                 tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                println!("[Rust Setup] 自动关闭启动画面...");
+                logger::log_message("[Rust Setup] 自动关闭启动画面...");
 
                 // 关闭启动画面
                 if let Some(splash_window) = app_handle.get_webview_window("splashscreen") {
                     let _ = splash_window.close();
-                    println!("[Rust Setup] ✅ 启动画面已关闭");
+                    logger::log_message("[Rust Setup] ✅ 启动画面已关闭");
                 }
 
                 // 显示主窗口
                 if let Some(main_window) = app_handle.get_webview_window("main") {
                     let _ = main_window.show();
                     let _ = main_window.set_focus();
-                    println!("[Rust Setup] ✅ 主窗口已显示");
+                    logger::log_message("[Rust Setup] ✅ 主窗口已显示");
                 }
             });
 
@@ -293,7 +293,7 @@ pub fn run() {
                     // 隐藏窗口到系统托盘
                     let _ = window.hide();
 
-                    println!("[Main Window] 窗口已隐藏到系统托盘");
+                    logger::log_message("[Main Window] 窗口已隐藏到系统托盘");
                 }
                 // splashscreen 等其他窗口正常关闭,不拦截
             }

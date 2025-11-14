@@ -1,5 +1,6 @@
 //! WebSocket 客户端核心实现
 
+use crate::logger;
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 use std::time::Duration;
@@ -93,7 +94,7 @@ impl WebSocketClient {
     async fn start_connection(&mut self) -> Result<()> {
         let url = format!("{}?format=proto", self.ws_url);
 
-        println!("正在连接 WebSocket: {}", url);
+        logger::log_message(format!("正在连接 WebSocket: {}", url));
 
         // 连接 WebSocket
         let (ws_stream, _) = connect_async(&url)
@@ -131,15 +132,15 @@ impl WebSocketClient {
                         if let Err(e) =
                             Self::handle_binary_message(data, &state_for_read, &app_for_read).await
                         {
-                            eprintln!("处理二进制消息失败: {:?}", e);
+                            logger::log_message(format!("[WebSocket] 处理二进制消息失败: {:?}", e));
                         }
                     }
                     Ok(Message::Close(_)) => {
-                        println!("WebSocket 连接关闭");
+                        logger::log_message("WebSocket 连接关闭");
                         break;
                     }
                     Err(e) => {
-                        eprintln!("WebSocket 读取错误: {:?}", e);
+                        logger::log_message(format!("[WebSocket] 读取错误: {:?}", e));
                         break;
                     }
                     _ => {}
@@ -151,7 +152,7 @@ impl WebSocketClient {
         tokio::spawn(async move {
             while let Some(data) = rx.recv().await {
                 if let Err(e) = write.send(Message::Binary(data)).await {
-                    eprintln!("WebSocket 发送错误: {:?}", e);
+                    logger::log_message(format!("[WebSocket] 发送错误: {:?}", e));
                     break;
                 }
             }
@@ -196,20 +197,23 @@ impl WebSocketClient {
         if let Some(payload) = TauriEventPayload::from_server_event(event) {
             match &payload {
                 TauriEventPayload::Authed { user_id, conn_id } => {
-                    println!("认证成功: user_id={}, conn_id={}", user_id, conn_id);
+                    logger::log_message(format!(
+                        "认证成功: user_id={}, conn_id={}",
+                        user_id, conn_id
+                    ));
                     let mut state_guard = state.write().await;
                     state_guard.status = ConnectionStatus::Authenticated;
 
                     drop(state_guard);
                 }
                 TauriEventPayload::Joined { room_id } => {
-                    println!("已加入房间: {}", room_id);
+                    logger::log_message(format!("已加入房间: {}", room_id));
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.push(room_id.clone());
                     state_guard.pending_rooms.retain(|r| r != room_id);
                 }
                 TauriEventPayload::Left { room_id } => {
-                    println!("已离开房间: {}", room_id);
+                    logger::log_message(format!("已离开房间: {}", room_id));
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.retain(|r| r != room_id);
                 }

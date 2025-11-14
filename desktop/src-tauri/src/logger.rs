@@ -13,7 +13,7 @@ pub fn init_logger(app: &AppHandle) -> std::io::Result<PathBuf> {
     let mut log_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     log_dir.push("logs");
     std::fs::create_dir_all(&log_dir)?;
 
@@ -47,8 +47,6 @@ pub fn log_message(message: impl AsRef<str>) {
         let _ = writeln!(file, "{line}");
         let _ = file.flush();
     }
-
-    println!("{line}");
 }
 
 pub fn log_event(tag: &str, payload: Value) {
