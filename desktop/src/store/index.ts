@@ -231,9 +231,9 @@ export const store = createStore<State>({
     },
     version: {
         current: {
-            buildNumber: apiConfig.version,
-            version: String(apiConfig.version),
-            channel: 'stable'
+            buildNumber: apiConfig.buildNumber ?? 100,
+            version: apiConfig.version,
+            channel: apiConfig.channel ?? 'stable'
         },
         latest: {
             hasUpdate: false,
@@ -547,6 +547,10 @@ export const store = createStore<State>({
             state.chatList.list = sortedChatList
             state.chatList.lastUpdateTime = Date.now()
             state.chatList.error = null
+        },
+
+        SET_CHAT_LIST_ERROR(state: State, message: string | null) {
+            state.chatList.error = message
         },
 
         SYNC_CHAT_LIST(state: State, newChatList: ChatItem[]) {

@@ -5,7 +5,8 @@
 
 import { getApiBaseUrl } from '../config/environment'
 
-const APP_VERSION = 103;
+const DEFAULT_APP_VERSION = '1.0.0'
+const DEFAULT_APP_BUILD = '100'
 
 const normalizeUrl = (value: string): string => {
   if (!value) return value;
@@ -35,12 +36,17 @@ const inferredWsUrl = (() => {
 const rawWsUrl = resolveEnv('VITE_WS_URL', inferredWsUrl);
 
 const rawFileBase = resolveEnv('VITE_FILE_BASE_URL', apiBaseUrl);
+const appSemver = resolveEnv('VITE_APP_VERSION', DEFAULT_APP_VERSION) ?? DEFAULT_APP_VERSION
+const appBuild = Number(resolveEnv('VITE_APP_BUILD', DEFAULT_APP_BUILD)) || 100
+const appChannel = resolveEnv('VITE_APP_CHANNEL', 'stable') ?? 'stable'
 
 export const apiConfig = {
   API_BASE_URL: apiBaseUrl,
   WS_URL: normalizeUrl(rawWsUrl),
   FILE_SAVE_TARGET: 'local' as const,
-  version: APP_VERSION,
+  version: appSemver,
+  buildNumber: appBuild,
+  channel: appChannel,
 };
 
 /**

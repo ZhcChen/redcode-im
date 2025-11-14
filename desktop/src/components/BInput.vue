@@ -3,8 +3,8 @@ import { ref, computed } from 'vue'
 
 // defineProps 和 withDefaults 现在是编译器宏，无需导入
 const props = withDefaults(defineProps<{
-  type: string,
-  placeholder: string,
+  type?: string,
+  placeholder?: string,
   modelValue?: string,
   autocomplete?: string,
   autocapitalize?: string,
