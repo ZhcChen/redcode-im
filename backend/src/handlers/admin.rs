@@ -15,7 +15,8 @@ use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::storage;
 use crate::AppState;
-use chrono::Utc;
+use chrono::{DateTime, NaiveDate, Utc};
+use sqlx::{FromRow, Row};
 use tracing::error;
 
 #[derive(Debug, Serialize)]
@@ -135,6 +136,19 @@ pub struct UserDetail {
     pub message_count: i64,
     pub room_count: i64,
     pub storage_usage: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct UserBasicInfoRow {
+    id: Uuid,
+    username: String,
+    email: String,
+    nickname: Option<String>,
+    avatar_url: Option<String>,
+    status: i16,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -684,7 +698,7 @@ async fn get_daily_active_users(
     pool: &sqlx::PgPool,
     _days: i64,
 ) -> Result<Vec<DailyStat>, sqlx::Error> {
-    let rows = sqlx::query!(
+    let rows = sqlx::query(
         r#"
         SELECT
             DATE(created_at) as date,
@@ -694,7 +708,7 @@ async fn get_daily_active_users(
         AND created_at >= CURRENT_DATE - INTERVAL '30 days'
         GROUP BY DATE(created_at)
         ORDER BY date DESC
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
@@ -702,8 +716,11 @@ async fn get_daily_active_users(
     let stats: Vec<DailyStat> = rows
         .into_iter()
         .map(|row| DailyStat {
-            date: row.date.unwrap_or_default().to_string(),
-            count: row.count.unwrap_or(0),
+            date: match row.try_get::<Option<NaiveDate>, _>("date") {
+                Ok(Some(value)) => value.to_string(),
+                _ => String::new(),
+            },
+            count: row.try_get::<i64, _>("count").unwrap_or(0),
         })
         .collect();
 
@@ -714,7 +731,7 @@ async fn get_daily_messages(
     pool: &sqlx::PgPool,
     _days: i64,
 ) -> Result<Vec<DailyStat>, sqlx::Error> {
-    let rows = sqlx::query!(
+    let rows = sqlx::query(
         r#"
         SELECT
             DATE(created_at) as date,
@@ -724,7 +741,7 @@ async fn get_daily_messages(
         AND created_at >= CURRENT_DATE - INTERVAL '30 days'
         GROUP BY DATE(created_at)
         ORDER BY date DESC
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
@@ -732,8 +749,11 @@ async fn get_daily_messages(
     let stats: Vec<DailyStat> = rows
         .into_iter()
         .map(|row| DailyStat {
-            date: row.date.unwrap_or_default().to_string(),
-            count: row.count.unwrap_or(0),
+            date: match row.try_get::<Option<NaiveDate>, _>("date") {
+                Ok(Some(value)) => value.to_string(),
+                _ => String::new(),
+            },
+            count: row.try_get::<i64, _>("count").unwrap_or(0),
         })
         .collect();
 
@@ -848,7 +868,7 @@ async fn calculate_message_growth_rate(pool: &sqlx::PgPool) -> Result<f64, sqlx:
 
 async fn get_peak_active_time(pool: &sqlx::PgPool) -> Result<String, sqlx::Error> {
     // 找出一天中活跃用户最多的时间段
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT
             EXTRACT(HOUR FROM created_at) as hour,
@@ -859,16 +879,21 @@ async fn get_peak_active_time(pool: &sqlx::PgPool) -> Result<String, sqlx::Error
         GROUP BY EXTRACT(HOUR FROM created_at)
         ORDER BY count DESC
         LIMIT 1
-        "#
+        "#,
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
-    let hour: i32 = match row.hour {
-        Some(h) => h.to_string().parse().unwrap_or(14),
-        None => 14,
-    };
-    Ok(format!("{:02}:00", hour))
+    if let Some(row) = row {
+        let hour_value = row.try_get::<Option<f64>, _>("hour").unwrap_or(None);
+        let hour: i32 = hour_value
+            .map(|value| value.round() as i32)
+            .unwrap_or(14)
+            .rem_euclid(24);
+        return Ok(format!("{:02}:00", hour));
+    }
+
+    Ok("14:00".to_string())
 }
 
 /// 获取用户详细信息
@@ -882,7 +907,7 @@ pub async fn get_user_detail(
     let pool = &state.database.pool;
 
     // 获取用户基本信息
-    let user = sqlx::query!(
+    let user = sqlx::query_as::<_, UserBasicInfoRow>(
         r#"
         SELECT
             id, username, email, nickname, avatar_url, status,
@@ -890,8 +915,8 @@ pub async fn get_user_detail(
         FROM users
         WHERE id = $1 AND deleted_at IS NULL
         "#,
-        user_id
     )
+    .bind(user_id)
     .fetch_optional(pool)
     .await
     .map_err(|e| AppError::DatabaseError(e))?
@@ -1134,14 +1159,13 @@ pub async fn delete_user(
     let pool = &state.database.pool;
 
     // 软删除用户
-    let result = sqlx::query!(
-        "UPDATE users SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL",
-        chrono::Utc::now(),
-        user_id
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let result =
+        sqlx::query("UPDATE users SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL")
+            .bind(chrono::Utc::now())
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
 
     if result.rows_affected() == 0 {
         return Ok(Json(UserOperationResponse {
