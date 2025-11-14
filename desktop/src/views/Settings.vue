@@ -617,6 +617,10 @@ const handleDownloadUpdate = async () => {
   margin-top: 24px;
 }
 
+.about-section {
+  margin-top: 12px;
+}
+
 .logout-section {
   margin-top: 24px;
 }
@@ -679,7 +683,7 @@ const handleDownloadUpdate = async () => {
 
 .privacy-container {
   width: 343px;
-  height: 78px;
+  height: 60px;
   background-color: white;
   padding: 0 16px;
   border-radius: 16px;
