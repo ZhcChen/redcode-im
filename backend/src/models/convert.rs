@@ -540,6 +540,36 @@ pub fn db_versions_to_api_list(
     models.iter().map(db_app_version_to_api).collect()
 }
 
+pub fn db_hot_update_to_api(
+    model: &crate::database::models::HotUpdate,
+) -> crate::models::HotUpdateInfo {
+    crate::models::HotUpdateInfo {
+        id: model.id.to_string(),
+        platform: model.platform.to_string(),
+        app_version_id: model.app_version_id.to_string(),
+        patch_version: model.patch_version.clone(),
+        channel: model.channel.clone(),
+        download_key: model.download_key.clone(),
+        download_url: model.download_url.clone(),
+        file_size: model.file_size,
+        checksum: model.checksum.clone(),
+        signature: model.signature.clone(),
+        rollout_percentage: model.rollout_percentage,
+        mandatory: model.mandatory,
+        description: model.description.clone(),
+        is_active: model.is_active,
+        released_at: model.released_at.map(|dt| dt.to_rfc3339()),
+        created_at: model.created_at.to_rfc3339(),
+        updated_at: model.updated_at.to_rfc3339(),
+    }
+}
+
+pub fn db_hot_updates_to_api_list(
+    models: &[crate::database::models::HotUpdate],
+) -> Vec<crate::models::HotUpdateInfo> {
+    models.iter().map(db_hot_update_to_api).collect()
+}
+
 pub fn api_create_version_to_db(
     req: &crate::models::CreateAppVersionRequest,
     operator: Option<uuid::Uuid>,
@@ -598,6 +628,77 @@ pub fn api_update_version_to_db(
         signature: req.signature.clone(),
         release_notes: req.release_notes.clone(),
         mandatory: req.mandatory,
+        is_active: req.is_active,
+        released_at,
+        operator,
+    }
+}
+
+pub fn api_create_hot_update_to_db(
+    req: &crate::models::CreateHotUpdateRequest,
+    operator: Option<uuid::Uuid>,
+) -> Result<crate::database::version_store::HotUpdateInsert, crate::error::AppError> {
+    use chrono::{DateTime, Utc};
+
+    let platform =
+        crate::database::models::Platform::from_str(req.platform.trim()).ok_or_else(|| {
+            crate::error::AppError::ValidationError(format!(
+                "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+                req.platform
+            ))
+        })?;
+
+    let released_at = req
+        .released_at
+        .as_ref()
+        .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    let app_version_id = uuid::Uuid::parse_str(req.app_version_id.trim()).map_err(|_| {
+        crate::error::AppError::ValidationError("无效的 app_version_id".to_string())
+    })?;
+
+    Ok(crate::database::version_store::HotUpdateInsert {
+        platform,
+        app_version_id,
+        patch_version: req.patch_version.trim().to_string(),
+        channel: req.channel.trim().to_string(),
+        download_key: req.download_key.trim().to_string(),
+        download_url: req.download_url.clone(),
+        file_size: req.file_size,
+        checksum: req.checksum.clone(),
+        signature: req.signature.clone(),
+        rollout_percentage: req.rollout_percentage,
+        mandatory: req.mandatory,
+        description: req.description.clone(),
+        released_at,
+        operator,
+    })
+}
+
+pub fn api_update_hot_update_to_db(
+    req: &crate::models::UpdateHotUpdateRequest,
+    operator: Option<uuid::Uuid>,
+) -> crate::database::version_store::HotUpdateUpdate {
+    use chrono::{DateTime, Utc};
+
+    let released_at = req
+        .released_at
+        .as_ref()
+        .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    crate::database::version_store::HotUpdateUpdate {
+        patch_version: req.patch_version.clone(),
+        channel: req.channel.clone(),
+        download_key: req.download_key.clone(),
+        download_url: req.download_url.clone(),
+        file_size: req.file_size,
+        checksum: req.checksum.clone(),
+        signature: req.signature.clone(),
+        rollout_percentage: req.rollout_percentage,
+        mandatory: req.mandatory,
+        description: req.description.clone(),
         is_active: req.is_active,
         released_at,
         operator,

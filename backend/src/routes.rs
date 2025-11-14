@@ -18,6 +18,7 @@ pub fn create_routes() -> Router<AppState> {
         .route("/healthz", get(healthz))
         .route("/ws", get(ws))
         .route("/versions/latest", get(version::latest_version))
+        .route("/versions/hot-update", get(version::latest_hot_update))
         .route("/versions/download", get(version::download_version))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -158,6 +159,24 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/app-versions/{id}/deactivate",
             post(version::deactivate_app_version),
+        )
+        .route(
+            "/api/admin/hot-updates",
+            get(version::list_hot_updates).post(version::create_hot_update),
+        )
+        .route(
+            "/api/admin/hot-updates/{id}",
+            get(version::get_hot_update)
+                .patch(version::update_hot_update)
+                .delete(version::delete_hot_update),
+        )
+        .route(
+            "/api/admin/hot-updates/{id}/activate",
+            post(version::activate_hot_update),
+        )
+        .route(
+            "/api/admin/hot-updates/{id}/deactivate",
+            post(version::deactivate_hot_update),
         )
         // 聊天记录管理API
         .route(

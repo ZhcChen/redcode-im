@@ -1,14 +1,16 @@
 use crate::database::models::{Platform, StorageProviderType};
 use crate::database::storage_provider_store::StorageProviderStore;
-use crate::database::version_store::{version_exists, VersionStore};
+use crate::database::version_store::{version_exists, HotUpdateUpdate, VersionStore};
 use crate::error::AppError;
 use crate::models::convert::{
-    api_create_version_to_db, api_update_version_to_db, db_app_version_to_api,
-    db_versions_to_api_list,
+    api_create_hot_update_to_db, api_create_version_to_db, api_update_hot_update_to_db,
+    api_update_version_to_db, db_app_version_to_api, db_hot_update_to_api,
+    db_hot_updates_to_api_list, db_versions_to_api_list,
 };
 use crate::models::{
-    Claims, CreateAppVersionRequest, LatestVersionQuery, LatestVersionResponse,
-    ListAppVersionsQuery, UpdateAppVersionRequest,
+    Claims, CreateAppVersionRequest, CreateHotUpdateRequest, HotUpdateQuery, HotUpdateResponse,
+    LatestVersionQuery, LatestVersionResponse, ListAppVersionsQuery, ListHotUpdatesQuery,
+    UpdateAppVersionRequest, UpdateHotUpdateRequest,
 };
 use crate::storage;
 use crate::storage::DirectUploadSignature;
@@ -19,6 +21,8 @@ use axum::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -45,6 +49,12 @@ pub struct AppVersionListResponse {
 
 fn default_channel() -> String {
     "stable".to_string()
+}
+
+#[derive(Debug, Serialize)]
+pub struct HotUpdateListResponse {
+    pub total: i64,
+    pub items: Vec<crate::models::HotUpdateInfo>,
 }
 
 pub async fn generate_version_upload_signature(
@@ -287,6 +297,226 @@ pub async fn download_version(
     }))
 }
 
+pub async fn create_hot_update(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<CreateHotUpdateRequest>,
+) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
+    ensure_rollout_percentage(req.rollout_percentage)?;
+    if req.channel.trim().is_empty() {
+        return Err(AppError::ValidationError("channel 不能为空".to_string()));
+    }
+
+    let platform = Platform::from_str(req.platform.trim()).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            req.platform
+        ))
+    })?;
+    let app_version_id = Uuid::parse_str(req.app_version_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的 app_version_id".to_string()))?;
+
+    let store = VersionStore::new(state.database.clone());
+    let base_version = store
+        .get_version(app_version_id)
+        .await?
+        .ok_or_else(|| AppError::ValidationError("绑定的整包版本不存在".to_string()))?;
+    if base_version.platform != platform {
+        return Err(AppError::ValidationError(
+            "热更新平台必须与整包版本一致".to_string(),
+        ));
+    }
+
+    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let mut insert = api_create_hot_update_to_db(&req, operator)?;
+    insert.platform = platform;
+    insert.app_version_id = base_version.id;
+    let created = store.create_hot_update(&insert).await?;
+
+    Ok(Json(db_hot_update_to_api(&created)))
+}
+
+pub async fn update_hot_update(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<String>,
+    Json(req): Json<UpdateHotUpdateRequest>,
+) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
+    let hot_update_id =
+        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    if let Some(pct) = req.rollout_percentage {
+        ensure_rollout_percentage(pct)?;
+    }
+    if let Some(channel) = &req.channel {
+        if channel.trim().is_empty() {
+            return Err(AppError::ValidationError("channel 不能为空".to_string()));
+        }
+    }
+    if let Some(download_key) = &req.download_key {
+        if download_key.trim().is_empty() {
+            return Err(AppError::ValidationError(
+                "download_key 不能为空".to_string(),
+            ));
+        }
+    }
+
+    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let update = api_update_hot_update_to_db(&req, operator);
+    let store = VersionStore::new(state.database.clone());
+    let updated = store
+        .update_hot_update(hot_update_id, &update)
+        .await?
+        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+
+    Ok(Json(db_hot_update_to_api(&updated)))
+}
+
+pub async fn list_hot_updates(
+    State(state): State<AppState>,
+    Query(query): Query<ListHotUpdatesQuery>,
+) -> Result<Json<HotUpdateListResponse>, AppError> {
+    let platform = query
+        .platform
+        .as_deref()
+        .map(|value| {
+            Platform::from_str(value.trim()).ok_or_else(|| {
+                AppError::ValidationError(format!(
+                    "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+                    value
+                ))
+            })
+        })
+        .transpose()?;
+    let channel_trimmed = query
+        .channel
+        .as_deref()
+        .map(|c| c.trim())
+        .filter(|c| !c.is_empty());
+
+    let limit = query.limit.clamp(1, 100);
+    let offset = query.offset.max(0);
+
+    let store = VersionStore::new(state.database.clone());
+    let items = store
+        .list_hot_updates(platform, channel_trimmed, limit, offset)
+        .await?;
+    let total = store.count_hot_updates(platform, channel_trimmed).await?;
+
+    Ok(Json(HotUpdateListResponse {
+        total,
+        items: db_hot_updates_to_api_list(&items),
+    }))
+}
+
+pub async fn get_hot_update(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
+    let hot_update_id =
+        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    let store = VersionStore::new(state.database.clone());
+    let patch = store
+        .get_hot_update(hot_update_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+    Ok(Json(db_hot_update_to_api(&patch)))
+}
+
+pub async fn delete_hot_update(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let hot_update_id =
+        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    let store = VersionStore::new(state.database.clone());
+    let deleted = store.delete_hot_update(hot_update_id).await?;
+    if !deleted {
+        return Err(AppError::NotFound("补丁不存在".to_string()));
+    }
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+pub async fn activate_hot_update(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<String>,
+) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
+    toggle_hot_update(state, claims, id, true).await
+}
+
+pub async fn deactivate_hot_update(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<String>,
+) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
+    toggle_hot_update(state, claims, id, false).await
+}
+
+async fn toggle_hot_update(
+    state: AppState,
+    claims: Claims,
+    id: String,
+    active: bool,
+) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
+    let hot_update_id =
+        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let update = HotUpdateUpdate {
+        is_active: Some(active),
+        operator,
+        ..Default::default()
+    };
+    let store = VersionStore::new(state.database.clone());
+    let updated = store
+        .update_hot_update(hot_update_id, &update)
+        .await?
+        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+    Ok(Json(db_hot_update_to_api(&updated)))
+}
+
+pub async fn latest_hot_update(
+    State(state): State<AppState>,
+    Query(query): Query<HotUpdateQuery>,
+) -> Result<Json<HotUpdateResponse>, AppError> {
+    let platform = Platform::from_str(query.platform.trim()).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            query.platform
+        ))
+    })?;
+    let channel = query.channel.trim();
+    if channel.is_empty() {
+        return Err(AppError::ValidationError("channel 不能为空".to_string()));
+    }
+    if query.current_version.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "current_version 不能为空".to_string(),
+        ));
+    }
+
+    let store = VersionStore::new(state.database.clone());
+    let patches = store
+        .find_active_hot_updates(platform, channel, query.current_version.trim())
+        .await?;
+
+    let current_patch = query.current_patch_version.as_deref();
+    let client_id = query.client_id.as_deref();
+    let selected = patches.into_iter().find(|patch| {
+        if let Some(current) = current_patch {
+            if patch.patch_version == current {
+                return false;
+            }
+        }
+        is_rollout_hit(&patch, client_id)
+    });
+
+    Ok(Json(HotUpdateResponse {
+        has_update: selected.is_some(),
+        current_patch_version: query.current_patch_version.clone(),
+        patch: selected.as_ref().map(db_hot_update_to_api),
+    }))
+}
+
 fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppError> {
     if req.platform.trim().is_empty() {
         return Err(AppError::ValidationError("platform 不能为空".to_string()));
@@ -342,4 +572,32 @@ fn build_release_object_key(platform: &str, channel: &str, filename: Option<&str
         &random[..8],
         ext
     )
+}
+
+fn ensure_rollout_percentage(value: i32) -> Result<(), AppError> {
+    if !(0..=100).contains(&value) {
+        return Err(AppError::ValidationError(
+            "rollout_percentage 必须在 0-100 之间".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn is_rollout_hit(patch: &crate::database::models::HotUpdate, client_id: Option<&str>) -> bool {
+    let pct = patch.rollout_percentage.clamp(0, 100);
+    if pct >= 100 {
+        return true;
+    }
+    if pct <= 0 {
+        return false;
+    }
+    if let Some(id) = client_id {
+        let mut hasher = DefaultHasher::new();
+        hasher.write(id.as_bytes());
+        hasher.write(patch.id.as_bytes());
+        let bucket = (hasher.finish() % 100) as i32;
+        bucket < pct
+    } else {
+        false
+    }
 }

@@ -173,6 +173,109 @@ pub struct LatestVersionResponse {
     pub version: Option<AppVersionInfo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HotUpdateInfo {
+    pub id: String,
+    pub platform: String,
+    pub app_version_id: String,
+    pub patch_version: String,
+    pub channel: String,
+    pub download_key: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub rollout_percentage: i32,
+    pub mandatory: bool,
+    pub description: Option<String>,
+    pub is_active: bool,
+    pub released_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateHotUpdateRequest {
+    pub platform: String,
+    pub app_version_id: String,
+    pub patch_version: String,
+    pub channel: String,
+    pub download_key: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    #[serde(default = "CreateHotUpdateRequest::default_rollout")]
+    pub rollout_percentage: i32,
+    #[serde(default)]
+    pub mandatory: bool,
+    pub description: Option<String>,
+    pub released_at: Option<String>,
+}
+
+impl CreateHotUpdateRequest {
+    fn default_rollout() -> i32 {
+        100
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct UpdateHotUpdateRequest {
+    pub patch_version: Option<String>,
+    pub channel: Option<String>,
+    pub download_key: Option<String>,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub rollout_percentage: Option<i32>,
+    pub mandatory: Option<bool>,
+    pub description: Option<String>,
+    pub is_active: Option<bool>,
+    pub released_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListHotUpdatesQuery {
+    pub platform: Option<String>,
+    pub channel: Option<String>,
+    #[serde(default = "ListHotUpdatesQuery::default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+impl ListHotUpdatesQuery {
+    fn default_limit() -> i64 {
+        20
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HotUpdateQuery {
+    pub platform: String,
+    #[serde(default = "HotUpdateQuery::default_channel")]
+    pub channel: String,
+    pub current_version: String,
+    #[serde(default)]
+    pub current_patch_version: Option<String>,
+    #[serde(default)]
+    pub client_id: Option<String>,
+}
+
+impl HotUpdateQuery {
+    fn default_channel() -> String {
+        "stable".to_string()
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct HotUpdateResponse {
+    pub has_update: bool,
+    pub current_patch_version: Option<String>,
+    pub patch: Option<HotUpdateInfo>,
+}
+
 // ==================== JWT Claims ====================
 
 /// JWT Token Claims

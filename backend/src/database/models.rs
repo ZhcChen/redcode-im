@@ -242,6 +242,30 @@ pub struct AppVersion {
     pub updated_by: Option<Uuid>,
 }
 
+/// 热更新补丁记录（Flutter 移动端专用）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct HotUpdate {
+    pub id: Uuid,
+    pub platform: Platform,
+    pub app_version_id: Uuid,
+    pub patch_version: String,
+    pub channel: String,
+    pub download_key: String,
+    pub download_url: Option<String>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub signature: Option<String>,
+    pub rollout_percentage: i32,
+    pub mandatory: bool,
+    pub description: Option<String>,
+    pub is_active: bool,
+    pub released_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub created_by: Option<Uuid>,
+    pub updated_by: Option<Uuid>,
+}
+
 /// 房间表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Room {
