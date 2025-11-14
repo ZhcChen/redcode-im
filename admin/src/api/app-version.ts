@@ -7,7 +7,7 @@ export enum AppPlatform {
   IOS = 'ios',
   Windows = 'windows',
   MacOS = 'macos',
-  Web = 'web',
+  Linux = 'linux',
 }
 
 // 平台显示名称映射
@@ -16,7 +16,7 @@ export const PlatformLabels: Record<AppPlatform, string> = {
   [AppPlatform.IOS]: 'iOS',
   [AppPlatform.Windows]: 'Windows',
   [AppPlatform.MacOS]: 'macOS',
-  [AppPlatform.Web]: 'Web',
+  [AppPlatform.Linux]: 'Linux',
 };
 
 export interface AppVersionInfo {

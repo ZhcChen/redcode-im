@@ -3,6 +3,17 @@
     <Breadcrumb :items="['menu.version', breadcrumbKey]" />
     <a-card class="general-card" :title="cardTitle" :bordered="false">
       <div class="actions">
+        <div v-if="platformOptions.length > 0" class="platform-switch">
+          <a-radio-group v-model="selectedPlatform" type="button">
+            <a-radio
+              v-for="option in platformOptions"
+              :key="option"
+              :value="option"
+            >
+              {{ PlatformLabels[option] }}
+            </a-radio>
+          </a-radio-group>
+        </div>
         <a-space wrap>
           <a-select
             v-model="channelFilter"
@@ -241,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref, watch } from 'vue';
+  import { computed, reactive, ref, watch } from 'vue';
   import { Message, type FormInstance } from '@arco-design/web-vue';
   import dayjs, { type Dayjs } from 'dayjs';
   import {
@@ -264,6 +275,14 @@
   const props = defineProps<{
     platform: 'frontend' | 'desktop';
   }>();
+
+  const platformPresets: Record<'frontend' | 'desktop', AppPlatform[]> = {
+    frontend: [AppPlatform.Android, AppPlatform.IOS],
+    desktop: [AppPlatform.Windows, AppPlatform.MacOS, AppPlatform.Linux],
+  };
+
+  const platformOptions = computed(() => platformPresets[props.platform]);
+  const selectedPlatform = ref<AppPlatform>(platformOptions.value[0]);
 
   interface VersionFormState {
     platform: AppPlatform;
@@ -303,6 +322,7 @@
   const downloadLoadingId = ref<string | null>(null);
 
   const formState = reactive<VersionFormState>({
+    platform: selectedPlatform.value,
     version: '',
     build_number: 1,
     channel: 'stable',
@@ -416,7 +436,7 @@
     listLoading.value = true;
     try {
       const params: ListAppVersionsParams = {
-        platform: props.platform,
+        platform: selectedPlatform.value,
         limit: pageSize.value,
         offset: (currentPage.value - 1) * pageSize.value,
       };
@@ -439,6 +459,7 @@
   };
 
   const resetForm = (options?: { keepChannel?: boolean }) => {
+    formState.platform = selectedPlatform.value;
     formState.version = '';
     formState.build_number = 1;
     formState.channel = options?.keepChannel
@@ -457,6 +478,25 @@
     editingVersion.value = null;
   };
 
+  watch(platformOptions, (options) => {
+    if (!options.includes(selectedPlatform.value)) {
+      const [firstOption] = options;
+      if (firstOption) {
+        selectedPlatform.value = firstOption;
+      }
+    }
+  });
+
+  watch(
+    selectedPlatform,
+    (platform) => {
+      formState.platform = platform;
+      currentPage.value = 1;
+      fetchVersions();
+    },
+    { immediate: true }
+  );
+
   const handleCreate = () => {
     resetForm({ keepChannel: true });
     formState.channel = channelFilter.value || 'stable';
@@ -470,6 +510,12 @@
   };
 
   const fillFormForEdit = (record: AppVersionInfo) => {
+    const recordPlatform = record.platform as AppPlatform;
+    if (platformOptions.value.includes(recordPlatform)) {
+      selectedPlatform.value = recordPlatform;
+    } else {
+      formState.platform = recordPlatform;
+    }
     formState.version = record.version;
     formState.build_number = record.build_number;
     formState.channel = record.channel;
@@ -546,7 +592,7 @@
         Message.success('版本信息已更新');
       } else {
         const payload: CreateAppVersionPayload = {
-          platform: props.platform,
+          platform: selectedPlatform.value,
           version: formState.version.trim(),
           build_number: formState.build_number,
           channel: formState.channel.trim(),
@@ -618,7 +664,7 @@
     uploadLoading.value = true;
     try {
       const { data } = await generateVersionUploadSignature({
-        platform: props.platform,
+        platform: selectedPlatform.value,
         channel: formState.channel.trim(),
         filename: file.name,
       });
@@ -744,10 +790,6 @@
     currentPage.value = 1;
     fetchVersions();
   });
-
-  onMounted(() => {
-    fetchVersions();
-  });
 </script>
 
 <style scoped>
@@ -757,8 +799,16 @@
 
   .version-manager-container .general-card .actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
     justify-content: space-between;
     margin-bottom: 16px;
+  }
+
+  .platform-switch {
+    display: flex;
+    align-items: center;
   }
 
   .version-manager-container .general-card .version-table {
