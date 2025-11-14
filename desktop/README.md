@@ -58,9 +58,12 @@ bun run build
 # 构建 Tauri 应用
 bun run tauri build
 
-# 构建特定平台版本
-bun run tauri build --target x86_64-apple-darwin  # macOS Intel
-bun run tauri build --target aarch64-apple-darwin # macOS Apple Silicon
+# macOS 架构区分（推荐使用脚本，会自动注入 VITE_APP_CHANNEL）
+./scripts/build-macos.sh arm64             # Apple Silicon，对应 stable-macos-arm64
+./scripts/build-macos.sh intel             # Intel，对应 stable-macos-intel
+# 或手动指定渠道
+VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-darwin
+VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin
 
 # Windows 交叉编译（在 macOS 上）
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc   # Windows x86_64
@@ -84,8 +87,8 @@ export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner c
 
 | 平台 | 简化命令 | 完整命令 |
 |------|----------|----------|
-| macOS Intel | `bun run build:macos-intel` | `bun run tauri build --target x86_64-apple-darwin` |
-| macOS Apple Silicon | `bun run build:macos-arm` | `bun run tauri build --target aarch64-apple-darwin` |
+| macOS Intel | `./scripts/build-macos.sh intel` | `VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin` |
+| macOS Apple Silicon | `./scripts/build-macos.sh arm64` | `VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-darwin` |
 | Windows x86_64 | `bun run build:windows-x64` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc` |
 | Windows ARM64 | `bun run build:windows-arm` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc` |
 | 所有平台 | `bun run build:all-platforms` | 依次构建所有平台版本 |
