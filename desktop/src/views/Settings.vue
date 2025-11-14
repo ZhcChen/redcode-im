@@ -88,6 +88,18 @@
       </div>
     </div>
 
+    <!-- 关于模块 -->
+    <div class="settings-section about-section">
+      <div class="privacy-container" @click="showAboutDialog = true">
+        <div class="privacy-text">关于 Chatly</div>
+        <img 
+          :src="rightIcon" 
+          alt="查看" 
+          class="privacy-icon"
+        />
+      </div>
+    </div>
+
     <!-- 退出登录模块 -->
     <div class="settings-section logout-section">
       <button class="logout-btn" @click="handleLogout">
@@ -124,6 +136,19 @@
         </div>
       </div>
     </Dialog>
+
+    <!-- 关于对话框 -->
+    <Dialog
+      v-model="showAboutDialog"
+      title="关于 Chatly"
+      :show-footer="false"
+    >
+      <div class="about-dialog-content">
+        <p>版本：v{{ currentVersionInfo.version }}</p>
+        <p>构建号：{{ currentVersionInfo.buildNumber }}</p>
+        <p>渠道：{{ currentVersionInfo.channel }}</p>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -148,6 +173,7 @@ const store = useStore()
 // 图片预览状态
 const previewImageUrl = ref<string>('')
 const downloadInProgress = ref(false)
+const showAboutDialog = ref(false)
 
 // 昵称修改相关状态
 const showNicknameDialog = ref(false)
@@ -698,6 +724,20 @@ const handleDownloadUpdate = async () => {
 .logout-text {
   font-size: 14px;
   color: $logout-text;
+}
+
+// 关于 Chatly 弹窗内容
+.about-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #2C2D3A;
+  line-height: 20px;
+
+  p {
+    margin: 0;
+  }
 }
 
 // 昵称修改对话框样式（参照Contact.vue的添加联系人对话框）
