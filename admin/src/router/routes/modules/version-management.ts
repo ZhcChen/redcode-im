@@ -34,6 +34,16 @@ const VERSION_MANAGEMENT: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'hot-updates',
+      name: 'VersionHotUpdates',
+      component: () => import('@/views/version-management/hot-update.vue'),
+      meta: {
+        locale: 'menu.version.hotUpdate',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

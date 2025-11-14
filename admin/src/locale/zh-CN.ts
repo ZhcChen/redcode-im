@@ -30,6 +30,7 @@ export default {
   'menu.version': '版本管理',
   'menu.version.frontend': 'App客户端',
   'menu.version.desktop': '桌面客户端',
+  'menu.version.hotUpdate': '热更新管理',
   'menu.list': '列表页',
   'menu.result': '结果页',
   'menu.exception': '异常页',
