@@ -117,6 +117,12 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
    - 重要功能变更需更新项目文档索引
    - 重大架构调整需更新评估报告
 
+### 桌面端发布约定
+
+1. macOS 安装包版本号取自 `desktop/src-tauri/tauri.conf.json`（需与 `desktop/package.json` 保持一致，当前版本为 `1.0.0`），否则构建产物与应用内显示会不一致。
+2. 更新渠道由打包时注入的 `VITE_APP_CHANNEL` 决定。macOS 必须区分 `stable-macos-intel` / `stable-macos-arm64` 等渠道，客户端运行时仅读取该值，不再根据 `process.arch` 推断。
+3. 推荐执行 `desktop/scripts/build-macos.sh arm64|intel [channel]`，脚本会自动设置 `VITE_APP_CHANNEL/VITE_APP_VERSION/VITE_APP_BUILD` 并输出 `dist/releases/macos/<channel>/<product>-<channel>-<version>.dmg`。若手动构建，必须在命令前加 `VITE_APP_CHANNEL=... bun run tauri build --target ...` 来保证渠道正确。
+
 ## 四、常见场景处理
 
 ### 4.1 修复 Bug
