@@ -18,18 +18,18 @@
           <a-select
             v-model="channelFilter"
             allow-clear
+            allow-create
             placeholder="选择渠道（默认 stable）"
             style="min-width: 180px"
           >
             <a-option
-              v-for="option in channelOptions"
-              :key="option.value"
-              :value="option.value"
+              v-for="channel in availableChannels"
+              :key="channel"
+              :value="channel"
             >
-              {{ option.label }}
+              {{ channel }}
             </a-option>
           </a-select>
-          <a-button type="outline" @click="openChannelModal">管理渠道</a-button>
           <a-button type="primary" @click="handleCreate">
             <template #icon>
               <icon-plus />
@@ -158,23 +158,7 @@
             v-model="formState.version"
             placeholder="例如：1.2.3"
             :disabled="isEditing"
-            @focus="focusedField = 'version'"
-            @blur="focusedField = null"
           />
-          <div
-            v-if="focusedField === 'version' && versionHistory.length"
-            class="input-suggestions"
-          >
-            <span>最近：</span>
-            <a-tag
-              v-for="item in versionHistory"
-              :key="item"
-              size="small"
-              @click="applyVersionSuggestion(item)"
-            >
-              {{ item }}
-            </a-tag>
-          </div>
         </a-form-item>
         <a-form-item field="build_number" label="构建号">
           <a-input-number
@@ -182,48 +166,19 @@
             :min="1"
             :disabled="isEditing"
             style="width: 100%"
-            @focus="focusedField = 'build'"
-            @blur="focusedField = null"
           />
-          <div
-            v-if="focusedField === 'build' && buildHistory.length"
-            class="input-suggestions"
-          >
-            <span>最近：</span>
-            <a-tag
-              v-for="item in buildHistory"
-              :key="item"
-              size="small"
-              @click="applyBuildSuggestion(item)"
-            >
-              {{ item }}
-            </a-tag>
-          </div>
         </a-form-item>
         <a-form-item field="channel" label="渠道">
-          <a-select
+          <a-input
             v-model="formState.channel"
+            placeholder="例如：stable / beta"
             :disabled="isEditing"
-            placeholder="请选择渠道"
-            allow-clear
-          >
-            <a-option
-              v-for="option in channelOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </a-option>
-          </a-select>
-          <template #extra>
-            渠道由「管理渠道」入口维护，建议按环境划分（如 stable/beta）。
-          </template>
+          />
         </a-form-item>
         <a-form-item field="download_key" label="下载 Key">
           <a-input
             v-model="formState.download_key"
-            placeholder="请选择文件后自动生成"
-            readonly
+            placeholder="请先上传安装包或手动填写存储路径"
           />
         </a-form-item>
         <a-form-item label="安装包上传">
@@ -293,62 +248,11 @@
         </a-form-item>
       </a-form>
     </a-modal>
-
-    <a-modal
-      v-model:visible="channelModalVisible"
-      title="管理渠道"
-      :width="520"
-      ok-text="保存渠道"
-      cancel-text="取消"
-      @before-ok="handleChannelBeforeOk"
-      @cancel="channelModalVisible = false"
-    >
-      <a-form
-        ref="channelFormRef"
-        :model="channelForm"
-        :rules="channelFormRules"
-        label-align="left"
-        :label-col-props="{ span: 6 }"
-        :wrapper-col-props="{ span: 18 }"
-      >
-        <a-form-item field="name" label="渠道名称">
-          <a-input v-model="channelForm.name" placeholder="例如：稳定渠道" />
-        </a-form-item>
-        <a-form-item field="code" label="渠道编码">
-          <a-input
-            v-model="channelForm.code"
-            placeholder="例如：stable"
-            allow-clear
-          />
-        </a-form-item>
-        <a-form-item field="description" label="备注">
-          <a-input
-            v-model="channelForm.description"
-            placeholder="可选：说明渠道用途"
-          />
-        </a-form-item>
-      </a-form>
-      <div class="channel-list">
-        <div
-          v-for="item in channelPresets"
-          :key="item.code"
-          class="channel-list__item"
-        >
-          <div class="channel-list__title">
-            {{ item.name }}（{{ item.code }}）
-          </div>
-          <div class="channel-list__desc">
-            {{ item.description || '暂无备注' }}
-          </div>
-        </div>
-      </div>
-    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, reactive, ref, watch } from 'vue';
-  import type { Ref } from 'vue';
   import { Message, type FormInstance } from '@arco-design/web-vue';
   import dayjs, { type Dayjs } from 'dayjs';
   import {
@@ -380,53 +284,6 @@
   const platformOptions = computed(() => platformPresets[props.platform]);
   const selectedPlatform = ref<AppPlatform>(platformOptions.value[0]);
 
-  interface ChannelPreset {
-    name: string;
-    code: string;
-    description?: string;
-  }
-
-  const DEFAULT_CHANNELS: ChannelPreset[] = [
-    { name: 'Stable', code: 'stable', description: '生产稳定渠道' },
-    { name: 'Beta', code: 'beta', description: '灰度/公测渠道' },
-    { name: 'Alpha', code: 'alpha', description: '内部测试渠道' },
-    { name: 'Dev', code: 'dev', description: '开发验证渠道' },
-  ];
-
-  const CHANNEL_STORAGE_KEY = 'version_manager_channel_presets';
-  const VERSION_HISTORY_KEY = 'version_manager_version_history';
-  const BUILD_HISTORY_KEY = 'version_manager_build_history';
-
-  const loadChannelPresets = (): ChannelPreset[] => {
-    try {
-      const stored = localStorage.getItem(CHANNEL_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length) {
-          return parsed;
-        }
-      }
-    } catch (error) {
-      // ignore parse errors
-    }
-    return DEFAULT_CHANNELS;
-  };
-
-  const channelPresets = ref<ChannelPreset[]>(loadChannelPresets());
-  const channelOptions = computed(() =>
-    channelPresets.value.map((item) => ({
-      label: `${item.name} (${item.code})`,
-      value: item.code,
-    }))
-  );
-
-  const saveChannelPresets = () => {
-    localStorage.setItem(
-      CHANNEL_STORAGE_KEY,
-      JSON.stringify(channelPresets.value)
-    );
-  };
-
   interface VersionFormState {
     platform: AppPlatform;
     version: string;
@@ -442,6 +299,8 @@
     file_size?: number | null;
   }
 
+  const channelDefaults = ['stable', 'beta', 'alpha', 'dev'];
+
   const listLoading = ref(false);
   const actionLoading = ref(false);
   const uploadLoading = ref(false);
@@ -449,22 +308,7 @@
   const total = ref(0);
   const pageSize = ref(10);
   const currentPage = ref(1);
-  const channelFilter = ref<string | undefined>(
-    channelOptions.value[0]?.value || 'stable'
-  );
-
-  const channelModalVisible = ref(false);
-  const channelFormRef = ref<FormInstance>();
-  const channelForm = reactive({
-    name: '',
-    code: '',
-    description: '',
-  });
-
-  const channelFormRules = {
-    name: [{ required: true, message: '请输入渠道名称' }],
-    code: [{ required: true, message: '请输入渠道编码' }],
-  };
+  const channelFilter = ref<string | undefined>('stable');
 
   const modalVisible = ref(false);
   const formRef = ref<FormInstance>();
@@ -481,7 +325,7 @@
     platform: selectedPlatform.value,
     version: '',
     build_number: 1,
-    channel: channelFilter.value || 'stable',
+    channel: 'stable',
     download_key: '',
     download_url: '',
     release_notes: '',
@@ -497,92 +341,6 @@
     build_number: [{ required: true, type: 'number', message: '请输入构建号' }],
     channel: [{ required: true, message: '请输入渠道标识' }],
     download_key: [{ required: true, message: '请上传安装包或填写下载 Key' }],
-  };
-
-  const isEditing = computed(() => !!editingVersion.value);
-
-  const versionHistory = ref<string[]>(
-    JSON.parse(localStorage.getItem(VERSION_HISTORY_KEY) || '[]')
-  );
-  const buildHistory = ref<number[]>(
-    JSON.parse(localStorage.getItem(BUILD_HISTORY_KEY) || '[]')
-  );
-
-  const focusedField = ref<'version' | 'build' | null>(null);
-
-  const updateHistory = <T extends string | number>(
-    history: Ref<T[]>,
-    value: T,
-    storageKey: string,
-    limit = 5
-  ) => {
-    const list = history.value.filter((item) => item !== value);
-    list.unshift(value);
-    history.value = list.slice(0, limit);
-    localStorage.setItem(storageKey, JSON.stringify(history.value));
-  };
-
-  const applyVersionSuggestion = (value: string) => {
-    formState.version = value;
-    focusedField.value = null;
-  };
-
-  const applyBuildSuggestion = (value: number) => {
-    formState.build_number = value;
-    focusedField.value = null;
-  };
-
-  const resetChannelForm = () => {
-    channelForm.name = '';
-    channelForm.code = '';
-    channelForm.description = '';
-    channelFormRef.value?.clearValidate();
-  };
-
-  const openChannelModal = () => {
-    resetChannelForm();
-    channelModalVisible.value = true;
-  };
-
-  const handleChannelBeforeOk = async (done: (closed: boolean) => void) => {
-    if (!channelFormRef.value) {
-      done(false);
-      return;
-    }
-    const errors = await channelFormRef.value.validate();
-    if (errors) {
-      done(false);
-      return;
-    }
-    const name = channelForm.name.trim();
-    const code = channelForm.code.trim();
-    if (!name || !code) {
-      Message.error('请填写完整的渠道信息');
-      done(false);
-      return;
-    }
-    const exists = channelPresets.value.some(
-      (item) => item.code.toLowerCase() === code.toLowerCase()
-    );
-    if (exists) {
-      Message.error('渠道编码已存在');
-      done(false);
-      return;
-    }
-    channelPresets.value = [
-      ...channelPresets.value,
-      {
-        name,
-        code,
-        description: channelForm.description.trim() || undefined,
-      },
-    ];
-    channelFilter.value = code;
-    if (!isEditing.value) {
-      formState.channel = code;
-    }
-    Message.success('新增渠道成功');
-    done(true);
   };
 
   const columns = [
@@ -642,6 +400,18 @@
   const modalTitle = computed(() =>
     editingVersion.value ? '编辑版本信息' : '新增版本'
   );
+
+  const isEditing = computed(() => !!editingVersion.value);
+
+  const availableChannels = computed(() => {
+    const set = new Set<string>();
+    channelDefaults.forEach((item) => set.add(item));
+    versions.value.forEach((item) => set.add(item.channel));
+    if (formState.channel) {
+      set.add(formState.channel);
+    }
+    return Array.from(set).sort();
+  });
 
   const formatDateTime = (value?: string | null) => {
     if (!value) return '-';
@@ -725,26 +495,6 @@
       fetchVersions();
     },
     { immediate: true }
-  );
-
-  watch(
-    channelPresets,
-    () => {
-      saveChannelPresets();
-      if (
-        channelFilter.value &&
-        !channelPresets.value.some((item) => item.code === channelFilter.value)
-      ) {
-        channelFilter.value = channelPresets.value[0]?.code;
-      }
-      if (
-        formState.channel &&
-        !channelPresets.value.some((item) => item.code === formState.channel)
-      ) {
-        formState.channel = channelPresets.value[0]?.code || '';
-      }
-    },
-    { deep: true }
   );
 
   const handleCreate = () => {
@@ -859,8 +609,6 @@
           released_at: releaseAt,
         };
         await createAppVersion(payload);
-        updateHistory(versionHistory, payload.version, VERSION_HISTORY_KEY);
-        updateHistory(buildHistory, payload.build_number, BUILD_HISTORY_KEY);
         Message.success('新增版本成功');
       }
       await fetchVersions();
@@ -1071,42 +819,6 @@
     display: flex;
     justify-content: flex-end;
     margin-top: 16px;
-  }
-
-  .input-suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-    margin-top: 6px;
-    color: #8c8c8c;
-    font-size: 12px;
-  }
-
-  .input-suggestions span {
-    margin-right: 2px;
-  }
-
-  .channel-list {
-    max-height: 200px;
-    margin-top: 16px;
-    padding-right: 4px;
-    overflow-y: auto;
-  }
-
-  .channel-list__item {
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .channel-list__title {
-    color: #1d2129;
-    font-weight: 600;
-  }
-
-  .channel-list__desc {
-    color: #8c8c8c;
-    font-size: 12px;
   }
 
   .hidden-file-input {
