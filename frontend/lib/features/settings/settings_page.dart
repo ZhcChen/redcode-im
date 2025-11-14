@@ -776,9 +776,37 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(width: 8),
                         TextButton(
                           onPressed: _handleClearHotPatchFile,
-                          child: const Text('清除'),
+                          child: const Text('删除下载包'),
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+            if (_hotUpdateManager?.installedPatch != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      size: 16,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '已应用补丁：${_hotUpdateManager?.installedPatch?.patchVersion ?? ''}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.settingsTextMuted,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _handleClearInstalledPatch,
+                      child: const Text('移除补丁'),
                     ),
                   ],
                 ),
@@ -1083,6 +1111,23 @@ Future<void> _handleClearHotPatchFile() async {
   ScaffoldMessenger.of(
     context,
   ).showSnackBar(const SnackBar(content: Text('已清除补丁文件')));
+}
+
+Future<void> _handleClearInstalledPatch() async {
+  final manager = _hotUpdateManager;
+  if (manager == null) return;
+  try {
+    await manager.rollbackActivePatch(reason: '用户主动清除补丁');
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已移除已应用补丁')));
+  } catch (error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('移除补丁失败：$error')));
+  }
 }
 
 class _UserInfoSection extends StatelessWidget {

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'core/debug/debug_logger.dart';
+import 'core/update/update_center.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   DebugLogger.initialize();
-  runApp(const RedcodeApp());
+  await UpdateCenter.ensureHotUpdateManager();
+  runApp(RedcodeApp(hotUpdateManager: UpdateCenter.hotUpdateManager));
 }

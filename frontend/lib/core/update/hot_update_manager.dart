@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../debug/debug_logger.dart';
 import 'hot_update_models.dart';
+import 'hot_update_runtime.dart';
 import 'hot_update_service.dart';
 import 'hot_update_storage.dart';
 
@@ -12,22 +14,29 @@ class HotUpdateManager extends ChangeNotifier {
   HotUpdateManager({
     required this.hotUpdateService,
     required this.hotUpdateStorage,
+    required this.runtime,
   });
 
   final HotUpdateService hotUpdateService;
   final HotUpdateStorage hotUpdateStorage;
+  final HotUpdateRuntime runtime;
 
   HotUpdateState _state = const HotUpdateState();
   InstalledHotPatchInfo? _installedPatch;
   PackageInfo? _packageInfo;
+  String? _activeAssetsDir;
 
   HotUpdateState get state => _state;
   InstalledHotPatchInfo? get installedPatch => _installedPatch;
+  String? get activeAssetsDir => _activeAssetsDir;
 
   Future<void> initialize() async {
     _installedPatch = hotUpdateStorage.loadInstalledPatch();
     final downloaded = hotUpdateStorage.loadDownloadedPatch();
     _packageInfo = await PackageInfo.fromPlatform();
+
+    final runtimeState = await runtime.loadState();
+    _activeAssetsDir = runtimeState.assetsDir;
 
     if (downloaded != null) {
       _setState(
@@ -37,6 +46,8 @@ class HotUpdateManager extends ChangeNotifier {
           patch: _state.patch,
         ),
       );
+    } else if (_installedPatch != null && _activeAssetsDir != null) {
+      _setState(_state.copyWith(stage: HotUpdateStage.applied));
     }
   }
 
@@ -112,6 +123,7 @@ class HotUpdateManager extends ChangeNotifier {
           progress: 1,
         ),
       );
+      await _applyDownloadedPatch(targetPatch, record);
       return record;
     } catch (error, stackTrace) {
       Log.e('下载热更新失败: $error\n$stackTrace');
@@ -126,29 +138,32 @@ class HotUpdateManager extends ChangeNotifier {
     }
   }
 
-  Future<void> markPatchApplied({
-    required String patchVersion,
-    required String baseVersion,
-    bool success = true,
-  }) async {
-    if (!success) {
-      _setState(_state.copyWith(stage: HotUpdateStage.failed));
-      return;
+  Future<File?> resolvePatchedAsset(String assetKey) async {
+    final assetsDir = _activeAssetsDir;
+    if (assetsDir == null || assetKey.isEmpty) {
+      return null;
     }
+    final normalizedKey = assetKey.replaceAll('\\', '/');
+    final fullPath = p.join(assetsDir, normalizedKey);
+    final file = File(fullPath);
+    return await file.exists() ? file : null;
+  }
 
-    final info = InstalledHotPatchInfo(
-      patchVersion: patchVersion,
-      baseVersion: baseVersion,
-      appliedAt: DateTime.now(),
-    );
-    await hotUpdateStorage.saveInstalledPatch(info);
+  Future<void> rollbackActivePatch({String? reason}) async {
+    try {
+      await runtime.rollbackActivePatch();
+    } catch (error, stackTrace) {
+      Log.e('回滚热更新失败: $error\n$stackTrace');
+    }
+    await hotUpdateStorage.clearInstalledPatch();
     await hotUpdateStorage.clearDownloadedPatch();
-    _installedPatch = info;
+    _installedPatch = null;
+    _activeAssetsDir = null;
     _setState(
       _state.copyWith(
-        stage: HotUpdateStage.applied,
+        stage: HotUpdateStage.noUpdate,
         downloaded: null,
-        errorMessage: null,
+        errorMessage: reason,
       ),
     );
   }
@@ -162,6 +177,58 @@ class HotUpdateManager extends ChangeNotifier {
         errorMessage: null,
       ),
     );
+  }
+
+  Future<void> _applyDownloadedPatch(
+    HotPatchInfo patch,
+    HotUpdateDownloadRecord record,
+  ) async {
+    _setState(
+      _state.copyWith(
+        stage: HotUpdateStage.applying,
+        downloaded: record,
+        errorMessage: null,
+        patch: patch,
+      ),
+    );
+
+    try {
+      final runtimeResult = await runtime.applyPatch(
+        patch: patch,
+        record: record,
+      );
+      final info = InstalledHotPatchInfo(
+        patchVersion: patch.patchVersion,
+        baseVersion: record.baseVersion,
+        appliedAt: DateTime.now(),
+      );
+      await hotUpdateStorage.saveInstalledPatch(info);
+      await hotUpdateStorage.clearDownloadedPatch();
+      _installedPatch = info;
+      _activeAssetsDir = runtimeResult.assetsDir;
+      _setState(
+        _state.copyWith(
+          stage: HotUpdateStage.applied,
+          downloaded: null,
+          errorMessage: null,
+          patch: patch,
+        ),
+      );
+    } catch (error, stackTrace) {
+      Log.e('应用热更新失败: $error\n$stackTrace');
+      await runtime.rollbackActivePatch();
+      await hotUpdateStorage.clearInstalledPatch();
+      _activeAssetsDir = null;
+      _installedPatch = null;
+      _setState(
+        _state.copyWith(
+          stage: HotUpdateStage.failed,
+          errorMessage: '$error',
+          patch: patch,
+        ),
+      );
+      rethrow;
+    }
   }
 
   void _setState(HotUpdateState newState) {
