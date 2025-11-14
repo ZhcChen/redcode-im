@@ -266,6 +266,20 @@ pub struct HotUpdate {
     pub updated_by: Option<Uuid>,
 }
 
+/// 热更新事件记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct HotUpdateEvent {
+    pub id: Uuid,
+    pub platform: Platform,
+    pub channel: Option<String>,
+    pub base_version: String,
+    pub patch_version: String,
+    pub event_type: String,
+    pub client_id: Option<String>,
+    pub message: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
 /// 房间表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Room {

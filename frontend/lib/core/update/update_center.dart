@@ -1,4 +1,5 @@
 import 'hot_update_manager.dart';
+import 'hot_update_reporter.dart';
 import 'hot_update_service.dart';
 import 'hot_update_storage.dart';
 import 'local_hot_update_runtime.dart';
@@ -16,10 +17,12 @@ class UpdateCenter {
     }
     final storage = await HotUpdateStorage.create();
     final runtime = await LocalHotUpdateRuntime.create();
+    final reporter = HotUpdateReporter();
     final manager = HotUpdateManager(
       hotUpdateService: HotUpdateService(),
       hotUpdateStorage: storage,
       runtime: runtime,
+      reporter: reporter,
     );
     await manager.initialize();
     _hotUpdateManager = manager;

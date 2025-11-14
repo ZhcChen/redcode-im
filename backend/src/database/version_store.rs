@@ -295,6 +295,17 @@ pub struct HotUpdateUpdate {
     pub operator: Option<Uuid>,
 }
 
+#[derive(Debug, Clone)]
+pub struct HotUpdateEventInsert {
+    pub platform: Platform,
+    pub channel: Option<String>,
+    pub base_version: String,
+    pub patch_version: String,
+    pub event_type: String,
+    pub client_id: Option<String>,
+    pub message: Option<String>,
+}
+
 impl VersionStore {
     pub async fn create_hot_update(&self, insert: &HotUpdateInsert) -> Result<HotUpdate, Error> {
         let record = query_as::<_, HotUpdate>(
@@ -412,6 +423,31 @@ impl VersionStore {
             .rows_affected();
 
         Ok(affected > 0)
+    }
+
+    pub async fn insert_hot_update_event(
+        &self,
+        insert: &HotUpdateEventInsert,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            r#"
+            INSERT INTO hot_update_events (
+                platform, channel, base_version, patch_version,
+                event_type, client_id, message
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "#,
+        )
+        .bind(insert.platform.as_str())
+        .bind(insert.channel.as_deref())
+        .bind(&insert.base_version)
+        .bind(&insert.patch_version)
+        .bind(&insert.event_type)
+        .bind(insert.client_id.as_deref())
+        .bind(insert.message.as_deref())
+        .execute(&self.database.pool)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn list_hot_updates(

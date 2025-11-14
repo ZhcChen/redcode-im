@@ -146,8 +146,9 @@ SplashPage ──▶ UpdateCenter.ensureHotUpdateManager()
 
 ## 11. 补丁事件上报（规划）
 
+- API：`POST /versions/hot-update/report`，由客户端直接调用，无需登录态。
 - 事件类型：`download_success`、`download_failed`、`apply_success`、`apply_failed`、`rollback`。
-- 上报字段：`platform`、`channel`、`base_version`、`patch_version`、`client_id`、`reason`。
-- 触发节点：HotUpdateManager 在下载或应用的 try/catch 中调用统一 Reporter；失败不会弹窗，只在设置页提示。
+- 上报字段：`platform`、`channel`、`base_version`、`patch_version`、`client_id`、`message`。
+- 触发节点：HotUpdateManager 在下载或应用的 try/catch 中调用 Reporter；失败不弹窗，仅静默上报并在设置页提示。
 
 完成上述步骤后，即可认为 Flutter 端自研热更新 MVP 落地，后续可按需扩展到代码级补丁或引入外部方案。

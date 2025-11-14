@@ -276,6 +276,20 @@ pub struct HotUpdateResponse {
     pub patch: Option<HotUpdateInfo>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct HotUpdateEventReport {
+    pub platform: String,
+    #[serde(default)]
+    pub channel: Option<String>,
+    pub base_version: String,
+    pub patch_version: String,
+    pub event_type: String,
+    #[serde(default)]
+    pub client_id: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
 // ==================== JWT Claims ====================
 
 /// JWT Token Claims

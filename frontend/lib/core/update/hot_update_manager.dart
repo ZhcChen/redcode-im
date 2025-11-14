@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../debug/debug_logger.dart';
 import 'hot_update_models.dart';
+import 'hot_update_reporter.dart';
 import 'hot_update_runtime.dart';
 import 'hot_update_service.dart';
 import 'hot_update_storage.dart';
@@ -15,11 +16,13 @@ class HotUpdateManager extends ChangeNotifier {
     required this.hotUpdateService,
     required this.hotUpdateStorage,
     required this.runtime,
+    required this.reporter,
   });
 
   final HotUpdateService hotUpdateService;
   final HotUpdateStorage hotUpdateStorage;
   final HotUpdateRuntime runtime;
+  final HotUpdateReporter reporter;
 
   HotUpdateState _state = const HotUpdateState();
   InstalledHotPatchInfo? _installedPatch;
@@ -116,6 +119,12 @@ class HotUpdateManager extends ChangeNotifier {
         baseVersion: baseVersion,
       );
       await hotUpdateStorage.saveDownloadedPatch(record);
+      await _reportEvent(
+        eventType: 'download_success',
+        baseVersion: record.baseVersion,
+        patchVersion: targetPatch.patchVersion,
+        channel: targetPatch.channel,
+      );
       _setState(
         _state.copyWith(
           stage: HotUpdateStage.downloaded,
@@ -127,6 +136,15 @@ class HotUpdateManager extends ChangeNotifier {
       return record;
     } catch (error, stackTrace) {
       Log.e('下载热更新失败: $error\n$stackTrace');
+      if (targetPatch != null) {
+        await _reportEvent(
+          eventType: 'download_failed',
+          baseVersion: baseVersion,
+          patchVersion: targetPatch.patchVersion,
+          channel: targetPatch.channel,
+          message: '$error',
+        );
+      }
       _setState(
         _state.copyWith(
           stage: HotUpdateStage.failed,
@@ -155,10 +173,23 @@ class HotUpdateManager extends ChangeNotifier {
     } catch (error, stackTrace) {
       Log.e('回滚热更新失败: $error\n$stackTrace');
     }
+    final previousPatch = _installedPatch;
     await hotUpdateStorage.clearInstalledPatch();
     await hotUpdateStorage.clearDownloadedPatch();
     _installedPatch = null;
     _activeAssetsDir = null;
+    final rollbackBase = previousPatch?.baseVersion;
+    final rollbackPatch = previousPatch?.patchVersion ?? _state.patch?.patchVersion;
+    final rollbackChannel = _state.patch?.channel;
+    if (rollbackBase != null && rollbackPatch != null) {
+      await _reportEvent(
+        eventType: 'rollback',
+        baseVersion: rollbackBase,
+        patchVersion: rollbackPatch,
+        channel: rollbackChannel,
+        message: reason,
+      );
+    }
     _setState(
       _state.copyWith(
         stage: HotUpdateStage.noUpdate,
@@ -206,6 +237,12 @@ class HotUpdateManager extends ChangeNotifier {
       await hotUpdateStorage.clearDownloadedPatch();
       _installedPatch = info;
       _activeAssetsDir = runtimeResult.assetsDir;
+      await _reportEvent(
+        eventType: 'apply_success',
+        baseVersion: record.baseVersion,
+        patchVersion: patch.patchVersion,
+        channel: patch.channel,
+      );
       _setState(
         _state.copyWith(
           stage: HotUpdateStage.applied,
@@ -220,6 +257,13 @@ class HotUpdateManager extends ChangeNotifier {
       await hotUpdateStorage.clearInstalledPatch();
       _activeAssetsDir = null;
       _installedPatch = null;
+      await _reportEvent(
+        eventType: 'apply_failed',
+        baseVersion: record.baseVersion,
+        patchVersion: patch.patchVersion,
+        channel: patch.channel,
+        message: '$error',
+      );
       _setState(
         _state.copyWith(
           stage: HotUpdateStage.failed,
@@ -234,5 +278,29 @@ class HotUpdateManager extends ChangeNotifier {
   void _setState(HotUpdateState newState) {
     _state = newState;
     notifyListeners();
+  }
+
+  Future<void> _reportEvent({
+    required String eventType,
+    required String baseVersion,
+    required String patchVersion,
+    String? channel,
+    String? message,
+  }) async {
+    try {
+      final platform = Platform.isIOS ? 'ios' : 'android';
+      final clientId = await hotUpdateStorage.ensureClientId();
+      await reporter.reportEvent(
+        platform: platform,
+        baseVersion: baseVersion,
+        patchVersion: patchVersion,
+        eventType: eventType,
+        channel: channel,
+        clientId: clientId,
+        message: message,
+      );
+    } catch (_) {
+      // 静默失败
+    }
   }
 }

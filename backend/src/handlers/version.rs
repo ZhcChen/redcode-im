@@ -1,6 +1,8 @@
 use crate::database::models::{Platform, StorageProviderType};
 use crate::database::storage_provider_store::StorageProviderStore;
-use crate::database::version_store::{version_exists, HotUpdateUpdate, VersionStore};
+use crate::database::version_store::{
+    version_exists, HotUpdateEventInsert, HotUpdateUpdate, VersionStore,
+};
 use crate::error::AppError;
 use crate::models::convert::{
     api_create_hot_update_to_db, api_create_version_to_db, api_update_hot_update_to_db,
@@ -8,9 +10,9 @@ use crate::models::convert::{
     db_hot_updates_to_api_list, db_versions_to_api_list,
 };
 use crate::models::{
-    Claims, CreateAppVersionRequest, CreateHotUpdateRequest, HotUpdateQuery, HotUpdateResponse,
-    LatestVersionQuery, LatestVersionResponse, ListAppVersionsQuery, ListHotUpdatesQuery,
-    UpdateAppVersionRequest, UpdateHotUpdateRequest,
+    Claims, CreateAppVersionRequest, CreateHotUpdateRequest, HotUpdateEventReport, HotUpdateQuery,
+    HotUpdateResponse, LatestVersionQuery, LatestVersionResponse, ListAppVersionsQuery,
+    ListHotUpdatesQuery, UpdateAppVersionRequest, UpdateHotUpdateRequest,
 };
 use crate::storage;
 use crate::storage::DirectUploadSignature;
@@ -21,6 +23,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use uuid::Uuid;
@@ -555,6 +558,74 @@ pub async fn latest_hot_update(
         current_patch_version: query.current_patch_version.clone(),
         patch: selected.as_ref().map(db_hot_update_to_api),
     }))
+}
+
+pub async fn report_hot_update_event(
+    State(state): State<AppState>,
+    Json(req): Json<HotUpdateEventReport>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let platform = Platform::from_str(req.platform.trim()).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            req.platform
+        ))
+    })?;
+
+    let base_version = req.base_version.trim();
+    if base_version.is_empty() {
+        return Err(AppError::ValidationError(
+            "base_version 不能为空".to_string(),
+        ));
+    }
+    let patch_version = req.patch_version.trim();
+    if patch_version.is_empty() {
+        return Err(AppError::ValidationError(
+            "patch_version 不能为空".to_string(),
+        ));
+    }
+    let event_type = req.event_type.trim();
+    if event_type.is_empty() {
+        return Err(AppError::ValidationError("event_type 不能为空".to_string()));
+    }
+    const ALLOWED_EVENTS: &[&str] = &[
+        "download_success",
+        "download_failed",
+        "apply_success",
+        "apply_failed",
+        "rollback",
+    ];
+    if !ALLOWED_EVENTS.contains(&event_type) {
+        return Err(AppError::ValidationError(format!(
+            "不支持的事件类型: {}",
+            event_type
+        )));
+    }
+
+    let store = VersionStore::new(state.database.clone());
+    let insert = HotUpdateEventInsert {
+        platform,
+        channel: req
+            .channel
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        base_version: base_version.to_string(),
+        patch_version: patch_version.to_string(),
+        event_type: event_type.to_string(),
+        client_id: req
+            .client_id
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        message: req
+            .message
+            .as_deref()
+            .map(|m| m.trim().to_string())
+            .filter(|m| !m.is_empty()),
+    };
+    store.insert_hot_update_event(&insert).await?;
+
+    Ok(Json(json!({ "success": true })))
 }
 
 fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppError> {

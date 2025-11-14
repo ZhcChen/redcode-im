@@ -24,6 +24,10 @@ pub fn create_routes() -> Router<AppState> {
             "/versions/hot-update/download",
             get(version::download_hot_update),
         )
+        .route(
+            "/versions/hot-update/report",
+            post(version::report_hot_update_event),
+        )
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/login/sms", post(auth::login_with_sms))
