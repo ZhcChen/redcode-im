@@ -58,12 +58,15 @@ bun run build
 # 构建 Tauri 应用
 bun run tauri build
 
-# macOS 架构区分（推荐使用脚本，会自动注入 VITE_APP_CHANNEL）
+# macOS 架构区分（推荐脚本，会自动注入渠道）
 ./scripts/build-macos.sh arm64             # Apple Silicon，对应 stable-macos-arm64
 ./scripts/build-macos.sh intel             # Intel，对应 stable-macos-intel
-# 或手动指定渠道
+# Linux 打包示例
+./scripts/build-linux.sh stable-linux     # 生成 AppImage，默认渠道 stable-linux
+# 手动指定渠道示例
 VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-darwin
 VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin
+VITE_APP_CHANNEL=stable-linux bun run tauri build --target x86_64-unknown-linux-gnu
 
 # Windows 交叉编译（在 macOS 上）
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc   # Windows x86_64
