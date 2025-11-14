@@ -119,7 +119,7 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 
 ### 桌面端发布约定
 
-1. macOS 安装包版本号取自 `desktop/src-tauri/tauri.conf.json`（需与 `desktop/package.json` 保持一致，当前版本为 `1.0.1`），否则构建产物与应用内显示会不一致；更新桌面端版本号时，同时修改以下文件保持一致：
+1. macOS 安装包版本号取自 `desktop/src-tauri/tauri.conf.json`（需与 `desktop/package.json` 保持一致，当前版本为 `1.0.0`），否则构建产物与应用内显示会不一致；更新桌面端版本号时，同时修改以下文件保持一致：
    - `desktop/package.json`
    - `desktop/src-tauri/tauri.conf.json`
    - `desktop/src/api/config.ts` 中的 `DEFAULT_APP_VERSION`

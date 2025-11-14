@@ -2,7 +2,7 @@
 # 用法: ./scripts/build-linux.sh [channel]
 set -euo pipefail
 CHANNEL=${1:-${VITE_APP_CHANNEL:-stable-linux}}
-VERSION=${VITE_APP_VERSION:-${APP_VERSION:-"1.0.1"}}
+VERSION=${VITE_APP_VERSION:-${APP_VERSION:-"1.0.0"}}
 BUILD=${VITE_APP_BUILD:-${APP_BUILD:-"100"}}
 EXPORT_DIR="dist/releases/linux/$CHANNEL"
 mkdir -p "$EXPORT_DIR"

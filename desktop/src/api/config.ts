@@ -5,7 +5,7 @@
 
 import { getApiBaseUrl } from '../config/environment'
 
-const DEFAULT_APP_VERSION = '1.0.1';
+const DEFAULT_APP_VERSION = '1.0.0';
 const DEFAULT_APP_BUILD = '100';
 
 const normalizeUrl = (value: string): string => {
