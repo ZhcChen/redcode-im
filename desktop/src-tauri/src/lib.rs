@@ -6,6 +6,7 @@ mod cache;
 mod http;
 mod logger;
 mod message_search;
+mod updater;
 mod websocket;
 
 use account::commands::*;
@@ -13,6 +14,7 @@ use account::AccountManager;
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
+use updater::download_update;
 use websocket::commands::*;
 use websocket::WebSocketManager;
 
@@ -194,6 +196,7 @@ pub fn run() {
             http_health,
             http_stats,
             http_batch,
+            download_update,
             // WebSocket 相关命令
             ws_connect,
             ws_disconnect,

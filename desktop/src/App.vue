@@ -33,6 +33,15 @@ const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.v
 const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
 const latestVersion = computed(() => store.getters.latestVersionInfo);
 const hasAppUpdate = computed(() => store.getters.hasAppUpdate);
+const downloadButtonLabel = computed(() => {
+  if (updateDownloadStatus.value === 'downloading') {
+    return `下载中 ${Math.floor(updateDownloadProgress.value)}` + '%';
+  }
+  if (updateDownloadStatus.value === 'finished') {
+    return '重新下载';
+  }
+  return '立即更新';
+});
 
 const showUpdateDialog = ref(false);
 const updateMandatory = ref(false);
@@ -40,6 +49,19 @@ const updateDownloadInProgress = ref(false);
 const updatePromptHandled = ref(false);
 const updateNotice = ref('');
 const lastPromptedVersion = ref<string | null>(null);
+const updateDownloadProgress = ref(0);
+const updateDownloadStatus = ref<'idle' | 'downloading' | 'finished' | 'error'>('idle');
+const isTauriRuntime = typeof window !== 'undefined' && Boolean((window as any).__TAURI_IPC__);
+let unlistenUpdateDownload: (() => void) | null = null;
+
+type DownloadEventPayload = {
+  status: 'started' | 'progress' | 'finished' | 'error';
+  received?: number;
+  total?: number;
+  progress?: number;
+  filePath?: string;
+  message?: string;
+};
 
 function maybeShowUpdatePrompt(forcePrompt = false) {
   const info = latestVersion.value;
@@ -56,6 +78,9 @@ function maybeShowUpdatePrompt(forcePrompt = false) {
   if (forcePrompt || !updatePromptHandled.value || info.mandatory) {
     updateMandatory.value = !!info.mandatory;
     updateNotice.value = '';
+    updateDownloadStatus.value = 'idle';
+    updateDownloadProgress.value = 0;
+    updateDownloadInProgress.value = false;
     showUpdateDialog.value = true;
   }
 }
@@ -94,6 +119,45 @@ async function triggerCrossAccountUnreadRefresh(reason: string) {
       unreadRefreshPending = false;
       window.setTimeout(() => triggerCrossAccountUnreadRefresh('pending-drain'), 0);
     }
+  }
+}
+
+function handleDownloadEvent(payload: DownloadEventPayload) {
+  switch (payload.status) {
+    case 'started':
+      updateDownloadInProgress.value = true;
+      updateDownloadStatus.value = 'downloading';
+      updateDownloadProgress.value = 0;
+      break;
+    case 'progress':
+      updateDownloadInProgress.value = true;
+      updateDownloadStatus.value = 'downloading';
+      if (typeof payload.progress === 'number') {
+        updateDownloadProgress.value = Math.min(100, Math.max(0, payload.progress));
+      } else if (payload.received && payload.total) {
+        updateDownloadProgress.value = Math.min(
+          100,
+          Math.round((payload.received / payload.total) * 1000) / 10
+        );
+      }
+      break;
+    case 'finished':
+      updateDownloadProgress.value = 100;
+      updateDownloadStatus.value = 'finished';
+      updateDownloadInProgress.value = false;
+      updateNotice.value = '安装包已下载并打开，请按照系统提示完成安装。';
+      if (!updateMandatory.value) {
+        updatePromptHandled.value = true;
+      }
+      break;
+    case 'error':
+      updateDownloadStatus.value = 'error';
+      updateDownloadInProgress.value = false;
+      updateNotice.value = payload.message || '下载更新失败，请稍后重试。';
+      toast.error(updateNotice.value);
+      break;
+    default:
+      break;
   }
 }
 
@@ -679,25 +743,51 @@ watch(
 function handleUpdateLater() {
   showUpdateDialog.value = false;
   updatePromptHandled.value = true;
+  updateDownloadStatus.value = 'idle';
+  updateDownloadProgress.value = 0;
+  updateDownloadInProgress.value = false;
 }
 
 async function handleDownloadNow() {
   if (!latestVersion.value) return;
-  updateDownloadInProgress.value = true;
   updateNotice.value = '';
+  updateDownloadInProgress.value = true;
+  updateDownloadStatus.value = 'downloading';
+  updateDownloadProgress.value = 0;
   try {
-    await store.dispatch('downloadLatestVersion');
-    toast.success('已打开下载链接');
-    if (updateMandatory.value) {
-      updateNotice.value = '下载链接已打开，请安装完成后重新启动。';
-    } else {
-      showUpdateDialog.value = false;
-      updatePromptHandled.value = true;
+    const result = await store.dispatch('downloadLatestVersion');
+    if (!result || !result.downloadUrl) {
+      throw new Error('未获取到下载地址');
     }
-  } catch (error) {
-    toast.error('下载更新失败');
+    if (isTauriRuntime) {
+      await invoke('download_update', {
+        url: result.downloadUrl,
+        fileName: result.fileName,
+        autoOpen: true
+      });
+      updateNotice.value = '安装包已打开，请根据系统提示完成安装。';
+      if (!updateMandatory.value) {
+        updatePromptHandled.value = true;
+      }
+    } else {
+      window.open(result.downloadUrl, '_blank', 'noopener');
+      toast.success('已打开下载链接');
+      updateDownloadStatus.value = 'finished';
+      updateDownloadInProgress.value = false;
+      updateNotice.value = '下载链接已在浏览器中打开，请完成安装后重新启动。';
+      if (!updateMandatory.value) {
+        showUpdateDialog.value = false;
+        updatePromptHandled.value = true;
+      }
+    }
+  } catch (error: any) {
+    updateDownloadStatus.value = 'error';
+    updateNotice.value = '下载更新失败，请稍后重试。';
+    toast.error(error?.message || '下载更新失败');
   } finally {
-    updateDownloadInProgress.value = false;
+    if (!isTauriRuntime) {
+      updateDownloadInProgress.value = false;
+    }
   }
 }
 
@@ -738,6 +828,16 @@ function enableContextMenu() {
 
 // 组件挂载时设置事件监听
 onMounted(async () => {
+  if (isTauriRuntime) {
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlistenUpdateDownload = await listen('update-download-progress', (event) => {
+        handleDownloadEvent(event.payload as DownloadEventPayload);
+      });
+    } catch (error) {
+    }
+  }
+
   await checkForUpdates(true);
 
   // 检查是否是独立登录窗口
@@ -882,6 +982,10 @@ onMounted(async () => {
 
 // 组件卸载时清理
 onUnmounted(() => {
+  if (unlistenUpdateDownload) {
+    unlistenUpdateDownload();
+    unlistenUpdateDownload = null;
+  }
   
   // 清理未读数刷新定时器
   if (unreadRefreshTimer) {
@@ -949,6 +1053,24 @@ onUnmounted(() => {
           <p v-if="latestVersion.release_notes" class="update-dialog__notes">
             {{ latestVersion.release_notes }}
           </p>
+          <div
+            v-if="updateDownloadStatus !== 'idle'"
+            class="update-dialog__progress"
+          >
+            <div class="progress-bar">
+              <div
+                class="progress-bar__inner"
+                :style="{ width: `${Math.min(100, Math.floor(updateDownloadProgress))}%` }"
+              ></div>
+            </div>
+            <p class="update-dialog__progress-text">
+              {{
+                updateDownloadStatus === 'finished'
+                  ? '下载完成，正在打开安装包...'
+                  : `下载进度 ${Math.floor(updateDownloadProgress)}%`
+              }}
+            </p>
+          </div>
           <p v-if="updateNotice" class="update-dialog__notice">
             {{ updateNotice }}
           </p>
@@ -957,6 +1079,7 @@ onUnmounted(() => {
           <button
             v-if="!updateMandatory"
             class="update-dialog__btn"
+            :disabled="updateDownloadInProgress"
             @click="handleUpdateLater"
           >
             稍后再说
@@ -966,7 +1089,7 @@ onUnmounted(() => {
             :disabled="updateDownloadInProgress"
             @click="handleDownloadNow"
           >
-            {{ updateDownloadInProgress ? '打开中...' : '立即更新' }}
+            {{ downloadButtonLabel }}
           </button>
           <button
             v-if="updateMandatory"
@@ -1065,9 +1188,37 @@ body {
 }
 
 .update-dialog__notice {
-  color: #ea580c;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 8px;
+  color: #1e3a8a;
   font-size: 13px;
-  margin-top: 8px;
+}
+
+.update-dialog__progress {
+  margin-top: 12px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.progress-bar__inner {
+  height: 100%;
+  background: linear-gradient(90deg, #22d3ee, #2563eb);
+  transition: width 0.2s ease;
+}
+
+.update-dialog__progress-text {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #e2e8f0;
 }
 
 .update-dialog__actions {

@@ -1052,7 +1052,22 @@ export const store = createStore<State>({
                 if (!response.success || !response.data || !response.data.download_url) {
                     throw new Error(response.message || '获取下载链接失败')
                 }
-                window.open(response.data.download_url, '_blank', 'noopener')
+                const downloadUrl = response.data.download_url
+                const fileName = (() => {
+                    const key = latest.download_key || ''
+                    const normalized = key.split('?')[0]
+                    const baseName = normalized.split('/').pop()?.trim()
+                    if (baseName && baseName.length > 0) {
+                        return baseName
+                    }
+                    const platformTag = latest.platform || 'app'
+                    const extension = platformTag === 'macos' ? '.dmg' : platformTag === 'windows' ? '.exe' : '.AppImage'
+                    return `Chatly-${platformTag}-${latest.version}${extension}`
+                })()
+                return {
+                    downloadUrl,
+                    fileName
+                }
             } catch (error: any) {
                 const message = error?.message || '下载更新失败'
                 commit('SET_VERSION_ERROR', message)
