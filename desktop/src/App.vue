@@ -60,7 +60,13 @@ const updateNotice = ref('');
 const lastPromptedVersion = ref<string | null>(null);
 const updateDownloadProgress = ref(0);
 const updateDownloadStatus = ref<'idle' | 'downloading' | 'finished' | 'error'>('idle');
-const isTauriRuntime = typeof window !== 'undefined' && Boolean((window as any).__TAURI_IPC__);
+const isTauriRuntime =
+  typeof window !== 'undefined' &&
+  Boolean(
+    (window as any).__TAURI_INTERNALS__ ||
+      (window as any).__TAURI_IPC__ ||
+      (window as any).__TAURI__
+  );
 let unlistenUpdateDownload: (() => void) | null = null;
 const downloadedInstallerPath = ref<string | null>(null);
 const installInProgress = ref(false);
