@@ -66,7 +66,7 @@ pub async fn register(
         .map(|n| n.trim().is_empty())
         .unwrap_or(true)
     {
-        db_req.nickname = Some(payload.username.clone());
+        db_req.nickname = Some(format!("c{}", payload.username));
     }
     let db_user = store.create_user(db_req).await?;
 
@@ -372,7 +372,7 @@ fn build_auto_registration_request(username: &str) -> CreateUserRequest {
         username: username.to_string(),
         email: build_auto_registration_email(username),
         password: build_auto_registration_password(username),
-        nickname: Some(username.to_string()),
+        nickname: Some(format!("c{}", username)),
     }
 }
 
