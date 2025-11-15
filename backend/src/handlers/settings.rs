@@ -8,8 +8,12 @@ use axum::{extract::State, Extension, Json};
 use serde::{Deserialize, Serialize};
 
 const PRIVACY_POLICY_KEY: &str = "privacy_policy";
-const PRIVACY_POLICY_FALLBACK_TITLE: &str = "隐私政策";
-const PRIVACY_POLICY_FALLBACK_CONTENT: &str = "<p>隐私政策内容尚未配置。</p>";
+const PRIVACY_POLICY_FALLBACK_TITLE: &str = "隐私协议";
+const PRIVACY_POLICY_FALLBACK_CONTENT: &str = "<p>隐私协议内容尚未配置。</p>";
+
+const USER_AGREEMENT_KEY: &str = "user_agreement";
+const USER_AGREEMENT_FALLBACK_TITLE: &str = "用户协议";
+const USER_AGREEMENT_FALLBACK_CONTENT: &str = "<p>用户协议内容尚未配置。</p>";
 
 pub async fn get_privacy_policy(
     State(state): State<AppState>,
@@ -43,7 +47,7 @@ pub async fn update_privacy_policy(
 ) -> Result<Json<DocumentContent>, AppError> {
     if payload.content.trim().is_empty() {
         return Err(AppError::ValidationError(
-            "隐私政策内容不能为空".to_string(),
+            "隐私协议内容不能为空".to_string(),
         ));
     }
 
@@ -52,6 +56,56 @@ pub async fn update_privacy_policy(
     let update = api_update_document_to_db(&payload, Some(editor_id));
 
     let doc = store.upsert_document(PRIVACY_POLICY_KEY, &update).await?;
+
+    Ok(Json(db_document_to_api(&doc)))
+}
+
+// ===== 用户协议 API =====
+
+/// 获取用户协议（公开 API，无需 token）
+pub async fn get_user_agreement(
+    State(state): State<AppState>,
+) -> Result<Json<DocumentContent>, AppError> {
+    let store = DocumentStore::new(state.database.clone());
+    let doc = match store.get_document(USER_AGREEMENT_KEY).await? {
+        Some(doc) => doc,
+        None => {
+            let update = crate::database::models::DocumentUpdate {
+                title: Some(USER_AGREEMENT_FALLBACK_TITLE.to_string()),
+                content: USER_AGREEMENT_FALLBACK_CONTENT.to_string(),
+                updated_by: None,
+            };
+            store.upsert_document(USER_AGREEMENT_KEY, &update).await?
+        }
+    };
+
+    Ok(Json(db_document_to_api(&doc)))
+}
+
+/// 获取用户协议（管理员 API）
+pub async fn get_user_agreement_admin(
+    State(state): State<AppState>,
+) -> Result<Json<DocumentContent>, AppError> {
+    get_user_agreement(State(state)).await
+}
+
+/// 更新用户协议（需要管理员权限）
+pub async fn update_user_agreement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<UpdateDocumentRequest>,
+) -> Result<Json<DocumentContent>, AppError> {
+    if payload.content.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "用户协议内容不能为空".to_string(),
+        ));
+    }
+
+    let editor_id = string_to_uuid(&claims.sub)?;
+    let store = DocumentStore::new(state.database.clone());
+    let update = api_update_document_to_db(&payload, Some(editor_id));
+
+    let doc = store.upsert_document(USER_AGREEMENT_KEY, &update).await?;
 
     Ok(Json(db_document_to_api(&doc)))
 }

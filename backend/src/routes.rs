@@ -37,6 +37,10 @@ pub fn create_routes() -> Router<AppState> {
             get(settings::get_privacy_policy),
         )
         .route(
+            "/settings/user-agreement",
+            get(settings::get_user_agreement),
+        )
+        .route(
             "/settings/general",
             get(settings::get_general_settings),
         )
@@ -108,6 +112,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/settings/privacy-policy",
             get(settings::get_privacy_policy_admin).post(settings::update_privacy_policy),
+        )
+        .route(
+            "/api/admin/settings/user-agreement",
+            get(settings::get_user_agreement_admin).post(settings::update_user_agreement),
         )
         .route(
             "/api/admin/settings/app-name",

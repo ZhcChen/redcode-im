@@ -6,6 +6,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
+import '../../core/services/settings_service.dart';
+import '../../core/widgets/agreement_content_dialog.dart';
 import '../../core/widgets/agreement_tip_dialog.dart';
 import '../home/home_shell_page.dart';
 import 'data/auth_repository.dart';
@@ -28,6 +30,7 @@ class _LoginPageState extends State<LoginPage> {
   Timer? _smsTimer;
 
   final AuthRepository _authRepository = AuthRepository();
+  final SettingsService _settingsService = SettingsService();
 
   final TextEditingController _mobileCtrl = TextEditingController(
     text: 'alice', // 测试账号：alice 或 bob
@@ -431,10 +434,42 @@ class _LoginPageState extends State<LoginPage> {
                   ),
           ),
           const SizedBox(width: 12),
-          const Flexible(
-            child: Text(
-              '注册/登陆即代表同意《用户协议》和《隐私协议》',
-              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+          Flexible(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textTertiary,
+                ),
+                children: [
+                  const TextSpan(text: '注册/登陆即代表同意'),
+                  WidgetSpan(
+                    child: GestureDetector(
+                      onTap: () => _showUserAgreement(),
+                      child: const Text(
+                        '《用户协议》',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const TextSpan(text: '和'),
+                  WidgetSpan(
+                    child: GestureDetector(
+                      onTap: () => _showPrivacyAgreement(),
+                      child: const Text(
+                        '《隐私协议》',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

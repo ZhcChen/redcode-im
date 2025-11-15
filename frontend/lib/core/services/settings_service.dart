@@ -72,6 +72,24 @@ class SettingsService {
     return 'Redcode IM';
   }
 
+  /// 获取用户协议（公开 API，无需 token）
+  Future<DocumentContent> fetchUserAgreement() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/user-agreement');
+    final response = await _client.get(uri);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return DocumentContent.fromJson(data);
+      }
+      throw SettingsServiceException('用户协议数据格式异常');
+    }
+
+    throw SettingsServiceException(
+      _extractMessage(response.body) ?? '用户协议加载失败',
+    );
+  }
+
   String? _extractMessage(String raw) {
     try {
       final data = jsonDecode(raw);

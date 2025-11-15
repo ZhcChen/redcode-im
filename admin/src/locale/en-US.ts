@@ -19,6 +19,8 @@ export default {
   'menu.userManagement.list': 'User List',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
+  'menu.settings.privacyPolicy': 'Privacy Agreement',
+  'menu.settings.userAgreement': 'User Agreement',
   'menu.settings.storageProvider': 'Storage Provider',
   'menu.settings.cosTest': 'COS Test',
   'menu.settings.general': 'General Settings',

@@ -33,6 +33,16 @@ const SETTINGS: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'user-agreement',
+      name: 'UserAgreementSettings',
+      component: () => import('@/views/settings/user-agreement/index.vue'),
+      meta: {
+        locale: 'menu.settings.userAgreement',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
+    {
       path: 'storage-provider',
       name: 'StorageProviderSettings',
       component: () => import('@/views/settings/storage-provider/index.vue'),

@@ -24,6 +24,17 @@ export function updatePrivacyPolicy(payload: UpdateDocumentPayload) {
   );
 }
 
+export function getUserAgreement() {
+  return axios.get<DocumentContent>('/api/admin/settings/user-agreement');
+}
+
+export function updateUserAgreement(payload: UpdateDocumentPayload) {
+  return axios.post<DocumentContent>(
+    '/api/admin/settings/user-agreement',
+    payload
+  );
+}
+
 // ========== 文件上传提供商管理 API ==========
 
 export interface StorageProvider {
