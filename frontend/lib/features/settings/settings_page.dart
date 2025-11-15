@@ -91,33 +91,45 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
+    if (!mounted) return;
     setState(() => _updatingNickname = true);
+    
     try {
       final updated = await _authRepository.updateProfile(nickname: newName);
       if (!mounted) {
         return;
       }
-      setState(() {
-        _user = updated;
-        _updatingNickname = false;
+      // 使用 SchedulerBinding 确保在下一帧更新 UI
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _user = updated;
+          _updatingNickname = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('昵称已更新')),
+          );
+        }
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('昵称已更新')),
-        );
-      }
     } on AuthException catch (error) {
       if (!mounted) return;
-      setState(() => _updatingNickname = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
-    } catch (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _updatingNickname = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      });
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _updatingNickname = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('昵称更新失败，请稍后重试')),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _updatingNickname = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('昵称更新失败：${e.toString()}')),
+        );
+      });
     }
   }
 
