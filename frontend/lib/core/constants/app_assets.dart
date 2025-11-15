@@ -10,6 +10,7 @@ class AppAssets {
   static const String loginCheckboxSelected =
       '$images/login/icon_radio_selected.svg';
   static const String loginLogo = '$images/login/bearico.png';
+  static const String appLogo = '$images/login/app_logo.png';
 
   static const String chatTab = '$images/tabbar/chat.png';
   static const String chatTabSelected = '$images/tabbar/chat_selected.png';

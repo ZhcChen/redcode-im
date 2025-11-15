@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_guard.dart';
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/debug/debug_logger.dart';
 import '../../core/services/version_service.dart';
@@ -232,16 +233,13 @@ class _SplashPageState extends State<SplashPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 临时使用简单的容器替代图片
+          // 应用 Logo
           Center(
-            child: Container(
+            child: Image.asset(
+              AppAssets.appLogo,
               width: 120,
               height: 120,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.chat, size: 60, color: Colors.white),
+              fit: BoxFit.contain,
             ),
           ),
           const Positioned(
