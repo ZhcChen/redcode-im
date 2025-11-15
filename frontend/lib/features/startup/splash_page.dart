@@ -11,6 +11,7 @@ import '../../core/auth/auth_guard.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/debug/debug_logger.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/services/version_service.dart';
 import '../../core/update/update_center.dart';
 import '../auth/data/auth_repository.dart';
