@@ -46,7 +46,7 @@ impl Default for HttpClientConfig {
         let default_url = match env.as_str() {
             "production" => "https://api.chatlyme.com",
             "staging" => "https://staging-api.chatlyme.com",
-            _ => "http://localhost:8010",
+            _ => "http://192.168.31.80:8010",
         };
 
         let base_url = std::env::var("API_BASE_URL").unwrap_or_else(|_| default_url.to_string());
@@ -63,7 +63,7 @@ impl Default for HttpClientConfig {
             max_retries: 3,
             retry_delay_ms: 1_000,
             verify_ssl,
-            user_agent: format!("bear-chat-tauri/{}", env!("CARGO_PKG_VERSION")),
+            user_agent: format!("redcode-im-desktop/{}", env!("CARGO_PKG_VERSION")),
             connection_pool: ConnectionPoolConfig::default(),
         }
     }

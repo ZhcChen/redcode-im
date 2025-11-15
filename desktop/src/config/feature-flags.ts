@@ -13,7 +13,7 @@ const boolFlag = (value: string | undefined, defaultValue = false) => {
 // 基础配置
 export const CONFIG = {
   // API 配置
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010',
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://192.168.31.80:8010',
   HTTP_TIMEOUT: parseInt(import.meta.env.VITE_HTTP_TIMEOUT || '30000'),
   HTTP_MAX_RETRIES: parseInt(import.meta.env.VITE_HTTP_MAX_RETRIES || '3'),
   HTTP_RETRY_DELAY: parseInt(import.meta.env.VITE_HTTP_RETRY_DELAY || '1000'),

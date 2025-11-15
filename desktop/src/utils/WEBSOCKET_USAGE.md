@@ -149,7 +149,7 @@ WebSocket 服务器地址在 `src/api/config.ts` 中配置：
 
 ```typescript
 export const apiConfig = {
-  WS_URL: "ws://localhost:8010/ws",  // WebSocket 服务器地址
+  WS_URL: "ws://192.168.31.80:8010/ws",  // WebSocket 服务器地址
   // ... 其他配置
 }
 ```

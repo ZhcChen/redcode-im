@@ -417,35 +417,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bear-chat-tauri"
-version = "0.1.1"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "chrono",
- "futures-util",
- "hyper 0.14.32",
- "once_cell",
- "prost 0.13.5",
- "prost-build 0.13.5",
- "redcode-im-backend",
- "reqwest 0.11.27",
- "rusqlite",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "tauri",
- "tauri-build",
- "tauri-plugin-fs",
- "tauri-plugin-http",
- "tauri-plugin-opener",
- "tauri-plugin-shell",
- "thiserror 1.0.69",
- "tokio",
- "tokio-tungstenite 0.24.0",
-]
-
-[[package]]
 name = "bigdecimal"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4228,6 +4199,35 @@ dependencies = [
  "tracing-subscriber",
  "urlencoding",
  "uuid",
+]
+
+[[package]]
+name = "redcode-im-desktop"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "futures-util",
+ "hyper 0.14.32",
+ "once_cell",
+ "prost 0.13.5",
+ "prost-build 0.13.5",
+ "redcode-im-backend",
+ "reqwest 0.11.27",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-fs",
+ "tauri-plugin-http",
+ "tauri-plugin-opener",
+ "tauri-plugin-shell",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-tungstenite 0.24.0",
 ]
 
 [[package]]

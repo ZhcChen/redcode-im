@@ -68,7 +68,7 @@ export const getApiBaseUrl = (): string => {
     case 'staging':
       return 'https://staging-api.chatlyme.com'
     default:
-      return 'http://localhost:8010'
+      return 'http://192.168.31.80:8010'
   }
 }
 

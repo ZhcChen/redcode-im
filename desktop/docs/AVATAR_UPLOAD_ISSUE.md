@@ -280,7 +280,7 @@ instance?.proxy?.$forceUpdate()
 - **Node/Bun**: Bun
 - **Tauri**: 2.0
 - **Vue**: 3.x
-- **日志位置**: `/Users/chen/Library/Application Support/com.chen.bear-chat-tauri/logs/app.log`
+- **日志位置**: `/Users/chen/Library/Application Support/com.chen.redcode-im-desktop/logs/app.log`
 
 ---
 
@@ -551,4 +551,3 @@ memoryBlobs = {
 3. **Blob URL 生命周期管理**：释放前确保所有依赖组件已完成使用
 4. **多层验证提升安全性**：MIME 类型 + 扩展名 + 实际内容检测
 5. **详细的日志追踪**：使用统一的日志标签便于问题排查
-

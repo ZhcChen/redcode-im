@@ -1,6 +1,6 @@
 [package]
-name = "bear-chat-tauri"
-version = "0.1.1"
+name = "redcode-im-desktop"
+version = "1.0.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

@@ -140,7 +140,7 @@ tauri icon public/logo.png
 ## 项目结构
 
 ```
-bear-chat-tauri/
+redcode-im-desktop/
 ├── src/                    # Vue.js 前端源码
 │   ├── App.vue            # 主应用组件
 │   ├── main.ts            # 应用入口点
