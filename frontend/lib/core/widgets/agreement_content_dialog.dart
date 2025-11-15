@@ -37,115 +37,91 @@ class AgreementContentDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          gradient: const LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [Color(0xFFE7FFF7), Colors.white],
+          ),
           borderRadius: BorderRadius.circular(16),
         ),
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题栏
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-              decoration: const BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Color(0xFFE5E6EB),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textBlack,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    color: AppColors.textSecondary,
-                    onPressed: () => Navigator.of(context).pop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+            // 标题
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textBlack,
               ),
             ),
+            const SizedBox(height: 20),
             // 内容区域（可滚动）
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
                 child: Html(
                   data: htmlContent,
                   style: {
                     'body': Style(
                       margin: Margins.zero,
                       padding: HtmlPaddings.zero,
-                      fontSize: FontSize(14),
-                      lineHeight: LineHeight(1.6),
+                      fontSize: FontSize(13),
+                      lineHeight: LineHeight(1.5),
                       color: AppColors.textBlack,
                     ),
                     'p': Style(
                       margin: Margins.only(bottom: 12),
                     ),
                     'h1': Style(
-                      fontSize: FontSize(20),
-                      fontWeight: FontWeight.w600,
-                      margin: Margins.only(bottom: 16),
-                    ),
-                    'h2': Style(
-                      fontSize: FontSize(18),
-                      fontWeight: FontWeight.w600,
-                      margin: Margins.only(bottom: 14),
-                    ),
-                    'h3': Style(
                       fontSize: FontSize(16),
                       fontWeight: FontWeight.w600,
                       margin: Margins.only(bottom: 12),
+                    ),
+                    'h2': Style(
+                      fontSize: FontSize(15),
+                      fontWeight: FontWeight.w600,
+                      margin: Margins.only(bottom: 10),
+                    ),
+                    'h3': Style(
+                      fontSize: FontSize(14),
+                      fontWeight: FontWeight.w600,
+                      margin: Margins.only(bottom: 8),
                     ),
                   },
                 ),
               ),
             ),
-            // 底部按钮
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: Color(0xFFE5E6EB),
-                    width: 1,
-                  ),
-                ),
-              ),
+            const SizedBox(height: 16),
+            // 确认按钮
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: SizedBox(
                 width: double.infinity,
-                height: 44,
+                height: 40,
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 0,
+                    padding: EdgeInsets.zero,
                   ),
                   child: const Text(
                     '我知道了',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
