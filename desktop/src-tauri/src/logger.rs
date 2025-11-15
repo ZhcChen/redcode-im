@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 static LOG_FILE: Lazy<Mutex<Option<File>>> = Lazy::new(|| Mutex::new(None));
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn init_logger(app: &AppHandle) -> std::io::Result<PathBuf> {
     let mut log_dir = app
@@ -35,7 +36,10 @@ pub fn init_logger(app: &AppHandle) -> std::io::Result<PathBuf> {
         *guard = Some(file);
     }
 
-    log_message("==== App started ====");
+    log_message(format!(
+        "==== App started (build {APP_VERSION}, ts={}) ====",
+        Local::now().timestamp()
+    ));
     Ok(log_path)
 }
 
