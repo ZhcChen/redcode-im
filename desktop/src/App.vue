@@ -41,6 +41,33 @@ const updatePromptHandled = ref(false);
 const updateNotice = ref('');
 const lastPromptedVersion = ref<string | null>(null);
 
+function maybeShowUpdatePrompt(forcePrompt = false) {
+  const info = latestVersion.value;
+  if (!hasAppUpdate.value || !info) {
+    return;
+  }
+
+  const versionChanged = !!info.version && info.version !== lastPromptedVersion.value;
+  if (versionChanged) {
+    lastPromptedVersion.value = info.version ?? null;
+    updatePromptHandled.value = false;
+  }
+
+  if (forcePrompt || !updatePromptHandled.value || info.mandatory) {
+    updateMandatory.value = !!info.mandatory;
+    updateNotice.value = '';
+    showUpdateDialog.value = true;
+  }
+}
+
+async function checkForUpdates(forcePrompt = false) {
+  try {
+    await store.dispatch('checkAppUpdate');
+    maybeShowUpdatePrompt(forcePrompt);
+  } catch (error) {
+  }
+}
+
 // 定时器相关
 const CROSS_ACCOUNT_REFRESH_INTERVAL = 5000;
 let unreadRefreshTimer: number | null = null;
@@ -632,31 +659,21 @@ watch(token, async (val, oldVal) => {
   immediate: true
 });
 
-watch(isLoggedIn, (loggedIn) => {
+watch(isLoggedIn, (loggedIn, previous) => {
   if (loggedIn) {
     ensureAvatarCacheConsistency('login-state').catch((error) => {
     })
+    if (!previous) {
+      checkForUpdates(true);
+    }
   }
 })
 
 watch(
   () => [hasAppUpdate.value, latestVersion.value?.version],
-  ([hasUpdate, version]) => {
-    const info = latestVersion.value;
-    if (hasUpdate && info) {
-      const versionChanged = version && version !== lastPromptedVersion.value;
-      if (versionChanged) {
-        lastPromptedVersion.value = version ?? null;
-        updatePromptHandled.value = false;
-      }
-      if (!updatePromptHandled.value || info.mandatory) {
-        updateMandatory.value = !!info.mandatory;
-        updateNotice.value = '';
-        showUpdateDialog.value = true;
-      }
-    }
-  },
-  { immediate: true }
+  () => {
+    maybeShowUpdatePrompt(false);
+  }
 );
 
 function handleUpdateLater() {
@@ -721,10 +738,7 @@ function enableContextMenu() {
 
 // 组件挂载时设置事件监听
 onMounted(async () => {
-  try {
-    await store.dispatch('checkAppUpdate');
-  } catch (error) {
-  }
+  await checkForUpdates(true);
 
   // 检查是否是独立登录窗口
   let isLoginWindow = false;
