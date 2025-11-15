@@ -77,11 +77,17 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
 
-    if (result == null) {
+    if (result == null || !mounted) {
       return;
     }
     final newName = result.trim();
     if (newName.isEmpty || newName == initialName) {
+      return;
+    }
+
+    // 等待对话框完全关闭后再执行更新操作
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) {
       return;
     }
 
@@ -91,26 +97,27 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) {
         return;
       }
-      setState(() => _user = updated);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('昵称已更新')));
+      setState(() {
+        _user = updated;
+        _updatingNickname = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('昵称已更新')),
+        );
+      }
     } on AuthException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      setState(() => _updatingNickname = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('昵称更新失败，请稍后重试')));
-    } finally {
-      if (mounted) {
-        setState(() => _updatingNickname = false);
-      } else {
-        _updatingNickname = false;
-      }
+      setState(() => _updatingNickname = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('昵称更新失败，请稍后重试')),
+      );
     }
   }
 
@@ -1020,80 +1027,80 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
-  }
+}
 
-  Future<void> _handleManualHotUpdateCheck() async {
-    final manager = _hotUpdateManager;
-    if (manager == null) return;
-    await manager.checkForUpdates();
-  }
+Future<void> _handleManualHotUpdateCheck() async {
+  final manager = _hotUpdateManager;
+  if (manager == null) return;
+  await manager.checkForUpdates();
+}
 
-  Future<void> _handleDownloadHotPatch() async {
-    final manager = _hotUpdateManager;
-    if (manager == null) return;
-    try {
-      final record = await manager.downloadAvailablePatch();
-      if (!mounted || record == null) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('补丁已下载：${record.filePath}')));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('下载补丁失败：$error')));
-    }
-  }
-
-  Future<void> _handleOpenHotPatchFile() async {
-    final record = _hotUpdateState.downloaded;
-    if (record == null) return;
-    final file = File(record.filePath);
-    if (!await file.exists()) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('找不到已下载的补丁文件')));
-      await _hotUpdateManager?.resetDownloadedState();
-      return;
-    }
-    final result = await OpenFilex.open(file.path);
-    if (!mounted) return;
-    if (result.type != ResultType.done) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('无法打开补丁：${result.message}')));
-    }
-  }
-
-  Future<void> _handleClearHotPatchFile() async {
-    final record = _hotUpdateState.downloaded;
-    if (record == null) return;
-    final file = File(record.filePath);
-    if (await file.exists()) {
-      await file.delete();
-    }
-    await _hotUpdateManager?.resetDownloadedState();
+Future<void> _handleDownloadHotPatch() async {
+  final manager = _hotUpdateManager;
+  if (manager == null) return;
+  try {
+    final record = await manager.downloadAvailablePatch();
+    if (!mounted || record == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('补丁已下载：${record.filePath}')));
+  } catch (error) {
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已清除补丁文件')));
+    ).showSnackBar(SnackBar(content: Text('下载补丁失败：$error')));
   }
+}
 
-  Future<void> _handleClearInstalledPatch() async {
-    final manager = _hotUpdateManager;
-    if (manager == null) return;
-    try {
-      await manager.rollbackActivePatch(reason: '用户主动清除补丁');
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已移除已应用补丁')));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('移除补丁失败：$error')));
+Future<void> _handleOpenHotPatchFile() async {
+  final record = _hotUpdateState.downloaded;
+  if (record == null) return;
+  final file = File(record.filePath);
+  if (!await file.exists()) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('找不到已下载的补丁文件')));
+    await _hotUpdateManager?.resetDownloadedState();
+    return;
+  }
+  final result = await OpenFilex.open(file.path);
+  if (!mounted) return;
+  if (result.type != ResultType.done) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('无法打开补丁：${result.message}')));
+  }
+}
+
+Future<void> _handleClearHotPatchFile() async {
+  final record = _hotUpdateState.downloaded;
+  if (record == null) return;
+  final file = File(record.filePath);
+  if (await file.exists()) {
+    await file.delete();
+  }
+  await _hotUpdateManager?.resetDownloadedState();
+  if (!mounted) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('已清除补丁文件')));
+}
+
+Future<void> _handleClearInstalledPatch() async {
+  final manager = _hotUpdateManager;
+  if (manager == null) return;
+  try {
+    await manager.rollbackActivePatch(reason: '用户主动清除补丁');
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已移除已应用补丁')));
+  } catch (error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('移除补丁失败：$error')));
     }
   }
 }
