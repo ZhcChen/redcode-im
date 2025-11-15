@@ -145,7 +145,7 @@
             :style="{ marginRight: '8px', cursor: 'pointer' }"
           >
             <img v-if="avatar" alt="avatar" :src="avatar" />
-            <icon-user v-else class="nav-avatar-icon" />
+            <icon-user-circle v-else class="nav-avatar-icon" />
           </a-avatar>
           <template #content>
             <a-doption>
@@ -271,9 +271,11 @@
     display: flex;
     padding-right: 20px;
     list-style: none;
+
     :deep(.locale-select) {
       border-radius: 20px;
     }
+
     li {
       display: flex;
       align-items: center;
@@ -284,19 +286,22 @@
       color: var(--color-text-1);
       text-decoration: none;
     }
+
     .nav-btn {
-      border-color: rgb(var(--gray-2));
       color: rgb(var(--gray-8));
       font-size: 16px;
+      border-color: rgb(var(--gray-2));
     }
+
     .trigger-btn {
       position: absolute;
       bottom: 14px;
       margin-left: 14px;
     }
+
     :deep(.nav-avatar-icon) {
-      font-size: 18px;
       color: var(--color-text-1);
+      font-size: 18px;
     }
   }
 </style>
