@@ -52,6 +52,7 @@
         :pagination="false"
         row-key="id"
         class="version-table"
+        :scroll="{ x: tableScrollX }"
       >
         <template #channel="{ record }">
           <a-tag color="arcoblue">{{ record.channel }}</a-tag>
@@ -351,7 +352,12 @@
   };
 
   const columns = [
-    { title: '版本号', dataIndex: 'version', width: 120 },
+    {
+      title: '版本号',
+      dataIndex: 'version',
+      width: 120,
+      fixed: 'left' as const,
+    },
     { title: '构建号', dataIndex: 'build_number', width: 100 },
     { title: '渠道', dataIndex: 'channel', slotName: 'channel', width: 120 },
     {
@@ -393,6 +399,11 @@
     },
     { title: '操作', slotName: 'operations', width: 260, fixed: 'right' },
   ];
+
+  const tableScrollX = columns.reduce((sum, column) => {
+    const width = typeof column.width === 'number' ? column.width : 150;
+    return sum + width;
+  }, 0);
 
   const breadcrumbKey = computed(() =>
     props.platform === 'desktop'
