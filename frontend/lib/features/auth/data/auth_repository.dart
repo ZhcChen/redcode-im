@@ -384,7 +384,22 @@ class AuthRepository {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       var updatedUser = AuthUser.fromJson(data);
-      updatedUser = await _attachAvatarCache(session.token, updatedUser);
+      
+      // 如果只是更新昵称，不需要重新处理头像缓存
+      // 保持原有的头像缓存信息
+      if (nickname != null && avatarUrl == null) {
+        // 从当前会话中获取头像信息，保持一致性
+        final currentUser = session.user;
+        updatedUser = updatedUser.copyWith(
+          avatarUrl: currentUser.avatarUrl,
+          avatarObjectKey: currentUser.avatarObjectKey,
+          localAvatarPath: currentUser.localAvatarPath,
+        );
+      } else {
+        // 更新头像时才处理头像缓存
+        updatedUser = await _attachAvatarCache(session.token, updatedUser);
+      }
+      
       await _storage.updateUser(updatedUser);
       _authStateController.add(AuthState.authenticated);
       return updatedUser;
