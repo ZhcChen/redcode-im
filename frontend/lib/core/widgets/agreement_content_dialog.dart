@@ -92,25 +92,25 @@ class AgreementContentDialog extends StatelessWidget {
                     'body': Style(
                       margin: Margins.zero,
                       padding: HtmlPaddings.zero,
-                      fontSize: const FontSize(14),
-                      lineHeight: const LineHeight(1.6),
+                      fontSize: FontSize(14),
+                      lineHeight: LineHeight(1.6),
                       color: AppColors.textBlack,
                     ),
                     'p': Style(
                       margin: Margins.only(bottom: 12),
                     ),
                     'h1': Style(
-                      fontSize: const FontSize(20),
+                      fontSize: FontSize(20),
                       fontWeight: FontWeight.w600,
                       margin: Margins.only(bottom: 16),
                     ),
                     'h2': Style(
-                      fontSize: const FontSize(18),
+                      fontSize: FontSize(18),
                       fontWeight: FontWeight.w600,
                       margin: Margins.only(bottom: 14),
                     ),
                     'h3': Style(
-                      fontSize: const FontSize(16),
+                      fontSize: FontSize(16),
                       fontWeight: FontWeight.w600,
                       margin: Margins.only(bottom: 12),
                     ),
