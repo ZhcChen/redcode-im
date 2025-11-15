@@ -397,7 +397,7 @@
       slotName: 'updated_at',
       width: 180,
     },
-    { title: '操作', slotName: 'operations', width: 260, fixed: 'right' },
+    { title: '操作', slotName: 'operations', width: 300, fixed: 'right' },
   ];
 
   const tableScrollX = columns.reduce((sum, column) => {
