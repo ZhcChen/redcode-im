@@ -46,6 +46,12 @@ const downloadButtonLabel = computed(() => {
   return '立即更新';
 });
 
+const shouldShowUpdateButton = computed(() => {
+  if (installInProgress.value) return false;
+  if (updateDownloadStatus.value === 'downloading') return false;
+  return true;
+});
+
 const showUpdateDialog = ref(false);
 const updateMandatory = ref(false);
 const updateDownloadInProgress = ref(false);
@@ -799,19 +805,22 @@ async function handleDownloadNow() {
       throw new Error('未获取到下载地址');
     }
     if (isTauriRuntime) {
-      await invoke('download_update', {
+      const downloadedPath = await invoke<string>('download_update', {
         url: result.downloadUrl,
         fileName: result.fileName
       });
+      if (downloadedPath) {
+        downloadedInstallerPath.value = downloadedPath;
+      }
       updateNotice.value = '正在下载安装包，请稍候...';
     } else {
       window.open(result.downloadUrl, '_blank', 'noopener');
       toast.success('已打开下载链接');
       updateDownloadStatus.value = 'finished';
       updateDownloadInProgress.value = false;
-      updateNotice.value = '下载链接已在浏览器中打开，请完成安装后重新启动。';
+      updateNotice.value = '请在浏览器中完成下载安装后重新启动应用。';
+      downloadedInstallerPath.value = null;
       if (!updateMandatory.value) {
-        showUpdateDialog.value = false;
         updatePromptHandled.value = true;
       }
     }
@@ -872,8 +881,6 @@ onMounted(async () => {
     } catch (error) {
     }
   }
-
-  await checkForUpdates(true);
 
   // 检查是否是独立登录窗口
   let isLoginWindow = false;
@@ -1120,6 +1127,7 @@ onUnmounted(() => {
             稍后再说
           </button>
           <button
+            v-if="shouldShowUpdateButton"
             class="update-dialog__btn primary"
             :disabled="updateDownloadInProgress || installInProgress"
             @click="handleDownloadNow"
