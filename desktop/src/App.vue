@@ -1242,21 +1242,22 @@ body {
   width: 100%;
   height: 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(78, 205, 196, 0.12);
+  border: 1px solid rgba(78, 205, 196, 0.35);
   overflow: hidden;
 }
 
 .progress-bar__inner {
   height: 100%;
-  background: linear-gradient(90deg, #22d3ee, #2563eb);
+  background: linear-gradient(90deg, #4ecdc4, #1abc9c);
+  box-shadow: 0 4px 12px rgba(26, 188, 156, 0.35);
   transition: width 0.2s ease;
 }
 
 .update-dialog__progress-text {
   margin-top: 6px;
   font-size: 13px;
-  color: #e2e8f0;
+  color: #064e3b;
 }
 
 .update-dialog__actions {
