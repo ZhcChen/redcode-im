@@ -34,11 +34,14 @@ const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
 const latestVersion = computed(() => store.getters.latestVersionInfo);
 const hasAppUpdate = computed(() => store.getters.hasAppUpdate);
 const downloadButtonLabel = computed(() => {
-  if (updateDownloadStatus.value === 'downloading') {
-    return `下载中 ${Math.floor(updateDownloadProgress.value)}` + '%';
+  if (installInProgress.value) {
+    return '安装中...';
   }
-  if (updateDownloadStatus.value === 'finished') {
-    return '重新下载';
+  if (updateDownloadStatus.value === 'downloading') {
+    return `下载中 ${Math.floor(updateDownloadProgress.value)}%`;
+  }
+  if (updateDownloadStatus.value === 'finished' && downloadedInstallerPath.value) {
+    return '重新安装';
   }
   return '立即更新';
 });
@@ -53,6 +56,9 @@ const updateDownloadProgress = ref(0);
 const updateDownloadStatus = ref<'idle' | 'downloading' | 'finished' | 'error'>('idle');
 const isTauriRuntime = typeof window !== 'undefined' && Boolean((window as any).__TAURI_IPC__);
 let unlistenUpdateDownload: (() => void) | null = null;
+const downloadedInstallerPath = ref<string | null>(null);
+const installInProgress = ref(false);
+const isMacPlatform = typeof navigator !== 'undefined' ? /mac|darwin/i.test(navigator.userAgent) : false;
 
 type DownloadEventPayload = {
   status: 'started' | 'progress' | 'finished' | 'error';
@@ -81,6 +87,8 @@ function maybeShowUpdatePrompt(forcePrompt = false) {
     updateDownloadStatus.value = 'idle';
     updateDownloadProgress.value = 0;
     updateDownloadInProgress.value = false;
+    installInProgress.value = false;
+    downloadedInstallerPath.value = null;
     showUpdateDialog.value = true;
   }
 }
@@ -128,6 +136,8 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       updateDownloadInProgress.value = true;
       updateDownloadStatus.value = 'downloading';
       updateDownloadProgress.value = 0;
+      installInProgress.value = false;
+      downloadedInstallerPath.value = null;
       break;
     case 'progress':
       updateDownloadInProgress.value = true;
@@ -145,19 +155,46 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       updateDownloadProgress.value = 100;
       updateDownloadStatus.value = 'finished';
       updateDownloadInProgress.value = false;
-      updateNotice.value = '安装包已下载并打开，请按照系统提示完成安装。';
-      if (!updateMandatory.value) {
-        updatePromptHandled.value = true;
+      downloadedInstallerPath.value = payload.file_path ?? null;
+      if (isTauriRuntime && isMacPlatform && payload.file_path) {
+        updateNotice.value = '安装包下载完成，正在准备安装...';
+        beginInstallDownloadedUpdate(payload.file_path);
+      } else {
+        updateNotice.value = '下载完成，请手动运行安装包完成更新。';
+        if (!updateMandatory.value) {
+          updatePromptHandled.value = true;
+        }
       }
       break;
     case 'error':
       updateDownloadStatus.value = 'error';
       updateDownloadInProgress.value = false;
+      installInProgress.value = false;
+      downloadedInstallerPath.value = null;
       updateNotice.value = payload.message || '下载更新失败，请稍后重试。';
       toast.error(updateNotice.value);
       break;
     default:
       break;
+  }
+}
+
+async function beginInstallDownloadedUpdate(installerPath: string) {
+  if (!isTauriRuntime || !installerPath) {
+    return;
+  }
+  installInProgress.value = true;
+  updateNotice.value = '安装程序已启动，应用即将重启以完成更新。';
+  try {
+    await invoke('install_update', { installerPath });
+    setTimeout(() => {
+      handleQuitApp();
+    }, 1500);
+  } catch (error: any) {
+    installInProgress.value = false;
+    updateDownloadStatus.value = 'error';
+    updateNotice.value = '启动安装失败，请手动运行下载的安装包。';
+    toast.error(error?.message || '启动安装失败');
   }
 }
 
@@ -754,6 +791,8 @@ async function handleDownloadNow() {
   updateDownloadInProgress.value = true;
   updateDownloadStatus.value = 'downloading';
   updateDownloadProgress.value = 0;
+  downloadedInstallerPath.value = null;
+  installInProgress.value = false;
   try {
     const result = await store.dispatch('downloadLatestVersion');
     if (!result || !result.downloadUrl) {
@@ -762,13 +801,9 @@ async function handleDownloadNow() {
     if (isTauriRuntime) {
       await invoke('download_update', {
         url: result.downloadUrl,
-        fileName: result.fileName,
-        autoOpen: true
+        fileName: result.fileName
       });
-      updateNotice.value = '安装包已打开，请根据系统提示完成安装。';
-      if (!updateMandatory.value) {
-        updatePromptHandled.value = true;
-      }
+      updateNotice.value = '正在下载安装包，请稍候...';
     } else {
       window.open(result.downloadUrl, '_blank', 'noopener');
       toast.success('已打开下载链接');
@@ -1065,8 +1100,8 @@ onUnmounted(() => {
             </div>
             <p class="update-dialog__progress-text">
               {{
-                updateDownloadStatus === 'finished'
-                  ? '下载完成，正在打开安装包...'
+                updateDownloadStatus === 'finished' && installInProgress
+                  ? '安装程序已启动...'
                   : `下载进度 ${Math.floor(updateDownloadProgress)}%`
               }}
             </p>
@@ -1079,14 +1114,14 @@ onUnmounted(() => {
           <button
             v-if="!updateMandatory"
             class="update-dialog__btn"
-            :disabled="updateDownloadInProgress"
+            :disabled="updateDownloadInProgress || installInProgress"
             @click="handleUpdateLater"
           >
             稍后再说
           </button>
           <button
             class="update-dialog__btn primary"
-            :disabled="updateDownloadInProgress"
+            :disabled="updateDownloadInProgress || installInProgress"
             @click="handleDownloadNow"
           >
             {{ downloadButtonLabel }}

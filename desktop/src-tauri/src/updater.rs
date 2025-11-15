@@ -1,8 +1,8 @@
 use futures_util::StreamExt;
 use serde::Serialize;
-use std::path::PathBuf;
+use std::{fs::Permissions, os::unix::prelude::PermissionsExt, path::PathBuf, process::Command};
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::{fs, io::AsyncWriteExt, process::Command};
+use tokio::{fs, io::AsyncWriteExt};
 
 #[derive(Serialize, Clone)]
 struct DownloadEvent {
@@ -33,8 +33,7 @@ pub async fn download_update(
     app: AppHandle,
     url: String,
     file_name: String,
-    auto_open: bool,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let download_dir = app
         .path()
         .app_cache_dir()
@@ -108,26 +107,6 @@ pub async fn download_update(
 
     file.flush().await.map_err(|e| e.to_string())?;
 
-    if auto_open {
-        if let Err(err) = Command::new("open")
-            .arg(save_path.to_string_lossy().to_string())
-            .spawn()
-        {
-            emit(
-                &app,
-                DownloadEvent {
-                    status: "error",
-                    received,
-                    total,
-                    progress: format_progress(received, total),
-                    file_path: None,
-                    message: Some(format!("无法打开安装包: {err}")),
-                },
-            );
-            return Err(err.to_string());
-        }
-    }
-
     emit(
         &app,
         DownloadEvent {
@@ -139,5 +118,62 @@ pub async fn download_update(
             message: None,
         },
     );
+    Ok(save_path.to_string_lossy().to_string())
+}
+
+const INSTALLER_SCRIPT: &str = r#"#!/bin/bash
+set -euo pipefail
+DMG="$1"
+APP_NAME="Chatly.app"
+APP_PATH="/Applications/$APP_NAME"
+MOUNT_DIR=$(mktemp -d /tmp/chatly-update-XXXX)
+
+osascript -e 'tell application "Chatly" to quit'
+sleep 2
+
+if hdiutil attach "$DMG" -mountpoint "$MOUNT_DIR" -nobrowse >/dev/null; then
+  if [ -d "$MOUNT_DIR/$APP_NAME" ]; then
+    rm -rf "$APP_PATH"
+    cp -R "$MOUNT_DIR/$APP_NAME" "$APP_PATH"
+  fi
+  hdiutil detach "$MOUNT_DIR" >/dev/null || true
+  open "$APP_PATH"
+fi
+"#;
+
+#[tauri::command]
+pub async fn install_update(app: AppHandle, installer_path: String) -> Result<(), String> {
+    if installer_path.trim().is_empty() {
+        return Err("Installer path is empty".into());
+    }
+
+    if !std::path::Path::new(&installer_path).exists() {
+        return Err("Installer file not found".into());
+    }
+
+    let scripts_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("updates");
+    fs::create_dir_all(&scripts_dir)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let script_path = scripts_dir.join("install-update.sh");
+    fs::write(&script_path, INSTALLER_SCRIPT)
+        .await
+        .map_err(|e| e.to_string())?;
+    fs::set_permissions(&script_path, Permissions::from_mode(0o755))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let script = script_path.to_string_lossy().to_string();
+    Command::new("sh")
+        .arg(script)
+        .arg(installer_path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
