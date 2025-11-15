@@ -4,12 +4,8 @@
     <a-card class="general-card" title="验证码设置" :bordered="false">
       <div class="warning-alert">
         <a-alert type="warning" show-icon>
-          <template #message>
-            <div>
-              <strong>⚠️ 测试人员请注意：</strong>
-              这里设置的通用验证码仅用于测试环境，请勿在生产环境中使用，存在安全风险。
-            </div>
-          </template>
+          <strong>⚠️ 测试人员请注意：</strong>
+          这里设置的通用验证码仅用于测试环境，请勿在生产环境中使用，存在安全风险。
         </a-alert>
       </div>
 
