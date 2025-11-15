@@ -485,7 +485,7 @@ const handleDownloadUpdate = async () => {
   downloadInProgress.value = true
   try {
     await store.dispatch('downloadLatestVersion')
-    toast.success('已开始下载，请稍候查看主界面弹窗中的进度')
+    toast.success('已开始下载安装包，请关注更新弹窗进度')
   } catch (error: any) {
     toast.error(error?.message || '下载更新失败')
   } finally {

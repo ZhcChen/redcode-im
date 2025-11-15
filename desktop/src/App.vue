@@ -162,14 +162,8 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       updateDownloadStatus.value = 'finished';
       updateDownloadInProgress.value = false;
       downloadedInstallerPath.value = payload.file_path ?? null;
-      if (isTauriRuntime && isMacPlatform && payload.file_path) {
+      if (payload.file_path) {
         updateNotice.value = '安装包下载完成，正在准备安装...';
-        beginInstallDownloadedUpdate(payload.file_path);
-      } else {
-        updateNotice.value = '下载完成，请手动运行安装包完成更新。';
-        if (!updateMandatory.value) {
-          updatePromptHandled.value = true;
-        }
       }
       break;
     case 'error':
@@ -185,7 +179,7 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
   }
 }
 
-async function beginInstallDownloadedUpdate(installerPath: string) {
+async function beginInstallDownloadedUpdate(installerPath: string, fileName?: string) {
   if (!isTauriRuntime || !installerPath) {
     return;
   }
@@ -804,14 +798,15 @@ async function handleDownloadNow() {
     if (!result || !result.downloadUrl) {
       throw new Error('未获取到下载地址');
     }
+    updateNotice.value = '正在下载安装包，请稍候...';
     const downloadedPath = await invoke<string>('download_update', {
       url: result.downloadUrl,
       fileName: result.fileName
     });
     if (downloadedPath) {
       downloadedInstallerPath.value = downloadedPath;
+      await beginInstallDownloadedUpdate(downloadedPath, result.fileName);
     }
-    updateNotice.value = '正在下载安装包，请稍候...';
   } catch (error: any) {
     updateDownloadStatus.value = 'error';
     updateNotice.value = '下载更新失败，请稍后重试。';
