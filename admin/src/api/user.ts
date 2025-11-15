@@ -77,6 +77,7 @@ export interface CaptchaSetting {
   enabled: boolean;
   captcha_code: string;
   description: string;
+  require_captcha_for_login: boolean;
   updated_at: string;
   deleted_at?: string | null;
 }

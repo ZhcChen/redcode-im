@@ -1,4 +1,5 @@
 use crate::auth::{generate_token, hash_password};
+use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::handlers::admin;
@@ -33,29 +34,32 @@ pub async fn register(
         ));
     }
 
-    if !payload.email.contains('@') {
-        return Err(AppError::ValidationError("邮箱格式不正确".to_string()));
-    }
+    // 邮箱自动生成：手机号 + @example.com
+    let email = format!("{}@example.com", payload.username);
 
     let store = UserStore::new(state.database.clone());
 
-    // 唯一性检查
+    // 唯一性检查：用户名（手机号）必须唯一
     if store.username_exists(&payload.username).await? {
         return Err(AppError::AlreadyExists(format!(
-            "用户名 {} 已被使用",
+            "手机号 {} 已被使用",
             payload.username
         )));
     }
 
-    if store.email_exists(&payload.email).await? {
+    // 检查邮箱是否已存在（虽然自动生成，但需要检查）
+    if store.email_exists(&email).await? {
         return Err(AppError::AlreadyExists(format!(
-            "邮箱 {} 已被使用",
-            payload.email
+            "该手机号对应的邮箱已被使用",
         )));
     }
 
+    // 创建请求，使用自动生成的邮箱
+    let mut create_request = payload.clone();
+    create_request.email = email;
+
     // 转换为数据库层请求
-    let mut db_req = api_create_user_to_db(&payload);
+    let mut db_req = api_create_user_to_db(&create_request);
     if db_req
         .nickname
         .as_ref()
@@ -100,7 +104,7 @@ pub async fn login(
     };
 
     let token = generate_token(&claims)
-        .map_err(|e| AppError::InternalError(format!("Failed to generate token: {}", e)))?;
+        .map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     let response = LoginResponse {
         token,
@@ -143,6 +147,18 @@ pub async fn send_login_sms(
         return Err(AppError::ValidationError("手机号不能为空".to_string()));
     }
 
+    // 检查是否开启登录/注册验证码
+    let settings_store = SettingsStore::new(state.database.clone());
+    let require_captcha = settings_store
+        .require_captcha_for_login()
+        .await
+        .unwrap_or(false);
+    if !require_captcha {
+        return Err(AppError::ValidationError(
+            "验证码登录功能已关闭，请使用密码登录".to_string(),
+        ));
+    }
+
     let code: u32 = thread_rng().gen_range(100000..=999999);
     let key = format!("auth:sms:{}", phone);
 
@@ -151,11 +167,11 @@ pub async fn send_login_sms(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
 
     conn.set_ex::<_, _, ()>(&key, code.to_string(), 300)
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis set_ex failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 设置失败".to_string()))?;
 
     info!("发送登录验证码 {} -> {}", phone, code);
 
@@ -178,18 +194,30 @@ pub async fn login_with_sms(
         ));
     }
 
+    // 检查是否开启登录/注册验证码
+    let settings_store = SettingsStore::new(state.database.clone());
+    let require_captcha = settings_store
+        .require_captcha_for_login()
+        .await
+        .unwrap_or(false);
+    if !require_captcha {
+        return Err(AppError::ValidationError(
+            "验证码登录功能已关闭，请使用密码登录".to_string(),
+        ));
+    }
+
     let key = format!("auth:sms:{}", phone);
     let mut conn = state
         .redis
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
 
     let stored: Option<String> = conn
         .get(&key)
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis get failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 获取失败".to_string()))?;
 
     let redis_matched = stored
         .as_ref()
@@ -250,7 +278,7 @@ pub async fn login_with_sms(
         let _: () = conn
             .del(&key)
             .await
-            .map_err(|e| AppError::CacheError(format!("Redis del failed: {}", e)))?;
+            .map_err(|_| AppError::CacheError("Redis 删除失败".to_string()))?;
     }
 
     let claims = Claims {
@@ -261,7 +289,7 @@ pub async fn login_with_sms(
     };
 
     let token = generate_token(&claims)
-        .map_err(|e| AppError::InternalError(format!("Failed to generate token: {}", e)))?;
+        .map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     let response = LoginResponse {
         token,
@@ -303,12 +331,12 @@ pub async fn reset_password_with_sms(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
 
     let stored: Option<String> = conn
         .get(&key)
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis get failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 获取失败".to_string()))?;
 
     if stored.as_deref() != Some(code) {
         return Err(AppError::ValidationError("验证码错误或已过期".to_string()));
@@ -318,7 +346,7 @@ pub async fn reset_password_with_sms(
     let _: () = conn
         .del(&key)
         .await
-        .map_err(|e| AppError::CacheError(format!("Redis del failed: {}", e)))?;
+        .map_err(|_| AppError::CacheError("Redis 删除失败".to_string()))?;
 
     let user_store = UserStore::new(state.database.clone());
     let db_user = user_store
@@ -327,7 +355,7 @@ pub async fn reset_password_with_sms(
         .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?;
 
     let password_hash = hash_password(new_password)
-        .map_err(|e| AppError::InternalError(format!("Password hashing failed: {}", e)))?;
+        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
 
     user_store
         .update_password(&db_user.id, &password_hash)
@@ -349,19 +377,8 @@ fn build_auto_registration_request(username: &str) -> CreateUserRequest {
 }
 
 fn build_auto_registration_email(username: &str) -> String {
-    let normalized: String = username
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect::<String>()
-        .to_lowercase();
-
-    let local_part = if normalized.is_empty() {
-        crate::id::generate().to_string().replace('-', "")
-    } else {
-        normalized
-    };
-
-    format!("{}@auto.redcode-im", local_part)
+    // 自动注册时，邮箱 = 手机号 + @example.com
+    format!("{}@example.com", username)
 }
 
 fn build_auto_registration_password(username: &str) -> String {
@@ -408,7 +425,7 @@ pub async fn get_current_user(
     let db_user = store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
 
     Ok(Json(db_user_to_api_user_info(&db_user)))
 }

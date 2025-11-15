@@ -21,7 +21,7 @@
         class="settings-form"
         @submit="handleSubmit"
       >
-        <a-form-item field="enabled" label="启用验证码">
+        <a-form-item field="enabled" label="启用通用验证码">
           <a-switch
             v-model="formData.enabled"
             checked-text="开启"
@@ -29,6 +29,25 @@
             :checked-value="true"
             :unchecked-value="false"
           />
+          <template #help>
+            开启后，测试人员可以使用通用验证码绕过验证。仅用于测试环境。
+          </template>
+        </a-form-item>
+
+        <a-form-item
+          field="require_captcha_for_login"
+          label="是否开启登录/注册验证码"
+        >
+          <a-switch
+            v-model="formData.require_captcha_for_login"
+            checked-text="开启"
+            unchecked-text="关闭"
+            :checked-value="true"
+            :unchecked-value="false"
+          />
+          <template #help>
+            开启后，用户登录和注册时必须输入验证码；关闭后，登录和注册将跳过验证码验证。
+          </template>
         </a-form-item>
 
         <a-form-item
@@ -77,7 +96,7 @@
                     :value="formData.captcha_code"
                     readonly
                     placeholder="验证码"
-                    style="text-align: center; font-weight: bold"
+                    style="font-weight: bold; text-align: center"
                   />
                   <div class="demo-help">
                     测试人员可直接输入此验证码完成验证
@@ -122,6 +141,7 @@
     enabled: false,
     captcha_code: '',
     description: '',
+    require_captcha_for_login: false,
   });
 
   const fetchSettings = async () => {
@@ -131,12 +151,15 @@
         formData.enabled = data.enabled;
         formData.captcha_code = data.captcha_code || '';
         formData.description = data.description || '';
+        formData.require_captcha_for_login =
+          data.require_captcha_for_login ?? false;
       }
     } catch (error) {
       // 使用默认设置
       formData.enabled = false;
       formData.captcha_code = '';
       formData.description = '';
+      formData.require_captcha_for_login = false;
     }
   };
 
@@ -173,6 +196,7 @@
         enabled: formData.enabled,
         captcha_code: formData.enabled ? formData.captcha_code.trim() : '',
         description: formData.enabled ? formData.description.trim() : '',
+        require_captcha_for_login: formData.require_captcha_for_login,
       };
 
       await updateCaptchaSetting(settings);
@@ -197,7 +221,7 @@
 
 <style lang="less" scoped>
   .captcha-settings-container {
-    padding: 0 20px 20px 20px;
+    padding: 0 20px 20px;
 
     .general-card {
       .warning-alert {
@@ -212,24 +236,24 @@
 
           .preview-content {
             .demo-label {
-              font-size: 12px;
-              color: var(--color-text-3);
               margin-bottom: 12px;
+              color: var(--color-text-3);
+              font-size: 12px;
             }
 
             .demo-captcha {
               .demo-help {
-                text-align: center;
-                font-size: 12px;
-                color: var(--color-text-3);
                 margin-top: 8px;
+                color: var(--color-text-3);
+                font-size: 12px;
+                text-align: center;
               }
             }
 
             .demo-disabled {
+              padding: 20px 0;
               color: var(--color-text-3);
               font-size: 14px;
-              padding: 20px 0;
               text-align: center;
             }
           }

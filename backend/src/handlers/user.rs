@@ -85,7 +85,7 @@ pub async fn update_me(
             let user_info = db_user_to_api_user_info(&u);
             Ok(Json(user_info))
         }
-        None => Err(AppError::NotFound(format!("User {} not found", user_id))),
+        None => Err(AppError::NotFound(format!("用户 {} 不存在", user_id))),
     }
 }
 
@@ -172,7 +172,7 @@ pub async fn commit_avatar_upload(
     let existing_user = user_store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
     let previous_key = existing_user.avatar_object_key.clone();
 
     let file_url = storage_service.get_file_url(key);
@@ -224,7 +224,7 @@ pub async fn get_avatar_download_url(
     let user = user_store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
 
     let key = match user.avatar_object_key {
         Some(ref key) => key.clone(),
@@ -264,7 +264,7 @@ pub async fn get_user_avatar_download_url(
     let user = user_store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
 
     let key = match user.avatar_object_key {
         Some(ref key) => key.clone(),
@@ -312,21 +312,21 @@ pub async fn change_password(
     let user = store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
 
     // 验证旧密码
     let is_valid = verify_password(&payload.old_password, &user.password_hash)
-        .map_err(|e| AppError::InternalError(format!("Password verification failed: {}", e)))?;
+        .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
 
     if !is_valid {
         return Err(AppError::ValidationError(
-            "Old password is incorrect".to_string(),
+            "旧密码错误".to_string(),
         ));
     }
 
     // 生成新密码哈希
     let new_password_hash = hash_password(&payload.new_password)
-        .map_err(|e| AppError::InternalError(format!("Password hashing failed: {}", e)))?;
+        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
 
     // 更新密码
     store.update_password(&user_id, &new_password_hash).await?;
@@ -348,7 +348,7 @@ pub async fn deactivate_me(
     let deleted = store.delete_user(&user_id).await?;
 
     if !deleted {
-        return Err(AppError::NotFound(format!("User {} not found", user_id)));
+        return Err(AppError::NotFound(format!("用户 {} 不存在", user_id)));
     }
 
     let session_manager = crate::redis::session::SessionManager::new(
@@ -379,7 +379,7 @@ pub async fn get_user_by_id(
     let user = store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
 
     Ok(Json(db_user_to_api_user_info(&user)))
 }

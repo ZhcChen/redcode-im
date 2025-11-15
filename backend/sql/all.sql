@@ -271,6 +271,7 @@ CREATE TABLE IF NOT EXISTS captcha_settings (
     enabled BOOLEAN NOT NULL DEFAULT FALSE,
     captcha_code TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
+    require_captcha_for_login BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_by UUID REFERENCES users(id)
 );

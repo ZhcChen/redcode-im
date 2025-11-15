@@ -32,7 +32,7 @@ pub struct UserInfo {
 }
 
 /// 创建用户请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CreateUserRequest {
     pub username: String,
     pub email: String,

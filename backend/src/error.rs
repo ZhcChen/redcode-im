@@ -61,23 +61,95 @@ pub enum AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::DatabaseError(e) => write!(f, "Database error: {}", e),
-            AppError::Unauthorized(msg) => write!(f, "Unauthorized: {}", msg),
-            AppError::InvalidToken(msg) => write!(f, "Invalid token: {}", msg),
-            AppError::TokenExpired => write!(f, "Token has expired"),
-            AppError::InvalidCredentials => write!(f, "Invalid username or password"),
-            AppError::NotFound(msg) => write!(f, "Not found: {}", msg),
-            AppError::AlreadyExists(msg) => write!(f, "Already exists: {}", msg),
-            AppError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
-            AppError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
-            AppError::Forbidden(msg) => write!(f, "Forbidden: {}", msg),
-            AppError::InsufficientPermission => write!(f, "Insufficient permission"),
-            AppError::BusinessError(msg) => write!(f, "Business error: {}", msg),
-            AppError::RateLimitExceeded(msg) => write!(f, "Rate limit exceeded: {}", msg),
-            AppError::TooManyRequests => write!(f, "Too many requests"),
-            AppError::CacheError(msg) => write!(f, "Cache error: {}", msg),
-            AppError::InternalError(msg) => write!(f, "Internal error: {}", msg),
-            AppError::ServiceUnavailable(msg) => write!(f, "Service unavailable: {}", msg),
+            AppError::DatabaseError(_) => write!(f, "数据库错误"),
+            AppError::Unauthorized(msg) => {
+                if msg.is_empty() {
+                    write!(f, "未授权，请先登录")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::InvalidToken(msg) => {
+                if msg.is_empty() {
+                    write!(f, "无效的令牌")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::TokenExpired => write!(f, "令牌已过期，请重新登录"),
+            AppError::InvalidCredentials => write!(f, "用户名或密码错误"),
+            AppError::NotFound(msg) => {
+                if msg.is_empty() {
+                    write!(f, "资源不存在")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::AlreadyExists(msg) => {
+                if msg.is_empty() {
+                    write!(f, "资源已存在")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::ValidationError(msg) => {
+                if msg.is_empty() {
+                    write!(f, "验证失败")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::InvalidInput(msg) => {
+                if msg.is_empty() {
+                    write!(f, "输入无效")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::Forbidden(msg) => {
+                if msg.is_empty() {
+                    write!(f, "禁止访问")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::InsufficientPermission => write!(f, "权限不足"),
+            AppError::BusinessError(msg) => {
+                if msg.is_empty() {
+                    write!(f, "业务逻辑错误")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::RateLimitExceeded(msg) => {
+                if msg.is_empty() {
+                    write!(f, "请求过于频繁，请稍后再试")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::TooManyRequests => write!(f, "请求过于频繁，请稍后再试"),
+            AppError::CacheError(msg) => {
+                if msg.is_empty() {
+                    write!(f, "缓存错误")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::InternalError(msg) => {
+                if msg.is_empty() {
+                    write!(f, "服务器内部错误")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
+            AppError::ServiceUnavailable(msg) => {
+                if msg.is_empty() {
+                    write!(f, "服务不可用")
+                } else {
+                    write!(f, "{}", msg)
+                }
+            }
         }
     }
 }

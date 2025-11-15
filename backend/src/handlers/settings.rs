@@ -173,3 +173,21 @@ pub async fn update_app_name(
         app_name: app_name.to_string(),
     }))
 }
+
+// ===== 验证码设置 API（公开，无需 token）=====
+
+#[derive(Serialize)]
+pub struct CaptchaSettingPublicResponse {
+    pub require_captcha_for_login: bool,
+}
+
+/// 获取登录/注册是否需要验证码（公开 API，无需 token）
+pub async fn get_captcha_setting_public(
+    State(state): State<AppState>,
+) -> Result<Json<CaptchaSettingPublicResponse>, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    let require_captcha = store.require_captcha_for_login().await?;
+    Ok(Json(CaptchaSettingPublicResponse {
+        require_captcha_for_login: require_captcha,
+    }))
+}

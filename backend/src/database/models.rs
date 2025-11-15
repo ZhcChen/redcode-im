@@ -652,6 +652,7 @@ pub struct CaptchaSettingRecord {
     pub enabled: bool,
     pub captcha_code: String,
     pub description: String,
+    pub require_captcha_for_login: bool,
     pub updated_at: DateTime<Utc>,
     pub updated_by: Option<Uuid>,
 }

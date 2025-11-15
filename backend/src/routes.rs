@@ -47,6 +47,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/settings/app-name",
             get(settings::get_app_name),
+        )
+        .route(
+            "/settings/captcha",
+            get(settings::get_captcha_setting_public),
         );
 
     // 需要认证的路由

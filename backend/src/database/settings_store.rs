@@ -19,7 +19,7 @@ impl SettingsStore {
     pub async fn get_captcha_setting(&self) -> Result<CaptchaSettingRecord, Error> {
         let record = query_as::<_, CaptchaSettingRecord>(
             r#"
-            SELECT key, enabled, captcha_code, description, updated_at, updated_by
+            SELECT key, enabled, captcha_code, description, require_captcha_for_login, updated_at, updated_by
             FROM captcha_settings
             WHERE key = $1
             "#,
@@ -39,25 +39,28 @@ impl SettingsStore {
         enabled: bool,
         captcha_code: &str,
         description: &str,
+        require_captcha_for_login: bool,
         updated_by: Option<Uuid>,
     ) -> Result<CaptchaSettingRecord, Error> {
         let record = query_as::<_, CaptchaSettingRecord>(
             r#"
-            INSERT INTO captcha_settings (key, enabled, captcha_code, description, updated_at, updated_by)
-            VALUES ($1, $2, $3, $4, NOW(), $5)
+            INSERT INTO captcha_settings (key, enabled, captcha_code, description, require_captcha_for_login, updated_at, updated_by)
+            VALUES ($1, $2, $3, $4, $5, NOW(), $6)
             ON CONFLICT (key) DO UPDATE SET
                 enabled = EXCLUDED.enabled,
                 captcha_code = EXCLUDED.captcha_code,
                 description = EXCLUDED.description,
+                require_captcha_for_login = EXCLUDED.require_captcha_for_login,
                 updated_at = NOW(),
                 updated_by = EXCLUDED.updated_by
-            RETURNING key, enabled, captcha_code, description, updated_at, updated_by
+            RETURNING key, enabled, captcha_code, description, require_captcha_for_login, updated_at, updated_by
             "#,
         )
         .bind(CAPTCHA_SETTING_KEY)
         .bind(enabled)
         .bind(captcha_code)
         .bind(description)
+        .bind(require_captcha_for_login)
         .bind(updated_by)
         .fetch_one(&self.database.pool)
         .await?;
@@ -79,9 +82,9 @@ impl SettingsStore {
     async fn create_default_setting(&self) -> Result<CaptchaSettingRecord, Error> {
         let record = query_as::<_, CaptchaSettingRecord>(
             r#"
-            INSERT INTO captcha_settings (key, enabled, captcha_code, description, updated_at)
-            VALUES ($1, FALSE, '', '', NOW())
-            RETURNING key, enabled, captcha_code, description, updated_at, updated_by
+            INSERT INTO captcha_settings (key, enabled, captcha_code, description, require_captcha_for_login, updated_at)
+            VALUES ($1, FALSE, '', '', FALSE, NOW())
+            RETURNING key, enabled, captcha_code, description, require_captcha_for_login, updated_at, updated_by
             "#,
         )
         .bind(CAPTCHA_SETTING_KEY)
@@ -89,6 +92,12 @@ impl SettingsStore {
         .await?;
 
         Ok(record)
+    }
+
+    /// 检查登录/注册是否需要验证码
+    pub async fn require_captcha_for_login(&self) -> Result<bool, Error> {
+        let setting = self.get_captcha_setting().await?;
+        Ok(setting.require_captcha_for_login)
     }
 
     // ===== 通用设置相关方法 =====

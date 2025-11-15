@@ -629,7 +629,7 @@ pub async fn get_room_avatar_download_url(
     .bind(room_id)
     .fetch_optional(state.database.pool())
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("Room {} not found", room_id)))?;
+    .ok_or_else(|| AppError::NotFound(format!("房间 {} 不存在", room_id)))?;
 
     let key = match room.avatar_object_key {
         Some(ref key) => key.clone(),

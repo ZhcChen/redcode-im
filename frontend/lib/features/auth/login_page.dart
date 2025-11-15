@@ -28,6 +28,7 @@ class _LoginPageState extends State<LoginPage> {
   int _smsCountdown = 0;
   bool _sendingCode = false;
   Timer? _smsTimer;
+  bool _requireCaptchaForLogin = false;
 
   final AuthRepository _authRepository = AuthRepository();
   final SettingsService _settingsService = SettingsService();
@@ -42,6 +43,25 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailCtrl = TextEditingController(
     text: 'alice@example.com',
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCaptchaSetting();
+  }
+
+  Future<void> _loadCaptchaSetting() async {
+    try {
+      final requireCaptcha = await _settingsService.fetchRequireCaptchaForLogin();
+      if (mounted) {
+        setState(() {
+          _requireCaptchaForLogin = requireCaptcha;
+        });
+      }
+    } catch (_) {
+      // 静默失败，使用默认值 false
+    }
+  }
 
   @override
   void dispose() {
@@ -153,17 +173,6 @@ class _LoginPageState extends State<LoginPage> {
                   keyboardType: TextInputType.phone,
                   enabled: !_loading,
                 ),
-                if (_type == LoginType.register) ...[
-                  const SizedBox(height: 32),
-                  _buildLabel('邮箱'),
-                  const SizedBox(height: 12),
-                  _buildField(
-                    controller: _emailCtrl,
-                    hint: '请输入邮箱地址',
-                    keyboardType: TextInputType.emailAddress,
-                    enabled: !_loading,
-                  ),
-                ],
                 if (_type == LoginType.password) ...[
                   const SizedBox(height: 32),
                   _buildLabel('密码'),
@@ -175,7 +184,10 @@ class _LoginPageState extends State<LoginPage> {
                     enabled: !_loading,
                   ),
                 ],
-                if (_type != LoginType.password) ...[
+                // 根据设置显示验证码输入：登录时如果开启验证码则显示，注册时如果开启验证码则显示，短信登录始终显示
+                if ((_type == LoginType.password && _requireCaptchaForLogin) ||
+                    (_type == LoginType.register && _requireCaptchaForLogin) ||
+                    _type == LoginType.sms) ...[
                   const SizedBox(height: 32),
                   _buildLabel('验证码'),
                   const SizedBox(height: 12),
@@ -240,7 +252,9 @@ class _LoginPageState extends State<LoginPage> {
               ? [_buildTypeButton(LoginType.register, '注册')]
               : [
                   _buildTypeButton(LoginType.password, '密码登录'),
-                  _buildTypeButton(LoginType.sms, '验证码登录'),
+                  // 如果关闭了登录/注册验证码，则隐藏验证码登录 tab
+                  if (_requireCaptchaForLogin)
+                    _buildTypeButton(LoginType.sms, '验证码登录'),
                 ],
         ),
       ),
@@ -574,7 +588,12 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    // 如果关闭了登录/注册验证码，不允许验证码登录
     if (_type == LoginType.sms) {
+      if (!_requireCaptchaForLogin) {
+        _showMessage('验证码登录功能已关闭，请使用密码登录');
+        return;
+      }
       await _handleSmsLogin();
       return;
     }
@@ -584,18 +603,24 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleRegister() async {
     final username = _mobileCtrl.text.trim();
-    final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
 
-    if (username.isEmpty || password.isEmpty || email.isEmpty) {
+    if (username.isEmpty || password.isEmpty) {
       _showMessage('请填写完整的注册信息');
       return;
     }
 
-    if (!email.contains('@')) {
-      _showMessage('请输入有效的邮箱地址');
-      return;
+    // 如果开启验证码，需要验证码
+    if (_requireCaptchaForLogin) {
+      final code = _smsCtrl.text.trim();
+      if (code.isEmpty) {
+        _showMessage('请输入验证码');
+        return;
+      }
     }
+
+    // 邮箱自动生成：手机号 + @example.com
+    final email = '$username@example.com';
 
     FocusScope.of(context).unfocus();
     setState(() => _loading = true);
@@ -683,7 +708,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<bool> _autoRegisterAndLogin(String phone, String code) async {
-    final email = _buildAutoRegisterEmail(phone);
+    // 邮箱自动生成：手机号 + @example.com
+    final email = '$phone@example.com';
     final password = _buildAutoRegisterPassword(phone);
 
     try {

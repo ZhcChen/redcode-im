@@ -42,7 +42,7 @@
           ></b-input>
         </div>
       </div>
-      <div class="login-container-form-item" v-if="loginType === 'captcha'">
+      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin)">
         <div class="login-container-form-item-label">验证码</div>
         <div
           class="login-container-form-item-value login-container-form-item-value-captcha"
@@ -95,7 +95,7 @@ import BButton from "@/components/BButton.vue";
 import BRadio from "@/components/BRadio.vue";
 import BTabs from "@/components/BTabs.vue";
 import { useStore } from "vuex";
-import { SystemApi } from "@/api";
+import { SystemApi, SettingsApi } from "@/api";
 import toast from "@/utils/toast";
 
 const props = withDefaults(
@@ -223,12 +223,27 @@ async function restoreOriginalWindowSize() {
   }
 }
 
+// 加载验证码设置
+async function loadCaptchaSetting() {
+  try {
+    const response = await SettingsApi.getCaptchaSetting();
+    if (response.success && response.data) {
+      requireCaptchaForLogin.value = response.data.require_captcha_for_login;
+    }
+  } catch (error) {
+    // 静默失败，使用默认值 false
+  }
+}
+
 // 组件挂载时设置窗口大小
 onMounted(() => {
   try {
     store.dispatch("hideGlobalLoading");
   } catch (error) {
   }
+
+  // 加载验证码设置
+  void loadCaptchaSetting();
 
   // 添加短暂延迟确保路由跳转完成
   if (!isModalMode.value) {
@@ -260,11 +275,19 @@ async function handleLogin() {
 
     if (loginType.value === "password") {
       // 密码登录
-      response = await SystemApi.login({
-        mobile: loginForm.value.phone,
-        password: loginForm.value.password,
-        userDeviceId: Date.now(),
-      });
+      if (requireCaptchaForLogin.value) {
+        // 如果开启验证码，需要使用短信登录接口
+        response = await SystemApi.loginWithSMS({
+          phone: loginForm.value.phone,
+          code: loginForm.value.captcha,
+        });
+      } else {
+        response = await SystemApi.login({
+          mobile: loginForm.value.phone,
+          password: loginForm.value.password,
+          userDeviceId: Date.now(),
+        });
+      }
     } else {
       // 验证码登录
       response = await SystemApi.loginWithSMS({
@@ -460,6 +483,8 @@ const loginForm = ref({
 
 // 登录类型：password 密码登录 | captcha 验证码登录
 const loginType = ref<"password" | "captcha">("password");
+// 是否需要验证码
+const requireCaptchaForLogin = ref(false);
 
 // 表单状态
 const showPassword = ref(false);
@@ -480,9 +505,11 @@ const primaryFieldPlaceholder = computed(() =>
 const isFormValid = computed(() => {
   const account = loginForm.value.phone.trim();
   if (loginType.value === "password") {
+    const needsCaptcha = requireCaptchaForLogin.value;
     return (
       account.length > 0 &&
       loginForm.value.password.length >= 6 &&
+      (!needsCaptcha || loginForm.value.captcha.length === 6) &&
       isAgreed.value
     );
   }
@@ -530,6 +557,19 @@ function validateForm(): boolean {
     if (loginForm.value.password.length < 6) {
       toast.error("密码长度至少为6位");
       return false;
+    }
+
+    // 如果开启验证码，需要验证码
+    if (requireCaptchaForLogin.value) {
+      if (!loginForm.value.captcha.trim()) {
+        toast.error("请输入验证码");
+        return false;
+      }
+
+      if (loginForm.value.captcha.length !== 6) {
+        toast.error("验证码长度为6位");
+        return false;
+      }
     }
   } else {
     if (!loginForm.value.captcha.trim()) {

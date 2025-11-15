@@ -17,6 +17,10 @@ export interface GeneralSettingsResponse {
   app_name: string;
 }
 
+export interface CaptchaSettingPublicResponse {
+  require_captcha_for_login: boolean;
+}
+
 export class SettingsApi {
   static async getPrivacyPolicy(): Promise<ApiResponse<DocumentContent>> {
     return httpClient.get<DocumentContent>('/settings/privacy-policy');
@@ -34,5 +38,9 @@ export class SettingsApi {
    */
   static async getGeneralSettings(): Promise<ApiResponse<GeneralSettingsResponse>> {
     return httpClient.get<GeneralSettingsResponse>('/settings/general');
+  }
+
+  static async getCaptchaSetting(): Promise<ApiResponse<CaptchaSettingPublicResponse>> {
+    return httpClient.get<CaptchaSettingPublicResponse>('/settings/captcha');
   }
 }

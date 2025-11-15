@@ -289,6 +289,7 @@ pub struct CaptchaSetting {
     pub enabled: bool,
     pub captcha_code: String,
     pub description: String,
+    pub require_captcha_for_login: bool,
     pub updated_at: String,
 }
 
@@ -298,6 +299,7 @@ impl From<CaptchaSettingRecord> for CaptchaSetting {
             enabled: record.enabled,
             captcha_code: record.captcha_code,
             description: record.description,
+            require_captcha_for_login: record.require_captcha_for_login,
             updated_at: record.updated_at.to_rfc3339(),
         }
     }
@@ -1670,6 +1672,7 @@ pub struct UpdateCaptchaSettingRequest {
     pub enabled: Option<bool>,
     pub captcha_code: Option<String>,
     pub description: Option<String>,
+    pub require_captcha_for_login: Option<bool>,
 }
 
 pub async fn update_captcha_setting(
@@ -1682,8 +1685,9 @@ pub async fn update_captcha_setting(
     let captcha_code = req.captcha_code.unwrap_or_default().trim().to_string();
     let description = req.description.unwrap_or_default();
 
+    let require_captcha_for_login = req.require_captcha_for_login.unwrap_or(false);
     let setting = store
-        .upsert_captcha_setting(enabled, &captcha_code, &description, None)
+        .upsert_captcha_setting(enabled, &captcha_code, &description, require_captcha_for_login, None)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

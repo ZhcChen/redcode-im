@@ -90,6 +90,22 @@ class SettingsService {
     );
   }
 
+  /// 获取验证码设置（公开 API，无需 token）
+  Future<bool> fetchRequireCaptchaForLogin() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/captcha');
+    try {
+      final response = await _client.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['require_captcha_for_login'] as bool?) ?? false;
+      }
+    } catch (_) {
+      // 静默失败，返回默认值
+    }
+    return false;
+  }
+
   String? _extractMessage(String raw) {
     try {
       final data = jsonDecode(raw);

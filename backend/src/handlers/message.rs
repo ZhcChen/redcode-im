@@ -456,14 +456,14 @@ pub async fn send_message(
             .get_session_client()
             .get_multiplexed_async_connection()
             .await
-            .map_err(|e| AppError::CacheError(format!("Redis connection failed: {}", e)))?;
+            .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
 
         let key = format!("rl:send:{}:{}", sender_id, room_id);
         let count: i64 = redis::cmd("INCR")
             .arg(&key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| AppError::CacheError(format!("Redis INCR failed: {}", e)))?;
+            .map_err(|_| AppError::CacheError("Redis 自增失败".to_string()))?;
 
         if count == 1 {
             let _: () = redis::cmd("EXPIRE")
@@ -471,12 +471,12 @@ pub async fn send_message(
                 .arg(10)
                 .query_async(&mut conn)
                 .await
-                .map_err(|e| AppError::CacheError(format!("Redis EXPIRE failed: {}", e)))?;
+                .map_err(|_| AppError::CacheError("Redis 设置过期时间失败".to_string()))?;
         }
 
         if count > 30 {
             return Err(AppError::RateLimitExceeded(
-                "Message rate limit exceeded: max 30 messages per 10 seconds".to_string(),
+                "消息发送过于频繁：每10秒最多发送30条消息".to_string(),
             ));
         }
     }
