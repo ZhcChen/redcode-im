@@ -144,8 +144,7 @@
             :size="32"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
           >
-            <img v-if="avatar" alt="avatar" :src="avatar" />
-            <icon-user-circle v-else class="nav-avatar-icon" />
+            <icon-user-circle class="nav-avatar-icon" />
           </a-avatar>
           <template #content>
             <a-doption>
@@ -204,9 +203,6 @@
   const { changeLocale, currentLocale } = useLocale();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const locales = [...LOCALE_OPTIONS];
-  const avatar = computed(() => {
-    return userStore.avatar;
-  });
   const theme = computed(() => {
     return appStore.theme;
   });
