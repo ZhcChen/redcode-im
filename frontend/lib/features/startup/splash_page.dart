@@ -27,12 +27,28 @@ class SplashPage extends StatefulWidget {
 class _SplashPageState extends State<SplashPage> {
   final AuthRepository _authRepository = AuthRepository();
   final VersionService _versionService = VersionService();
+  final SettingsService _settingsService = SettingsService();
   bool _navigated = false;
+  String _appName = 'Redcode IM';
 
   @override
   void initState() {
     super.initState();
+    _loadAppName();
     _bootstrap();
+  }
+
+  Future<void> _loadAppName() async {
+    try {
+      final appName = await _settingsService.fetchAppName();
+      if (mounted) {
+        setState(() {
+          _appName = appName;
+        });
+      }
+    } catch (_) {
+      // 静默失败，使用默认值
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -242,14 +258,14 @@ class _SplashPageState extends State<SplashPage> {
               fit: BoxFit.contain,
             ),
           ),
-          const Positioned(
+          Positioned(
             bottom: 64,
             left: 0,
             right: 0,
             child: Center(
               child: Text(
-                'Redcode IM',
-                style: TextStyle(
+                _appName,
+                style: const TextStyle(
                   fontSize: 18,
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500,
