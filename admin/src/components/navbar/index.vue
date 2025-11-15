@@ -143,8 +143,9 @@
           <a-avatar
             :size="32"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
+            class="user-avatar"
           >
-            <icon-user-circle class="nav-avatar-icon" />
+            <icon-user class="nav-avatar-icon" />
           </a-avatar>
           <template #content>
             <a-doption>
@@ -295,9 +296,16 @@
       margin-left: 14px;
     }
 
-    :deep(.nav-avatar-icon) {
-      color: var(--color-text-1);
-      font-size: 18px;
+    .user-avatar {
+      background-color: var(--color-fill-2) !important;
+
+      .nav-avatar-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgb(var(--gray-7));
+        font-size: 20px;
+      }
     }
   }
 </style>
