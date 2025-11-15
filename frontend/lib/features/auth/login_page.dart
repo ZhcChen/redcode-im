@@ -450,7 +450,6 @@ class _LoginPageState extends State<LoginPage> {
                         '《用户协议》',
                         style: TextStyle(
                           color: AppColors.primary,
-                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),
@@ -463,7 +462,6 @@ class _LoginPageState extends State<LoginPage> {
                         '《隐私协议》',
                         style: TextStyle(
                           color: AppColors.primary,
-                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),
@@ -796,5 +794,37 @@ class _LoginPageState extends State<LoginPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 显示用户协议
+  Future<void> _showUserAgreement() async {
+    try {
+      final document = await _settingsService.fetchUserAgreement();
+      if (!mounted) return;
+      await AgreementContentDialog.show(
+        context,
+        title: document.title.isNotEmpty ? document.title : '用户协议',
+        htmlContent: document.content,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('加载用户协议失败，请稍后重试');
+    }
+  }
+
+  /// 显示隐私协议
+  Future<void> _showPrivacyAgreement() async {
+    try {
+      final document = await _settingsService.fetchPrivacyPolicy();
+      if (!mounted) return;
+      await AgreementContentDialog.show(
+        context,
+        title: document.title.isNotEmpty ? document.title : '隐私协议',
+        htmlContent: document.content,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('加载隐私协议失败，请稍后重试');
+    }
   }
 }
