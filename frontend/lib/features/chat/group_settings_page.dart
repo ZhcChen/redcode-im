@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/tip_dialog.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 
 class GroupSettingsPage extends StatefulWidget {
-  const GroupSettingsPage({
-    super.key,
-    required this.chat,
-    this.chatProvider,
-  });
+  const GroupSettingsPage({super.key, required this.chat, this.chatProvider});
 
   final Chat chat;
   final ChatProvider? chatProvider;
@@ -25,7 +22,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   bool _isMuted = false;
   bool _isPinned = false;
   bool _isForbidden = false;
-  
+
   // 群成员列表
   List<Map<String, dynamic>> _members = [];
   bool _isLoadingMembers = false;
@@ -50,12 +47,12 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   Future<void> _loadSettings() async {
     // TODO: 从后端加载设置
   }
-  
+
   Future<void> _loadMembers() async {
     if (widget.chat.type != ChatType.group) return;
-    
+
     setState(() => _isLoadingMembers = true);
-    
+
     try {
       final members = await _chatProvider.getRoomMembers(widget.chat.roomId);
       setState(() {
@@ -70,7 +67,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isGroupOwner = widget.chat.extra?['is_owner'] == true ||
+    final isGroupOwner =
+        widget.chat.extra?['is_owner'] == true ||
         widget.chat.extra?['isOwner'] == true;
     final memberCount = _chatProvider.cachedMemberCount(widget.chat.roomId);
     final navbarTitle = widget.chat.type == ChatType.group
@@ -115,12 +113,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        child: const Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     if (_members.isEmpty) {
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -132,9 +128,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         child: Center(
           child: Text(
             '暂无群成员',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
           ),
         ),
       );
@@ -199,11 +195,14 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   Widget _buildMemberItem(BuildContext context, Map<String, dynamic> member) {
     // 从后端数据中获取用户信息
-    final username = member['username'] as String? ?? member['name'] as String? ?? '未知用户';
+    final username =
+        member['username'] as String? ?? member['name'] as String? ?? '未知用户';
     final nickname = member['nickname'] as String?;
     final avatarUrl = member['avatar_url'] as String?;
     final displayName = nickname?.isNotEmpty == true ? nickname! : username;
-    final firstLetter = displayName.isNotEmpty ? displayName.substring(0, 1) : '?';
+    final firstLetter = displayName.isNotEmpty
+        ? displayName.substring(0, 1)
+        : '?';
 
     return GestureDetector(
       onTap: () => debugPrint('Member tapped: $displayName'),
@@ -213,8 +212,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           CircleAvatar(
             radius: 24,
             backgroundColor: AppColors.surfaceMuted,
-            backgroundImage: avatarUrl?.isNotEmpty == true 
-                ? NetworkImage(avatarUrl!) 
+            backgroundImage: avatarUrl?.isNotEmpty == true
+                ? NetworkImage(avatarUrl!)
                 : null,
             child: avatarUrl?.isNotEmpty != true
                 ? Text(
@@ -232,7 +231,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             displayName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontSize: 12),
           ),
         ],
       ),
@@ -262,7 +263,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontSize: 12),
           ),
         ],
       ),
@@ -422,105 +425,63 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   void _showClearMessagesDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('清空聊天记录'),
-        content: const Text('确认要清空聊天记录吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              debugPrint('Clear messages confirmed');
-            },
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+    TipDialog.showConfirm(
+      context,
+      title: '清空聊天记录',
+      content: '确认要清空聊天记录吗？',
+      onConfirm: () async {
+        debugPrint('Clear messages confirmed');
+        return true;
+      },
     );
   }
 
   void _showQuitGroupDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('退出群聊'),
-        content: const Text('确认要退出群聊吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              debugPrint('Quit group confirmed');
-            },
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+    TipDialog.showConfirm(
+      context,
+      title: '退出群聊',
+      content: '确认要退出群聊吗？',
+      onConfirm: () async {
+        debugPrint('Quit group confirmed');
+        return true;
+      },
     );
   }
 
   void _showDissolveGroupDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('解散群组'),
-        content: const Text('确认要解散群聊吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              debugPrint('Dissolve group confirmed');
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+    TipDialog.showConfirm(
+      context,
+      title: '解散群组',
+      content: '确认要解散群聊吗？',
+      confirmDanger: true,
+      onConfirm: () async {
+        debugPrint('Dissolve group confirmed');
+        return true;
+      },
     );
   }
 
   void _showReportDialog(BuildContext context) {
     final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('确定要举报他吗？'),
-        content: TextField(
-          controller: controller,
-          maxLines: 4,
-          maxLength: 500,
-          decoration: const InputDecoration(
-            hintText: '请输入举报内容',
-            border: OutlineInputBorder(),
-          ),
+    TipDialog.showConfirm(
+      context,
+      title: '确定要举报他吗？',
+      contentWidget: TextField(
+        controller: controller,
+        maxLines: 4,
+        maxLength: 500,
+        decoration: const InputDecoration(
+          hintText: '请输入举报内容',
+          border: OutlineInputBorder(),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('再想想'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              debugPrint('Report submitted: ${controller.text}');
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('确定'),
-          ),
-        ],
       ),
+      confirmText: '确定',
+      cancelText: '再想想',
+      confirmDanger: true,
+      onConfirm: () async {
+        debugPrint('Report submitted: ${controller.text}');
+        return true;
+      },
     );
   }
 

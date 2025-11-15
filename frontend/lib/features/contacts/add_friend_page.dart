@@ -7,6 +7,7 @@ import '../../core/services/friend_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/services/message_service.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
 import 'models/friend_models.dart';
 
@@ -175,87 +176,74 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
   Future<String?> _showAddFriendDialog(AuthUser user) async {
     final controller = TextEditingController(text: _buildDefaultGreeting(user));
-    final result = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('添加好友'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final result = await TipDialog.showConfirmWithResult<String>(
+      context,
+      title: '添加好友',
+      contentWidget: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('发送好友请求时附带一句话：'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            maxLength: 120,
+            decoration: const InputDecoration(
+              hintText: '请输入打招呼内容，可留空',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
             children: [
-              const Text('发送好友请求时附带一句话：'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLength: 120,
-                decoration: const InputDecoration(
-                  hintText: '请输入打招呼内容，可留空',
-                  border: OutlineInputBorder(),
-                ),
+              CircleAvatar(
+                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                backgroundImage:
+                    (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                    ? NetworkImage(user.avatarUrl!)
+                    : null,
+                child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                    ? Text(
+                        user.displayName.isNotEmpty
+                            ? user.displayName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : null,
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                    backgroundImage:
-                        (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                        ? NetworkImage(user.avatarUrl!)
-                        : null,
-                    child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                        ? Text(
-                            user.displayName.isNotEmpty
-                                ? user.displayName[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user.displayName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          user.email ?? '账号：${user.username}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                ],
+                    Text(
+                      user.email ?? '账号：${user.username}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('发送'),
-            ),
-          ],
-        );
+        ],
+      ),
+      confirmText: '发送',
+      cancelText: '取消',
+      onConfirm: () async {
+        return controller.text;
       },
     );
     controller.dispose();

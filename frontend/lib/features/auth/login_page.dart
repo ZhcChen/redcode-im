@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
+import '../../core/widgets/agreement_tip_dialog.dart';
 import '../home/home_shell_page.dart';
 import 'data/auth_repository.dart';
 
@@ -524,19 +525,12 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (!_agreed) {
-      showDialog<void>(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('提示'),
-            content: const Text('请勾选并阅读《用户协议》和《隐私协议》。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('我知道了'),
-              ),
-            ],
-          );
+      await AgreementTipDialog.show(
+        context,
+        content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
+        onConfirm: () {
+          Navigator.of(context).pop();
+          setState(() => _agreed = true);
         },
       );
       return;
