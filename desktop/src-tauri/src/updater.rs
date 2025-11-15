@@ -2,8 +2,14 @@ use crate::logger::log_message;
 use futures_util::StreamExt;
 use serde::Serialize;
 use std::{
-    fs::Permissions, os::unix::prelude::PermissionsExt, path::Path, path::PathBuf, process::Command,
+    path::Path,
+    path::PathBuf,
+    process::Command,
 };
+#[cfg(unix)]
+use std::fs::Permissions;
+#[cfg(unix)]
+use std::os::unix::prelude::PermissionsExt;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::{
     fs,
@@ -236,6 +242,7 @@ pub async fn install_update(
     fs::write(&script_path, INSTALLER_SCRIPT)
         .await
         .map_err(|e| e.to_string())?;
+    #[cfg(unix)]
     fs::set_permissions(&script_path, Permissions::from_mode(0o755))
         .await
         .map_err(|e| e.to_string())?;
