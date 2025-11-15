@@ -11,8 +11,8 @@ use tokio::{
     time::{sleep, Duration, Instant},
 };
 
-const SPEED_LIMIT_PER_SEC: u64 = 4 * 1024 * 1024; // 4 MB/s for UI smoothness
-const LOG_PROGRESS_EVERY: u64 = 5 * 1024 * 1024; // 5 MB
+const SPEED_LIMIT_PER_SEC: u64 = 4 * 1024 * 1024;
+const LOG_PROGRESS_EVERY: u64 = 5 * 1024 * 1024;
 
 #[derive(Serialize, Clone)]
 struct DownloadEvent {
