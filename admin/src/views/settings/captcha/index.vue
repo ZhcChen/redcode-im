@@ -16,8 +16,8 @@
       <a-form
         :model="formData"
         label-align="left"
-        :label-col-props="{ span: 6 }"
-        :wrapper-col-props="{ span: 18 }"
+        :label-col-props="{ span: 8 }"
+        :wrapper-col-props="{ span: 16 }"
         class="settings-form"
         @submit="handleSubmit"
       >
