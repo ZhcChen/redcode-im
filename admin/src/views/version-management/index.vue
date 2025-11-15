@@ -359,7 +359,7 @@
       fixed: 'left' as const,
     },
     { title: '构建号', dataIndex: 'build_number', width: 100 },
-    { title: '渠道', dataIndex: 'channel', slotName: 'channel', width: 120 },
+    { title: '渠道', dataIndex: 'channel', slotName: 'channel', width: 160 },
     {
       title: '下载 Key',
       dataIndex: 'download_key',
