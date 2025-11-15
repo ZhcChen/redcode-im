@@ -150,7 +150,8 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       updateDownloadStatus.value = 'downloading';
       if (typeof payload.progress === 'number') {
         updateDownloadProgress.value = Math.min(100, Math.max(0, payload.progress));
-      } else if (payload.received && payload.total) {
+      }
+      if (payload.received && payload.total) {
         updateDownloadProgress.value = Math.min(
           100,
           Math.round((payload.received / payload.total) * 1000) / 10
@@ -164,6 +165,9 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       downloadedInstallerPath.value = payload.file_path ?? null;
       if (payload.file_path) {
         updateNotice.value = '安装包下载完成，正在准备安装...';
+        beginInstallDownloadedUpdate(payload.file_path);
+      } else {
+        updateNotice.value = '下载完成，请手动运行安装包完成更新。';
       }
       break;
     case 'error':
@@ -859,7 +863,9 @@ onMounted(async () => {
     try {
       const { listen } = await import('@tauri-apps/api/event');
       unlistenUpdateDownload = await listen('update-download-progress', (event) => {
-        handleDownloadEvent(event.payload as DownloadEventPayload);
+        const payload = event.payload as DownloadEventPayload;
+        console.log('[update-download-progress]', payload);
+        handleDownloadEvent(payload);
       });
     } catch (error) {
     }

@@ -1,13 +1,18 @@
 use crate::logger::log_message;
 use futures_util::StreamExt;
 use serde::Serialize;
-use std::{fs::Permissions, os::unix::prelude::PermissionsExt, path::PathBuf, process::Command};
+use std::{
+    fs::Permissions, os::unix::prelude::PermissionsExt, path::Path, path::PathBuf, process::Command,
+};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::{
     fs,
     io::AsyncWriteExt,
     time::{sleep, Duration, Instant},
 };
+
+const SPEED_LIMIT_PER_SEC: u64 = 4 * 1024 * 1024; // 4 MB/s for UI smoothness
+const LOG_PROGRESS_EVERY: u64 = 5 * 1024 * 1024; // 5 MB
 
 #[derive(Serialize, Clone)]
 struct DownloadEvent {
@@ -76,7 +81,7 @@ pub async fn download_update(
                 message: Some(message.clone()),
             },
         );
-        log_message(format!("[updater] 下载失败，状态码:{}", response.status()));
+        log_message(format!("[updater] 下载失败，状态码: {}", response.status()));
         return Err(message);
     }
 
@@ -104,30 +109,20 @@ pub async fn download_update(
     let mut received: u64 = 0;
     let mut bytes_this_window: u64 = 0;
     let mut window_start = Instant::now();
-    let speed_limit_per_sec: u64 = 4 * 1024 * 1024; // 4MB/s，用于展示进度
 
     while let Some(chunk) = stream.next().await {
         let data = chunk.map_err(|e| e.to_string())?;
         file.write_all(&data).await.map_err(|e| e.to_string())?;
         received += data.len() as u64;
-        if received % (5 * 1024 * 1024) == 0 {
+        bytes_this_window += data.len() as u64;
+
+        if received % LOG_PROGRESS_EVERY == 0 {
             log_message(format!(
                 "[updater] 已下载 {:.2} MB",
                 received as f64 / (1024.0 * 1024.0)
             ));
         }
 
-        bytes_this_window += data.len() as u64;
-        if bytes_this_window >= speed_limit_per_sec {
-            let elapsed = window_start.elapsed();
-            if elapsed < Duration::from_secs(1) {
-                let delay = Duration::from_secs(1) - elapsed;
-                log_message(format!("[updater] 达到限速阈值，睡眠 {:?}", delay));
-                sleep(delay).await;
-            }
-            bytes_this_window = 0;
-            window_start = Instant::now();
-        }
         emit(
             &app,
             DownloadEvent {
@@ -139,6 +134,17 @@ pub async fn download_update(
                 message: None,
             },
         );
+
+        if bytes_this_window >= SPEED_LIMIT_PER_SEC {
+            let elapsed = window_start.elapsed();
+            if elapsed < Duration::from_secs(1) {
+                let delay = Duration::from_secs(1) - elapsed;
+                log_message(format!("[updater] 达到限速阈值，睡眠 {:?}", delay));
+                sleep(delay).await;
+            }
+            bytes_this_window = 0;
+            window_start = Instant::now();
+        }
     }
 
     file.flush().await.map_err(|e| e.to_string())?;
@@ -187,7 +193,7 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
         return Err("Installer path is empty".into());
     }
 
-    if !std::path::Path::new(&installer_path).exists() {
+    if !Path::new(&installer_path).exists() {
         return Err("Installer file not found".into());
     }
 
