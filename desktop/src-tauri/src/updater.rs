@@ -1,8 +1,13 @@
+use crate::logger::log_message;
 use futures_util::StreamExt;
 use serde::Serialize;
 use std::{fs::Permissions, os::unix::prelude::PermissionsExt, path::PathBuf, process::Command};
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::{
+    fs,
+    io::AsyncWriteExt,
+    time::{sleep, Duration, Instant},
+};
 
 #[derive(Serialize, Clone)]
 struct DownloadEvent {
@@ -50,7 +55,12 @@ pub async fn download_update(
     };
     let save_path: PathBuf = download_dir.join(&target_name);
 
-    let client = reqwest::Client::new();
+    log_message(format!("[updater] 开始下载: {}", url));
+
+    let client = reqwest::ClientBuilder::new()
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| e.to_string())?;
     let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
@@ -66,10 +76,15 @@ pub async fn download_update(
                 message: Some(message.clone()),
             },
         );
+        log_message(format!("[updater] 下载失败，状态码:{}", response.status()));
         return Err(message);
     }
 
     let total = response.content_length();
+    log_message(format!(
+        "[updater] 下载响应成功，content-length={:?}",
+        total
+    ));
     emit(
         &app,
         DownloadEvent {
@@ -87,11 +102,32 @@ pub async fn download_update(
         .await
         .map_err(|e| e.to_string())?;
     let mut received: u64 = 0;
+    let mut bytes_this_window: u64 = 0;
+    let mut window_start = Instant::now();
+    let speed_limit_per_sec: u64 = 4 * 1024 * 1024; // 4MB/s，用于展示进度
 
     while let Some(chunk) = stream.next().await {
         let data = chunk.map_err(|e| e.to_string())?;
         file.write_all(&data).await.map_err(|e| e.to_string())?;
         received += data.len() as u64;
+        if received % (5 * 1024 * 1024) == 0 {
+            log_message(format!(
+                "[updater] 已下载 {:.2} MB",
+                received as f64 / (1024.0 * 1024.0)
+            ));
+        }
+
+        bytes_this_window += data.len() as u64;
+        if bytes_this_window >= speed_limit_per_sec {
+            let elapsed = window_start.elapsed();
+            if elapsed < Duration::from_secs(1) {
+                let delay = Duration::from_secs(1) - elapsed;
+                log_message(format!("[updater] 达到限速阈值，睡眠 {:?}", delay));
+                sleep(delay).await;
+            }
+            bytes_this_window = 0;
+            window_start = Instant::now();
+        }
         emit(
             &app,
             DownloadEvent {
@@ -106,6 +142,10 @@ pub async fn download_update(
     }
 
     file.flush().await.map_err(|e| e.to_string())?;
+    log_message(format!(
+        "[updater] 下载完成，总大小 {:.2} MB",
+        received as f64 / (1024.0 * 1024.0)
+    ));
 
     emit(
         &app,
@@ -151,6 +191,11 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
         return Err("Installer file not found".into());
     }
 
+    log_message(format!(
+        "[updater] 准备执行安装脚本，文件: {}",
+        installer_path
+    ));
+
     let scripts_dir = app
         .path()
         .app_cache_dir()
@@ -175,5 +220,6 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
         .spawn()
         .map_err(|e| e.to_string())?;
 
+    log_message("[updater] 安装脚本已启动".to_string());
     Ok(())
 }
