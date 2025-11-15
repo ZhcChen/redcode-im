@@ -188,7 +188,11 @@ fi
 "#;
 
 #[tauri::command]
-pub async fn install_update(app: AppHandle, installer_path: String) -> Result<(), String> {
+pub async fn install_update(
+    app: AppHandle,
+    installer_path: String,
+    platform: Option<String>,
+) -> Result<(), String> {
     if installer_path.trim().is_empty() {
         return Err("Installer path is empty".into());
     }
@@ -197,10 +201,27 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
         return Err("Installer file not found".into());
     }
 
+    let platform = platform.unwrap_or_else(|| "macos".into());
     log_message(format!(
-        "[updater] 准备执行安装脚本，文件: {}",
-        installer_path
+        "[updater] 准备执行安装, 文件: {}, 平台: {}",
+        installer_path, platform
     ));
+
+    if platform.eq_ignore_ascii_case("windows") {
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Start-Process -FilePath \"$args[0]\" -Wait",
+                &installer_path,
+            ])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        log_message("[updater] Windows 安装程序已启动".to_string());
+        return Ok(());
+    }
 
     let scripts_dir = app
         .path()
@@ -226,6 +247,6 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    log_message("[updater] 安装脚本已启动".to_string());
+    log_message("[updater] macOS 安装脚本已启动".to_string());
     Ok(())
 }

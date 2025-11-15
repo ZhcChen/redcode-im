@@ -196,7 +196,10 @@ async function beginInstallDownloadedUpdate(installerPath: string, fileName?: st
   installInProgress.value = true;
   updateNotice.value = '安装程序已启动，应用即将重启以完成更新。';
   try {
-    await invoke('install_update', { installerPath });
+    await invoke('install_update', {
+      installerPath,
+      platform: latestVersion.value?.platform || 'macos'
+    });
     setTimeout(() => {
       handleQuitApp();
     }, 1500);
