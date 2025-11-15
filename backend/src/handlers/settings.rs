@@ -1,9 +1,11 @@
 use crate::database::document_store::DocumentStore;
+use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
 use crate::models::convert::{api_update_document_to_db, db_document_to_api, string_to_uuid};
 use crate::models::{Claims, DocumentContent, UpdateDocumentRequest};
 use crate::AppState;
 use axum::{extract::State, Extension, Json};
+use serde::{Deserialize, Serialize};
 
 const PRIVACY_POLICY_KEY: &str = "privacy_policy";
 const PRIVACY_POLICY_FALLBACK_TITLE: &str = "隐私政策";
@@ -52,4 +54,68 @@ pub async fn update_privacy_policy(
     let doc = store.upsert_document(PRIVACY_POLICY_KEY, &update).await?;
 
     Ok(Json(db_document_to_api(&doc)))
+}
+
+// ===== 通用设置 API =====
+
+#[derive(Serialize)]
+pub struct GeneralSettingsResponse {
+    pub app_name: String,
+}
+
+#[derive(Serialize)]
+pub struct AppNameResponse {
+    pub app_name: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateAppNameRequest {
+    pub app_name: String,
+}
+
+/// 获取通用设置（公开 API，无需 token）
+pub async fn get_general_settings(
+    State(state): State<AppState>,
+) -> Result<Json<GeneralSettingsResponse>, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    let app_name = store.get_app_name().await?;
+    Ok(Json(GeneralSettingsResponse { app_name }))
+}
+
+/// 获取应用名称（公开 API，无需 token）
+pub async fn get_app_name(
+    State(state): State<AppState>,
+) -> Result<Json<AppNameResponse>, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    let app_name = store.get_app_name().await?;
+    Ok(Json(AppNameResponse { app_name }))
+}
+
+/// 更新应用名称（需要管理员权限）
+pub async fn update_app_name(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<UpdateAppNameRequest>,
+) -> Result<Json<AppNameResponse>, AppError> {
+    let app_name = payload.app_name.trim();
+    if app_name.is_empty() {
+        return Err(AppError::ValidationError(
+            "应用名称不能为空".to_string(),
+        ));
+    }
+    if app_name.len() > 50 {
+        return Err(AppError::ValidationError(
+            "应用名称不能超过50个字符".to_string(),
+        ));
+    }
+
+    let editor_id = string_to_uuid(&claims.sub)?;
+    let store = SettingsStore::new(state.database.clone());
+    store
+        .upsert_general_setting("app_name", app_name, "应用名称", Some(editor_id))
+        .await?;
+
+    Ok(Json(AppNameResponse {
+        app_name: app_name.to_string(),
+    }))
 }

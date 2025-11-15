@@ -656,6 +656,16 @@ pub struct CaptchaSettingRecord {
     pub updated_by: Option<Uuid>,
 }
 
+/// 通用设置记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GeneralSettingRecord {
+    pub key: String,
+    pub value: String,
+    pub description: String,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FriendRequest {
     pub id: Uuid,

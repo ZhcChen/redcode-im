@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 
@@ -35,6 +35,14 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/settings/privacy-policy",
             get(settings::get_privacy_policy),
+        )
+        .route(
+            "/settings/general",
+            get(settings::get_general_settings),
+        )
+        .route(
+            "/settings/app-name",
+            get(settings::get_app_name),
         );
 
     // 需要认证的路由
@@ -100,6 +108,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/settings/privacy-policy",
             get(settings::get_privacy_policy_admin).post(settings::update_privacy_policy),
+        )
+        .route(
+            "/api/admin/settings/app-name",
+            put(settings::update_app_name),
         )
         .route(
             "/api/admin/storage-providers",

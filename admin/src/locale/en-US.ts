@@ -21,6 +21,7 @@ export default {
   'menu.settings.captcha': 'Captcha Settings',
   'menu.settings.storageProvider': 'Storage Provider',
   'menu.settings.cosTest': 'COS Test',
+  'menu.settings.general': 'General Settings',
   'menu.version': 'Version Management',
   'menu.version.frontend': 'App Client',
   'menu.version.desktop': 'Desktop Client',

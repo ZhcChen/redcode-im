@@ -275,6 +275,15 @@ CREATE TABLE IF NOT EXISTS captcha_settings (
     updated_by UUID REFERENCES users(id)
 );
 
+-- 通用设置表
+CREATE TABLE IF NOT EXISTS general_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by UUID REFERENCES users(id)
+);
+
 -- 文件上传提供商配置表
 CREATE TABLE IF NOT EXISTS storage_providers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -588,6 +597,11 @@ VALUES (
     '隐私政策',
     '<p>隐私政策内容尚未配置。</p>'
 )
+ON CONFLICT (key) DO NOTHING;
+
+-- 通用设置默认数据
+INSERT INTO general_settings (key, value, description)
+VALUES ('app_name', 'Redcode IM', '应用名称')
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO captcha_settings (key, enabled, captcha_code, description)

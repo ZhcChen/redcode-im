@@ -738,7 +738,8 @@ watch(token, async (val, oldVal) => {
           // 验证用户信息是否已正确设置
           if (user.value.id && user.value.username) {
             const { updateWindowTitle } = await import('@/utils');
-            await updateWindowTitle(user.value);
+            const appName = store.state.appName;
+            await updateWindowTitle(user.value, appName);
           } else {
           }
         } catch (error) {
@@ -946,13 +947,21 @@ onMounted(async () => {
   eventManager.addDocumentListener('visibilitychange', handleVisibilityChange);
   eventManager.addWindowListener('beforeunload', closeWebSocketConnection);
   
+  // 加载应用名称（静默加载，失败不影响启动）
+  try {
+    await store.dispatch('loadAppName');
+  } catch (error) {
+    // 静默失败
+  }
+
   // 初始化窗口标题
   try {
     const { updateWindowTitle } = await import('@/utils');
+    const appName = store.state.appName;
     if (token.value && user.value.mobile) {
-      await updateWindowTitle(user.value);
+      await updateWindowTitle(user.value, appName);
     } else {
-      await updateWindowTitle(); // 显示默认标题
+      await updateWindowTitle(undefined, appName); // 显示默认标题
     }
   } catch (error) {
   }

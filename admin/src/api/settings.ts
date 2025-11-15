@@ -290,3 +290,29 @@ export function testCosCreateBucket(payload: TestCosCreateBucketRequest) {
     payload
   );
 }
+
+// ========== 通用设置 API ==========
+
+export interface GeneralSettingsResponse {
+  app_name: string;
+}
+
+export interface AppNameResponse {
+  app_name: string;
+}
+
+export interface UpdateAppNamePayload {
+  app_name: string;
+}
+
+export function getGeneralSettings() {
+  return axios.get<GeneralSettingsResponse>('/settings/general');
+}
+
+export function getAppName() {
+  return axios.get<AppNameResponse>('/settings/app-name');
+}
+
+export function updateAppName(payload: UpdateAppNamePayload) {
+  return axios.put<AppNameResponse>('/api/admin/settings/app-name', payload);
+}

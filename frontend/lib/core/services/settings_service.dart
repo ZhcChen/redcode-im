@@ -56,6 +56,22 @@ class SettingsService {
     );
   }
 
+  /// 获取应用名称（公开 API，无需 token）
+  Future<String> fetchAppName() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/app-name');
+    try {
+      final response = await _client.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['app_name'] as String?) ?? 'Redcode IM';
+      }
+    } catch (_) {
+      // 静默失败，返回默认值
+    }
+    return 'Redcode IM';
+  }
+
   String? _extractMessage(String raw) {
     try {
       final data = jsonDecode(raw);

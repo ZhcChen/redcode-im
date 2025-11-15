@@ -359,7 +359,8 @@ async function handleLogin() {
       // 更新窗口标题
       try {
         const { updateWindowTitle } = await import("@/utils");
-        await updateWindowTitle(mappedUserInfo);
+        const appName = this.$store.state.appName;
+        await updateWindowTitle(mappedUserInfo, appName);
       } catch (error) {
       }
 

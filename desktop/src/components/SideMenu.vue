@@ -240,7 +240,8 @@ const handleLogout = () => {
         // 重置窗口标题
         try {
           import('@/utils').then(({ updateWindowTitle }) => {
-            updateWindowTitle() // 不传参数，显示默认标题
+            const appName = store.state.appName;
+            updateWindowTitle(undefined, appName) // 显示默认标题
           }).catch(error => {
           })
         } catch (error) {

@@ -2,7 +2,7 @@
 import {createStore} from 'vuex'
 import type { AccountInfo } from './modules/accounts'
 import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
-import { UserApi, VersionApi, apiConfig } from '@/api'
+import { UserApi, VersionApi, SettingsApi, apiConfig } from '@/api'
 import favoriteAvatar from '@/assets/image/favorite-avatar.svg'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
 import accountsModule from './modules/accounts'
@@ -197,6 +197,8 @@ export interface State {
         error: string | null
         lastUpdateTime: number | null
     }
+    // 应用名称（从服务器加载）
+    appName: string
 }
 
 // 创建 store
@@ -271,7 +273,8 @@ export const store = createStore<State>({
             loading: false,
             error: null,
             lastUpdateTime: null
-        }
+        },
+        appName: 'Chatly' // 默认应用名称，启动时从服务器加载
     },
 
     mutations: {
@@ -424,6 +427,9 @@ export const store = createStore<State>({
         // 设置待处理的好友申请数量
         SET_PENDING_FRIEND_REQUESTS(state: State, count: number) {
             state.pendingFriendRequests = count
+        },
+        SET_APP_NAME(state: State, appName: string) {
+            state.appName = appName
         },
 
         // 全局加载蒙版控制
@@ -761,6 +767,18 @@ export const store = createStore<State>({
     },
 
     actions: {
+        // 加载应用名称（静默加载，失败不影响启动）
+        async loadAppName({commit}: { commit: any }) {
+            try {
+                const response = await SettingsApi.getAppName()
+                if (response?.data?.app_name) {
+                    commit('SET_APP_NAME', response.data.app_name)
+                }
+            } catch (error) {
+                // 静默失败，使用默认值
+                console.warn('Failed to load app name from server, using default')
+            }
+        },
         // 登录
         async login({commit, state, getters, dispatch}: { commit: any; state: any; getters: any; dispatch: any }, loginData: {
             token: string;
@@ -919,7 +937,7 @@ export const store = createStore<State>({
                     // 重置窗口标题
                     try {
                         const { updateWindowTitle } = await import('../utils')
-                        await updateWindowTitle() // 不传参数，显示默认标题
+                        await updateWindowTitle(undefined, state.appName) // 显示默认标题
                     } catch (error) {
                     }
 

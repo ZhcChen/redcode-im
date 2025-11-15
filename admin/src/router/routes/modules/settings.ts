@@ -52,6 +52,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'general',
+      name: 'GeneralSettings',
+      component: () => import('@/views/settings/general/index.vue'),
+      meta: {
+        locale: 'menu.settings.general',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 
