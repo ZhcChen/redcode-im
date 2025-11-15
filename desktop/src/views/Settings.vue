@@ -484,13 +484,8 @@ const handleDownloadUpdate = async () => {
   }
   downloadInProgress.value = true
   try {
-    const result = await store.dispatch('downloadLatestVersion')
-    if (result?.downloadUrl) {
-      window.open(result.downloadUrl, '_blank', 'noopener')
-      toast.success('已打开下载链接')
-    } else {
-      toast.error('暂无可用下载链接')
-    }
+    await store.dispatch('downloadLatestVersion')
+    toast.success('已开始下载，请稍候查看主界面弹窗中的进度')
   } catch (error: any) {
     toast.error(error?.message || '下载更新失败')
   } finally {

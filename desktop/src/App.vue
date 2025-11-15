@@ -804,26 +804,14 @@ async function handleDownloadNow() {
     if (!result || !result.downloadUrl) {
       throw new Error('未获取到下载地址');
     }
-    if (isTauriRuntime) {
-      const downloadedPath = await invoke<string>('download_update', {
-        url: result.downloadUrl,
-        fileName: result.fileName
-      });
-      if (downloadedPath) {
-        downloadedInstallerPath.value = downloadedPath;
-      }
-      updateNotice.value = '正在下载安装包，请稍候...';
-    } else {
-      window.open(result.downloadUrl, '_blank', 'noopener');
-      toast.success('已打开下载链接');
-      updateDownloadStatus.value = 'finished';
-      updateDownloadInProgress.value = false;
-      updateNotice.value = '请在浏览器中完成下载安装后重新启动应用。';
-      downloadedInstallerPath.value = null;
-      if (!updateMandatory.value) {
-        updatePromptHandled.value = true;
-      }
+    const downloadedPath = await invoke<string>('download_update', {
+      url: result.downloadUrl,
+      fileName: result.fileName
+    });
+    if (downloadedPath) {
+      downloadedInstallerPath.value = downloadedPath;
     }
+    updateNotice.value = '正在下载安装包，请稍候...';
   } catch (error: any) {
     updateDownloadStatus.value = 'error';
     updateNotice.value = '下载更新失败，请稍后重试。';
