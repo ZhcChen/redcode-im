@@ -133,6 +133,7 @@
               <div class="contact-item" 
                    v-for="contact in group" 
                    :key="contact.id"
+                   :class="{ 'selected': selectedContact && selectedContact.id === contact.id }"
                    @click="selectContact(contact)">
                 <Avatar :src="contact.avatar" :text="contact.name" :size="48" />
                 <div class="contact-info">
