@@ -4440,7 +4440,8 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
 
   if (!targetMessageId) return
 
-  // 如果当前选中的聊天是目标聊天，更新消息状态
+  // 无论是否选中，都要更新消息状态（多账号场景下，其他账号的聊天可能未选中）
+  // 如果当前选中的聊天是目标聊天，更新当前消息列表
   if (selectedChat.value && roomId === selectedChat.value.groupId) {
     // 找到目标消息的索引
     const targetIndex = messages.value.findLastIndex((msg) => msg.id === targetMessageId)
@@ -4455,41 +4456,64 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
         totalMessages: messages.value.length,
         selfMessages: messages.value.filter(msg => msg.isSelf).length
       })
-      return
-    }
+    } else {
+      // 更新从第一条消息到目标消息之间的所有自己发送的消息为已读状态
+      // 参考移动端实现：for (var i = 0; i <= targetIndex && i < messages.length; i++)
+      let updated = false
+      for (let i = 0; i <= targetIndex && i < messages.value.length; i++) {
+        const msg = messages.value[i]
+        if (!msg.isSelf) continue
+        if (msg.status === messageStatusToUiStatus[MessageStatus.READ]) continue
 
-    // 更新从第一条消息到目标消息之间的所有自己发送的消息为已读状态
-    // 参考移动端实现：for (var i = 0; i <= targetIndex && i < messages.length; i++)
-    let updated = false
-    for (let i = 0; i <= targetIndex && i < messages.value.length; i++) {
-      const msg = messages.value[i]
-      if (!msg.isSelf) continue
-      if (msg.status === messageStatusToUiStatus[MessageStatus.READ]) continue
+        // 只更新已发送状态的消息（status 2），避免更新其他状态
+        if (msg.status === messageStatusToUiStatus[MessageStatus.SENT]) {
+          messages.value[i].status = messageStatusToUiStatus[MessageStatus.READ]
+          updated = true
+        }
+      }
 
-      // 只更新已发送状态的消息（status 2），避免更新其他状态
-      if (msg.status === messageStatusToUiStatus[MessageStatus.SENT]) {
-        messages.value[i].status = messageStatusToUiStatus[MessageStatus.READ]
-        updated = true
+      if (updated) {
+        // 保存到缓存
+        persistMessagesCache(roomId, messages.value).catch(() => {})
       }
     }
+  }
 
-    if (updated) {
-      // 保存到缓存
-      persistMessagesCache(roomId, messages.value).catch(() => {})
-    }
-  } else {
-    // 调试：如果聊天未选中，输出调试信息
-    console.log('[MessageRead] 聊天未选中或 roomId 不匹配:', {
-      roomId,
-      targetMessageId,
-      selectedChatGroupId: selectedChat.value?.groupId,
-      hasSelectedChat: !!selectedChat.value
-    })
+  // 无论是否选中，都要更新该聊天在聊天列表中的消息状态
+  // 这样当用户切换到该聊天时，能看到正确的消息状态
+  // 需要从缓存中加载该聊天的消息并更新状态
+  const chatItem = store.getters.getChatByGroupId(roomId)
+  if (chatItem) {
+    // 如果该聊天有缓存的消息，更新缓存中的消息状态
+    loadCache<Message[]>(CACHE_KEYS.messages(roomId)).then(cached => {
+      if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
+        const targetIndex = cached.data.findLastIndex((msg: Message) => msg.id === targetMessageId)
+        if (targetIndex !== -1) {
+          let updated = false
+          const currentUserId = store.getters.currentUser?.id
+          
+          for (let i = 0; i <= targetIndex && i < cached.data.length; i++) {
+            const msg = cached.data[i]
+            // 只更新自己发送的消息
+            if (msg.senderId === currentUserId && msg.isSelf) {
+              if (msg.status === messageStatusToUiStatus[MessageStatus.SENT]) {
+                cached.data[i].status = messageStatusToUiStatus[MessageStatus.READ]
+                updated = true
+              }
+            }
+          }
+
+          if (updated) {
+            // 保存更新后的缓存
+            persistMessagesCache(roomId, cached.data).catch(() => {})
+          }
+        }
+      }
+    }).catch(() => {})
   }
 
   // 无论是否选中，都要更新 store 中的未读数
   store.dispatch('setChatUnreadCount', { groupId: roomId, unreadCount: 0 })
-  const chatItem = store.getters.getChatByGroupId(roomId)
   if (chatItem) {
     chatItem.unreadCount = 0
   }
