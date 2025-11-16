@@ -1,9 +1,9 @@
 <template>
   <div class="account-tabs">
-    <div class="tabs-container" :class="{ 'has-more-accounts': hiddenAccounts.length > 0 }">
-      <!-- 显示的账号标签列表（最多显示 maxVisibleTabs 个） -->
+    <div class="tabs-container">
+      <!-- 账号标签列表 -->
       <div
-        v-for="(account, index) in visibleAccounts"
+        v-for="(account, index) in accounts"
         :key="account.id"
         :data-account-id="account.id"
         :data-index="index"
@@ -23,11 +23,6 @@
           <!-- 昵称 -->
           <span class="nickname">{{ account.userInfo.nickname || '未命名' }}</span>
 
-          <!-- 未读消息角标 -->
-          <span v-if="getUnreadCount(account) > 0" class="badge">
-            {{ formatBadgeCount(getUnreadCount(account)) }}
-          </span>
-
           <!-- 关闭按钮 -->
           <button
             v-if="accounts.length > 1"
@@ -39,52 +34,6 @@
             ×
           </button>
         </div>
-      </div>
-
-      <!-- 更多账号下拉菜单 -->
-      <div v-if="hiddenAccounts.length > 0" class="more-accounts-container">
-        <Popover 
-          placement="bottom" 
-          trigger="click" 
-          :offset="8"
-          :content-offset-x="0"
-          :arrow-offset-x="0"
-        >
-          <template #trigger>
-            <div class="more-accounts-btn" :class="{ active: isCurrentAccountInHidden }">
-              <span class="more-icon">⋯</span>
-              <span class="more-count">{{ hiddenAccounts.length }}</span>
-            </div>
-          </template>
-          <template #content>
-            <div class="more-accounts-menu">
-              <div
-                v-for="account in hiddenAccounts"
-                :key="account.id"
-                class="more-account-item"
-                :class="{ 
-                  active: account.id === currentAccountId,
-                  'has-unread': hasUnreadMessages(account)
-                }"
-                @click="handleSwitchAccount(account.id)"
-              >
-                <span class="account-name">{{ account.userInfo.nickname || '未命名' }}</span>
-                <span v-if="getUnreadCount(account) > 0" class="account-badge">
-                  {{ formatBadgeCount(getUnreadCount(account)) }}
-                </span>
-                <button
-                  v-if="accounts.length > 1"
-                  class="account-close-btn"
-                  @click.stop="handleRemoveAccount(account.id)"
-                  title="退出登录"
-                  type="button"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          </template>
-        </Popover>
       </div>
 
       <!-- 添加账号按钮 -->
@@ -107,9 +56,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useStore } from 'vuex'
-import Popover from './Popover.vue'
 import type { AccountInfo } from '@/store/modules/accounts'
 
 // Props
@@ -118,13 +66,11 @@ interface Props {
   currentAccountId: string | null
   maxAccounts?: number
   showAddButton?: boolean
-  maxVisibleTabs?: number // 最多显示的 tab 数量
 }
 
 const props = withDefaults(defineProps<Props>(), {
   maxAccounts: 10,
-  showAddButton: true,
-  maxVisibleTabs: 5 // 默认最多显示 5 个 tab
+  showAddButton: true
 })
 
 // Emits
@@ -135,41 +81,6 @@ const emit = defineEmits<{
 }>()
 
 const store = useStore()
-
-// 计算可见的账号和隐藏的账号
-const visibleAccounts = computed(() => {
-  // 如果账号数量少于等于 maxVisibleTabs，全部显示
-  if (props.accounts.length <= props.maxVisibleTabs) {
-    return props.accounts
-  }
-  
-  // 如果当前账号在隐藏列表中，优先显示当前账号
-  const currentIndex = props.accounts.findIndex(acc => acc.id === props.currentAccountId)
-  if (currentIndex >= props.maxVisibleTabs) {
-    // 当前账号在隐藏列表中，替换最后一个可见账号
-    const visible = [...props.accounts.slice(0, props.maxVisibleTabs - 1)]
-    visible.push(props.accounts[currentIndex])
-    return visible
-  }
-  
-  // 否则显示前 maxVisibleTabs 个
-  return props.accounts.slice(0, props.maxVisibleTabs)
-})
-
-const hiddenAccounts = computed(() => {
-  if (props.accounts.length <= props.maxVisibleTabs) {
-    return []
-  }
-  
-  // 如果当前账号在隐藏列表中，需要排除它（因为它已经在可见列表中）
-  const visibleIds = visibleAccounts.value.map(acc => acc.id)
-  return props.accounts.filter(acc => !visibleIds.includes(acc.id))
-})
-
-// 检查当前账号是否在隐藏列表中
-const isCurrentAccountInHidden = computed(() => {
-  return hiddenAccounts.value.some(acc => acc.id === props.currentAccountId)
-})
 
 // 拖拽相关状态
 const draggedAccountId = ref<string | null>(null)
@@ -367,10 +278,9 @@ function resetDragState() {
   display: flex;
   align-items: stretch;
   gap: 0;
-  overflow-x: hidden; // 改为 hidden，因为不再需要滚动
+  overflow-x: auto;
   overflow-y: hidden;
   height: 42px;
-  width: 100%;
 
   &::-webkit-scrollbar {
     height: 4px;
@@ -403,12 +313,6 @@ function resetDragState() {
   align-items: center;
   position: relative;
   user-select: none; // 防止拖拽时选中文本
-  
-  // 当账号数量较少时（没有更多账号按钮），自动扩展宽度填满空间
-  .tabs-container:not(.has-more-accounts) & {
-    flex: 1;
-    max-width: none;
-  }
 
   &:active {
     cursor: grabbing; // 按下时显示抓取中光标
@@ -594,135 +498,5 @@ function resetDragState() {
   color: #94a3b8;
   font-size: 12px;
   white-space: nowrap;
-}
-
-.more-accounts-container {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  height: 100%;
-}
-
-.more-accounts-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 32px;
-  min-width: 40px;
-  padding: 0 12px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  color: #94a3b8;
-  font-size: 14px;
-  user-select: none;
-
-  &:hover {
-    background: rgba(0, 194, 179, 0.08);
-  }
-
-  &.active {
-    background: #00c2b3;
-    border-bottom-color: #00c2b3;
-    color: #fff;
-  }
-
-  .more-icon {
-    font-size: 18px;
-    line-height: 1;
-  }
-
-  .more-count {
-    font-size: 12px;
-    font-weight: 600;
-  }
-}
-
-.more-accounts-menu {
-  min-width: 180px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.more-account-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  border-bottom: 1px solid #f0f0f0;
-
-  &:last-child {
-    border-bottom: none;
-  }
-
-  &:hover {
-    background: rgba(0, 194, 179, 0.08);
-  }
-
-  &.active {
-    background: rgba(0, 194, 179, 0.12);
-    color: #00c2b3;
-    font-weight: 600;
-  }
-
-  &.has-unread:not(.active) {
-    background: rgba(255, 152, 0, 0.1);
-  }
-
-  .account-name {
-    flex: 1;
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 6px;
-    background: #ff4757;
-    color: #fff;
-    border-radius: 9px;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-
-  &.active .account-badge {
-    background: #00c2b3;
-    color: #fff;
-  }
-
-  .account-close-btn {
-    border: none;
-    background: transparent;
-    color: #94a3b8;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-    opacity: 0;
-
-    .more-account-item:hover & {
-      opacity: 1;
-    }
-
-    &:hover {
-      background: rgba(148, 163, 184, 0.25);
-      color: #0f172a;
-    }
-  }
 }
 </style>
