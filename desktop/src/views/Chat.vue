@@ -4397,12 +4397,20 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
   if (detail.message_id) ids.push(detail.message_id)
   if (detail.messageId) ids.push(detail.messageId)
 
+  if (ids.length === 0) return
+
   // 如果当前选中的聊天是目标聊天，更新消息状态
-  if (selectedChat.value && roomId === selectedChat.value.groupId && ids.length > 0) {
+  if (selectedChat.value && roomId === selectedChat.value.groupId) {
     ids.forEach((id) => {
-      const index = messages.value.findIndex((msg) => msg.id === id)
+      // 查找匹配的消息，只更新自己发送的消息
+      const index = messages.value.findIndex((msg) => {
+        return msg.id === id && msg.isSelf
+      })
       if (index !== -1) {
-        messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
+        // 只更新已发送状态的消息（status 2），避免更新其他状态
+        if (messages.value[index].status === messageStatusToUiStatus[MessageStatus.SENT]) {
+          messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
+        }
       }
     })
   }
