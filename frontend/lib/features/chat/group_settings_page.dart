@@ -554,21 +554,24 @@ class _SwitchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
+      child: SizedBox(
+        height: 46,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                  ),
                 ),
               ),
-            ),
-            CustomSwitch(value: value, onChanged: onChanged),
-          ],
+              CustomSwitch(value: value, onChanged: onChanged),
+            ],
+          ),
         ),
       ),
     );
@@ -596,26 +599,42 @@ class _SettingTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
+        child: SizedBox(
+          height: 46,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
-              ),
-              // 如果有 trailing，先显示 trailing
-              if (trailing != null) trailing!,
-              // 如果有 value 且 showValueOnRight，使用 Expanded 占据剩余空间并右对齐
-              if (value != null && showValueOnRight)
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
+                // 如果有 trailing，先显示 trailing
+                if (trailing != null) trailing!,
+                // 如果有 value 且 showValueOnRight，使用 Expanded 占据剩余空间并右对齐
+                if (value != null && showValueOnRight)
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        value!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                // 如果有 value 且 !showValueOnRight，显示在 trailing 之后
+                if (value != null && !showValueOnRight)
+                  Flexible(
                     child: Text(
                       value!,
                       maxLines: 1,
@@ -626,27 +645,14 @@ class _SettingTile extends StatelessWidget {
                       ),
                     ),
                   ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: AppColors.textTertiary,
                 ),
-              // 如果有 value 且 !showValueOnRight，显示在 trailing 之后
-              if (value != null && !showValueOnRight)
-                Flexible(
-                  child: Text(
-                    value!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: AppColors.textTertiary,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
