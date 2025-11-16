@@ -31,18 +31,29 @@
           ></b-input>
         </div>
       </div>
-      <div class="login-container-form-item" v-if="loginType === 'password'">
-        <div class="login-container-form-item-label">密码</div>
+      <div class="login-container-form-item" v-if="loginType === 'password' || loginType === 'register'">
+        <div class="login-container-form-item-label">{{ loginType === 'register' ? '设置密码' : '密码' }}</div>
         <div class="login-container-form-item-value">
           <b-input
             v-model="loginForm.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="loginType === 'register' ? '请设置您的登录密码' : '请输入密码'"
             @keydown="handleKeydown"
           ></b-input>
         </div>
       </div>
-      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin)">
+      <div class="login-container-form-item" v-if="loginType === 'register'">
+        <div class="login-container-form-item-label">确认密码</div>
+        <div class="login-container-form-item-value">
+          <b-input
+            v-model="loginForm.confirmPassword"
+            type="password"
+            placeholder="请再次输入密码"
+            @keydown="handleKeydown"
+          ></b-input>
+        </div>
+      </div>
+      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin) || loginType === 'register'">
         <div class="login-container-form-item-label">验证码</div>
         <div
           class="login-container-form-item-value login-container-form-item-value-captcha"
@@ -70,9 +81,17 @@
         </div>
       </div>
       <div class="login-container-form-item">
-        <b-button @click="handleLogin" :disabled="isLoading">
-          {{ isLoading ? "登录中..." : "登录账号" }}
+        <b-button @click="handleSubmit" :disabled="isLoading">
+          {{ isLoading ? (loginType === 'register' ? "注册中..." : "登录中...") : (loginType === 'register' ? "注册账号" : "登录账号") }}
         </b-button>
+      </div>
+      <div class="login-container-form-switch" v-if="loginType !== 'register'">
+        <span class="login-container-form-switch-text">新用户？</span>
+        <span class="login-container-form-switch-link" @click="switchToRegister">立即注册</span>
+      </div>
+      <div class="login-container-form-switch" v-if="loginType === 'register'">
+        <span class="login-container-form-switch-text">已有账号？</span>
+        <span class="login-container-form-switch-link" @click="switchToLogin">立即登录</span>
       </div>
       <div class="login-container-form-agree">
         <b-radio v-model="isAgreed"></b-radio>
@@ -129,6 +148,7 @@ const isAgreed = ref(true);
 const loginTabs = [
   { label: "密码登录", value: "password" },
   { label: "验证码登录", value: "captcha" },
+  { label: "注册", value: "register" },
 ];
 
 // 窗口大小管理
@@ -253,6 +273,203 @@ onMounted(() => {
     }, 120);
   }
 });
+
+// 切换到注册
+function switchToRegister() {
+  loginType.value = "register";
+  loginForm.value.password = "";
+  loginForm.value.confirmPassword = "";
+  loginForm.value.captcha = DEFAULT_CAPTCHA;
+}
+
+// 切换到登录
+function switchToLogin() {
+  loginType.value = "password";
+  loginForm.value.password = "";
+  loginForm.value.confirmPassword = "";
+  loginForm.value.captcha = DEFAULT_CAPTCHA;
+}
+
+// 处理注册
+async function handleRegister() {
+  // 表单验证
+  if (!validateRegisterForm()) {
+    return;
+  }
+
+  isLoading.value = true;
+
+  try {
+    // 邮箱自动生成：手机号 + @example.com
+    const email = `${loginForm.value.phone}@example.com`;
+
+    // 调用注册接口
+    const registerResponse = await SystemApi.register({
+      username: loginForm.value.phone,
+      email: email,
+      password: loginForm.value.password,
+    });
+
+    if (registerResponse.success && registerResponse.data) {
+      // 注册成功，自动登录
+      const { setLoggingOut, setLoginTime, clearLoginTime } = await import(
+        "@/api/http"
+      );
+      setLoggingOut(false);
+      clearLoginTime();
+
+      // 使用密码登录
+      const loginResponse = await SystemApi.login({
+        mobile: loginForm.value.phone,
+        password: loginForm.value.password,
+        userDeviceId: Date.now(),
+      });
+
+      if (loginResponse.success && loginResponse.data) {
+        setLoginTime();
+
+        const userInfo = loginResponse.data.userInfo;
+        const mappedUserInfo = {
+          id: String(userInfo.id),
+          username: userInfo.username,
+          nickname: userInfo.nickname || userInfo.username,
+          avatar: userInfo.avatar || "",
+          avatarObjectKey: userInfo.avatarObjectKey ?? null,
+          avatarLocalPath: userInfo.avatarLocalPath ?? null,
+          mobile: userInfo.mobile || userInfo.username,
+          email: userInfo.email || "",
+          realName: userInfo.realName || userInfo.nickname || userInfo.username,
+          chatNumber: userInfo.chatNumber || userInfo.username,
+          address: userInfo.address || "",
+          createTime: userInfo.createTime || null,
+          lastLoginTime: userInfo.lastLoginTime || null,
+          activeStatus: userInfo.activeStatus ?? null,
+          delFlag: userInfo.delFlag ?? null,
+          level: userInfo.level ?? null,
+          userDeviceId: userInfo.userDeviceId || null,
+          userSign: userInfo.userSign || null,
+          trcSdkAppId: userInfo.trcSdkAppId ?? null,
+          powerList: userInfo.powerList ?? null,
+        };
+
+        await store.dispatch("login", {
+          token: loginResponse.data.token,
+          userInfo: mappedUserInfo,
+        });
+
+        // 将账号添加到 accounts 模块
+        try {
+          const accountInfo = {
+            id: mappedUserInfo.id,
+            token: loginResponse.data.token,
+            userInfo: mappedUserInfo,
+            unreadCount: 0,
+            createdAt: Date.now()
+          };
+
+          const existingAccount = store.getters['accounts/getAccountById'](mappedUserInfo.id);
+          if (existingAccount) {
+            await store.commit('accounts/UPDATE_ACCOUNT', {
+              accountId: mappedUserInfo.id,
+              data: accountInfo
+            });
+          } else {
+            await store.dispatch('accounts/addAccount', accountInfo);
+          }
+
+          await store.dispatch('accounts/switchAccount', mappedUserInfo.id);
+        } catch (accountError) {
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        const verifyToken = store.state.token;
+        const verifyLoggedIn = store.getters.isLoggedIn;
+
+        if (!verifyToken || verifyToken !== loginResponse.data.token) {
+          await store.dispatch("login", {
+            token: loginResponse.data.token,
+            userInfo: mappedUserInfo,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        try {
+          const { updateWindowTitle } = await import("@/utils");
+          const appName = store.state.appName;
+          await updateWindowTitle(mappedUserInfo, appName);
+        } catch (error) {
+        }
+
+        try {
+          const { UserApi } = await import("@/api");
+          await UserApi.syncAvatarCache(true);
+        } catch (avatarError) {
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const finalToken = store.state.token;
+        const finalLoggedIn = store.getters.isLoggedIn;
+
+        if (finalToken && finalLoggedIn) {
+          const successPayload = {
+            accountId: mappedUserInfo.id,
+            nickname: mappedUserInfo.nickname,
+          };
+
+          if (isModalMode.value) {
+            emit("login-success", successPayload);
+            return;
+          }
+
+          try {
+            const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+            const currentWindow = getCurrentWebviewWindow();
+            const windowLabel = currentWindow.label;
+
+            if (windowLabel.startsWith('login-')) {
+              try {
+                const { emit } = await import('@tauri-apps/api/event');
+                await emit('account-added', {
+                  accountId: mappedUserInfo.id,
+                  nickname: mappedUserInfo.nickname
+                });
+              } catch (error) {
+              }
+
+              await new Promise(resolve => setTimeout(resolve, 500));
+              await currentWindow.close();
+              return;
+            }
+          } catch (error) {
+          }
+
+          router.replace({ name: "Home" });
+        } else {
+          toast.error("登录状态异常，请重试");
+        }
+      } else {
+        toast.error(loginResponse.message || "自动登录失败，请手动登录");
+      }
+    } else {
+      toast.error(registerResponse.message || "注册失败，请检查输入信息");
+    }
+  } catch (error: any) {
+    toast.error(error.message || "网络错误，请稍后重试");
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// 处理提交（登录或注册）
+async function handleSubmit() {
+  if (loginType.value === "register") {
+    await handleRegister();
+  } else {
+    await handleLogin();
+  }
+}
 
 // 处理登录
 async function handleLogin() {
@@ -478,11 +695,12 @@ const DEFAULT_CAPTCHA = "666666";
 const loginForm = ref({
   phone: "alice",
   password: "a123456",
+  confirmPassword: "",
   captcha: DEFAULT_CAPTCHA,
 });
 
-// 登录类型：password 密码登录 | captcha 验证码登录
-const loginType = ref<"password" | "captcha">("password");
+// 登录类型：password 密码登录 | captcha 验证码登录 | register 注册
+const loginType = ref<"password" | "captcha" | "register">("password");
 // 是否需要验证码
 const requireCaptchaForLogin = ref(false);
 
@@ -504,6 +722,15 @@ const primaryFieldPlaceholder = computed(() =>
 
 const isFormValid = computed(() => {
   const account = loginForm.value.phone.trim();
+  if (loginType.value === "register") {
+    return (
+      account.length > 0 &&
+      loginForm.value.password.length >= 6 &&
+      loginForm.value.password === loginForm.value.confirmPassword &&
+      loginForm.value.captcha.length === 6 &&
+      isAgreed.value
+    );
+  }
   if (loginType.value === "password") {
     const needsCaptcha = requireCaptchaForLogin.value;
     return (
@@ -523,8 +750,14 @@ function handleLoginTypeChange(value: string | number) {
   // 切换登录类型时重置相关输入值
   if (value === "password") {
     loginForm.value.captcha = DEFAULT_CAPTCHA;
+    loginForm.value.confirmPassword = "";
+  } else if (value === "register") {
+    loginForm.value.password = "";
+    loginForm.value.confirmPassword = "";
+    loginForm.value.captcha = DEFAULT_CAPTCHA;
   } else {
     loginForm.value.password = "";
+    loginForm.value.confirmPassword = "";
     loginForm.value.captcha = DEFAULT_CAPTCHA;
   }
 }
@@ -539,7 +772,7 @@ function validateForm(): boolean {
     return false;
   }
 
-  if (!isCaptchaMode) {
+  if (!isCaptchaMode && loginType.value !== "register") {
     const phoneValue = loginForm.value.phone;
     const isAllDigits = /^\d+$/.test(phoneValue);
     if (isAllDigits && phoneValue.length !== 11) {
@@ -571,6 +804,9 @@ function validateForm(): boolean {
         return false;
       }
     }
+  } else if (loginType.value === "register") {
+    // 注册表单验证在 validateRegisterForm 中处理
+    return validateRegisterForm();
   } else {
     if (!loginForm.value.captcha.trim()) {
       toast.error("请输入验证码");
@@ -581,6 +817,60 @@ function validateForm(): boolean {
       toast.error("验证码长度为6位");
       return false;
     }
+  }
+
+  if (!isAgreed.value) {
+    toast.error("请先同意用户协议和隐私协议");
+    return false;
+  }
+
+  return true;
+}
+
+// 注册表单验证函数
+function validateRegisterForm(): boolean {
+  const account = loginForm.value.phone.trim();
+
+  if (!account) {
+    toast.error("请输入手机号");
+    return false;
+  }
+
+  const phoneValue = loginForm.value.phone;
+  const isAllDigits = /^\d+$/.test(phoneValue);
+  if (isAllDigits && phoneValue.length !== 11) {
+    toast.error("请输入正确的手机号");
+    return false;
+  }
+
+  if (!loginForm.value.password.trim()) {
+    toast.error("请输入密码");
+    return false;
+  }
+
+  if (loginForm.value.password.length < 6) {
+    toast.error("密码长度至少为6位");
+    return false;
+  }
+
+  if (!loginForm.value.confirmPassword.trim()) {
+    toast.error("请确认密码");
+    return false;
+  }
+
+  if (loginForm.value.password !== loginForm.value.confirmPassword) {
+    toast.error("两次输入的密码不一致");
+    return false;
+  }
+
+  if (!loginForm.value.captcha.trim()) {
+    toast.error("请输入验证码");
+    return false;
+  }
+
+  if (loginForm.value.captcha.length !== 6) {
+    toast.error("验证码长度为6位");
+    return false;
   }
 
   if (!isAgreed.value) {
@@ -631,11 +921,11 @@ async function handleSendCaptcha() {
   }
 }
 
-// 处理键盘事件（回车登录）
+// 处理键盘事件（回车提交）
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Enter") {
     event.preventDefault();
-    handleLogin();
+    handleSubmit();
   }
 }
 </script>
@@ -734,6 +1024,27 @@ function handleKeydown(event: KeyboardEvent) {
         color: var(--text-secondary);
         font-size: 11px;
         margin-left: 6px;
+      }
+    }
+
+    &-switch {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 14px;
+
+      &-text {
+        color: var(--text-secondary);
+      }
+
+      &-link {
+        color: var(--primary-color);
+        cursor: pointer;
+        margin-left: 4px;
+        font-weight: 500;
+
+        &:hover {
+          text-decoration: underline;
+        }
       }
     }
   }
