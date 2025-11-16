@@ -66,7 +66,7 @@ pub async fn register(
         .map(|n| n.trim().is_empty())
         .unwrap_or(true)
     {
-        db_req.nickname = Some(format!("c{}", payload.username));
+        db_req.nickname = Some(payload.username.clone());
     }
     let db_user = store.create_user(db_req).await?;
 
@@ -103,8 +103,8 @@ pub async fn login(
         iat: chrono::Utc::now().timestamp() as usize,
     };
 
-    let token = generate_token(&claims)
-        .map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+    let token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     let response = LoginResponse {
         token,
@@ -288,8 +288,8 @@ pub async fn login_with_sms(
         iat: chrono::Utc::now().timestamp() as usize,
     };
 
-    let token = generate_token(&claims)
-        .map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+    let token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     let response = LoginResponse {
         token,
@@ -372,7 +372,7 @@ fn build_auto_registration_request(username: &str) -> CreateUserRequest {
         username: username.to_string(),
         email: build_auto_registration_email(username),
         password: build_auto_registration_password(username),
-        nickname: Some(format!("c{}", username)),
+        nickname: Some(username.to_string()),
     }
 }
 
