@@ -284,6 +284,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           _SettingTile(
             label: '群聊名称',
             value: widget.chat.name,
+            showValueOnRight: true,
             onTap: () {
               debugPrint('Edit group name');
             },
@@ -307,6 +308,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           _SettingTile(
             label: '群公告',
             value: widget.chat.extra?['notice'] as String? ?? '无',
+            showValueOnRight: true,
             onTap: () {
               debugPrint('Edit group notice');
             },
@@ -318,7 +320,12 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   Widget _buildSettingsSection(BuildContext context, bool isGroupOwner) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.fromLTRB(
+        16,
+        widget.chat.type == ChatType.group ? 0 : 16, // 单聊时添加顶部间距
+        16,
+        0,
+      ),
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -401,9 +408,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: isGroupOwner
-                    ? const Color(0xFFBC2222)
-                    : const Color(0xFFBC6847),
+                backgroundColor: AppColors.settingsDeactivateBg,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -579,12 +584,14 @@ class _SettingTile extends StatelessWidget {
     required this.label,
     this.value,
     this.trailing,
+    this.showValueOnRight = false,
     this.onTap,
   });
 
   final String label;
   final String? value;
   final Widget? trailing;
+  final bool showValueOnRight;
   final VoidCallback? onTap;
 
   @override
@@ -606,7 +613,21 @@ class _SettingTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (value != null)
+              if (value != null && showValueOnRight)
+                Flexible(
+                  child: Text(
+                    value!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              if (trailing != null) trailing!,
+              if (value != null && !showValueOnRight)
                 Flexible(
                   child: Text(
                     value!,
@@ -618,7 +639,6 @@ class _SettingTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (trailing != null) trailing!,
               const SizedBox(width: 8),
               const Icon(
                 Icons.chevron_right,
