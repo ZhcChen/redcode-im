@@ -2437,7 +2437,7 @@ const saveCurrentAccountState = (accountId: string) => {
 }
 
 // 恢复指定账号的状态
-const restoreAccountState = (accountId: string) => {
+const restoreAccountState = async (accountId: string) => {
   const state = accountStates.get(accountId)
   if (state) {
     
@@ -2468,6 +2468,18 @@ const restoreAccountState = (accountId: string) => {
     editingGroupName.value = ''
     editingGroupNotice.value = ''
     editingRemark.value = ''
+    
+    // 如果账号状态中没有保存的聊天，但 store 中有 currentChatGroupId，尝试根据它选择聊天
+    const currentChatGroupId = store.state.currentChatGroupId
+    if (currentChatGroupId && chatList.value.length > 0) {
+      const chatToSelect = chatList.value.find(chat => chat.groupId === currentChatGroupId)
+      if (chatToSelect) {
+        await selectChat(chatToSelect)
+      } else {
+        // 如果找不到对应的聊天，清除 currentChatGroupId
+        store.commit('SET_CURRENT_CHAT_GROUP_ID', null)
+      }
+    }
   }
   
   // 始终重置对话框状态（不需要保留）
@@ -2490,14 +2502,14 @@ const restoreAccountState = (accountId: string) => {
 // 监听账号切换，保存/恢复状态
 watch(
   () => store.state.accounts?.currentAccountId,
-  (newAccountId: any, oldAccountId: any) => {
+  async (newAccountId: any, oldAccountId: any) => {
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
       
       // 保存旧账号的状态
       saveCurrentAccountState(oldAccountId)
       
       // 恢复新账号的状态
-      restoreAccountState(newAccountId)
+      await restoreAccountState(newAccountId)
       
     }
   }
@@ -2506,6 +2518,11 @@ watch(
 const selectChat = async (chat: ChatItem) => {
   selectedChat.value = chat
   store.commit('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
+  
+  // 更新账号页面状态中的 currentChatGroupId
+  const currentRoute = router.currentRoute.value
+  store.dispatch('accounts/saveCurrentAccountPageState', currentRoute)
+  
   webSocketManager.joinRoom(chat.groupId)
 
   // 如果是群聊，获取群组详细信息和成员列表

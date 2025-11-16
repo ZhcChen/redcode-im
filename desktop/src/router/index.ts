@@ -77,3 +77,13 @@ router.beforeEach(async (to, from, next) => {
   
   next()
 })
+
+// 路由后置守卫 - 保存账号页面状态
+router.afterEach((to, from) => {
+  // 只在已登录且不是登录页时保存状态
+  const isLoggedIn = store.getters.isLoggedIn
+  if (isLoggedIn && to.name !== 'Login' && to.path !== '/login') {
+    // 保存当前账号的页面状态
+    store.dispatch('accounts/saveCurrentAccountPageState', to)
+  }
+})

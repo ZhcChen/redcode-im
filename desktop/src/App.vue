@@ -316,28 +316,63 @@ async function ensureAvatarCacheConsistency(_reason: string, forceDownload = fal
 
 // 账号切换处理
 async function handleAccountSwitch(accountId: string) {
-
   try {
-    // 1. 切换当前账号
+    // 1. 保存当前账号的页面状态（在切换前保存）
+    const currentRoute = router.currentRoute.value;
+    store.dispatch('accounts/saveCurrentAccountPageState', currentRoute);
+
+    // 2. 切换当前账号
     await store.dispatch('accounts/switchAccount', accountId);
 
-    // 2. 切换 Vuex store 中的 token 和用户信息
+    // 3. 切换 Vuex store 中的 token 和用户信息
     const account = store.getters['accounts/getAccountById'](accountId);
     if (account) {
       store.commit('SET_TOKEN', account.token);
       store.commit('SET_USER', account.userInfo);
 
-      // 3. 同步 Rust 后端 token
+      // 4. 同步 Rust 后端 token
       const { syncRustBackendToken } = await import('./api/http');
       await syncRustBackendToken(account.token);
 
-      // 4. 检查头像缓存
+      // 5. 检查头像缓存
       await ensureAvatarCacheConsistency('switch-account');
 
-      // 5. 重新初始化 WebSocket 连接
+      // 6. 恢复目标账号的页面状态
+      const savedPageState = await store.dispatch('accounts/restoreAccountPageState', accountId);
+      
+      // 7. 恢复路由状态
+      if (savedPageState && savedPageState.route) {
+        const targetRoute = savedPageState.route;
+        // 避免重复跳转到相同路由
+        if (router.currentRoute.value.path !== targetRoute.path) {
+          router.push({
+            path: targetRoute.path,
+            name: targetRoute.name || undefined,
+            params: targetRoute.params,
+            query: targetRoute.query
+          }).catch(() => {
+            // 忽略导航重复错误
+          });
+        }
+        
+        // 恢复页面特定状态（如 currentChatGroupId）
+        if (savedPageState.pageState.currentChatGroupId) {
+          store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
+        } else {
+          store.commit('SET_CURRENT_CHAT_GROUP_ID', null);
+        }
+      } else {
+        // 如果没有保存的状态，默认跳转到聊天页面
+        if (router.currentRoute.value.path !== '/home/chat') {
+          router.push('/home/chat').catch(() => {});
+        }
+        store.commit('SET_CURRENT_CHAT_GROUP_ID', null);
+      }
+
+      // 8. 重新初始化 WebSocket 连接
       await initWebSocketConnection();
 
-      // 6. 刷新数据（联系人、聊天列表等）
+      // 9. 刷新数据（联系人、聊天列表等）
       store.dispatch('loadChatList', { forceRefresh: true });
       store.dispatch('loadContacts', { forceRefresh: true });
 
@@ -921,6 +956,28 @@ onMounted(async () => {
         store.commit('SET_USER', currentAccount.userInfo);
 
         await ensureAvatarCacheConsistency('app-initial-load');
+
+        // 恢复账号的页面状态
+        const savedPageState = await store.dispatch('accounts/restoreAccountPageState', currentAccount.id);
+        if (savedPageState && savedPageState.route) {
+          const targetRoute = savedPageState.route;
+          // 如果当前不在目标路由，跳转到保存的路由
+          if (router.currentRoute.value.path !== targetRoute.path) {
+            router.push({
+              path: targetRoute.path,
+              name: targetRoute.name || undefined,
+              params: targetRoute.params,
+              query: targetRoute.query
+            }).catch(() => {
+              // 忽略导航重复错误
+            });
+          }
+          
+          // 恢复页面特定状态（如 currentChatGroupId）
+          if (savedPageState.pageState.currentChatGroupId) {
+            store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
+          }
+        }
       }
     } catch (error) {
     }

@@ -2,6 +2,22 @@ import { invoke } from '@tauri-apps/api/core'
 import { apiConfig } from '@/api/config'
 
 /**
+ * 账号页面状态接口
+ */
+export interface AccountPageState {
+  route: {
+    path: string // 路由路径，如 '/home/chat', '/home/settings'
+    name: string | null // 路由名称
+    params: Record<string, any> // 路由参数
+    query: Record<string, any> // 查询参数
+  }
+  pageState: {
+    currentChatGroupId: string | null // 当前选中的聊天群组ID
+    [key: string]: any // 其他页面特定状态
+  }
+}
+
+/**
  * 账号信息接口
  */
 export interface AccountInfo {
@@ -18,6 +34,7 @@ export interface AccountInfo {
   unreadCount: number // 未读消息数
   friendRequestCount: number // 好友请求未读数
   createdAt: number // 添加时间戳
+  pageState?: AccountPageState // 账号页面状态（可选，用于向后兼容）
 }
 
 /**
@@ -242,6 +259,41 @@ const accountsModule = {
       state.accounts = accountIds
         .map(id => accountMap.get(id))
         .filter((acc): acc is AccountInfo => acc !== undefined)
+    },
+
+    /**
+     * 保存账号页面状态
+     */
+    SAVE_ACCOUNT_PAGE_STATE(state, payload: { accountId: string; pageState: AccountPageState }) {
+      const account = state.accounts.find(acc => acc.id === payload.accountId)
+      if (account) {
+        // 创建新对象以触发 Vue 响应式更新
+        state.accounts = state.accounts.map(acc => {
+          if (acc.id === payload.accountId) {
+            return {
+              ...acc,
+              pageState: payload.pageState
+            }
+          }
+          return acc
+        })
+      }
+    },
+
+    /**
+     * 清除账号页面状态
+     */
+    CLEAR_ACCOUNT_PAGE_STATE(state, accountId: string) {
+      const account = state.accounts.find(acc => acc.id === accountId)
+      if (account) {
+        state.accounts = state.accounts.map(acc => {
+          if (acc.id === accountId) {
+            const { pageState, ...rest } = acc
+            return rest as AccountInfo
+          }
+          return acc
+        })
+      }
     }
   },
 
@@ -422,6 +474,43 @@ const accountsModule = {
         accountId,
         count: friendRequestCount
       })
+    },
+
+    /**
+     * 保存当前账号的页面状态
+     */
+    saveCurrentAccountPageState({ commit, state, rootState }, route: any) {
+      if (!state.currentAccountId) {
+        return
+      }
+
+      const pageState: AccountPageState = {
+        route: {
+          path: route.path || '/home/chat',
+          name: route.name || null,
+          params: route.params || {},
+          query: route.query || {}
+        },
+        pageState: {
+          currentChatGroupId: rootState.currentChatGroupId || null
+        }
+      }
+
+      commit('SAVE_ACCOUNT_PAGE_STATE', {
+        accountId: state.currentAccountId,
+        pageState
+      })
+    },
+
+    /**
+     * 恢复账号的页面状态
+     */
+    async restoreAccountPageState({ state }, accountId: string): Promise<AccountPageState | null> {
+      const account = state.accounts.find(acc => acc.id === accountId)
+      if (account && account.pageState) {
+        return account.pageState
+      }
+      return null
     },
 
     /**
