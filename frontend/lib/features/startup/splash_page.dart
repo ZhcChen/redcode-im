@@ -30,7 +30,7 @@ class _SplashPageState extends State<SplashPage> {
   final VersionService _versionService = VersionService();
   final SettingsService _settingsService = SettingsService();
   bool _navigated = false;
-  String _appName = 'Redcode IM';
+  String _appName = '';
 
   @override
   void initState() {

@@ -19,7 +19,7 @@ class RedcodeApp extends StatefulWidget {
 }
 
 class _RedcodeAppState extends State<RedcodeApp> {
-  String _appName = 'Redcode IM';
+  String _appName = '';
   final SettingsService _settingsService = SettingsService();
 
   @override
