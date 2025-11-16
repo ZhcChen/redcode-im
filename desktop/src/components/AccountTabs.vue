@@ -1,6 +1,6 @@
 <template>
   <div class="account-tabs">
-    <div class="tabs-container">
+    <div class="tabs-container" :class="{ 'has-more-accounts': hiddenAccounts.length > 0 }">
       <!-- 显示的账号标签列表（最多显示 maxVisibleTabs 个） -->
       <div
         v-for="(account, index) in visibleAccounts"
@@ -367,9 +367,10 @@ function resetDragState() {
   display: flex;
   align-items: stretch;
   gap: 0;
-  overflow-x: auto;
+  overflow-x: hidden; // 改为 hidden，因为不再需要滚动
   overflow-y: hidden;
   height: 42px;
+  width: 100%;
 
   &::-webkit-scrollbar {
     height: 4px;
@@ -402,6 +403,12 @@ function resetDragState() {
   align-items: center;
   position: relative;
   user-select: none; // 防止拖拽时选中文本
+  
+  // 当账号数量较少时（没有更多账号按钮），自动扩展宽度填满空间
+  .tabs-container:not(.has-more-accounts) & {
+    flex: 1;
+    max-width: none;
+  }
 
   &:active {
     cursor: grabbing; // 按下时显示抓取中光标
