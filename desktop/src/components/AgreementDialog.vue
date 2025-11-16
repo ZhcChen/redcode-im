@@ -4,13 +4,14 @@
     :title="title"
     :closeOnOverlay="true"
     :showFooter="false"
+    @close="handleClose"
   >
     <div class="agreement-dialog-content" v-html="htmlContent"></div>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed } from 'vue'
 import Dialog from './Dialog.vue'
 
 interface Props {
@@ -26,18 +27,20 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const isVisible = ref(props.visible)
-
-watch(() => props.visible, (newValue) => {
-  isVisible.value = newValue
-})
-
-watch(isVisible, (newValue) => {
-  emit('update:visible', newValue)
-  if (!newValue) {
-    emit('close')
+// 内部可见性状态
+const isVisible = computed({
+  get: () => props.visible,
+  set: (value: boolean) => {
+    emit('update:visible', value)
+    if (!value) {
+      emit('close')
+    }
   }
 })
+
+function handleClose() {
+  isVisible.value = false
+}
 </script>
 
 <style scoped lang="scss">
