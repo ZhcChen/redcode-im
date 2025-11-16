@@ -1663,6 +1663,68 @@ const loadMessages = async (groupId: string) => {
         return restoredMessage
       })
       usedCache = true
+      
+      // 从缓存恢复消息后，也需要同步头像（避免头像显示为空）
+      // 异步执行，不阻塞消息显示
+      void (async () => {
+        const uniqueSenderIds = new Set<string>()
+        messages.value.forEach(msg => {
+          if (!msg.isSelf && msg.senderId && msg.senderAvatarObjectKey) {
+            uniqueSenderIds.add(msg.senderId)
+          }
+        })
+
+        if (uniqueSenderIds.size > 0) {
+          const isPrivateChat = selectedChat.value?.groupType === 0
+
+          await Promise.all(
+            Array.from(uniqueSenderIds).map(async senderId => {
+              const senderMessage = messages.value.find(msg => msg.senderId === senderId && !msg.isSelf && msg.senderAvatarObjectKey)
+              if (!senderMessage?.senderAvatarObjectKey) {
+                return
+              }
+
+              let avatarObjectKey: string | undefined = senderMessage.senderAvatarObjectKey
+
+              // 如果消息中没有 avatarObjectKey，尝试从其他地方获取
+              if (!avatarObjectKey) {
+                if (isPrivateChat) {
+                  avatarObjectKey = selectedChat.value?.extra?.friend_avatar_object_key ||
+                                   selectedChat.value?.extra?.friendAvatarObjectKey ||
+                                   selectedChat.value?.extra?.avatar_object_key ||
+                                   selectedChat.value?.extra?.avatarObjectKey
+                } else {
+                  const member = groupMembers.value?.find(m => m.userId === senderId)
+                  avatarObjectKey = member?.avatarObjectKey
+                }
+              }
+
+              if (!avatarObjectKey) {
+                return
+              }
+
+              try {
+                const localPath = await UserApi.syncUserAvatarCache(senderId, avatarObjectKey, false)
+
+                if (localPath) {
+                  // 注册 blob URL，避免被过早释放
+                  registerBlobUrl(localPath)
+
+                  // 更新消息列表中该发送者的所有消息
+                  messages.value.forEach(msg => {
+                    if (msg.senderId === senderId && !msg.isSelf) {
+                      msg.senderAvatarLocalPath = localPath
+                      msg.senderAvatarObjectKey = avatarObjectKey
+                    }
+                  })
+                }
+              } catch (error) {
+                // 静默失败，使用默认头像
+              }
+            })
+          )
+        }
+      })()
     }
 
     if (!usedCache) {
@@ -1748,14 +1810,18 @@ const loadMessages = async (groupId: string) => {
             try {
               const localPath = await UserApi.syncUserAvatarCache(senderId, avatarObjectKey, false)
 
-              // 更新消息列表中该发送者的所有消息
-              sortedMessages.forEach(msg => {
-                if (msg.senderId === senderId && !msg.isSelf) {
-                  msg.senderAvatarLocalPath = localPath
-                  msg.senderAvatarObjectKey = avatarObjectKey
-                }
-              })
+              if (localPath) {
+                // 注册 blob URL，避免被过早释放
+                registerBlobUrl(localPath)
 
+                // 更新消息列表中该发送者的所有消息
+                sortedMessages.forEach(msg => {
+                  if (msg.senderId === senderId && !msg.isSelf) {
+                    msg.senderAvatarLocalPath = localPath
+                    msg.senderAvatarObjectKey = avatarObjectKey
+                  }
+                })
+              }
             } catch (error) {
             }
           })
@@ -4320,6 +4386,32 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           setTimeout(() => {
             recentSentMessages.value.delete(uiMessage.id)
           }, 10000)
+        } else {
+          // 如果不是自己发送的消息，需要同步发送者头像
+          if (uiMessage.senderId && uiMessage.senderAvatarObjectKey) {
+            // 异步同步头像，不阻塞消息显示
+            void (async () => {
+              try {
+                const localPath = await UserApi.syncUserAvatarCache(
+                  uiMessage.senderId,
+                  uiMessage.senderAvatarObjectKey!,
+                  false
+                )
+                if (localPath) {
+                  // 注册 blob URL，避免被过早释放
+                  registerBlobUrl(localPath)
+                  
+                  // 更新消息的头像
+                  const messageIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
+                  if (messageIndex !== -1) {
+                    messages.value[messageIndex].senderAvatarLocalPath = localPath
+                  }
+                }
+              } catch (error) {
+                // 静默失败，使用默认头像
+              }
+            })()
+          }
         }
 
         // 索引新消息
