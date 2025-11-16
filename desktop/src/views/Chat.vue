@@ -2447,20 +2447,42 @@ const selectChat = async (chat: ChatItem) => {
     await loadGroupDetailInfo(chat.groupId)
   }
 
-  // 先立即更新本地UI，避免等待API响应
-  if (chat.unreadCount > 0) {
-    // 立即更新store中的聊天数据
-    const updatedChat = { ...chat, unreadCount: 0 }
-    store.dispatch('updateChatItem', updatedChat)
+  await loadMessages(chat.groupId)
 
-    // 异步调用API更新服务器状态
-    markChatAsRead(chat).catch(error => {
-      // 如果API调用失败，回滚本地状态
-      store.dispatch('updateChatItem', chat)
-    })
+  // 加载消息后，标记消息已读（参考移动端实现）
+  // 找到最后一条接收到的消息（非自己发送的）
+  let latestIncomingMessage: Message | null = null
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const msg = messages.value[i]
+    if (!msg.isSelf) {
+      latestIncomingMessage = msg
+      break
+    }
   }
 
-  await loadMessages(chat.groupId)
+  // 如果有接收到的消息，标记为已读
+  if (latestIncomingMessage && latestIncomingMessage.status !== messageStatusToUiStatus[MessageStatus.READ]) {
+    try {
+      await MessageApi.markMessagesAsRead({
+        groupId: chat.groupId,
+        messageIds: [latestIncomingMessage.id]
+      })
+      
+      // 更新本地未读数
+      if (chat.unreadCount > 0) {
+        const updatedChat = { ...chat, unreadCount: 0 }
+        store.dispatch('updateChatItem', updatedChat)
+        selectedChat.value.unreadCount = 0
+      }
+    } catch (error: any) {
+      console.error('标记消息已读失败:', error)
+    }
+  } else if (chat.unreadCount > 0) {
+    // 如果没有接收到的消息但未读数大于0，直接更新本地状态
+    const updatedChat = { ...chat, unreadCount: 0 }
+    store.dispatch('updateChatItem', updatedChat)
+    selectedChat.value.unreadCount = 0
+  }
 
   // 选择聊天后滚动到底部
   scrollToBottom()
@@ -4382,7 +4404,15 @@ const handleWebSocketMessageUpdate = (event: CustomEvent) => {
 }
 
 const handleWebSocketMessageRead = (event: CustomEvent) => {
-  const detail = event.detail as { room_id?: string; roomId?: string; message_ids?: string[]; message_id?: string; messageId?: string } | undefined
+  const detail = event.detail as { 
+    room_id?: string; 
+    roomId?: string; 
+    message_ids?: string[]; 
+    message_id?: string; 
+    messageId?: string;
+    reader_id?: string;
+    readerId?: string;
+  } | undefined
   if (!detail) return
 
   const roomId = detail.room_id || detail.roomId
@@ -4390,44 +4420,68 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
     return
   }
 
-  const ids: string[] = []
-  if (Array.isArray(detail.message_ids)) {
-    ids.push(...detail.message_ids)
+  // 获取 reader_id，如果是自己触发的已读，无需处理
+  const readerId = detail.reader_id || detail.readerId
+  const currentUser = store.getters.currentUser
+  if (readerId && currentUser?.id && readerId === currentUser.id) {
+    // 自己触发的已读无需再次处理
+    return
   }
-  if (detail.message_id) ids.push(detail.message_id)
-  if (detail.messageId) ids.push(detail.messageId)
 
-  if (ids.length === 0) return
+  // 获取目标消息ID（取最后一个，表示已读到该消息）
+  let targetMessageId: string | null = null
+  if (Array.isArray(detail.message_ids) && detail.message_ids.length > 0) {
+    targetMessageId = detail.message_ids[detail.message_ids.length - 1]
+  } else if (detail.message_id) {
+    targetMessageId = detail.message_id
+  } else if (detail.messageId) {
+    targetMessageId = detail.messageId
+  }
+
+  if (!targetMessageId) return
 
   // 如果当前选中的聊天是目标聊天，更新消息状态
   if (selectedChat.value && roomId === selectedChat.value.groupId) {
-    ids.forEach((id) => {
-      // 查找匹配的消息，只更新自己发送的消息
-      const index = messages.value.findIndex((msg) => {
-        return msg.id === id && msg.isSelf
+    // 找到目标消息的索引
+    const targetIndex = messages.value.findLastIndex((msg) => msg.id === targetMessageId)
+    if (targetIndex === -1) {
+      // 调试：如果没找到消息，输出调试信息
+      const allMessageIds = messages.value.filter(msg => msg.isSelf).map(msg => msg.id)
+      console.warn('[MessageRead] 未找到匹配的消息:', {
+        targetId: targetMessageId,
+        roomId,
+        selectedChatGroupId: selectedChat.value?.groupId,
+        availableMessageIds: allMessageIds,
+        totalMessages: messages.value.length,
+        selfMessages: messages.value.filter(msg => msg.isSelf).length
       })
-      if (index !== -1) {
-        // 只更新已发送状态的消息（status 2），避免更新其他状态
-        if (messages.value[index].status === messageStatusToUiStatus[MessageStatus.SENT]) {
-          messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
-        }
-      } else {
-        // 调试：如果没找到消息，输出调试信息
-        const allMessageIds = messages.value.filter(msg => msg.isSelf).map(msg => msg.id)
-        console.warn('[MessageRead] 未找到匹配的消息:', {
-          targetId: id,
-          roomId,
-          selectedChatGroupId: selectedChat.value?.groupId,
-          availableMessageIds: allMessageIds,
-          totalMessages: messages.value.length,
-          selfMessages: messages.value.filter(msg => msg.isSelf).length
-        })
+      return
+    }
+
+    // 更新从第一条消息到目标消息之间的所有自己发送的消息为已读状态
+    // 参考移动端实现：for (var i = 0; i <= targetIndex && i < messages.length; i++)
+    let updated = false
+    for (let i = 0; i <= targetIndex && i < messages.value.length; i++) {
+      const msg = messages.value[i]
+      if (!msg.isSelf) continue
+      if (msg.status === messageStatusToUiStatus[MessageStatus.READ]) continue
+
+      // 只更新已发送状态的消息（status 2），避免更新其他状态
+      if (msg.status === messageStatusToUiStatus[MessageStatus.SENT]) {
+        messages.value[i].status = messageStatusToUiStatus[MessageStatus.READ]
+        updated = true
       }
-    })
+    }
+
+    if (updated) {
+      // 保存到缓存
+      persistMessagesCache(roomId, messages.value).catch(() => {})
+    }
   } else {
     // 调试：如果聊天未选中，输出调试信息
     console.log('[MessageRead] 聊天未选中或 roomId 不匹配:', {
       roomId,
+      targetMessageId,
       selectedChatGroupId: selectedChat.value?.groupId,
       hasSelectedChat: !!selectedChat.value
     })
