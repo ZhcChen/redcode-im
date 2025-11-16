@@ -613,20 +613,25 @@ class _SettingTile extends StatelessWidget {
                   ),
                 ),
               ),
+              // 如果有 trailing，先显示 trailing
+              if (trailing != null) trailing!,
+              // 如果有 value 且 showValueOnRight，使用 Expanded 占据剩余空间并右对齐
               if (value != null && showValueOnRight)
-                Flexible(
-                  child: Text(
-                    value!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      value!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
-              if (trailing != null) trailing!,
+              // 如果有 value 且 !showValueOnRight，显示在 trailing 之后
               if (value != null && !showValueOnRight)
                 Flexible(
                   child: Text(
