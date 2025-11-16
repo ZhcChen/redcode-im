@@ -20,8 +20,8 @@
         @mousedown="handleMouseDown($event, account.id, index)"
       >
         <div class="tab-content">
-          <!-- 昵称 -->
-          <span class="nickname">{{ account.userInfo.nickname || '未命名' }}</span>
+          <!-- 用户名 -->
+          <span class="nickname">{{ account.userInfo.username || '未命名' }}</span>
 
           <!-- 关闭按钮 -->
           <button
