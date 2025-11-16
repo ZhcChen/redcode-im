@@ -10,6 +10,7 @@ import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
 import LoadingMask from './components/LoadingMask.vue'
 import AccountTabs from './components/AccountTabs.vue'
+import AccountHome from './components/AccountHome.vue'
 import type { AccountInfo } from './store/modules/accounts'
 
 const store = useStore();
@@ -314,14 +315,34 @@ async function ensureAvatarCacheConsistency(_reason: string, forceDownload = fal
   }
 }
 
-// 账号切换处理
+// 获取账号路由状态
+function getAccountRouteState(accountId: string) {
+  return store.dispatch('accounts/getAccountRouteState', accountId) || {
+    path: '/home/chat',
+    name: 'Chat',
+    params: {},
+    query: {}
+  }
+}
+
+// 账号切换处理（多实例页面架构：只切换显示/隐藏，不销毁组件）
 async function handleAccountSwitch(accountId: string) {
   try {
-    // 1. 保存当前账号的页面状态（在切换前保存）
+    // 1. 保存当前账号的路由状态（在切换前保存）
     const currentRoute = router.currentRoute.value;
-    store.dispatch('accounts/saveCurrentAccountPageState', currentRoute);
+    if (currentAccountId.value) {
+      store.dispatch('accounts/saveAccountRouteState', {
+        accountId: currentAccountId.value,
+        routeState: {
+          path: currentRoute.path,
+          name: currentRoute.name as string | null,
+          params: currentRoute.params || {},
+          query: currentRoute.query || {}
+        }
+      });
+    }
 
-    // 2. 切换当前账号
+    // 2. 切换当前账号（这会触发显示/隐藏对应的容器）
     await store.dispatch('accounts/switchAccount', accountId);
 
     // 3. 切换 Vuex store 中的 token 和用户信息
@@ -337,45 +358,24 @@ async function handleAccountSwitch(accountId: string) {
       // 5. 检查头像缓存
       await ensureAvatarCacheConsistency('switch-account');
 
-      // 6. 恢复目标账号的页面状态
+      // 注意：在多实例页面架构下，不需要恢复路由状态
+      // 因为每个账号的页面容器已经根据 routeState 渲染了正确的页面
+      // 组件实例一直存在，只是之前被隐藏了，现在显示出来
+
+      // 6. 恢复页面特定状态（如 currentChatGroupId）
       const savedPageState = await store.dispatch('accounts/restoreAccountPageState', accountId);
-      
-      // 7. 恢复路由状态
-      if (savedPageState && savedPageState.route) {
-        const targetRoute = savedPageState.route;
-        // 避免重复跳转到相同路由
-        if (router.currentRoute.value.path !== targetRoute.path) {
-          router.push({
-            path: targetRoute.path,
-            name: targetRoute.name || undefined,
-            params: targetRoute.params,
-            query: targetRoute.query
-          }).catch(() => {
-            // 忽略导航重复错误
-          });
-        }
-        
-        // 恢复页面特定状态（如 currentChatGroupId）
-        if (savedPageState.pageState.currentChatGroupId) {
-          store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
-        } else {
-          store.commit('SET_CURRENT_CHAT_GROUP_ID', null);
-        }
+      if (savedPageState?.pageState?.currentChatGroupId) {
+        store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
       } else {
-        // 如果没有保存的状态，默认跳转到聊天页面
-        if (router.currentRoute.value.path !== '/home/chat') {
-          router.push('/home/chat').catch(() => {});
-        }
         store.commit('SET_CURRENT_CHAT_GROUP_ID', null);
       }
 
-      // 8. 重新初始化 WebSocket 连接
+      // 7. 重新初始化 WebSocket 连接
       await initWebSocketConnection();
 
-      // 9. 刷新数据（联系人、聊天列表等）
+      // 8. 刷新数据（联系人、聊天列表等）
       store.dispatch('loadChatList', { forceRefresh: true });
       store.dispatch('loadContacts', { forceRefresh: true });
-
     }
   } catch (error) {
     toast.error('账号切换失败');
@@ -957,26 +957,11 @@ onMounted(async () => {
 
         await ensureAvatarCacheConsistency('app-initial-load');
 
-        // 恢复账号的页面状态
+        // 在多实例页面架构下，账号的路由状态已经通过 AccountHome 组件管理
+        // 这里只需要恢复页面特定状态（如 currentChatGroupId）
         const savedPageState = await store.dispatch('accounts/restoreAccountPageState', currentAccount.id);
-        if (savedPageState && savedPageState.route) {
-          const targetRoute = savedPageState.route;
-          // 如果当前不在目标路由，跳转到保存的路由
-          if (router.currentRoute.value.path !== targetRoute.path) {
-            router.push({
-              path: targetRoute.path,
-              name: targetRoute.name || undefined,
-              params: targetRoute.params,
-              query: targetRoute.query
-            }).catch(() => {
-              // 忽略导航重复错误
-            });
-          }
-          
-          // 恢复页面特定状态（如 currentChatGroupId）
-          if (savedPageState.pageState.currentChatGroupId) {
-            store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
-          }
+        if (savedPageState?.pageState?.currentChatGroupId) {
+          store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
         }
       }
     } catch (error) {
@@ -1130,12 +1115,32 @@ onUnmounted(() => {
     </div>
 
     <div :class="['app-main', { 'app-main--with-tabs': showAccountTabs }]">
-      <!-- keep-alive 仅缓存视图，保持单一组件实例 -->
-      <router-view v-slot="{ Component }">
-        <keep-alive :include="keepAliveViews">
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
+      <!-- 多账号独立页面架构：为每个账号创建独立的页面容器 -->
+      <template v-if="isLoggedIn && accounts.length > 0">
+        <!-- 为每个账号创建独立的页面容器，使用 v-show 控制显示/隐藏 -->
+        <template v-for="account in accounts" :key="account.id">
+          <div
+            v-show="currentAccountId === account.id"
+            class="account-container"
+            :data-account-id="account.id"
+            :style="{ display: currentAccountId === account.id ? 'block' : 'none' }"
+          >
+            <AccountHome
+              :account-id="account.id"
+              :route-state="getAccountRouteState(account.id)"
+            />
+          </div>
+        </template>
+      </template>
+      
+      <!-- 单账号或未登录时使用原有的路由视图 -->
+      <template v-else>
+        <router-view v-slot="{ Component }">
+          <keep-alive :include="keepAliveViews">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
+      </template>
     </div>
 
     <!-- 全局加载蒙版 -->
@@ -1250,6 +1255,25 @@ body {
 /* 移除固定高度，让 flexbox 自动处理高度分配 */
 .app-main--with-tabs {
   /* height 属性已移除，使用 flex: 1 自动计算高度 */
+}
+
+/* 账号容器样式 - 确保每个账号的页面容器完全独立 */
+.account-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 确保隐藏的账号容器不占用布局空间，但保持DOM存在 */
+.account-container[style*="display: none"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .update-dialog {

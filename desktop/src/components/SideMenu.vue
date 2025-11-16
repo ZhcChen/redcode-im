@@ -111,6 +111,15 @@ const router = useRouter()
 const store = useStore()
 const showAccountLoginModal = ref(false)
 
+// Props: 接收账号ID（可选，用于多实例页面架构）
+interface Props {
+  accountId?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  accountId: undefined
+})
+
 // 用于管理退出登录的超时检查
 let logoutTimeoutId: number | null = null
 let isLoggingOut = false // 添加标志位，标记是否正在退出登录
@@ -148,23 +157,71 @@ const menuItems = ref<MenuItem[]>([
 
 // 判断菜单项是否激活的逻辑
 const isMenuItemActive = (itemPath: string) => {
+  // 如果有多账号架构，根据账号的路由状态判断
+  if (props.accountId) {
+    const account = store.getters['accounts/getAccountById'](props.accountId)
+    const accountRouteState = account?.routeState
+    return accountRouteState?.path === itemPath
+  }
+  // 否则使用全局路由
   return route.path === itemPath
 }
 
 // 处理菜单项点击
 const handleMenuClick = (item: MenuItem) => {
-  router.push(item.path)
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: item.path,
+        name: item.name,
+        params: {},
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    router.push(item.path)
+  }
 }
-
 
 // 处理头像点击
 const handleAvatarClick = () => {
-  router.push('/home/settings')
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/settings',
+        name: 'Settings',
+        params: {},
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    router.push('/home/settings')
+  }
 }
 
 // 处理设置点击
 const handleSettings = () => {
-  router.push('/home/settings')
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/settings',
+        name: 'Settings',
+        params: {},
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    router.push('/home/settings')
+  }
 }
 
 // 处理添加账号点击
