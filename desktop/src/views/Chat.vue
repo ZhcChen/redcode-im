@@ -4386,7 +4386,7 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
   if (!detail) return
 
   const roomId = detail.room_id || detail.roomId
-  if (!roomId || !selectedChat.value || roomId !== selectedChat.value.groupId) {
+  if (!roomId) {
     return
   }
 
@@ -4397,17 +4397,23 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
   if (detail.message_id) ids.push(detail.message_id)
   if (detail.messageId) ids.push(detail.messageId)
 
-  if (!ids.length) return
+  // 如果当前选中的聊天是目标聊天，更新消息状态
+  if (selectedChat.value && roomId === selectedChat.value.groupId && ids.length > 0) {
+    ids.forEach((id) => {
+      const index = messages.value.findIndex((msg) => msg.id === id)
+      if (index !== -1) {
+        messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
+      }
+    })
+  }
 
-  ids.forEach((id) => {
-    const index = messages.value.findIndex((msg) => msg.id === id)
-    if (index !== -1) {
-      messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
-    }
-  })
-
+  // 无论是否选中，都要更新 store 中的未读数
   store.dispatch('setChatUnreadCount', { groupId: roomId, unreadCount: 0 })
-  if (selectedChat.value) {
+  const chatItem = store.getters.getChatByGroupId(roomId)
+  if (chatItem) {
+    chatItem.unreadCount = 0
+  }
+  if (selectedChat.value && roomId === selectedChat.value.groupId) {
     selectedChat.value.unreadCount = 0
   }
 }
