@@ -275,6 +275,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   Widget _buildGroupInfoSection(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
