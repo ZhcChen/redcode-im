@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/tip_dialog.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
@@ -567,11 +567,7 @@ class _SwitchTile extends StatelessWidget {
                 ),
               ),
             ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: AppColors.primary,
-            ),
+            CustomSwitch(value: value, onChanged: onChanged),
           ],
         ),
       ),
