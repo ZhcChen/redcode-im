@@ -277,7 +277,7 @@ function resetDragState() {
 .tabs-container {
   display: flex;
   align-items: stretch;
-  gap: 6px;
+  gap: 0;
   overflow-x: auto;
   overflow-y: hidden;
   height: 42px;
