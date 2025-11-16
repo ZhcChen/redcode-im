@@ -1163,6 +1163,10 @@ onUnmounted(() => {
     background-color: #f5f5f5;
   }
   
+  &.selected {
+    background-color: #F5F5F5;
+  }
+  
   &:last-child {
     border-bottom: none;
   }
