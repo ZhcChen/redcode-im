@@ -1040,10 +1040,13 @@ onUnmounted(() => {
 }
 
 .contact-header {
-  padding: 20px 20px 20px 0; // 上 右 下 左，左侧设为0
+  padding: 16px 20px 16px 0; // 上 右 下 左，左侧设为0
   border-bottom: 1px solid #f0f0f0;
   display: flex;
   align-items: center;
+  height: 76px;
+  box-sizing: border-box;
+  flex-shrink: 0;
   
   .header-left {
     min-width: 300px;
