@@ -110,7 +110,6 @@
       :title="agreementDialogTitle"
       :htmlContent="agreementDialogContent"
     />
-    </div>
   </div>
 </template>
 
