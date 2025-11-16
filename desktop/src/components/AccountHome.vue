@@ -17,10 +17,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, onMounted, onActivated, onDeactivated, onUnmounted, ref } from 'vue'
+import { computed, watch, onMounted, onActivated, ref } from 'vue'
 import { useStore } from 'vuex'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { LogicalSize, LogicalPosition } from '@tauri-apps/api/window'
+import { LogicalSize } from '@tauri-apps/api/window'
 import SideMenu from './SideMenu.vue'
 import Chat from '../views/Chat.vue'
 import Contact from '../views/Contact.vue'
@@ -43,81 +43,26 @@ const store = useStore()
 let windowStateInitialized = false
 const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 800 }
 
-// 窗口大小持久化键名
-const WINDOW_SIZE_STORAGE_KEY = 'app_window_size'
-const WINDOW_POSITION_STORAGE_KEY = 'app_window_position'
-
-// 设置主窗口尺寸
+// 设置主窗口尺寸（固定为 1200x800）
 async function setMainWindowSize() {
   try {
     const currentWindow = getCurrentWebviewWindow()
-    
-    // 尝试从持久化存储中恢复窗口大小
-    let targetSize = DEFAULT_MAIN_WINDOW_SIZE
-    try {
-      const savedSize = localStorage.getItem(WINDOW_SIZE_STORAGE_KEY)
-      if (savedSize) {
-        const parsed = JSON.parse(savedSize)
-        // 验证保存的大小是否合理
-        if (parsed.width >= 400 && parsed.width <= 3840 && 
-            parsed.height >= 300 && parsed.height <= 2160) {
-          targetSize = parsed
-        }
-      }
-    } catch (error) {
-      // 如果读取失败，使用默认值
-    }
-    
-    // 获取当前窗口状态
     const isCurrentlyMaximized = await currentWindow.isMaximized()
     
-    // 如果窗口不是最大化状态，才设置大小
+    // 如果窗口不是最大化状态，设置为固定大小
     if (!isCurrentlyMaximized) {
-      await currentWindow.setSize(new LogicalSize(targetSize.width, targetSize.height))
-      
-      // 尝试恢复窗口位置
-      try {
-        const savedPosition = localStorage.getItem(WINDOW_POSITION_STORAGE_KEY)
-        if (savedPosition) {
-          const position = JSON.parse(savedPosition)
-          await currentWindow.setPosition(new LogicalPosition(position.x, position.y))
-        } else {
-          // 如果没有保存的位置，居中显示
-          await currentWindow.center()
-        }
-      } catch (error) {
-        // 如果设置位置失败，居中显示
-        await currentWindow.center()
-      }
+      await currentWindow.setSize(new LogicalSize(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height))
+      await currentWindow.center()
+    }
+    
+    // 设置窗口可调整大小（如果之前被禁用）
+    try {
+      await currentWindow.setResizable(true)
+    } catch (error) {
+      // 静默失败
     }
   } catch (error) {
     // 静默失败，不影响应用运行
-  }
-}
-
-// 保存窗口大小和位置
-async function saveWindowState() {
-  try {
-    const currentWindow = getCurrentWebviewWindow()
-    const isMaximized = await currentWindow.isMaximized()
-    
-    // 只有在非最大化状态下才保存大小和位置
-    if (!isMaximized) {
-      const size = await currentWindow.innerSize()
-      const position = await currentWindow.outerPosition()
-      
-      localStorage.setItem(WINDOW_SIZE_STORAGE_KEY, JSON.stringify({
-        width: size.width,
-        height: size.height
-      }))
-      
-      localStorage.setItem(WINDOW_POSITION_STORAGE_KEY, JSON.stringify({
-        x: position.x,
-        y: position.y
-      }))
-    }
-  } catch (error) {
-    // 静默失败
   }
 }
 
@@ -129,22 +74,8 @@ async function prepareWindowOnLogin() {
   }
   
   try {
-    const currentWindow = getCurrentWebviewWindow()
-    const isCurrentlyMaximized = await currentWindow.isMaximized()
-    
-    // 如果不是最大化，设置为默认主窗口尺寸（或从持久化存储恢复）
-    if (!isCurrentlyMaximized) {
-      await setMainWindowSize()
-    }
-    
+    await setMainWindowSize()
     windowStateInitialized = true
-    
-    // 设置窗口可调整大小（如果之前被禁用）
-    try {
-      await currentWindow.setResizable(true)
-    } catch (error) {
-      // 静默失败
-    }
   } catch (error) {
     windowStateInitialized = true
   }
@@ -196,12 +127,6 @@ onActivated(() => {
   }, 100)
 })
 
-// 组件失活时（用于 keep-alive）
-onDeactivated(() => {
-  // 保存窗口状态
-  saveWindowState()
-})
-
 onMounted(() => {
   // 初始化时，优先使用 store 中保存的路由状态
   const account = store.getters['accounts/getAccountById'](props.accountId)
@@ -227,30 +152,6 @@ onMounted(() => {
   setTimeout(() => {
     prepareWindowOnLogin()
   }, 100)
-  
-  // 监听窗口大小变化，定期保存窗口状态
-  let resizeTimer: number | null = null
-  const handleResize = () => {
-    // 防抖：只在用户停止调整窗口大小后保存
-    if (resizeTimer) {
-      clearTimeout(resizeTimer)
-    }
-    resizeTimer = window.setTimeout(() => {
-      saveWindowState()
-    }, 500) // 500ms 后保存
-  }
-  
-  window.addEventListener('resize', handleResize)
-  
-  // 组件卸载时清理
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize)
-    if (resizeTimer) {
-      clearTimeout(resizeTimer)
-    }
-    // 保存窗口状态
-    saveWindowState()
-  })
 })
 </script>
 
