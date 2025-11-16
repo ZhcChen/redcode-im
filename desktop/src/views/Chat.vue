@@ -4411,7 +4411,25 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
         if (messages.value[index].status === messageStatusToUiStatus[MessageStatus.SENT]) {
           messages.value[index].status = messageStatusToUiStatus[MessageStatus.READ]
         }
+      } else {
+        // 调试：如果没找到消息，输出调试信息
+        const allMessageIds = messages.value.filter(msg => msg.isSelf).map(msg => msg.id)
+        console.warn('[MessageRead] 未找到匹配的消息:', {
+          targetId: id,
+          roomId,
+          selectedChatGroupId: selectedChat.value?.groupId,
+          availableMessageIds: allMessageIds,
+          totalMessages: messages.value.length,
+          selfMessages: messages.value.filter(msg => msg.isSelf).length
+        })
       }
+    })
+  } else {
+    // 调试：如果聊天未选中，输出调试信息
+    console.log('[MessageRead] 聊天未选中或 roomId 不匹配:', {
+      roomId,
+      selectedChatGroupId: selectedChat.value?.groupId,
+      hasSelectedChat: !!selectedChat.value
     })
   }
 
