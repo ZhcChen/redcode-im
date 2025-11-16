@@ -317,7 +317,9 @@ async function ensureAvatarCacheConsistency(_reason: string, forceDownload = fal
 
 // 获取账号路由状态
 function getAccountRouteState(accountId: string) {
-  return store.dispatch('accounts/getAccountRouteState', accountId) || {
+  const routeState = store.dispatch('accounts/getAccountRouteState', accountId)
+  // 如果没有保存的路由状态，返回默认值
+  return routeState || {
     path: '/home/chat',
     name: 'Chat',
     params: {},
@@ -329,16 +331,21 @@ function getAccountRouteState(accountId: string) {
 async function handleAccountSwitch(accountId: string) {
   try {
     // 1. 保存当前账号的路由状态（在切换前保存）
-    const currentRoute = router.currentRoute.value;
+    // 注意：在多实例架构下，应该从账号的 routeState 中获取，而不是全局路由
+    // 因为每个账号都有自己独立的路由状态
     if (currentAccountId.value) {
+      const currentAccount = store.getters['accounts/getAccountById'](currentAccountId.value);
+      // 如果账号已经有 routeState，使用它；否则使用默认值
+      const currentRouteState = currentAccount?.routeState || {
+        path: '/home/chat',
+        name: 'Chat',
+        params: {},
+        query: {}
+      };
+      // 确保保存当前账号的路由状态（即使已经存在，也要确保是最新的）
       store.dispatch('accounts/saveAccountRouteState', {
         accountId: currentAccountId.value,
-        routeState: {
-          path: currentRoute.path,
-          name: currentRoute.name as string | null,
-          params: currentRoute.params || {},
-          query: currentRoute.query || {}
-        }
+        routeState: currentRouteState
       });
     }
 

@@ -574,13 +574,8 @@ const accountsModule = {
       if (account && account.routeState) {
         return account.routeState
       }
-      // 返回默认路由状态
-      return {
-        path: '/home/chat',
-        name: 'Chat',
-        params: {},
-        query: {}
-      }
+      // 如果没有保存的路由状态，返回 null，让调用方决定使用默认值
+      return null
     },
 
     /**

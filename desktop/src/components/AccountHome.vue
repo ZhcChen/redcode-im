@@ -54,11 +54,14 @@ const localRouteState = ref<AccountRouteState>(props.routeState || {
 watch(
   () => {
     const account = store.getters['accounts/getAccountById'](props.accountId)
-    return account?.routeState
+    return account?.routeState ? { ...account.routeState } : null
   },
-  (newRouteState) => {
+  (newRouteState, oldRouteState) => {
     if (newRouteState) {
-      localRouteState.value = newRouteState
+      // 只有当路由状态真正改变时才更新
+      if (!oldRouteState || newRouteState.path !== oldRouteState?.path) {
+        localRouteState.value = { ...newRouteState }
+      }
     }
   },
   { immediate: true, deep: true }
@@ -75,15 +78,23 @@ const currentPage = computed(() => {
 })
 
 onMounted(() => {
-  // 初始化时，如果 store 中有路由状态，使用 store 中的状态
+  // 初始化时，优先使用 store 中保存的路由状态
   const account = store.getters['accounts/getAccountById'](props.accountId)
   if (account?.routeState) {
+    // 如果 store 中有路由状态，使用它
     localRouteState.value = account.routeState
-  } else if (props.routeState) {
-    // 否则使用 props 中的状态，并保存到 store
+  } else {
+    // 如果 store 中没有路由状态，使用默认值并保存到 store
+    const defaultRouteState: AccountRouteState = {
+      path: '/home/chat',
+      name: 'Chat',
+      params: {},
+      query: {}
+    }
+    localRouteState.value = defaultRouteState
     store.dispatch('accounts/saveAccountRouteState', {
       accountId: props.accountId,
-      routeState: props.routeState
+      routeState: defaultRouteState
     })
   }
 })
