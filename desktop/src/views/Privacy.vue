@@ -41,8 +41,8 @@ import { toast } from '../utils/toast'
 
 const router = useRouter()
 const loading = ref(true)
-const error = ref<string | null>(null)
-const privacyDoc = ref<DocumentContent | null>(null)
+const error = ref(null as string | null)
+const privacyDoc = ref(null as DocumentContent | null)
 
 const documentTitle = computed(() => privacyDoc.value?.title ?? '隐私政策')
 const formattedUpdatedAt = computed(() => {
