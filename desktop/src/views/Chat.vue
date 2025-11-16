@@ -59,9 +59,9 @@
         </div>
         <div v-else-if="!loading && chatList.length === 0" class="empty-container">
           <div class="empty-text">暂无聊天</div>
-          <div v-if="route.query.contactId" class="debug-info">
+          <div v-if="routeQuery.contactId" class="debug-info">
             <div class="debug-text">正在处理联系人聊天请求...</div>
-            <div class="debug-details">联系人: {{ route.query.contactName }} (ID: {{ route.query.contactId }})</div>
+            <div class="debug-details">联系人: {{ routeQuery.contactName }} (ID: {{ routeQuery.contactId }})</div>
           </div>
         </div>
         <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" @contextmenu.prevent="handleChatContextMenu(chat, $event)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
@@ -519,6 +519,15 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
+
+// Props: 接收账号ID（用于多实例页面架构）
+interface Props {
+  accountId?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  accountId: undefined
+})
 import Avatar from '../components/Avatar.vue'
 import SearchInput from '../components/SearchInput.vue'
 import Popover from '../components/Popover.vue'
@@ -1307,6 +1316,15 @@ const route = useRoute()
 const router = useRouter()
 const store = useStore() as any
 const selectedChat = (ref as any)<ChatItem | null>(null)
+
+// 计算属性：获取当前账号的路由查询参数（用于多实例页面架构）
+const routeQuery = computed(() => {
+  if (props.accountId) {
+    const account = store.getters['accounts/getAccountById'](props.accountId)
+    return account?.routeState?.query || {}
+  }
+  return route.query
+})
 const newMessage = (ref as any)<string>('')
 const searchText = (ref as any)<string>('')
 const isResizing = (ref as any)<boolean>(false)
@@ -4059,7 +4077,19 @@ const handleWindowResize = () => {
 
 // 根据路由参数创建或选择聊天会话
 const handleRouteParams = async () => {
-  const { contactId, contactName } = route.query
+  // 如果有多账号架构，从账号的路由状态中获取参数
+  let contactId: string | undefined
+  let contactName: string | undefined
+  
+  if (props.accountId) {
+    const account = store.getters['accounts/getAccountById'](props.accountId)
+    contactId = account?.routeState?.query?.contactId as string | undefined
+    contactName = account?.routeState?.query?.contactName as string | undefined
+  } else {
+    // 否则从全局路由中获取（向后兼容）
+    contactId = route.query.contactId as string | undefined
+    contactName = route.query.contactName as string | undefined
+  }
   
   if (contactId) {
     
@@ -4695,7 +4725,14 @@ onMounted(async () => {
   }
 
   // 先处理路由参数，如果有联系人参数，会在处理过程中加载聊天列表
-  const hasRouteParams = route.query.contactId
+  // 如果有多账号架构，从账号的路由状态中检查；否则从全局路由中检查
+  let hasRouteParams = false
+  if (props.accountId) {
+    const account = store.getters['accounts/getAccountById'](props.accountId)
+    hasRouteParams = !!account?.routeState?.query?.contactId
+  } else {
+    hasRouteParams = !!route.query.contactId
+  }
   if (hasRouteParams) {
     await handleRouteParams()
   } else {
@@ -4715,6 +4752,27 @@ onMounted(async () => {
     }
   }
 })
+
+// 监听账号路由状态变化（用于多实例页面架构）
+// 当从 Contact 页面跳转到 Chat 页面时，需要处理 contactId 参数
+watch(
+  () => {
+    if (props.accountId) {
+      const account = store.getters['accounts/getAccountById'](props.accountId)
+      return account?.routeState?.query?.contactId
+    }
+    return null
+  },
+  async (newContactId, oldContactId) => {
+    // 如果路由状态变化，且新的 contactId 存在，且与旧的不同，处理路由参数
+    if (newContactId && newContactId !== oldContactId && props.accountId) {
+      // 延迟处理，确保组件已完全渲染
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await handleRouteParams()
+    }
+  },
+  { immediate: false }
+)
 
 onUnmounted(async () => {
   // 重置初始化状态

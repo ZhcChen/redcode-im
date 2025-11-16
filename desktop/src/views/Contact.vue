@@ -337,6 +337,15 @@ import { eventManager } from '../utils/eventManager'
 import type { Contact } from '../store/index'
 import type { FriendRequest } from '../store/index'
 
+// Props: 接收账号ID（用于多实例页面架构）
+interface Props {
+  accountId?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  accountId: undefined
+})
+
 const router = useRouter()
 const store = useStore()
 const searchQuery = ref('')
@@ -503,20 +512,34 @@ const closeModal = () => {
 }
 
 const startChat = (contact: Contact) => {
-  
-  // 跳转到聊天页面，传递联系人信息
-  // contactId 和 contactName 都会被 Chat.vue 用于创建单聊
-  router.push({ 
-    path: '/home/chat', 
-    query: { 
-      contactId: contact.id.toString(),
-      contactName: contact.name
-    } 
-  })
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    // 更新账号的路由状态到聊天页面，并传递联系人信息
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/chat',
+        name: 'Chat',
+        params: {},
+        query: {
+          contactId: contact.id.toString(),
+          contactName: contact.name
+        }
+      }
+    })
+  } else {
+    // 否则使用全局路由（向后兼容）
+    router.push({ 
+      path: '/home/chat', 
+      query: { 
+        contactId: contact.id.toString(),
+        contactName: contact.name
+      } 
+    })
+  }
   
   // 清除选中状态
   selectedContact.value = null
-  
 }
 
 const viewProfile = (contact: Contact) => {
@@ -840,20 +863,34 @@ const handleRejectFriendRequest = async (request: FriendRequest) => {
 
 // 与好友申请用户发起聊天
 const startChatWithFriendRequest = (request: FriendRequest) => {
-  
-  // 跳转到聊天页面，传递用户信息
-  // 优先使用 fromUserId，因为这是申请人的真实用户ID
-  router.push({ 
-    path: '/home/chat', 
-    query: { 
-      contactId: request.fromUserId || request.id,
-      contactName: request.name
-    } 
-  })
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    // 更新账号的路由状态到聊天页面，并传递用户信息
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/chat',
+        name: 'Chat',
+        params: {},
+        query: {
+          contactId: request.fromUserId || request.id,
+          contactName: request.name
+        }
+      }
+    })
+  } else {
+    // 否则使用全局路由（向后兼容）
+    router.push({ 
+      path: '/home/chat', 
+      query: { 
+        contactId: request.fromUserId || request.id,
+        contactName: request.name
+      } 
+    })
+  }
   
   // 清除选中状态
   selectedFriendRequest.value = null
-  
 }
 
 // 撤销我发起的好友申请
