@@ -42,17 +42,6 @@
           ></b-input>
         </div>
       </div>
-      <div class="login-container-form-item" v-if="loginType === 'register'">
-        <div class="login-container-form-item-label">确认密码</div>
-        <div class="login-container-form-item-value">
-          <b-input
-            v-model="loginForm.confirmPassword"
-            type="password"
-            placeholder="请再次输入密码"
-            @keydown="handleKeydown"
-          ></b-input>
-        </div>
-      </div>
       <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin) || loginType === 'register'">
         <div class="login-container-form-item-label">验证码</div>
         <div
@@ -743,7 +732,6 @@ const isFormValid = computed(() => {
     return (
       account.length > 0 &&
       loginForm.value.password.length >= 6 &&
-      loginForm.value.password === loginForm.value.confirmPassword &&
       loginForm.value.captcha.length === 6 &&
       isAgreed.value
     );
@@ -867,16 +855,6 @@ function validateRegisterForm(): boolean {
 
   if (loginForm.value.password.length < 6) {
     toast.error("密码长度至少为6位");
-    return false;
-  }
-
-  if (!loginForm.value.confirmPassword.trim()) {
-    toast.error("请确认密码");
-    return false;
-  }
-
-  if (loginForm.value.password !== loginForm.value.confirmPassword) {
-    toast.error("两次输入的密码不一致");
     return false;
   }
 
