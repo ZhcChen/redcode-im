@@ -96,9 +96,20 @@
       <div class="login-container-form-agree">
         <b-radio v-model="isAgreed"></b-radio>
         <div class="login-container-form-agree-text">
-          注册/登陆即代表同意《用户协议》和《隐私协议》
+          注册/登陆即代表同意
+          <span class="agreement-link" @click="showUserAgreement">《用户协议》</span>
+          和
+          <span class="agreement-link" @click="showPrivacyAgreement">《隐私协议》</span>
         </div>
       </div>
+    </div>
+    
+    <!-- 协议对话框 -->
+    <AgreementDialog
+      v-model:visible="showAgreementDialog"
+      :title="agreementDialogTitle"
+      :htmlContent="agreementDialogContent"
+    />
     </div>
   </div>
 </template>
@@ -113,9 +124,11 @@ import BInput from "@/components/BInput.vue";
 import BButton from "@/components/BButton.vue";
 import BRadio from "@/components/BRadio.vue";
 import BTabs from "@/components/BTabs.vue";
+import AgreementDialog from "@/components/AgreementDialog.vue";
 import { useStore } from "vuex";
 import { SystemApi, SettingsApi } from "@/api";
 import toast from "@/utils/toast";
+import type { DocumentContent } from "@/api/settings";
 
 const props = withDefaults(
   defineProps<{
@@ -143,6 +156,11 @@ const DEFAULT_MAIN_WINDOW_SIZE = Object.freeze({ width: 1000, height: 650 });
 let loginWindowTimer: number | null = null;
 
 const isAgreed = ref(true);
+
+// 协议对话框相关
+const showAgreementDialog = ref(false);
+const agreementDialogTitle = ref("用户协议");
+const agreementDialogContent = ref("");
 
 // 登录类型选项
 const loginTabs = [
@@ -190,14 +208,14 @@ async function setLoginWindowSize() {
 
     
     // 使用 Rust 后端设置窗口大小并居中
-    await invoke("set_window_size_and_center", { width: 400, height: 600 });
+    await invoke("set_window_size_and_center", { width: 400, height: 650 });
 
     const afterSize = await currentWindow.innerSize();
   } catch (error) {
     // 回退到前端方法
     try {
       const currentWindow = getCurrentWebviewWindow();
-      await currentWindow.setSize(new LogicalSize(400, 600));
+      await currentWindow.setSize(new LogicalSize(400, 650));
       await currentWindow.center();
     } catch (fallbackError) {
     }
@@ -928,6 +946,38 @@ function handleKeydown(event: KeyboardEvent) {
     handleSubmit();
   }
 }
+
+// 显示用户协议
+async function showUserAgreement() {
+  try {
+    const response = await SettingsApi.getUserAgreement();
+    if (response.code === 200 && response.data) {
+      agreementDialogTitle.value = response.data.title || "用户协议";
+      agreementDialogContent.value = response.data.content || "";
+      showAgreementDialog.value = true;
+    } else {
+      toast.error(response.message || "加载用户协议失败");
+    }
+  } catch (error: any) {
+    toast.error(error.message || "加载用户协议失败，请稍后重试");
+  }
+}
+
+// 显示隐私协议
+async function showPrivacyAgreement() {
+  try {
+    const response = await SettingsApi.getPrivacyPolicy();
+    if (response.code === 200 && response.data) {
+      agreementDialogTitle.value = response.data.title || "隐私协议";
+      agreementDialogContent.value = response.data.content || "";
+      showAgreementDialog.value = true;
+    } else {
+      toast.error(response.message || "加载隐私协议失败");
+    }
+  } catch (error: any) {
+    toast.error(error.message || "加载隐私协议失败，请稍后重试");
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -1024,6 +1074,19 @@ function handleKeydown(event: KeyboardEvent) {
         color: var(--text-secondary);
         font-size: 11px;
         margin-left: 6px;
+        line-height: 1.4;
+
+        .agreement-link {
+          color: var(--primary-color);
+          cursor: pointer;
+          text-decoration: none;
+          transition: opacity 0.2s ease;
+
+          &:hover {
+            text-decoration: underline;
+            opacity: 0.8;
+          }
+        }
       }
     }
 

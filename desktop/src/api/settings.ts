@@ -26,6 +26,10 @@ export class SettingsApi {
     return httpClient.get<DocumentContent>('/settings/privacy-policy');
   }
 
+  static async getUserAgreement(): Promise<ApiResponse<DocumentContent>> {
+    return httpClient.get<DocumentContent>('/settings/user-agreement');
+  }
+
   /**
    * 获取应用名称（公开 API，无需 token）
    */
