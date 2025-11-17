@@ -784,15 +784,14 @@ const sanitizeAttachmentForCache = (attachment: MessageAttachment | null | undef
   if (!attachment) {
     return null
   }
-  // 对于文件类型，保留localPath（本地文件系统路径）
-  // 对于图片/表情包，清除localPath（避免缓存blob URL）
-  const shouldKeepLocalPath = partType === MessagePartType.FILE;
+  // 对于所有类型都保留localPath，但清除blob URL（会在恢复时重新获取）
+  const shouldKeepLocalPath = attachment.localPath && !attachment.localPath.startsWith('blob:');
 
   return {
     ...attachment,
     downloadUrl: null,
     uploadProgress: null,
-    // 只有文件类型才缓存localPath
+    // 只缓存非blob URL的本地路径
     localPath: shouldKeepLocalPath ? attachment.localPath : null,
   }
 }
@@ -1378,12 +1377,37 @@ const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localP
 
 const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) => {
   const attachment = part.attachment;
-  if (!attachment || attachment.localPath) {
+  if (!attachment) {
     return;
   }
 
   const { key } = attachment;
   if (!key) {
+    return;
+  }
+
+  // 如果已有localPath，先检查文件是否真的存在
+  if (attachment.localPath) {
+    // 如果是blob URL，注册并直接使用
+    if (attachment.localPath.startsWith('blob:')) {
+      registerBlobUrl(attachment.localPath);
+      return;
+    }
+    // 如果是真实路径，检查文件是否存在
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const exists = await invoke<boolean>('check_file_exists', { path: attachment.localPath });
+      if (exists) {
+        // 文件存在，使用缓存的路径
+        return;
+      }
+      // 文件不存在，清除localPath，重新下载
+      setAttachmentLocalPath(message.id, key, null);
+    } catch (error) {
+      console.warn('检查文件是否存在失败:', error);
+      // 如果检查失败，清除路径
+      setAttachmentLocalPath(message.id, key, null);
+    }
     return;
   }
 
@@ -2641,16 +2665,55 @@ const loadMessages = async (groupId: string) => {
       messages.value = mergedMessages
       await persistMessagesCache(groupId, mergedMessages)
 
-      // 预加载视频缩略图（类似图片的预加载逻辑）
-      mergedMessages.forEach((msg) => {
-        if (msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE && Array.isArray(msg.parts)) {
-          const videoPart = msg.parts.find((part) => part.type === MessagePartType.VIDEO)
-          if (videoPart?.attachment?.thumbnailKey) {
-            // 异步预加载缩略图
-            void ensureVideoThumbnailLocalPath(msg, videoPart)
+      // 优先级预加载媒体资源：最新消息优先
+      const preloadMediaResources = async () => {
+        const maxConcurrent = 3; // 最大并发数
+        const priorityCount = 10; // 优先加载最新10条消息
+
+        // 分离高优先级和普通优先级的消息
+        const priorityMessages = mergedMessages.slice(-priorityCount);
+        const normalMessages = mergedMessages.slice(0, -priorityCount);
+
+        // 高优先级消息预加载（视频缩略图和图片）
+        if (priorityMessages.length > 0) {
+          const priorityPromises = priorityMessages.reverse().map(async (msg) => {
+            // 预加载视频缩略图
+            if (msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE && Array.isArray(msg.parts)) {
+              const videoPart = msg.parts.find((part) => part.type === MessagePartType.VIDEO);
+              if (videoPart?.attachment?.thumbnailKey) {
+                void ensureVideoThumbnailLocalPath(msg, videoPart);
+              }
+            }
+
+            // 预加载图片
+            if (Array.isArray(msg.parts)) {
+              const imagePart = msg.parts.find((part) => part.type === MessagePartType.IMAGE);
+              if (imagePart?.attachment) {
+                void ensureAttachmentLocalPath(msg, imagePart);
+              }
+            }
+          });
+
+          // 分批处理，控制并发
+          for (let i = 0; i < priorityPromises.length; i += maxConcurrent) {
+            await Promise.all(priorityPromises.slice(i, i + maxConcurrent));
           }
         }
-      })
+
+        // 普通优先级消息预加载（延迟处理，避免阻塞主线程）
+        setTimeout(() => {
+          normalMessages.forEach((msg) => {
+            if (msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE && Array.isArray(msg.parts)) {
+              const videoPart = msg.parts.find((part) => part.type === MessagePartType.VIDEO);
+              if (videoPart?.attachment?.thumbnailKey) {
+                void ensureVideoThumbnailLocalPath(msg, videoPart);
+              }
+            }
+          });
+        }, 100);
+      };
+
+      void preloadMediaResources();
 
 
       // 同步消息发送者头像缓存
