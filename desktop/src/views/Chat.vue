@@ -1787,6 +1787,17 @@ const loadMessages = async (groupId: string) => {
       
       messages.value = sortedMessages
       await persistMessagesCache(groupId, sortedMessages)
+      
+      // 预加载视频缩略图（类似图片的预加载逻辑）
+      sortedMessages.forEach((msg) => {
+        if (msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE && Array.isArray(msg.parts)) {
+          const videoPart = msg.parts.find((part) => part.type === MessagePartType.VIDEO)
+          if (videoPart?.attachment?.thumbnailKey) {
+            // 异步预加载缩略图
+            void ensureVideoThumbnailLocalPath(msg, videoPart)
+          }
+        }
+      })
 
 
       // 同步消息发送者头像缓存
@@ -1950,14 +1961,17 @@ const parseImageSrc = (message: Message): string => {
 const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: MessagePart) => {
   const attachment = videoPart.attachment
   if (!attachment || !attachment.thumbnailKey) {
+    console.log('ensureVideoThumbnailLocalPath: 没有缩略图 key')
     return
   }
 
   const thumbnailKey = attachment.thumbnailKey
+  console.log('ensureVideoThumbnailLocalPath: 开始处理缩略图', thumbnailKey)
   
   // 检查缓存
   const cached = attachmentUrlCache.get(thumbnailKey)
   if (cached && cached.expiresAt > Date.now()) {
+    console.log('ensureVideoThumbnailLocalPath: 缓存命中', cached.localPath)
     if (cached.localPath && cached.localPath.startsWith('blob:')) {
       registerBlobUrl(cached.localPath)
     }
@@ -1981,11 +1995,14 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
                 ...msg,
                 parts: updatedParts
               }
+              console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（从缓存）')
             }
           }
         }
     return
   }
+  
+  console.log('ensureVideoThumbnailLocalPath: 缓存未命中，开始下载')
 
   const roomId = message.roomId || selectedChat.value?.groupId
   if (!roomId) {
@@ -2008,6 +2025,7 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
         }
 
         const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, 'image/jpeg')
+        console.log('缩略图下载完成:', { localPath, fromBlob, thumbnailKey })
         if (fromBlob) {
           registerBlobUrl(localPath)
         }
@@ -2037,6 +2055,7 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
                 ...msg,
                 parts: updatedParts
               }
+              console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（下载后）')
             }
           }
         }
@@ -2062,9 +2081,25 @@ const parseVideoScreenShotSrc = (message: Message): string => {
       
       // 优先处理缩略图
       if (attachment.thumbnailKey) {
+        console.log('解析视频缩略图:', {
+          messageId: message.id,
+          thumbnailKey: attachment.thumbnailKey,
+          hasLocalPath: !!attachment.localPath,
+          localPath: attachment.localPath
+        })
+        
         // 先检查缓存中是否有缩略图的 localPath
         const thumbnailCached = attachmentUrlCache.get(attachment.thumbnailKey)
+        console.log('缩略图缓存检查:', {
+          thumbnailKey: attachment.thumbnailKey,
+          cached: !!thumbnailCached,
+          cachedLocalPath: thumbnailCached?.localPath,
+          expiresAt: thumbnailCached?.expiresAt,
+          isExpired: thumbnailCached ? thumbnailCached.expiresAt <= Date.now() : false
+        })
+        
         if (thumbnailCached && thumbnailCached.expiresAt > Date.now() && thumbnailCached.localPath) {
+          console.log('使用缓存的缩略图:', thumbnailCached.localPath)
           // 如果缓存中有缩略图，更新 attachment.localPath（用于显示）
           if (attachment.localPath !== thumbnailCached.localPath) {
             const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
@@ -2085,6 +2120,7 @@ const parseVideoScreenShotSrc = (message: Message): string => {
                     ...msg,
                     parts: updatedParts
                   }
+                  console.log('已更新消息的缩略图 localPath')
                 }
               }
             }
@@ -2093,13 +2129,21 @@ const parseVideoScreenShotSrc = (message: Message): string => {
         }
         
         // 如果缓存中没有，异步预加载缩略图（类似图片的预加载逻辑）
+        console.log('缓存中没有缩略图，开始预加载:', attachment.thumbnailKey)
         void ensureVideoThumbnailLocalPath(message, videoPart)
         
         // 返回缩略图的 URL（在下载完成前先显示服务器 URL）
         const url = resolveAttachmentUrl(attachment.thumbnailKey)
+        console.log('返回缩略图 URL:', url)
         if (url) {
           return url
         }
+      } else {
+        console.log('视频没有缩略图 key:', {
+          messageId: message.id,
+          hasThumbnailKey: !!attachment.thumbnailKey,
+          hasKey: !!attachment.key
+        })
       }
       
       // 如果没有缩略图但有本地路径（可能是视频本身），不用于缩略图显示
