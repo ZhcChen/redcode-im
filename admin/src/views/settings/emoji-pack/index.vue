@@ -119,14 +119,47 @@
             />
           </a-form-item>
 
-          <a-form-item field="icon_url" label="图标URL">
-            <a-input
-              v-model="packFormData.icon_url"
-              placeholder="请输入表情包图标URL（可选）"
-            />
-            <template #help>
-              表情包图标URL，用于在客户端显示表情包标签
-            </template>
+          <a-form-item field="icon_url" label="图标">
+            <div class="icon-upload-wrapper">
+              <div v-if="packFormData.icon_url" class="icon-preview">
+                <img
+                  :src="packFormData.icon_url"
+                  alt="图标预览"
+                  class="preview-image"
+                />
+                <a-button
+                  type="text"
+                  status="danger"
+                  size="small"
+                  @click="packFormData.icon_url = ''"
+                >
+                  删除
+                </a-button>
+              </div>
+              <div v-else class="icon-upload-area">
+                <input
+                  ref="iconFileInputRef"
+                  type="file"
+                  accept="image/*"
+                  style="display: none"
+                  @change="handleIconFileChange"
+                />
+                <a-button
+                  type="outline"
+                  :loading="iconUploadLoading"
+                  @click="triggerIconFileSelect"
+                >
+                  <template #icon>
+                    <icon-upload />
+                  </template>
+                  上传图标
+                </a-button>
+                <span class="upload-hint"
+                  >支持 JPG、PNG、WebP 等图片格式，建议尺寸 64x64</span
+                >
+              </div>
+            </div>
+            <template #help> 表情包图标，用于在客户端显示表情包标签 </template>
           </a-form-item>
 
           <a-form-item field="description" label="描述">
@@ -362,6 +395,13 @@
     type EmojiPack,
     type EmojiItem,
   } from '@/api/emoji-pack';
+  import {
+    getDefaultStorageProvider,
+    testCosUploadSignature,
+    testCosDownloadUrl,
+    type StorageProvider,
+  } from '@/api/settings';
+  import { uploadWithSignature } from '@/utils/direct-upload';
 
   const { loading: listLoading, setLoading: setListLoading } =
     useLoading(false);
@@ -491,6 +531,11 @@
     sort_order: 0,
   });
   const editingItemId = ref<string | null>(null);
+
+  // 图标上传相关
+  const iconFileInputRef = ref<HTMLInputElement | null>(null);
+  const iconUploadLoading = ref(false);
+  const defaultStorageProvider = ref<StorageProvider | null>(null);
 
   const itemFormRules = {
     image_url: [{ required: true, message: '请输入表情图片URL' }],
@@ -805,8 +850,105 @@
     fetchPacks();
   };
 
-  onMounted(() => {
+  // 触发图标文件选择
+  const triggerIconFileSelect = () => {
+    iconFileInputRef.value?.click();
+  };
+
+  // 处理图标文件选择
+  const handleIconFileChange = async (event: Event) => {
+    const inputEl = event.target as HTMLInputElement;
+    const { files } = inputEl;
+    const file = files && files.length > 0 ? files[0] : null;
+    if (!file) {
+      return;
+    }
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      Message.error('请选择图片文件');
+      inputEl.value = '';
+      return;
+    }
+
+    // 验证文件大小（最大 2MB）
+    const maxSize = 2 * 1024 * 1024;
+    if (file.size > maxSize) {
+      Message.error('图片大小不能超过 2MB');
+      inputEl.value = '';
+      return;
+    }
+
+    iconUploadLoading.value = true;
+    try {
+      // 获取默认存储提供商
+      if (!defaultStorageProvider.value) {
+        const { data } = await getDefaultStorageProvider();
+        defaultStorageProvider.value = data;
+      }
+
+      if (!defaultStorageProvider.value) {
+        throw new Error('未配置存储提供商，请先在存储提供商设置中配置');
+      }
+
+      // 生成文件key
+      const timestamp = Date.now();
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const key = `emoji-packs/icons/${timestamp}.${fileExt}`;
+
+      // 获取上传签名
+      const { data: signatureData } = await testCosUploadSignature({
+        provider_id: defaultStorageProvider.value.id,
+        key,
+        content_type: file.type,
+      });
+
+      if (!signatureData.success || !signatureData.signature) {
+        throw new Error(signatureData.message || '获取上传签名失败');
+      }
+
+      // 上传文件
+      const response = await uploadWithSignature(file, signatureData.signature);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || '上传失败');
+      }
+
+      // 获取下载URL
+      const { data: urlData } = await testCosDownloadUrl({
+        provider_id: defaultStorageProvider.value.id,
+        key,
+        expires_in_seconds: 31536000, // 1年
+      });
+
+      if (!urlData.success || !urlData.url) {
+        throw new Error(urlData.message || '获取下载URL失败');
+      }
+
+      // 保存URL到表单
+      packFormData.icon_url = urlData.url;
+      Message.success('图标上传成功');
+    } catch (error: any) {
+      const errorMsg =
+        error?.message || error?.response?.data?.message || '上传失败';
+      Message.error(errorMsg);
+    } finally {
+      iconUploadLoading.value = false;
+      if (inputEl) {
+        inputEl.value = '';
+      }
+    }
+  };
+
+  onMounted(async () => {
     fetchPacks();
+    // 预加载默认存储提供商
+    try {
+      const { data } = await getDefaultStorageProvider();
+      defaultStorageProvider.value = data;
+    } catch (error) {
+      // 忽略错误，上传时会再次尝试获取
+    }
   });
 </script>
 
