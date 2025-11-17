@@ -494,11 +494,31 @@ const loadUserPacks = async () => {
       ...item.pack,
       items: item.items || []
     }))
+    // 预加载所有套件下的表情包
+    for (const pack of userPacks.value) {
+      if (pack.pack_type === 1) {
+        await loadSuitePacks(pack.id)
+      }
+    }
   } catch (error) {
     console.error('加载表情包失败:', error)
     userPacks.value = []
   } finally {
     loadingPacks.value = false
+  }
+}
+
+// 加载套件下的表情包
+const loadSuitePacks = async (suiteId: string) => {
+  if (suitePacksCache.value.has(suiteId)) {
+    return // 已缓存，不需要重新加载
+  }
+  try {
+    const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
+    suitePacksCache.value.set(suiteId, suitePacks)
+  } catch (error) {
+    console.error('加载套件表情包失败:', error)
+    suitePacksCache.value.set(suiteId, [])
   }
 }
 
