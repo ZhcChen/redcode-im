@@ -406,23 +406,28 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       if (!tab.pack) return []
       const suiteId = tab.pack.id
       const suitePacks = suitePacksCache.value[suiteId]
+      console.log('套件 tab 计算，suiteId:', suiteId, '缓存:', suitePacks)
       if (suitePacks && suitePacks.length > 0) {
         const suiteItems: EmojiDisplayItem[] = []
         for (const suitePack of suitePacks) {
           if (suitePack.items && suitePack.items.length > 0) {
             for (const item of suitePack.items) {
-              suiteItems.push({
-                type: 'image' as const,
-                value: item.image_url,
-                name: item.name || undefined
-              })
+              if (item.image_url) {
+                suiteItems.push({
+                  type: 'image' as const,
+                  value: item.image_url,
+                  name: item.name || undefined
+                })
+              }
             }
           }
         }
+        console.log('套件表情项列表:', suiteItems)
         return suiteItems
       }
       // 如果缓存中没有且未在加载中，异步加载
       if (!loadingSuitePacks.value[suiteId]) {
+        console.log('缓存中没有数据，触发加载:', suiteId)
         loadSuitePacks(suiteId)
       }
       return []
@@ -527,25 +532,30 @@ const handleConfirmAdd = async () => {
 // 加载套件下的表情包
 const loadSuitePacks = async (suiteId: string) => {
   if (suitePacksCache.value[suiteId]) {
+    console.log('套件已缓存，跳过加载:', suiteId)
     return // 已缓存，不需要重新加载
   }
   if (loadingSuitePacks.value[suiteId]) {
+    console.log('套件正在加载中，跳过重复加载:', suiteId)
     return // 正在加载中，避免重复加载
   }
   try {
+    console.log('开始加载套件表情包:', suiteId)
     // 使用响应式方式更新加载状态
     loadingSuitePacks.value = {
       ...loadingSuitePacks.value,
       [suiteId]: true
     }
     const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
+    console.log('套件表情包加载成功:', suiteId, suitePacks)
     // 使用响应式方式更新缓存
     suitePacksCache.value = {
       ...suitePacksCache.value,
       [suiteId]: suitePacks
     }
+    console.log('套件缓存已更新:', suitePacksCache.value)
   } catch (error) {
-    console.error('加载套件表情包失败:', error)
+    console.error('加载套件表情包失败:', suiteId, error)
     suitePacksCache.value = {
       ...suitePacksCache.value,
       [suiteId]: []
@@ -606,10 +616,13 @@ watch(() => props.show, (newVal) => {
 // 监听 tab 切换，切换到套件 tab 时确保加载数据
 watch(selectedTabIndex, (newIndex) => {
   const tab = tabs.value[newIndex]
+  console.log('Tab 切换:', newIndex, tab)
   if (tab?.type === 'pack' && tab.pack) {
     // 切换到套件 tab 时，如果缓存中没有数据，主动加载
     const suiteId = tab.pack.id
+    console.log('切换到套件 tab，suiteId:', suiteId, '缓存状态:', suitePacksCache.value[suiteId], '加载状态:', loadingSuitePacks.value[suiteId])
     if (!suitePacksCache.value[suiteId] && !loadingSuitePacks.value[suiteId]) {
+      console.log('触发套件加载:', suiteId)
       loadSuitePacks(suiteId)
     }
   }
