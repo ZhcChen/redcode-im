@@ -856,8 +856,16 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
   }
 
   if (mime.startsWith('video/')) {
+    console.log('检测到视频文件，开始获取元数据:', file.name)
     try {
-      const { width, height, durationMs } = await getVideoMetadata(file);
+      // 设置超时，避免某些视频文件导致卡住
+      const metadataPromise = getVideoMetadata(file)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('获取视频元数据超时')), 10000) // 10秒超时
+      })
+      
+      const { width, height, durationMs } = await Promise.race([metadataPromise, timeoutPromise])
+      console.log('视频元数据获取成功:', { width, height, durationMs, fileName: file.name })
       return {
         partType: 'video',
         width,
@@ -866,7 +874,8 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
         mime,
         summary: buildAttachmentSummary('video', file.name)
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.warn('获取视频元数据失败，继续上传（无元数据）:', error?.message || error, file.name)
       return {
         partType: 'video',
         mime,
@@ -3141,7 +3150,6 @@ const handleFileUpload = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const files = target.files
 
-
   if (!files || files.length === 0) {
     return
   }
@@ -3149,9 +3157,22 @@ const handleFileUpload = async (event: Event) => {
   // 创建文件数组的副本，因为 FileList 在处理后可能会被清空
   const fileArray = Array.from(files)
   
+  console.log('开始处理文件上传，文件数量:', fileArray.length)
   for (let i = 0; i < fileArray.length; i++) {
     const file = fileArray[i]
-    await uploadAndSendFile(file)
+    console.log(`处理文件 ${i + 1}/${fileArray.length}:`, {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      isVideo: file.type.startsWith('video/'),
+      isImage: file.type.startsWith('image/')
+    })
+    try {
+      await uploadAndSendFile(file)
+    } catch (error: any) {
+      console.error(`文件 ${file.name} 上传失败:`, error)
+      toast.error(`文件 ${file.name} 上传失败: ${error?.message || '未知错误'}`)
+    }
   }
   
   // 清理 input 元素
@@ -3193,7 +3214,9 @@ const uploadAndSendFile = async (file: File) => {
   let localUrl: string | null = null
 
   try {
+    console.log('开始处理文件:', file.name, '类型:', file.type, '大小:', file.size)
     const meta = await determineAttachmentMeta(file)
+    console.log('文件元数据确定:', meta)
 
     if (meta.partType === 'text') {
       toast.error('当前文件类型暂不支持发送')
@@ -3212,6 +3235,12 @@ const uploadAndSendFile = async (file: File) => {
       return
     }
 
+    console.log('请求上传签名:', {
+      groupId: selectedChat.value.groupId,
+      partType: meta.partType,
+      fileName: file.name,
+      contentType: meta.mime
+    })
     const signatureResponse = await MessageApi.requestAttachmentSignature({
       groupId: selectedChat.value.groupId,
       partType: meta.partType,
@@ -3222,6 +3251,7 @@ const uploadAndSendFile = async (file: File) => {
     if (!signatureResponse.success || !signatureResponse.data) {
       throw new Error(signatureResponse.message || '获取上传签名失败')
     }
+    console.log('上传签名获取成功，开始上传文件')
 
     attachmentKey = signatureResponse.data.key
     localUrl = URL.createObjectURL(file)
@@ -3266,21 +3296,26 @@ const uploadAndSendFile = async (file: File) => {
     recentSentMessages.value.add(tempId)
     scrollToBottom()
 
+    console.log('开始上传文件到COS:', file.name)
     await uploadWithSignature(signatureResponse.data.signature, file, (progress) => {
+      console.log('上传进度:', progress, file.name)
       if (tempId) {
         updateAttachmentProgress(tempId, attachmentKey, progress)
       }
     })
+    console.log('文件上传完成:', file.name)
 
     if (tempId) {
       updateAttachmentProgress(tempId, attachmentKey, null)
     }
 
+    console.log('发送消息到服务器:', { partType: meta.partType, fileName: file.name })
     const apiMessage = await webSocketManager.sendMessage({
       roomId: selectedChat.value.groupId,
       content: meta.summary,
       parts: [buildAttachmentPartPayload(meta, attachmentKey, file)],
     }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
+    console.log('消息发送完成:', apiMessage?.id)
 
     if (apiMessage) {
       const uiMessage = mapDomainMessageToUi(apiMessage)
@@ -3333,6 +3368,13 @@ const uploadAndSendFile = async (file: File) => {
 
     scrollToBottom()
   } catch (error: any) {
+    console.error('文件上传失败:', error, {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      tempId,
+      attachmentKey
+    })
     if (tempId) {
       const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
       if (messageIndex !== -1) {
