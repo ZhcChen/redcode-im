@@ -28,6 +28,7 @@
         :data="packs"
         :loading="listLoading"
         :pagination="false"
+        :scroll="{ x: 'max-content' }"
         class="pack-table"
       >
         <template #icon_url="{ record }">
@@ -477,7 +478,7 @@
     {
       title: '操作',
       slotName: 'operations',
-      width: 200,
+      width: 280,
       fixed: 'right',
     },
   ];
