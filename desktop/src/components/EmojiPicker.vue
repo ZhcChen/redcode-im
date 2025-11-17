@@ -823,10 +823,10 @@ const CachedEmojiImage = defineComponent({
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 6px;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
+  padding: 5px;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
