@@ -3108,9 +3108,83 @@ const formatFileSize = (bytes: number): string => {
 }
 
 // 处理视频播放
-const handleVideoPlay = (message: Message) => {
-  const videoSrc = parseVideoSrc(message)
-  if (videoSrc) {
+const handleVideoPlay = async (message: Message) => {
+  try {
+    let videoSrc = ''
+    
+    // 先确保视频附件已下载到本地
+    if (Array.isArray(message.parts)) {
+      const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
+      if (videoPart?.attachment) {
+        // 如果还没有本地路径，先下载
+        if (!videoPart.attachment.localPath && videoPart.attachment.key) {
+          console.log('视频需要下载，开始下载:', videoPart.attachment.key)
+          // 先尝试下载，但不显示错误 toast（我们会自己处理）
+          try {
+            await ensureAttachmentLocalPath(message, videoPart)
+          } catch (error: any) {
+            console.warn('视频下载失败，尝试使用原始 URL:', error)
+          }
+          
+          // 重新获取消息，因为 ensureAttachmentLocalPath 会更新消息
+          const updatedMessage = messages.value.find(m => m.id === message.id) || message
+          const updatedVideoPart = updatedMessage.parts?.find((part) => part.type === MessagePartType.VIDEO)
+          
+          if (updatedVideoPart?.attachment?.localPath) {
+            videoSrc = updatedVideoPart.attachment.localPath
+            console.log('视频下载成功，使用本地路径:', videoSrc)
+          } else {
+            // 如果下载失败，尝试使用原始 URL
+            const parsedSrc = parseVideoSrc(updatedMessage)
+            if (parsedSrc) {
+              videoSrc = parsedSrc
+              console.log('使用原始 URL:', videoSrc)
+            } else {
+              toast.error('视频加载失败，请重试')
+              return
+            }
+          }
+        } else if (videoPart.attachment.localPath) {
+          // 已有本地路径，直接使用
+          videoSrc = videoPart.attachment.localPath
+          console.log('使用已有本地路径:', videoSrc)
+        } else {
+          // 尝试使用 parseVideoSrc 获取 URL
+          const parsedSrc = parseVideoSrc(message)
+          if (parsedSrc) {
+            videoSrc = parsedSrc
+            console.log('使用 parseVideoSrc 获取的 URL:', videoSrc)
+          } else {
+            toast.error('视频地址无效')
+            return
+          }
+        }
+      } else {
+        // 没有 attachment，尝试使用 parseVideoSrc
+        const parsedSrc = parseVideoSrc(message)
+        if (parsedSrc) {
+          videoSrc = parsedSrc
+        } else {
+          toast.error('视频地址无效')
+          return
+        }
+      }
+    } else {
+      // 没有 parts，尝试使用 parseVideoSrc
+      const parsedSrc = parseVideoSrc(message)
+      if (parsedSrc) {
+        videoSrc = parsedSrc
+      } else {
+        toast.error('视频地址无效')
+        return
+      }
+    }
+
+    if (!videoSrc) {
+      toast.error('无法获取视频地址')
+      return
+    }
+
     // 设置媒体信息并显示预览
     previewMediaSrc.value = videoSrc
     previewMediaType.value = 'video'
@@ -3118,9 +3192,11 @@ const handleVideoPlay = (message: Message) => {
       previewMediaName.value = message.content.name || '视频文件'
       previewMediaSize.value = message.content.size || 0
     }
+    console.log('准备播放视频:', previewMediaSrc.value)
     showMediaPreview.value = true
-  } else {
-    toast.error('视频地址无效')
+  } catch (error: any) {
+    console.error('视频播放失败:', error)
+    toast.error('视频加载失败: ' + (error?.message || '未知错误'))
   }
 }
 
