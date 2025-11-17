@@ -853,6 +853,58 @@ const persistMessagesCache = async (groupId: string, messageList: Message[]) => 
   await saveCache(CACHE_KEYS.messages(groupId), sliced)
 }
 
+/**
+ * 合并后端消息和本地缓存，保留本地localPath等字段
+ */
+const mergeMessagesWithCache = (backendMessages: Message[], cachedMessages: Message[]): Message[] => {
+  if (!cachedMessages || cachedMessages.length === 0) {
+    return backendMessages;
+  }
+
+  const cacheMap = new Map<string, Message>();
+  cachedMessages.forEach(msg => {
+    cacheMap.set(msg.id, msg);
+  });
+
+  return backendMessages.map(backendMsg => {
+    const cachedMsg = cacheMap.get(backendMsg.id);
+    if (!cachedMsg) {
+      return backendMsg;
+    }
+
+    // 合并 attachment 中的 localPath 等本地字段
+    if (Array.isArray(backendMsg.parts) && Array.isArray(cachedMsg.parts)) {
+      const mergedParts = backendMsg.parts.map((backendPart, index) => {
+        const cachedPart = cachedMsg.parts?.[index];
+        if (!cachedPart?.attachment || !backendPart?.attachment) {
+          return backendPart;
+        }
+
+        // 保留本地的 localPath、downloadUrl、uploadProgress 等字段
+        const mergedAttachment = {
+          ...backendPart.attachment,
+          localPath: cachedPart.attachment.localPath ?? backendPart.attachment.localPath,
+          downloadUrl: cachedPart.attachment.downloadUrl ?? backendPart.attachment.downloadUrl,
+          uploadProgress: cachedPart.attachment.uploadProgress ?? backendPart.attachment.uploadProgress,
+          downloadProgress: cachedPart.attachment.downloadProgress ?? backendPart.attachment.downloadProgress,
+        };
+
+        return {
+          ...backendPart,
+          attachment: mergedAttachment,
+        };
+      });
+
+      return {
+        ...backendMsg,
+        parts: mergedParts,
+      };
+    }
+
+    return backendMsg;
+  });
+};
+
 let messageCachePersistTimer: ReturnType<typeof setTimeout> | null = null
 
 const scheduleMessagesCachePersist = (groupId: string | null | undefined, messageList: Message[]) => {
@@ -2554,7 +2606,7 @@ const loadMessages = async (groupId: string) => {
         }
         return uiMessage
       })
-      
+
       // 按时间排序：最早的消息在上面，最新的在下面
       // 使用 createTime 或 timestamp 进行排序
       const sortedMessages = convertedMessages.sort((a, b) => {
@@ -2563,12 +2615,18 @@ const loadMessages = async (groupId: string) => {
         const timeB = b.timestamp || (b.createTime ? new Date(b.createTime).getTime() : 0)
         return timeA - timeB // 升序排列
       })
-      
-      messages.value = sortedMessages
-      await persistMessagesCache(groupId, sortedMessages)
-      
+
+      // 合并后端消息和本地缓存，保留localPath等字段
+      let mergedMessages = sortedMessages
+      if (usedCache && cached?.data && Array.isArray(cached.data)) {
+        mergedMessages = mergeMessagesWithCache(sortedMessages, cached.data)
+      }
+
+      messages.value = mergedMessages
+      await persistMessagesCache(groupId, mergedMessages)
+
       // 预加载视频缩略图（类似图片的预加载逻辑）
-      sortedMessages.forEach((msg) => {
+      mergedMessages.forEach((msg) => {
         if (msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE && Array.isArray(msg.parts)) {
           const videoPart = msg.parts.find((part) => part.type === MessagePartType.VIDEO)
           if (videoPart?.attachment?.thumbnailKey) {
@@ -2581,7 +2639,7 @@ const loadMessages = async (groupId: string) => {
 
       // 同步消息发送者头像缓存
       const uniqueSenderIds = new Set<string>()
-      sortedMessages.forEach(msg => {
+      mergedMessages.forEach(msg => {
         if (!msg.isSelf && msg.senderId) {
           uniqueSenderIds.add(msg.senderId)
         }
@@ -2599,7 +2657,7 @@ const loadMessages = async (groupId: string) => {
             let userName: string | undefined
 
             // 优先从消息本身获取 avatarObjectKey(可能来自后端的相对路径 avatar_url)
-            const senderMessage = sortedMessages.find(msg => msg.senderId === senderId && !msg.isSelf)
+            const senderMessage = mergedMessages.find(msg => msg.senderId === senderId && !msg.isSelf)
             if (senderMessage?.senderAvatarObjectKey) {
               avatarObjectKey = senderMessage.senderAvatarObjectKey
               userName = senderMessage.senderName
@@ -2632,7 +2690,7 @@ const loadMessages = async (groupId: string) => {
                 registerBlobUrl(localPath)
 
                 // 更新消息列表中该发送者的所有消息
-                sortedMessages.forEach(msg => {
+                mergedMessages.forEach(msg => {
                   if (msg.senderId === senderId && !msg.isSelf) {
                     msg.senderAvatarLocalPath = localPath
                     msg.senderAvatarObjectKey = avatarObjectKey
