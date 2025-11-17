@@ -904,7 +904,7 @@ const CachedEmojiImage = defineComponent({
 
 .emoji-grid {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
 
@@ -918,6 +918,7 @@ const CachedEmojiImage = defineComponent({
 }
 
 .emoji-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -927,6 +928,7 @@ const CachedEmojiImage = defineComponent({
   transition: background-color 0.2s;
   min-width: 0;
   overflow: hidden;
+  width: 100%;
 
   &:hover {
     background-color: #f5f5f5;
@@ -944,7 +946,7 @@ const CachedEmojiImage = defineComponent({
   .emoji-image {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain; // 保持原始宽高比，缩放以适应容器
     border-radius: 6px;
     display: block;
   }
