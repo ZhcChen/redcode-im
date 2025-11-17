@@ -606,7 +606,7 @@ const CachedEmojiImage = defineComponent({
 </script>
 
 <style lang="scss" scoped>
-@import '../styles/variables.scss';
+@use '../styles/variables.scss' as *;
 .emoji-picker {
   position: absolute;
   bottom: 100%;
