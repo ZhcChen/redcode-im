@@ -433,6 +433,7 @@
     updateEmojiPack,
     deleteEmojiPack,
     getEmojiPack,
+    getSuitePacks,
     createEmojiItem,
     updateEmojiItem,
     deleteEmojiItem,
@@ -615,12 +616,13 @@
     },
   ];
 
-  // 获取表情包列表
+  // 获取表情包列表（只显示顶层的单个表情包和套件，不显示套件的子表情包）
   const fetchPacks = async (keyword?: string) => {
     try {
       setListLoading(true);
       const { data } = await listAllEmojiPacks(keyword);
-      packs.value = data;
+      // 过滤掉有 parent_id 的表情包（套件的子表情包）
+      packs.value = data.filter((p) => !p.parent_id);
     } catch (error: any) {
       Message.error(error?.response?.data?.message || '获取表情包列表失败');
     } finally {
@@ -852,8 +854,8 @@
   const fetchSuitePacks = async (suiteId: string) => {
     try {
       suitePackLoading.value = true;
-      const { data } = await listAllEmojiPacks();
-      currentSuitePacks.value = data.filter((p) => p.parent_id === suiteId);
+      const { data } = await getSuitePacks(suiteId);
+      currentSuitePacks.value = data;
     } catch (error: any) {
       Message.error(error?.response?.data?.message || '获取套件表情包列表失败');
     } finally {

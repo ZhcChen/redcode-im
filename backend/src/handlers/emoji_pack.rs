@@ -92,6 +92,17 @@ pub async fn list_all_packs(
         }
     }
 
+    // 如果有 parent_id，返回指定套件下的表情包
+    if let Some(parent_id_str) = params.get("parent_id") {
+        if !parent_id_str.trim().is_empty() {
+            let parent_id = Uuid::parse_str(parent_id_str)
+                .map_err(|_| AppError::ValidationError("无效的套件ID".to_string()))?;
+            let packs = store.list_packs_by_parent(parent_id).await?;
+            let response: Vec<EmojiPackResponse> = packs.iter().map(db_pack_to_api).collect();
+            return Ok(Json(response));
+        }
+    }
+
     // 否则返回所有表情包
     let packs = store.list_all_packs().await?;
     let response: Vec<EmojiPackResponse> = packs.iter().map(db_pack_to_api).collect();

@@ -95,18 +95,17 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 获取套件下的所有表情包
+    /// 获取套件下的所有表情包（管理员用，包括未激活的）
     pub async fn list_packs_by_parent(&self, parent_id: Uuid) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
             SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
-            WHERE parent_id = $1 AND is_active = $2
+            WHERE parent_id = $1
             ORDER BY created_at ASC
             "#,
         )
         .bind(parent_id)
-        .bind(EmojiPackStatus::Active)
         .fetch_all(&self.database.pool)
         .await?;
 
@@ -392,13 +391,17 @@ impl EmojiPackStore {
         user_id: Uuid,
         suite_id: Uuid,
     ) -> Result<usize, Error> {
-        // 获取套件下的所有表情包
+        // 获取套件下的所有表情包（只添加激活的）
         let child_packs = self.list_packs_by_parent(suite_id).await?;
 
         let now = Utc::now();
         let mut count = 0;
 
         for pack in child_packs {
+            // 只添加激活的表情包
+            if pack.is_active != EmojiPackStatus::Active {
+                continue;
+            }
             // 检查是否已添加
             let exists = self.has_user_pack(user_id, pack.id).await?;
             if !exists {
