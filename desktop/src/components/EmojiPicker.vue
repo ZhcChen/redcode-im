@@ -823,7 +823,7 @@ const CachedEmojiImage = defineComponent({
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  border-radius: 16px;
+  border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
@@ -833,7 +833,7 @@ const CachedEmojiImage = defineComponent({
   flex-shrink: 0;
   color: $text-secondary;
   background-color: transparent;
-  border: 1px solid transparent;
+  border: none;
 
   &:hover {
     background-color: rgba($primary-color, 0.08);
@@ -844,8 +844,6 @@ const CachedEmojiImage = defineComponent({
     background-color: rgba($primary-color, 0.15);
     color: $primary-color;
     font-weight: 600;
-    border: 1px solid rgba($primary-color, 0.3);
-    box-shadow: 0 2px 4px rgba($primary-color, 0.1);
   }
 
   .tab-icon {
