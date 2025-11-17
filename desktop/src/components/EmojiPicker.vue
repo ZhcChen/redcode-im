@@ -811,7 +811,7 @@ const CachedEmojiImage = defineComponent({
 .emoji-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
   padding: 8px;
   border-bottom: 1px solid #e5e5e5;
   flex-shrink: 0;
@@ -822,7 +822,7 @@ const CachedEmojiImage = defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 0;
   padding: 1px;
   width: 28px;
   height: 28px;
