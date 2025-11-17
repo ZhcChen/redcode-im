@@ -1,5 +1,6 @@
 <template>
-  <div v-if="visible" class="media-preview-overlay" @click="handleOverlayClick">
+  <Teleport to="body">
+    <div v-if="visible" class="media-preview-overlay" @click="handleOverlayClick">
     <div class="media-preview-container">
       <!-- 关闭按钮 -->
       <button class="close-button" @click="close">
@@ -129,6 +130,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -498,7 +500,7 @@ watch(() => props.visible, (newVisible) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 99999;
   backdrop-filter: blur(8px);
   animation: fadeIn 0.2s ease-out;
 }
