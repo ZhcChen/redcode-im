@@ -31,12 +31,16 @@
             class="preview-video"
             :class="{ 'video-hidden': loading || !videoReady }"
             @loadstart="handleVideoLoadStart"
+            @loadeddata="handleVideoLoadedData"
             @canplay="handleVideoCanPlay"
+            @canplaythrough="handleVideoCanPlayThrough"
             @timeupdate="handleTimeUpdate"
             @ended="handleVideoEnded"
             @error="handleVideoError"
+            @stalled="handleVideoStalled"
+            @waiting="handleVideoWaiting"
             @contextmenu.stop
-            preload="metadata"
+            preload="auto"
             :loop="false"
           >
             您的浏览器不支持视频播放
@@ -202,12 +206,23 @@ const handleImageError = () => {
 
 // 视频开始加载
 const handleVideoLoadStart = () => {
+  console.log('视频开始加载:', props.mediaSrc)
   loading.value = true
   videoReady.value = false
 }
 
+// 视频数据已加载
+const handleVideoLoadedData = () => {
+  console.log('视频数据已加载')
+  if (videoElement.value) {
+    duration.value = videoElement.value.duration || 0
+    console.log('视频时长:', duration.value)
+  }
+}
+
 // 视频可以播放
 const handleVideoCanPlay = () => {
+  console.log('视频可以播放')
   loading.value = false
   videoReady.value = true
   if (videoElement.value) {
@@ -217,11 +232,20 @@ const handleVideoCanPlay = () => {
 
     // 自动播放视频
     videoElement.value.play().then(() => {
+      console.log('视频自动播放成功')
       isPlaying.value = true
     }).catch(error => {
+      console.warn('视频自动播放失败:', error)
       isPlaying.value = false
     })
   }
+}
+
+// 视频可以流畅播放
+const handleVideoCanPlayThrough = () => {
+  console.log('视频可以流畅播放')
+  loading.value = false
+  videoReady.value = true
 }
 
 // 时间更新
@@ -248,9 +272,52 @@ const handleVideoEnded = () => {
 }
 
 // 视频加载错误
-const handleVideoError = () => {
+const handleVideoError = (event: Event) => {
+  const video = event.target as HTMLVideoElement
+  const error = video.error
+  console.error('视频加载错误:', {
+    code: error?.code,
+    message: error?.message,
+    mediaSrc: props.mediaSrc,
+    readyState: video.readyState,
+    networkState: video.networkState
+  })
+  
+  let errorMessage = '视频加载失败'
+  if (error) {
+    switch (error.code) {
+      case MediaError.MEDIA_ERR_ABORTED:
+        errorMessage = '视频加载被中止'
+        break
+      case MediaError.MEDIA_ERR_NETWORK:
+        errorMessage = '网络错误，无法加载视频'
+        break
+      case MediaError.MEDIA_ERR_DECODE:
+        errorMessage = '视频解码失败'
+        break
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+        errorMessage = '视频格式不支持'
+        break
+      default:
+        errorMessage = `视频加载失败 (错误代码: ${error.code})`
+    }
+  }
+  
   loading.value = false
   videoReady.value = false
+  // 显示错误信息（可以通过 emit 传递给父组件，或者在这里显示）
+  console.error(errorMessage)
+}
+
+// 视频加载停滞
+const handleVideoStalled = () => {
+  console.warn('视频加载停滞')
+}
+
+// 视频等待数据
+const handleVideoWaiting = () => {
+  console.log('视频等待数据中...')
+  loading.value = true
 }
 
 // 播放/暂停切换
@@ -359,12 +426,29 @@ watch(() => props.visible, (newVisible) => {
     duration.value = 0
     playProgress.value = 0
     bufferProgress.value = 0
+    
+    // 如果视频元素存在，重新加载视频
+    if (videoElement.value && props.mediaSrc) {
+      console.log('预览打开，重新加载视频:', props.mediaSrc)
+      videoElement.value.load()
+    }
   } else {
     // 关闭时暂停视频
     if (videoElement.value) {
       videoElement.value.pause()
       isPlaying.value = false
     }
+  }
+})
+
+// 监听 mediaSrc 变化，重新加载视频
+watch(() => props.mediaSrc, (newSrc, oldSrc) => {
+  if (newSrc && newSrc !== oldSrc && videoElement.value) {
+    console.log('视频源变化，重新加载:', { oldSrc, newSrc })
+    loading.value = true
+    videoReady.value = false
+    isPlaying.value = false
+    videoElement.value.load()
   }
 })
 
