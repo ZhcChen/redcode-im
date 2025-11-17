@@ -448,17 +448,27 @@ pub async fn list_user_suite_packs(
             crate::database::models::EmojiPackStatus::Active
         ) {
             let items = store.list_items_by_pack(pack.id).await?;
-            // 添加调试日志
-            tracing::debug!(
-                "套件表情包: pack_id={}, pack_name={}, items_count={}",
+            // 添加详细日志
+            tracing::info!(
+                "套件表情包: pack_id={}, pack_name={}, items_count={}, items={:?}",
                 pack.id,
                 pack.name,
-                items.len()
+                items.len(),
+                items.iter().map(|i| i.id.to_string()).collect::<Vec<_>>()
             );
             result.push(EmojiPackWithItemsResponse {
                 pack: db_pack_to_api(&pack),
                 items: items.iter().map(db_item_to_api).collect(),
             });
+        } else {
+            // 记录为什么没有包含此表情包
+            tracing::debug!(
+                "跳过表情包: pack_id={}, pack_name={}, has_pack={}, is_active={:?}",
+                pack.id,
+                pack.name,
+                store.has_user_pack(user_id, pack.id).await.unwrap_or(false),
+                pack.is_active
+            );
         }
     }
 
