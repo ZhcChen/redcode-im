@@ -386,12 +386,14 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
         name: e.name
       }))
     case 'custom':
-      // 收集所有单个表情包（pack_type === 0）中的表情项
+      // 收集所有独立的单个表情包（pack_type === 0 且 parent_id === null）中的表情项
+      // 排除套件（pack_type === 1）和套件下的子表情包（pack_type === 0 但有 parent_id）
       const allItems: EmojiDisplayItem[] = []
       console.log('计算自定义 tab 的表情项，userPacks 数量:', userPacks.value.length)
       for (const pack of userPacks.value) {
-        console.log(`检查表情包: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}, icon_url=${pack.icon_url || '无'}`)
-        if (pack.pack_type === 0) {
+        console.log(`检查表情包: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, parent_id=${pack.parent_id || 'null'}, items数量=${pack.items?.length || 0}, icon_url=${pack.icon_url || '无'}`)
+        // 只包含独立的单个表情包：pack_type === 0 且 parent_id === null/undefined
+        if (pack.pack_type === 0 && !pack.parent_id) {
           // 如果表情包有 items，使用 items
           if (pack.items && pack.items.length > 0) {
             for (const item of pack.items) {
