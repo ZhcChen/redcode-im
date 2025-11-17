@@ -575,10 +575,21 @@
   };
 
   // 表情包表单提交
-  const handlePackBeforeOk = async () => {
-    const valid = await packFormRef.value?.validate();
-    if (!valid) {
-      return false;
+  const handlePackBeforeOk = async (done: (closed: boolean) => void) => {
+    if (!packFormRef.value) {
+      done(false);
+      return;
+    }
+
+    try {
+      const errors = await packFormRef.value.validate();
+      if (errors) {
+        done(false);
+        return;
+      }
+    } catch (error) {
+      done(false);
+      return;
     }
 
     try {
@@ -604,12 +615,17 @@
         });
         Message.success('创建成功');
       }
-      packModalVisible.value = false;
       await fetchPacks();
-      return true;
+      packModalVisible.value = false;
+      done(true);
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '操作失败');
-      return false;
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.details ||
+        error?.message ||
+        '操作失败';
+      Message.error(errorMsg);
+      done(false);
     } finally {
       setActionLoading(false);
     }
