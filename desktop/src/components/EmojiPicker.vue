@@ -550,10 +550,8 @@ const loadSuitePacks = async (suiteId: string) => {
   try {
     console.log('开始加载套件表情包:', suiteId)
     // 使用响应式方式更新加载状态
-    loadingSuitePacks.value = {
-      ...loadingSuitePacks.value,
-      [suiteId]: true
-    }
+    loadingSuitePacks.value[suiteId] = true
+    loadingSuitePacks.value = { ...loadingSuitePacks.value }
     const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
     console.log('套件表情包加载成功:', suiteId, suitePacks)
     // 详细打印每个表情包的数据结构
@@ -564,24 +562,21 @@ const loadSuitePacks = async (suiteId: string) => {
         items: pack.items
       })
     })
-    // 使用响应式方式更新缓存
-    suitePacksCache.value = {
-      ...suitePacksCache.value,
-      [suiteId]: suitePacks
-    }
+    // 使用响应式方式更新缓存 - 直接修改对象属性以确保响应式更新
+    suitePacksCache.value[suiteId] = suitePacks
+    // 触发响应式更新 - 通过重新赋值整个对象
+    suitePacksCache.value = { ...suitePacksCache.value }
     console.log('套件缓存已更新:', suitePacksCache.value)
+    console.log('验证缓存中的套件数据:', suitePacksCache.value[suiteId])
   } catch (error) {
     console.error('加载套件表情包失败:', suiteId, error)
-    suitePacksCache.value = {
-      ...suitePacksCache.value,
-      [suiteId]: []
-    }
+    suitePacksCache.value[suiteId] = []
+    // 触发响应式更新
+    suitePacksCache.value = { ...suitePacksCache.value }
   } finally {
     // 使用响应式方式更新加载状态
-    loadingSuitePacks.value = {
-      ...loadingSuitePacks.value,
-      [suiteId]: false
-    }
+    loadingSuitePacks.value[suiteId] = false
+    loadingSuitePacks.value = { ...loadingSuitePacks.value }
   }
 }
 
@@ -595,9 +590,10 @@ const loadUserPacks = async () => {
       ...item.pack,
       items: item.items || []
     }))
-    // 清空套件缓存，重新加载
-    suitePacksCache.value = {}
-    loadingSuitePacks.value = {}
+    // 不清空套件缓存，保留已加载的套件数据
+    // 只在需要时重新加载特定套件
+    // suitePacksCache.value = {}
+    // loadingSuitePacks.value = {}
     // 不预加载套件，改为按需加载（点击 tab 时再加载）
     // 这样可以避免预加载失败导致的问题，并且提升初始加载速度
   } catch (error) {
