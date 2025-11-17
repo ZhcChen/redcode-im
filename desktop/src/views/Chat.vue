@@ -786,7 +786,6 @@ const sanitizeAttachmentForCache = (attachment: MessageAttachment | null | undef
   }
   return {
     ...attachment,
-    localPath: null,
     downloadUrl: null,
     uploadProgress: null,
   }
@@ -802,7 +801,6 @@ const sanitizeMessageForCache = (message: Message): Message => {
   if (typeof message.content === 'object' && message.content) {
     sanitizedContent = {
       ...message.content,
-      localUrl: undefined,
       downloadUrl: undefined,
       uploadProgress: undefined,
       isUploading: false,
@@ -822,7 +820,6 @@ const restoreMessageFromCache = (cached: Message): Message => {
     attachment: part.attachment
       ? {
           ...part.attachment,
-          localPath: null,
           downloadUrl: null,
           uploadProgress: null,
         }
@@ -833,7 +830,6 @@ const restoreMessageFromCache = (cached: Message): Message => {
   if (typeof cached.content === 'object' && cached.content) {
     restoredContent = {
       ...cached.content,
-      localUrl: undefined,
       downloadUrl: undefined,
       uploadProgress: undefined,
       isUploading: false,
