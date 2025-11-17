@@ -2876,117 +2876,182 @@ const parseImageSrc = (message: Message): string => {
 // 确保视频缩略图已下载到本地
 const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: MessagePart) => {
   const attachment = videoPart.attachment
-  if (!attachment || !attachment.thumbnailKey) {
-    console.log('ensureVideoThumbnailLocalPath: 没有缩略图 key')
+  if (!attachment) {
+    console.log('ensureVideoThumbnailLocalPath: 没有附件信息')
     return
   }
 
   const thumbnailKey = attachment.thumbnailKey
-  console.log('ensureVideoThumbnailLocalPath: 开始处理缩略图', thumbnailKey)
-  
-  // 检查缓存
-  const cached = attachmentUrlCache.get(thumbnailKey)
-  if (cached && cached.expiresAt > Date.now()) {
-    console.log('ensureVideoThumbnailLocalPath: 缓存命中', cached.localPath)
-    if (cached.localPath && cached.localPath.startsWith('blob:')) {
-      registerBlobUrl(cached.localPath)
-    }
-        // 更新视频 part 的缩略图 localPath（使用响应式更新）
-        const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
-        if (index !== -1) {
-          const msg = messages.value[index]
-          if (Array.isArray(msg.parts)) {
-            const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
-            if (partIndex !== -1 && msg.parts[partIndex].attachment) {
-              // 创建新的 parts 数组以触发响应式更新
-              const updatedParts = [...msg.parts]
-              updatedParts[partIndex] = {
-                ...updatedParts[partIndex],
-                attachment: {
-                  ...updatedParts[partIndex].attachment!,
-                  localPath: cached.localPath
-                }
-              }
-              messages.value[index] = {
-                ...msg,
-                parts: updatedParts
-              }
-              console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（从缓存）')
-            }
-          }
-        }
-    return
-  }
-  
-  console.log('ensureVideoThumbnailLocalPath: 缓存未命中，开始下载')
 
-  const roomId = message.roomId || selectedChat.value?.groupId
-  if (!roomId) {
-    return
-  }
+  // 如果有 thumbnailKey，使用原来的逻辑
+  if (thumbnailKey) {
+    console.log('ensureVideoThumbnailLocalPath: 开始处理缩略图', thumbnailKey)
 
-  let pending = pendingAttachmentDownloads.get(thumbnailKey)
-  if (!pending) {
-    pending = (async () => {
-      try {
-        const response = await MessageApi.getAttachmentDownloadUrl({
-          groupId: roomId,
-          key: thumbnailKey,
-          expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
-        })
-
-        const payload = response.data
-        if (!response.success || !payload || !payload.downloadUrl) {
-          throw new Error(payload?.message || response.message || '获取缩略图下载链接失败')
-        }
-
-        const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, 'image/jpeg')
-        console.log('缩略图下载完成:', { localPath, fromBlob, thumbnailKey })
-        if (fromBlob) {
-          registerBlobUrl(localPath)
-        }
-        attachmentUrlCache.set(thumbnailKey, {
-          localPath,
-          expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
-          downloadUrl: payload.downloadUrl,
-        })
-        
-        // 更新视频 part 的缩略图 localPath（使用响应式更新）
-        const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
-        if (index !== -1) {
-          const msg = messages.value[index]
-          if (Array.isArray(msg.parts)) {
-            const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
-            if (partIndex !== -1 && msg.parts[partIndex].attachment) {
-              // 创建新的 parts 数组以触发响应式更新
-              const updatedParts = [...msg.parts]
-              updatedParts[partIndex] = {
-                ...updatedParts[partIndex],
-                attachment: {
-                  ...updatedParts[partIndex].attachment!,
-                  localPath: localPath
-                }
-              }
-              messages.value[index] = {
-                ...msg,
-                parts: updatedParts
-              }
-              console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（下载后）')
-            }
-          }
-        }
-        
-        return { localPath, downloadUrl: payload.downloadUrl }
-      } catch (error: any) {
-        console.warn('视频缩略图下载失败:', error)
-        return null
+    // 检查缓存
+    const cached = attachmentUrlCache.get(thumbnailKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      console.log('ensureVideoThumbnailLocalPath: 缓存命中', cached.localPath)
+      if (cached.localPath && cached.localPath.startsWith('blob:')) {
+        registerBlobUrl(cached.localPath)
       }
-    })()
-    pendingAttachmentDownloads.set(thumbnailKey, pending)
+      // 更新视频 part 的缩略图 localPath（使用响应式更新）
+      const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
+      if (index !== -1) {
+        const msg = messages.value[index]
+        if (Array.isArray(msg.parts)) {
+          const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
+          if (partIndex !== -1 && msg.parts[partIndex].attachment) {
+            // 创建新的 parts 数组以触发响应式更新
+            const updatedParts = [...msg.parts]
+            updatedParts[partIndex] = {
+              ...updatedParts[partIndex],
+              attachment: {
+                ...updatedParts[partIndex].attachment!,
+                localPath: cached.localPath
+              }
+            }
+            messages.value[index] = {
+              ...msg,
+              parts: updatedParts
+            }
+            console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（从缓存）')
+          }
+        }
+      }
+      return
+    }
+
+    console.log('ensureVideoThumbnailLocalPath: 缓存未命中，开始下载')
+  } else {
+    console.log('ensureVideoThumbnailLocalPath: 没有缩略图 key，检查是否有视频文件')
   }
 
-  await pending
-  pendingAttachmentDownloads.delete(thumbnailKey)
+  // 如果有 thumbnailKey，下载缩略图
+  if (thumbnailKey) {
+    const roomId = message.roomId || selectedChat.value?.groupId
+    if (!roomId) {
+      return
+    }
+
+    let pending = pendingAttachmentDownloads.get(thumbnailKey)
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const response = await MessageApi.getAttachmentDownloadUrl({
+            groupId: roomId,
+            key: thumbnailKey,
+            expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
+          })
+
+          const payload = response.data
+          if (!response.success || !payload || !payload.downloadUrl) {
+            throw new Error(payload?.message || response.message || '获取缩略图下载链接失败')
+          }
+
+          const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, 'image/jpeg')
+          console.log('缩略图下载完成:', { localPath, fromBlob, thumbnailKey })
+          if (fromBlob) {
+            registerBlobUrl(localPath)
+          }
+          attachmentUrlCache.set(thumbnailKey, {
+            localPath,
+            expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
+            downloadUrl: payload.downloadUrl,
+          })
+
+          // 更新视频 part 的缩略图 localPath（使用响应式更新）
+          const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
+          if (index !== -1) {
+            const msg = messages.value[index]
+            if (Array.isArray(msg.parts)) {
+              const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
+              if (partIndex !== -1 && msg.parts[partIndex].attachment) {
+                // 创建新的 parts 数组以触发响应式更新
+                const updatedParts = [...msg.parts]
+                updatedParts[partIndex] = {
+                  ...updatedParts[partIndex],
+                  attachment: {
+                    ...updatedParts[partIndex].attachment!,
+                    localPath: localPath
+                  }
+                }
+                messages.value[index] = {
+                  ...msg,
+                  parts: updatedParts
+                }
+                console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（下载后）')
+              }
+            }
+          }
+
+          return { localPath, downloadUrl: payload.downloadUrl }
+        } catch (error: any) {
+          console.warn('视频缩略图下载失败:', error)
+          return null
+        }
+      })()
+      pendingAttachmentDownloads.set(thumbnailKey, pending)
+    }
+
+    await pending
+    pendingAttachmentDownloads.delete(thumbnailKey)
+    return
+  }
+
+  // 没有 thumbnailKey，尝试从视频文件生成首帧
+  if (attachment.localPath && !attachment.localPath.startsWith('blob:')) {
+    console.log('视频没有缩略图，开始生成首帧:', attachment.localPath)
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      // 生成缩略图文件名
+      const thumbnailPath = `${attachment.localPath}.jpg`
+      // 调用 Rust 函数生成首帧
+      const result = await invoke<string>('generate_video_thumbnail', {
+        videoPath: attachment.localPath,
+        outputPath: thumbnailPath,
+        timeSec: 1.0  // 1秒处截取
+      })
+      console.log('视频首帧生成成功:', result)
+
+      // 更新视频 part 的缩略图 localPath
+      const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
+      if (index !== -1) {
+        const msg = messages.value[index]
+        if (Array.isArray(msg.parts)) {
+          const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
+          if (partIndex !== -1 && msg.parts[partIndex].attachment) {
+            const updatedParts = [...msg.parts]
+            updatedParts[partIndex] = {
+              ...updatedParts[partIndex],
+              attachment: {
+                ...updatedParts[partIndex].attachment!,
+                localPath: result,
+                thumbnailKey: `generated:${attachment.key}`
+              }
+            }
+            messages.value[index] = {
+              ...msg,
+              parts: updatedParts
+            }
+            console.log('ensureVideoThumbnailLocalPath: 已生成并更新视频首帧')
+          }
+        }
+      }
+
+      // 缓存缩略图
+      attachmentUrlCache.set(`generated:${attachment.key}`, {
+        localPath: result,
+        expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
+      })
+    } catch (error) {
+      console.warn('生成视频首帧失败:', error)
+      // 生成失败不阻断视频播放
+    }
+  } else {
+    console.log('视频需要下载，开始下载:', attachment.localPath)
+    // 如果视频还没有下载，先下载视频
+    await ensureAttachmentLocalPath(message, videoPart)
+  }
 }
 
 const parseVideoScreenShotSrc = (message: Message): string => {

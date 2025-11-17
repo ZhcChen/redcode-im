@@ -127,6 +127,43 @@ async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
     Ok(())
 }
 
+// 自定义命令：生成视频首帧缩略图
+#[tauri::command]
+async fn generate_video_thumbnail(
+  video_path: String,
+  output_path: String,
+  time_sec: f64,
+) -> Result<String, String> {
+    use std::process::Command;
+
+    // 检查 ffmpeg 是否可用
+    let ffmpeg_check = Command::new("ffmpeg").arg("-version").output();
+    if let Err(e) = ffmpeg_check {
+        return Err(format!("未找到 ffmpeg，请先安装 ffmpeg: {}", e));
+    }
+
+    // 使用 ffmpeg 生成缩略图
+    let output = Command::new("ffmpeg")
+        .args(&[
+            "-i", &video_path,
+            "-ss", &time_sec.to_string(),
+            "-vframes", "1",
+            "-vf", "scale=320:-1",
+            "-q:v", "2",
+            "-y", // 覆盖输出文件
+            &output_path,
+        ])
+        .output()
+        .map_err(|e| format!("执行 ffmpeg 失败: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffmpeg 错误: {}", stderr));
+    }
+
+    Ok(output_path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 创建 HTTP 客户端配置
@@ -159,6 +196,7 @@ pub fn run() {
             hide_to_tray,
             show_from_tray,
             quit_app,
+            generate_video_thumbnail,
             client_debug,
             // 账号管理命令
             account_init,
