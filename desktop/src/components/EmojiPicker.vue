@@ -1005,6 +1005,7 @@ const CachedEmojiImage = defineComponent({
 
   &.emoji-grid-8 {
     grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
   }
 
   &.emoji-grid-6 {
