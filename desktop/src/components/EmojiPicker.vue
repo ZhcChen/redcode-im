@@ -15,7 +15,6 @@
           class="tab-icon"
         />
         <span v-else-if="tab.icon" class="tab-icon-emoji">{{ tab.icon }}</span>
-        <span class="tab-label">{{ tab.label }}</span>
       </div>
     </div>
     <div class="emoji-content">
