@@ -102,7 +102,7 @@ impl EmojiPackStore {
             SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             WHERE parent_id = $1
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
             "#,
         )
         .bind(parent_id)

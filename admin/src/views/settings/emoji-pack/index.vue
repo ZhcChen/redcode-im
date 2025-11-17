@@ -681,6 +681,19 @@
     }
   };
 
+  // 获取套件下的表情包列表
+  const fetchSuitePacks = async (suiteId: string) => {
+    try {
+      suitePackLoading.value = true;
+      const { data } = await getSuitePacks(suiteId);
+      currentSuitePacks.value = data;
+    } catch (error: any) {
+      Message.error(error?.response?.data?.message || '获取套件表情包列表失败');
+    } finally {
+      suitePackLoading.value = false;
+    }
+  };
+
   // 表情包表单提交
   const handlePackBeforeOk = async (done: (closed: boolean) => void) => {
     if (!packFormRef.value) {
@@ -723,6 +736,13 @@
         Message.success('创建成功');
       }
       await fetchPacks();
+      // 如果是在套件管理弹窗中添加的表情包，需要刷新套件列表
+      if (
+        packFormData.parent_id &&
+        currentSuite.value?.id === packFormData.parent_id
+      ) {
+        await fetchSuitePacks(packFormData.parent_id);
+      }
       packModalVisible.value = false;
       done(true);
     } catch (error: any) {
@@ -848,19 +868,6 @@
   const handleItemModalCancel = () => {
     currentPack.value = null;
     currentPackItems.value = [];
-  };
-
-  // 获取套件下的表情包列表
-  const fetchSuitePacks = async (suiteId: string) => {
-    try {
-      suitePackLoading.value = true;
-      const { data } = await getSuitePacks(suiteId);
-      currentSuitePacks.value = data;
-    } catch (error: any) {
-      Message.error(error?.response?.data?.message || '获取套件表情包列表失败');
-    } finally {
-      suitePackLoading.value = false;
-    }
   };
 
   // 管理套件下的表情包
