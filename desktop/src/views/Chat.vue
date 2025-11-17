@@ -6681,6 +6681,7 @@ const loadMessageList = async (groupId: string) => {
       white-space: pre-wrap; /* 保留换行符和空格 */
       font-size: 16px;
       overflow: hidden; /* 防止内容溢出 */
+      max-width: 60%; /* 与对方消息宽度保持一致 */
 
       // 媒体消息特殊处理 - 自己的消息
       .media-message {
@@ -7081,6 +7082,7 @@ const loadMessageList = async (groupId: string) => {
 .message.own-message {
   .message-content {
     display: inline-block;
+    max-width: 60%; /* 与对方消息宽度保持一致 */
   }
 }
 
