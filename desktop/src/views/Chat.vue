@@ -6665,7 +6665,7 @@ const loadMessageList = async (groupId: string) => {
 
 .message {
   display: flex;
-  align-items: flex-end; /* 改为底部对齐，让圈圈和消息气泡底部对齐 */
+  align-items: flex-start; /* 顶部对齐，让用户名和头像顶部对齐 */
   gap: 8px;
   position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
   margin-bottom: 8px; /* 添加消息间距 */
