@@ -37,7 +37,7 @@ class ChatMessageBubble extends StatelessWidget {
       topLeft: Radius.circular(message.isSelf ? 20 : 0),
       topRight: const Radius.circular(20),
       bottomLeft: const Radius.circular(20),
-      bottomRight: Radius.circular(message.isSelf ? 6 : 20),
+      bottomRight: Radius.circular(message.isSelf ? 0 : 20),
     );
 
     return Container(

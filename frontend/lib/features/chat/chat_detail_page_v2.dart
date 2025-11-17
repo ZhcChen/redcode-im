@@ -1924,7 +1924,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
             topLeft: Radius.circular(isSelf ? 16 : 0),
             topRight: const Radius.circular(16),
             bottomLeft: const Radius.circular(16),
-            bottomRight: Radius.circular(isSelf ? 4 : 16),
+            bottomRight: Radius.circular(isSelf ? 0 : 16),
           ),
           boxShadow: [
             BoxShadow(
