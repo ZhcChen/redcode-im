@@ -3,6 +3,7 @@ use std::env;
 
 pub mod account_store;
 pub mod document_store;
+pub mod emoji_pack_store;
 pub mod friend_store;
 pub mod group_management_store;
 pub mod member_with_user_info;

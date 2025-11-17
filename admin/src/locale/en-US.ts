@@ -24,6 +24,7 @@ export default {
   'menu.settings.storageProvider': 'Storage Provider',
   'menu.settings.cosTest': 'COS Test',
   'menu.settings.general': 'General Settings',
+  'menu.settings.emojiPack': 'Emoji Pack Settings',
   'menu.version': 'Version Management',
   'menu.version.frontend': 'App Client',
   'menu.version.desktop': 'Desktop Client',

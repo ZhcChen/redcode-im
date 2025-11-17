@@ -19,6 +19,8 @@ import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
 import '../../core/services/message_service.dart';
+import '../../core/services/emoji_pack_service.dart';
+import '../../features/emoji/models/emoji_pack_models.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
 import 'models/message_model.dart';
@@ -2927,10 +2929,19 @@ class _IconButton extends StatelessWidget {
 }
 
 /// 表情面板
-class _EmojiPanel extends StatelessWidget {
+class _EmojiPanel extends StatefulWidget {
   const _EmojiPanel({required this.onEmojiSelected});
 
   final Function(String) onEmojiSelected;
+
+  @override
+  State<_EmojiPanel> createState() => _EmojiPanelState();
+}
+
+class _EmojiPanelState extends State<_EmojiPanel> {
+  int _selectedTabIndex = 0;
+  List<EmojiPack> _userPacks = [];
+  bool _loadingPacks = false;
 
   static const List<String> emojis = [
     '😀',
@@ -2992,39 +3003,297 @@ class _EmojiPanel extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserPacks();
+  }
+
+  Future<void> _loadUserPacks() async {
+    setState(() {
+      _loadingPacks = true;
+    });
+    try {
+      final service = EmojiPackService();
+      final packs = await service.getUserPacks();
+      setState(() {
+        _userPacks = packs;
+      });
+    } catch (e) {
+      // 静默失败，不影响表情面板显示
+      debugPrint('加载表情包失败: $e');
+    } finally {
+      setState(() {
+        _loadingPacks = false;
+      });
+    }
+  }
+
+  List<_TabItem> _buildTabs() {
+    final tabs = <_TabItem>[];
+    
+    // Emoji tab
+    tabs.add(_TabItem(
+      type: _TabType.emoji,
+      icon: '😀',
+      label: 'Emoji',
+    ));
+    
+    // 自定义表情 tab
+    tabs.add(_TabItem(
+      type: _TabType.custom,
+      icon: '🎨',
+      label: '自定义',
+    ));
+    
+    // 用户添加的表情包 tabs
+    for (final pack in _userPacks) {
+      tabs.add(_TabItem(
+        type: _TabType.pack,
+        icon: pack.iconUrl,
+        label: pack.name,
+        pack: pack,
+      ));
+    }
+    
+    return tabs;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final tabs = _buildTabs();
+    
     return Container(
-      height: 200,
-      padding: const EdgeInsets.all(12),
+      height: 250,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 8,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-        ),
-        itemCount: emojis.length,
-        itemBuilder: (context, index) {
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => onEmojiSelected(emojis[index]),
-              child: Center(
-                child: Text(
-                  emojis[index],
-                  style: const TextStyle(fontSize: 24),
-                ),
+      child: Column(
+        children: [
+          // Tab 切换栏
+          Container(
+            height: 50,
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: AppColors.divider, width: 0.5),
               ),
             ),
-          );
-        },
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: tabs.length,
+              itemBuilder: (context, index) {
+                final tab = tabs[index];
+                final isSelected = _selectedTabIndex == index;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedTabIndex = index;
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary.withValues(alpha: 0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      border: isSelected
+                          ? Border.all(color: AppColors.primary, width: 1)
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (tab.icon != null)
+                          tab.icon!.startsWith('http')
+                              ? Image.network(
+                                  tab.icon!,
+                                  width: 20,
+                                  height: 20,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.image,
+                                    size: 20,
+                                  ),
+                                )
+                              : Text(
+                                  tab.icon!,
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                        const SizedBox(width: 4),
+                        Text(
+                          tab.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          // 内容区域
+          Expanded(
+            child: _buildContent(tabs[_selectedTabIndex]),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildContent(_TabItem tab) {
+    if (_loadingPacks && tab.type == _TabType.custom) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    switch (tab.type) {
+      case _TabType.emoji:
+        return _buildEmojiGrid();
+      case _TabType.custom:
+        return _buildCustomEmojiGrid();
+      case _TabType.pack:
+        return _buildPackGrid(tab.pack!);
+    }
+  }
+
+  Widget _buildEmojiGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 8,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: emojis.length,
+      itemBuilder: (context, index) {
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => widget.onEmojiSelected(emojis[index]),
+            child: Center(
+              child: Text(
+                emojis[index],
+                style: const TextStyle(fontSize: 24),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomEmojiGrid() {
+    // 收集所有用户表情包中的表情项
+    final allItems = <EmojiItem>[];
+    for (final pack in _userPacks) {
+      allItems.addAll(pack.items);
+    }
+    
+    if (allItems.isEmpty) {
+      return const Center(
+        child: Text(
+          '暂无自定义表情\n请在设置中添加表情包',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 6,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: allItems.length,
+      itemBuilder: (context, index) {
+        final item = allItems[index];
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => widget.onEmojiSelected(item.imageUrl),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                item.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.image),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPackGrid(EmojiPack pack) {
+    if (pack.items.isEmpty) {
+      return const Center(
+        child: Text(
+          '此表情包暂无表情',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 6,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: pack.items.length,
+      itemBuilder: (context, index) {
+        final item = pack.items[index];
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => widget.onEmojiSelected(item.imageUrl),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                item.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.image),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+enum _TabType {
+  emoji,
+  custom,
+  pack,
+}
+
+class _TabItem {
+  final _TabType type;
+  final String? icon;
+  final String label;
+  final EmojiPack? pack;
+
+  _TabItem({
+    required this.type,
+    this.icon,
+    required this.label,
+    this.pack,
+  });
 }
 
 /// 更多操作面板

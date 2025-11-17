@@ -72,6 +72,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'emoji-pack',
+      name: 'EmojiPackSettings',
+      component: () => import('@/views/settings/emoji-pack/index.vue'),
+      meta: {
+        locale: 'menu.settings.emojiPack',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

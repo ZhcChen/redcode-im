@@ -6,8 +6,8 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, chat_history, feedback, friend, group_management, healthz, message, message_read,
-    message_search, room, root, settings, user, version, ws,
+    admin, auth, chat_history, emoji_pack, feedback, friend, group_management, healthz, message,
+    message_read, message_search, room, root, settings, user, version, ws,
 };
 use crate::AppState;
 
@@ -40,14 +40,8 @@ pub fn create_routes() -> Router<AppState> {
             "/settings/user-agreement",
             get(settings::get_user_agreement),
         )
-        .route(
-            "/settings/general",
-            get(settings::get_general_settings),
-        )
-        .route(
-            "/settings/app-name",
-            get(settings::get_app_name),
-        )
+        .route("/settings/general", get(settings::get_general_settings))
+        .route("/settings/app-name", get(settings::get_app_name))
         .route(
             "/settings/captcha",
             get(settings::get_captcha_setting_public),
@@ -407,6 +401,43 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/{room_id}/detail",
             get(group_management::get_group_detail),
+        )
+        // 表情包管理 API（管理员）
+        .route(
+            "/api/admin/emoji-packs",
+            get(emoji_pack::list_all_packs).post(emoji_pack::create_pack),
+        )
+        .route(
+            "/api/admin/emoji-packs/{pack_id}",
+            get(emoji_pack::get_pack)
+                .patch(emoji_pack::update_pack)
+                .delete(emoji_pack::delete_pack),
+        )
+        .route("/api/admin/emoji-items", post(emoji_pack::create_item))
+        .route(
+            "/api/admin/emoji-items/{item_id}",
+            get(emoji_pack::get_item)
+                .patch(emoji_pack::update_item)
+                .delete(emoji_pack::delete_item),
+        )
+        // 表情包用户 API
+        .route(
+            "/emoji-packs/available",
+            get(emoji_pack::list_available_packs),
+        )
+        .route("/emoji-packs/search", get(emoji_pack::search_packs))
+        .route("/emoji-packs/my", get(emoji_pack::list_user_packs))
+        .route(
+            "/emoji-packs/{pack_id}/add",
+            post(emoji_pack::add_user_pack),
+        )
+        .route(
+            "/emoji-packs/suites/{suite_id}/add",
+            post(emoji_pack::add_user_suite),
+        )
+        .route(
+            "/emoji-packs/{pack_id}/remove",
+            delete(emoji_pack::remove_user_pack),
         )
         .layer(middleware::from_fn(auth_middleware));
 

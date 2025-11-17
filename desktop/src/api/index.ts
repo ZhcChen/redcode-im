@@ -40,6 +40,7 @@ import { MessageApi } from './message';
 import { FileApi } from './file';
 import { VersionApi } from './version';
 import { SettingsApi } from './settings';
+import { EmojiPackApi } from './emoji-pack';
 
 /**
  * 统一的 API 接口对象
@@ -70,7 +71,10 @@ export const api = {
   version: VersionApi,
 
   // 系统设置相关接口
-  settings: SettingsApi
+  settings: SettingsApi,
+
+  // 表情包相关接口
+  emojiPack: EmojiPackApi
 };
 
 // 默认导出

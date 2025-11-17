@@ -29,6 +29,7 @@ export default {
   'menu.settings.storageProvider': '文件上传提供商',
   'menu.settings.cosTest': 'COS 测试',
   'menu.settings.general': '通用设置',
+  'menu.settings.emojiPack': '表情包设置',
   'menu.version': '版本管理',
   'menu.version.frontend': 'App客户端',
   'menu.version.desktop': '桌面客户端',

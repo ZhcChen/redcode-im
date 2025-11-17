@@ -1,26 +1,139 @@
 <template>
   <div class="emoji-picker" v-if="show">
-    <div class="emoji-grid">
+    <div class="emoji-tabs">
       <div
-        v-for="emoji in emojiList"
-        :key="emoji.code"
-        class="emoji-item"
-        @click="selectEmoji(emoji)"
-        :title="emoji.name"
+        v-for="(tab, index) in tabs"
+        :key="index"
+        class="emoji-tab"
+        :class="{ active: selectedTabIndex === index }"
+        @click="selectedTabIndex = index"
       >
-        {{ emoji.emoji }}
+        <img
+          v-if="tab.icon && tab.icon.startsWith('http')"
+          :src="tab.icon"
+          alt=""
+          class="tab-icon"
+        />
+        <span v-else-if="tab.icon" class="tab-icon-emoji">{{ tab.icon }}</span>
+        <span class="tab-label">{{ tab.label }}</span>
+      </div>
+    </div>
+    <div class="emoji-content">
+      <!-- 搜索 tab -->
+      <div v-if="selectedTabIndex === 0" class="search-tab">
+        <div class="search-input-wrapper">
+          <input
+            v-model="searchKeyword"
+            type="text"
+            class="search-input"
+            placeholder="搜索表情包或套件..."
+            @input="handleSearch"
+          />
+        </div>
+        <div v-if="searchLoading" class="loading">搜索中...</div>
+        <div v-else-if="searchResults.length === 0 && searchKeyword" class="empty-state">
+          未找到相关表情包
+        </div>
+        <div v-else-if="searchResults.length > 0" class="search-results">
+          <div
+            v-for="result in searchResults"
+            :key="result.id"
+            class="search-result-item"
+            @click="handleSearchResultClick(result)"
+          >
+            <img
+              v-if="result.icon_url"
+              :src="result.icon_url"
+              alt=""
+              class="result-icon"
+            />
+            <span v-else class="result-icon-placeholder">📦</span>
+            <div class="result-info">
+              <div class="result-name">
+                {{ result.name }}
+                <span class="result-type">
+                  {{ result.pack_type === 1 ? '套件' : '表情包' }}
+                </span>
+              </div>
+              <div v-if="result.description" class="result-desc">
+                {{ result.description }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-state">输入关键词搜索表情包或套件</div>
+      </div>
+      <!-- 其他 tab -->
+      <div v-else>
+        <div v-if="loadingPacks && selectedTabIndex === 1" class="loading">
+          加载中...
+        </div>
+        <div v-else class="emoji-grid" :class="getGridClass()">
+          <div
+            v-for="(item, index) in currentItems"
+            :key="index"
+            class="emoji-item"
+            @click="selectEmoji(item)"
+            :title="item.name || ''"
+          >
+            <img
+              v-if="item.type === 'image'"
+              :src="item.value"
+              alt=""
+              class="emoji-image"
+            />
+            <span v-else class="emoji-text">{{ item.value }}</span>
+          </div>
+          <div
+            v-if="currentItems.length === 0 && selectedTabIndex === 1"
+            class="empty-state"
+          >
+            暂无自定义表情<br />请在设置中添加表情包
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加确认对话框 -->
+    <div v-if="showAddConfirm" class="add-confirm-overlay" @click="showAddConfirm = false">
+      <div class="add-confirm-dialog" @click.stop>
+        <div class="confirm-header">
+          <h3>{{ addConfirmTitle }}</h3>
+        </div>
+        <div class="confirm-content">
+          <p>{{ addConfirmMessage }}</p>
+        </div>
+        <div class="confirm-actions">
+          <button class="btn-cancel" @click="showAddConfirm = false">取消</button>
+          <button class="btn-confirm" @click="handleConfirmAdd">确定</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { api, type EmojiPack, type EmojiItem } from '../api'
+import { toast } from '../utils/toast'
 
 interface Emoji {
   emoji: string
   code: string
   name: string
+}
+
+interface TabItem {
+  type: 'search' | 'emoji' | 'custom' | 'pack'
+  icon: string | null
+  label: string
+  pack?: EmojiPack
+}
+
+interface EmojiDisplayItem {
+  type: 'emoji' | 'image'
+  value: string
+  name?: string
 }
 
 // Props
@@ -34,8 +147,25 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const selectedTabIndex = ref(0)
+const userPacks = ref<EmojiPack[]>([])
+const loadingPacks = ref(false)
+
+// 搜索相关
+const searchKeyword = ref('')
+const searchResults = ref<EmojiPack[]>([])
+const searchLoading = ref(false)
+const searchTimeout = ref<number | null>(null)
+
+// 添加确认对话框
+const showAddConfirm = ref(false)
+const addConfirmTitle = ref('')
+const addConfirmMessage = ref('')
+const pendingAddPack = ref<EmojiPack | null>(null)
+const pendingAddType = ref<'pack' | 'suite'>('pack')
+
 // 常用表情列表
-const emojiList = ref<Emoji[]>([
+const emojiList: Emoji[] = [
   { emoji: '😀', code: 'grinning', name: '开心' },
   { emoji: '😃', code: 'grinning_big', name: '大笑' },
   { emoji: '😄', code: 'grinning_squinting', name: '眯眼笑' },
@@ -176,39 +306,280 @@ const emojiList = ref<Emoji[]>([
   { emoji: '👊', code: 'punch', name: '出拳' },
   { emoji: '🤛', code: 'left_fist', name: '左拳' },
   { emoji: '🤜', code: 'right_fist', name: '右拳' }
-])
+]
+
+// 构建 tabs（搜索 tab 在第一个）
+const tabs = computed<TabItem[]>(() => {
+  const result: TabItem[] = [
+    {
+      type: 'search',
+      icon: '🔍',
+      label: '搜索'
+    },
+    {
+      type: 'emoji',
+      icon: '😀',
+      label: 'Emoji'
+    },
+    {
+      type: 'custom',
+      icon: '🎨',
+      label: '自定义'
+    }
+  ]
+
+  // 添加用户表情包 tabs
+  for (const pack of userPacks.value) {
+    result.push({
+      type: 'pack',
+      icon: pack.icon_url || null,
+      label: pack.name,
+      pack
+    })
+  }
+
+  return result
+})
+
+// 获取当前显示的表情项
+const currentItems = computed<EmojiDisplayItem[]>(() => {
+  const tab = tabs.value[selectedTabIndex.value]
+  if (!tab) return []
+
+  switch (tab.type) {
+    case 'search':
+      return [] // 搜索 tab 不显示表情项
+    case 'emoji':
+      return emojiList.map(e => ({
+        type: 'emoji' as const,
+        value: e.emoji,
+        name: e.name
+      }))
+    case 'custom':
+      // 收集所有用户表情包中的表情项
+      const allItems: EmojiDisplayItem[] = []
+      for (const pack of userPacks.value) {
+        if (pack.items) {
+          for (const item of pack.items) {
+            allItems.push({
+              type: 'image',
+              value: item.image_url,
+              name: item.name || undefined
+            })
+          }
+        }
+      }
+      return allItems
+    case 'pack':
+      if (tab.pack?.items) {
+        return tab.pack.items.map(item => ({
+          type: 'image' as const,
+          value: item.image_url,
+          name: item.name || undefined
+        }))
+      }
+      return []
+  }
+})
+
+// 获取网格类名
+const getGridClass = () => {
+  const tab = tabs.value[selectedTabIndex.value]
+  if (tab?.type === 'emoji') {
+    return 'emoji-grid-8'
+  }
+  return 'emoji-grid-6'
+}
+
+// 搜索功能
+const handleSearch = () => {
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
+
+  if (!searchKeyword.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  searchTimeout.value = window.setTimeout(async () => {
+    try {
+      searchLoading.value = true
+      searchResults.value = await api.emojiPack.searchPacks(searchKeyword.value.trim())
+    } catch (error) {
+      console.error('搜索失败:', error)
+      searchResults.value = []
+    } finally {
+      searchLoading.value = false
+    }
+  }, 300)
+}
+
+// 点击搜索结果
+const handleSearchResultClick = (pack: EmojiPack) => {
+  pendingAddPack.value = pack
+  if (pack.pack_type === 1) {
+    // 套件
+    pendingAddType.value = 'suite'
+    addConfirmTitle.value = '添加表情包套件'
+    addConfirmMessage.value = `确定要添加套件"${pack.name}"吗？这将添加套件下的所有表情包。`
+  } else {
+    // 单个表情包
+    pendingAddType.value = 'pack'
+    addConfirmTitle.value = '添加表情包'
+    addConfirmMessage.value = `确定要添加表情包"${pack.name}"到自定义表情吗？`
+  }
+  showAddConfirm.value = true
+}
+
+// 确认添加
+const handleConfirmAdd = async () => {
+  if (!pendingAddPack.value) return
+
+  try {
+    if (pendingAddType.value === 'suite') {
+      const result = await api.emojiPack.addUserSuite(pendingAddPack.value.id)
+      toast.success(`成功添加 ${result.count} 个表情包`)
+    } else {
+      await api.emojiPack.addUserPack(pendingAddPack.value.id)
+      toast.success('添加成功')
+    }
+    showAddConfirm.value = false
+    pendingAddPack.value = null
+    // 重新加载用户表情包
+    await loadUserPacks()
+    // 切换到自定义 tab
+    const customTabIndex = tabs.value.findIndex(t => t.type === 'custom')
+    if (customTabIndex >= 0) {
+      selectedTabIndex.value = customTabIndex
+    }
+  } catch (error: any) {
+    console.error('添加失败:', error)
+    toast.error(error?.message || '添加失败，请重试')
+  }
+}
+
+// 加载用户表情包
+const loadUserPacks = async () => {
+  loadingPacks.value = true
+  try {
+    // 使用 list_user_packs API，它已经返回了包含 items 的数据
+    const data = await api.emojiPack.getUserPacks()
+    userPacks.value = data.map((item) => ({
+      ...item.pack,
+      items: item.items || []
+    }))
+  } catch (error) {
+    console.error('加载表情包失败:', error)
+    userPacks.value = []
+  } finally {
+    loadingPacks.value = false
+  }
+}
 
 // 选择表情
-const selectEmoji = (emoji: Emoji) => {
-  emit('select', emoji.emoji)
+const selectEmoji = (item: EmojiDisplayItem) => {
+  emit('select', item.value)
   emit('close')
 }
+
+// 监听 show 变化，显示时加载表情包
+watch(() => props.show, (newVal) => {
+  if (newVal) {
+    loadUserPacks()
+    // 重置搜索
+    searchKeyword.value = ''
+    searchResults.value = []
+  }
+})
+
+onMounted(() => {
+  if (props.show) {
+    loadUserPacks()
+  }
+})
 </script>
 
 <style lang="scss" scoped>
 .emoji-picker {
   position: absolute;
   bottom: 100%;
-  left: 0; // 改为左侧对齐，因为表情按钮在左边
+  left: 0;
   margin-bottom: 8px;
-  width: 280px;
-  max-height: 200px;
+  width: 340px;
+  max-height: 300px;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   z-index: 1000;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
-.emoji-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
+.emoji-tabs {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  padding: 12px;
-  max-height: 200px;
-  overflow-y: auto;
+  padding: 8px;
+  border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+  overflow: hidden;
+}
 
-  // 滚动条样式
+.emoji-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  font-size: 12px;
+  max-width: 120px;
+  min-width: fit-content;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+
+  &.active {
+    background-color: rgba(22, 93, 255, 0.1);
+    color: #165dff;
+    font-weight: 600;
+    border: 1px solid #165dff;
+  }
+
+  .tab-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .tab-icon-emoji {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .tab-label {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.emoji-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+  box-sizing: border-box;
+
   &::-webkit-scrollbar {
     width: 4px;
   }
@@ -223,16 +594,134 @@ const selectEmoji = (emoji: Emoji) => {
   }
 }
 
+.search-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.search-input-wrapper {
+  margin-bottom: 12px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: #165dff;
+  }
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+
+  .result-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .result-icon-placeholder {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .result-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .result-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .result-type {
+      font-size: 12px;
+      color: #999;
+      font-weight: normal;
+    }
+  }
+
+  .result-desc {
+    font-size: 12px;
+    color: #666;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  color: #999;
+}
+
+.emoji-grid {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
+
+  &.emoji-grid-8 {
+    grid-template-columns: repeat(8, 1fr);
+  }
+
+  &.emoji-grid-6 {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
 .emoji-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  aspect-ratio: 1;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 18px;
   transition: background-color 0.2s;
+  min-width: 0;
+  overflow: hidden;
 
   &:hover {
     background-color: #f5f5f5;
@@ -240,6 +729,106 @@ const selectEmoji = (emoji: Emoji) => {
 
   &:active {
     background-color: #e0e0e0;
+  }
+
+  .emoji-text {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .emoji-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+    display: block;
+  }
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #999;
+  padding: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.add-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.add-confirm-dialog {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-header {
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+}
+
+.confirm-content {
+  margin-bottom: 24px;
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.6;
+  }
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-cancel {
+  background: #f5f5f5;
+  color: #333;
+
+  &:hover {
+    background: #e5e5e5;
+  }
+}
+
+.btn-confirm {
+  background: #165dff;
+  color: white;
+
+  &:hover {
+    background: #0e4fd1;
   }
 }
 </style>
