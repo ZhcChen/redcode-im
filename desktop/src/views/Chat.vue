@@ -1582,12 +1582,8 @@ const isFileExistsSync = (message: Message): boolean => {
       const localPath = filePart.attachment.localPath;
       // blob URL 是临时缓存，不算已下载
       if (!localPath.startsWith('blob:')) {
-        // 检查缓存
-        const cached = fileExistsCache.get(localPath);
-        if (cached && Date.now() - cached.checkedAt < FILE_EXISTS_CACHE_TTL) {
-          return cached.exists;
-        }
-        // 如果没有缓存，假设存在（会在异步检查时更新）
+        // 直接基于 localPath 判断：如果有真实的文件路径则认为已下载
+        // 缓存只用于优化，不影响判断结果
         return true;
       }
     }
@@ -1756,8 +1752,27 @@ const handleFileDownload = async (message: Message) => {
       return;
     } catch (error) {
       console.error('打开目录失败:', error);
-      toast.error('打开目录失败: ' + (error instanceof Error ? error.message : '未知错误'));
-      // 如果打开失败，尝试下载
+      // 检查文件是否真的存在
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const exists = await invoke<boolean>('check_file_exists', { path: attachment.localPath });
+        if (exists) {
+          // 文件存在，只是打开目录失败（权限问题等），不下载
+          toast.error('打开目录失败: ' + (error instanceof Error ? error.message : '未知错误'));
+          return;
+        }
+        // 文件不存在，清除本地路径并下载
+        console.log('文件不存在，清除 localPath 并重新下载');
+        if (attachment.key) {
+          setAttachmentLocalPath(message.id, attachment.key, null);
+        }
+        // 继续执行下载逻辑
+      } catch (checkError) {
+        console.error('检查文件是否存在失败:', checkError);
+        // 如果检查失败，直接显示错误但不下载
+        toast.error('打开目录失败: ' + (error instanceof Error ? error.message : '未知错误'));
+        return;
+      }
     }
   }
 
