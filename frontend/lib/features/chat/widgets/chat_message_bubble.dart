@@ -56,36 +56,46 @@ class ChatMessageBubble extends StatelessWidget {
                 ),
               ),
             ),
-          Container(
-            decoration: isImageMessage
-                ? null
-                : BoxDecoration(color: bubbleColor, borderRadius: borderRadius),
-            padding: isImageMessage
-                ? EdgeInsets.zero
-                : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: isImageMessage
-                ? ClipRRect(
-                    borderRadius: borderRadius,
-                    child: message.imageAsset != null
-                        ? Image.asset(
-                            message.imageAsset!,
-                            width: 200,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.network(
-                            message.imageUrl!,
-                            width: 200,
-                            fit: BoxFit.cover,
-                          ),
-                  )
-                : Text(
-                    message.content,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: textColor,
-                      height: 1.4,
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: message.isSelf
+                  ? MediaQuery.of(context).size.width * 0.6
+                  : double.infinity,
+            ),
+            child: Container(
+              decoration: isImageMessage
+                  ? null
+                  : BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: borderRadius,
                     ),
-                  ),
+              padding: isImageMessage
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: isImageMessage
+                  ? ClipRRect(
+                      borderRadius: borderRadius,
+                      child: message.imageAsset != null
+                          ? Image.asset(
+                              message.imageAsset!,
+                              width: 200,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.network(
+                              message.imageUrl!,
+                              width: 200,
+                              fit: BoxFit.cover,
+                            ),
+                    )
+                  : Text(
+                      message.content,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        height: 1.4,
+                      ),
+                    ),
+            ),
           ),
         ],
       ),

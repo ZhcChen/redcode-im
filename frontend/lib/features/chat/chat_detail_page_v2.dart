@@ -1629,13 +1629,16 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildSelfBubble(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = screenWidth * 0.6;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Flexible(
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
             child: _buildBubbleContainer(
               context,
               child: _buildMessageContent(context),
