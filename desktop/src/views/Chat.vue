@@ -780,21 +780,27 @@ type AttachmentMeta = {
 
 const MESSAGES_CACHE_LIMIT = 200;
 
-const sanitizeAttachmentForCache = (attachment: MessageAttachment | null | undefined): MessageAttachment | null => {
+const sanitizeAttachmentForCache = (attachment: MessageAttachment | null | undefined, partType?: MessagePartType): MessageAttachment | null => {
   if (!attachment) {
     return null
   }
+  // 对于文件类型，保留localPath（本地文件系统路径）
+  // 对于图片/表情包，清除localPath（避免缓存blob URL）
+  const shouldKeepLocalPath = partType === MessagePartType.FILE;
+
   return {
     ...attachment,
     downloadUrl: null,
     uploadProgress: null,
+    // 只有文件类型才缓存localPath
+    localPath: shouldKeepLocalPath ? attachment.localPath : null,
   }
 }
 
 const sanitizeMessageForCache = (message: Message): Message => {
   const sanitizedParts = message.parts?.map((part) => ({
     ...part,
-    attachment: sanitizeAttachmentForCache(part.attachment ?? undefined),
+    attachment: sanitizeAttachmentForCache(part.attachment ?? undefined, part.type),
   }))
 
   let sanitizedContent: Message['content'] = message.content
