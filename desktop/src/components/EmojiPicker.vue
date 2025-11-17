@@ -138,8 +138,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, h, defineComponent } from 'vue'
-import { api, type EmojiPack, type EmojiItem } from '../api'
+import { api } from '../api'
 import { EmojiItemApi } from '../api/emoji-item'
+import type { EmojiPack, EmojiItem } from '../api/emoji-pack'
 import { toast } from '../utils/toast'
 
 interface Emoji {
@@ -387,7 +388,9 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
     case 'custom':
       // 收集所有单个表情包（pack_type === 0）中的表情项
       const allItems: EmojiDisplayItem[] = []
+      console.log('计算自定义 tab 的表情项，userPacks 数量:', userPacks.value.length)
       for (const pack of userPacks.value) {
+        console.log(`检查表情包: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}`)
         if (pack.pack_type === 0 && pack.items && pack.items.length > 0) {
           for (const item of pack.items) {
             if (item.image_url) {
@@ -400,6 +403,7 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
           }
         }
       }
+      console.log('自定义 tab 的表情项总数:', allItems.length)
       return allItems
     case 'pack':
       // 套件 tab：显示套件下所有子表情包的 icon_url（不是子表情包下的 items）
@@ -504,20 +508,37 @@ const handleConfirmAdd = async () => {
     showAddConfirm.value = false
     // 重新加载用户表情包
     await loadUserPacks()
+    
+    // 添加调试日志
+    console.log('添加表情包后，userPacks 数据:', userPacks.value)
+    const addedPack = userPacks.value.find((p: EmojiPack) => p.id === packId)
+    console.log('新添加的表情包:', addedPack)
+    if (addedPack) {
+      console.log('表情包的 items:', addedPack.items)
+      console.log('表情包的 items 数量:', addedPack.items?.length || 0)
+    }
+    
+    // 等待 Vue 响应式更新完成
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
     // 根据添加类型切换到对应 tab
     if (addType === 'suite') {
       // 套件：切换到新添加的套件 tab
       // 需要等待 tabs 更新后再查找
       await new Promise(resolve => setTimeout(resolve, 100))
-      const suiteTabIndex = tabs.value.findIndex(t => t.type === 'pack' && t.pack?.id === packId)
+      const suiteTabIndex = tabs.value.findIndex((t: TabItem) => t.type === 'pack' && t.pack?.id === packId)
       if (suiteTabIndex >= 0) {
         selectedTabIndex.value = suiteTabIndex
       }
     } else {
       // 单个表情包：切换到自定义 tab
-      const customTabIndex = tabs.value.findIndex(t => t.type === 'custom')
+      const customTabIndex = tabs.value.findIndex((t: TabItem) => t.type === 'custom')
       if (customTabIndex >= 0) {
         selectedTabIndex.value = customTabIndex
+        // 再次等待，确保 currentItems 计算完成
+        await new Promise(resolve => setTimeout(resolve, 50))
+        console.log('切换到自定义 tab 后，currentItems:', currentItems.value)
+        console.log('自定义 tab 的表情项数量:', currentItems.value.length)
       }
     }
     // 清空待添加的数据
@@ -583,10 +604,19 @@ const loadUserPacks = async () => {
   try {
     // 使用 list_user_packs API，它已经返回了包含 items 的数据
     const data = await api.emojiPack.getUserPacks()
+    console.log('loadUserPacks: API 返回的原始数据:', data)
     userPacks.value = data.map((item) => ({
       ...item.pack,
       items: item.items || []
     }))
+    console.log('loadUserPacks: 处理后的 userPacks:', userPacks.value)
+    // 打印每个表情包的 items 信息
+    userPacks.value.forEach((pack: EmojiPack, index: number) => {
+      console.log(`表情包 ${index}: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}`)
+      if (pack.items && pack.items.length > 0) {
+        console.log(`  表情项:`, pack.items.map((i: EmojiItem) => ({ id: i.id, name: i.name, image_url: i.image_url })))
+      }
+    })
     // 不清空套件缓存，保留已加载的套件数据
     // 只在需要时重新加载特定套件
     // suitePacksCache.value = {}
