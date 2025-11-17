@@ -147,7 +147,8 @@ const emit = defineEmits<{
 }>()
 
 const selectedTabIndex = ref(0)
-const userPacks = ref<EmojiPack[]>([])
+const userPacks = ref<EmojiPack[]>([]) // 所有用户表情包（包括单个和套件）
+const suitePacksCache = ref<Map<string, Array<{ pack: EmojiPack; items: EmojiItem[] }>>>(new Map()) // 套件下的表情包缓存
 const loadingPacks = ref(false)
 
 // 搜索相关
@@ -327,14 +328,16 @@ const tabs = computed<TabItem[]>(() => {
     }
   ]
 
-  // 添加用户表情包 tabs
+  // 只添加套件（pack_type === 1）作为动态 tab
   for (const pack of userPacks.value) {
-    result.push({
-      type: 'pack',
-      icon: pack.icon_url || null,
-      label: pack.name,
-      pack
-    })
+    if (pack.pack_type === 1) {
+      result.push({
+        type: 'pack',
+        icon: pack.icon_url || null,
+        label: pack.name,
+        pack
+      })
+    }
   }
 
   return result
@@ -355,10 +358,10 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
         name: e.name
       }))
     case 'custom':
-      // 收集所有用户表情包中的表情项
+      // 收集所有单个表情包（pack_type === 0）中的表情项
       const allItems: EmojiDisplayItem[] = []
       for (const pack of userPacks.value) {
-        if (pack.items) {
+        if (pack.pack_type === 0 && pack.items) {
           for (const item of pack.items) {
             allItems.push({
               type: 'image',
@@ -370,13 +373,27 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       }
       return allItems
     case 'pack':
-      if (tab.pack?.items) {
-        return tab.pack.items.map(item => ({
-          type: 'image' as const,
-          value: item.image_url,
-          name: item.name || undefined
-        }))
+      // 套件 tab：显示套件下所有表情包的表情项
+      if (!tab.pack) return []
+      const suiteId = tab.pack.id
+      const suitePacks = suitePacksCache.value.get(suiteId)
+      if (suitePacks) {
+        const suiteItems: EmojiDisplayItem[] = []
+        for (const suitePack of suitePacks) {
+          if (suitePack.items) {
+            for (const item of suitePack.items) {
+              suiteItems.push({
+                type: 'image' as const,
+                value: item.image_url,
+                name: item.name || undefined
+              })
+            }
+          }
+        }
+        return suiteItems
       }
+      // 如果缓存中没有，异步加载
+      loadSuitePacks(suiteId)
       return []
   }
 })
@@ -447,10 +464,19 @@ const handleConfirmAdd = async () => {
     pendingAddPack.value = null
     // 重新加载用户表情包
     await loadUserPacks()
-    // 切换到自定义 tab
-    const customTabIndex = tabs.value.findIndex(t => t.type === 'custom')
-    if (customTabIndex >= 0) {
-      selectedTabIndex.value = customTabIndex
+    // 根据添加类型切换到对应 tab
+    if (pendingAddType.value === 'suite') {
+      // 套件：切换到新添加的套件 tab
+      const suiteTabIndex = tabs.value.findIndex(t => t.type === 'pack' && t.pack?.id === pendingAddPack.value?.id)
+      if (suiteTabIndex >= 0) {
+        selectedTabIndex.value = suiteTabIndex
+      }
+    } else {
+      // 单个表情包：切换到自定义 tab
+      const customTabIndex = tabs.value.findIndex(t => t.type === 'custom')
+      if (customTabIndex >= 0) {
+        selectedTabIndex.value = customTabIndex
+      }
     }
   } catch (error: any) {
     console.error('添加失败:', error)

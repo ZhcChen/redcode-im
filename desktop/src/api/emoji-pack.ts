@@ -94,5 +94,15 @@ export class EmojiPackApi {
     );
     return { count: response.data?.count || 0 };
   }
+
+  /**
+   * 获取套件下的表情包列表（包含表情项）
+   */
+  static async getSuitePacks(suiteId: string): Promise<Array<{ pack: EmojiPack; items: EmojiItem[] }>> {
+    // 从用户表情包列表中查找套件下的表情包
+    const userPacks = await this.getUserPacks()
+    const suitePacks = userPacks.filter(p => p.pack.parent_id === suiteId)
+    return suitePacks
+  }
 }
 
