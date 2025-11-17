@@ -727,7 +727,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
                 const SizedBox(width: 8),
