@@ -350,7 +350,7 @@ const tabs = computed<TabItem[]>(() => {
     },
     {
       type: 'custom',
-      icon: '✨',
+      icon: '💖',
       label: '自定义'
     }
   ]
