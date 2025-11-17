@@ -96,10 +96,11 @@
 
       <!-- 表情包创建/编辑对话框 -->
       <a-modal
-        v-model:visible="packModalVisible"
+        :visible="packModalVisible"
         :title="packModalTitle"
         :width="600"
         :confirm-loading="actionLoading"
+        @update:visible="packModalVisible = $event"
         @before-ok="handlePackBeforeOk"
         @cancel="handlePackCancel"
       >
