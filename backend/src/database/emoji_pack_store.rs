@@ -283,6 +283,7 @@ impl EmojiPackStore {
 
     /// 获取表情包的所有表情项
     pub async fn list_items_by_pack(&self, pack_id: Uuid) -> Result<Vec<EmojiItem>, Error> {
+        tracing::debug!("查询表情项: pack_id={}", pack_id);
         let items = query_as::<_, EmojiItem>(
             r#"
             SELECT id, pack_id, image_url, name, sort_order, created_at
@@ -295,6 +296,7 @@ impl EmojiPackStore {
         .fetch_all(&self.database.pool)
         .await?;
 
+        tracing::debug!("查询结果: pack_id={}, items_count={}", pack_id, items.len());
         Ok(items)
     }
 
