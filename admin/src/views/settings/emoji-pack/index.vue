@@ -41,7 +41,7 @@
         </template>
 
         <template #pack_type="{ record }">
-          <a-tag :color="record.pack_type === 1 ? 'blue' : 'default'">
+          <a-tag :color="record.pack_type === 1 ? 'blue' : 'gray'">
             {{ record.pack_type === 1 ? '套件' : '单个' }}
           </a-tag>
         </template>
