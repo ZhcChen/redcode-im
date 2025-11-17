@@ -880,13 +880,23 @@ const mergeMessagesWithCache = (backendMessages: Message[], cachedMessages: Mess
           return backendPart;
         }
 
-        // 保留本地的 localPath、downloadUrl、uploadProgress 等字段
+        // 先保留缓存中的所有字段，再覆盖需要更新的字段
         const mergedAttachment = {
-          ...backendPart.attachment,
-          localPath: cachedPart.attachment.localPath ?? backendPart.attachment.localPath,
-          downloadUrl: cachedPart.attachment.downloadUrl ?? backendPart.attachment.downloadUrl,
-          uploadProgress: cachedPart.attachment.uploadProgress ?? backendPart.attachment.uploadProgress,
-          downloadProgress: cachedPart.attachment.downloadProgress ?? backendPart.attachment.downloadProgress,
+          ...cachedPart.attachment,
+          // 覆盖后端数据中的字段（这些字段更准确）
+          key: backendPart.attachment.key,
+          name: backendPart.attachment.name,
+          mime: backendPart.attachment.mime,
+          size: backendPart.attachment.size,
+          width: backendPart.attachment.width,
+          height: backendPart.attachment.height,
+          durationMs: backendPart.attachment.durationMs,
+          thumbnailKey: backendPart.attachment.thumbnailKey,
+          // 保留缓存中的本地字段
+          localPath: cachedPart.attachment.localPath,
+          downloadUrl: cachedPart.attachment.downloadUrl,
+          uploadProgress: cachedPart.attachment.uploadProgress,
+          downloadProgress: cachedPart.attachment.downloadProgress,
         };
 
         return {
