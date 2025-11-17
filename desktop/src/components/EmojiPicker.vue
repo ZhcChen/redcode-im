@@ -390,16 +390,27 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       const allItems: EmojiDisplayItem[] = []
       console.log('计算自定义 tab 的表情项，userPacks 数量:', userPacks.value.length)
       for (const pack of userPacks.value) {
-        console.log(`检查表情包: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}`)
-        if (pack.pack_type === 0 && pack.items && pack.items.length > 0) {
-          for (const item of pack.items) {
-            if (item.image_url) {
-              allItems.push({
-                type: 'image',
-                value: item.image_url,
-                name: item.name || undefined
-              })
+        console.log(`检查表情包: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}, icon_url=${pack.icon_url || '无'}`)
+        if (pack.pack_type === 0) {
+          // 如果表情包有 items，使用 items
+          if (pack.items && pack.items.length > 0) {
+            for (const item of pack.items) {
+              if (item.image_url) {
+                allItems.push({
+                  type: 'image',
+                  value: item.image_url,
+                  name: item.name || undefined
+                })
+              }
             }
+          } 
+          // 如果表情包没有 items 但有 icon_url，使用 icon_url 作为单个表情
+          else if (pack.icon_url) {
+            allItems.push({
+              type: 'image',
+              value: pack.icon_url,
+              name: pack.name || undefined
+            })
           }
         }
       }
