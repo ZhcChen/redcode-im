@@ -2901,15 +2901,46 @@ const sendEmojiMessage = async (emoji: string) => {
   const isImageUrl = emoji.startsWith('http://') || emoji.startsWith('https://')
 
   if (isImageUrl) {
-    // 图片表情：下载图片并作为图片消息发送
+    // 图片表情：使用 Rust HTTP 客户端下载图片（绕过 CORS）并作为图片消息发送
     try {
-      const response = await fetch(emoji)
-      const blob = await response.blob()
-      const file = new File([blob], 'emoji.png', { type: blob.type || 'image/png' })
+      const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
+        path: emoji,
+        method: 'GET',
+        responseType: 'binary',
+        injectToken: false // 表情 URL 是公开的，不需要 token
+      })
+
+      if (!response.success || !response.data || !response.data.base64) {
+        throw new Error(response.message || '下载表情图片失败')
+      }
+
+      // 将 base64 转换为 Uint8Array
+      const bytes = base64ToUint8Array(response.data.base64)
+      
+      // 获取 content type，默认为 image/png
+      const contentType = response.data.headers?.['content-type'] || response.data.headers?.['Content-Type'] || 'image/png'
+      
+      // 从 URL 推断文件扩展名
+      let fileName = 'emoji.png'
+      try {
+        const url = new URL(emoji)
+        const pathname = url.pathname
+        const match = pathname.match(/\.(gif|jpg|jpeg|png|webp)$/i)
+        if (match) {
+          fileName = `emoji.${match[1]}`
+        }
+      } catch (e) {
+        // 如果 URL 解析失败，使用默认文件名
+      }
+
+      // 创建 Blob 和 File
+      const blob = new Blob([bytes], { type: contentType })
+      const file = new File([blob], fileName, { type: contentType })
+      
       await uploadAndSendFile(file)
     } catch (error: any) {
       console.error('发送表情图片失败:', error)
-      toast.error('发送表情失败，请重试')
+      toast.error(error?.message || '发送表情失败，请重试')
     }
   } else {
     // Emoji 字符：作为文本消息发送
