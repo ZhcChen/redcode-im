@@ -2943,6 +2943,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   int _selectedTabIndex = 0;
   List<EmojiPack> _userPacks = [];
   bool _loadingPacks = false;
+  late final EmojiItemService _emojiService = EmojiItemService();
 
   static const List<String> emojis = [
     '😀',

@@ -4,6 +4,7 @@ class AppAssets {
   static const String images = 'assets/images';
 
   static const String splashBackground = '$images/login/login_bg.png';
+  static const String loginBackground = '$images/login/login-bg.svg';
   static const String loginTitle = '$images/login/login_text.svg';
   static const String loginLeft = '$images/login/left.svg';
   static const String loginRight = '$images/login/right.svg';

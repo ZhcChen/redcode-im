@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
@@ -33,20 +34,22 @@ class _LoginPageState extends State<LoginPage> {
   final AuthRepository _authRepository = AuthRepository();
   final SettingsService _settingsService = SettingsService();
 
-  final TextEditingController _mobileCtrl = TextEditingController(
-    text: 'alice', // 测试账号：alice 或 bob
-  );
-  final TextEditingController _passwordCtrl = TextEditingController(
-    text: 'password123', // 测试密码
-  );
+  final TextEditingController _mobileCtrl = TextEditingController();
+  final TextEditingController _passwordCtrl = TextEditingController();
   final TextEditingController _smsCtrl = TextEditingController();
-  final TextEditingController _emailCtrl = TextEditingController(
-    text: 'alice@example.com',
-  );
+  final TextEditingController _emailCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // 设置状态栏颜色与背景图上边缘一致
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Color(0xFFCAF6F3),
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+    );
     _loadCaptchaSetting();
   }
 
@@ -70,6 +73,13 @@ class _LoginPageState extends State<LoginPage> {
     _passwordCtrl.dispose();
     _smsCtrl.dispose();
     _emailCtrl.dispose();
+    // 恢复默认状态栏样式
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     super.dispose();
   }
 
@@ -78,13 +88,30 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FFFE),
-      body: SafeArea(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+      backgroundColor: Colors.transparent,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Color(0xFFCAF6F3),
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
+        child: SafeArea(
+          top: false, // 禁用顶部 SafeArea，让背景图延伸到状态栏
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 背景图
+              Positioned.fill(
+                child: SvgPicture.asset(
+                  AppAssets.loginBackground,
+                  fit: BoxFit.cover,
+                ),
+              ),
             SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top,
+                bottom: 32,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -132,6 +159,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
           ],
+        ),
         ),
       ),
     );
