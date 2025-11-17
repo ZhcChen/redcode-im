@@ -1571,7 +1571,10 @@ const getFileProgress = (message: Message): number => {
 
 // 处理文件下载
 const handleFileDownload = async (message: Message) => {
+  console.log('handleFileDownload 被调用:', message);
+  
   if (!message) {
+    console.error('消息对象为空');
     return;
   }
 
@@ -1579,55 +1582,153 @@ const handleFileDownload = async (message: Message) => {
   let filePart: MessagePart | undefined;
   if (Array.isArray(message.parts)) {
     filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    console.log('找到文件 part:', filePart);
+  } else {
+    console.log('消息没有 parts 数组，尝试从 content 获取:', message.content);
+    // 如果没有 parts，尝试从 content 中获取文件信息（兼容旧格式）
+    if (typeof message.content === 'object' && message.content) {
+      const content = message.content as any;
+      if (content.key || content.downloadUrl) {
+        // 构造一个临时的 filePart
+        filePart = {
+          position: 0,
+          type: MessagePartType.FILE,
+          attachment: {
+            key: content.key || '',
+            name: content.name || '文件',
+            mime: content.mime || content.type || 'application/octet-stream',
+            size: content.size || null,
+            downloadUrl: content.downloadUrl || null,
+            localPath: content.localUrl || content.localPath || null,
+          }
+        };
+        console.log('从 content 构造的 filePart:', filePart);
+      }
+    }
   }
 
   if (!filePart?.attachment) {
+    console.error('文件信息不存在，message:', message);
     toast.error('文件信息不存在');
     return;
   }
 
   const attachment = filePart.attachment;
+  console.log('附件信息:', attachment);
 
-  // 如果已有本地路径，直接打开
+  // 如果已有本地路径，尝试打开
   if (attachment.localPath) {
+    console.log('使用已有本地路径:', attachment.localPath);
     try {
-      // 使用 Tauri 的 shell API 打开文件
-      const { open } = await import('@tauri-apps/api/shell');
+      // 如果是 blob URL，使用浏览器下载功能
+      if (attachment.localPath.startsWith('blob:')) {
+        console.log('检测到 blob URL，使用浏览器下载');
+        const link = document.createElement('a');
+        link.href = attachment.localPath;
+        link.download = attachment.name || 'file';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        return;
+      }
+
+      // 对于文件系统路径，使用 opener 打开
+      console.log('使用 opener 打开文件:', attachment.localPath);
+      const { open } = await import('@tauri-apps/plugin-opener');
       await open(attachment.localPath);
       return;
     } catch (error) {
       console.error('打开文件失败:', error);
+      toast.error('打开文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
       // 如果打开失败，尝试下载
     }
   }
 
   // 如果没有本地路径，需要下载
-  if (!attachment.key) {
+  if (!attachment.key && !attachment.downloadUrl) {
+    console.error('文件 key 和 downloadUrl 都不存在');
     toast.error('文件 key 不存在');
     return;
   }
 
   try {
+    console.log('开始下载文件，key:', attachment.key, 'downloadUrl:', attachment.downloadUrl);
+    
+    // 如果有 downloadUrl，直接使用浏览器下载
+    if (attachment.downloadUrl && !attachment.key) {
+      console.log('使用 downloadUrl 直接下载');
+      const link = document.createElement('a');
+      link.href = attachment.downloadUrl;
+      link.download = attachment.name || 'file';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+      return;
+    }
+
+    if (!attachment.key) {
+      toast.error('文件 key 不存在');
+      return;
+    }
+
     // 设置下载进度为 0
     updateFileDownloadProgress(message.id, attachment.key, 0);
 
     // 确保附件已下载到本地
+    console.log('调用 ensureAttachmentLocalPath');
     await ensureAttachmentLocalPath(message, filePart);
 
     // 重新获取消息以获取最新的本地路径
     const updatedMessage = messages.value.find((m) => m.id === message.id) || message;
     const updatedFilePart = updatedMessage.parts?.find((part) => part.type === MessagePartType.FILE);
     
+    console.log('下载后的文件信息:', updatedFilePart?.attachment);
+    
     if (updatedFilePart?.attachment?.localPath) {
       try {
-        // 使用 Tauri 的 shell API 打开文件
-        const { open } = await import('@tauri-apps/api/shell');
-        await open(updatedFilePart.attachment.localPath);
+        const localPath = updatedFilePart.attachment.localPath;
+        console.log('文件已下载到:', localPath);
+
+        // 如果是 blob URL，使用浏览器下载
+        if (localPath.startsWith('blob:')) {
+          console.log('使用 blob URL 下载');
+          const link = document.createElement('a');
+          link.href = localPath;
+          link.download = updatedFilePart.attachment.name || 'file';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+          }, 100);
+        } else {
+          // 对于文件系统路径，使用 opener 打开
+          console.log('使用 opener 打开文件系统路径');
+          const { open } = await import('@tauri-apps/plugin-opener');
+          await open(localPath);
+        }
       } catch (error) {
         console.error('打开文件失败:', error);
-        toast.error('打开文件失败，请检查文件是否存在');
+        toast.error('打开文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
       }
+    } else if (updatedFilePart?.attachment?.downloadUrl) {
+      // 如果下载失败但还有 downloadUrl，使用浏览器下载
+      console.log('使用 downloadUrl 作为后备方案');
+      const link = document.createElement('a');
+      link.href = updatedFilePart.attachment.downloadUrl;
+      link.download = updatedFilePart.attachment.name || 'file';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
     } else {
+      console.error('文件下载失败，没有本地路径也没有 downloadUrl');
       toast.error('文件下载失败');
     }
 
@@ -1636,7 +1737,9 @@ const handleFileDownload = async (message: Message) => {
   } catch (error: any) {
     console.error('文件下载失败:', error);
     toast.error('文件下载失败: ' + (error?.message || '未知错误'));
-    updateFileDownloadProgress(message.id, attachment.key, null);
+    if (attachment.key) {
+      updateFileDownloadProgress(message.id, attachment.key, null);
+    }
   }
 };
 

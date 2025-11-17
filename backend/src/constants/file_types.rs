@@ -72,6 +72,27 @@ pub const DOCUMENT_ALLOWED_TYPES: &[&str] = &[
     "text/csv",
 ];
 
+/// 支持的压缩包文件类型
+pub const ARCHIVE_ALLOWED_TYPES: &[&str] = &[
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/x-rar-compressed",
+    "application/x-rar",
+    "application/vnd.rar",
+    "application/x-7z-compressed",
+    "application/x-tar",
+    "application/gzip",
+    "application/x-gzip",
+    "application/x-bzip2",
+    "application/x-xz",
+    "application/x-compress",
+    "application/x-compressed",
+    "application/x-zip",
+    "application/x-cab",
+    "application/x-iso9660-image",
+    "application/x-apple-diskimage",
+];
+
 /// 危险文件类型黑名单（不允许上传）
 pub const DANGEROUS_FILE_TYPES: &[&str] = &[
     "application/x-executable",
@@ -106,6 +127,8 @@ pub fn get_max_size_by_content_type(content_type: &str) -> usize {
         VIDEO_MAX_SIZE_BYTES
     } else if DOCUMENT_ALLOWED_TYPES.contains(&content_type.as_str()) {
         FILE_MAX_SIZE_BYTES
+    } else if ARCHIVE_ALLOWED_TYPES.contains(&content_type.as_str()) {
+        FILE_MAX_SIZE_BYTES
     } else {
         FILE_MAX_SIZE_BYTES // 默认限制
     }
@@ -124,6 +147,7 @@ pub fn is_content_type_allowed(content_type: &str) -> bool {
         || AUDIO_ALLOWED_TYPES.contains(&content_type.as_str())
         || VIDEO_ALLOWED_TYPES.contains(&content_type.as_str())
         || DOCUMENT_ALLOWED_TYPES.contains(&content_type.as_str())
+        || ARCHIVE_ALLOWED_TYPES.contains(&content_type.as_str())
 }
 
 /// 检查文件类型是否为图片
