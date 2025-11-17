@@ -484,6 +484,20 @@ const handleConfirmAdd = async () => {
   }
 }
 
+// 加载套件下的表情包
+const loadSuitePacks = async (suiteId: string) => {
+  if (suitePacksCache.value.has(suiteId)) {
+    return // 已缓存，不需要重新加载
+  }
+  try {
+    const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
+    suitePacksCache.value.set(suiteId, suitePacks)
+  } catch (error) {
+    console.error('加载套件表情包失败:', error)
+    suitePacksCache.value.set(suiteId, [])
+  }
+}
+
 // 加载用户表情包
 const loadUserPacks = async () => {
   loadingPacks.value = true
@@ -505,20 +519,6 @@ const loadUserPacks = async () => {
     userPacks.value = []
   } finally {
     loadingPacks.value = false
-  }
-}
-
-// 加载套件下的表情包
-const loadSuitePacks = async (suiteId: string) => {
-  if (suitePacksCache.value.has(suiteId)) {
-    return // 已缓存，不需要重新加载
-  }
-  try {
-    const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
-    suitePacksCache.value.set(suiteId, suitePacks)
-  } catch (error) {
-    console.error('加载套件表情包失败:', error)
-    suitePacksCache.value.set(suiteId, [])
   }
 }
 
