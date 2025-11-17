@@ -7,6 +7,7 @@ class EmojiPack {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<EmojiItem> items;
+  final int packType; // 0=单个, 1=套件
 
   EmojiPack({
     required this.id,
@@ -17,6 +18,7 @@ class EmojiPack {
     required this.createdAt,
     required this.updatedAt,
     this.items = const [],
+    this.packType = 0,
   });
 
   factory EmojiPack.fromJson(Map<String, dynamic> json) {
@@ -30,9 +32,10 @@ class EmojiPack {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       items: json['items'] != null
           ? (json['items'] as List)
-              .map((item) => EmojiItem.fromJson(item as Map<String, dynamic>))
-              .toList()
+                .map((item) => EmojiItem.fromJson(item as Map<String, dynamic>))
+                .toList()
           : [],
+      packType: json['pack_type'] as int? ?? 0,
     );
   }
 }
@@ -65,4 +68,3 @@ class EmojiItem {
     );
   }
 }
-

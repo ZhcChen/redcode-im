@@ -17,7 +17,7 @@ class EmojiPackServiceException implements Exception {
 
 class EmojiPackService {
   EmojiPackService({TokenStorage? tokenStorage})
-      : _tokenStorage = tokenStorage ?? const TokenStorage();
+    : _tokenStorage = tokenStorage ?? const TokenStorage();
 
   final TokenStorage _tokenStorage;
 
@@ -32,7 +32,8 @@ class EmojiPackService {
     };
   }
 
-  /// 获取用户的表情包列表
+  /// 获取用户的表情包列表（包含表情项）
+  /// 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
   Future<List<EmojiPack>> getUserPacks() async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/emoji-packs/my');
@@ -41,10 +42,29 @@ class EmojiPackService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is List) {
-        return data
-            .whereType<Map<String, dynamic>>()
-            .map((json) => EmojiPack.fromJson(json))
-            .toList();
+        // API 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
+        return data.whereType<Map<String, dynamic>>().map((item) {
+          final packJson = item['pack'] as Map<String, dynamic>;
+          final itemsJson = item['items'] as List<dynamic>?;
+          final pack = EmojiPack.fromJson(packJson);
+          // 将 items 赋值给 pack
+          return EmojiPack(
+            id: pack.id,
+            name: pack.name,
+            iconUrl: pack.iconUrl,
+            description: pack.description,
+            isActive: pack.isActive,
+            createdAt: pack.createdAt,
+            updatedAt: pack.updatedAt,
+            packType: pack.packType,
+            items: itemsJson != null
+                ? itemsJson
+                      .whereType<Map<String, dynamic>>()
+                      .map((json) => EmojiItem.fromJson(json))
+                      .toList()
+                : [],
+          );
+        }).toList();
       }
       return [];
     }
@@ -92,8 +112,7 @@ class EmojiPackService {
   /// 删除用户表情包
   Future<void> removeUserPack(String packId) async {
     final headers = await _authHeaders();
-    final uri =
-        Uri.parse('${AppConfig.apiBaseUrl}/emoji-packs/$packId/remove');
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/emoji-packs/$packId/remove');
 
     final response = await http.delete(uri, headers: headers);
     if (response.statusCode != 200) {
@@ -101,6 +120,48 @@ class EmojiPackService {
         _extractErrorMessage(response.body) ?? '删除表情包失败',
       );
     }
+  }
+
+  /// 搜索表情包
+  Future<List<EmojiPack>> searchPacks(String keyword) async {
+    final headers = await _authHeaders();
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/emoji-packs/search?keyword=${Uri.encodeComponent(keyword)}',
+    );
+
+    final response = await http.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map((json) => EmojiPack.fromJson(json))
+            .toList();
+      }
+      return [];
+    }
+
+    throw EmojiPackServiceException(
+      _extractErrorMessage(response.body) ?? '搜索表情包失败',
+    );
+  }
+
+  /// 添加表情包套件（添加套件下的所有表情包）
+  Future<Map<String, dynamic>> addUserSuite(String suiteId) async {
+    final headers = await _authHeaders();
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/emoji-packs/suites/$suiteId/add',
+    );
+
+    final response = await http.post(uri, headers: headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return {'count': data['count'] as int? ?? 0};
+    }
+
+    throw EmojiPackServiceException(
+      _extractErrorMessage(response.body) ?? '添加表情包套件失败',
+    );
   }
 
   String? _extractErrorMessage(String body) {
@@ -112,4 +173,3 @@ class EmojiPackService {
     }
   }
 }
-

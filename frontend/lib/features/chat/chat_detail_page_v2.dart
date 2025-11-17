@@ -12,6 +12,7 @@ import 'package:mime/mime.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:provider/provider.dart';
 
@@ -21,6 +22,7 @@ import '../../core/constants/app_config.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
+import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
@@ -900,22 +902,109 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _handleEmojiSelected(String emoji) {
-    final selection = _textController.selection;
-    final text = _textController.text;
+    // 判断是图片 URL 还是 emoji 字符
+    final isImageUrl =
+        emoji.startsWith('http://') || emoji.startsWith('https://');
 
-    int start = selection.start;
-    int end = selection.end;
-    if (!selection.isValid || start < 0 || end < 0) {
-      start = text.length;
-      end = text.length;
+    if (isImageUrl) {
+      // 图片表情：下载图片并作为图片消息发送
+      unawaited(_sendEmojiImage(emoji));
+    } else {
+      // Emoji 字符：插入到输入框
+      final selection = _textController.selection;
+      final text = _textController.text;
+
+      int start = selection.start;
+      int end = selection.end;
+      if (!selection.isValid || start < 0 || end < 0) {
+        start = text.length;
+        end = text.length;
+      }
+
+      final newText = text.replaceRange(start, end, emoji);
+
+      _textController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: start + emoji.length),
+      );
     }
+  }
 
-    final newText = text.replaceRange(start, end, emoji);
+  Future<void> _sendEmojiImage(String imageUrl) async {
+    try {
+      // 下载表情图片
+      final response = await http.get(Uri.parse(imageUrl));
 
-    _textController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: start + emoji.length),
-    );
+      if (response.statusCode != 200) {
+        throw Exception('下载表情图片失败: ${response.statusCode}');
+      }
+
+      // 获取 content type
+      final contentType =
+          response.headers['content-type'] ??
+          response.headers['Content-Type'] ??
+          'image/png';
+
+      // 从 URL 推断文件扩展名
+      String fileName = 'emoji.png';
+      try {
+        final uri = Uri.parse(imageUrl);
+        final pathname = uri.path;
+        final match = RegExp(
+          r'\.(gif|jpg|jpeg|png|webp)$',
+          caseSensitive: false,
+        ).firstMatch(pathname);
+        if (match != null) {
+          fileName = 'emoji.${match.group(1)}';
+        }
+      } catch (e) {
+        // 如果 URL 解析失败，使用默认文件名
+      }
+
+      // 保存到临时文件
+      final tempDir = await Directory.systemTemp.createTemp();
+      final tempFile = File(p.join(tempDir.path, fileName));
+      await tempFile.writeAsBytes(response.bodyBytes);
+
+      // 读取图片尺寸
+      final bytes = await tempFile.readAsBytes();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final width = image.width;
+      final height = image.height;
+      image.dispose();
+      codec.dispose();
+
+      // 创建图片附件草稿
+      final draft = MessageAttachmentDraft(
+        type: MessagePartType.image,
+        file: tempFile,
+        displayName: fileName,
+        mime: contentType.toLowerCase(),
+        width: width,
+        height: height,
+      );
+
+      // 发送消息
+      final text = _textController.text.trim();
+      await _dispatchSend(
+        text: text.isNotEmpty ? text : null,
+        attachments: [draft],
+      );
+
+      // 清理临时目录（延迟清理，确保文件已上传）
+      Future.delayed(const Duration(seconds: 5), () {
+        try {
+          tempDir.delete(recursive: true);
+        } catch (e) {
+          // 忽略清理错误
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showErrorSnack('发送表情失败：$error');
+    }
   }
 
   void _handleMoreAction(String action) {
@@ -1730,18 +1819,42 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildPrimaryContent(BuildContext context) {
+    debugPrint('========== _buildPrimaryContent 开始 ==========');
+    debugPrint('消息ID: ${_message.id}');
+    debugPrint('消息类型: ${_message.type}');
+    debugPrint('消息内容: "${_message.content}"');
+    debugPrint('消息parts数量: ${_message.parts.length}');
+
     if (_message.isDeleted) {
+      debugPrint('消息已删除');
       return _buildDeletedContent(context);
     }
 
     final parts = [..._message.parts]
       ..sort((a, b) => a.position.compareTo(b.position));
 
+    debugPrint('排序后的parts数量: ${parts.length}');
+    for (var i = 0; i < parts.length; i++) {
+      final part = parts[i];
+      debugPrint(
+        '  part[$i]: type=${part.type}, position=${part.position}, text="${part.text}", attachment=${part.attachment != null}',
+      );
+      if (part.attachment != null) {
+        debugPrint(
+          '    attachment: key=${part.attachment!.key}, name=${part.attachment!.name}',
+        );
+      }
+    }
+
     if (parts.isNotEmpty) {
+      debugPrint('使用parts渲染消息');
       final widgets = <Widget>[];
       for (final part in parts) {
         final widget = _buildPartWidget(context, part);
-        if (widget == null) continue;
+        if (widget == null) {
+          debugPrint('  part ${part.type} 返回null，跳过');
+          continue;
+        }
         if (widgets.isNotEmpty) {
           widgets.add(const SizedBox(height: 8));
         }
@@ -1749,6 +1862,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
       }
 
       if (widgets.isNotEmpty) {
+        debugPrint('使用parts渲染，共${widgets.length}个widget');
+        debugPrint('========== _buildPrimaryContent 结束（使用parts）==========');
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: _isSelf
@@ -1759,20 +1874,21 @@ class _MessageBubbleState extends State<_MessageBubble> {
       }
     }
 
+    debugPrint('使用legacy content渲染');
+    debugPrint('========== _buildPrimaryContent 结束（使用legacy）==========');
     return _buildLegacyContent(context);
   }
 
   Widget _buildLegacyContent(BuildContext context) {
+    debugPrint('========== _buildLegacyContent 开始 ==========');
+    debugPrint('消息类型: ${_message.type}');
+    debugPrint('消息内容: "${_message.content}"');
+
     Widget content;
     switch (_message.type) {
       case MessageType.text:
-        content = Text(
-          _message.content,
-          style: TextStyle(
-            fontSize: 15,
-            color: _isSelf ? Colors.white : AppColors.textPrimary,
-          ),
-        );
+        debugPrint('处理文本消息');
+        content = _buildTextWithEmojis(_message.content, isSelf: _isSelf);
         break;
       case MessageType.image:
         content = Text(
@@ -1843,19 +1959,21 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget? _buildPartWidget(BuildContext context, MessagePart part) {
+    debugPrint('========== _buildPartWidget 开始 ==========');
+    debugPrint('part类型: ${part.type}');
+    debugPrint('part文本: "${part.text}"');
+    debugPrint('part attachment: ${part.attachment != null}');
+
     switch (part.type) {
       case MessagePartType.text:
         final text = part.text?.trim();
+        debugPrint('处理文本part，文本: "$text"');
         if (text == null || text.isEmpty) {
+          debugPrint('文本为空，返回null');
           return null;
         }
-        return Text(
-          text,
-          style: TextStyle(
-            fontSize: 15,
-            color: _isSelf ? Colors.white : AppColors.textPrimary,
-          ),
-        );
+        debugPrint('调用_buildTextWithEmojis处理文本part');
+        return _buildTextWithEmojis(text, isSelf: _isSelf);
       case MessagePartType.image:
         return _AttachmentImageView(
           message: _message,
@@ -1887,6 +2005,93 @@ class _MessageBubbleState extends State<_MessageBubble> {
           fallbackLabel: '文件',
         );
     }
+  }
+
+  Widget _buildTextWithEmojis(String text, {required bool isSelf}) {
+    debugPrint('========== _buildTextWithEmojis 开始 ==========');
+    debugPrint('输入文本: "$text"');
+    debugPrint('文本长度: ${text.length}');
+    debugPrint('isSelf: $isSelf');
+
+    // 识别文本中的表情URL（http://或https://开头的URL）
+    // 更精确的正则：匹配完整的URL，包括可能的查询参数和片段
+    final emojiUrlPattern = RegExp(
+      r'(https?://[^\s<>"{}|\\^`\[\]]+)',
+      caseSensitive: false,
+    );
+    final matches = emojiUrlPattern.allMatches(text);
+
+    debugPrint('正则匹配结果: ${matches.length} 个匹配');
+    for (final match in matches) {
+      debugPrint('  匹配[${match.start}-${match.end}]: "${match.group(0)}"');
+    }
+
+    if (matches.isEmpty) {
+      // 没有表情URL，直接显示文本
+      debugPrint('没有找到URL，直接显示文本');
+      debugPrint('========== _buildTextWithEmojis 结束（无URL）==========');
+      return Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          color: isSelf ? Colors.white : AppColors.textPrimary,
+        ),
+      );
+    }
+
+    debugPrint('找到 ${matches.length} 个URL，开始构建混合内容');
+
+    // 有表情URL，需要混合显示文本和图片
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+
+    for (final match in matches) {
+      // 添加匹配前的文本
+      if (match.start > lastEnd) {
+        final beforeText = text.substring(lastEnd, match.start);
+        debugPrint('添加文本片段: "$beforeText"');
+        spans.add(
+          TextSpan(
+            text: beforeText,
+            style: TextStyle(
+              fontSize: 15,
+              color: isSelf ? Colors.white : AppColors.textPrimary,
+            ),
+          ),
+        );
+      }
+
+      // 添加表情图片
+      final emojiUrl = match.group(0)!;
+      debugPrint('添加表情图片组件，URL: "$emojiUrl"');
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: _CachedEmojiInText(imageUrl: emojiUrl, size: 24.0),
+        ),
+      );
+
+      lastEnd = match.end;
+    }
+
+    // 添加剩余的文本
+    if (lastEnd < text.length) {
+      final afterText = text.substring(lastEnd);
+      debugPrint('添加剩余文本: "$afterText"');
+      spans.add(
+        TextSpan(
+          text: afterText,
+          style: TextStyle(
+            fontSize: 15,
+            color: isSelf ? Colors.white : AppColors.textPrimary,
+          ),
+        ),
+      );
+    }
+
+    debugPrint('总共构建了 ${spans.length} 个span');
+    debugPrint('========== _buildTextWithEmojis 结束 ==========');
+    return Text.rich(TextSpan(children: spans));
   }
 
   Widget _buildDeletedContent(BuildContext context) {
@@ -2942,10 +3147,16 @@ class _EmojiPanel extends StatefulWidget {
 }
 
 class _EmojiPanelState extends State<_EmojiPanel> {
-  int _selectedTabIndex = 0;
+  int _selectedTabIndex = 1; // 默认选中 Emoji tab
   List<EmojiPack> _userPacks = [];
   bool _loadingPacks = false;
   late final EmojiItemService _emojiService = EmojiItemService();
+
+  // 搜索相关
+  final TextEditingController _searchController = TextEditingController();
+  List<EmojiPack> _searchResults = [];
+  bool _searchLoading = false;
+  Timer? _searchTimer;
 
   static const List<String> emojis = [
     '😀',
@@ -3010,6 +3221,55 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   void initState() {
     super.initState();
     _loadUserPacks();
+    _searchController.addListener(_handleSearchInput);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_handleSearchInput);
+    _searchController.dispose();
+    _searchTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleSearchInput() {
+    _searchTimer?.cancel();
+    final keyword = _searchController.text.trim();
+    if (keyword.isEmpty) {
+      setState(() {
+        _searchResults = [];
+      });
+      return;
+    }
+
+    _searchTimer = Timer(const Duration(milliseconds: 300), () {
+      _performSearch(keyword);
+    });
+  }
+
+  Future<void> _performSearch(String keyword) async {
+    setState(() {
+      _searchLoading = true;
+    });
+
+    try {
+      final service = EmojiPackService();
+      final results = await service.searchPacks(keyword);
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _searchLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('搜索表情包失败: $e');
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _searchLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadUserPacks() async {
@@ -3019,6 +3279,12 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     try {
       final service = EmojiPackService();
       final packs = await service.getUserPacks();
+      debugPrint('_loadUserPacks: 加载到 ${packs.length} 个表情包');
+      for (final pack in packs) {
+        debugPrint(
+          '  表情包: id=${pack.id}, name=${pack.name}, packType=${pack.packType}, items数量=${pack.items.length}',
+        );
+      }
       setState(() {
         _userPacks = packs;
       });
@@ -3035,22 +3301,27 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   List<_TabItem> _buildTabs() {
     final tabs = <_TabItem>[];
 
+    // 搜索 tab
+    tabs.add(_TabItem(type: _TabType.search, icon: 'search', label: '搜索'));
+
     // Emoji tab
-    tabs.add(_TabItem(type: _TabType.emoji, icon: '😀', label: 'Emoji'));
+    tabs.add(_TabItem(type: _TabType.emoji, icon: 'emoji', label: 'Emoji'));
 
     // 自定义表情 tab
-    tabs.add(_TabItem(type: _TabType.custom, icon: '🎨', label: '自定义'));
+    tabs.add(_TabItem(type: _TabType.custom, icon: 'custom', label: '自定义'));
 
-    // 用户添加的表情包 tabs
+    // 只添加套件（packType === 1）作为动态 tab
     for (final pack in _userPacks) {
-      tabs.add(
-        _TabItem(
-          type: _TabType.pack,
-          icon: pack.iconUrl,
-          label: pack.name,
-          pack: pack,
-        ),
-      );
+      if (pack.packType == 1) {
+        tabs.add(
+          _TabItem(
+            type: _TabType.pack,
+            icon: pack.iconUrl,
+            label: pack.name,
+            pack: pack,
+          ),
+        );
+      }
     }
 
     return tabs;
@@ -3061,7 +3332,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     final tabs = _buildTabs();
 
     return Container(
-      height: 250,
+      height: 320,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
@@ -3070,77 +3341,41 @@ class _EmojiPanelState extends State<_EmojiPanel> {
         children: [
           // Tab 切换栏
           Container(
-            height: 50,
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: AppColors.divider, width: 0.5),
               ),
             ),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: tabs.length,
-              itemBuilder: (context, index) {
-                final tab = tabs[index];
-                final isSelected = _selectedTabIndex == index;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedTabIndex = index;
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 8,
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                ...tabs.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final tab = entry.value;
+                  final isSelected = _selectedTabIndex == index;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedTabIndex = index;
+                      });
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      margin: EdgeInsets.only(
+                        right: index < tabs.length - 1 ? 8 : 0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary.withValues(alpha: 0.15)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Center(child: _buildTabIcon(tab.icon, isSelected)),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.1)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      border: isSelected
-                          ? Border.all(color: AppColors.primary, width: 1)
-                          : null,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (tab.icon != null)
-                          tab.icon!.startsWith('http')
-                              ? Image.network(
-                                  tab.icon!,
-                                  width: 20,
-                                  height: 20,
-                                  errorBuilder: (_, __, ___) =>
-                                      const Icon(Icons.image, size: 20),
-                                )
-                              : Text(
-                                  tab.icon!,
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                        const SizedBox(width: 4),
-                        Text(
-                          tab.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                  );
+                }),
+              ],
             ),
           ),
           // 内容区域
@@ -3150,12 +3385,42 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     );
   }
 
+  Widget _buildTabIcon(String? icon, bool isSelected) {
+    if (icon == null) return const SizedBox.shrink();
+
+    final color = isSelected ? AppColors.primary : AppColors.textSecondary;
+
+    // 特殊图标类型
+    if (icon == 'search') {
+      return Icon(Icons.search, size: 20, color: color);
+    } else if (icon == 'emoji') {
+      return Icon(Icons.emoji_emotions_outlined, size: 20, color: color);
+    } else if (icon == 'custom') {
+      return Icon(Icons.favorite_outline, size: 20, color: color);
+    }
+
+    // 网络图片
+    if (icon.startsWith('http')) {
+      return Image.network(
+        icon,
+        width: 20,
+        height: 20,
+        errorBuilder: (_, __, ___) => Icon(Icons.image, size: 20, color: color),
+      );
+    }
+
+    // Emoji 字符
+    return Text(icon, style: const TextStyle(fontSize: 18));
+  }
+
   Widget _buildContent(_TabItem tab) {
     if (_loadingPacks && tab.type == _TabType.custom) {
       return const Center(child: CircularProgressIndicator());
     }
 
     switch (tab.type) {
+      case _TabType.search:
+        return _buildSearchTab();
       case _TabType.emoji:
         return _buildEmojiGrid();
       case _TabType.custom:
@@ -3163,6 +3428,185 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       case _TabType.pack:
         return _buildPackGrid(tab.pack!);
     }
+  }
+
+  Widget _buildSearchTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: '搜索表情包或套件...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.divider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.primary),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _searchLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _searchController.text.trim().isEmpty
+              ? const Center(
+                  child: Text(
+                    '输入关键词搜索表情包或套件',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                )
+              : _searchResults.isEmpty
+              ? const Center(
+                  child: Text(
+                    '未找到相关表情包',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _searchResults.length,
+                  itemBuilder: (context, index) {
+                    final pack = _searchResults[index];
+                    return ListTile(
+                      leading: pack.iconUrl != null
+                          ? Image.network(
+                              pack.iconUrl!,
+                              width: 40,
+                              height: 40,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.image, size: 40),
+                            )
+                          : const Icon(Icons.image, size: 40),
+                      title: Text(pack.name),
+                      subtitle: pack.description != null
+                          ? Text(pack.description!)
+                          : null,
+                      trailing: Text(
+                        pack.packType == 1 ? '套件' : '表情包',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onTap: () async {
+                        // 显示确认对话框
+                        final confirmed = await TipDialog.showConfirm(
+                          context,
+                          title: pack.packType == 1 ? '添加表情包套件' : '添加表情包',
+                          content: pack.packType == 1
+                              ? '确定要添加套件"${pack.name}"吗？这将添加套件下的所有表情包。'
+                              : '确定要添加表情包"${pack.name}"到自定义表情吗？',
+                          confirmText: '确定',
+                          cancelText: '取消',
+                        );
+
+                        if (confirmed != true) return;
+
+                        try {
+                          final service = EmojiPackService();
+                          if (pack.packType == 1) {
+                            // 套件：使用 addUserSuite
+                            final result = await service.addUserSuite(pack.id);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('成功添加 ${result['count']} 个表情包'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          } else {
+                            // 单个表情包：使用 addUserPack
+                            await service.addUserPack(pack.id);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('添加成功'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          }
+
+                          // 重新加载用户表情包
+                          await _loadUserPacks();
+
+                          // 等待状态更新完成
+                          await Future.delayed(
+                            const Duration(milliseconds: 100),
+                          );
+
+                          // 切换到对应的 tab
+                          if (mounted) {
+                            final tabs = _buildTabs();
+                            if (pack.packType == 1) {
+                              // 套件：切换到套件 tab
+                              // 需要等待 tabs 更新后再查找
+                              await Future.delayed(
+                                const Duration(milliseconds: 100),
+                              );
+                              final suiteIndex = tabs.indexWhere(
+                                (t) =>
+                                    t.type == _TabType.pack &&
+                                    t.pack?.id == pack.id,
+                              );
+                              if (suiteIndex >= 0) {
+                                setState(() {
+                                  _selectedTabIndex = suiteIndex;
+                                });
+                              }
+                            } else {
+                              // 单个表情包：切换到自定义 tab
+                              final customIndex = tabs.indexWhere(
+                                (t) => t.type == _TabType.custom,
+                              );
+                              if (customIndex >= 0) {
+                                setState(() {
+                                  _selectedTabIndex = customIndex;
+                                });
+                                // 再次等待，确保 currentItems 计算完成
+                                await Future.delayed(
+                                  const Duration(milliseconds: 50),
+                                );
+                              }
+                            }
+                          }
+                        } catch (e) {
+                          debugPrint('添加表情包失败: $e');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e is EmojiPackServiceException
+                                      ? e.message
+                                      : '添加失败，请重试',
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
   }
 
   Widget _buildEmojiGrid() {
@@ -3190,10 +3634,13 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   }
 
   Widget _buildCustomEmojiGrid() {
-    // 收集所有用户表情包中的表情项
+    // 收集所有独立的单个表情包（packType === 0）中的表情项
+    // 排除套件（packType === 1）
     final allItems = <EmojiItem>[];
     for (final pack in _userPacks) {
-      allItems.addAll(pack.items);
+      if (pack.packType == 0) {
+        allItems.addAll(pack.items);
+      }
     }
 
     if (allItems.isEmpty) {
@@ -3255,7 +3702,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   }
 }
 
-enum _TabType { emoji, custom, pack }
+enum _TabType { search, emoji, custom, pack }
 
 class _TabItem {
   final _TabType type;
@@ -3385,6 +3832,113 @@ class _CachedEmojiItemState extends State<_CachedEmojiItem> {
       width: 48,
       height: 48,
       errorBuilder: (_, __, ___) => const Icon(Icons.image),
+    );
+  }
+}
+
+/// 文本消息中的表情图片组件
+class _CachedEmojiInText extends StatefulWidget {
+  const _CachedEmojiInText({required this.imageUrl, required this.size});
+
+  final String imageUrl;
+  final double size;
+
+  @override
+  State<_CachedEmojiInText> createState() => _CachedEmojiInTextState();
+}
+
+class _CachedEmojiInTextState extends State<_CachedEmojiInText> {
+  String? _cachedPath;
+  bool _loading = false;
+  bool _error = false;
+  late final EmojiItemService _emojiService = EmojiItemService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEmoji();
+  }
+
+  Future<void> _loadEmoji() async {
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
+
+    try {
+      debugPrint('_CachedEmojiInText: 开始加载表情 ${widget.imageUrl}');
+      final cachedPath = await _emojiService.loadAndCacheEmoji(widget.imageUrl);
+      debugPrint('_CachedEmojiInText: 加载完成，缓存路径: $cachedPath');
+      if (mounted) {
+        setState(() {
+          _cachedPath = cachedPath;
+          _loading = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      debugPrint('_CachedEmojiInText: 加载失败: $e');
+      debugPrint('_CachedEmojiInText: 堆栈: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Center(
+          child: SizedBox(
+            width: widget.size * 0.4,
+            height: widget.size * 0.4,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_error) {
+      return SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Icon(Icons.image, size: widget.size * 0.6),
+      );
+    }
+
+    // 优先使用缓存路径，如果缓存不存在则使用网络 URL
+    if (_cachedPath != null) {
+      return Image.file(
+        File(_cachedPath!),
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) {
+          // 缓存文件损坏，尝试重新加载
+          _loadEmoji();
+          return Image.network(
+            widget.imageUrl,
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) =>
+                Icon(Icons.image, size: widget.size * 0.6),
+          );
+        },
+      );
+    }
+
+    return Image.network(
+      widget.imageUrl,
+      width: widget.size,
+      height: widget.size,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Icon(Icons.image, size: widget.size * 0.6),
     );
   }
 }
