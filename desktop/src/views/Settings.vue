@@ -76,9 +76,21 @@
       </div>
     </div>
 
+    <!-- 通用设置模块 -->
+    <div class="settings-section general-section">
+      <div class="privacy-container" @click.stop.prevent="handleViewGeneral">
+        <div class="privacy-text">通用</div>
+        <img 
+          :src="rightIcon" 
+          alt="查看" 
+          class="privacy-icon"
+        />
+      </div>
+    </div>
+
     <!-- 隐私政策模块 -->
     <div class="settings-section privacy-section">
-      <div class="privacy-container" @click="handleViewPrivacy">
+      <div class="privacy-container" @click.stop="handleViewPrivacy">
         <div class="privacy-text">隐私政策</div>
         <img 
           :src="rightIcon" 
@@ -90,7 +102,7 @@
 
     <!-- 关于模块 -->
     <div class="settings-section about-section">
-      <div class="privacy-container" @click="showAboutDialog = true">
+      <div class="privacy-container" @click.stop="showAboutDialog = true">
         <div class="privacy-text">关于 Chatly</div>
         <img 
           :src="rightIcon" 
@@ -166,6 +178,15 @@ import rightIcon from '../assets/image/icon/right.svg'
 import logoutIcon from '../assets/image/icon-logout-red.svg'
 import editIcon from '../assets/image/icon-edit.svg'
 import penIcon from '../assets/image/icon-pen.svg'
+
+// Props: 接收账号ID（可选，用于多实例页面架构）
+interface Props {
+  accountId?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  accountId: undefined
+})
 
 const router = useRouter()
 const store = useStore()
@@ -446,12 +467,50 @@ const handleCancelUpdateNickname = () => {
   isUpdatingNickname.value = false
 }
 
+// 处理查看通用设置
+const handleViewGeneral = async () => {
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/general',
+        name: 'GeneralSettings',
+        params: {},
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    try {
+      await router.push('/home/general')
+    } catch (error: any) {
+      console.error('跳转失败:', error)
+      toast.error('暂时无法打开通用设置，请稍后重试')
+    }
+  }
+}
+
 // 处理查看隐私政策
 const handleViewPrivacy = async () => {
-  try {
-    await router.push('/home/privacy')
-  } catch (error) {
-    toast.error('暂时无法打开隐私政策，请稍后重试')
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/privacy',
+        name: 'Privacy',
+        params: {},
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    try {
+      await router.push('/home/privacy')
+    } catch (error) {
+      toast.error('暂时无法打开隐私政策，请稍后重试')
+    }
   }
 }
 
@@ -612,6 +671,10 @@ const handleDownloadUpdate = async () => {
 .version-btn:not(:disabled):hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+}
+
+.general-section {
+  margin-top: 24px;
 }
 
 .privacy-section {

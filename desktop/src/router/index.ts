@@ -8,6 +8,7 @@ import Chat from '../views/Chat.vue'
 import Contact from '../views/Contact.vue'
 import Settings from '../views/Settings.vue'
 import Privacy from '../views/Privacy.vue'
+import GeneralSettings from '../views/GeneralSettings.vue'
 
 const routes = [
   {
@@ -39,6 +40,11 @@ const routes = [
         path: 'privacy',
         name: 'Privacy',
         component: Privacy
+      },
+      {
+        path: 'general',
+        name: 'GeneralSettings',
+        component: GeneralSettings
       }
     ]
   },

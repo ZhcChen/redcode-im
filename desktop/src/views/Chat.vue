@@ -223,7 +223,7 @@
                         <div class="progress-text">{{ Math.round(getFileProgress(message) * 100) }}%</div>
                       </div>
                       <!-- 下载图标 -->
-                      <div v-else class="file-download-icon">
+                      <div v-else-if="shouldShowDownloadIcon(message)" class="file-download-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M12 15.577l-3.539-3.538 1.414-1.414L11 12.586V3h2v9.586l1.125-1.125 1.414 1.414L12 15.577zm-7 4.423h14v2H5v-2z" fill="currentColor"/>
                         </svg>
@@ -355,7 +355,7 @@
                       <div class="progress-text">{{ Math.round(getFileProgress(message) * 100) }}%</div>
                     </div>
                     <!-- 下载图标 -->
-                    <div v-else class="file-download-icon">
+                    <div v-else-if="shouldShowDownloadIcon(message)" class="file-download-icon">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 15.577l-3.539-3.538 1.414-1.414L11 12.586V3h2v9.586l1.125-1.125 1.414 1.414L12 15.577zm-7 4.423h14v2H5v-2z" fill="currentColor"/>
                       </svg>
@@ -1541,6 +1541,125 @@ const isFileDownloading = (message: Message): boolean => {
   return false;
 };
 
+// 文件存在性检查缓存（避免重复检查）
+const fileExistsCache = new Map<string, { exists: boolean; checkedAt: number }>();
+const FILE_EXISTS_CACHE_TTL = 5 * 60 * 1000; // 5 分钟缓存
+
+// 检查文件是否存在（基于 localPath 和实际文件系统）
+const isFileExists = async (message: Message): Promise<boolean> => {
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment?.localPath) {
+      const localPath = filePart.attachment.localPath;
+      // blob URL 是临时缓存，不算已下载
+      if (localPath.startsWith('blob:')) {
+        return false;
+      }
+      
+      // 检查缓存
+      const cached = fileExistsCache.get(localPath);
+      if (cached && Date.now() - cached.checkedAt < FILE_EXISTS_CACHE_TTL) {
+        return cached.exists;
+      }
+      
+      // 调用 Rust 检查文件是否存在
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const exists = await invoke<boolean>('check_file_exists', { path: localPath });
+        fileExistsCache.set(localPath, { exists, checkedAt: Date.now() });
+        return exists;
+      } catch (error) {
+        console.warn('检查文件是否存在失败:', error);
+        // 如果检查失败，假设文件存在（基于 localPath）
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+// 同步版本（用于模板中，基于 localPath 判断）
+const isFileExistsSync = (message: Message): boolean => {
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment?.localPath) {
+      const localPath = filePart.attachment.localPath;
+      // blob URL 是临时缓存，不算已下载
+      if (!localPath.startsWith('blob:')) {
+        // 检查缓存
+        const cached = fileExistsCache.get(localPath);
+        if (cached && Date.now() - cached.checkedAt < FILE_EXISTS_CACHE_TTL) {
+          return cached.exists;
+        }
+        // 如果没有缓存，假设存在（会在异步检查时更新）
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+// 检查文件是否需要显示下载图标（同步版本，用于模板）
+const shouldShowDownloadIcon = (message: Message): boolean => {
+  // 如果正在下载或上传，不显示下载图标
+  if (isFileDownloading(message) || isMessageUploading(message)) {
+    return false;
+  }
+  // 如果文件已存在（基于缓存），不显示下载图标
+  if (isFileExistsSync(message)) {
+    return false;
+  }
+  // 其他情况显示下载图标
+  return true;
+};
+
+// 检查消息中的文件是否存在（异步，用于消息可见时检查）
+const checkFileExistsForMessage = async (message: Message) => {
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment?.localPath) {
+      const localPath = filePart.attachment.localPath;
+      // 只检查非 blob URL 的文件
+      if (!localPath.startsWith('blob:')) {
+        const exists = await isFileExists(message);
+        // 如果文件不存在，清除 localPath
+        if (!exists) {
+          console.log('文件不存在，清除 localPath:', localPath);
+          setAttachmentLocalPath(message.id, filePart.attachment.key, null);
+          
+          // 更新消息缓存
+          const roomId = message.roomId || selectedChat.value?.groupId;
+          if (roomId) {
+            try {
+              const cachedMessages = await loadCache<Message[]>(CACHE_KEYS.messages(roomId));
+              if (cachedMessages && Array.isArray(cachedMessages)) {
+                const cachedIndex = cachedMessages.findIndex((msg: Message) => msg.id === message.id);
+                if (cachedIndex !== -1) {
+                  const cachedMsg = cachedMessages[cachedIndex];
+                  if (Array.isArray(cachedMsg.parts)) {
+                    const partIndex = cachedMsg.parts.findIndex((p: MessagePart) => 
+                      p.type === MessagePartType.FILE && p.attachment?.key === filePart.attachment.key
+                    );
+                    if (partIndex !== -1 && cachedMsg.parts[partIndex].attachment) {
+                      cachedMsg.parts[partIndex].attachment = {
+                        ...cachedMsg.parts[partIndex].attachment!,
+                        localPath: null
+                      };
+                      await saveCache(CACHE_KEYS.messages(roomId), cachedMessages);
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn('更新消息缓存失败:', error);
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
 // 获取文件下载/上传进度
 const getFileProgress = (message: Message): number => {
   // 优先检查下载进度
@@ -1616,7 +1735,7 @@ const handleFileDownload = async (message: Message) => {
   const attachment = filePart.attachment;
   console.log('附件信息:', attachment);
 
-  // 如果已有本地路径，尝试打开
+  // 如果已有本地路径，打开文件所在目录
   if (attachment.localPath) {
     console.log('使用已有本地路径:', attachment.localPath);
     try {
@@ -1634,14 +1753,14 @@ const handleFileDownload = async (message: Message) => {
         return;
       }
 
-      // 对于文件系统路径，使用 opener 打开
-      console.log('使用 opener 打开文件:', attachment.localPath);
-      const { open } = await import('@tauri-apps/plugin-opener');
-      await open(attachment.localPath);
+      // 对于文件系统路径，使用 Rust 打开文件所在目录
+      console.log('文件已下载，打开文件所在目录:', attachment.localPath);
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_file_directory', { filePath: attachment.localPath });
       return;
     } catch (error) {
-      console.error('打开文件失败:', error);
-      toast.error('打开文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      console.error('打开目录失败:', error);
+      toast.error('打开目录失败: ' + (error instanceof Error ? error.message : '未知错误'));
       // 如果打开失败，尝试下载
     }
   }
@@ -1656,84 +1775,173 @@ const handleFileDownload = async (message: Message) => {
   try {
     console.log('开始下载文件，key:', attachment.key, 'downloadUrl:', attachment.downloadUrl);
     
-    // 如果有 downloadUrl，直接使用浏览器下载
-    if (attachment.downloadUrl && !attachment.key) {
-      console.log('使用 downloadUrl 直接下载');
-      const link = document.createElement('a');
-      link.href = attachment.downloadUrl;
-      link.download = attachment.name || 'file';
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 100);
-      return;
+    let downloadUrl = attachment.downloadUrl;
+    
+    // 如果没有 downloadUrl，需要通过 key 获取下载 URL
+    if (!downloadUrl && attachment.key) {
+      const roomId = message.roomId || selectedChat.value?.groupId;
+      if (!roomId) {
+        toast.error('房间 ID 不存在');
+        return;
+      }
+
+      console.log('获取文件下载 URL，key:', attachment.key);
+      const response = await MessageApi.getAttachmentDownloadUrl({
+        groupId: roomId,
+        key: attachment.key,
+        expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
+      });
+
+      if (!response.success || !response.data?.downloadUrl) {
+        throw new Error(response.message || '获取文件下载链接失败');
+      }
+
+      downloadUrl = response.data.downloadUrl;
+      console.log('获取到下载 URL:', downloadUrl);
     }
 
-    if (!attachment.key) {
-      toast.error('文件 key 不存在');
+    if (!downloadUrl) {
+      toast.error('无法获取文件下载链接');
       return;
     }
 
     // 设置下载进度为 0
-    updateFileDownloadProgress(message.id, attachment.key, 0);
-
-    // 确保附件已下载到本地
-    console.log('调用 ensureAttachmentLocalPath');
-    await ensureAttachmentLocalPath(message, filePart);
-
-    // 重新获取消息以获取最新的本地路径
-    const updatedMessage = messages.value.find((m) => m.id === message.id) || message;
-    const updatedFilePart = updatedMessage.parts?.find((part) => part.type === MessagePartType.FILE);
-    
-    console.log('下载后的文件信息:', updatedFilePart?.attachment);
-    
-    if (updatedFilePart?.attachment?.localPath) {
-      try {
-        const localPath = updatedFilePart.attachment.localPath;
-        console.log('文件已下载到:', localPath);
-
-        // 如果是 blob URL，使用浏览器下载
-        if (localPath.startsWith('blob:')) {
-          console.log('使用 blob URL 下载');
-          const link = document.createElement('a');
-          link.href = localPath;
-          link.download = updatedFilePart.attachment.name || 'file';
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            document.body.removeChild(link);
-          }, 100);
-        } else {
-          // 对于文件系统路径，使用 opener 打开
-          console.log('使用 opener 打开文件系统路径');
-          const { open } = await import('@tauri-apps/plugin-opener');
-          await open(localPath);
-        }
-      } catch (error) {
-        console.error('打开文件失败:', error);
-        toast.error('打开文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
-      }
-    } else if (updatedFilePart?.attachment?.downloadUrl) {
-      // 如果下载失败但还有 downloadUrl，使用浏览器下载
-      console.log('使用 downloadUrl 作为后备方案');
-      const link = document.createElement('a');
-      link.href = updatedFilePart.attachment.downloadUrl;
-      link.download = updatedFilePart.attachment.name || 'file';
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 100);
-    } else {
-      console.error('文件下载失败，没有本地路径也没有 downloadUrl');
-      toast.error('文件下载失败');
+    if (attachment.key) {
+      updateFileDownloadProgress(message.id, attachment.key, 0);
     }
 
-    // 清除下载进度
-    updateFileDownloadProgress(message.id, attachment.key, null);
+    // 获取下载目录
+    const { getDownloadDir } = await import('../utils/download-settings');
+    const downloadDir = await getDownloadDir();
+    let fileName = attachment.name || 'file';
+    
+    // 生成唯一文件名（如果文件已存在，添加时间戳）
+    const generateUniqueFileName = async (baseFileName: string): Promise<string> => {
+      const basePath = `${downloadDir}/${baseFileName}`;
+      
+      // 检查文件是否存在
+      const { invoke } = await import('@tauri-apps/api/core');
+      const exists = await invoke<boolean>('check_file_exists', { path: basePath });
+      
+      if (!exists) {
+        return baseFileName;
+      }
+      
+      // 文件已存在，生成带时间戳的文件名
+      // 时间戳格式：YYYYMMDDHHmmss，例如 20250101100000
+      const now = new Date();
+      const year = now.getFullYear().toString();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timestamp = `${year}${month}${day}${hours}${minutes}${seconds}`;
+      
+      // 分离文件名和扩展名
+      const lastDotIndex = baseFileName.lastIndexOf('.');
+      if (lastDotIndex > 0) {
+        const nameWithoutExt = baseFileName.substring(0, lastDotIndex);
+        const ext = baseFileName.substring(lastDotIndex);
+        // 格式：文件名_时间戳.扩展名，例如 demo-1_20250101100000.zip
+        return `${nameWithoutExt}_${timestamp}${ext}`;
+      } else {
+        // 没有扩展名
+        return `${baseFileName}_${timestamp}`;
+      }
+    };
+    
+    fileName = await generateUniqueFileName(fileName);
+    
+    // 构建完整保存路径（使用绝对路径）
+    const savePath = `${downloadDir}/${fileName}`;
+    
+    // 生成下载ID
+    const downloadId = `${message.id}_${attachment.key || Date.now()}`;
+    console.log('使用 Rust 下载文件:', downloadUrl, '保存路径:', downloadDir, fileName);
+    
+    try {
+      // 使用带进度回调的下载
+      const downloadResult = await rustHttp.download(
+        downloadUrl, 
+        savePath,
+        downloadId,
+        (progress: number) => {
+          // 进度回调：更新下载进度
+          if (attachment.key) {
+            if (progress < 0) {
+              // 错误
+              updateFileDownloadProgress(message.id, attachment.key, null);
+            } else if (progress >= 1) {
+              // 完成
+              updateFileDownloadProgress(message.id, attachment.key, null);
+            } else {
+              // 进行中
+              updateFileDownloadProgress(message.id, attachment.key, progress);
+            }
+          }
+        }
+      );
+      console.log('Rust 下载结果:', downloadResult);
+      console.log('Rust 下载结果详情:', {
+        success: downloadResult.success,
+        message: downloadResult.message,
+        path: downloadResult.path
+      });
+      
+      if (!downloadResult.success || !downloadResult.path) {
+        const errorMsg = downloadResult.message || '文件下载失败';
+        console.error('下载失败，错误信息:', errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      console.log('文件下载成功，保存路径:', downloadResult.path);
+      
+      // 更新消息的本地路径
+      if (attachment.key) {
+        setAttachmentLocalPath(message.id, attachment.key, downloadResult.path, { downloadUrl });
+        updateFileDownloadProgress(message.id, attachment.key, null);
+        
+        // 更新消息缓存中的本地路径
+        const roomId = message.roomId || selectedChat.value?.groupId;
+        if (roomId) {
+          try {
+            const cachedMessages = await loadCache<Message[]>(CACHE_KEYS.messages(roomId));
+            if (cachedMessages && Array.isArray(cachedMessages)) {
+              const cachedIndex = cachedMessages.findIndex((msg: Message) => msg.id === message.id);
+              if (cachedIndex !== -1) {
+                const cachedMsg = cachedMessages[cachedIndex];
+                if (Array.isArray(cachedMsg.parts)) {
+                  const partIndex = cachedMsg.parts.findIndex((p: MessagePart) => 
+                    p.type === MessagePartType.FILE && p.attachment?.key === attachment.key
+                  );
+                  if (partIndex !== -1 && cachedMsg.parts[partIndex].attachment) {
+                    cachedMsg.parts[partIndex].attachment = {
+                      ...cachedMsg.parts[partIndex].attachment!,
+                      localPath: downloadResult.path,
+                      downloadUrl
+                    };
+                    await saveCache(CACHE_KEYS.messages(roomId), cachedMessages);
+                    console.log('已更新消息缓存中的本地路径:', downloadResult.path);
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('更新消息缓存失败:', error);
+          }
+        }
+      }
+      
+      toast.success('文件下载成功');
+    } catch (downloadError: any) {
+      console.error('Rust 下载失败，详细信息:', downloadError);
+      toast.error('文件下载失败: ' + (downloadError?.message || '未知错误'));
+      
+      if (attachment.key) {
+        updateFileDownloadProgress(message.id, attachment.key, null);
+      }
+    }
   } catch (error: any) {
     console.error('文件下载失败:', error);
     toast.error('文件下载失败: ' + (error?.message || '未知错误'));
@@ -1959,6 +2167,32 @@ const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref<boolean>(false)
 const currentUserId = computed(() => store.getters.currentUser.id)
 
+// 检查消息中的文件是否存在（批量检查，避免频繁调用）
+const checkFilesExistsForMessages = async (messagesToCheck: Message[]) => {
+  // 只检查有 localPath 的文件消息
+  const fileMessages = messagesToCheck.filter((msg) => {
+    if (Array.isArray(msg.parts)) {
+      const filePart = msg.parts.find((part) => part.type === MessagePartType.FILE);
+      return filePart?.attachment?.localPath && !filePart.attachment.localPath.startsWith('blob:');
+    }
+    return false;
+  });
+  
+  // 批量检查文件是否存在（避免同时发起太多请求）
+  const batchSize = 5;
+  for (let i = 0; i < fileMessages.length; i += batchSize) {
+    const batch = fileMessages.slice(i, i + batchSize);
+    await Promise.all(batch.map((msg) => checkFileExistsForMessage(msg)));
+    // 每批之间稍作延迟，避免阻塞
+    if (i + batchSize < fileMessages.length) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+};
+
+// 文件存在性检查防抖定时器
+let fileCheckTimer: ReturnType<typeof setTimeout> | null = null
+
 watch(
   () => [selectedChat.value?.groupId, messages.value] as [string | undefined | null, Message[]],
   ([groupId, messageList]: [string | undefined | null, Message[]]) => {
@@ -1966,6 +2200,18 @@ watch(
       return
     }
     scheduleMessagesCachePersist(groupId, messageList)
+    
+    // 延迟检查文件是否存在（防抖，避免频繁检查）
+    if (fileCheckTimer) {
+      clearTimeout(fileCheckTimer)
+    }
+    fileCheckTimer = setTimeout(() => {
+      if (messageList && messageList.length > 0) {
+        checkFilesExistsForMessages(messageList).catch((error) => {
+          console.warn('检查文件存在性失败:', error)
+        })
+      }
+    }, 1000) // 1秒后检查，避免频繁调用
   },
   { deep: true }
 )
@@ -3259,7 +3505,20 @@ const selectChat = async (chat: ChatItem) => {
   store.commit('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
   
   // 更新账号页面状态中的 currentChatGroupId
-  const currentRoute = router.currentRoute.value
+  // 在多账号模式下，确保路由状态是 /home/chat
+  let currentRoute: any
+  if (props.accountId) {
+    // 多账号模式：使用 /home/chat 路由状态
+    currentRoute = {
+      path: '/home/chat',
+      name: 'Chat',
+      params: {},
+      query: {}
+    }
+  } else {
+    // 单账号模式：使用全局路由
+    currentRoute = router.currentRoute.value
+  }
   store.dispatch('accounts/saveCurrentAccountPageState', currentRoute)
   
   webSocketManager.joinRoom(chat.groupId)

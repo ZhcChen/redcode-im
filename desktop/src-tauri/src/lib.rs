@@ -6,6 +6,7 @@ mod cache;
 mod http;
 mod logger;
 mod message_search;
+mod path_utils;
 mod updater;
 mod websocket;
 
@@ -14,6 +15,7 @@ use account::AccountManager;
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
+use path_utils::*;
 use updater::{download_update, install_update};
 use websocket::commands::*;
 use websocket::WebSocketManager;
@@ -198,6 +200,13 @@ pub fn run() {
             http_batch,
             download_update,
             install_update,
+            // 路径工具相关命令
+            get_user_download_dir,
+            get_user_desktop_dir,
+            check_dir_exists,
+            check_file_exists,
+            create_dir,
+            open_file_directory,
             // WebSocket 相关命令
             ws_connect,
             ws_disconnect,

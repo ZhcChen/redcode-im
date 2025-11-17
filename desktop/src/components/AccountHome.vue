@@ -11,6 +11,7 @@
         <Contact v-if="currentPage === 'contact'" :account-id="accountId" :key="`contact-${accountId}`" />
         <Settings v-if="currentPage === 'settings'" :account-id="accountId" :key="`settings-${accountId}`" />
         <Privacy v-if="currentPage === 'privacy'" :account-id="accountId" :key="`privacy-${accountId}`" />
+        <GeneralSettings v-if="currentPage === 'general'" :account-id="accountId" :key="`general-${accountId}`" />
       </div>
     </div>
   </div>
@@ -26,6 +27,7 @@ import Chat from '../views/Chat.vue'
 import Contact from '../views/Contact.vue'
 import Settings from '../views/Settings.vue'
 import Privacy from '../views/Privacy.vue'
+import GeneralSettings from '../views/GeneralSettings.vue'
 import type { AccountRouteState } from '../store/modules/accounts'
 
 interface Props {
@@ -113,6 +115,7 @@ const currentPage = computed(() => {
   if (path.includes('/contact')) return 'contact'
   if (path.includes('/settings')) return 'settings'
   if (path.includes('/privacy')) return 'privacy'
+  if (path.includes('/general')) return 'general'
   return 'chat'
 })
 

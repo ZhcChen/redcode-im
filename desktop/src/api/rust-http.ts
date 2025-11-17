@@ -409,29 +409,102 @@ class RustHttpClient {
 
   /**
    * 文件下载
+   * @param url 下载URL
+   * @param filename 文件名（相对于下载目录）
+   * @param downloadId 可选的下载ID，用于进度回调
+   * @param onProgress 可选的进度回调函数
    */
-  async download(url: string, filename: string): Promise<{ success: boolean, message: string, path?: string }> {
+  async download(
+    url: string, 
+    filename: string, 
+    downloadId?: string,
+    onProgress?: (progress: number) => void
+  ): Promise<{ success: boolean, message: string, path?: string }> {
     if (!this.isInitialized) {
       await this.initialize()
     }
 
     try {
-      // 调用 Rust 下载（让 Rust 端处理文件保存路径）
-      const result = await invoke<string>('http_download', {
-        url,
-        filename
-      })
+      // 如果有进度回调，监听进度事件
+      let unlisten: (() => void) | null = null
+      if (downloadId && onProgress) {
+        try {
+          const { listen } = await import('@tauri-apps/api/event')
+          unlisten = await listen('file-download-progress', (event: any) => {
+            const payload = event.payload as { id: string, progress: number, finished?: boolean, error?: string }
+            if (payload.id === downloadId) {
+              if (payload.error) {
+                onProgress(-1) // 错误
+              } else if (payload.finished) {
+                onProgress(1) // 完成
+              } else if (payload.progress >= 0) {
+                onProgress(payload.progress)
+              }
+            }
+          })
+        } catch (error) {
+          console.warn('监听下载进度失败:', error)
+        }
+      }
 
-      const response: HttpResponseData = JSON.parse(result)
-      return {
-        success: response.success,
-        message: response.message,
-        path: response.data?.path
+      try {
+        // 调用 Rust 下载（让 Rust 端处理文件保存路径）
+        // 注意：Tauri 会将 Rust 的 snake_case 参数名自动转换为 camelCase
+        const result = await invoke<string>('http_download', {
+          url,
+          savePath: filename,
+          downloadId: downloadId || null
+        })
+
+        console.log('[rust-http] download invoke 返回:', result)
+        const response: HttpResponseData = JSON.parse(result)
+        console.log('[rust-http] download 解析后的响应:', response)
+        
+        // 清理监听器
+        if (unlisten) {
+          unlisten()
+        }
+
+        return {
+          success: response.success,
+          message: response.message,
+          path: response.data?.path
+        }
+      } catch (error: any) {
+        // 清理监听器
+        if (unlisten) {
+          unlisten()
+        }
+        
+        // Tauri invoke 如果返回 Err，会抛出异常，异常消息是 Rust 端返回的错误字符串（JSON 格式）
+        console.error('[rust-http] download invoke 异常:', error)
+        
+        // 尝试解析错误消息为 JSON（Rust 端返回的是序列化的 JSON）
+        if (error?.message) {
+          try {
+            const errorResponse: HttpResponseData = JSON.parse(error.message)
+            console.log('[rust-http] download 错误响应:', errorResponse)
+            return {
+              success: false,
+              message: errorResponse.message || error.message || '文件下载失败'
+            }
+          } catch (parseError) {
+            // 如果不是 JSON，直接使用错误消息
+            console.error('[rust-http] download 错误消息解析失败:', parseError)
+            return {
+              success: false,
+              message: error.message || '文件下载失败'
+            }
+          }
+        }
+        
+        throw error
       }
     } catch (error: any) {
+      console.error('[rust-http] download 外层异常:', error)
       return {
         success: false,
-        message: error?.message || '文件下载失败'
+        message: error?.message || String(error) || '文件下载失败'
       }
     }
   }

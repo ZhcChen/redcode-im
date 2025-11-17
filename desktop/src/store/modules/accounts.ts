@@ -546,6 +546,22 @@ const accountsModule = {
         accountId: state.currentAccountId,
         pageState
       })
+
+      // 同时保存路由状态（用于 AccountHome 组件，仅在多账号模式下需要）
+      // 只有在有多个账号时才保存 routeState，避免单账号模式下的干扰
+      if (state.accounts.length > 1) {
+        const routeState: AccountRouteState = {
+          path: route.path || '/home/chat',
+          name: route.name || null,
+          params: route.params || {},
+          query: route.query || {}
+        }
+
+        commit('SAVE_ACCOUNT_ROUTE_STATE', {
+          accountId: state.currentAccountId,
+          routeState
+        })
+      }
     },
 
     /**

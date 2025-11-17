@@ -303,38 +303,96 @@ impl HttpClientState {
         url_or_path: String,
         save_path: PathBuf,
     ) -> Result<HttpRequestOutcome, HttpError> {
+        self.download_file_with_progress(url_or_path, save_path, None).await
+    }
+
+    pub async fn download_file_with_progress(
+        &self,
+        url_or_path: String,
+        save_path: PathBuf,
+        progress_callback: Option<Box<dyn Fn(f64) + Send + Sync>>,
+    ) -> Result<HttpRequestOutcome, HttpError> {
+        logger::log_message(&format!("[download_file_with_progress] 开始下载: url={}, save_path={:?}", url_or_path, save_path));
+        
         self.ensure_initialized().await?;
         let (client, config, token) = self.snapshot().await;
-        let url = if url_or_path.starts_with("http://") || url_or_path.starts_with("https://") {
-            url_or_path
+        let is_external_url = url_or_path.starts_with("http://") || url_or_path.starts_with("https://");
+        let url = if is_external_url {
+            url_or_path.clone()
         } else {
             Self::build_url(&config.base_url, &url_or_path, None)?
         };
 
+        logger::log_message(&format!("[download_file_with_progress] 最终 URL: {}, is_external: {}", url, is_external_url));
+
         let mut builder = client.get(&url);
-        if let Some(token_value) = &token {
-            builder = builder.header("Authorization", format!("Bearer {}", token_value));
+        // 只对内部 API URL 添加 Authorization header，外部 URL（如 COS 签名 URL）不需要
+        if !is_external_url {
+            if let Some(token_value) = &token {
+                builder = builder.header("Authorization", format!("Bearer {}", token_value));
+            }
         }
 
         let start = Instant::now();
         match builder.send().await {
             Ok(mut resp) => {
                 let status = resp.status();
+                logger::log_message(&format!("[download_file_with_progress] HTTP 状态码: {}", status));
+                
                 if !status.is_success() {
                     let text = resp.text().await.unwrap_or_default();
+                    logger::log_message(&format!("[download_file_with_progress] HTTP 请求失败: status={}, body={}", status, text));
                     let outcome = HttpRequestOutcome::from_http(status.as_u16(), text);
                     self.record_outcome(&outcome, start.elapsed()).await;
                     return Ok(outcome);
                 }
 
                 if let Some(parent) = save_path.parent() {
-                    fs::create_dir_all(parent).await?;
+                    logger::log_message(&format!("[download_file_with_progress] 创建目录: {:?}", parent));
+                    fs::create_dir_all(parent).await.map_err(|e| {
+                        logger::log_message(&format!("[download_file_with_progress] 创建目录失败: {}", e));
+                        HttpError::Io(e)
+                    })?;
                 }
 
-                let mut file = fs::File::create(&save_path).await?;
-                while let Some(chunk) = resp.chunk().await? {
-                    file.write_all(&chunk).await?;
+                let total_size = resp.content_length();
+                logger::log_message(&format!("[download_file_with_progress] 文件大小: {:?} bytes", total_size));
+                
+                logger::log_message(&format!("[download_file_with_progress] 创建文件: {:?}", save_path));
+                let mut file = fs::File::create(&save_path).await.map_err(|e| {
+                    logger::log_message(&format!("[download_file_with_progress] 创建文件失败: {}", e));
+                    HttpError::Io(e)
+                })?;
+                let mut downloaded: u64 = 0;
+
+                logger::log_message(&format!("[download_file_with_progress] 开始下载数据块..."));
+                while let Some(chunk) = resp.chunk().await.map_err(|e| {
+                    logger::log_message(&format!("[download_file_with_progress] 读取数据块失败: {}", e));
+                    HttpError::from(e)
+                })? {
+                    file.write_all(&chunk).await.map_err(|e| {
+                        logger::log_message(&format!("[download_file_with_progress] 写入文件失败: {}", e));
+                        HttpError::Io(e)
+                    })?;
+                    downloaded += chunk.len() as u64;
+                    
+                    // 调用进度回调
+                    if let Some(callback) = &progress_callback {
+                        let progress = if let Some(total) = total_size {
+                            if total > 0 {
+                                (downloaded as f64 / total as f64).min(1.0)
+                            } else {
+                                0.0
+                            }
+                        } else {
+                            // 如果没有总大小，返回 -1 表示未知进度
+                            -1.0
+                        };
+                        callback(progress);
+                    }
                 }
+
+                logger::log_message(&format!("[download_file_with_progress] 下载完成: {} bytes", downloaded));
 
                 let payload = serde_json::json!({
                     "success": true,
@@ -353,6 +411,7 @@ impl HttpClientState {
                 Ok(outcome)
             }
             Err(err) => {
+                logger::log_message(&format!("[download_file_with_progress] 请求发送失败: {}", err));
                 let http_error = HttpError::from(err);
                 self.record_error(start.elapsed(), &http_error).await;
                 Err(http_error)

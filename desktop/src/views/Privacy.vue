@@ -35,11 +35,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useStore } from 'vuex'
 import backIcon from '../assets/image/icon-back.svg'
 import { SettingsApi, type DocumentContent } from '../api/settings'
 import { toast } from '../utils/toast'
 
+// Props: 接收账号ID（可选，用于多实例页面架构）
+interface Props {
+  accountId?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  accountId: undefined
+})
+
 const router = useRouter()
+const store = useStore()
 const loading = ref(true)
 const error = ref(null as string | null)
 const privacyDoc = ref(null as DocumentContent | null)
@@ -78,7 +89,21 @@ const fetchPrivacy = async () => {
 }
 
 const handleBack = () => {
-  router.push('/home/settings')
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/settings',
+        name: 'Settings',
+        params: {},
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    router.push('/home/settings')
+  }
 }
 
 onMounted(fetchPrivacy)

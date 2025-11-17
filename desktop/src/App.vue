@@ -8,6 +8,7 @@ import { rustHttp } from './api/rust-http'
 import { toast } from './utils/toast'
 import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
+import { initializeDownloadDir } from './utils/download-settings'
 import LoadingMask from './components/LoadingMask.vue'
 import AccountTabs from './components/AccountTabs.vue'
 import AccountHome from './components/AccountHome.vue'
@@ -931,6 +932,13 @@ onMounted(async () => {
     const windowLabel = currentWindow.label;
     isLoginWindow = windowLabel.startsWith('login-');
   } catch (error) {
+  }
+
+  // 初始化下载目录设置（静默初始化）
+  try {
+    await initializeDownloadDir();
+  } catch (error) {
+    console.error('初始化下载目录失败:', error);
   }
 
   // 独立登录窗口不恢复账号状态，保持干净的登录环境
