@@ -6765,7 +6765,7 @@ const loadMessageList = async (groupId: string) => {
     background-color: #ffffff;
     padding: 12px 16px;
     border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
-    max-width: 60%;
+    max-width: 100%; /* 占满 message-wrapper 的宽度，message-wrapper 已设置 60% */
     word-wrap: break-word;
     white-space: pre-wrap; /* 保留换行符和空格 */
     font-size: 16px;
