@@ -694,15 +694,15 @@ onUnmounted(() => {
   restoreOriginalWindowSize();
 });
 
-// 表单数据 - 默认填入账号信息
-const DEFAULT_CAPTCHA = "666666";
+// 表单数据 - 默认不预填任何账号信息
+const DEFAULT_CAPTCHA = "";
 
-// 默认填入测试账号，便于本地开发调试
+// 登录/注册表单，初始值为空，由用户手动填写
 const loginForm = ref({
-  phone: "alice",
-  password: "a123456",
+  phone: "",
+  password: "",
   confirmPassword: "",
-  captcha: DEFAULT_CAPTCHA,
+  captcha: "",
 });
 
 // 登录类型：password 密码登录 | captcha 验证码登录 | register 注册
