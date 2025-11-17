@@ -1946,23 +1946,169 @@ const parseImageSrc = (message: Message): string => {
   return ''
 }
 
+// 确保视频缩略图已下载到本地
+const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: MessagePart) => {
+  const attachment = videoPart.attachment
+  if (!attachment || !attachment.thumbnailKey) {
+    return
+  }
+
+  const thumbnailKey = attachment.thumbnailKey
+  
+  // 检查缓存
+  const cached = attachmentUrlCache.get(thumbnailKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    if (cached.localPath && cached.localPath.startsWith('blob:')) {
+      registerBlobUrl(cached.localPath)
+    }
+        // 更新视频 part 的缩略图 localPath（使用响应式更新）
+        const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
+        if (index !== -1) {
+          const msg = messages.value[index]
+          if (Array.isArray(msg.parts)) {
+            const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
+            if (partIndex !== -1 && msg.parts[partIndex].attachment) {
+              // 创建新的 parts 数组以触发响应式更新
+              const updatedParts = [...msg.parts]
+              updatedParts[partIndex] = {
+                ...updatedParts[partIndex],
+                attachment: {
+                  ...updatedParts[partIndex].attachment!,
+                  localPath: cached.localPath
+                }
+              }
+              messages.value[index] = {
+                ...msg,
+                parts: updatedParts
+              }
+            }
+          }
+        }
+    return
+  }
+
+  const roomId = message.roomId || selectedChat.value?.groupId
+  if (!roomId) {
+    return
+  }
+
+  let pending = pendingAttachmentDownloads.get(thumbnailKey)
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const response = await MessageApi.getAttachmentDownloadUrl({
+          groupId: roomId,
+          key: thumbnailKey,
+          expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
+        })
+
+        const payload = response.data
+        if (!response.success || !payload || !payload.downloadUrl) {
+          throw new Error(payload?.message || response.message || '获取缩略图下载链接失败')
+        }
+
+        const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, 'image/jpeg')
+        if (fromBlob) {
+          registerBlobUrl(localPath)
+        }
+        attachmentUrlCache.set(thumbnailKey, {
+          localPath,
+          expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
+          downloadUrl: payload.downloadUrl,
+        })
+        
+        // 更新视频 part 的缩略图 localPath（使用响应式更新）
+        const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
+        if (index !== -1) {
+          const msg = messages.value[index]
+          if (Array.isArray(msg.parts)) {
+            const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
+            if (partIndex !== -1 && msg.parts[partIndex].attachment) {
+              // 创建新的 parts 数组以触发响应式更新
+              const updatedParts = [...msg.parts]
+              updatedParts[partIndex] = {
+                ...updatedParts[partIndex],
+                attachment: {
+                  ...updatedParts[partIndex].attachment!,
+                  localPath: localPath
+                }
+              }
+              messages.value[index] = {
+                ...msg,
+                parts: updatedParts
+              }
+            }
+          }
+        }
+        
+        return { localPath, downloadUrl: payload.downloadUrl }
+      } catch (error: any) {
+        console.warn('视频缩略图下载失败:', error)
+        return null
+      }
+    })()
+    pendingAttachmentDownloads.set(thumbnailKey, pending)
+  }
+
+  await pending
+  pendingAttachmentDownloads.delete(thumbnailKey)
+}
+
 const parseVideoScreenShotSrc = (message: Message): string => {
   if (Array.isArray(message.parts)) {
     const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
-    if (videoPart?.attachment?.localPath) {
-      return videoPart.attachment.localPath
-    }
-    if (videoPart?.attachment?.thumbnailKey) {
-      const url = resolveAttachmentUrl(videoPart.attachment.thumbnailKey)
-      if (url) {
-        return url
+    if (videoPart?.attachment) {
+      const attachment = videoPart.attachment
+      
+      // 优先处理缩略图
+      if (attachment.thumbnailKey) {
+        // 先检查缓存中是否有缩略图的 localPath
+        const thumbnailCached = attachmentUrlCache.get(attachment.thumbnailKey)
+        if (thumbnailCached && thumbnailCached.expiresAt > Date.now() && thumbnailCached.localPath) {
+          // 如果缓存中有缩略图，更新 attachment.localPath（用于显示）
+          if (attachment.localPath !== thumbnailCached.localPath) {
+            const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
+            if (index !== -1) {
+              const msg = messages.value[index]
+              if (Array.isArray(msg.parts)) {
+                const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
+                if (partIndex !== -1 && msg.parts[partIndex].attachment) {
+                  const updatedParts = [...msg.parts]
+                  updatedParts[partIndex] = {
+                    ...updatedParts[partIndex],
+                    attachment: {
+                      ...updatedParts[partIndex].attachment!,
+                      localPath: thumbnailCached.localPath
+                    }
+                  }
+                  messages.value[index] = {
+                    ...msg,
+                    parts: updatedParts
+                  }
+                }
+              }
+            }
+          }
+          return thumbnailCached.localPath
+        }
+        
+        // 如果缓存中没有，异步预加载缩略图（类似图片的预加载逻辑）
+        void ensureVideoThumbnailLocalPath(message, videoPart)
+        
+        // 返回缩略图的 URL（在下载完成前先显示服务器 URL）
+        const url = resolveAttachmentUrl(attachment.thumbnailKey)
+        if (url) {
+          return url
+        }
       }
+      
+      // 如果没有缩略图但有本地路径（可能是视频本身），不用于缩略图显示
+      // 返回空，让模板显示默认占位符
     }
   }
 
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
-
 
     // 只处理专门的缩略图字段，不使用视频文件本身
     if (content.screenShot) {
