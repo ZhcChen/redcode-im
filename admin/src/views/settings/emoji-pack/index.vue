@@ -55,15 +55,6 @@
           </a-tag>
         </template>
 
-        <template #parent_id="{ record }">
-          <span v-if="record.parent_id">
-            {{
-              packs.find((p) => p.id === record.parent_id)?.name || '未知套件'
-            }}
-          </span>
-          <span v-else class="text-gray-400">-</span>
-        </template>
-
         <template #is_active="{ record }">
           <a-tag :color="record.is_active ? 'green' : 'gray'">
             {{ record.is_active ? '启用' : '禁用' }}
@@ -497,12 +488,6 @@
       dataIndex: 'pack_type',
       slotName: 'pack_type',
       width: 100,
-    },
-    {
-      title: '所属套件',
-      dataIndex: 'parent_id',
-      slotName: 'parent_id',
-      width: 150,
     },
     {
       title: '描述',
