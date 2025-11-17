@@ -1149,6 +1149,26 @@
     }
   }
 
+  .suite-management {
+    .item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0;
+      margin-bottom: 16px;
+
+      h3 {
+        margin: 0;
+        font-weight: 500;
+        font-size: 16px;
+      }
+    }
+
+    .suite-pack-table {
+      margin-top: 16px;
+    }
+  }
+
   .emoji-image {
     width: 40px;
     height: 40px;
