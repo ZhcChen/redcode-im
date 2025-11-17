@@ -78,8 +78,7 @@
           @contextmenu.prevent="handleChatContextMenu(chat, $event)"
           :class="{
             'is-top': chat.isTop,
-            selected: selectedChat && selectedChat.id === chat.id,
-            'favorite-item': chat.groupType === 2
+            selected: selectedChat && selectedChat.id === chat.id
           }"
         >
           <div class="avatar-container">
@@ -6766,21 +6765,6 @@ const loadMessageList = async (groupId: string) => {
 
   &.selected {
     background-color: #F5F5F5;
-  }
-
-  &.favorite-item {
-    background-color: $primary-color;
-
-    .chat-name,
-    .chat-message,
-    .chat-time {
-      color: #ffffff;
-    }
-
-    .chat-badge {
-      background-color: #ffffff;
-      color: $primary-color;
-    }
   }
 
     .chat-info {
