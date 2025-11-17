@@ -388,13 +388,15 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       // 收集所有单个表情包（pack_type === 0）中的表情项
       const allItems: EmojiDisplayItem[] = []
       for (const pack of userPacks.value) {
-        if (pack.pack_type === 0 && pack.items) {
+        if (pack.pack_type === 0 && pack.items && pack.items.length > 0) {
           for (const item of pack.items) {
-            allItems.push({
-              type: 'image',
-              value: item.image_url,
-              name: item.name || undefined
-            })
+            if (item.image_url) {
+              allItems.push({
+                type: 'image',
+                value: item.image_url,
+                name: item.name || undefined
+              })
+            }
           }
         }
       }
@@ -570,7 +572,8 @@ const loadUserPacks = async () => {
     // 清空套件缓存，重新加载
     suitePacksCache.value = {}
     loadingSuitePacks.value = {}
-    // 预加载所有套件下的表情包
+    // 预加载所有套件下的表情包（可选，按需加载也可以）
+    // 为了提升体验，预加载所有套件
     for (const pack of userPacks.value) {
       if (pack.pack_type === 1) {
         await loadSuitePacks(pack.id)

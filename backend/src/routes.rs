@@ -439,6 +439,10 @@ pub fn create_routes() -> Router<AppState> {
             "/emoji-packs/{pack_id}/remove",
             delete(emoji_pack::remove_user_pack),
         )
+        .route(
+            "/emoji-packs/suites/{suite_id}/packs",
+            get(emoji_pack::list_user_suite_packs),
+        )
         .layer(middleware::from_fn(auth_middleware));
 
     // 合并所有路由

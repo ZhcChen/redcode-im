@@ -415,3 +415,45 @@ pub async fn add_user_suite(
         "count": count
     })))
 }
+
+/// 获取用户套件下的表情包列表（只返回用户已添加的，包含表情项）
+pub async fn list_user_suite_packs(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(suite_id): Path<String>,
+) -> Result<Json<Vec<EmojiPackWithItemsResponse>>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let suite_id = Uuid::parse_str(&suite_id)
+        .map_err(|_| AppError::ValidationError("无效的套件ID".to_string()))?;
+
+    let store = EmojiPackStore::new(state.database.clone());
+
+    // 检查用户是否已添加此套件
+    let has_suite = store.has_user_pack(user_id, suite_id).await?;
+    if !has_suite {
+        return Err(AppError::NotFound("用户未添加此套件".to_string()));
+    }
+
+    // 获取套件下的所有表情包（从数据库）
+    let child_packs = store.list_packs_by_parent(suite_id).await?;
+
+    // 只返回用户已添加的表情包
+    let mut result = Vec::new();
+    for pack in child_packs {
+        // 检查用户是否已添加此表情包
+        let has_pack = store.has_user_pack(user_id, pack.id).await?;
+        if has_pack && matches!(
+            pack.is_active,
+            crate::database::models::EmojiPackStatus::Active
+        ) {
+            let items = store.list_items_by_pack(pack.id).await?;
+            result.push(EmojiPackWithItemsResponse {
+                pack: db_pack_to_api(&pack),
+                items: items.iter().map(db_item_to_api).collect(),
+            });
+        }
+    }
+
+    Ok(Json(result))
+}

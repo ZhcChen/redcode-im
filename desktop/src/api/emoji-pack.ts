@@ -96,12 +96,13 @@ export class EmojiPackApi {
 
   /**
    * 获取套件下的表情包列表（包含表情项）
+   * 只返回用户已添加的表情包
    */
   static async getSuitePacks(suiteId: string): Promise<Array<{ pack: EmojiPack; items: EmojiItem[] }>> {
-    // 从用户表情包列表中查找套件下的表情包
-    const userPacks = await this.getUserPacks()
-    const suitePacks = userPacks.filter(p => p.pack.parent_id === suiteId)
-    return suitePacks
+    const response = await httpClient.get<Array<{ pack: EmojiPack; items: EmojiItem[] }>>(
+      `/emoji-packs/suites/${suiteId}/packs`
+    );
+    return response.data || [];
   }
 }
 
