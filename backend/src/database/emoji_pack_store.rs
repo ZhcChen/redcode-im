@@ -365,20 +365,19 @@ impl EmojiPackStore {
 
     // ===== 用户表情包关联相关方法 =====
 
-    /// 获取用户的表情包列表（只返回单个表情包，不返回套件）
+    /// 获取用户的表情包列表（返回单个表情包和套件）
     pub async fn list_user_packs(&self, user_id: Uuid) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
             SELECT p.id, p.name, p.icon_url, p.description, p.is_active, p.pack_type, p.parent_id, p.created_at, p.updated_at
             FROM emoji_packs p
             INNER JOIN user_emoji_packs uep ON p.id = uep.pack_id
-            WHERE uep.user_id = $1 AND p.is_active = $2 AND p.pack_type = $3
+            WHERE uep.user_id = $1 AND p.is_active = $2
             ORDER BY uep.created_at DESC
             "#,
         )
         .bind(user_id)
         .bind(EmojiPackStatus::Active)
-        .bind(EmojiPackType::Single)
         .fetch_all(&self.database.pool)
         .await?;
 
@@ -391,11 +390,28 @@ impl EmojiPackStore {
         user_id: Uuid,
         suite_id: Uuid,
     ) -> Result<usize, Error> {
-        // 获取套件下的所有表情包（只添加激活的）
-        let child_packs = self.list_packs_by_parent(suite_id).await?;
-
         let now = Utc::now();
         let mut count = 0;
+
+        // 首先添加套件本身到用户表情包列表
+        let suite_exists = self.has_user_pack(user_id, suite_id).await?;
+        if !suite_exists {
+            sqlx::query(
+                r#"
+                INSERT INTO user_emoji_packs (user_id, pack_id, created_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (user_id, pack_id) DO NOTHING
+                "#,
+            )
+            .bind(user_id)
+            .bind(suite_id)
+            .bind(now)
+            .execute(&self.database.pool)
+            .await?;
+        }
+
+        // 获取套件下的所有表情包（只添加激活的）
+        let child_packs = self.list_packs_by_parent(suite_id).await?;
 
         for pack in child_packs {
             // 只添加激活的表情包
