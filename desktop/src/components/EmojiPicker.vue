@@ -14,7 +14,10 @@
           alt=""
           class="tab-icon"
         />
-        <span v-else-if="tab.icon" class="tab-icon-emoji">{{ tab.icon }}</span>
+        <TabIcon
+          v-else-if="tab.icon && (tab.icon === 'search' || tab.icon === 'emoji' || tab.icon === 'custom')"
+          :type="tab.icon"
+        />
       </div>
     </div>
     <div class="emoji-content">
@@ -150,7 +153,7 @@ interface Emoji {
 
 interface TabItem {
   type: 'search' | 'emoji' | 'custom' | 'pack'
-  icon: string | null
+  icon: string | null  // 'search' | 'emoji' | 'custom' | URL
   label: string
   pack?: EmojiPack
 }
@@ -340,17 +343,17 @@ const tabs = computed<TabItem[]>(() => {
   const result: TabItem[] = [
     {
       type: 'search',
-      icon: '🔍',
+      icon: 'search',
       label: '搜索'
     },
     {
       type: 'emoji',
-      icon: '😀',
+      icon: 'emoji',
       label: 'Emoji'
     },
     {
       type: 'custom',
-      icon: '💖',
+      icon: 'custom',
       label: '自定义'
     }
   ]
@@ -680,6 +683,51 @@ onMounted(() => {
   }
 })
 
+// SVG 图标组件
+const TabIcon = defineComponent({
+  props: {
+    type: {
+      type: String,
+      required: true
+    }
+  },
+  setup(props) {
+    return () => {
+      const iconProps = {
+        width: 20,
+        height: 20,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1.5',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round' as const
+      }
+
+      switch (props.type) {
+        case 'search':
+          return h('svg', iconProps, [
+            h('circle', { cx: '11', cy: '11', r: '8' }),
+            h('path', { d: 'm21 21-4.35-4.35' })
+          ])
+        case 'emoji':
+          return h('svg', iconProps, [
+            h('circle', { cx: '12', cy: '12', r: '10' }),
+            h('path', { d: 'M8 14s1.5 2 4 2 4-2 4-2' }),
+            h('line', { x1: '9', y1: '9', x2: '9.01', y2: '9' }),
+            h('line', { x1: '15', y1: '9', x2: '15.01', y2: '9' })
+          ])
+        case 'custom':
+          return h('svg', iconProps, [
+            h('path', { d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' })
+          ])
+        default:
+          return null
+      }
+    }
+  }
+})
+
 // 带缓存的表情图片组件（支持 GIF）
 const CachedEmojiImage = defineComponent({
   props: {
@@ -804,6 +852,12 @@ const CachedEmojiImage = defineComponent({
     width: 20px;
     height: 20px;
     object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .tab-icon svg {
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
   }
 
