@@ -402,7 +402,7 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       }
       return allItems
     case 'pack':
-      // 套件 tab：显示套件下所有表情包的表情项
+      // 套件 tab：显示套件下所有子表情包的 icon_url（不是子表情包下的 items）
       if (!tab.pack) return []
       const suiteId = tab.pack.id
       const suitePacks = suitePacksCache.value[suiteId]
@@ -411,23 +411,16 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
         const suiteItems: EmojiDisplayItem[] = []
         console.log('开始处理套件表情包，数量:', suitePacks.length)
         for (const suitePack of suitePacks) {
-          console.log('处理表情包:', suitePack.pack?.name || suitePack.pack?.id, 'items:', suitePack.items)
-          if (suitePack.items && suitePack.items.length > 0) {
-            console.log('表情包有 items，数量:', suitePack.items.length)
-            for (const item of suitePack.items) {
-              console.log('处理表情项:', item.image_url, item.name)
-              if (item.image_url) {
-                suiteItems.push({
-                  type: 'image' as const,
-                  value: item.image_url,
-                  name: item.name || undefined
-                })
-              } else {
-                console.warn('表情项 image_url 为空:', item)
-              }
-            }
+          const pack = suitePack.pack
+          if (pack && pack.icon_url) {
+            console.log('处理子表情包:', pack.name, 'icon_url:', pack.icon_url)
+            suiteItems.push({
+              type: 'image' as const,
+              value: pack.icon_url,
+              name: pack.name || undefined
+            })
           } else {
-            console.warn('表情包没有 items 或 items 为空:', suitePack)
+            console.warn('子表情包没有 icon_url:', pack)
           }
         }
         console.log('套件表情项列表:', suiteItems)
