@@ -1003,4 +1003,37 @@
     object-fit: contain;
     border-radius: 4px;
   }
+
+  .icon-upload-wrapper {
+    width: 100%;
+  }
+
+  .icon-preview {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+  }
+
+  .preview-image {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+  }
+
+  .icon-upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .upload-hint {
+    color: #86909c;
+    font-size: 12px;
+  }
 </style>
