@@ -32,7 +32,12 @@
         
       </div>
       <div class="chat-header-right" v-if="selectedChat">
-        <Avatar :src="selectedChat.avatarLocalPath" :text="selectedChat.name" :size="42" />
+        <Avatar
+          :src="selectedChat.avatarLocalPath"
+          :text="selectedChat.name"
+          :size="42"
+          :background-color="selectedChat.groupType === 2 ? 'var(--primary-color)' : undefined"
+        />
         <div class="chat-info">
           <h2 class="chat-title">{{ selectedChat.name }}</h2>
           <div v-if="selectedChat.groupType === 1" class="chat-member-count">
@@ -64,9 +69,26 @@
             <div class="debug-details">联系人: {{ routeQuery.contactName }} (ID: {{ routeQuery.contactId }})</div>
           </div>
         </div>
-        <div v-else class="chat-item" v-for="chat in chatList" :key="chat.id" @click="selectChat(chat)" @contextmenu.prevent="handleChatContextMenu(chat, $event)" :class="{ 'is-top': chat.isTop, 'selected': selectedChat && selectedChat.id === chat.id }">
+        <div
+          v-else
+          class="chat-item"
+          v-for="chat in chatList"
+          :key="chat.id"
+          @click="selectChat(chat)"
+          @contextmenu.prevent="handleChatContextMenu(chat, $event)"
+          :class="{
+            'is-top': chat.isTop,
+            selected: selectedChat && selectedChat.id === chat.id,
+            'favorite-item': chat.groupType === 2
+          }"
+        >
           <div class="avatar-container">
-            <Avatar :src="chat.avatarLocalPath" :text="chat.name" :size="48" />
+            <Avatar
+              :src="chat.avatarLocalPath"
+              :text="chat.name"
+              :size="48"
+              :background-color="chat.groupType === 2 ? 'var(--primary-color)' : undefined"
+            />
             <!-- 免打扰状态的小红点 -->
             <div v-if="chat.chatStatus === 1 && chat.unreadCount > 0" class="mute-dot"></div>
           </div>
@@ -6744,6 +6766,21 @@ const loadMessageList = async (groupId: string) => {
 
   &.selected {
     background-color: #F5F5F5;
+  }
+
+  &.favorite-item {
+    background-color: $primary-color;
+
+    .chat-name,
+    .chat-message,
+    .chat-time {
+      color: #ffffff;
+    }
+
+    .chat-badge {
+      background-color: #ffffff;
+      color: $primary-color;
+    }
   }
 
     .chat-info {
