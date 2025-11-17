@@ -582,13 +582,8 @@ const loadUserPacks = async () => {
     // 清空套件缓存，重新加载
     suitePacksCache.value = {}
     loadingSuitePacks.value = {}
-    // 预加载所有套件下的表情包（可选，按需加载也可以）
-    // 为了提升体验，预加载所有套件
-    for (const pack of userPacks.value) {
-      if (pack.pack_type === 1) {
-        await loadSuitePacks(pack.id)
-      }
-    }
+    // 不预加载套件，改为按需加载（点击 tab 时再加载）
+    // 这样可以避免预加载失败导致的问题，并且提升初始加载速度
   } catch (error) {
     console.error('加载表情包失败:', error)
     userPacks.value = []
