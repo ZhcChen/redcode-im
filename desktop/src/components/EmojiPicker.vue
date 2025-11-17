@@ -409,17 +409,25 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       console.log('套件 tab 计算，suiteId:', suiteId, '缓存:', suitePacks)
       if (suitePacks && suitePacks.length > 0) {
         const suiteItems: EmojiDisplayItem[] = []
+        console.log('开始处理套件表情包，数量:', suitePacks.length)
         for (const suitePack of suitePacks) {
+          console.log('处理表情包:', suitePack.pack?.name || suitePack.pack?.id, 'items:', suitePack.items)
           if (suitePack.items && suitePack.items.length > 0) {
+            console.log('表情包有 items，数量:', suitePack.items.length)
             for (const item of suitePack.items) {
+              console.log('处理表情项:', item.image_url, item.name)
               if (item.image_url) {
                 suiteItems.push({
                   type: 'image' as const,
                   value: item.image_url,
                   name: item.name || undefined
                 })
+              } else {
+                console.warn('表情项 image_url 为空:', item)
               }
             }
+          } else {
+            console.warn('表情包没有 items 或 items 为空:', suitePack)
           }
         }
         console.log('套件表情项列表:', suiteItems)
@@ -548,6 +556,14 @@ const loadSuitePacks = async (suiteId: string) => {
     }
     const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
     console.log('套件表情包加载成功:', suiteId, suitePacks)
+    // 详细打印每个表情包的数据结构
+    suitePacks.forEach((pack, index) => {
+      console.log(`表情包 ${index}:`, {
+        pack: pack.pack,
+        itemsCount: pack.items?.length || 0,
+        items: pack.items
+      })
+    })
     // 使用响应式方式更新缓存
     suitePacksCache.value = {
       ...suitePacksCache.value,
