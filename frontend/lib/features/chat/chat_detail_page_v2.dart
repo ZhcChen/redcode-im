@@ -1540,10 +1540,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => GroupSettingsPage(
-          chat: chat,
-          chatProvider: _chatProvider,
-        ),
+        builder: (context) =>
+            GroupSettingsPage(chat: chat, chatProvider: _chatProvider),
       ),
     );
   }
@@ -1593,6 +1591,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     return position.maxScrollExtent > 0;
   }
 }
+
 /// 消息气泡
 
 class _MessageBubble extends StatefulWidget {
@@ -1919,9 +1918,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
         decoration: BoxDecoration(
           color: isSelf ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
+            topLeft: Radius.circular(isSelf ? 16 : 0),
             topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isSelf ? 16 : 4),
+            bottomLeft: const Radius.circular(16),
             bottomRight: Radius.circular(isSelf ? 4 : 16),
           ),
           boxShadow: [
@@ -3032,38 +3031,32 @@ class _EmojiPanelState extends State<_EmojiPanel> {
 
   List<_TabItem> _buildTabs() {
     final tabs = <_TabItem>[];
-    
+
     // Emoji tab
-    tabs.add(_TabItem(
-      type: _TabType.emoji,
-      icon: '😀',
-      label: 'Emoji',
-    ));
-    
+    tabs.add(_TabItem(type: _TabType.emoji, icon: '😀', label: 'Emoji'));
+
     // 自定义表情 tab
-    tabs.add(_TabItem(
-      type: _TabType.custom,
-      icon: '🎨',
-      label: '自定义',
-    ));
-    
+    tabs.add(_TabItem(type: _TabType.custom, icon: '🎨', label: '自定义'));
+
     // 用户添加的表情包 tabs
     for (final pack in _userPacks) {
-      tabs.add(_TabItem(
-        type: _TabType.pack,
-        icon: pack.iconUrl,
-        label: pack.name,
-        pack: pack,
-      ));
+      tabs.add(
+        _TabItem(
+          type: _TabType.pack,
+          icon: pack.iconUrl,
+          label: pack.name,
+          pack: pack,
+        ),
+      );
     }
-    
+
     return tabs;
   }
 
   @override
   Widget build(BuildContext context) {
     final tabs = _buildTabs();
-    
+
     return Container(
       height: 250,
       decoration: const BoxDecoration(
@@ -3094,8 +3087,14 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                     });
                   },
                   child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primary.withValues(alpha: 0.1)
@@ -3114,10 +3113,8 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                                   tab.icon!,
                                   width: 20,
                                   height: 20,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.image,
-                                    size: 20,
-                                  ),
+                                  errorBuilder: (_, __, ___) =>
+                                      const Icon(Icons.image, size: 20),
                                 )
                               : Text(
                                   tab.icon!,
@@ -3131,7 +3128,9 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                             color: isSelected
                                 ? AppColors.primary
                                 : AppColors.textSecondary,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ],
@@ -3142,9 +3141,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
             ),
           ),
           // 内容区域
-          Expanded(
-            child: _buildContent(tabs[_selectedTabIndex]),
-          ),
+          Expanded(child: _buildContent(tabs[_selectedTabIndex])),
         ],
       ),
     );
@@ -3181,10 +3178,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
             borderRadius: BorderRadius.circular(8),
             onTap: () => widget.onEmojiSelected(emojis[index]),
             child: Center(
-              child: Text(
-                emojis[index],
-                style: const TextStyle(fontSize: 24),
-              ),
+              child: Text(emojis[index], style: const TextStyle(fontSize: 24)),
             ),
           ),
         );
@@ -3198,7 +3192,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     for (final pack in _userPacks) {
       allItems.addAll(pack.items);
     }
-    
+
     if (allItems.isEmpty) {
       return const Center(
         child: Text(
@@ -3258,11 +3252,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   }
 }
 
-enum _TabType {
-  emoji,
-  custom,
-  pack,
-}
+enum _TabType { emoji, custom, pack }
 
 class _TabItem {
   final _TabType type;
@@ -3270,12 +3260,7 @@ class _TabItem {
   final String label;
   final EmojiPack? pack;
 
-  _TabItem({
-    required this.type,
-    this.icon,
-    required this.label,
-    this.pack,
-  });
+  _TabItem({required this.type, this.icon, required this.label, this.pack});
 }
 
 /// 带缓存的表情项组件（支持 GIF）
@@ -3312,7 +3297,9 @@ class _CachedEmojiItemState extends State<_CachedEmojiItem> {
     });
 
     try {
-      final cachedPath = await widget.emojiService.loadAndCacheEmoji(widget.imageUrl);
+      final cachedPath = await widget.emojiService.loadAndCacheEmoji(
+        widget.imageUrl,
+      );
       if (mounted) {
         setState(() {
           _cachedPath = cachedPath;
