@@ -437,12 +437,25 @@ pub async fn list_user_suite_packs(
 
     // 获取套件下的所有表情包（从数据库）
     let child_packs = store.list_packs_by_parent(suite_id).await?;
+    tracing::info!(
+        "套件下找到表情包数量: {}, suite_id={}",
+        child_packs.len(),
+        suite_id
+    );
 
     // 只返回用户已添加的表情包
     let mut result = Vec::new();
     for pack in child_packs {
         // 检查用户是否已添加此表情包
         let has_pack = store.has_user_pack(user_id, pack.id).await?;
+        tracing::debug!(
+            "检查表情包: pack_id={}, pack_name={}, has_pack={}, is_active={:?}",
+            pack.id,
+            pack.name,
+            has_pack,
+            pack.is_active
+        );
+        
         if has_pack && matches!(
             pack.is_active,
             crate::database::models::EmojiPackStatus::Active
@@ -459,14 +472,22 @@ pub async fn list_user_suite_packs(
             // 如果 items 为空，记录警告
             if items.is_empty() {
                 tracing::warn!(
-                    "警告: 表情包 pack_id={}, pack_name={} 的 items 为空，请检查数据库 emoji_items 表",
+                    "警告: 表情包 pack_id={}, pack_name={} 的 items 为空，pack_id类型={:?}",
                     pack.id,
-                    pack.name
+                    pack.name,
+                    pack.id
                 );
             }
+            // 转换 items 为 API 响应格式
+            let item_responses: Vec<EmojiItemResponse> = items.iter().map(db_item_to_api).collect();
+            tracing::debug!(
+                "转换后的 items: pack_id={}, items_count={}",
+                pack.id,
+                item_responses.len()
+            );
             result.push(EmojiPackWithItemsResponse {
                 pack: db_pack_to_api(&pack),
-                items: items.iter().map(db_item_to_api).collect(),
+                items: item_responses,
             });
         } else {
             // 记录为什么没有包含此表情包
@@ -474,7 +495,7 @@ pub async fn list_user_suite_packs(
                 "跳过表情包: pack_id={}, pack_name={}, has_pack={}, is_active={:?}",
                 pack.id,
                 pack.name,
-                store.has_user_pack(user_id, pack.id).await.unwrap_or(false),
+                has_pack,
                 pack.is_active
             );
         }
