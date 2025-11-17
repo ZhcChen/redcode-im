@@ -173,6 +173,69 @@
                   </div>
                 </template>
 
+                <!-- 文件消息 -->
+                <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
+                  <div class="file-message" @click="handleFileDownload(message)">
+                    <div class="file-icon-wrapper">
+                      <div class="file-icon" :class="getFileIconClass(message)">
+                        <!-- 压缩包图标 -->
+                        <svg v-if="getFileIconType(message) === 'archive'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M4 6h16v2H4V6zm0 4h16v10H4V10zm2 2v6h12v-6H6z" fill="currentColor"/>
+                          <path d="M6 8h12v2H6V8z" fill="currentColor" opacity="0.5"/>
+                        </svg>
+                        <!-- 文本文件图标 -->
+                        <svg v-else-if="getFileIconType(message) === 'text'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M5 4v3h5.5v12h3V7H19V4H5zm-1-2h16a1 1 0 011 1v19a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" fill="currentColor"/>
+                          <path d="M7 9h10v1.5H7V9zm0 3h10v1.5H7V12zm0 3h7v1.5H7V15z" fill="currentColor" opacity="0.3"/>
+                        </svg>
+                        <!-- 其他文件图标（问号） -->
+                        <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+                          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </svg>
+                      </div>
+                      <!-- 下载进度圆圈 -->
+                      <div v-if="isFileDownloading(message) || isMessageUploading(message)" class="file-progress-circle">
+                        <svg class="progress-svg" width="48" height="48">
+                          <circle
+                            class="progress-background"
+                            cx="24"
+                            cy="24"
+                            r="20"
+                            fill="none"
+                            stroke="rgba(0,0,0,0.1)"
+                            stroke-width="3"
+                          />
+                          <circle
+                            class="progress-bar"
+                            cx="24"
+                            cy="24"
+                            r="20"
+                            fill="none"
+                            :stroke="message.isSelf ? '#fff' : '#007AFF'"
+                            stroke-width="3"
+                            stroke-linecap="round"
+                            :stroke-dasharray="2 * Math.PI * 20"
+                            :stroke-dashoffset="2 * Math.PI * 20 * (1 - getFileProgress(message))"
+                            transform="rotate(-90 24 24)"
+                          />
+                        </svg>
+                        <div class="progress-text">{{ Math.round(getFileProgress(message) * 100) }}%</div>
+                      </div>
+                      <!-- 下载图标 -->
+                      <div v-else class="file-download-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 15.577l-3.539-3.538 1.414-1.414L11 12.586V3h2v9.586l1.125-1.125 1.414 1.414L12 15.577zm-7 4.423h14v2H5v-2z" fill="currentColor"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="file-info">
+                      <div class="file-name">{{ getFileName(message) }}</div>
+                      <div class="file-size" v-if="getFileSize(message)">{{ formatFileSize(getFileSize(message)) }}</div>
+                    </div>
+                  </div>
+                </template>
+
                 <!-- 其他类型消息 -->
               <template v-else>
                 <span>{{ getTextContent(message) }}</span>
@@ -238,6 +301,69 @@
                     <div class="video-play-overlay">
                       <div class="play-icon">▶</div>
                     </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- 文件消息 -->
+              <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
+                <div class="file-message" @click="handleFileDownload(message)">
+                  <div class="file-icon-wrapper">
+                    <div class="file-icon" :class="getFileIconClass(message)">
+                      <!-- 压缩包图标 -->
+                      <svg v-if="getFileIconType(message) === 'archive'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 6h16v2H4V6zm0 4h16v10H4V10zm2 2v6h12v-6H6z" fill="currentColor"/>
+                        <path d="M6 8h12v2H6V8z" fill="currentColor" opacity="0.5"/>
+                      </svg>
+                      <!-- 文本文件图标 -->
+                      <svg v-else-if="getFileIconType(message) === 'text'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 4v3h5.5v12h3V7H19V4H5zm-1-2h16a1 1 0 011 1v19a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" fill="currentColor"/>
+                        <path d="M7 9h10v1.5H7V9zm0 3h10v1.5H7V12zm0 3h7v1.5H7V15z" fill="currentColor" opacity="0.3"/>
+                      </svg>
+                      <!-- 其他文件图标（问号） -->
+                      <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                      </svg>
+                    </div>
+                    <!-- 下载进度圆圈 -->
+                    <div v-if="isFileDownloading(message) || isMessageUploading(message)" class="file-progress-circle">
+                      <svg class="progress-svg" width="48" height="48">
+                        <circle
+                          class="progress-background"
+                          cx="24"
+                          cy="24"
+                          r="20"
+                          fill="none"
+                          stroke="rgba(0,0,0,0.1)"
+                          stroke-width="3"
+                        />
+                        <circle
+                          class="progress-bar"
+                          cx="24"
+                          cy="24"
+                          r="20"
+                          fill="none"
+                          :stroke="message.isSelf ? '#fff' : '#007AFF'"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          :stroke-dasharray="2 * Math.PI * 20"
+                          :stroke-dashoffset="2 * Math.PI * 20 * (1 - getFileProgress(message))"
+                          transform="rotate(-90 24 24)"
+                        />
+                      </svg>
+                      <div class="progress-text">{{ Math.round(getFileProgress(message) * 100) }}%</div>
+                    </div>
+                    <!-- 下载图标 -->
+                    <div v-else class="file-download-icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 15.577l-3.539-3.538 1.414-1.414L11 12.586V3h2v9.586l1.125-1.125 1.414 1.414L12 15.577zm-7 4.423h14v2H5v-2z" fill="currentColor"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="file-info">
+                    <div class="file-name">{{ getFileName(message) }}</div>
+                    <div class="file-size" v-if="getFileSize(message)">{{ formatFileSize(getFileSize(message)) }}</div>
                   </div>
                 </div>
               </template>
@@ -1075,8 +1201,17 @@ const uploadWithSignature = async (
   }
 };
 
-const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string | null): Promise<{ localPath: string; fromBlob: boolean }> => {
+const downloadAttachmentToLocalUrl = async (
+  downloadUrl: string,
+  mime?: string | null,
+  onProgress?: (progress: number) => void
+): Promise<{ localPath: string; fromBlob: boolean }> => {
   try {
+    // 如果提供了进度回调，先设置进度为 0
+    if (onProgress) {
+      onProgress(0);
+    }
+
     const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
       path: downloadUrl,
       method: 'GET',
@@ -1088,6 +1223,11 @@ const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string |
       throw new Error(`下载失败，状态码 ${response.code}`);
     }
 
+    // 模拟进度更新（因为 rustHttp.requestRaw 可能不支持进度回调）
+    if (onProgress) {
+      onProgress(0.5);
+    }
+
     const bytes = base64ToUint8Array(response.data.base64);
     const contentType = mime || response.data.headers?.['content-type'] || undefined;
     const arrayBuffer = new ArrayBuffer(bytes.byteLength);
@@ -1095,8 +1235,18 @@ const downloadAttachmentToLocalUrl = async (downloadUrl: string, mime?: string |
     view.set(bytes);
     const blob = new Blob([arrayBuffer], { type: contentType });
     const objectUrl = URL.createObjectURL(blob);
+    
+    // 下载完成，设置进度为 1
+    if (onProgress) {
+      onProgress(1);
+    }
+    
     return { localPath: objectUrl, fromBlob: true };
   } catch (error) {
+    // 下载失败，清除进度
+    if (onProgress) {
+      onProgress(0);
+    }
     return { localPath: downloadUrl, fromBlob: false };
   }
 };
@@ -1187,6 +1337,11 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
     return;
   }
 
+  // 如果是文件类型，设置下载进度为 0
+  if (part.type === MessagePartType.FILE) {
+    updateFileDownloadProgress(message.id, key, 0);
+  }
+
   let pending = pendingAttachmentDownloads.get(key);
   if (!pending) {
     pending = (async () => {
@@ -1202,7 +1357,14 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
           throw new Error(payload?.message || response.message || '获取附件下载链接失败');
         }
 
-        const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, attachment.mime ?? null);
+        // 下载文件，支持进度回调
+        const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(
+          payload.downloadUrl,
+          attachment.mime ?? null,
+          part.type === MessagePartType.FILE ? (progress) => {
+            updateFileDownloadProgress(message.id, key, progress);
+          } : undefined
+        );
         if (fromBlob) {
           registerBlobUrl(localPath);
         }
@@ -1211,9 +1373,20 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
           expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
           downloadUrl: payload.downloadUrl,
         });
+        
+        // 清除下载进度
+        if (part.type === MessagePartType.FILE) {
+          updateFileDownloadProgress(message.id, key, null);
+        }
+        
         return { localPath, downloadUrl: payload.downloadUrl };
       } catch (error: any) {
-        toast.error(error?.message || '图片加载失败');
+        // 清除下载进度
+        if (part.type === MessagePartType.FILE) {
+          updateFileDownloadProgress(message.id, key, null);
+        }
+        const errorMessage = part.type === MessagePartType.FILE ? '文件加载失败' : '图片加载失败';
+        toast.error(error?.message || errorMessage);
         return null;
       }
     })();
@@ -1260,6 +1433,252 @@ const getImageAlt = (message: Message): string => {
   }
   const text = getTextContent(message);
   return text && text !== '[图片]' ? text : '图片';
+};
+
+// 获取文件类型图标类型
+const getFileIconType = (message: Message): 'archive' | 'text' | 'other' => {
+  let fileName = '';
+  let mimeType = '';
+
+  // 从 parts 中获取文件信息
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment) {
+      fileName = filePart.attachment.name || '';
+      mimeType = filePart.attachment.mime || '';
+    }
+  }
+
+  // 从 content 中获取文件信息（兼容旧格式）
+  if (!fileName && typeof message.content === 'object' && message.content) {
+    fileName = (message.content as any).name || '';
+    mimeType = (message.content as any).mime || '';
+  }
+
+  // 根据文件扩展名判断
+  if (fileName) {
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    // 压缩包格式
+    if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'z', 'cab', 'iso', 'dmg'].includes(ext)) {
+      return 'archive';
+    }
+    // 文本文件格式
+    if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx', 'vue', 'py', 'java', 'cpp', 'c', 'h', 'hpp', 'go', 'rs', 'php', 'rb', 'swift', 'kt', 'dart', 'sh', 'bat', 'ps1', 'yaml', 'yml', 'ini', 'conf', 'log', 'csv'].includes(ext)) {
+      return 'text';
+    }
+  }
+
+  // 根据 MIME 类型判断
+  if (mimeType) {
+    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z') || mimeType.includes('tar') || mimeType.includes('gzip') || mimeType.includes('x-compress') || mimeType.includes('x-compressed')) {
+      return 'archive';
+    }
+    if (mimeType.startsWith('text/') || mimeType.includes('json') || mimeType.includes('xml') || mimeType.includes('javascript') || mimeType.includes('css')) {
+      return 'text';
+    }
+  }
+
+  return 'other';
+};
+
+// 获取文件图标 CSS 类
+const getFileIconClass = (message: Message): string => {
+  const iconType = getFileIconType(message);
+  return `file-icon-${iconType}`;
+};
+
+// 获取文件名
+const getFileName = (message: Message): string => {
+  // 从 parts 中获取
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment?.name) {
+      return filePart.attachment.name;
+    }
+  }
+
+  // 从 content 中获取（兼容旧格式）
+  if (typeof message.content === 'object' && message.content) {
+    const name = (message.content as any).name;
+    if (name) {
+      return name;
+    }
+  }
+
+  return '文件';
+};
+
+// 获取文件大小
+const getFileSize = (message: Message): number | null => {
+  // 从 parts 中获取
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment?.size) {
+      return filePart.attachment.size;
+    }
+  }
+
+  // 从 content 中获取（兼容旧格式）
+  if (typeof message.content === 'object' && message.content) {
+    const size = (message.content as any).size;
+    if (typeof size === 'number') {
+      return size;
+    }
+  }
+
+  return null;
+};
+
+// 判断文件是否正在下载
+const isFileDownloading = (message: Message): boolean => {
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment) {
+      const downloadProgress = filePart.attachment.downloadProgress;
+      return typeof downloadProgress === 'number' && downloadProgress < 1 && downloadProgress > 0;
+    }
+  }
+  return false;
+};
+
+// 获取文件下载/上传进度
+const getFileProgress = (message: Message): number => {
+  // 优先检查下载进度
+  if (Array.isArray(message.parts)) {
+    const filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+    if (filePart?.attachment) {
+      const downloadProgress = filePart.attachment.downloadProgress;
+      if (typeof downloadProgress === 'number') {
+        return downloadProgress;
+      }
+      const uploadProgress = filePart.attachment.uploadProgress;
+      if (typeof uploadProgress === 'number') {
+        return uploadProgress;
+      }
+    }
+  }
+
+  // 检查 content 中的上传进度（兼容旧格式）
+  if (typeof message.content === 'object' && message.content) {
+    const uploadProgress = (message.content as any).uploadProgress;
+    if (typeof uploadProgress === 'number') {
+      return uploadProgress;
+    }
+  }
+
+  return 0;
+};
+
+// 处理文件下载
+const handleFileDownload = async (message: Message) => {
+  if (!message) {
+    return;
+  }
+
+  // 查找文件 part
+  let filePart: MessagePart | undefined;
+  if (Array.isArray(message.parts)) {
+    filePart = message.parts.find((part) => part.type === MessagePartType.FILE);
+  }
+
+  if (!filePart?.attachment) {
+    toast.error('文件信息不存在');
+    return;
+  }
+
+  const attachment = filePart.attachment;
+
+  // 如果已有本地路径，直接打开
+  if (attachment.localPath) {
+    try {
+      // 使用 Tauri 的 shell API 打开文件
+      const { open } = await import('@tauri-apps/api/shell');
+      await open(attachment.localPath);
+      return;
+    } catch (error) {
+      console.error('打开文件失败:', error);
+      // 如果打开失败，尝试下载
+    }
+  }
+
+  // 如果没有本地路径，需要下载
+  if (!attachment.key) {
+    toast.error('文件 key 不存在');
+    return;
+  }
+
+  try {
+    // 设置下载进度为 0
+    updateFileDownloadProgress(message.id, attachment.key, 0);
+
+    // 确保附件已下载到本地
+    await ensureAttachmentLocalPath(message, filePart);
+
+    // 重新获取消息以获取最新的本地路径
+    const updatedMessage = messages.value.find((m) => m.id === message.id) || message;
+    const updatedFilePart = updatedMessage.parts?.find((part) => part.type === MessagePartType.FILE);
+    
+    if (updatedFilePart?.attachment?.localPath) {
+      try {
+        // 使用 Tauri 的 shell API 打开文件
+        const { open } = await import('@tauri-apps/api/shell');
+        await open(updatedFilePart.attachment.localPath);
+      } catch (error) {
+        console.error('打开文件失败:', error);
+        toast.error('打开文件失败，请检查文件是否存在');
+      }
+    } else {
+      toast.error('文件下载失败');
+    }
+
+    // 清除下载进度
+    updateFileDownloadProgress(message.id, attachment.key, null);
+  } catch (error: any) {
+    console.error('文件下载失败:', error);
+    toast.error('文件下载失败: ' + (error?.message || '未知错误'));
+    updateFileDownloadProgress(message.id, attachment.key, null);
+  }
+};
+
+// 更新文件下载进度
+const updateFileDownloadProgress = (messageId: string, attachmentKey: string, progress: number | null) => {
+  const index = messages.value.findIndex((msg: Message) => msg.id === messageId);
+  if (index === -1) {
+    return;
+  }
+
+  const message = messages.value[index];
+  if (!Array.isArray(message.parts) || message.parts.length === 0) {
+    return;
+  }
+
+  let changed = false;
+
+  const updatedParts = message.parts.map((part: MessagePart) => {
+    if (part.attachment?.key !== attachmentKey) {
+      return part;
+    }
+    if (part.attachment.downloadProgress === progress) {
+      return part;
+    }
+    changed = true;
+    return {
+      ...part,
+      attachment: {
+        ...part.attachment,
+        downloadProgress: progress,
+      }
+    };
+  });
+
+  if (!changed) {
+    return;
+  }
+
+  messages.value[index] = {
+    ...message,
+    parts: updatedParts,
+  };
 };
 
 
@@ -3402,7 +3821,7 @@ const handleUploadClick = () => {
   // 创建文件输入元素
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = 'image/*,video/*'
+  // 移除 accept 限制，允许选择所有文件类型
   input.multiple = true
   
   // 使用 addEventListener 而不是 onchange，确保事件正确绑定
@@ -6247,6 +6666,172 @@ const loadMessageList = async (groupId: string) => {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+// 文件消息样式
+.file-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 8px;
+  min-width: 200px;
+  max-width: 300px;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  .file-icon-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .file-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background-color: #f5f5f5;
+      color: #666;
+
+      svg {
+        width: 32px;
+        height: 32px;
+      }
+
+      &.file-icon-archive {
+        background-color: #fff3e0;
+        color: #f57c00;
+      }
+
+      &.file-icon-text {
+        background-color: #e3f2fd;
+        color: #1976d2;
+      }
+
+      &.file-icon-other {
+        background-color: #f5f5f5;
+        color: #999;
+      }
+    }
+
+    .file-progress-circle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .progress-svg {
+        width: 48px;
+        height: 48px;
+        transform: rotate(-90deg);
+
+        .progress-background {
+          stroke: rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-bar {
+          transition: stroke-dashoffset 0.3s ease;
+        }
+      }
+
+      .progress-text {
+        position: absolute;
+        font-size: 10px;
+        font-weight: 600;
+        color: #666;
+      }
+    }
+
+    .file-download-icon {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      width: 20px;
+      height: 20px;
+      background-color: #007AFF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+  }
+
+  .file-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .file-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #262626;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-size {
+      font-size: 12px;
+      color: #8c8c8c;
+    }
+  }
+}
+
+// 自己发送的文件消息样式
+.message.own-message {
+  .file-message {
+    .file-icon-wrapper {
+      .file-progress-circle {
+        .progress-svg {
+          .progress-bar {
+            stroke: #fff;
+          }
+        }
+
+        .progress-text {
+          color: #fff;
+        }
+      }
+
+      .file-download-icon {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: #007AFF;
+      }
+    }
+
+    .file-info {
+      .file-name {
+        color: #fff;
+      }
+
+      .file-size {
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+  }
 }
 
 // 发送状态样式调整

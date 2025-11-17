@@ -79,6 +79,7 @@ export interface MessageAttachment {
   thumbnailKey?: string | null;
   localPath?: string | null;
   uploadProgress?: number | null;
+  downloadProgress?: number | null;
   downloadUrl?: string | null;
 }
 
