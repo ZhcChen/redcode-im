@@ -612,7 +612,7 @@ const CachedEmojiImage = defineComponent({
   bottom: 100%;
   left: 0;
   margin-bottom: 8px;
-  width: 340px;
+  width: 420px;
   max-height: 300px;
   background: white;
   border-radius: 12px;
