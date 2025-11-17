@@ -414,10 +414,21 @@ impl EmojiPackStore {
 
         // 获取套件下的所有表情包（只添加激活的）
         let child_packs = self.list_packs_by_parent(suite_id).await?;
+        tracing::info!(
+            "套件下找到表情包数量: {}, suite_id={}, user_id={}",
+            child_packs.len(),
+            suite_id,
+            user_id
+        );
 
         for pack in child_packs {
             // 只添加激活的表情包
             if pack.is_active != EmojiPackStatus::Active {
+                tracing::debug!(
+                    "跳过未激活的表情包: pack_id={}, pack_name={}",
+                    pack.id,
+                    pack.name
+                );
                 continue;
             }
             // 检查是否已添加
@@ -436,9 +447,28 @@ impl EmojiPackStore {
                 .execute(&self.database.pool)
                 .await?;
                 count += 1;
+                tracing::info!(
+                    "添加表情包到用户: pack_id={}, pack_name={}, user_id={}",
+                    pack.id,
+                    pack.name,
+                    user_id
+                );
+            } else {
+                tracing::debug!(
+                    "表情包已存在，跳过: pack_id={}, pack_name={}, user_id={}",
+                    pack.id,
+                    pack.name,
+                    user_id
+                );
             }
         }
 
+        tracing::info!(
+            "添加套件完成: suite_id={}, user_id={}, 新增表情包数量={}",
+            suite_id,
+            user_id,
+            count
+        );
         Ok(count)
     }
 
