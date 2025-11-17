@@ -4,6 +4,14 @@
     <a-card class="general-card" title="表情包设置" :bordered="false">
       <div class="actions">
         <a-space>
+          <a-input-search
+            v-model="searchKeyword"
+            placeholder="搜索表情包名称或描述"
+            style="width: 300px"
+            allow-clear
+            @search="handleSearch"
+            @clear="handleSearchClear"
+          />
           <a-button
             type="primary"
             :loading="actionLoading"
@@ -414,6 +422,7 @@
     useLoading(false);
 
   const packs = ref<EmojiPack[]>([]);
+  const searchKeyword = ref('');
   const packModalVisible = ref(false);
   const packModalTitle = ref('新增表情包');
   const packFormRef = ref();
@@ -568,16 +577,27 @@
   ];
 
   // 获取表情包列表
-  const fetchPacks = async () => {
+  const fetchPacks = async (keyword?: string) => {
     try {
       setListLoading(true);
-      const { data } = await listAllEmojiPacks();
+      const { data } = await listAllEmojiPacks(keyword);
       packs.value = data;
     } catch (error: any) {
       Message.error(error?.response?.data?.message || '获取表情包列表失败');
     } finally {
       setListLoading(false);
     }
+  };
+
+  // 搜索处理
+  const handleSearch = (value: string) => {
+    fetchPacks(value);
+  };
+
+  // 清除搜索
+  const handleSearchClear = () => {
+    searchKeyword.value = '';
+    fetchPacks();
   };
 
   // 创建表情包
