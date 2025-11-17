@@ -49,16 +49,15 @@ export class EmojiPackApi {
   static async getPack(packId: string): Promise<EmojiPack & { items: EmojiItem[] }> {
     // 从用户表情包列表中查找
     const userPacks = await this.getUserPacks()
-    const pack = userPacks.find(p => p.id === packId)
-    if (!pack) {
+    const packData = userPacks.find(p => p.pack.id === packId)
+    if (!packData) {
       throw new Error('表情包不存在或未添加')
     }
-    // 如果已经有 items，直接返回
-    if (pack.items) {
-      return pack as EmojiPack & { items: EmojiItem[] }
+    // 返回表情包和表情项
+    return {
+      ...packData.pack,
+      items: packData.items || []
     }
-    // 否则返回空 items
-    return { ...pack, items: [] }
   }
 
   /**

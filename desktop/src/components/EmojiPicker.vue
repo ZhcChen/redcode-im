@@ -65,7 +65,15 @@
       </div>
       <!-- 其他 tab -->
       <div v-else>
-        <div v-if="loadingPacks && selectedTabIndex === 1" class="loading">
+        <div
+          v-if="
+            (loadingPacks && selectedTabIndex === 1) ||
+            (tabs[selectedTabIndex]?.type === 'pack' &&
+              tabs[selectedTabIndex]?.pack &&
+              loadingSuitePacks[tabs[selectedTabIndex].pack.id])
+          "
+          class="loading"
+        >
           加载中...
         </div>
         <div v-else class="emoji-grid" :class="getGridClass()">
@@ -84,6 +92,24 @@
           </div>
           <div
             v-if="currentItems.length === 0 && selectedTabIndex === 1"
+            class="empty-state"
+          >
+            暂无自定义表情<br />请在设置中添加表情包
+          </div>
+          <div
+            v-else-if="
+              currentItems.length === 0 &&
+              tabs[selectedTabIndex]?.type === 'pack'
+            "
+            class="empty-state"
+          >
+            该套件暂无表情<br />请先添加表情包到套件
+          </div>
+          <div
+            v-else-if="
+              currentItems.length === 0 &&
+              tabs[selectedTabIndex]?.type === 'custom'
+            "
             class="empty-state"
           >
             暂无自定义表情<br />请在设置中添加表情包
@@ -148,8 +174,9 @@ const emit = defineEmits<{
 
 const selectedTabIndex = ref(0)
 const userPacks = ref<EmojiPack[]>([]) // 所有用户表情包（包括单个和套件）
-const suitePacksCache = ref<Map<string, Array<{ pack: EmojiPack; items: EmojiItem[] }>>>(new Map()) // 套件下的表情包缓存
+const suitePacksCache = ref<Record<string, Array<{ pack: EmojiPack; items: EmojiItem[] }>>>({}) // 套件下的表情包缓存
 const loadingPacks = ref(false)
+const loadingSuitePacks = ref<Record<string, boolean>>({}) // 套件加载状态
 
 // 搜索相关
 const searchKeyword = ref('')
@@ -376,11 +403,11 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       // 套件 tab：显示套件下所有表情包的表情项
       if (!tab.pack) return []
       const suiteId = tab.pack.id
-      const suitePacks = suitePacksCache.value.get(suiteId)
-      if (suitePacks) {
+      const suitePacks = suitePacksCache.value[suiteId]
+      if (suitePacks && suitePacks.length > 0) {
         const suiteItems: EmojiDisplayItem[] = []
         for (const suitePack of suitePacks) {
-          if (suitePack.items) {
+          if (suitePack.items && suitePack.items.length > 0) {
             for (const item of suitePack.items) {
               suiteItems.push({
                 type: 'image' as const,
@@ -392,8 +419,10 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
         }
         return suiteItems
       }
-      // 如果缓存中没有，异步加载
-      loadSuitePacks(suiteId)
+      // 如果缓存中没有且未在加载中，异步加载
+      if (!loadingSuitePacks.value[suiteId]) {
+        loadSuitePacks(suiteId)
+      }
       return []
   }
 })
@@ -452,22 +481,27 @@ const handleSearchResultClick = (pack: EmojiPack) => {
 const handleConfirmAdd = async () => {
   if (!pendingAddPack.value) return
 
+  // 先保存需要使用的值
+  const packId = pendingAddPack.value.id
+  const addType = pendingAddType.value
+
   try {
-    if (pendingAddType.value === 'suite') {
-      const result = await api.emojiPack.addUserSuite(pendingAddPack.value.id)
+    if (addType === 'suite') {
+      const result = await api.emojiPack.addUserSuite(packId)
       toast.success(`成功添加 ${result.count} 个表情包`)
     } else {
-      await api.emojiPack.addUserPack(pendingAddPack.value.id)
+      await api.emojiPack.addUserPack(packId)
       toast.success('添加成功')
     }
     showAddConfirm.value = false
-    pendingAddPack.value = null
     // 重新加载用户表情包
     await loadUserPacks()
     // 根据添加类型切换到对应 tab
-    if (pendingAddType.value === 'suite') {
+    if (addType === 'suite') {
       // 套件：切换到新添加的套件 tab
-      const suiteTabIndex = tabs.value.findIndex(t => t.type === 'pack' && t.pack?.id === pendingAddPack.value?.id)
+      // 需要等待 tabs 更新后再查找
+      await new Promise(resolve => setTimeout(resolve, 100))
+      const suiteTabIndex = tabs.value.findIndex(t => t.type === 'pack' && t.pack?.id === packId)
       if (suiteTabIndex >= 0) {
         selectedTabIndex.value = suiteTabIndex
       }
@@ -478,23 +512,48 @@ const handleConfirmAdd = async () => {
         selectedTabIndex.value = customTabIndex
       }
     }
+    // 清空待添加的数据
+    pendingAddPack.value = null
   } catch (error: any) {
     console.error('添加失败:', error)
     toast.error(error?.message || '添加失败，请重试')
+    showAddConfirm.value = false
+    pendingAddPack.value = null
   }
 }
 
 // 加载套件下的表情包
 const loadSuitePacks = async (suiteId: string) => {
-  if (suitePacksCache.value.has(suiteId)) {
+  if (suitePacksCache.value[suiteId]) {
     return // 已缓存，不需要重新加载
   }
+  if (loadingSuitePacks.value[suiteId]) {
+    return // 正在加载中，避免重复加载
+  }
   try {
+    // 使用响应式方式更新加载状态
+    loadingSuitePacks.value = {
+      ...loadingSuitePacks.value,
+      [suiteId]: true
+    }
     const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
-    suitePacksCache.value.set(suiteId, suitePacks)
+    // 使用响应式方式更新缓存
+    suitePacksCache.value = {
+      ...suitePacksCache.value,
+      [suiteId]: suitePacks
+    }
   } catch (error) {
     console.error('加载套件表情包失败:', error)
-    suitePacksCache.value.set(suiteId, [])
+    suitePacksCache.value = {
+      ...suitePacksCache.value,
+      [suiteId]: []
+    }
+  } finally {
+    // 使用响应式方式更新加载状态
+    loadingSuitePacks.value = {
+      ...loadingSuitePacks.value,
+      [suiteId]: false
+    }
   }
 }
 
@@ -508,6 +567,9 @@ const loadUserPacks = async () => {
       ...item.pack,
       items: item.items || []
     }))
+    // 清空套件缓存，重新加载
+    suitePacksCache.value = {}
+    loadingSuitePacks.value = {}
     // 预加载所有套件下的表情包
     for (const pack of userPacks.value) {
       if (pack.pack_type === 1) {
@@ -535,6 +597,18 @@ watch(() => props.show, (newVal) => {
     // 重置搜索
     searchKeyword.value = ''
     searchResults.value = []
+  }
+})
+
+// 监听 tab 切换，切换到套件 tab 时确保加载数据
+watch(selectedTabIndex, (newIndex) => {
+  const tab = tabs.value[newIndex]
+  if (tab?.type === 'pack' && tab.pack) {
+    // 切换到套件 tab 时，如果缓存中没有数据，主动加载
+    const suiteId = tab.pack.id
+    if (!suitePacksCache.value[suiteId] && !loadingSuitePacks.value[suiteId]) {
+      loadSuitePacks(suiteId)
+    }
   }
 })
 
