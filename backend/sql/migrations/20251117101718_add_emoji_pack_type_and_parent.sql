@@ -17,4 +17,3 @@ CREATE INDEX IF NOT EXISTS idx_emoji_packs_parent_id ON emoji_packs(parent_id);
 UPDATE emoji_packs
 SET pack_type = 0, parent_id = NULL
 WHERE pack_type IS NULL OR parent_id IS NOT NULL;
-

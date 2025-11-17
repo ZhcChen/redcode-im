@@ -2814,7 +2814,9 @@ const loadMessages = async (groupId: string) => {
     }
   } catch (error: any) {
     messages.value = []
-    toast.error('加载消息失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('加载消息失败: ' + errorMessage)
   } finally {
     messagesLoading.value = false
   }
@@ -3831,10 +3833,13 @@ const markChatAsRead = async (chat: ChatItem) => {
       const updatedChat = { ...chat, unreadCount: 0 }
       store.dispatch('updateChatItem', updatedChat)
     } else {
+      // 使用 API 返回的错误消息
       toast.error('标记已读失败: ' + (response.message || '未知错误'))
     }
   } catch (error: any) {
-    toast.error('标记已读失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('标记已读失败: ' + errorMessage)
   }
 }
 
@@ -4703,7 +4708,9 @@ const loadContactsForGroup = async () => {
       contacts.value = []
     }
   } catch (error: any) {
-    toast.error('获取联系人列表失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('获取联系人列表失败: ' + errorMessage)
     contacts.value = []
   } finally {
     isLoadingContacts.value = false
@@ -4809,7 +4816,9 @@ const handleCreateGroupConfirm = async (data: {
       toast.error('群组创建失败: ' + (response.message || '未知错误'))
     }
   } catch (error: any) {
-    toast.error('群组创建失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('群组创建失败: ' + errorMessage)
   } finally {
     isCreatingGroup.value = false
   }
@@ -5032,7 +5041,9 @@ const updateGroupAvatar = async (file: File) => {
       throw new Error(uploadResult.message || '群头像上传失败')
     }
   } catch (error: any) {
-    toast.error('群头像修改失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('群头像修改失败: ' + errorMessage)
   }
 }
 
@@ -5118,10 +5129,13 @@ const handleConfirmEditGroupNotice = async () => {
       // 关闭弹窗
       showEditGroupNoticeDialog.value = false
     } else {
+      // 使用 API 返回的错误消息
       groupNameError.value = response.message || '修改失败'
     }
   } catch (error: any) {
-    groupNameError.value = error.message || '网络错误，请稍后重试'
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误，请稍后重试';
+    groupNameError.value = errorMessage
   } finally {
     isUpdatingGroupNotice.value = false
   }
@@ -5197,10 +5211,13 @@ const handleConfirmEditRemark = async () => {
       // 关闭弹窗
       showEditRemarkDialog.value = false
     } else {
+      // 使用 API 返回的错误消息
       groupNameError.value = response.message || '修改失败'
     }
   } catch (error: any) {
-    groupNameError.value = error.message || '网络错误'
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    groupNameError.value = errorMessage
   } finally {
     isUpdatingRemark.value = false
   }
@@ -5233,10 +5250,13 @@ const handleToggleMute = async (value: boolean) => {
       selectedChat.value.chatStatus = value ? 2 : 0
       toast.success(value ? '已开启消息免打扰' : '已关闭消息免打扰')
     } else {
+      // 使用 API 返回的错误消息
       throw new Error(response.message || '设置失败')
     }
   } catch (error: any) {
-    toast.error('设置失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('设置失败: ' + errorMessage)
 
     // 回滚本地状态
     if (selectedChat.value) {
@@ -5278,10 +5298,13 @@ const handleToggleTop = async (value: boolean) => {
       
       toast.success(targetState ? '已置顶' : '已取消置顶')
     } else {
+      // 使用 API 返回的错误消息
       toast.error(response.message || (targetState ? '置顶失败' : '取消置顶失败'))
     }
   } catch (error: any) {
-    toast.error('设置失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('设置失败: ' + errorMessage)
 
     // 回滚本地状态
     if (selectedChat.value) {
@@ -5349,10 +5372,13 @@ const handleConfirmEditGroupName = async () => {
       // 关闭弹窗
       showEditGroupNameDialog.value = false
     } else {
+      // 使用 API 返回的错误消息
       groupNameError.value = response.message || '修改失败'
     }
   } catch (error: any) {
-    groupNameError.value = error.message || '网络错误，请稍后重试'
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误，请稍后重试';
+    groupNameError.value = errorMessage
   } finally {
     isUpdatingGroupName.value = false
   }
@@ -6306,7 +6332,9 @@ const handleConfirmAddExistingGroupMembers = async (selectedMemberIds: string[])
       throw new Error(response.message || '添加成员失败')
     }
   } catch (error: any) {
-    toast.error('添加成员失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('添加成员失败: ' + errorMessage)
   } finally {
     isAddingMembers.value = false
   }
@@ -6364,7 +6392,9 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
       throw new Error('所有成员删除失败')
     }
   } catch (error: any) {
-    toast.error('删除成员失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('删除成员失败: ' + errorMessage)
   } finally {
     isRemovingMembers.value = false
   }
@@ -6393,7 +6423,9 @@ const handleClearHistory = async () => {
       throw new Error(response.message || '清除失败')
     }
   } catch (error: any) {
-    toast.error('清除失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('清除失败: ' + errorMessage)
   }
 }
 
@@ -6436,7 +6468,9 @@ const handleConfirmReport = async (reason: string) => {
       throw new Error(response.message || '举报失败')
     }
   } catch (error: any) {
-    toast.error('举报失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('举报失败: ' + errorMessage)
   } finally {
     isReportingGroup.value = false
   }
@@ -6469,7 +6503,9 @@ const handleLeaveGroup = async () => {
       throw new Error(response.message || '退出失败')
     }
   } catch (error: any) {
-    toast.error('退出失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('退出失败: ' + errorMessage)
   }
 }
 
@@ -6550,7 +6586,9 @@ const handleVoiceSend = async (recording: any) => {
       throw new Error(messageResponse.message || '发送消息失败')
     }
   } catch (error: any) {
-    toast.error('发送失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('发送失败: ' + errorMessage)
   }
 }
 

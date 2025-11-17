@@ -459,10 +459,13 @@ async function handleRegister() {
         toast.error(loginResponse.message || "自动登录失败，请手动登录");
       }
     } else {
+      // 注册失败，使用 API 返回的错误消息
       toast.error(registerResponse.message || "注册失败，请检查输入信息");
     }
   } catch (error: any) {
-    toast.error(error.message || "网络错误，请稍后重试");
+    // 优先使用 API 返回的错误消息，如果没有则使用错误对象的 message
+    const errorMessage = error?.response?.message || error?.message || "网络错误，请稍后重试";
+    toast.error(errorMessage);
   } finally {
     isLoading.value = false;
   }
@@ -671,11 +674,13 @@ async function handleLogin() {
         toast.error("登录状态异常，请重试");
       }
     } else {
-      // 登录失败
+      // 登录失败，使用 API 返回的错误消息
       toast.error(response.message || "登录失败，请检查账号密码");
     }
   } catch (error: any) {
-    toast.error(error.message || "网络错误，请稍后重试");
+    // 优先使用 API 返回的错误消息，如果没有则使用错误对象的 message
+    const errorMessage = error?.response?.message || error?.message || "网络错误，请稍后重试";
+    toast.error(errorMessage);
   } finally {
     isLoading.value = false;
   }

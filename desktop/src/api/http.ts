@@ -436,8 +436,18 @@ class HttpClient {
       forceStreaming: options.forceStreaming === true
     });
 
+    // 对于 401 错误，需要区分是登录接口还是需要认证的接口
+    // 登录接口返回 401 时，应该直接返回错误消息，而不是触发登出流程
     if (response.code === 401) {
-      this.handleUnauthorizedResponse(requestId, fullUrl, method, headers, response.message);
+      // 检查是否是登录相关的接口（白名单接口）
+      const isLoginApi = !checkApiNeedsToken(originalUrl);
+      if (isLoginApi) {
+        // 登录接口返回 401，直接返回响应，让调用方处理错误消息
+        return this.executeResponseInterceptors<T>(response);
+      } else {
+        // 需要认证的接口返回 401，触发登出流程
+        this.handleUnauthorizedResponse(requestId, fullUrl, method, headers, response.message);
+      }
     }
 
     return this.executeResponseInterceptors<T>(response);

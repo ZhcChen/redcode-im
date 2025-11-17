@@ -452,7 +452,9 @@ const handleConfirmUpdateNickname = async () => {
       nicknameError.value = updateResult.message || '昵称修改失败'
     }
   } catch (error: any) {
-    nicknameError.value = error.message || '网络错误，请稍后重试'
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误，请稍后重试';
+    nicknameError.value = errorMessage
   } finally {
     store.dispatch('hideGlobalLoading')
     isUpdatingNickname.value = false
@@ -520,7 +522,9 @@ const handleLogout = async () => {
     await store.dispatch('logout')
     // 不需要手动跳转，App.vue 中的 watch token 会自动处理跳转
   } catch (error: any) {
-    toast.error(error?.message || '退出登录失败，请稍后再试')
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '退出登录失败，请稍后再试';
+    toast.error(errorMessage)
   }
 }
 

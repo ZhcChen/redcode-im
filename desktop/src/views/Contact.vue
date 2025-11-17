@@ -496,7 +496,9 @@ const loadContactsList = async (forceRefresh = false) => {
       compareWithStore: true // 启用与store的数据比对
     })
   } catch (error: any) {
-    toast.error(error.message || '加载联系人列表失败')
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '加载联系人列表失败';
+    toast.error(errorMessage)
   } finally {
     isLoadingContacts.value = false
   }
@@ -826,7 +828,9 @@ const handleAcceptFriendRequest = async (request: FriendRequest) => {
       toast.error(response.message || '接受好友申请失败')
     }
   } catch (error: any) {
-    toast.error(error.message || '接受好友申请失败')
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '接受好友申请失败';
+    toast.error(errorMessage)
   }
 }
 
@@ -857,7 +861,9 @@ const handleRejectFriendRequest = async (request: FriendRequest) => {
       toast.error(response.message || '拒绝好友申请失败')
     }
   } catch (error: any) {
-    toast.error(error.message || '拒绝好友申请失败')
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '拒绝好友申请失败';
+    toast.error(errorMessage)
   }
 }
 
@@ -911,7 +917,9 @@ const cancelMyFriendRequest = async (request: FriendRequest) => {
       throw new Error(response.message || '撤销失败')
     }
   } catch (error: any) {
-    toast.error('撤销失败: ' + (error.message || '网络错误'))
+    // 优先使用 API 返回的错误消息
+    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    toast.error('撤销失败: ' + errorMessage)
   }
 }
 
