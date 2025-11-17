@@ -2890,33 +2890,104 @@ const handleEmojiClick = () => {
 }
 
 // 处理表情选择
-const handleEmojiSelect = (emoji: string) => {
-
-  // 将表情插入到当前光标位置
-  if (messageInput.value) {
-    const textarea = messageInput.value
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const before = newMessage.value.substring(0, start)
-    const after = newMessage.value.substring(end)
-
-    newMessage.value = before + emoji + after
-
-    // 恢复光标位置
-    setTimeout(() => {
-      if (textarea) {
-        const newPosition = start + emoji.length
-        textarea.setSelectionRange(newPosition, newPosition)
-        textarea.focus()
-      }
-    }, 0)
-  } else {
-    // 如果没有输入框引用，直接添加到末尾
-    newMessage.value += emoji
+// 发送表情消息
+const sendEmojiMessage = async (emoji: string) => {
+  if (!selectedChat.value) {
+    toast.error('请先选择聊天对象')
+    return
   }
 
-  // 自动调整输入框高度
-  setTimeout(adjustTextareaHeight, 0)
+  // 判断是图片 URL 还是 emoji 字符
+  const isImageUrl = emoji.startsWith('http://') || emoji.startsWith('https://')
+
+  if (isImageUrl) {
+    // 图片表情：下载图片并作为图片消息发送
+    try {
+      const response = await fetch(emoji)
+      const blob = await response.blob()
+      const file = new File([blob], 'emoji.png', { type: blob.type || 'image/png' })
+      await uploadAndSendFile(file)
+    } catch (error: any) {
+      console.error('发送表情图片失败:', error)
+      toast.error('发送表情失败，请重试')
+    }
+  } else {
+    // Emoji 字符：作为文本消息发送
+    const groupId = selectedChat.value.groupId
+    const timestamp = Date.now()
+    const tempId = `${timestamp}`
+    const user = store.getters.currentUser
+
+    const tempMessage: Message = {
+      id: tempId,
+      content: emoji,
+      isSelf: true,
+      time: formatTime(getTimeStr(timestamp)),
+      senderId: currentUserId.value || '',
+      senderName: user?.nickname || user?.username || '我',
+      senderAvatar: user?.avatar,
+      messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
+      status: 1,
+      createTime: getTimeStr(timestamp),
+      timestamp
+    }
+
+    messages.value.push(tempMessage)
+    recentSentMessages.value.add(tempId)
+    scrollToBottom()
+
+    try {
+      const apiMessage = await webSocketManager.sendMessage({
+        roomId: groupId,
+        content: emoji,
+      }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
+
+      if (apiMessage) {
+        const uiMessage = mapDomainMessageToUi(apiMessage)
+        const existingRealMessageIndex = messages.value.findIndex(msg => msg.id === apiMessage.id)
+        if (existingRealMessageIndex !== -1) {
+          messages.value[existingRealMessageIndex] = {
+            ...messages.value[existingRealMessageIndex],
+            status: 2
+          }
+          recentSentMessages.value.delete(tempId)
+        } else {
+          const tempMessageIndex = messages.value.findIndex(msg => msg.id === tempId)
+          if (tempMessageIndex !== -1) {
+            messages.value[tempMessageIndex] = {
+              ...uiMessage,
+              status: 2
+            }
+            recentSentMessages.value.delete(tempId)
+          } else {
+            messages.value.push({
+              ...uiMessage,
+              status: 2
+            })
+          }
+        }
+        recentSentMessages.value.add(apiMessage.id)
+        setTimeout(() => {
+          recentSentMessages.value.delete(apiMessage.id)
+        }, 10000)
+      }
+      scrollToBottom()
+    } catch (error: any) {
+      console.error('发送表情消息失败:', error)
+      const tempMessageIndex = messages.value.findIndex(msg => msg.id === tempId)
+      if (tempMessageIndex !== -1) {
+        messages.value[tempMessageIndex].status = 5
+      }
+      toast.error('发送失败，请重试')
+    }
+  }
+}
+
+const handleEmojiSelect = (emoji: string) => {
+  // 直接发送表情消息，而不是插入到输入框
+  sendEmojiMessage(emoji)
+  // 关闭表情选择器
+  showEmojiPicker.value = false
 }
 
 // 处理表情选择器关闭
