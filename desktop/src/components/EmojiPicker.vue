@@ -560,6 +560,7 @@ const CachedEmojiImage = defineComponent({
 </script>
 
 <style lang="scss" scoped>
+@import '../styles/variables.scss';
 .emoji-picker {
   position: absolute;
   bottom: 100%;
@@ -595,21 +596,26 @@ const CachedEmojiImage = defineComponent({
   border-radius: 16px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   font-size: 12px;
   max-width: 120px;
   min-width: fit-content;
   flex-shrink: 0;
+  color: $text-secondary;
+  background-color: transparent;
+  border: 1px solid transparent;
 
   &:hover {
-    background-color: #f5f5f5;
+    background-color: rgba($primary-color, 0.08);
+    color: $primary-color;
   }
 
   &.active {
-    background-color: rgba(22, 93, 255, 0.1);
-    color: #165dff;
+    background-color: rgba($primary-color, 0.15);
+    color: $primary-color;
     font-weight: 600;
-    border: 1px solid #165dff;
+    border: 1px solid rgba($primary-color, 0.3);
+    box-shadow: 0 2px 4px rgba($primary-color, 0.1);
   }
 
   .tab-icon {
