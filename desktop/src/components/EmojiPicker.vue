@@ -553,13 +553,17 @@ const loadSuitePacks = async (suiteId: string) => {
     loadingSuitePacks.value[suiteId] = true
     loadingSuitePacks.value = { ...loadingSuitePacks.value }
     const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
-    console.log('套件表情包加载成功:', suiteId, suitePacks)
+    console.log('套件表情包加载成功（原始数据）:', suiteId, JSON.stringify(suitePacks, null, 2))
     // 详细打印每个表情包的数据结构
     suitePacks.forEach((pack, index) => {
-      console.log(`表情包 ${index}:`, {
-        pack: pack.pack,
+      console.log(`表情包 ${index} 详细信息:`, {
+        packId: pack.pack?.id,
+        packName: pack.pack?.name,
+        itemsType: typeof pack.items,
+        itemsIsArray: Array.isArray(pack.items),
         itemsCount: pack.items?.length || 0,
-        items: pack.items
+        items: pack.items,
+        itemsStringified: JSON.stringify(pack.items, null, 2)
       })
     })
     // 使用响应式方式更新缓存 - 直接修改对象属性以确保响应式更新

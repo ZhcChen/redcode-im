@@ -448,6 +448,13 @@ pub async fn list_user_suite_packs(
             crate::database::models::EmojiPackStatus::Active
         ) {
             let items = store.list_items_by_pack(pack.id).await?;
+            // 添加调试日志
+            tracing::debug!(
+                "套件表情包: pack_id={}, pack_name={}, items_count={}",
+                pack.id,
+                pack.name,
+                items.len()
+            );
             result.push(EmojiPackWithItemsResponse {
                 pack: db_pack_to_api(&pack),
                 items: items.iter().map(db_item_to_api).collect(),
