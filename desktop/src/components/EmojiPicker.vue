@@ -999,7 +999,7 @@ const CachedEmojiImage = defineComponent({
 
 .emoji-grid {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
   box-sizing: border-box;
 
