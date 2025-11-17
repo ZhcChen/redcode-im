@@ -456,6 +456,14 @@ pub async fn list_user_suite_packs(
                 items.len(),
                 items.iter().map(|i| i.id.to_string()).collect::<Vec<_>>()
             );
+            // 如果 items 为空，记录警告
+            if items.is_empty() {
+                tracing::warn!(
+                    "警告: 表情包 pack_id={}, pack_name={} 的 items 为空，请检查数据库 emoji_items 表",
+                    pack.id,
+                    pack.name
+                );
+            }
             result.push(EmojiPackWithItemsResponse {
                 pack: db_pack_to_api(&pack),
                 items: items.iter().map(db_item_to_api).collect(),
