@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../constants/app_config.dart';
@@ -44,9 +45,29 @@ class EmojiPackService {
       if (data is List) {
         // API 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
         return data.whereType<Map<String, dynamic>>().map((item) {
-          final packJson = item['pack'] as Map<String, dynamic>;
+          final packJson = item['pack'] as Map<String, dynamic>?;
           final itemsJson = item['items'] as List<dynamic>?;
+
+          if (packJson == null) {
+            throw EmojiPackServiceException('表情包数据格式错误：缺少 pack 字段');
+          }
+
           final pack = EmojiPack.fromJson(packJson);
+
+          // 解析 items
+          final items = <EmojiItem>[];
+          if (itemsJson != null) {
+            for (final itemJson in itemsJson) {
+              if (itemJson is Map<String, dynamic>) {
+                try {
+                  items.add(EmojiItem.fromJson(itemJson));
+                } catch (e) {
+                  debugPrint('解析表情项失败: $e, 数据: $itemJson');
+                }
+              }
+            }
+          }
+
           // 将 items 赋值给 pack
           return EmojiPack(
             id: pack.id,
@@ -57,12 +78,7 @@ class EmojiPackService {
             createdAt: pack.createdAt,
             updatedAt: pack.updatedAt,
             packType: pack.packType,
-            items: itemsJson != null
-                ? itemsJson
-                      .whereType<Map<String, dynamic>>()
-                      .map((json) => EmojiItem.fromJson(json))
-                      .toList()
-                : [],
+            items: items,
           );
         }).toList();
       }
@@ -161,6 +177,65 @@ class EmojiPackService {
 
     throw EmojiPackServiceException(
       _extractErrorMessage(response.body) ?? '添加表情包套件失败',
+    );
+  }
+
+  /// 获取套件下的表情包列表（包含表情项）
+  /// 只返回用户已添加的表情包
+  /// 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
+  Future<List<EmojiPack>> getSuitePacks(String suiteId) async {
+    final headers = await _authHeaders();
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/emoji-packs/suites/$suiteId/packs',
+    );
+
+    final response = await http.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is List) {
+        // API 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
+        return data.whereType<Map<String, dynamic>>().map((item) {
+          final packJson = item['pack'] as Map<String, dynamic>?;
+          final itemsJson = item['items'] as List<dynamic>?;
+
+          if (packJson == null) {
+            throw EmojiPackServiceException('表情包数据格式错误：缺少 pack 字段');
+          }
+
+          final pack = EmojiPack.fromJson(packJson);
+
+          // 解析 items
+          final items = <EmojiItem>[];
+          if (itemsJson != null) {
+            for (final itemJson in itemsJson) {
+              if (itemJson is Map<String, dynamic>) {
+                try {
+                  items.add(EmojiItem.fromJson(itemJson));
+                } catch (e) {
+                  debugPrint('解析表情项失败: $e, 数据: $itemJson');
+                }
+              }
+            }
+          }
+
+          return EmojiPack(
+            id: pack.id,
+            name: pack.name,
+            iconUrl: pack.iconUrl,
+            description: pack.description,
+            isActive: pack.isActive,
+            createdAt: pack.createdAt,
+            updatedAt: pack.updatedAt,
+            packType: pack.packType,
+            items: items,
+          );
+        }).toList();
+      }
+      return [];
+    }
+
+    throw EmojiPackServiceException(
+      _extractErrorMessage(response.body) ?? '获取套件表情包列表失败',
     );
   }
 

@@ -3158,6 +3158,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   bool _searchLoading = false;
   Timer? _searchTimer;
 
+  // 套件相关
+  final Map<String, List<EmojiPack>> _suitePacksCache = {};
+  final Map<String, bool> _loadingSuitePacks = {};
+
   static const List<String> emojis = [
     '😀',
     '😃',
@@ -3418,16 +3422,45 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // 切换到套件 tab 时，如果缓存中没有数据，主动加载
+    if (tab.type == _TabType.pack && tab.pack != null) {
+      final suiteId = tab.pack!.id;
+      if (tab.pack!.packType == 1 &&
+          !_suitePacksCache.containsKey(suiteId) &&
+          (_loadingSuitePacks[suiteId] != true)) {
+        // 异步加载，不阻塞 UI
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadSuitePacks(suiteId);
+        });
+      }
+    }
+
+    // 使用 key 确保在数据变化时重新构建内容
+    final contentKey = tab.type == _TabType.custom
+        ? ValueKey('custom_content_${_userPacks.length}')
+        : (tab.type == _TabType.pack && tab.pack != null
+              ? ValueKey('pack_content_${tab.pack!.id}')
+              : null);
+
+    Widget content;
     switch (tab.type) {
       case _TabType.search:
-        return _buildSearchTab();
+        content = _buildSearchTab();
+        break;
       case _TabType.emoji:
-        return _buildEmojiGrid();
+        content = _buildEmojiGrid();
+        break;
       case _TabType.custom:
-        return _buildCustomEmojiGrid();
+        content = _buildCustomEmojiGrid();
+        break;
       case _TabType.pack:
-        return _buildPackGrid(tab.pack!);
+        content = _buildPackGrid(tab.pack!);
+        break;
     }
+
+    return contentKey != null
+        ? KeyedSubtree(key: contentKey, child: content)
+        : content;
   }
 
   Widget _buildSearchTab() {
@@ -3545,6 +3578,11 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                           // 重新加载用户表情包
                           await _loadUserPacks();
 
+                          // 如果是套件，清除套件缓存以便重新加载
+                          if (pack.packType == 1) {
+                            _suitePacksCache.remove(pack.id);
+                          }
+
                           // 等待状态更新完成
                           await Future.delayed(
                             const Duration(milliseconds: 100),
@@ -3552,13 +3590,13 @@ class _EmojiPanelState extends State<_EmojiPanel> {
 
                           // 切换到对应的 tab
                           if (mounted) {
-                            final tabs = _buildTabs();
                             if (pack.packType == 1) {
                               // 套件：切换到套件 tab
                               // 需要等待 tabs 更新后再查找
                               await Future.delayed(
                                 const Duration(milliseconds: 100),
                               );
+                              final tabs = _buildTabs();
                               final suiteIndex = tabs.indexWhere(
                                 (t) =>
                                     t.type == _TabType.pack &&
@@ -3571,17 +3609,24 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                               }
                             } else {
                               // 单个表情包：切换到自定义 tab
+                              final tabs = _buildTabs();
                               final customIndex = tabs.indexWhere(
                                 (t) => t.type == _TabType.custom,
                               );
                               if (customIndex >= 0) {
+                                // 强制刷新 UI
                                 setState(() {
                                   _selectedTabIndex = customIndex;
+                                  // 触发重新构建，确保 _userPacks 的变化被检测到
                                 });
                                 // 再次等待，确保 currentItems 计算完成
                                 await Future.delayed(
-                                  const Duration(milliseconds: 50),
+                                  const Duration(milliseconds: 100),
                                 );
+                                // 再次触发 setState 确保 UI 更新
+                                if (mounted) {
+                                  setState(() {});
+                                }
                               }
                             }
                           }
@@ -3637,11 +3682,17 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     // 收集所有独立的单个表情包（packType === 0）中的表情项
     // 排除套件（packType === 1）
     final allItems = <EmojiItem>[];
+    debugPrint('_buildCustomEmojiGrid: _userPacks 数量 = ${_userPacks.length}');
     for (final pack in _userPacks) {
+      debugPrint(
+        '  检查表情包: id=${pack.id}, name=${pack.name}, packType=${pack.packType}, items数量=${pack.items.length}',
+      );
       if (pack.packType == 0) {
+        debugPrint('    添加 ${pack.items.length} 个表情项');
         allItems.addAll(pack.items);
       }
     }
+    debugPrint('_buildCustomEmojiGrid: 总共收集到 ${allItems.length} 个表情项');
 
     if (allItems.isEmpty) {
       return const Center(
@@ -3653,7 +3704,9 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       );
     }
 
+    // 使用 key 确保在数据变化时重新构建
     return GridView.builder(
+      key: ValueKey('custom_emoji_${allItems.length}_${_userPacks.length}'),
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 6,
@@ -3673,15 +3726,65 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   }
 
   Widget _buildPackGrid(EmojiPack pack) {
-    if (pack.items.isEmpty) {
+    if (pack.packType == 1) {
+      // 套件：显示套件下所有子表情包的 icon_url
+      return _buildSuiteGrid(pack);
+    } else {
+      // 单个表情包：显示 pack.items
+      if (pack.items.isEmpty) {
+        return const Center(
+          child: Text(
+            '此表情包暂无表情',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        );
+      }
+
+      return GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+        itemCount: pack.items.length,
+        itemBuilder: (context, index) {
+          final item = pack.items[index];
+          return _CachedEmojiItem(
+            imageUrl: item.imageUrl,
+            onTap: () => widget.onEmojiSelected(item.imageUrl),
+            emojiService: _emojiService,
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildSuiteGrid(EmojiPack suitePack) {
+    final suiteId = suitePack.id;
+    final suitePacks = _suitePacksCache[suiteId];
+    final isLoading = _loadingSuitePacks[suiteId] ?? false;
+
+    // 如果缓存中没有且未在加载中，异步加载
+    if (suitePacks == null && !isLoading) {
+      _loadSuitePacks(suiteId);
+    }
+
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (suitePacks == null || suitePacks.isEmpty) {
       return const Center(
         child: Text(
-          '此表情包暂无表情',
+          '该套件暂无表情包\n请先添加表情包到套件',
+          textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textSecondary),
         ),
       );
     }
 
+    // 显示子表情包的 icon_url
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -3689,16 +3792,55 @@ class _EmojiPanelState extends State<_EmojiPanel> {
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
       ),
-      itemCount: pack.items.length,
+      itemCount: suitePacks.length,
       itemBuilder: (context, index) {
-        final item = pack.items[index];
+        final childPack = suitePacks[index];
+        if (childPack.iconUrl == null || childPack.iconUrl!.isEmpty) {
+          return const SizedBox.shrink();
+        }
         return _CachedEmojiItem(
-          imageUrl: item.imageUrl,
-          onTap: () => widget.onEmojiSelected(item.imageUrl),
+          imageUrl: childPack.iconUrl!,
+          onTap: () => widget.onEmojiSelected(childPack.iconUrl!),
           emojiService: _emojiService,
         );
       },
     );
+  }
+
+  Future<void> _loadSuitePacks(String suiteId) async {
+    if (_suitePacksCache.containsKey(suiteId)) {
+      debugPrint('套件已缓存，跳过加载: $suiteId');
+      return;
+    }
+    if (_loadingSuitePacks[suiteId] == true) {
+      debugPrint('套件正在加载中，跳过重复加载: $suiteId');
+      return;
+    }
+
+    setState(() {
+      _loadingSuitePacks[suiteId] = true;
+    });
+
+    try {
+      debugPrint('开始加载套件表情包: $suiteId');
+      final service = EmojiPackService();
+      final suitePacks = await service.getSuitePacks(suiteId);
+      debugPrint('套件表情包加载成功: $suiteId, 数量: ${suitePacks.length}');
+      if (mounted) {
+        setState(() {
+          _suitePacksCache[suiteId] = suitePacks;
+          _loadingSuitePacks[suiteId] = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('加载套件表情包失败: $suiteId, 错误: $e');
+      if (mounted) {
+        setState(() {
+          _suitePacksCache[suiteId] = [];
+          _loadingSuitePacks[suiteId] = false;
+        });
+      }
+    }
   }
 }
 
