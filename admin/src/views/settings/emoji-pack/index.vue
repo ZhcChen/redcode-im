@@ -358,12 +358,47 @@
             :label-col-props="{ span: 6 }"
             :wrapper-col-props="{ span: 18 }"
           >
-            <a-form-item field="image_url" label="图片URL">
-              <a-input
-                v-model="itemFormData.image_url"
-                placeholder="请输入表情图片URL"
-              />
-              <template #help> 表情图片的完整URL地址 </template>
+            <a-form-item field="image_url" label="图片">
+              <div class="item-image-upload-wrapper">
+                <div v-if="itemFormData.image_url" class="item-image-preview">
+                  <img
+                    :src="itemFormData.image_url"
+                    alt="表情预览"
+                    class="preview-image"
+                  />
+                  <a-button
+                    type="text"
+                    status="danger"
+                    size="small"
+                    @click="itemFormData.image_url = ''"
+                  >
+                    删除
+                  </a-button>
+                </div>
+                <div v-else class="item-image-upload-area">
+                  <input
+                    ref="itemImageFileInputRef"
+                    type="file"
+                    accept="image/*"
+                    style="display: none"
+                    @change="handleItemImageFileChange"
+                  />
+                  <a-button
+                    type="outline"
+                    :loading="itemImageUploadLoading"
+                    @click="triggerItemImageFileSelect"
+                  >
+                    <template #icon>
+                      <icon-upload />
+                    </template>
+                    上传图片
+                  </a-button>
+                  <span class="upload-hint"
+                    >支持 JPG、PNG、WebP、GIF 等图片格式</span
+                  >
+                </div>
+              </div>
+              <template #help> 表情图片，支持静态图片和 GIF 动图 </template>
             </a-form-item>
 
             <a-form-item field="name" label="名称">
@@ -546,6 +581,10 @@
   const iconFileInputRef = ref<HTMLInputElement | null>(null);
   const iconUploadLoading = ref(false);
   const defaultStorageProvider = ref<StorageProvider | null>(null);
+
+  // 表情项图片上传相关
+  const itemImageFileInputRef = ref<HTMLInputElement | null>(null);
+  const itemImageUploadLoading = ref(false);
 
   const itemFormRules = {
     image_url: [{ required: true, message: '请输入表情图片URL' }],
@@ -961,6 +1000,96 @@
     }
   };
 
+  // 触发表情项图片文件选择
+  const triggerItemImageFileSelect = () => {
+    itemImageFileInputRef.value?.click();
+  };
+
+  // 处理表情项图片文件选择
+  const handleItemImageFileChange = async (event: Event) => {
+    const inputEl = event.target as HTMLInputElement;
+    const { files } = inputEl;
+    const file = files && files.length > 0 ? files[0] : null;
+    if (!file) {
+      return;
+    }
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      Message.error('请选择图片文件');
+      inputEl.value = '';
+      return;
+    }
+
+    // 验证文件大小（最大 5MB，GIF 可能较大）
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      Message.error('图片大小不能超过 5MB');
+      inputEl.value = '';
+      return;
+    }
+
+    itemImageUploadLoading.value = true;
+    try {
+      // 获取默认存储提供商
+      if (!defaultStorageProvider.value) {
+        const { data } = await getDefaultStorageProvider();
+        defaultStorageProvider.value = data;
+      }
+
+      if (!defaultStorageProvider.value) {
+        throw new Error('未配置存储提供商，请先在存储提供商设置中配置');
+      }
+
+      // 生成文件key
+      const timestamp = Date.now();
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const key = `emoji-items/${timestamp}.${fileExt}`;
+
+      // 获取上传签名
+      const { data: signatureData } = await testCosUploadSignature({
+        provider_id: defaultStorageProvider.value.id,
+        key,
+        content_type: file.type,
+      });
+
+      if (!signatureData.success || !signatureData.signature) {
+        throw new Error(signatureData.message || '获取上传签名失败');
+      }
+
+      // 上传文件
+      const response = await uploadWithSignature(file, signatureData.signature);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || '上传失败');
+      }
+
+      // 获取下载URL
+      const { data: urlData } = await testCosDownloadUrl({
+        provider_id: defaultStorageProvider.value.id,
+        key,
+        expires_in_seconds: 31536000, // 1年
+      });
+
+      if (!urlData.success || !urlData.url) {
+        throw new Error(urlData.message || '获取下载URL失败');
+      }
+
+      // 保存URL到表单
+      itemFormData.image_url = urlData.url;
+      Message.success('图片上传成功');
+    } catch (error: any) {
+      const errorMsg =
+        error?.message || error?.response?.data?.message || '上传失败';
+      Message.error(errorMsg);
+    } finally {
+      itemImageUploadLoading.value = false;
+      if (inputEl) {
+        inputEl.value = '';
+      }
+    }
+  };
+
   onMounted(async () => {
     fetchPacks();
     // 预加载默认存储提供商
@@ -1056,5 +1185,25 @@
   .upload-hint {
     color: #86909c;
     font-size: 12px;
+  }
+
+  .item-image-upload-wrapper {
+    width: 100%;
+  }
+
+  .item-image-preview {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+  }
+
+  .item-image-upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 </style>

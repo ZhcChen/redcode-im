@@ -76,11 +76,9 @@
             @click="selectEmoji(item)"
             :title="item.name || ''"
           >
-            <img
+            <CachedEmojiImage
               v-if="item.type === 'image'"
-              :src="item.value"
-              alt=""
-              class="emoji-image"
+              :image-url="item.value"
             />
             <span v-else class="emoji-text">{{ item.value }}</span>
           </div>
@@ -113,8 +111,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, h, defineComponent } from 'vue'
 import { api, type EmojiPack, type EmojiItem } from '../api'
+import { EmojiItemApi } from '../api/emoji-item'
 import { toast } from '../utils/toast'
 
 interface Emoji {
@@ -496,6 +495,66 @@ watch(() => props.show, (newVal) => {
 onMounted(() => {
   if (props.show) {
     loadUserPacks()
+  }
+})
+
+// 带缓存的表情图片组件（支持 GIF）
+const CachedEmojiImage = defineComponent({
+  props: {
+    imageUrl: {
+      type: String,
+      required: true
+    }
+  },
+  setup(props) {
+    const cachedUrl = ref<string | null>(null)
+    const loading = ref(false)
+    const error = ref(false)
+
+    const loadEmoji = async () => {
+      if (!props.imageUrl) return
+
+      loading.value = true
+      error.value = false
+
+      try {
+        const url = await EmojiItemApi.loadAndCacheEmoji(props.imageUrl)
+        if (url) {
+          cachedUrl.value = url
+        } else {
+          error.value = true
+        }
+      } catch (e) {
+        console.error('加载表情失败:', e)
+        error.value = true
+      } finally {
+        loading.value = false
+      }
+    }
+
+    watch(() => props.imageUrl, loadEmoji, { immediate: true })
+
+    return () => {
+      if (loading.value) {
+        return h('div', { class: 'emoji-loading' }, '...')
+      }
+
+      if (error.value || !cachedUrl.value) {
+        // 如果缓存失败，直接使用原始 URL（浏览器会自动处理 GIF）
+        return h('img', {
+          src: props.imageUrl,
+          alt: '',
+          class: 'emoji-image'
+        })
+      }
+
+      // 使用缓存的 blob URL（支持 GIF 动画）
+      return h('img', {
+        src: cachedUrl.value,
+        alt: '',
+        class: 'emoji-image'
+      })
+    }
   }
 })
 </script>

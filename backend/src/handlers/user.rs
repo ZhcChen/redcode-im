@@ -319,9 +319,7 @@ pub async fn change_password(
         .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
 
     if !is_valid {
-        return Err(AppError::ValidationError(
-            "旧密码错误".to_string(),
-        ));
+        return Err(AppError::ValidationError("旧密码错误".to_string()));
     }
 
     // 生成新密码哈希

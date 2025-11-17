@@ -153,9 +153,7 @@ pub async fn update_app_name(
 ) -> Result<Json<AppNameResponse>, AppError> {
     let app_name = payload.app_name.trim();
     if app_name.is_empty() {
-        return Err(AppError::ValidationError(
-            "应用名称不能为空".to_string(),
-        ));
+        return Err(AppError::ValidationError("应用名称不能为空".to_string()));
     }
     if app_name.len() > 50 {
         return Err(AppError::ValidationError(

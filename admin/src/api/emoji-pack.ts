@@ -60,8 +60,9 @@ export interface UpdateEmojiItemPayload {
 
 // ========== 表情包管理 API ==========
 
-export function listAllEmojiPacks() {
-  return axios.get<EmojiPack[]>('/api/admin/emoji-packs');
+export function listAllEmojiPacks(keyword?: string) {
+  const params = keyword ? { keyword } : {};
+  return axios.get<EmojiPack[]>('/api/admin/emoji-packs', { params });
 }
 
 export function createEmojiPack(payload: CreateEmojiPackPayload) {

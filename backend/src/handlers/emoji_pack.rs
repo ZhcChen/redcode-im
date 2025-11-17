@@ -79,10 +79,21 @@ fn db_item_to_api(item: &EmojiItem) -> EmojiItemResponse {
 /// 获取所有表情包列表（管理员）
 pub async fn list_all_packs(
     State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<EmojiPackResponse>>, AppError> {
     let store = EmojiPackStore::new(state.database.clone());
-    let packs = store.list_all_packs().await?;
 
+    // 如果有关键词，执行搜索
+    if let Some(keyword) = params.get("keyword") {
+        if !keyword.trim().is_empty() {
+            let packs = store.search_all_packs(keyword).await?;
+            let response: Vec<EmojiPackResponse> = packs.iter().map(db_pack_to_api).collect();
+            return Ok(Json(response));
+        }
+    }
+
+    // 否则返回所有表情包
+    let packs = store.list_all_packs().await?;
     let response: Vec<EmojiPackResponse> = packs.iter().map(db_pack_to_api).collect();
     Ok(Json(response))
 }

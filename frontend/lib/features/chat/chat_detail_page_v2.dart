@@ -20,6 +20,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
+import '../../core/services/emoji_item_service.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
@@ -3217,20 +3218,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       itemCount: allItems.length,
       itemBuilder: (context, index) {
         final item = allItems[index];
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => widget.onEmojiSelected(item.imageUrl),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(Icons.image),
-              ),
-            ),
-          ),
+        return _CachedEmojiItem(
+          imageUrl: item.imageUrl,
+          onTap: () => widget.onEmojiSelected(item.imageUrl),
+          emojiService: _emojiService,
         );
       },
     );
@@ -3256,20 +3247,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       itemCount: pack.items.length,
       itemBuilder: (context, index) {
         final item = pack.items[index];
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => widget.onEmojiSelected(item.imageUrl),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(Icons.image),
-              ),
-            ),
-          ),
+        return _CachedEmojiItem(
+          imageUrl: item.imageUrl,
+          onTap: () => widget.onEmojiSelected(item.imageUrl),
+          emojiService: _emojiService,
         );
       },
     );
@@ -3294,6 +3275,127 @@ class _TabItem {
     required this.label,
     this.pack,
   });
+}
+
+/// 带缓存的表情项组件（支持 GIF）
+class _CachedEmojiItem extends StatefulWidget {
+  const _CachedEmojiItem({
+    required this.imageUrl,
+    required this.onTap,
+    required this.emojiService,
+  });
+
+  final String imageUrl;
+  final VoidCallback onTap;
+  final EmojiItemService emojiService;
+
+  @override
+  State<_CachedEmojiItem> createState() => _CachedEmojiItemState();
+}
+
+class _CachedEmojiItemState extends State<_CachedEmojiItem> {
+  String? _cachedPath;
+  bool _loading = false;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEmoji();
+  }
+
+  Future<void> _loadEmoji() async {
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
+
+    try {
+      final cachedPath = await widget.emojiService.loadAndCacheEmoji(widget.imageUrl);
+      if (mounted) {
+        setState(() {
+          _cachedPath = cachedPath;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: widget.onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: _buildImage(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage() {
+    if (_loading) {
+      return const SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_error) {
+      return const SizedBox(
+        width: 48,
+        height: 48,
+        child: Icon(Icons.image, size: 24),
+      );
+    }
+
+    // 优先使用缓存路径，如果缓存不存在则使用网络 URL
+    // Flutter 的 Image 组件原生支持 GIF 动画
+    if (_cachedPath != null) {
+      return Image.file(
+        File(_cachedPath!),
+        fit: BoxFit.cover,
+        width: 48,
+        height: 48,
+        errorBuilder: (_, __, ___) {
+          // 缓存文件损坏，尝试重新加载
+          _loadEmoji();
+          return Image.network(
+            widget.imageUrl,
+            fit: BoxFit.cover,
+            width: 48,
+            height: 48,
+            errorBuilder: (_, __, ___) => const Icon(Icons.image),
+          );
+        },
+      );
+    }
+
+    return Image.network(
+      widget.imageUrl,
+      fit: BoxFit.cover,
+      width: 48,
+      height: 48,
+      errorBuilder: (_, __, ___) => const Icon(Icons.image),
+    );
+  }
 }
 
 /// 更多操作面板

@@ -102,7 +102,10 @@ impl SettingsStore {
 
     // ===== 通用设置相关方法 =====
 
-    pub async fn get_general_setting(&self, key: &str) -> Result<Option<GeneralSettingRecord>, Error> {
+    pub async fn get_general_setting(
+        &self,
+        key: &str,
+    ) -> Result<Option<GeneralSettingRecord>, Error> {
         query_as::<_, GeneralSettingRecord>(
             r#"
             SELECT key, value, description, updated_at, updated_by

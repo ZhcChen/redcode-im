@@ -113,7 +113,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 搜索表情包和套件
+    /// 搜索表情包和套件（用户用，只搜索激活的）
     pub async fn search_packs(&self, keyword: &str) -> Result<Vec<EmojiPack>, Error> {
         let search_pattern = format!("%{}%", keyword);
         let packs = query_as::<_, EmojiPack>(
@@ -128,6 +128,26 @@ impl EmojiPackStore {
             "#,
         )
         .bind(EmojiPackStatus::Active)
+        .bind(&search_pattern)
+        .fetch_all(&self.database.pool)
+        .await?;
+
+        Ok(packs)
+    }
+
+    /// 搜索所有表情包和套件（管理员用，包括未激活的）
+    pub async fn search_all_packs(&self, keyword: &str) -> Result<Vec<EmojiPack>, Error> {
+        let search_pattern = format!("%{}%", keyword);
+        let packs = query_as::<_, EmojiPack>(
+            r#"
+            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            FROM emoji_packs
+            WHERE parent_id IS NULL
+              AND (LOWER(name) LIKE LOWER($1) OR LOWER(description) LIKE LOWER($1))
+            ORDER BY created_at DESC
+            LIMIT 100
+            "#,
+        )
         .bind(&search_pattern)
         .fetch_all(&self.database.pool)
         .await?;

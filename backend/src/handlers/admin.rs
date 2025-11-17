@@ -1687,7 +1687,13 @@ pub async fn update_captcha_setting(
 
     let require_captcha_for_login = req.require_captcha_for_login.unwrap_or(false);
     let setting = store
-        .upsert_captcha_setting(enabled, &captcha_code, &description, require_captcha_for_login, None)
+        .upsert_captcha_setting(
+            enabled,
+            &captcha_code,
+            &description,
+            require_captcha_for_login,
+            None,
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
