@@ -734,7 +734,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 Expanded(
                   child: Container(
                     constraints: const BoxConstraints(
-                      maxHeight: 120, // 只限制最大高度
+                      maxHeight: 200, // 只限制最大高度
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
