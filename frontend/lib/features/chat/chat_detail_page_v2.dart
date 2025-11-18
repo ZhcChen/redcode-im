@@ -3072,27 +3072,33 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   }
 
   Widget _buildTextInput() {
-    return Container(
-      height: double.infinity, // 填充Flexible提供的空间
-      decoration: BoxDecoration(
-        color: const Color(0x1F2A370D),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
-        minLines: 1,
-        maxLines: null, // 允许无限行，由外部ConstrainedBox控制
-        style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
-        decoration: const InputDecoration(
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          border: InputBorder.none,
-          isDense: true,
-          hintText: '发送消息...',
-          hintStyle: TextStyle(color: AppColors.textTertiary),
+    return TextField(
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      keyboardType: TextInputType.multiline,
+      textInputAction: TextInputAction.newline,
+      minLines: 1,
+      maxLines: null, // 允许无限行，由外部ConstrainedBox控制
+      style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        filled: true,
+        fillColor: const Color(0x1F2A370D),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        isDense: true,
+        hintText: '发送消息...',
+        hintStyle: const TextStyle(color: AppColors.textTertiary),
       ),
     );
   }
