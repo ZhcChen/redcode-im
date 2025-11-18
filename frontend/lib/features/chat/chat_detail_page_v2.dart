@@ -748,7 +748,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       keyboardType: TextInputType.multiline,
                       textInputAction: TextInputAction.send,
                       minLines: 1,
-                      maxLines: null, // 允许无限行，但受外层容器maxHeight限制
+                      maxLines: null, // 允许自动扩展
                       onSubmitted: (_) => _sendMessage(),
                       onEditingComplete: () {},
                       style: const TextStyle(
@@ -756,10 +756,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                         color: AppColors.textPrimary,
                       ),
                       decoration: const InputDecoration(
-                        isDense: true,
                         contentPadding: EdgeInsets.symmetric(
                           vertical: 20.5,
-                        ), // (56-15)/2 = 20.5
+                        ), // 56高度时垂直居中
                         border: InputBorder.none,
                         hintText: '发送消息...',
                         hintStyle: TextStyle(color: AppColors.textTertiary),
