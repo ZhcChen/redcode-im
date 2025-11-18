@@ -738,10 +738,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       minHeight: 36, // 确保最小高度与按钮一致
                       maxHeight: 200.sp, // 只限制最大高度
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8, // 增加上下内边距
-                    ),
+                    padding: const EdgeInsets.only(left: 12, right: 12),
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(8),
