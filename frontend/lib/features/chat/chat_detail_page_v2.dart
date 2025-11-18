@@ -13,6 +13,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:provider/provider.dart';
 
@@ -733,8 +734,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    constraints: const BoxConstraints(
-                      maxHeight: 200, // 只限制最大高度
+                    constraints: BoxConstraints(
+                      maxHeight: 200.sp, // 只限制最大高度
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
