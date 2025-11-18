@@ -3050,7 +3050,10 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
             constraints: const BoxConstraints(
               maxHeight: 120, // 限制最大高度
             ),
-            child: _buildTextInput(),
+            child: Container(
+              height: double.infinity, // 确保填充可用空间
+              child: _buildTextInput(),
+            ),
           ),
         ),
 
