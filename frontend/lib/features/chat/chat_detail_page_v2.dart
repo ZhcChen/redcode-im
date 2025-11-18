@@ -3037,15 +3037,22 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐，按钮始终在底部
+      crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
       children: [
         // 语音按钮
         _buildVoiceButton(),
 
         const SizedBox(width: 8),
 
-        // 文本输入框
-        Expanded(child: _buildTextInput()),
+        // 文本输入框 - 使用Flexible允许高度扩展
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: 120, // 限制最大高度
+            ),
+            child: _buildTextInput(),
+          ),
+        ),
 
         const SizedBox(width: 8),
 
@@ -3066,10 +3073,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildTextInput() {
     return Container(
-      constraints: const BoxConstraints(
-        minHeight: 36, // 与icon按钮保持相同高度
-        maxHeight: 120, // 限制最大高度，约5-6行
-      ),
+      height: double.infinity, // 填充Flexible提供的空间
       decoration: BoxDecoration(
         color: const Color(0x1F2A370D),
         borderRadius: BorderRadius.circular(8),
@@ -3080,7 +3084,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
         minLines: 1,
-        maxLines: null, // 允许无限行，由容器约束控制
+        maxLines: null, // 允许无限行，由外部ConstrainedBox控制
         style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
         decoration: const InputDecoration(
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
