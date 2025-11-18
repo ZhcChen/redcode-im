@@ -60,14 +60,13 @@
 | Linux (x64) | ✅ | ✅ | ❌ |
 | Windows (x64) | ✅ (仅Windows) | ✅ | ❌ |
 
-## CI/CD
+## 构建说明
 
-项目使用GitHub Actions进行多平台自动构建：
+项目支持多平台本地构建：
 
-- **触发条件**：push/PR 到 main/develop 分支
-- **支持平台**：macOS (Intel/ARM64)、Linux x64、Windows x64
-- **产物上传**：自动上传构建产物作为artifacts
-- **工作流文件**：`.github/workflows/build.yml`
+- **macOS**: 支持Intel和ARM64架构
+- **Linux**: 支持x64架构
+- **Windows**: 支持x64架构（需在Windows环境运行）
 
 ## 故障排除
 
