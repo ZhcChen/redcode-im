@@ -727,55 +727,54 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end, // 改为end对齐，让输入框可以扩展
-                children: [
-                  _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Container(
-                      constraints: BoxConstraints(
-                        minHeight: 36, // 确保最小高度与按钮一致
-                        maxHeight: 200.sp, // 只限制最大高度
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐，让输入框可以扩展
+              children: [
+                _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    constraints: BoxConstraints(
+                      minHeight: 36, // 确保最小高度与按钮一致
+                      maxHeight: 200.sp, // 只限制最大高度
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8, // 增加上下内边距
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _inputFocusNode,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.send,
+                      minLines: 1,
+                      maxLines: null, // 允许自动扩展
+                      onSubmitted: (_) => _sendMessage(),
+                      onEditingComplete: () {},
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: AppColors.textPrimary,
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8, // 增加上下内边距
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: TextField(
-                        controller: _textController,
-                        focusNode: _inputFocusNode,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.send,
-                        minLines: 1,
-                        maxLines: null, // 允许自动扩展
-                        onSubmitted: (_) => _sendMessage(),
-                        onEditingComplete: () {},
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: AppColors.textPrimary,
-                        ),
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                          hintText: '发送消息...',
-                          hintStyle: TextStyle(color: AppColors.textTertiary),
-                        ),
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                        hintText: '发送消息...',
+                        hintStyle: TextStyle(color: AppColors.textTertiary),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  _IconButton(
-                    icon: AppAssets.iconEmoji,
-                    isActive: _showEmojiPanel,
-                    onTap: _toggleEmoji,
-                  ),
-                  const SizedBox(width: 4),
+                ),
+                const SizedBox(width: 8),
+                _IconButton(
+                  icon: AppAssets.iconEmoji,
+                  isActive: _showEmojiPanel,
+                  onTap: _toggleEmoji,
+                ),
+                const SizedBox(width: 4),
                   // 使用 Selector 替代 Consumer，只在 isSending 变化时重建，减少键盘动画时的重建
                   Selector<ChatProvider, bool>(
                     selector: (_, provider) => provider.isSending,
@@ -824,7 +823,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   ),
                 ],
               ),
-            ),
           ],
         ),
       ),
