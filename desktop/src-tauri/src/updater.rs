@@ -228,11 +228,10 @@ pub async fn install_update(
             "updater"
         };
 
-        let updater_exe_path = app
-            .path()
-            .resource_dir()
-            .map_err(|e| e.to_string())?
-            .join(updater_name);
+        // 先尝试从当前可执行文件目录查找
+        let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let current_dir = current_exe.parent().ok_or("Cannot get executable directory")?;
+        let updater_exe_path = current_dir.join(updater_name);
 
         if !updater_exe_path.exists() {
             return Err(format!("Updater executable not found: {}", updater_exe_path.display()));

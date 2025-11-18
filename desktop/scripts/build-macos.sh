@@ -40,11 +40,25 @@ fi
 
 # 准备resources目录
 mkdir -p resources
-cp "target/$TARGET/release/updater" resources/
+if [ -f "target/$TARGET/release/updater" ]; then
+    cp "target/$TARGET/release/updater" resources/
+    echo "==> updater二进制已复制到resources目录"
+else
+    echo "[错误] updater二进制编译失败"
+    exit 1
+fi
 cd ..
 
 bunx tauri build --target "$TARGET"
 BUNDLE_ROOT="src-tauri/target/$TARGET/release/bundle"
+
+# 将updater复制到应用包中
+APP_CONTENTS=$(find "$BUNDLE_ROOT" -maxdepth 2 -type d -name "*.app" -exec find {} -type d -name "Contents" \; | head -n 1)
+if [ -n "$APP_CONTENTS" ]; then
+    cp "src-tauri/target/$TARGET/release/updater" "$APP_CONTENTS/MacOS/"
+    echo "==> updater已复制到应用包"
+fi
+
 DMG_FILE=$(find "$BUNDLE_ROOT" -maxdepth 3 -type f -name '*.dmg' | head -n 1)
 if [ -z "$DMG_FILE" ]; then
   echo "[警告] 未找到 DMG 文件，构建可能失败" >&2
