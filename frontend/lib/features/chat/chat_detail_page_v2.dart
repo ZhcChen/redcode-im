@@ -739,31 +739,32 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 4, // 固定的上下内边距，让内容自然居中
+                      vertical: 8, // 增加上下内边距
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: TextField(
-                      controller: _textController,
-                      focusNode: _inputFocusNode,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.send,
-                      minLines: 1,
-                      maxLines: null, // 允许自动扩展
-                      onSubmitted: (_) => _sendMessage(),
-                      onEditingComplete: () {},
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: AppColors.textPrimary,
-                      ),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                        border: InputBorder.none,
-                        hintText: '发送消息...',
-                        hintStyle: TextStyle(color: AppColors.textTertiary),
+                    child: IntrinsicHeight(
+                      child: TextField(
+                        controller: _textController,
+                        focusNode: _inputFocusNode,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.send,
+                        minLines: 1,
+                        maxLines: null, // 允许自动扩展
+                        onSubmitted: (_) => _sendMessage(),
+                        onEditingComplete: () {},
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          hintText: '发送消息...',
+                          hintStyle: TextStyle(color: AppColors.textTertiary),
+                        ),
                       ),
                     ),
                   ),
