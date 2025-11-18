@@ -214,18 +214,36 @@ pub async fn install_update(
     ));
 
     if platform.eq_ignore_ascii_case("windows") {
+        // 记录安装程序路径和文件信息
+        log_message(format!(
+            "[updater] Windows 安装程序路径: {}, 存在: {}",
+            installer_path,
+            Path::new(&installer_path).exists()
+        ));
+
+        // 使用 -WindowStyle Hidden 隐藏PowerShell窗口，避免用户看到终端
+        // 使用双引号包围文件路径以处理包含空格的路径
+        // 如果安装程序需要管理员权限，使用 -Verb RunAs
+        let powershell_command = format!(
+            "Start-Process -FilePath '{}' -Wait -Verb RunAs",
+            &installer_path.replace("'", "''")  // 转义单引号
+        );
+
+        log_message(format!("[updater] 执行PowerShell命令: {}", powershell_command));
+
         Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",
+                "-WindowStyle",
+                "Hidden",  // 隐藏PowerShell窗口
                 "-Command",
-                "Start-Process -FilePath \"$args[0]\" -Wait",
-                &installer_path,
+                &powershell_command,
             ])
             .spawn()
             .map_err(|e| e.to_string())?;
-        log_message("[updater] Windows 安装程序已启动".to_string());
+        log_message("[updater] Windows 安装程序已启动（静默模式）".to_string());
         return Ok(());
     }
 
