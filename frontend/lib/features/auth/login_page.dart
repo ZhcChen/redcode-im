@@ -621,12 +621,13 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (!_agreed) {
+      // 取消所有输入框的焦点，避免弹窗关闭后自动聚焦
+      FocusScope.of(context).unfocus();
       await AgreementTipDialog.show(
         context,
         content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
         onConfirm: () {
           Navigator.of(context).pop();
-          setState(() => _agreed = true);
         },
       );
       return;
