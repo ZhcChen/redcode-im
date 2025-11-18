@@ -83,7 +83,10 @@
         ],
         "displayLanguageSelector": false
       }
-    }
+    },
+    "resources": [
+      "target/release/updater.exe"
+    ]
   },
   "plugins": {
     "fs": {
