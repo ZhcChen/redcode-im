@@ -3076,7 +3076,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         filled: true,
-        fillColor: const Color(0x1F2A370D),
+        fillColor: const Color(0xFFEFEFF0),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
