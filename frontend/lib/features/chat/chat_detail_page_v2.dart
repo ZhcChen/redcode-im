@@ -3037,26 +3037,15 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
+      crossAxisAlignment: CrossAxisAlignment.start, // 顶部对齐，让输入框可以扩展
       children: [
         // 语音按钮
         _buildVoiceButton(),
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 使用Column允许垂直扩展
-        Expanded(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxHeight: 120, // 限制最大高度，避免过度扩展
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [_buildTextInput()],
-            ),
-          ),
-        ),
+        // 文本输入框 - 直接在Expanded中
+        Expanded(child: _buildTextInput()),
 
         const SizedBox(width: 8),
 
