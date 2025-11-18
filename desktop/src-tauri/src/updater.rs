@@ -221,29 +221,32 @@ pub async fn install_update(
             Path::new(&installer_path).exists()
         ));
 
-        // 使用 -WindowStyle Hidden 隐藏PowerShell窗口，避免用户看到终端
-        // 使用双引号包围文件路径以处理包含空格的路径
-        // 如果安装程序需要管理员权限，使用 -Verb RunAs
-        let powershell_command = format!(
-            "Start-Process -FilePath '{}' -Wait -Verb RunAs",
-            &installer_path.replace("'", "''")  // 转义单引号
-        );
+        // 获取更新器路径 (根据平台选择正确的文件名)
+        let updater_name = if cfg!(target_os = "windows") {
+            "updater.exe"
+        } else {
+            "updater"
+        };
 
-        log_message(format!("[updater] 执行PowerShell命令: {}", powershell_command));
+        let updater_exe_path = app
+            .path()
+            .resource_dir()
+            .map_err(|e| e.to_string())?
+            .join(updater_name);
 
-        Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-WindowStyle",
-                "Hidden",  // 隐藏PowerShell窗口
-                "-Command",
-                &powershell_command,
-            ])
+        if !updater_exe_path.exists() {
+            return Err(format!("Updater executable not found: {}", updater_exe_path.display()));
+        }
+
+        log_message(format!("[updater] 启动更新器: {}", updater_exe_path.display()));
+
+        // 启动更新器GUI程序，传递安装程序路径作为参数
+        Command::new(&updater_exe_path)
+            .arg(&installer_path)
             .spawn()
-            .map_err(|e| e.to_string())?;
-        log_message("[updater] Windows 安装程序已启动（静默模式）".to_string());
+            .map_err(|e| format!("Failed to start updater: {}", e))?;
+
+        log_message("[updater] 更新器GUI已启动".to_string());
         return Ok(());
     }
 

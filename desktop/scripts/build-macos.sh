@@ -27,6 +27,22 @@ export VITE_APP_CHANNEL="$CHANNEL"
 export VITE_APP_VERSION="$VERSION"
 export VITE_APP_BUILD="$BUILD"
 BINARY_NAME=$(node -p "require('./src-tauri/tauri.conf.json').productName" 2>/dev/null || echo "Chatly")
+
+# 检查并准备updater二进制
+echo "==> 准备updater二进制"
+cd src-tauri
+if [ ! -f "target/$TARGET/release/updater" ]; then
+    echo "==> 编译updater二进制"
+    cargo build --release --bin updater --target "$TARGET"
+else
+    echo "==> 使用已存在的updater二进制"
+fi
+
+# 准备resources目录
+mkdir -p resources
+cp "target/$TARGET/release/updater" resources/
+cd ..
+
 bunx tauri build --target "$TARGET"
 BUNDLE_ROOT="src-tauri/target/$TARGET/release/bundle"
 DMG_FILE=$(find "$BUNDLE_ROOT" -maxdepth 3 -type f -name '*.dmg' | head -n 1)

@@ -85,7 +85,8 @@
       }
     },
     "resources": [
-      "target/release/updater.exe"
+      "resources/updater",
+      "resources/updater.exe"
     ]
   },
   "plugins": {
