@@ -3044,10 +3044,10 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 使用SizedBox提供最小高度
+        // 文本输入框 - 回到固定高度方案
         Expanded(
           child: SizedBox(
-            height: double.infinity, // 允许无限高度
+            height: 36, // 固定高度，与按钮对齐
             child: _buildTextInput(),
           ),
         ),
