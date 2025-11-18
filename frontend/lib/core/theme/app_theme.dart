@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../constants/app_colors.dart';
 
@@ -31,6 +32,10 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 24,
           vertical: 16,
+        ),
+        constraints: BoxConstraints(
+          minHeight: 44.h,
+          maxHeight: 44.h,
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(

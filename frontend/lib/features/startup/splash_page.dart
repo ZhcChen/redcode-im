@@ -124,7 +124,7 @@ class _SplashPageState extends State<SplashPage> {
     _navigated = true;
     Navigator.of(
       context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
+    ).pushReplacement(MaterialPageRoute(builder: (_) => LoginPage(appName: _appName)));
   }
 
   Future<bool> _ensureAppUpToDate() async {

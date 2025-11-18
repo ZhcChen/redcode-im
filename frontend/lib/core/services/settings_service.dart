@@ -64,12 +64,12 @@ class SettingsService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        return (data['app_name'] as String?) ?? 'Redcode IM';
+        return (data['app_name'] as String?) ?? '';
       }
     } catch (_) {
       // 静默失败，返回默认值
     }
-    return 'Redcode IM';
+    return '';
   }
 
   /// 获取用户协议（公开 API，无需 token）

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'core/constants/app_config.dart';
 import 'core/services/settings_service.dart';
@@ -52,12 +53,17 @@ class _RedcodeAppState extends State<RedcodeApp> {
 
     return DefaultAssetBundle(
       bundle: bundle,
-      child: MaterialApp(
-        title: _appName,
-        theme: AppTheme.light,
-        debugShowCheckedModeBanner: false,
-        scrollBehavior: const NoStretchScrollBehavior(),
-        home: const SplashPage(),
+      child: ScreenUtilInit(
+        designSize: const Size(375, 812), // 基于 iPhone X 设计稿
+        minTextAdapt: true,
+        splitScreenMode: true,
+        builder: (context, child) => MaterialApp(
+          title: _appName,
+          theme: AppTheme.light,
+          debugShowCheckedModeBanner: false,
+          scrollBehavior: const NoStretchScrollBehavior(),
+          home: const SplashPage(),
+        ),
       ),
     );
   }

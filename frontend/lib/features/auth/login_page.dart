@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_assets.dart';
@@ -16,7 +17,9 @@ import 'data/auth_repository.dart';
 enum LoginType { password, sms, register }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.appName = ''});
+
+  final String appName;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -110,42 +113,42 @@ class _LoginPageState extends State<LoginPage> {
             SingleChildScrollView(
               padding: EdgeInsets.only(
                 top: MediaQuery.of(context).padding.top,
-                bottom: 32,
+                bottom: 32.h,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 48),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
+                  SizedBox(height: 48.h),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24.w),
                     child: Text(
                       '你好！',
                       style: TextStyle(
-                        fontSize: 32,
+                        fontSize: 32.sp,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textBlack,
                       ),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                    padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          '欢迎来到 Redcode IM',
+                        Text(
+                          widget.appName.isNotEmpty ? '欢迎来到 ${widget.appName}' : '欢迎',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 16.sp,
                             color: AppColors.textBlack,
                           ),
                         ),
-                        SvgPicture.asset(AppAssets.loginTitle, height: 24),
+                        SvgPicture.asset(AppAssets.loginTitle, height: 24.h),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32.h),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
                     child: _buildLoginCard(context),
                   ),
                 ],
@@ -166,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLoginCard(BuildContext context) {
-    final borderRadius = BorderRadius.circular(28);
+    final borderRadius = BorderRadius.circular(28.r);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
@@ -185,16 +188,16 @@ class _LoginPageState extends State<LoginPage> {
           _buildTypeSelector(borderRadius),
           Padding(
             padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: _type == LoginType.register ? 32 : 48,
-              bottom: 32,
+              left: 24.w,
+              right: 24.w,
+              top: _type == LoginType.register ? 24.h : 40.h,
+              bottom: 32.h,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildLabel('手机号'),
-                const SizedBox(height: 12),
+                SizedBox(height: 12.h),
                 _buildField(
                   controller: _mobileCtrl,
                   hint: '请输入手机号',
@@ -202,9 +205,9 @@ class _LoginPageState extends State<LoginPage> {
                   enabled: !_loading,
                 ),
                 if (_type == LoginType.password) ...[
-                  const SizedBox(height: 32),
+                  SizedBox(height: 24.h),
                   _buildLabel('密码'),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _buildField(
                     controller: _passwordCtrl,
                     hint: '请输入登录密码',
@@ -216,9 +219,9 @@ class _LoginPageState extends State<LoginPage> {
                 if ((_type == LoginType.password && _requireCaptchaForLogin) ||
                     (_type == LoginType.register && _requireCaptchaForLogin) ||
                     _type == LoginType.sms) ...[
-                  const SizedBox(height: 32),
+                  SizedBox(height: 24.h),
                   _buildLabel('验证码'),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _buildField(
                     controller: _smsCtrl,
                     hint: '请输入验证码',
@@ -228,9 +231,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ],
                 if (_type == LoginType.register) ...[
-                  const SizedBox(height: 32),
+                  SizedBox(height: 24.h),
                   _buildLabel('设置密码'),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _buildField(
                     controller: _passwordCtrl,
                     hint: '请设置您的登陆密码',
@@ -238,22 +241,25 @@ class _LoginPageState extends State<LoginPage> {
                     enabled: !_loading,
                   ),
                 ],
-                const SizedBox(height: 40),
+                SizedBox(height: 24.h),
                 ElevatedButton(
                   onPressed: _loading ? null : _submit,
-                  child: Text(_submitText),
+                  child: Text(
+                    _submitText,
+                    style: TextStyle(fontSize: 14.sp),
+                  ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24.h),
                 _buildAgreeRow(),
-                const SizedBox(height: 48),
+                SizedBox(height: 48.h),
                 _buildSwitchRow(),
                 if (_type != LoginType.register) ...[
-                  const SizedBox(height: 24),
-                  const Center(
+                  SizedBox(height: 12.h),
+                  Center(
                     child: Text(
                       '忘记密码',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 14.sp,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -275,6 +281,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       child: Container(
         color: const Color(0xFFF3F7F8),
+        height: 72.h,
         child: Row(
           children: _type == LoginType.register
               ? [_buildTypeButton(LoginType.register, '注册')]
@@ -293,15 +300,15 @@ class _LoginPageState extends State<LoginPage> {
     final isActive = _type == type;
     final isLeft = type == LoginType.password || type == LoginType.register;
     final radius = BorderRadius.only(
-      topLeft: Radius.circular(isLeft ? 28 : 0),
-      topRight: Radius.circular(isLeft ? 0 : 28),
+      topLeft: Radius.circular(isLeft ? 28.r : 0),
+      topRight: Radius.circular(isLeft ? 0 : 28.r),
     );
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _type = type),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          height: 72,
+          height: 72.h,
           decoration: BoxDecoration(
             color: isActive
                 ? Colors.white
@@ -315,19 +322,19 @@ class _LoginPageState extends State<LoginPage> {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14.sp,
                   color: AppColors.textBlack,
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
-                height: 4,
-                width: isActive ? 32 : 0,
+                height: 4.h,
+                width: isActive ? 32.w : 0,
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
             ],
@@ -350,8 +357,16 @@ class _LoginPageState extends State<LoginPage> {
       obscureText: obscureText,
       keyboardType: keyboardType,
       enabled: enabled,
+      style: TextStyle(
+        fontSize: 14.sp,
+        color: AppColors.textPrimary,
+      ),
       decoration: InputDecoration(
         hintText: hint,
+        hintStyle: TextStyle(
+          fontSize: 14.sp,
+          color: AppColors.textSecondary,
+        ),
         suffixIcon: suffix != null
             ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
             : null,
@@ -367,20 +382,20 @@ class _LoginPageState extends State<LoginPage> {
       onPressed: disabled ? null : _requestSmsCode,
       style: TextButton.styleFrom(
         backgroundColor: const Color(0xFFDDDDDD),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         minimumSize: const Size(0, 0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
       ),
       child: _sendingCode
-          ? const SizedBox(
-              height: 16,
-              width: 16,
+          ? SizedBox(
+              height: 16.h,
+              width: 16.w,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : Text(
               label,
-              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              style: TextStyle(fontSize: 13.sp, color: Colors.black87),
             ),
     );
   }
@@ -432,12 +447,15 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 16,
-        color: AppColors.textBlack,
-        fontWeight: FontWeight.w500,
+    return Padding(
+      padding: EdgeInsets.only(left: 12.sp),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14.sp,
+          color: AppColors.textBlack,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -447,27 +465,28 @@ class _LoginPageState extends State<LoginPage> {
       onTap: () => setState(() => _agreed = !_agreed),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 20,
-            height: 20,
+            width: 14.sp,
+            height: 14.sp,
             child: _agreed
                 ? SvgPicture.asset(
                     AppAssets.loginCheckboxSelected,
-                    width: 20,
-                    height: 20,
+                    width: 14.sp,
+                    height: 14.sp,
                   )
                 : Container(
-                    width: 20,
-                    height: 20,
+                    width: 14.sp,
+                    height: 14.sp,
                     decoration: const BoxDecoration(
                       color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: Container(
-                      height: 16,
-                      width: 16,
+                      height: 12.sp,
+                      width: 12.sp,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
@@ -475,12 +494,12 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           Flexible(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(
-                  fontSize: 12,
+                style: TextStyle(
+                  fontSize: 11.sp,
                   color: AppColors.textTertiary,
                 ),
                 children: [
@@ -524,17 +543,17 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         Text(
           isRegister ? '已有账号' : '新用户',
-          style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 14.sp, color: AppColors.textSecondary),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4.w),
         GestureDetector(
           onTap: () => setState(() {
             _type = isRegister ? LoginType.password : LoginType.register;
           }),
           child: Text(
             isRegister ? '立即登录' : '立即注册',
-            style: const TextStyle(
-              fontSize: 15,
+            style: TextStyle(
+              fontSize: 14.sp,
               color: AppColors.primary,
               fontWeight: FontWeight.w600,
             ),

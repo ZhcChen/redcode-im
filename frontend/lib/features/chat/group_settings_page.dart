@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/custom_switch.dart';
@@ -218,8 +219,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             child: avatarUrl?.isNotEmpty != true
                 ? Text(
                     firstLetter,
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: TextStyle(
+                      fontSize: 16.sp,
                       fontWeight: FontWeight.w500,
                       color: AppColors.primary,
                     ),
@@ -390,9 +391,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 '清空聊天记录',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w500),
               ),
             ),
           ),
@@ -418,8 +419,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
               ),
               child: Text(
                 isGroupOwner ? '解散群组' : '退出群聊',
-                style: const TextStyle(
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -566,7 +567,7 @@ class _SwitchTile extends StatelessWidget {
                   label,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textPrimary,
-                    fontSize: 15,
+                    fontSize: 15.sp,
                   ),
                 ),
               ),
@@ -611,7 +612,7 @@ class _SettingTile extends StatelessWidget {
                     label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textPrimary,
-                      fontSize: 15,
+                      fontSize: 15.sp,
                     ),
                   ),
                 ),
@@ -628,7 +629,7 @@ class _SettingTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppColors.textSecondary,
-                          fontSize: 14,
+                          fontSize: 14.sp,
                         ),
                       ),
                     ),
@@ -642,7 +643,7 @@ class _SettingTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.textSecondary,
-                        fontSize: 14,
+                        fontSize: 14.sp,
                       ),
                     ),
                   ),
