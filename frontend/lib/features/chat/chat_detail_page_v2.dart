@@ -3045,9 +3045,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         const SizedBox(width: 8),
 
         // 文本输入框
-        Expanded(
-          child: _buildTextInput(),
-        ),
+        Expanded(child: _buildTextInput()),
 
         const SizedBox(width: 8),
 
@@ -3063,10 +3061,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   }
 
   Widget _buildVoiceButton() {
-    return _IconButton(
-      icon: AppAssets.iconVoice,
-      onTap: widget.onToggleVoice,
-    );
+    return _IconButton(icon: AppAssets.iconVoice, onTap: widget.onToggleVoice);
   }
 
   Widget _buildTextInput() {
@@ -3075,7 +3070,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         minHeight: 36, // 确保最小高度与按钮一致
         maxHeight: 200.sp, // 只限制最大高度
       ),
-      padding: const EdgeInsets.only(left: 12, right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
@@ -3087,14 +3082,17 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         textInputAction: TextInputAction.send,
         minLines: 1,
         maxLines: null, // 允许自动扩展
+        textAlignVertical: TextAlignVertical.center, // 垂直居中对齐
         onSubmitted: (_) => widget.onSendMessage(),
         onEditingComplete: () {},
         style: const TextStyle(
           fontSize: 15,
           color: AppColors.textPrimary,
+          height: 1.4, // 设置行高，改善多行显示
         ),
         decoration: const InputDecoration(
-          contentPadding: EdgeInsets.symmetric(vertical: 4),
+          contentPadding: EdgeInsets.zero, // 移除内边距，由外层 Container 控制
+          isDense: true, // 紧凑模式
           border: InputBorder.none,
           hintText: '发送消息...',
           hintStyle: TextStyle(color: AppColors.textTertiary),
@@ -3146,11 +3144,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
-              : const Icon(
-                  Icons.send_rounded,
-                  size: 20,
-                  color: Colors.white,
-                ),
+              : const Icon(Icons.send_rounded, size: 20, color: Colors.white),
         ),
       ),
     );
