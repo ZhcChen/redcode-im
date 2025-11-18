@@ -738,7 +738,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 8, // 固定的上下内边距，让内容自然居中
+                      vertical: 4, // 固定的上下内边距，让内容自然居中
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.background,
@@ -758,7 +758,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                         color: AppColors.textPrimary,
                       ),
                       decoration: const InputDecoration(
-                        contentPadding: EdgeInsets.zero, // 不需要额外的内边距
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 4,
+                        ), // 对称的小内边距
                         border: InputBorder.none,
                         hintText: '发送消息...',
                         hintStyle: TextStyle(color: AppColors.textTertiary),
