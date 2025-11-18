@@ -3044,16 +3044,14 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 使用Flexible允许高度扩展
-        Flexible(
+        // 文本输入框 - 使用IntrinsicHeight确保根据内容调整高度
+        IntrinsicHeight(
           child: ConstrainedBox(
             constraints: const BoxConstraints(
+              minHeight: 36, // 最小高度与icon按钮一致
               maxHeight: 120, // 限制最大高度
             ),
-            child: Container(
-              height: double.infinity, // 确保填充可用空间
-              child: _buildTextInput(),
-            ),
+            child: _buildTextInput(),
           ),
         ),
 
