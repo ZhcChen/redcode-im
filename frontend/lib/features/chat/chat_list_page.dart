@@ -308,6 +308,7 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const Icon(
                         Icons.search,
@@ -331,7 +332,7 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
                             ),
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding: EdgeInsets.zero,
+                            contentPadding: EdgeInsets.symmetric(vertical: 13),
                           ),
                         ),
                       ),
