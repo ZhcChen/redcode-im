@@ -1,6 +1,23 @@
 #!/bin/bash
 # 用法: ./scripts/build-windows.sh [channel]
 set -euo pipefail
+
+# 检查是否在macOS上运行（不支持交叉编译Windows）
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "[错误] macOS不支持直接交叉编译Windows目标"
+    echo ""
+    echo "解决方案："
+    echo "1. 在Windows机器上运行此脚本"
+    echo "2. 使用GitHub Actions等CI/CD系统"
+    echo "3. 使用Docker容器进行交叉编译"
+    echo ""
+    echo "推荐方案：在GitHub Actions中添加Windows构建："
+    echo "- name: Build Windows"
+    echo "  run: ./scripts/build-windows.sh stable-windows"
+    echo "  if: matrix.os == 'windows-latest'"
+    exit 1
+fi
+
 CHANNEL=${1:-${VITE_APP_CHANNEL:-stable-windows}}
 VERSION=${VITE_APP_VERSION:-${APP_VERSION:-"1.0.0"}}
 BUILD=${VITE_APP_BUILD:-${APP_BUILD:-"100"}}
