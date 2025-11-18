@@ -570,6 +570,9 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    // 确保所有输入框失去焦点
+    FocusScope.of(context).unfocus();
+
     if (AppConfig.useMockData) {
       final phone = _mobileCtrl.text.trim().isEmpty
           ? '13800138000'
