@@ -3067,34 +3067,29 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   Widget _buildTextInput() {
     return Container(
       constraints: BoxConstraints(
-        maxHeight: 200.sp, // 只限制最大高度，允许自由扩展
+        minHeight: 36, // 最小高度与按钮一致
+        maxHeight: 120, // 限制最大高度，约5-6行
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline, // 多行模式，回车换行
-        minLines: 1,
-        maxLines: null, // 允许自动扩展
-        textAlignVertical: TextAlignVertical.center, // 单行时垂直居中
-        onSubmitted: (_) => widget.onSendMessage(),
-        onEditingComplete: () {},
-        style: const TextStyle(
-          fontSize: 15,
-          color: AppColors.textPrimary,
-          height: 1.4, // 设置行高，改善多行显示
-        ),
-        decoration: const InputDecoration(
-          contentPadding: EdgeInsets.zero, // 移除内边距，由外层 Container 控制
-          isDense: true, // 紧凑模式
-          border: InputBorder.none,
-          hintText: '发送消息...',
-          hintStyle: TextStyle(color: AppColors.textTertiary),
+      child: Align(
+        alignment: Alignment.center, // 整体内容垂直居中
+        child: TextField(
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline, // 多行模式，回车换行
+          minLines: 1,
+          maxLines: 6, // 明确设置最大行数
+          style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            border: InputBorder.none,
+            hintText: '发送消息...',
+            hintStyle: TextStyle(color: AppColors.textTertiary),
+          ),
         ),
       ),
     );
