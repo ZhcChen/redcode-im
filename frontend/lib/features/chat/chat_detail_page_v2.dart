@@ -3036,29 +3036,38 @@ class ChatInputWidget extends StatefulWidget {
 class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
-        children: [
-          // 语音按钮
-          _buildVoiceButton(),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
+      children: [
+        // 语音按钮
+        _buildVoiceButton(),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 8),
 
-          // 文本输入框 - 移除固定高度限制
-          Expanded(child: _buildTextInput()),
+        // 文本输入框 - 使用Column允许垂直扩展
+        Expanded(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: 120, // 限制最大高度，避免过度扩展
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [_buildTextInput()],
+            ),
+          ),
+        ),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 8),
 
-          // 表情按钮
-          _buildEmojiButton(),
+        // 表情按钮
+        _buildEmojiButton(),
 
-          const SizedBox(width: 4),
+        const SizedBox(width: 4),
 
-          // 发送/更多按钮
-          _buildSendOrMoreButton(),
-        ],
-      ),
+        // 发送/更多按钮
+        _buildSendOrMoreButton(),
+      ],
     );
   }
 
@@ -3073,7 +3082,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
       minLines: 1,
-      maxLines: 4, // 允许最多4行文本显示
+      maxLines: null, // 允许无限行，根据内容自动扩展
       style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
