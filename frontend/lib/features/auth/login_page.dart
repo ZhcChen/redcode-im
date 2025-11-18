@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
@@ -54,6 +55,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
     _loadCaptchaSetting();
+    _loadAgreementState();
   }
 
   Future<void> _loadCaptchaSetting() async {
@@ -66,6 +68,29 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (_) {
       // 静默失败，使用默认值 false
+    }
+  }
+
+  Future<void> _loadAgreementState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final agreed = prefs.getBool('user_agreed_to_terms') ?? false;
+      if (mounted) {
+        setState(() {
+          _agreed = agreed;
+        });
+      }
+    } catch (_) {
+      // 静默失败，使用默认值 false
+    }
+  }
+
+  Future<void> _saveAgreementState(bool agreed) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('user_agreed_to_terms', agreed);
+    } catch (_) {
+      // 静默失败
     }
   }
 
@@ -462,7 +487,11 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildAgreeRow() {
     return GestureDetector(
-      onTap: () => setState(() => _agreed = !_agreed),
+      onTap: () {
+        final newAgreed = !_agreed;
+        setState(() => _agreed = newAgreed);
+        _saveAgreementState(newAgreed);
+      },
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
