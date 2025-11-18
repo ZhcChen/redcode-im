@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -24,7 +25,9 @@ import 'privacy_policy_page.dart';
 import 'widgets/confirm_action_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.appName = ''});
+
+  final String appName;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -462,10 +465,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '应用版本',
+                      Text(
+                        widget.appName.isNotEmpty ? widget.appName : '应用版本',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 16.0.sp,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                         ),

@@ -115,7 +115,7 @@ class _SplashPageState extends State<SplashPage> {
     _navigated = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(child: const HomeShellPage()),
+        builder: (_) => AuthGuard(childBuilder: (appName) => HomeShellPage(appName: appName)),
       ),
     );
   }

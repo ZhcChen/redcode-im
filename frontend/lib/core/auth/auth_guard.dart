@@ -5,12 +5,13 @@ import '../../features/auth/login_page.dart';
 import '../services/websocket_service.dart';
 import '../services/message_service.dart';
 import '../services/friend_store.dart';
+import '../services/settings_service.dart';
 
 /// 认证守卫组件，确保用户已登录
 class AuthGuard extends StatefulWidget {
-  final Widget child;
+  final Widget Function(String appName) childBuilder;
 
-  const AuthGuard({super.key, required this.child});
+  const AuthGuard({super.key, required this.childBuilder});
 
   @override
   State<AuthGuard> createState() => _AuthGuardState();
@@ -18,11 +19,14 @@ class AuthGuard extends StatefulWidget {
 
 class _AuthGuardState extends State<AuthGuard> {
   final AuthRepository _authRepository = AuthRepository();
+  final SettingsService _settingsService = SettingsService();
   StreamSubscription<AuthState>? _authSubscription;
+  String _appName = '';
 
   @override
   void initState() {
     super.initState();
+    _loadAppName();
     // 监听认证状态变化
     _authSubscription = _authRepository.authStateStream.listen((state) {
       if (state == AuthState.unauthenticated && mounted) {
@@ -37,6 +41,19 @@ class _AuthGuardState extends State<AuthGuard> {
 
     // 检查当前认证状态
     _checkAuthStatus();
+  }
+
+  Future<void> _loadAppName() async {
+    try {
+      final appName = await _settingsService.fetchAppName();
+      if (mounted) {
+        setState(() {
+          _appName = appName;
+        });
+      }
+    } catch (_) {
+      // 静默失败，使用默认值
+    }
   }
 
   Future<void> _checkAuthStatus() async {
@@ -85,6 +102,6 @@ class _AuthGuardState extends State<AuthGuard> {
 
   @override
   Widget build(BuildContext context) {
-    return widget.child;
+    return widget.childBuilder(_appName);
   }
 }

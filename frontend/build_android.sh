@@ -26,11 +26,15 @@ show_menu() {
 # 构建 APK
 build_apk() {
     echo -e "${GREEN}🚀 开始构建 Android APK...${NC}"
-    
+
+    # 更新应用名称
+    echo -e "${YELLOW}🏷️ 更新应用名称...${NC}"
+    ./update_app_name.sh
+
     # 清理之前的构建
     echo -e "${YELLOW}🧹 清理之前的构建文件...${NC}"
     flutter clean
-    
+
     # 获取依赖
     echo -e "${YELLOW}📦 获取 Flutter 依赖...${NC}"
     flutter pub get
@@ -59,11 +63,15 @@ build_apk() {
 # 构建 AAB
 build_aab() {
     echo -e "${GREEN}🚀 开始构建 Android AAB...${NC}"
-    
+
+    # 更新应用名称
+    echo -e "${YELLOW}🏷️ 更新应用名称...${NC}"
+    ./update_app_name.sh
+
     # 清理之前的构建
     echo -e "${YELLOW}🧹 清理之前的构建文件...${NC}"
     flutter clean
-    
+
     # 获取依赖
     echo -e "${YELLOW}📦 获取 Flutter 依赖...${NC}"
     flutter pub get
