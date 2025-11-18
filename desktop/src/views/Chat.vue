@@ -6644,7 +6644,7 @@ const loadMessageList = async (groupId: string) => {
   flex-shrink: 0;
   
   .header-left {
-    min-width: 300px;
+    min-width: 240px; /* 与chat-list保持一致的最小宽度 */
     max-width: 70vw;
     display: flex;
     align-items: center;
@@ -6744,7 +6744,7 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .chat-list {
-  min-width: 300px;
+  min-width: 240px; /* 降低最小宽度，给聊天窗口更多响应空间 */
   max-width: 70vw;
   overflow-y: auto;
   flex-shrink: 0;
@@ -7278,14 +7278,16 @@ const loadMessageList = async (groupId: string) => {
 .message:not(.own-message) .message-wrapper {
   display: flex;
   flex-direction: column;
-  max-width: 60%;
+  max-width: 40vw; /* 使用视口宽度单位，更好地响应窗口大小变化 */
+  min-width: 200px; /* 设置最小宽度，避免过窄 */
 }
 
 // 对于自己的消息，也使用flex布局
 .message.own-message {
   .message-content {
     display: inline-block;
-    max-width: 60%; /* 与对方消息宽度保持一致 */
+    max-width: 40vw; /* 使用视口宽度单位，与对方消息保持一致 */
+    min-width: 200px; /* 设置最小宽度，避免过窄 */
   }
 }
 
