@@ -9,6 +9,7 @@ import { toast } from './utils/toast'
 import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
 import { initializeDownloadDir } from './utils/download-settings'
+import { NotificationApi } from './api/notification'
 import LoadingMask from './components/LoadingMask.vue'
 import AccountTabs from './components/AccountTabs.vue'
 import AccountHome from './components/AccountHome.vue'
@@ -598,6 +599,12 @@ function handleChatMessage(detail: any) {
   const payload = detail?.message ?? detail
   // 这里可以更新聊天界面，播放提示音等
   triggerCrossAccountUnreadRefresh('ws-chat-message')
+
+  // 播放新消息通知（仅当不是自己发送的消息时）
+  const currentUserId = user.value?.id
+  if (payload?.sender_id && payload.sender_id !== currentUserId) {
+    NotificationApi.showNewMessageNotification()
+  }
 }
 
 function handleAIMessage(detail: any) {
@@ -609,6 +616,9 @@ function handleFriendChange(detail: any) {
   // 收到好友申请相关消息后，重新获取数量
   store.dispatch('updatePendingFriendRequests');
   triggerCrossAccountUnreadRefresh('friend-change')
+
+  // 播放新好友请求通知
+  NotificationApi.showNewMessageNotification()
 }
 
 function handleDeleteFriend(detail: any) {

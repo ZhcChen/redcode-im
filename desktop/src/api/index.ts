@@ -31,6 +31,9 @@ export * from './version';
 export { SettingsApi } from './settings';
 export type { DocumentContent } from './settings';
 
+// 导出通知相关 API
+export { NotificationApi } from './notification';
+
 // 统一的 API 对象，方便使用
 import { SystemApi } from './system';
 import { UserApi } from './user';
@@ -41,6 +44,7 @@ import { FileApi } from './file';
 import { VersionApi } from './version';
 import { SettingsApi } from './settings';
 import { EmojiPackApi } from './emoji-pack';
+import { NotificationApi } from './notification';
 
 /**
  * 统一的 API 接口对象
@@ -74,7 +78,10 @@ export const api = {
   settings: SettingsApi,
 
   // 表情包相关接口
-  emojiPack: EmojiPackApi
+  emojiPack: EmojiPackApi,
+
+  // 通知相关接口
+  notification: NotificationApi
 };
 
 // 默认导出

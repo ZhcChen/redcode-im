@@ -6,6 +6,7 @@ mod cache;
 mod http;
 mod logger;
 mod message_search;
+mod notification;
 mod path_utils;
 mod updater;
 mod websocket;
@@ -15,6 +16,7 @@ use account::AccountManager;
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
+use notification::commands::*;
 use path_utils::*;
 use updater::{download_update, install_update};
 use websocket::commands::*;
@@ -182,6 +184,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_notification::init())
         // 注册状态
         .manage(http_client_state)
         .manage(ws_manager)
@@ -252,7 +255,10 @@ pub fn run() {
             ws_leave_room,
             ws_join_rooms,
             ws_get_status,
-            ws_get_subscribed_rooms
+            ws_get_subscribed_rooms,
+            // 通知相关命令
+            play_notification_sound,
+            request_attention
         ])
         .setup(|app| {
             let log_path = logger::init_logger(&app.handle())
