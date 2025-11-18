@@ -3056,32 +3056,29 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // 使用 IntrinsicHeight 确保 Row 能够根据子组件的高度正确布局
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start, // 顶部对齐，让输入框可以扩展
-        children: [
-          // 语音按钮
-          _buildVoiceButton(),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start, // 顶部对齐，让输入框可以扩展
+      children: [
+        // 语音按钮
+        _buildVoiceButton(),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 8),
 
           // 文本输入框 - 支持自动扩展高度，最多显示 6 行
           Expanded(
             child: _buildTextInput(),
           ),
 
-          const SizedBox(width: 8),
+        const SizedBox(width: 8),
 
-          // 表情按钮
-          _buildEmojiButton(),
+        // 表情按钮
+        _buildEmojiButton(),
 
-          const SizedBox(width: 4),
+        const SizedBox(width: 4),
 
-          // 发送/更多按钮
-          _buildSendOrMoreButton(),
-        ],
-      ),
+        // 发送/更多按钮
+        _buildSendOrMoreButton(),
+      ],
     );
   }
 
