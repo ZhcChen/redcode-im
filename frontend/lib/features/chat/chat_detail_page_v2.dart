@@ -727,99 +727,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐，让输入框可以扩展
-              children: [
-                _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    constraints: BoxConstraints(
-                      minHeight: 36, // 确保最小高度与按钮一致
-                      maxHeight: 200.sp, // 只限制最大高度
-                    ),
-                    padding: const EdgeInsets.only(left: 12, right: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: TextField(
-                      controller: _textController,
-                      focusNode: _inputFocusNode,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.send,
-                      minLines: 1,
-                      maxLines: null, // 允许自动扩展
-                      onSubmitted: (_) => _sendMessage(),
-                      onEditingComplete: () {},
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: AppColors.textPrimary,
-                      ),
-                      decoration: const InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(vertical: 4),
-                        border: InputBorder.none,
-                        hintText: '发送消息...',
-                        hintStyle: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _IconButton(
-                  icon: AppAssets.iconEmoji,
-                  isActive: _showEmojiPanel,
-                  onTap: _toggleEmoji,
-                ),
-                const SizedBox(width: 4),
-                  // 使用 Selector 替代 Consumer，只在 isSending 变化时重建，减少键盘动画时的重建
-                  Selector<ChatProvider, bool>(
-                    selector: (_, provider) => provider.isSending,
-                    builder: (context, isSending, child) {
-                      final hasText = _textController.text.trim().isNotEmpty;
-
-                      if (hasText) {
-                        return Material(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(18),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: isSending ? null : _sendMessage,
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              alignment: Alignment.center,
-                              child: isSending
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.send_rounded,
-                                      size: 20,
-                                      color: Colors.white,
-                                    ),
-                            ),
-                          ),
-                        );
-                      }
-
-                      return _IconButton(
-                        icon: AppAssets.iconAdd,
-                        isActive: _showMorePanel,
-                        onTap: _toggleMore,
-                      );
-                    },
-                  ),
-                ],
-              ),
+            ChatInputWidget(
+              controller: _textController,
+              focusNode: _inputFocusNode,
+              onSendMessage: _sendMessage,
+              onToggleVoice: _toggleVoice,
+              onToggleEmoji: _toggleEmoji,
+              onToggleMore: _toggleMore,
+              showEmojiPanel: _showEmojiPanel,
+              showMorePanel: _showMorePanel,
+            ),
           ],
         ),
       ),
@@ -3086,6 +3003,165 @@ class _ReadReceiptsSheetState extends State<_ReadReceiptsSheet> {
     final month = time.month.toString().padLeft(2, '0');
     final day = time.day.toString().padLeft(2, '0');
     return '$month-$day $hh:$mm';
+  }
+}
+
+/// 聊天输入框组件
+class ChatInputWidget extends StatefulWidget {
+  const ChatInputWidget({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.onSendMessage,
+    required this.onToggleVoice,
+    required this.onToggleEmoji,
+    required this.onToggleMore,
+    required this.showEmojiPanel,
+    required this.showMorePanel,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onSendMessage;
+  final VoidCallback onToggleVoice;
+  final VoidCallback onToggleEmoji;
+  final VoidCallback onToggleMore;
+  final bool showEmojiPanel;
+  final bool showMorePanel;
+
+  @override
+  State<ChatInputWidget> createState() => _ChatInputWidgetState();
+}
+
+class _ChatInputWidgetState extends State<ChatInputWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // 语音按钮
+        _buildVoiceButton(),
+
+        const SizedBox(width: 8),
+
+        // 文本输入框
+        Expanded(
+          child: _buildTextInput(),
+        ),
+
+        const SizedBox(width: 8),
+
+        // 表情按钮
+        _buildEmojiButton(),
+
+        const SizedBox(width: 4),
+
+        // 发送/更多按钮
+        _buildSendOrMoreButton(),
+      ],
+    );
+  }
+
+  Widget _buildVoiceButton() {
+    return _IconButton(
+      icon: AppAssets.iconVoice,
+      onTap: widget.onToggleVoice,
+    );
+  }
+
+  Widget _buildTextInput() {
+    return Container(
+      constraints: BoxConstraints(
+        minHeight: 36, // 确保最小高度与按钮一致
+        maxHeight: 200.sp, // 只限制最大高度
+      ),
+      padding: const EdgeInsets.only(left: 12, right: 12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: TextField(
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.send,
+        minLines: 1,
+        maxLines: null, // 允许自动扩展
+        onSubmitted: (_) => widget.onSendMessage(),
+        onEditingComplete: () {},
+        style: const TextStyle(
+          fontSize: 15,
+          color: AppColors.textPrimary,
+        ),
+        decoration: const InputDecoration(
+          contentPadding: EdgeInsets.symmetric(vertical: 4),
+          border: InputBorder.none,
+          hintText: '发送消息...',
+          hintStyle: TextStyle(color: AppColors.textTertiary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmojiButton() {
+    return _IconButton(
+      icon: AppAssets.iconEmoji,
+      isActive: widget.showEmojiPanel,
+      onTap: widget.onToggleEmoji,
+    );
+  }
+
+  Widget _buildSendOrMoreButton() {
+    return Selector<ChatProvider, bool>(
+      selector: (_, provider) => provider.isSending,
+      builder: (context, isSending, child) {
+        final hasText = widget.controller.text.trim().isNotEmpty;
+
+        if (hasText) {
+          return _buildSendButton(isSending);
+        }
+
+        return _buildMoreButton();
+      },
+    );
+  }
+
+  Widget _buildSendButton(bool isSending) {
+    return Material(
+      color: AppColors.primary,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: isSending ? null : widget.onSendMessage,
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: isSending
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Icon(
+                  Icons.send_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreButton() {
+    return _IconButton(
+      icon: AppAssets.iconAdd,
+      isActive: widget.showMorePanel,
+      onTap: widget.onToggleMore,
+    );
   }
 }
 
