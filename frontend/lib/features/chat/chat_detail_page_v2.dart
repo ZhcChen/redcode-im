@@ -727,25 +727,26 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxHeight: 200.sp, // 只限制最大高度
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8, // 增加上下内边距
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: IntrinsicHeight(
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end, // 改为end对齐，让输入框可以扩展
+                children: [
+                  _IconButton(icon: AppAssets.iconVoice, onTap: _toggleVoice),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minHeight: 36, // 确保最小高度与按钮一致
+                        maxHeight: 200.sp, // 只限制最大高度
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8, // 增加上下内边距
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: TextField(
                         controller: _textController,
                         focusNode: _inputFocusNode,
@@ -768,60 +769,61 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                _IconButton(
-                  icon: AppAssets.iconEmoji,
-                  isActive: _showEmojiPanel,
-                  onTap: _toggleEmoji,
-                ),
-                const SizedBox(width: 4),
-                // 使用 Selector 替代 Consumer，只在 isSending 变化时重建，减少键盘动画时的重建
-                Selector<ChatProvider, bool>(
-                  selector: (_, provider) => provider.isSending,
-                  builder: (context, isSending, child) {
-                    final hasText = _textController.text.trim().isNotEmpty;
+                  const SizedBox(width: 8),
+                  _IconButton(
+                    icon: AppAssets.iconEmoji,
+                    isActive: _showEmojiPanel,
+                    onTap: _toggleEmoji,
+                  ),
+                  const SizedBox(width: 4),
+                  // 使用 Selector 替代 Consumer，只在 isSending 变化时重建，减少键盘动画时的重建
+                  Selector<ChatProvider, bool>(
+                    selector: (_, provider) => provider.isSending,
+                    builder: (context, isSending, child) {
+                      final hasText = _textController.text.trim().isNotEmpty;
 
-                    if (hasText) {
-                      return Material(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(18),
-                        child: InkWell(
+                      if (hasText) {
+                        return Material(
+                          color: AppColors.primary,
                           borderRadius: BorderRadius.circular(18),
-                          onTap: isSending ? null : _sendMessage,
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            alignment: Alignment.center,
-                            child: isSending
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: isSending ? null : _sendMessage,
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              child: isSending
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
+                                    )
+                                  : const Icon(
+                                      Icons.send_rounded,
+                                      size: 20,
+                                      color: Colors.white,
                                     ),
-                                  )
-                                : const Icon(
-                                    Icons.send_rounded,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
+                            ),
                           ),
-                        ),
-                      );
-                    }
+                        );
+                      }
 
-                    return _IconButton(
-                      icon: AppAssets.iconAdd,
-                      isActive: _showMorePanel,
-                      onTap: _toggleMore,
-                    );
-                  },
-                ),
-              ],
+                      return _IconButton(
+                        icon: AppAssets.iconAdd,
+                        isActive: _showMorePanel,
+                        onTap: _toggleMore,
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),
