@@ -3071,6 +3071,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildTextInput() {
     return TextField(
+      key: ValueKey('text_input_${widget.controller.text.length}'), // 强制重建
       controller: widget.controller,
       focusNode: widget.focusNode,
       keyboardType: TextInputType.multiline,
