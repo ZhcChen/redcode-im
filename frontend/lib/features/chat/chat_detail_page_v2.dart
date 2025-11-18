@@ -3044,13 +3044,8 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 使用Expanded确保占用剩余空间
-        Expanded(
-          child: SizedBox(
-            height: 36, // 固定高度与icon按钮一致
-            child: _buildTextInput(),
-          ),
-        ),
+        // 文本输入框 - 移除固定高度限制
+        Expanded(child: _buildTextInput()),
 
         const SizedBox(width: 8),
 
