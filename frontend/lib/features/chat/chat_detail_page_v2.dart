@@ -3044,8 +3044,13 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 直接在Expanded中
-        Expanded(child: _buildTextInput()),
+        // 文本输入框 - 使用SizedBox提供最小高度
+        Expanded(
+          child: SizedBox(
+            height: double.infinity, // 允许无限高度
+            child: _buildTextInput(),
+          ),
+        ),
 
         const SizedBox(width: 8),
 
