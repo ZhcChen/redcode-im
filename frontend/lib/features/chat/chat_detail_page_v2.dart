@@ -733,17 +733,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    constraints: const BoxConstraints(
-                      minHeight: 36,
-                      maxHeight: 112,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: AppColors.background,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: TextField(
                       controller: _textController,
@@ -760,7 +754,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       ),
                       decoration: const InputDecoration(
                         isDense: true,
-                        contentPadding: EdgeInsets.zero,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
                         border: InputBorder.none,
                         hintText: '发送消息...',
                         hintStyle: TextStyle(color: AppColors.textTertiary),
