@@ -3037,7 +3037,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 语音按钮
         _buildVoiceButton(),
@@ -3067,8 +3067,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   Widget _buildTextInput() {
     return Container(
       constraints: BoxConstraints(
-        minHeight: 36, // 确保最小高度与按钮一致
-        maxHeight: 200.sp, // 只限制最大高度
+        maxHeight: 200.sp, // 只限制最大高度，允许自由扩展
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -3079,10 +3078,10 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         controller: widget.controller,
         focusNode: widget.focusNode,
         keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.send,
+        textInputAction: TextInputAction.newline, // 多行模式，回车换行
         minLines: 1,
         maxLines: null, // 允许自动扩展
-        textAlignVertical: TextAlignVertical.center, // 垂直居中对齐
+        textAlignVertical: TextAlignVertical.center, // 单行时垂直居中
         onSubmitted: (_) => widget.onSendMessage(),
         onEditingComplete: () {},
         style: const TextStyle(
