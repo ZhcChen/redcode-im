@@ -3068,16 +3068,16 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildTextInput() {
     return TextField(
-      key: ValueKey('text_input_${widget.controller.text.length}'), // 强制重建
       controller: widget.controller,
       focusNode: widget.focusNode,
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
+      textAlignVertical: TextAlignVertical.top, // 多行文本从顶部对齐
       minLines: 1,
       maxLines: 6, // 最多显示 6 行，超过后可以滚动
       style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
       decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         filled: true,
         fillColor: const Color(0xFFEFEFF0),
         border: OutlineInputBorder(
@@ -3092,7 +3092,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
-        isDense: true,
+        // 移除 isDense: true，在 Android 上会限制高度自动扩展
         hintText: '发送消息...',
         hintStyle: const TextStyle(color: AppColors.textTertiary),
       ),
