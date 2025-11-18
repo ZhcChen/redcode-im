@@ -3036,27 +3036,29 @@ class ChatInputWidget extends StatefulWidget {
 class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
-      children: [
-        // 语音按钮
-        _buildVoiceButton(),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
+        children: [
+          // 语音按钮
+          _buildVoiceButton(),
 
-        const SizedBox(width: 8),
+          const SizedBox(width: 8),
 
-        // 文本输入框 - 移除固定高度限制
-        Expanded(child: _buildTextInput()),
+          // 文本输入框 - 移除固定高度限制
+          Expanded(child: _buildTextInput()),
 
-        const SizedBox(width: 8),
+          const SizedBox(width: 8),
 
-        // 表情按钮
-        _buildEmojiButton(),
+          // 表情按钮
+          _buildEmojiButton(),
 
-        const SizedBox(width: 4),
+          const SizedBox(width: 4),
 
-        // 发送/更多按钮
-        _buildSendOrMoreButton(),
-      ],
+          // 发送/更多按钮
+          _buildSendOrMoreButton(),
+        ],
+      ),
     );
   }
 
