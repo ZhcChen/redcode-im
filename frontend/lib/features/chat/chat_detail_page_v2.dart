@@ -3037,7 +3037,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐，按钮始终在底部
       children: [
         // 语音按钮
         _buildVoiceButton(),
@@ -3066,30 +3066,24 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildTextInput() {
     return Container(
-      constraints: BoxConstraints(
-        minHeight: 36, // 最小高度与按钮一致
-        maxHeight: 120, // 限制最大高度，约5-6行
-      ),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Align(
-        alignment: Alignment.center, // 整体内容垂直居中
-        child: TextField(
-          controller: widget.controller,
-          focusNode: widget.focusNode,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline, // 多行模式，回车换行
-          minLines: 1,
-          maxLines: 6, // 明确设置最大行数
-          style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
-          decoration: const InputDecoration(
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            border: InputBorder.none,
-            hintText: '发送消息...',
-            hintStyle: TextStyle(color: AppColors.textTertiary),
-          ),
+      child: TextField(
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        minLines: 1,
+        maxLines: 6,
+        style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
+        decoration: const InputDecoration(
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          border: InputBorder.none,
+          isCollapsed: true, // 紧凑模式，让 TextField 根据内容决定高度
+          hintText: '发送消息...',
+          hintStyle: TextStyle(color: AppColors.textTertiary),
         ),
       ),
     );
