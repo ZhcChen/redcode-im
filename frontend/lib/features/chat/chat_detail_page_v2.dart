@@ -738,7 +738,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 12, // 固定的上下内边距，让内容自然居中
+                      vertical: 8, // 固定的上下内边距，让内容自然居中
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.background,
