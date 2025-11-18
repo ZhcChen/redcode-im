@@ -3066,6 +3066,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildTextInput() {
     return Container(
+      height: 36, // 与icon按钮保持相同高度
       decoration: BoxDecoration(
         color: const Color(0x1F2A370D),
         borderRadius: BorderRadius.circular(8),
