@@ -507,9 +507,10 @@ class _LoginPageState extends State<LoginPage> {
                   WidgetSpan(
                     child: GestureDetector(
                       onTap: () => _showUserAgreement(),
-                      child: const Text(
+                      child: Text(
                         '《用户协议》',
                         style: TextStyle(
+                          fontSize: 11.sp,
                           color: AppColors.primary,
                         ),
                       ),
@@ -519,9 +520,10 @@ class _LoginPageState extends State<LoginPage> {
                   WidgetSpan(
                     child: GestureDetector(
                       onTap: () => _showPrivacyAgreement(),
-                      child: const Text(
+                      child: Text(
                         '《隐私协议》',
                         style: TextStyle(
+                          fontSize: 11.sp,
                           color: AppColors.primary,
                         ),
                       ),
