@@ -3044,13 +3044,10 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 使用IntrinsicHeight确保根据内容调整高度
-        IntrinsicHeight(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: 36, // 最小高度与icon按钮一致
-              maxHeight: 120, // 限制最大高度
-            ),
+        // 文本输入框 - 使用Expanded确保占用剩余空间
+        Expanded(
+          child: SizedBox(
+            height: 36, // 固定高度与icon按钮一致
             child: _buildTextInput(),
           ),
         ),
@@ -3079,7 +3076,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
       minLines: 1,
-      maxLines: null, // 允许无限行，由外部ConstrainedBox控制
+      maxLines: 4, // 允许最多4行文本显示
       style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
