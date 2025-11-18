@@ -370,7 +370,7 @@ class _LoginPageState extends State<LoginPage> {
         suffixIcon: suffix != null
             ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
             : null,
-        suffixIconConstraints: const BoxConstraints(maxHeight: 48),
+        suffixIconConstraints: BoxConstraints(maxHeight: 44.h),
       ),
     );
   }
