@@ -3044,12 +3044,9 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-        // 文本输入框 - 回到固定高度方案
+        // 文本输入框 - 支持自动扩展高度，最多显示 6 行
         Expanded(
-          child: SizedBox(
-            height: 36, // 固定高度，与按钮对齐
-            child: _buildTextInput(),
-          ),
+          child: _buildTextInput(),
         ),
 
         const SizedBox(width: 8),
@@ -3077,7 +3074,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
       minLines: 1,
-      maxLines: null, // 允许无限行，根据内容自动扩展
+      maxLines: 6, // 最多显示 6 行，超过后可以滚动
       style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
