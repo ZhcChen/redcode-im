@@ -629,12 +629,13 @@ class _LoginPageState extends State<LoginPage> {
       await AgreementTipDialog.show(
         context,
         content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
-        onConfirm: () {
+        onConfirm: () async {
           Navigator.of(context).pop();
-          // 弹窗关闭后再次取消焦点，确保没有输入框获得焦点
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          // 弹窗关闭后延迟取消焦点，确保UI完全重建后再取消
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (mounted) {
             FocusScope.of(context).unfocus();
-          });
+          }
         },
       );
       return;
