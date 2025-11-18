@@ -3067,30 +3067,10 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   Widget _buildTextInput() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: const Color(0x1F2A370D),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxHeight: 120, // 限制最大高度，约5-6行
-        ),
-        child: TextField(
-          controller: widget.controller,
-          focusNode: widget.focusNode,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: null, // 无限行，由 ConstrainedBox 控制最大高度
-          style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
-          decoration: const InputDecoration(
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: InputBorder.none,
-            isDense: true,
-            hintText: '发送消息...',
-            hintStyle: TextStyle(color: AppColors.textTertiary),
-          ),
-        ),
-      ),
+      constraints: const BoxConstraints(minHeight: 20),
     );
   }
 
