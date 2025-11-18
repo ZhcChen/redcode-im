@@ -734,10 +734,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 Expanded(
                   child: Container(
                     constraints: const BoxConstraints(
-                      minHeight: 56,
-                      maxHeight: 120,
+                      maxHeight: 120, // 只限制最大高度
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12, // 固定的上下内边距，让内容自然居中
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(8),
@@ -756,9 +758,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                         color: AppColors.textPrimary,
                       ),
                       decoration: const InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(
-                          vertical: 20.5,
-                        ), // 56高度时垂直居中
+                        contentPadding: EdgeInsets.zero, // 不需要额外的内边距
                         border: InputBorder.none,
                         hintText: '发送消息...',
                         hintStyle: TextStyle(color: AppColors.textTertiary),
