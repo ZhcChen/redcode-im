@@ -4,6 +4,11 @@ use std::env;
 use std::process::Command;
 use tauri::App;
 
+// 简单的日志记录函数（由于更新器是独立的，不使用主应用的logger）
+fn log_message(message: String) {
+    eprintln!("[UPDATER] {}", message);
+}
+
 // 防止与主应用冲突的窗口标识
 static WINDOW_LABEL: &str = "updater";
 
@@ -35,13 +40,19 @@ fn setup_updater_window(app: &mut App, installer_path: String) {
 }
 
 fn execute_installer(installer_path: &str) {
-    // 等待一小段时间让UI显示
-    std::thread::sleep(std::time::Duration::from_millis(1500));
+    // 立即开始执行安装，让用户看到进度
+    log_message(format!("[updater] 开始执行安装程序: {}", installer_path));
+    log_message(format!("[updater] 安装程序存在: {}", std::path::Path::new(installer_path).exists()));
 
     // 根据平台执行安装程序
     #[cfg(target_os = "windows")]
     {
         // Windows: 使用PowerShell静默启动安装程序
+        log_message("[updater] 使用PowerShell启动Windows安装程序".to_string());
+
+        let powershell_command = format!("Start-Process -FilePath '{}' -Verb RunAs", installer_path.replace("'", "''"));
+        log_message(format!("[updater] PowerShell命令: {}", powershell_command));
+
         let result = Command::new("powershell")
             .args([
                 "-NoProfile",
@@ -50,17 +61,20 @@ fn execute_installer(installer_path: &str) {
                 "-WindowStyle",
                 "Hidden",
                 "-Command",
-                &format!("Start-Process -FilePath '{}' -Verb RunAs", installer_path.replace("'", "''")),
+                &powershell_command,
             ])
             .spawn();
 
         match result {
-            Ok(_) => {
-                // 安装程序已启动，等待一会儿后退出更新器
-                std::thread::sleep(std::time::Duration::from_millis(2000));
+            Ok(child) => {
+                log_message(format!("[updater] PowerShell进程已启动，PID: {}", child.id()));
+                // 安装程序已启动，等待一会儿让用户看到安装程序启动，然后退出更新器
+                std::thread::sleep(std::time::Duration::from_millis(3000));
+                log_message("[updater] 更新器正常退出".to_string());
                 std::process::exit(0);
             }
             Err(e) => {
+                log_message(format!("[updater] 启动安装程序失败: {}", e));
                 eprintln!("Failed to start installer: {}", e);
                 std::process::exit(1);
             }

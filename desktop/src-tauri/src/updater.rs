@@ -238,14 +238,18 @@ pub async fn install_update(
         }
 
         log_message(format!("[updater] 启动更新器: {}", updater_exe_path.display()));
+        log_message(format!("[updater] 传递安装程序路径: {}", installer_path));
 
         // 启动更新器GUI程序，传递安装程序路径作为参数
-        Command::new(&updater_exe_path)
+        let child = Command::new(&updater_exe_path)
             .arg(&installer_path)
             .spawn()
-            .map_err(|e| format!("Failed to start updater: {}", e))?;
+            .map_err(|e| {
+                log_message(format!("[updater] 启动更新器失败: {}", e));
+                format!("Failed to start updater: {}", e)
+            })?;
 
-        log_message("[updater] 更新器GUI已启动".to_string());
+        log_message(format!("[updater] 更新器进程已启动，PID: {}", child.id()));
         return Ok(());
     }
 
