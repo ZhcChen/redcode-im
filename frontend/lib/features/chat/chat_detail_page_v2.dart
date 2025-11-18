@@ -758,15 +758,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       ),
                       decoration: const InputDecoration(
                         contentPadding: EdgeInsets.symmetric(vertical: 4),
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.red, width: 1),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.red, width: 1),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.red, width: 1),
-                        ),
+                        border: InputBorder.none,
                         hintText: '发送消息...',
                         hintStyle: TextStyle(color: AppColors.textTertiary),
                       ),
