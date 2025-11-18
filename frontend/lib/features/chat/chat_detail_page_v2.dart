@@ -733,34 +733,36 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    height: 56,
+                    constraints: const BoxConstraints(
+                      minHeight: 56,
+                      maxHeight: 120,
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: SizedBox(
-                      height: 56,
-                      child: TextField(
-                        controller: _textController,
-                        focusNode: _inputFocusNode,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.send,
-                        minLines: 1,
-                        maxLines: 4,
-                        onSubmitted: (_) => _sendMessage(),
-                        onEditingComplete: () {},
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: AppColors.textPrimary,
-                        ),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 16),
-                          border: InputBorder.none,
-                          hintText: '发送消息...',
-                          hintStyle: TextStyle(color: AppColors.textTertiary),
-                        ),
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _inputFocusNode,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.send,
+                      minLines: 1,
+                      maxLines: null, // 允许无限行，但受外层容器maxHeight限制
+                      onSubmitted: (_) => _sendMessage(),
+                      onEditingComplete: () {},
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 20.5,
+                        ), // (56-15)/2 = 20.5
+                        border: InputBorder.none,
+                        hintText: '发送消息...',
+                        hintStyle: TextStyle(color: AppColors.textTertiary),
                       ),
                     ),
                   ),
