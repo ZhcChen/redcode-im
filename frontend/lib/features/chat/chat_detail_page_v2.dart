@@ -758,9 +758,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                         color: AppColors.textPrimary,
                       ),
                       decoration: const InputDecoration(
-                        contentPadding: EdgeInsets.symmetric(
-                          vertical: 4,
-                        ), // 对称的小内边距
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
                         border: InputBorder.none,
                         hintText: '发送消息...',
                         hintStyle: TextStyle(color: AppColors.textTertiary),
