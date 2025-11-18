@@ -68,7 +68,7 @@ class _MessageActionEntry {
 }
 
 class _ChatDetailPageV2State extends State<ChatDetailPageV2>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
@@ -727,15 +727,21 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
-            ChatInputWidget(
-              controller: _textController,
-              focusNode: _inputFocusNode,
-              onSendMessage: _sendMessage,
-              onToggleVoice: _toggleVoice,
-              onToggleEmoji: _toggleEmoji,
-              onToggleMore: _toggleMore,
-              showEmojiPanel: _showEmojiPanel,
-              showMorePanel: _showMorePanel,
+            // 为输入区域添加高度过渡动画，减轻高度瞬间变化带来的突兀感
+            AnimatedSize(
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOut,
+              alignment: Alignment.bottomCenter,
+              child: ChatInputWidget(
+                controller: _textController,
+                focusNode: _inputFocusNode,
+                onSendMessage: _sendMessage,
+                onToggleVoice: _toggleVoice,
+                onToggleEmoji: _toggleEmoji,
+                onToggleMore: _toggleMore,
+                showEmojiPanel: _showEmojiPanel,
+                showMorePanel: _showMorePanel,
+              ),
             ),
           ],
         ),
@@ -3066,7 +3072,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
           // 文本输入框 - 支持自动扩展高度，最多显示 6 行
           Expanded(
-            child: _buildTextInput(),
+            child: _buildTextInput(context),
           ),
 
         const SizedBox(width: 8),
@@ -3086,36 +3092,105 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
     return _IconButton(icon: AppAssets.iconVoice, onTap: widget.onToggleVoice);
   }
 
-  Widget _buildTextInput() {
-    return TextField(
-      controller: widget.controller,
-      focusNode: widget.focusNode,
-      keyboardType: TextInputType.multiline,
-      textInputAction: TextInputAction.newline,
-      textAlignVertical: TextAlignVertical.top, // 多行文本从顶部对齐
-      minLines: 1,
-      maxLines: 6, // 最多显示 6 行，超过后可以滚动
-      style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        filled: true,
-        fillColor: const Color(0xFFEFEFF0),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        // 移除 isDense: true，在 Android 上会限制高度自动扩展
-        hintText: '发送消息...',
-        hintStyle: const TextStyle(color: AppColors.textTertiary),
-      ),
+  Widget _buildTextInput(BuildContext context) {
+    // 手动根据文本内容计算需要的高度，保证最多显示约 6 行，
+    // 配合外层 AnimatedSize 做平滑过渡，减轻文字跳动感。
+    const baseFontSize = 15.0;
+    const maxVisibleLines = 6;
+    const verticalPadding = 10.0;
+
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final textScaler =
+        mediaQuery?.textScaler ?? const TextScaler.linear(1.0);
+    final scaledFontSize = textScaler.scale(baseFontSize);
+    final textStyle = TextStyle(
+      fontSize: baseFontSize,
+      color: AppColors.textPrimary,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rawText = widget.controller.text;
+        // 空文本时也要预留一行高度
+        final text = rawText.isEmpty ? ' ' : rawText;
+
+        final span = TextSpan(text: text, style: textStyle);
+        final painter = TextPainter(
+          text: span,
+          textDirection: TextDirection.ltr,
+          maxLines: maxVisibleLines,
+          textScaler: textScaler,
+        );
+
+        // 减去左右 contentPadding 的宽度，避免低估行数
+        var maxWidth = constraints.maxWidth - 24; // 12 + 12
+        if (maxWidth <= 0) {
+          maxWidth = constraints.maxWidth;
+        }
+        painter.layout(maxWidth: maxWidth);
+
+        final metrics = painter.computeLineMetrics();
+        double lineHeight;
+        if (metrics.isNotEmpty) {
+          lineHeight = metrics.first.height;
+        } else {
+          lineHeight = scaledFontSize * 1.3;
+        }
+        final int lineCount =
+            metrics.isEmpty ? 1 : metrics.length.clamp(1, maxVisibleLines);
+        final bool isSingleLine = lineCount == 1;
+
+        final minHeight = lineHeight + verticalPadding * 2;
+        final maxHeight = lineHeight * maxVisibleLines + verticalPadding * 2;
+        final neededHeight = painter.height + verticalPadding * 2;
+        final clampedHeight =
+            neededHeight.clamp(minHeight, maxHeight).toDouble();
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: clampedHeight,
+            maxHeight: clampedHeight,
+          ),
+          child: TextField(
+            controller: widget.controller,
+            focusNode: widget.focusNode,
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            // 单行时使用垂直居中，多行时顶部对齐
+            textAlignVertical: isSingleLine
+                ? TextAlignVertical.center
+                : TextAlignVertical.top,
+            minLines: 1,
+            maxLines: maxVisibleLines,
+            style: const TextStyle(
+              fontSize: baseFontSize,
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: verticalPadding,
+              ),
+              filled: true,
+              fillColor: const Color(0xFFEFEFF0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              hintText: '发送消息...',
+              hintStyle: const TextStyle(color: AppColors.textTertiary),
+            ),
+          ),
+        );
+      },
     );
   }
 
