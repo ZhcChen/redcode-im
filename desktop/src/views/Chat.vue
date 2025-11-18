@@ -5795,15 +5795,21 @@ const handleWebSocketMessage = (event: CustomEvent) => {
             return
           }
           for (const sentId of Array.from(recentSentMessages.value)) {
+            // 只匹配临时消息ID（时间戳格式），跳过真实消息ID
+            // 临时消息ID是纯数字字符串，真实消息ID通常包含字母或特殊字符
+            if (!/^\d+$/.test(sentId)) {
+              continue
+            }
+
             const localMessage = messages.value.find(msg => msg.id === sentId)
-            
+
             // 优先通过 parts 匹配（对于附件消息）
             let isMatch = false
             if (localMessage) {
               // 如果两个消息都有 parts，通过 attachment.key 匹配
               const localAttachment = localMessage.parts?.find(p => p.attachment?.key)?.attachment
               const wsAttachment = uiMessage.parts?.find(p => p.attachment?.key)?.attachment
-              
+
               if (localAttachment?.key && wsAttachment?.key) {
                 isMatch = localAttachment.key === wsAttachment.key
               } else if (localAttachment?.key && !wsAttachment) {
@@ -5814,12 +5820,12 @@ const handleWebSocketMessage = (event: CustomEvent) => {
                   const fileNameMatch = uiMessage.content.match(/\]\s*(.+?)\s*\[/)
                   const wsFileName = fileNameMatch ? fileNameMatch[1].trim() : null
                   const localFileName = localAttachment.name || localAttachment.key.split('/').pop()
-                  
+
                   if (wsFileName && localFileName) {
                     isMatch = wsFileName === localFileName || localFileName.includes(wsFileName) || wsFileName.includes(localFileName)
                   }
                 }
-                
+
                 // 如果文件名匹配失败，回退到 content 匹配
                 if (!isMatch) {
                   isMatch = isContentMatch(localMessage.content, uiMessage.content)
@@ -5828,7 +5834,7 @@ const handleWebSocketMessage = (event: CustomEvent) => {
                 // 没有 parts 或 attachment，回退到 content 匹配
                 isMatch = isContentMatch(localMessage.content, uiMessage.content)
               }
-              
+
               if (isMatch) {
                 matchedLocalMessageId = sentId as string
                 break
