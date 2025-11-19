@@ -23,11 +23,13 @@ const router = useRouter();
 const reportUpdateEvent = async (
   eventType: 'download_success' | 'download_failed' | 'apply_success' | 'apply_failed' | 'rollback',
   message?: string,
-  version?: AppVersionInfo
+  version?: AppVersionInfo,
+  triggerSource: 'manual' | 'auto' | 'notification' = 'manual'
 ) => {
   try {
     const currentVersion = store.getters.currentVersion || '1.0.0';
     const patchVersion = version?.version || currentVersion;
+    const currentUser = store.getters.currentUser;
 
     await VersionApi.reportUpdateEvent({
       platform: 'windows', // 桌面端固定为windows
@@ -35,8 +37,11 @@ const reportUpdateEvent = async (
       base_version: currentVersion,
       patch_version: patchVersion,
       event_type: eventType,
-      client_id: store.getters.currentUser?.id,
-      message: message
+      client_id: currentUser?.id,
+      message: message,
+      build_number: version?.build_number,
+      trigger_source: triggerSource,
+      // 其他字段（client_type, os_version, os_arch, app_arch, device_info）会由API自动收集
     });
   } catch (error) {
     console.warn('[Update Event] 报告失败:', error);

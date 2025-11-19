@@ -278,6 +278,15 @@ pub struct HotUpdateEvent {
     pub client_id: Option<String>,
     pub message: Option<String>,
     pub created_at: DateTime<Utc>,
+    // 新增的详细字段
+    pub client_type: Option<String>,
+    pub os_version: Option<String>,
+    pub os_arch: Option<String>,
+    pub app_arch: Option<String>,
+    pub build_number: Option<i32>,
+    pub trigger_source: Option<String>,
+    pub network_type: Option<String>,
+    pub device_info: Option<String>,
 }
 
 /// 房间表模型

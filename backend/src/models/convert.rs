@@ -583,6 +583,15 @@ pub fn db_hot_update_event_to_api(
         client_id: model.client_id.clone(),
         message: model.message.clone(),
         created_at: model.created_at.to_rfc3339(),
+        // 新增的详细字段
+        client_type: model.client_type.clone(),
+        os_version: model.os_version.clone(),
+        os_arch: model.os_arch.clone(),
+        app_arch: model.app_arch.clone(),
+        build_number: model.build_number,
+        trigger_source: model.trigger_source.clone(),
+        network_type: model.network_type.clone(),
+        device_info: model.device_info.clone(),
     }
 }
 

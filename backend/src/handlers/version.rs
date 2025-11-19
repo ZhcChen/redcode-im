@@ -623,6 +623,43 @@ pub async fn report_hot_update_event(
             .as_deref()
             .map(|m| m.trim().to_string())
             .filter(|m| !m.is_empty()),
+        // 新增的详细字段
+        client_type: req
+            .client_type
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        os_version: req
+            .os_version
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        os_arch: req
+            .os_arch
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        app_arch: req
+            .app_arch
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        build_number: req.build_number,
+        trigger_source: req
+            .trigger_source
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        network_type: req
+            .network_type
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
+        device_info: req
+            .device_info
+            .as_deref()
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty()),
     };
     store.insert_hot_update_event(&insert).await?;
 

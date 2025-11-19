@@ -288,6 +288,23 @@ pub struct HotUpdateEventReport {
     pub client_id: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
+    // 新增的详细字段
+    #[serde(default)]
+    pub client_type: Option<String>,
+    #[serde(default)]
+    pub os_version: Option<String>,
+    #[serde(default)]
+    pub os_arch: Option<String>,
+    #[serde(default)]
+    pub app_arch: Option<String>,
+    #[serde(default)]
+    pub build_number: Option<i32>,
+    #[serde(default)]
+    pub trigger_source: Option<String>,
+    #[serde(default)]
+    pub network_type: Option<String>,
+    #[serde(default)]
+    pub device_info: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -326,6 +343,15 @@ pub struct HotUpdateEventInfo {
     pub client_id: Option<String>,
     pub message: Option<String>,
     pub created_at: String,
+    // 新增的详细字段
+    pub client_type: Option<String>,
+    pub os_version: Option<String>,
+    pub os_arch: Option<String>,
+    pub app_arch: Option<String>,
+    pub build_number: Option<i32>,
+    pub trigger_source: Option<String>,
+    pub network_type: Option<String>,
+    pub device_info: Option<String>,
 }
 
 // ==================== JWT Claims ====================

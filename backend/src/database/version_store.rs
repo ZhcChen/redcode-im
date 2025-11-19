@@ -304,6 +304,15 @@ pub struct HotUpdateEventInsert {
     pub event_type: String,
     pub client_id: Option<String>,
     pub message: Option<String>,
+    // 新增的详细字段
+    pub client_type: Option<String>,
+    pub os_version: Option<String>,
+    pub os_arch: Option<String>,
+    pub app_arch: Option<String>,
+    pub build_number: Option<i32>,
+    pub trigger_source: Option<String>,
+    pub network_type: Option<String>,
+    pub device_info: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -444,8 +453,10 @@ impl VersionStore {
             r#"
             INSERT INTO hot_update_events (
                 platform, channel, base_version, patch_version,
-                event_type, client_id, message
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                event_type, client_id, message,
+                client_type, os_version, os_arch, app_arch,
+                build_number, trigger_source, network_type, device_info
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             "#,
         )
         .bind(insert.platform.as_str())
@@ -455,6 +466,14 @@ impl VersionStore {
         .bind(&insert.event_type)
         .bind(insert.client_id.as_deref())
         .bind(insert.message.as_deref())
+        .bind(insert.client_type.as_deref())
+        .bind(insert.os_version.as_deref())
+        .bind(insert.os_arch.as_deref())
+        .bind(insert.app_arch.as_deref())
+        .bind(insert.build_number)
+        .bind(insert.trigger_source.as_deref())
+        .bind(insert.network_type.as_deref())
+        .bind(insert.device_info.as_deref())
         .execute(&self.database.pool)
         .await?;
 
@@ -466,7 +485,7 @@ impl VersionStore {
         params: &HotUpdateEventQueryParams<'_>,
     ) -> Result<Vec<HotUpdateEvent>, Error> {
         let mut builder = QueryBuilder::new(
-            "SELECT id, platform, channel, base_version, patch_version, event_type, client_id, message, created_at FROM hot_update_events WHERE 1=1",
+            "SELECT id, platform, channel, base_version, patch_version, event_type, client_id, message, created_at, client_type, os_version, os_arch, app_arch, build_number, trigger_source, network_type, device_info FROM hot_update_events WHERE 1=1",
         );
         if let Some(platform) = params.platform {
             builder
