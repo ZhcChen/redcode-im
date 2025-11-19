@@ -1,4 +1,6 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// 移除 windows_subsystem 属性
+// 原因：updater 不再需要 GUI 窗口，直接作为后台进程执行
+// 保留此属性会导致创建空白窗口进程，引起雪花界面问题
 
 use std::env;
 use std::process::Command;

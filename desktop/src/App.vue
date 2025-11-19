@@ -866,14 +866,13 @@ async function handleDownloadNow() {
       throw new Error('未获取到下载地址');
     }
     updateNotice.value = '正在下载安装包，请稍候...';
-    const downloadedPath = await invoke<string>('download_update', {
+    // 调用 Rust 下载，完成后会通过 update-download-progress 事件触发安装
+    // 不在这里直接调用 beginInstallDownloadedUpdate，避免重复调用
+    await invoke<string>('download_update', {
       url: result.downloadUrl,
       fileName: result.fileName
     });
-    if (downloadedPath) {
-      downloadedInstallerPath.value = downloadedPath;
-      await beginInstallDownloadedUpdate(downloadedPath, result.fileName);
-    }
+    // downloadedPath 会通过事件 handleDownloadEvent 设置并触发安装
   } catch (error: any) {
     updateDownloadStatus.value = 'error';
     updateNotice.value = '下载更新失败，请稍后重试。';
