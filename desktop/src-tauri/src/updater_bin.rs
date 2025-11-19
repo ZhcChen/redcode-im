@@ -4,7 +4,6 @@
 
 use std::env;
 use std::process::Command;
-use tauri::App;
 
 // 简单的日志记录函数（由于更新器是独立的，不使用主应用的logger）
 fn log_message(message: String) {
@@ -38,10 +37,12 @@ fn execute_installer(installer_path: &str) {
         // Windows: 使用PowerShell静默启动安装程序
         log_message("[updater] 使用PowerShell启动Windows安装程序".to_string());
 
-        let powershell_command = format!("Start-Process -FilePath '{}' -Verb RunAs", installer_path.replace("'", "''"));
-        log_message(format!("[updater] PowerShell命令: {}", powershell_command));
+        // 先尝试直接执行（大多数NSIS安装程序不需要管理员权限）
+        // 如果失败，再尝试使用管理员权限
+        let direct_command = format!("& \"{}\"", installer_path.replace("\"", "`\""));
+        log_message(format!("[updater] 尝试直接执行: {}", direct_command));
 
-        let result = Command::new("powershell")
+        let mut result = Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",
@@ -49,20 +50,41 @@ fn execute_installer(installer_path: &str) {
                 "-WindowStyle",
                 "Hidden",
                 "-Command",
-                &powershell_command,
+                &direct_command,
             ])
             .spawn();
+
+        // 如果直接执行失败，尝试使用管理员权限
+        if result.is_err() {
+            log_message("[updater] 直接执行失败，尝试使用管理员权限".to_string());
+            let admin_command = format!("Start-Process -FilePath \"{}\" -Verb RunAs -Wait", installer_path.replace("\"", "`\""));
+            log_message(format!("[updater] 管理员权限命令: {}", admin_command));
+
+            result = Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-Command",
+                    &admin_command,
+                ])
+                .spawn();
+        }
 
         match result {
             Ok(child) => {
                 log_message(format!("[updater] PowerShell进程已启动，PID: {}", child.id()));
-                // 等待1秒让安装程序启动，然后退出更新器
-                std::thread::sleep(std::time::Duration::from_millis(1000));
-                log_message("[updater] 更新器退出".to_string());
+                // 等待2秒让安装程序完全启动
+                std::thread::sleep(std::time::Duration::from_millis(2000));
+                log_message("[updater] 更新器正常退出".to_string());
                 std::process::exit(0);
             }
             Err(e) => {
                 log_message(format!("[updater] 启动安装程序失败: {}", e));
+                log_message(format!("[updater] 安装程序路径: {}", installer_path));
+                log_message(format!("[updater] 工作目录: {:?}", std::env::current_dir()));
                 eprintln!("Failed to start installer: {}", e);
                 std::process::exit(1);
             }
