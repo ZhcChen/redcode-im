@@ -10,6 +10,7 @@ import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
 import { initializeDownloadDir } from './utils/download-settings'
 import { NotificationApi } from './api/notification'
+import { VersionApi } from './api/version'
 import LoadingMask from './components/LoadingMask.vue'
 import AccountTabs from './components/AccountTabs.vue'
 import AccountHome from './components/AccountHome.vue'
@@ -17,6 +18,31 @@ import type { AccountInfo } from './store/modules/accounts'
 
 const store = useStore();
 const router = useRouter();
+
+// 更新事件报告帮助函数
+const reportUpdateEvent = async (
+  eventType: 'download_success' | 'download_failed' | 'apply_success' | 'apply_failed' | 'rollback',
+  message?: string,
+  version?: AppVersionInfo
+) => {
+  try {
+    const currentVersion = store.getters.currentVersion || '1.0.0';
+    const patchVersion = version?.version || currentVersion;
+
+    await VersionApi.reportUpdateEvent({
+      platform: 'windows', // 桌面端固定为windows
+      channel: version?.channel || 'stable',
+      base_version: currentVersion,
+      patch_version: patchVersion,
+      event_type: eventType,
+      client_id: store.getters.currentUser?.id,
+      message: message
+    });
+  } catch (error) {
+    console.warn('[Update Event] 报告失败:', error);
+    // 不影响主要更新流程
+  }
+};
 
 // 计算属性
 const token = computed(() => store.getters.token);
@@ -172,6 +198,10 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       updateDownloadStatus.value = 'finished';
       updateDownloadInProgress.value = false;
       downloadedInstallerPath.value = payload.file_path ?? null;
+
+      // 报告下载成功事件
+      reportUpdateEvent('download_success', `下载完成，文件路径: ${payload.file_path}`, latestVersion.value);
+
       if (payload.file_path) {
         updateNotice.value = '安装包下载完成，正在准备安装...';
         beginInstallDownloadedUpdate(payload.file_path);
@@ -186,6 +216,10 @@ function handleDownloadEvent(payload: DownloadEventPayload) {
       downloadedInstallerPath.value = null;
       updateNotice.value = payload.message || '下载更新失败，请稍后重试。';
       toast.error(updateNotice.value);
+
+      // 报告下载失败事件
+      reportUpdateEvent('download_failed', payload.message || '下载更新失败', latestVersion.value);
+
       break;
     default:
       break;
@@ -198,11 +232,19 @@ async function beginInstallDownloadedUpdate(installerPath: string, fileName?: st
   }
   installInProgress.value = true;
   updateNotice.value = '安装程序已启动，应用即将重启以完成更新。';
+
+  // 记录安装尝试事件
+  reportUpdateEvent('apply_success', `开始安装更新包: ${installerPath}`, latestVersion.value);
+
   try {
     await invoke('install_update', {
       installerPath,
       platform: latestVersion.value?.platform || 'macos'
     });
+
+    // 记录安装成功事件（这里可能不会执行，因为应用会重启）
+    reportUpdateEvent('apply_success', '安装程序启动成功，应用即将重启', latestVersion.value);
+
     setTimeout(() => {
       handleQuitApp();
     }, 1500);
@@ -211,6 +253,9 @@ async function beginInstallDownloadedUpdate(installerPath: string, fileName?: st
     updateDownloadStatus.value = 'error';
     updateNotice.value = '启动安装失败，请手动运行下载的安装包。';
     toast.error(error?.message || '启动安装失败');
+
+    // 记录安装失败事件
+    reportUpdateEvent('apply_failed', `启动安装失败: ${error?.message || '未知错误'}, 安装包路径: ${installerPath}`, latestVersion.value);
   }
 }
 

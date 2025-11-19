@@ -14,11 +14,15 @@ fn main() {
     // 获取命令行参数：安装程序路径
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
+        log_message("错误: 未提供安装程序路径".to_string());
         eprintln!("Usage: updater <installer_path>");
         std::process::exit(1);
     }
 
     let installer_path = args[1].clone();
+    log_message(format!("[updater] 启动更新器，安装程序路径: {}", installer_path));
+    log_message(format!("[updater] 工作目录: {:?}", std::env::current_dir()));
+    log_message(format!("[updater] 命令行参数: {:?}", args));
 
     // 直接执行安装，不显示任何GUI
     execute_installer(&installer_path);
@@ -56,7 +60,8 @@ fn execute_installer(installer_path: &str) {
 
         // 如果直接执行失败，尝试使用管理员权限
         if result.is_err() {
-            log_message("[updater] 直接执行失败，尝试使用管理员权限".to_string());
+            log_message(format!("[updater] 直接执行失败: {:?}", result.err()));
+            log_message("[updater] 尝试使用管理员权限执行".to_string());
             let admin_command = format!("Start-Process -FilePath \"{}\" -Verb RunAs -Wait", installer_path.replace("\"", "`\""));
             log_message(format!("[updater] 管理员权限命令: {}", admin_command));
 
@@ -76,15 +81,28 @@ fn execute_installer(installer_path: &str) {
         match result {
             Ok(child) => {
                 log_message(format!("[updater] PowerShell进程已启动，PID: {}", child.id()));
+                log_message(format!("[updater] 安装程序执行成功，等待完成"));
                 // 等待2秒让安装程序完全启动
                 std::thread::sleep(std::time::Duration::from_millis(2000));
-                log_message("[updater] 更新器正常退出".to_string());
+                log_message("[updater] 更新器执行完成，正常退出".to_string());
                 std::process::exit(0);
             }
             Err(e) => {
                 log_message(format!("[updater] 启动安装程序失败: {}", e));
                 log_message(format!("[updater] 安装程序路径: {}", installer_path));
                 log_message(format!("[updater] 工作目录: {:?}", std::env::current_dir()));
+                log_message(format!("[updater] 系统信息: {:?}", std::env::consts::OS));
+                log_message(format!("[updater] 架构信息: {:?}", std::env::consts::ARCH));
+
+                // 检查文件是否存在
+                log_message(format!("[updater] 文件存在检查: {}", std::path::Path::new(installer_path).exists()));
+
+                // 检查文件权限
+                if let Ok(metadata) = std::path::Path::new(installer_path).metadata() {
+                    log_message(format!("[updater] 文件大小: {} bytes", metadata.len()));
+                    log_message(format!("[updater] 文件权限: {:?}", metadata.permissions()));
+                }
+
                 eprintln!("Failed to start installer: {}", e);
                 std::process::exit(1);
             }

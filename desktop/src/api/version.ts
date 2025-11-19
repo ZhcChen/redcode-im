@@ -1,4 +1,4 @@
-import { get } from './http';
+import { get, post } from './http';
 import type { ApiResponse } from './http';
 
 type SupportedPlatform = 'windows' | 'macos' | 'linux';
@@ -64,6 +64,16 @@ export interface VersionDownloadResponse {
   download_url?: string;
 }
 
+export interface UpdateEventReport {
+  platform: string;
+  channel?: string;
+  base_version: string;
+  patch_version: string;
+  event_type: 'download_success' | 'download_failed' | 'apply_success' | 'apply_failed' | 'rollback';
+  client_id?: string;
+  message?: string;
+}
+
 export class VersionApi {
   static async getLatestVersion(params: {
     channel?: string;
@@ -93,5 +103,9 @@ export class VersionApi {
       query.expires_in_seconds = String(params.expiresInSeconds);
     }
     return get<VersionDownloadResponse>('/versions/download', query);
+  }
+
+  static async reportUpdateEvent(event: UpdateEventReport): Promise<ApiResponse<any>> {
+    return post<any>('/versions/hot-update-events', event);
   }
 }
