@@ -35,22 +35,11 @@ const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 800 };
 async function setMainWindowSize() {
   const logId = `HOME_RESIZE_${Date.now()}`;
   try {
-    const currentWindow = getCurrentWebviewWindow();
-    
-    // 记录调整前的尺寸
-    const beforeSize = await currentWindow.innerSize();
-    
-    // 设置为默认主窗口尺寸
-    await currentWindow.setSize({
-      type: 'Logical',
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_window_size_and_center', {
       width: DEFAULT_MAIN_WINDOW_SIZE.width,
       height: DEFAULT_MAIN_WINDOW_SIZE.height
     });
-    
-    await currentWindow.center();
-    
-    // 记录调整后的尺寸
-    const afterSize = await currentWindow.innerSize();
   } catch (error) {
   }
 }

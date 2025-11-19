@@ -50,3 +50,8 @@ redcode-im-backend = { path = "../../backend" }
 
 [dev-dependencies]
 hyper = { version = "0.14", features = ["full"] }
+
+[target.aarch64-apple-darwin.dependencies]
+cocoa = "0.26.1"
+objc = "0.2.7"
+tauri-plugin-single-instance = "2.3.6"
