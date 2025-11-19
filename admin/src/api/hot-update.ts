@@ -36,6 +36,15 @@ export interface HotUpdateEventInfo {
   client_id?: string;
   message?: string;
   created_at: string;
+  // 新增的详细字段
+  client_type?: string;
+  os_version?: string;
+  os_arch?: string;
+  app_arch?: string;
+  build_number?: number;
+  trigger_source?: string;
+  network_type?: string;
+  device_info?: string;
 }
 
 export interface ListHotUpdateEventsResponse {
@@ -58,6 +67,11 @@ export interface ListHotUpdateEventsParams {
   end_time?: string;
   limit?: number;
   offset?: number;
+  // 新增筛选字段
+  client_type?: string;
+  os_version?: string;
+  trigger_source?: string;
+  network_type?: string;
 }
 
 export interface CreateHotUpdatePayload {
