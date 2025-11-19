@@ -80,7 +80,7 @@ type DownloadEventPayload = {
   received?: number;
   total?: number;
   progress?: number;
-  filePath?: string;
+  file_path?: string;  // 修正：使用 file_path 匹配 Rust 发送的字段名
   message?: string;
 };
 
