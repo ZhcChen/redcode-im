@@ -42,6 +42,38 @@
   - 输出目录：`dist/releases/windows/<channel>/`。
   - **增量构建**：自动检测updater源码变更，只在需要时重新编译。
 
+## build-updater.sh
+- **作用**：独立构建 updater 二进制文件，用于应用更新功能。
+- **支持平台**：Windows、macOS (arm64/intel)、Linux
+- **用法**：
+  ```bash
+  ./scripts/build-updater.sh [platform]
+  ```
+  - `platform` 参数可选值：
+    - `windows` - 仅构建 Windows updater
+    - `macos` - 仅构建 macOS updater（包含 arm64 和 intel）
+    - `linux` - 仅构建 Linux updater
+    - `all` - 根据当前系统构建所有可能的平台（默认）
+  
+  **示例**：
+  ```bash
+  # 构建所有平台（自动检测）
+  ./scripts/build-updater.sh
+  
+  # 仅构建 Windows updater（支持 macOS 交叉编译）
+  ./scripts/build-updater.sh windows
+  
+  # 仅构建 macOS updater
+  ./scripts/build-updater.sh macos
+  ```
+  
+  - 输出目录：`src-tauri/resources/updater-<target>`
+  - **交叉编译**：在 macOS 上可以交叉编译 Windows updater
+  - **使用场景**：
+    - 修改了 `updater_bin.rs` 后需要重新构建
+    - 主构建脚本中的 updater 出现问题时独立调试
+    - 为特定平台单独构建 updater
+
 ## update-version.sh
 - **作用**：一次性同步桌面端涉及版本号的所有文件（`package.json`、`src-tauri/tauri.conf.json`、`src/api/config.ts`、构建脚本和 `AGENTS.md`）。
 - **用法**：
@@ -84,11 +116,12 @@
 2. 确保PATH包含llvm：`export PATH="/opt/homebrew/opt/llvm/bin:$PATH"`
 3. 确保已添加Windows目标：`rustup target add x86_64-pc-windows-msvc`
 
-### updater二进制缺失
-脚本会自动编译updater。如失败请检查：
-1. Rust工具链已安装
-2. 目标平台受支持
-3. 系统依赖完整
+### updater二进制缺失或版本不匹配
+如果遇到 updater 相关问题：
+1. **重新构建 updater**：`./scripts/build-updater.sh`
+2. **检查二进制是否存在**：`ls -la src-tauri/resources/updater-*`
+3. **验证构建目标**：确保为正确的平台构建了 updater
+4. **修改源码后**：必须重新运行 `build-updater.sh` 以更新二进制
 
 ### 构建产物缺少updater
 检查构建脚本是否正确复制了updater二进制到应用包中。
