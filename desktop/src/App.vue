@@ -921,6 +921,14 @@ function enableContextMenu() {
 
 // 组件挂载时设置事件监听
 onMounted(async () => {
+  // 确保应用启动时重置所有更新相关状态，避免残留状态影响后续更新
+  updateDownloadStatus.value = 'idle';
+  updateDownloadProgress.value = 0;
+  updateDownloadInProgress.value = false;
+  downloadedInstallerPath.value = null;
+  installInProgress.value = false;
+  updateNotice.value = '';
+
   if (isTauriRuntime) {
     try {
       const { listen } = await import('@tauri-apps/api/event');
