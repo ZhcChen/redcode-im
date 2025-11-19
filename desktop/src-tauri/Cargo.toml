@@ -30,6 +30,7 @@ tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2.3.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["fs", "time", "sync", "macros", "rt-multi-thread"] }
@@ -54,4 +55,3 @@ hyper = { version = "0.14", features = ["full"] }
 [target.aarch64-apple-darwin.dependencies]
 cocoa = "0.26.1"
 objc = "0.2.7"
-tauri-plugin-single-instance = "2.3.6"
