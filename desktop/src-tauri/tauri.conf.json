@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "trayIcon": {
       "id": "main-tray",
       "iconPath": "icons/icon.ico",
@@ -56,13 +56,12 @@
         "fullscreen": false,
         "focus": true,
         "transparent": false,
-        "visible": true
+        "visible": false
       }
     ],
     "security": {
       "csp": null
-    },
-    "withGlobalTauri": false
+    }
   },
   "bundle": {
     "active": true,

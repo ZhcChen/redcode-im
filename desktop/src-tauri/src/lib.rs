@@ -82,6 +82,16 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
     Ok(())
 }
 
+// 自定义命令：启动画面准备就绪
+#[tauri::command]
+async fn splashscreen_ready(app: AppHandle) -> Result<(), String> {
+    if let Some(splash_window) = app.get_webview_window("splashscreen") {
+        splash_window.show().map_err(|e| e.to_string())?;
+        splash_window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // 自定义命令：应用准备就绪
 #[tauri::command]
 async fn app_ready(app: AppHandle) -> Result<(), String> {
@@ -196,6 +206,7 @@ pub fn run() {
             // 窗口相关命令
             force_center_window,
             set_window_size_and_center,
+            splashscreen_ready,
             app_ready,
             close_splashscreen,
             set_window_title,

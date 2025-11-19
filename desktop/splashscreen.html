@@ -116,8 +116,28 @@
     </div>
     
     <script>
-        // 不再主动关闭 splashscreen，完全由主应用的 main.ts 控制
-        // 这样可以避免竞态条件，确保启动流程稳定
+        // 监听资源加载完成
+        window.addEventListener('DOMContentLoaded', () => {
+            // 预加载背景图片
+            const bgImg = new Image();
+            bgImg.src = './image/loading-bg.svg';
+            
+            const showWindow = () => {
+                // 通知 Rust 已经准备就绪，可以显示窗口了
+                if (window.__TAURI__ && window.__TAURI__.core) {
+                    window.__TAURI__.core.invoke('splashscreen_ready')
+                        .catch(console.error);
+                }
+            };
+
+            bgImg.onload = showWindow;
+            bgImg.onerror = showWindow; // 即使图片加载失败也显示窗口
+            
+            // 防止图片已经缓存导致不触发onload
+            if (bgImg.complete) {
+                showWindow();
+            }
+        });
     </script>
 </body>
 </html>
