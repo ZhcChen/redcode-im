@@ -9,9 +9,6 @@ fn log_message(message: String) {
     eprintln!("[UPDATER] {}", message);
 }
 
-// 防止与主应用冲突的窗口标识
-static WINDOW_LABEL: &str = "updater";
-
 fn main() {
     // 获取命令行参数：安装程序路径
     let args: Vec<String> = env::args().collect();
@@ -22,25 +19,14 @@ fn main() {
 
     let installer_path = args[1].clone();
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .setup(move |app| {
-            setup_updater_window(app, installer_path);
-            Ok(())
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running updater");
-}
-
-fn setup_updater_window(app: &mut App, installer_path: String) {
-    // 在新线程中执行安装，避免阻塞UI
-    std::thread::spawn(move || {
-        execute_installer(&installer_path);
-    });
+    // 直接执行安装，不显示任何GUI
+    execute_installer(&installer_path);
 }
 
 fn execute_installer(installer_path: &str) {
-    // 立即开始执行安装，让用户看到进度
+    // 短暂延迟，让用户看到加载界面
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
     log_message(format!("[updater] 开始执行安装程序: {}", installer_path));
     log_message(format!("[updater] 安装程序存在: {}", std::path::Path::new(installer_path).exists()));
 
@@ -68,9 +54,9 @@ fn execute_installer(installer_path: &str) {
         match result {
             Ok(child) => {
                 log_message(format!("[updater] PowerShell进程已启动，PID: {}", child.id()));
-                // 安装程序已启动，等待一会儿让用户看到安装程序启动，然后退出更新器
-                std::thread::sleep(std::time::Duration::from_millis(3000));
-                log_message("[updater] 更新器正常退出".to_string());
+                // 等待1秒让安装程序启动，然后退出更新器
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+                log_message("[updater] 更新器退出".to_string());
                 std::process::exit(0);
             }
             Err(e) => {
@@ -90,7 +76,8 @@ fn execute_installer(installer_path: &str) {
 
         match result {
             Ok(_) => {
-                std::thread::sleep(std::time::Duration::from_millis(2000));
+                // 等待1秒让安装程序启动，然后退出更新器
+                std::thread::sleep(std::time::Duration::from_millis(1000));
                 std::process::exit(0);
             }
             Err(e) => {
@@ -108,7 +95,8 @@ fn execute_installer(installer_path: &str) {
 
         match result {
             Ok(_) => {
-                std::thread::sleep(std::time::Duration::from_millis(2000));
+                // 等待1秒让安装程序启动，然后退出更新器
+                std::thread::sleep(std::time::Duration::from_millis(1000));
                 std::process::exit(0);
             }
             Err(e) => {

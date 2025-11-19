@@ -68,7 +68,19 @@ VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-d
 VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin
 VITE_APP_CHANNEL=stable-linux bun run tauri build --target x86_64-unknown-linux-gnu
 
-# Windows 交叉编译（在 macOS 上）
+# Windows 构建
+
+**推荐方式（自动检测环境，支持原生和交叉编译）：**
+```bash
+# 在Windows上原生构建
+./scripts/build-windows.sh stable-windows
+
+# 在macOS上交叉编译（会自动使用cargo-xwin）
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && export VITE_APP_CHANNEL=stable && export VITE_APP_VERSION=1.0.0 && export VITE_APP_BUILD=100 && ./scripts/build-windows.sh stable
+```
+
+**直接使用tauri命令（仅限macOS交叉编译）：**
+```bash
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc   # Windows x86_64
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc  # Windows ARM64
 ```

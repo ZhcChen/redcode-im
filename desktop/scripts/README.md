@@ -25,13 +25,20 @@
 
 ## build-windows.sh
 - **作用**：构建 Windows 安装程序，包含GUI更新器，注入版本/渠道信息。
-- **限制**：**不支持从macOS交叉编译，必须在Windows机器上运行**
+- **支持平台**：Windows原生构建 + macOS交叉编译（使用cargo-xwin）
 - **用法**：
+
+  **自动检测环境：**
   ```bash
-  # 仅在Windows机器上运行
   ./scripts/build-windows.sh [channel]
   ```
-  - 可选渠道参数，默认为 `stable-windows`。
+
+  **在macOS上交叉编译（会自动使用cargo-xwin）：**
+  ```bash
+  export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && export VITE_APP_CHANNEL=stable && export VITE_APP_VERSION=1.0.0 && export VITE_APP_BUILD=100 && ./scripts/build-windows.sh stable
+  ```
+
+  - 可选渠道参数，默认为 `stable`。
   - 输出目录：`dist/releases/windows/<channel>/`。
   - **增量构建**：自动检测updater源码变更，只在需要时重新编译。
 
@@ -51,6 +58,7 @@
 - **增量编译**：只在 `src-tauri/src/updater_bin.rs` 源码变更时重新编译
 - **自动打包**：编译后的updater二进制自动复制到应用包中
 - **跨平台**：为每个目标平台生成正确的updater二进制
+- **无终端窗口**：更新器启动后立即退出，不显示终端窗口，避免用户看到闪烁的命令行界面
 
 ## 平台构建支持
 
@@ -58,7 +66,7 @@
 |------|----------|-----------|----------|
 | macOS (Intel/ARM64) | ✅ | ✅ | ❌ |
 | Linux (x64) | ✅ | ✅ | ❌ |
-| Windows (x64) | ✅ (仅Windows) | ✅ | ❌ |
+| Windows (x64) | ✅ | ✅ | ✅ (macOS→Windows) |
 
 ## 构建说明
 
@@ -70,14 +78,11 @@
 
 ## 故障排除
 
-### Windows构建在macOS上失败
-```
-[错误] macOS不支持直接交叉编译Windows目标
-```
-**解决方案**：
-1. 在Windows机器上运行构建脚本
-2. 使用GitHub Actions自动构建
-3. 设置Windows开发环境进行交叉编译
+### Windows交叉编译设置
+脚本会自动检测macOS环境并使用cargo-xwin进行交叉编译。如遇到问题：
+1. 确保已安装cargo-xwin：`cargo install --locked cargo-xwin`
+2. 确保PATH包含llvm：`export PATH="/opt/homebrew/opt/llvm/bin:$PATH"`
+3. 确保已添加Windows目标：`rustup target add x86_64-pc-windows-msvc`
 
 ### updater二进制缺失
 脚本会自动编译updater。如失败请检查：

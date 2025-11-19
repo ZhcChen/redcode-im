@@ -83,7 +83,10 @@
         ],
         "displayLanguageSelector": false
       }
-    }
+    },
+    "externalBin": [
+      "resources/updater"
+    ]
   },
   "plugins": {
     "fs": {
