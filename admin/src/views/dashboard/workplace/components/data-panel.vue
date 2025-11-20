@@ -7,7 +7,7 @@
       >
         <a-space>
           <a-avatar :size="54" class="col-avatar">
-            <icon-user />
+            <icon-user-group />
           </a-avatar>
           <a-statistic
             title="用户总数"
@@ -30,7 +30,7 @@
             class="col-avatar"
             style="background-color: #2db7f5"
           >
-            <icon-contacts />
+            <icon-check-circle />
           </a-avatar>
           <a-statistic
             title="在线用户"
