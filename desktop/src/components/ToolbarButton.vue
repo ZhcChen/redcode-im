@@ -10,6 +10,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface Props {
   disabled?: boolean
   variant?: 'default' | 'primary' | 'ghost' | 'back'
@@ -34,7 +36,7 @@ const handleClick = () => {
   if (!props.disabled) {
     emit('click')
   }
-})
+}
 </script>
 
 <style lang="scss" scoped>
