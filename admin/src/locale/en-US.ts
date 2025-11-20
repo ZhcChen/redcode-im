@@ -25,6 +25,7 @@ export default {
   'menu.settings.cosTest': 'COS Test',
   'menu.settings.general': 'General Settings',
   'menu.settings.emojiPack': 'Emoji Pack Settings',
+  'menu.settings.ipinfoToken': 'IP Geolocation Token',
   'menu.version': 'Version Management',
   'menu.version.frontend': 'App Client',
   'menu.version.desktop': 'Desktop Client',

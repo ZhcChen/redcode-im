@@ -82,6 +82,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'ipinfo-token',
+      name: 'IpInfoTokenSettings',
+      component: () => import('@/views/settings/ipinfo-token/index.vue'),
+      meta: {
+        locale: 'menu.settings.ipinfoToken',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

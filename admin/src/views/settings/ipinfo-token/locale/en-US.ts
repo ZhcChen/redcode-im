@@ -1,0 +1,48 @@
+export default {
+  'ipinfoToken.title': 'ipinfo.io Token Management',
+  'ipinfoToken.create': 'Add Token',
+  'ipinfoToken.edit': 'Edit Token',
+  'ipinfoToken.delete': 'Delete Token',
+  'ipinfoToken.reset': 'Reset Usage',
+  'ipinfoToken.name.label': 'Token Name',
+  'ipinfoToken.name.placeholder': 'Please enter token name',
+  'ipinfoToken.token.label': 'Token Value',
+  'ipinfoToken.token.placeholder': 'Please enter ipinfo.io token',
+  'ipinfoToken.monthlyLimit.label': 'Monthly Limit',
+  'ipinfoToken.monthlyLimit.placeholder': 'Please enter monthly limit',
+  'ipinfoToken.monthlyLimit.help':
+    'ipinfo.io monthly call limit, default 50000 times',
+  'ipinfoToken.status.label': 'Status',
+  'ipinfoToken.status.active': 'Active',
+  'ipinfoToken.status.exhausted': 'Exhausted',
+  'ipinfoToken.table.name': 'Token Name',
+  'ipinfoToken.table.token': 'Token Value',
+  'ipinfoToken.table.usage': 'Monthly Usage',
+  'ipinfoToken.table.status': 'Status',
+  'ipinfoToken.table.resetDate': 'Reset Date',
+  'ipinfoToken.table.lastUsed': 'Last Used',
+  'ipinfoToken.table.createdAt': 'Created At',
+  'ipinfoToken.table.actions': 'Actions',
+  'ipinfoToken.confirm.delete':
+    'Are you sure to delete token "{name}"? This action cannot be undone.',
+  'ipinfoToken.confirm.reset':
+    'Are you sure to reset usage for token "{name}"?',
+  'ipinfoToken.success.create': 'Token created successfully',
+  'ipinfoToken.success.update': 'Token updated successfully',
+  'ipinfoToken.success.delete': 'Token deleted successfully',
+  'ipinfoToken.success.reset': 'Token usage reset successfully',
+  'ipinfoToken.error.create': 'Failed to create token',
+  'ipinfoToken.error.update': 'Failed to update token',
+  'ipinfoToken.error.delete': 'Failed to delete token',
+  'ipinfoToken.error.reset': 'Failed to reset token usage',
+  'ipinfoToken.error.fetch': 'Failed to fetch token list',
+  'ipinfoToken.validation.name.required': 'Please enter token name',
+  'ipinfoToken.validation.name.maxLength':
+    'Token name cannot exceed 50 characters',
+  'ipinfoToken.validation.token.required': 'Please enter token value',
+  'ipinfoToken.validation.token.maxLength':
+    'Token value cannot exceed 200 characters',
+  'ipinfoToken.validation.monthlyLimit.required': 'Please enter monthly limit',
+  'ipinfoToken.validation.monthlyLimit.range':
+    'Monthly limit should be between 1000-100000',
+};
