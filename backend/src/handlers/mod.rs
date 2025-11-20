@@ -1,3 +1,4 @@
+pub mod activity_logs;
 pub mod admin;
 pub mod auth;
 pub mod chat_history;

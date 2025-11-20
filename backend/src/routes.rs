@@ -6,7 +6,7 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    admin, auth, chat_history, emoji_pack, feedback, friend, group_management, healthz, message,
+    activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management, healthz, message,
     message_read, message_search, room, root, settings, user, version, ws,
 };
 use crate::AppState;
@@ -231,6 +231,12 @@ pub fn create_routes() -> Router<AppState> {
             get(chat_history::get_room_chat_history),
         )
         .route("/feedbacks", post(feedback::submit_feedback))
+        // activity logs
+        .route("/activity/heartbeat", post(activity_logs::create_heartbeat_log))
+        .route("/activity/login", post(activity_logs::create_login_history))
+        .route("/activity/login/{log_id}/logout", post(activity_logs::update_login_logout))
+        .route("/users/{user_id}/activity/login-history", get(activity_logs::get_user_login_history))
+        .route("/users/{user_id}/activity/heartbeat-logs", get(activity_logs::get_user_heartbeat_logs))
         // users
         .route("/users/search", get(user::search_users))
         .route(

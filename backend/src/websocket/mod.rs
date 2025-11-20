@@ -213,11 +213,13 @@ impl ConnectionManager {
             if let Some(conn_info) = connections.get_mut(conn_id) {
                 conn_info.last_ping = chrono::Utc::now();
 
-                // 异步更新Redis会话心跳信息（不阻塞心跳响应）
+                // 异步更新Redis会话心跳信息和记录心跳日志（不阻塞心跳响应）
                 let user_id = conn_info.user_id.clone();
                 let client_ip = client_ip.clone();
                 let redis_manager = state.redis.clone();
                 let node_id = state.node_id.clone();
+                let database = state.database.clone();
+                let connection_id = conn_id.to_string();
                 tokio::spawn(async move {
                     let user_uuid = match uuid::Uuid::parse_str(&user_id) {
                         Ok(uuid) => uuid,
@@ -225,9 +227,36 @@ impl ConnectionManager {
                     };
 
                     // 获取会话管理器并更新心跳和IP
-                    let session_manager = redis_manager.get_session_manager(node_id);
+                    let session_manager = redis_manager.get_session_manager(node_id.clone());
                     if let Err(e) = session_manager.update_session_heartbeat_with_ip(&user_uuid, client_ip).await {
                         tracing::debug!("更新Redis会话心跳失败: {}", e);
+                    }
+
+                    // 记录心跳日志到数据库
+                    let request = crate::handlers::activity_logs::CreateHeartbeatLogRequest {
+                        user_id: user_uuid,
+                        ip_address: client_ip.to_string(),
+                        user_agent: None,
+                        connection_id: connection_id.to_string(),
+                        node_id: Some(node_id),
+                        device_info: None,
+                    };
+
+                    if let Err(e) = sqlx::query(
+                        r#"
+                        INSERT INTO user_heartbeat_logs (user_id, ip_address, user_agent, connection_id, node_id, device_info)
+                        VALUES ($1, $2::inet, $3, $4, $5, $6)
+                        "#,
+                    )
+                    .bind(request.user_id)
+                    .bind(&request.ip_address)
+                    .bind(&request.user_agent)
+                    .bind(&request.connection_id)
+                    .bind(&request.node_id)
+                    .bind(&request.device_info)
+                    .execute(&database.pool)
+                    .await {
+                        tracing::debug!("记录心跳日志失败: {}", e);
                     }
                 });
 
@@ -349,6 +378,48 @@ async fn handle_client_event(
                         out_tx.clone(),
                     )
                     .await;
+
+                // 异步记录用户登录历史
+                let user_uuid_clone = user_id.clone();
+                let client_ip_clone = client_addr.ip().to_string();
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    let user_uuid = match uuid::Uuid::parse_str(&user_uuid_clone) {
+                        Ok(uuid) => uuid,
+                        Err(_) => return,
+                    };
+
+                    let request = crate::handlers::activity_logs::CreateLoginHistoryRequest {
+                        user_id: user_uuid,
+                        ip_address: client_ip_clone,
+                        user_agent: None, // WebSocket连接通常没有User-Agent
+                        login_method: "websocket".to_string(),
+                        success: true,
+                        failure_reason: None,
+                        device_info: Some(serde_json::json!({
+                            "connection_format": "json", // 这里format变量不可用，使用默认值
+                            "node_id": state_clone.node_id
+                        })),
+                    };
+
+                    if let Err(e) = sqlx::query(
+                        r#"
+                        INSERT INTO user_login_history (user_id, ip_address, user_agent, login_method, success, failure_reason, device_info)
+                        VALUES ($1, $2::inet, $3, $4, $5, $6, $7)
+                        "#,
+                    )
+                    .bind(request.user_id)
+                    .bind(&request.ip_address)
+                    .bind(&request.user_agent)
+                    .bind(&request.login_method)
+                    .bind(request.success)
+                    .bind(&request.failure_reason)
+                    .bind(&request.device_info)
+                    .execute(&state_clone.database.pool)
+                    .await {
+                        tracing::warn!("记录用户登录历史失败: {}", e);
+                    }
+                });
 
                 let push = ServerPush::Authed {
                     user_id: user_id.clone(),
