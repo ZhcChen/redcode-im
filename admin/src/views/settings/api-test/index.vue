@@ -70,6 +70,7 @@
   import { reactive, ref, computed } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
+  import axios from 'axios';
 
   const { loading, setLoading } = useLoading(false);
 
@@ -114,31 +115,21 @@
       errorMessage.value = '';
       testResult.value = null;
 
-      // 调用后端API测试接口
-      const response = await fetch('/api/admin/test-geolocation-api', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ip_address: testForm.ip_address.trim(),
-        }),
+      // 使用axios发送请求到正确的API地址
+      const response = await axios.post('/api/admin/test-geolocation-api', {
+        ip_address: testForm.ip_address.trim(),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'API测试失败');
-      }
-
-      if (data.success) {
-        testResult.value = data.data;
+      if (response.data && response.data.data) {
+        testResult.value = response.data.data;
         Message.success('API测试成功');
       } else {
-        throw new Error(data.message || 'API返回错误');
+        throw new Error('API返回数据格式错误');
       }
     } catch (error: any) {
-      errorMessage.value = error.message || '测试失败，请重试';
+      console.error('API测试错误:', error);
+      errorMessage.value =
+        error.response?.data?.message || error.message || '测试失败，请重试';
       Message.error(errorMessage.value);
     } finally {
       setLoading(false);
