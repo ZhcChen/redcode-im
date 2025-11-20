@@ -23,6 +23,6 @@
 
 <style scoped lang="less">
   .banner-content {
-    padding: 16px 0;
+    padding: 8px 0;
   }
 </style>
