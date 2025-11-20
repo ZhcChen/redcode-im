@@ -5,6 +5,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as ws_status;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart' as uuid_pkg;
+import 'package:async/async.dart';
 
 import '../constants/app_config.dart';
 import '../storage/token_storage.dart';
@@ -398,6 +399,11 @@ class WebSocketService with ChangeNotifier {
         return _ErrorEvent(message: event.error.message);
       case ws.ServerEvent_Payload.pong:
         return const _PongEvent();
+      case ws.ServerEvent_Payload.userBanned:
+        return _UserBannedEvent(
+          userId: event.userBanned.userId,
+          reason: event.userBanned.reason,
+        );
       case ws.ServerEvent_Payload.notSet:
         return null;
     }
@@ -535,6 +541,10 @@ class WebSocketService with ChangeNotifier {
       case 'friends_version':
         final version = message['version']?.toString();
         return _FriendsVersionEvent(version: version);
+      case 'user_banned':
+        final userId = message['user_id']?.toString() ?? '';
+        final reason = message['reason']?.toString() ?? '管理员封禁';
+        return _UserBannedEvent(userId: userId, reason: reason);
       default:
         return null;
     }
@@ -571,6 +581,8 @@ class WebSocketService with ChangeNotifier {
       _handleServerError(event.message);
     } else if (event is _PongEvent) {
       debugPrint('Received pong');
+    } else if (event is _UserBannedEvent) {
+      _handleUserBanned(event);
     }
   }
 
@@ -757,6 +769,30 @@ class WebSocketService with ChangeNotifier {
   /// 处理服务器错误
   void _handleServerError(String message) {
     debugPrint('Server error: $message');
+  }
+
+  /// 处理用户封禁事件
+  void _handleUserBanned(_UserBannedEvent event) {
+    debugPrint('User banned: ${event.userId}, reason: ${event.reason}');
+    
+    // 获取当前用户信息
+    unawaited(() async {
+      try {
+        final session = await _tokenStorage.readSession();
+        if (session != null && session.userId == event.userId) {
+          // 当前用户被封禁，清除token并断开连接
+          debugPrint('Current user banned, logging out...');
+          await _tokenStorage.clearSession();
+          await disconnect();
+          
+          // 通知应用跳转到登录页面
+          // 这里可以通过事件总线或其他方式通知应用
+          debugPrint('User banned notification sent');
+        }
+      } catch (e) {
+        debugPrint('Error handling user banned event: $e');
+      }
+    }());
   }
 
   /// 处理连接错误
@@ -1332,4 +1368,10 @@ class _PongEvent extends _WsEvent {
 class _ErrorEvent extends _WsEvent {
   const _ErrorEvent({required this.message});
   final String message;
+}
+
+class _UserBannedEvent extends _WsEvent {
+  const _UserBannedEvent({required this.userId, required this.reason});
+  final String userId;
+  final String reason;
 }

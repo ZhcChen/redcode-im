@@ -1713,6 +1713,77 @@ class ServerRoomCreated extends $pb.GeneratedMessage {
   void clearCreatedAt() => clearField(8);
 }
 
+class ServerBanned extends $pb.GeneratedMessage {
+  factory ServerBanned({
+    $core.String? userId,
+    $core.String? reason,
+  }) {
+    final $result = create();
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    if (reason != null) {
+      $result.reason = reason;
+    }
+    return $result;
+  }
+  ServerBanned._() : super();
+  static final $pb.BuilderInfo _i =
+      $pb.BuilderInfo(
+          'ServerBanned',
+          package: const $pb.PackageName('ws'),
+          createEmptyInstance: create,
+        )
+        ..aOS(1, 'userId')
+        ..aOS(2, 'reason')
+        ..hasRequiredFields = false;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerBanned create() => ServerBanned._();
+  ServerBanned createEmptyInstance() => create();
+  static $pb.PbList<ServerBanned> createRepeated() =>
+      $pb.PbList<ServerBanned>();
+  @$core.pragma('dart2js:noInline')
+  static ServerBanned getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerBanned>(create);
+  static ServerBanned? _defaultInstance;
+
+  @$core.override
+  ServerBanned clone() => ServerBanned()..mergeFromMessage(this);
+
+  @$core.override
+  ServerBanned copyWith(void Function(ServerBanned) updates) =>
+      super.copyWith((message) => updates(message as ServerBanned))
+          as ServerBanned;
+
+  @$pb.TagNumber(1)
+  $core.String get userId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set userId($core.String v) {
+    $_setString(0, v);
+  }
+
+  @$pb.TagNumber(1)
+  $core.bool hasUserId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUserId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String v) {
+    $_setString(1, v);
+  }
+
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => clearField(2);
+}
+
 enum ServerEvent_Payload {
   authed,
   joined,
@@ -1725,6 +1796,7 @@ enum ServerEvent_Payload {
   pong,
   friendRequestUpdate,
   roomCreated,
+  userBanned,
   notSet,
 }
 
@@ -1741,6 +1813,7 @@ class ServerEvent extends $pb.GeneratedMessage {
     ServerPong? pong,
     ServerFriendRequestUpdate? friendRequestUpdate,
     ServerRoomCreated? roomCreated,
+    ServerBanned? userBanned,
   }) {
     final $result = create();
     if (authed != null) {
@@ -1776,6 +1849,9 @@ class ServerEvent extends $pb.GeneratedMessage {
     if (roomCreated != null) {
       $result.roomCreated = roomCreated;
     }
+    if (userBanned != null) {
+      $result.userBanned = userBanned;
+    }
     return $result;
   }
   ServerEvent._() : super();
@@ -1792,6 +1868,7 @@ class ServerEvent extends $pb.GeneratedMessage {
     9: ServerEvent_Payload.pong,
     10: ServerEvent_Payload.friendRequestUpdate,
     11: ServerEvent_Payload.roomCreated,
+    12: ServerEvent_Payload.userBanned,
     0: ServerEvent_Payload.notSet,
   };
   static final $pb.BuilderInfo _i =
@@ -1800,7 +1877,7 @@ class ServerEvent extends $pb.GeneratedMessage {
           package: const $pb.PackageName('ws'),
           createEmptyInstance: create,
         )
-        ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
         ..aOM<ServerAuthed>(1, 'authed', subBuilder: ServerAuthed.create)
         ..aOM<ServerJoined>(2, 'joined', subBuilder: ServerJoined.create)
         ..aOM<ServerLeft>(3, 'left', subBuilder: ServerLeft.create)
@@ -1831,6 +1908,11 @@ class ServerEvent extends $pb.GeneratedMessage {
           11,
           'roomCreated',
           subBuilder: ServerRoomCreated.create,
+        )
+        ..aOM<ServerBanned>(
+          12,
+          'userBanned',
+          subBuilder: ServerBanned.create,
         )
         ..hasRequiredFields = false;
 
@@ -2011,4 +2093,18 @@ class ServerEvent extends $pb.GeneratedMessage {
   void clearRoomCreated() => clearField(11);
   @$pb.TagNumber(11)
   ServerRoomCreated ensureRoomCreated() => $_ensure(10);
+
+  @$pb.TagNumber(12)
+  ServerBanned get userBanned => $_getN(11);
+  @$pb.TagNumber(12)
+  set userBanned(ServerBanned v) {
+    setField(12, v);
+  }
+
+  @$pb.TagNumber(12)
+  $core.bool hasUserBanned() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearUserBanned() => clearField(12);
+  @$pb.TagNumber(12)
+  ServerBanned ensureUserBanned() => $_ensure(11);
 }
