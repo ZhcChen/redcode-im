@@ -21,7 +21,7 @@ export interface LoginRes {
 }
 
 export function login(data: LoginData) {
-  return axios.post<LoginRes>('/auth/login', data);
+  return axios.post<LoginRes>('/auth/admin/login', data);
 }
 
 export function logout(): Promise<void> {
@@ -29,7 +29,7 @@ export function logout(): Promise<void> {
 }
 
 export function getUserInfo() {
-  return axios.get<BackendUserInfo>('/auth/me');
+  return axios.get<BackendUserInfo>('/auth/admin/me');
 }
 
 export function getMenuList() {
@@ -88,4 +88,55 @@ export function getCaptchaSetting() {
 
 export function updateCaptchaSetting(setting: Partial<CaptchaSetting>) {
   return axios.post('/api/admin/settings/captcha', setting);
+}
+
+// 管理员用户管理相关接口
+export interface AdminUserInfo {
+  id: string;
+  username: string;
+  email: string;
+  nickname?: string | null;
+  avatar_url?: string | null;
+  status: 'active' | 'inactive' | 'banned' | 'locked';
+  last_login_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserListParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  username?: string;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUserInfo[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CreateAdminUserRequest {
+  username: string;
+  email: string;
+  password: string;
+  nickname?: string;
+}
+
+export function getAdminUserList(params?: AdminUserListParams) {
+  return axios.get<AdminUserListResponse>('/api/admin/admin-users', { params });
+}
+
+export function createAdminUser(data: CreateAdminUserRequest) {
+  return axios.post<AdminUserInfo>('/api/admin/admin-users', data);
+}
+
+export function updateAdminUserStatus(
+  adminUserId: string,
+  status: 'active' | 'inactive' | 'banned' | 'locked'
+) {
+  return axios.patch(`/api/admin/admin-users/${adminUserId}/status`, {
+    status,
+  });
 }

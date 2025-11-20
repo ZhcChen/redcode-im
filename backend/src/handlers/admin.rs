@@ -4,11 +4,14 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use serde_json;
 use uuid::Uuid;
 
 use crate::database::models::{
-    CaptchaSettingRecord, Permission, Role, StorageProvider, StorageProviderType, UserStatus,
+    AdminUser, AdminUserStatus,
+    CaptchaSettingRecord, Permission, Role, StorageProvider, StorageProviderType, UserStatus as DbUserStatus,
 };
+use ipnetwork::IpNetwork;
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
@@ -18,6 +21,77 @@ use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{FromRow, Row};
 use tracing::error;
+
+/// 管理员用户信息（API响应）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminUserInfo {
+    pub id: String,
+    pub username: String,
+    pub email: String,
+    pub nickname: Option<String>,
+    pub avatar_url: Option<String>,
+    pub status: String,
+    pub last_login_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 管理员登录请求
+#[derive(Debug, Deserialize)]
+pub struct AdminLoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// 管理员创建请求
+#[derive(Debug, Deserialize)]
+pub struct CreateAdminUserRequest {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    pub nickname: Option<String>,
+}
+
+/// 管理员更新请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateAdminUserRequest {
+    pub nickname: Option<String>,
+    pub status: Option<String>,
+}
+
+/// 管理员用户列表参数
+#[derive(Debug, Deserialize)]
+pub struct AdminUserListParams {
+    #[serde(default)]
+    pub page: Option<usize>,
+    #[serde(default)]
+    pub page_size: Option<usize>,
+    pub status: Option<String>,
+    pub username: Option<String>,
+}
+
+/// 管理员用户列表响应
+#[derive(Debug, Serialize)]
+pub struct AdminUserListResponse {
+    pub users: Vec<AdminUserInfo>,
+    pub total: usize,
+    pub page: usize,
+    pub page_size: usize,
+}
+
+/// 更新管理员用户状态请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateAdminUserStatusRequest {
+    pub status: String,
+}
+
+/// 管理员操作响应
+#[derive(Debug, Serialize)]
+pub struct AdminOperationResponse {
+    pub success: bool,
+    pub message: String,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,7 +171,7 @@ pub struct UserListParams {
 }
 
 #[derive(Debug, Serialize)]
-pub struct AdminUser {
+pub struct AdminUserResponse {
     pub id: String,
     pub username: String,
     pub email: String,
@@ -111,7 +185,7 @@ pub struct AdminUser {
 
 #[derive(Debug, Serialize)]
 pub struct UserListResponse {
-    pub users: Vec<AdminUser>,
+    pub users: Vec<AdminUserResponse>,
     pub total: usize,
     pub page: usize,
     pub page_size: usize,
@@ -620,9 +694,9 @@ pub async fn get_user_list(
         .filter(|s| !s.is_empty());
 
     let status = match status_param {
-        Some("active") => Some(UserStatus::Active),
-        Some("inactive") => Some(UserStatus::Inactive),
-        Some("banned") => Some(UserStatus::Banned),
+        Some("active") => Some(DbUserStatus::Active),
+        Some("inactive") => Some(DbUserStatus::Inactive),
+        Some("banned") => Some(DbUserStatus::Banned),
         None => None,
         Some(_) => return Err(StatusCode::BAD_REQUEST),
     };
@@ -640,13 +714,17 @@ pub async fn get_user_list(
 
     let admins = users
         .into_iter()
-        .map(|user| AdminUser {
+        .map(|user| AdminUserResponse {
             id: user.id.to_string(),
             username: user.username,
             email: user.email,
             nickname: user.nickname,
             avatar_url: user.avatar_url,
-            status: user.status.to_string(),
+            status: match user.status {
+                DbUserStatus::Active => "active".to_string(),
+                DbUserStatus::Inactive => "inactive".to_string(),
+                DbUserStatus::Banned => "banned".to_string(),
+            },
             created_at: user.created_at.to_rfc3339(),
             updated_at: user.updated_at.to_rfc3339(),
             deleted_at: user.deleted_at.map(|dt| dt.to_rfc3339()),
@@ -659,6 +737,269 @@ pub async fn get_user_list(
         page,
         page_size,
     }))
+}
+
+/// 获取管理员用户列表
+pub async fn get_admin_user_list(
+    State(state): State<AppState>,
+    Query(params): Query<AdminUserListParams>,
+) -> Result<Json<AdminUserListResponse>, AppError> {
+    let store = AdminUserStore::new(state.database.clone());
+
+    let page = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(20).max(1).min(100);
+
+    let status_param = params
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    let status = match status_param {
+        Some("active") => Some(AdminUserStatus::Active),
+        Some("inactive") => Some(AdminUserStatus::Inactive),
+        Some("banned") => Some(AdminUserStatus::Banned),
+        Some("locked") => Some(AdminUserStatus::Locked),
+        None => None,
+        Some(_) => return Err(AppError::ValidationError("无效的状态参数".to_string())),
+    };
+
+    let username = params
+        .username
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    let (admin_users, total) = store
+        .list_admin_users(page, page_size, status, username.map(|s| s.to_string()))
+        .await?;
+
+    let admin_user_infos = admin_users
+        .into_iter()
+        .map(|user| db_admin_user_to_api_user_info(&user))
+        .collect();
+
+    Ok(Json(AdminUserListResponse {
+        users: admin_user_infos,
+        total: total as usize,
+        page,
+        page_size,
+    }))
+}
+
+/// 创建管理员用户
+pub async fn create_admin_user(
+    State(state): State<AppState>,
+    Json(request): Json<CreateAdminUserRequest>,
+) -> Result<Json<AdminUserInfo>, AppError> {
+    // 基础验证
+    if request.username.trim().is_empty() || request.email.trim().is_empty() || request.password.trim().is_empty() {
+        return Err(AppError::ValidationError("用户名、邮箱和密码不能为空".to_string()));
+    }
+
+    if request.username.len() < 3 {
+        return Err(AppError::ValidationError("用户名长度至少为3个字符".to_string()));
+    }
+
+    if request.password.len() < 6 {
+        return Err(AppError::ValidationError("密码长度至少为6个字符".to_string()));
+    }
+
+    let store = AdminUserStore::new(state.database.clone());
+
+    // 检查用户名是否已存在
+    if store.find_by_username(&request.username).await?.is_some() {
+        return Err(AppError::ValidationError("用户名已存在".to_string()));
+    }
+
+    let admin_user = store.create_admin_user(request).await?;
+
+    // 记录操作日志
+    record_admin_operation(
+        &state.database,
+        None, // 由系统创建，没有操作者
+        "create_admin_user",
+        Some("admin_user"),
+        Some(admin_user.id),
+        Some(serde_json::json!({
+            "username": admin_user.username,
+            "email": admin_user.email
+        })),
+        None,
+        None,
+    ).await.ok(); // 忽略记录失败的错误
+
+    Ok(Json(db_admin_user_to_api_user_info(&admin_user)))
+}
+
+/// 更新管理员用户状态
+pub async fn update_admin_user_status(
+    State(state): State<AppState>,
+    Path(admin_user_id): Path<String>,
+    Json(request): Json<UpdateAdminUserStatusRequest>,
+) -> Result<Json<AdminOperationResponse>, AppError> {
+    let admin_user_uuid = Uuid::parse_str(&admin_user_id)
+        .map_err(|_| AppError::ValidationError("无效的管理员用户ID".to_string()))?;
+
+    let status = match request.status.as_str() {
+        "active" => AdminUserStatus::Active,
+        "inactive" => AdminUserStatus::Inactive,
+        "banned" => AdminUserStatus::Banned,
+        "locked" => AdminUserStatus::Locked,
+        _ => return Err(AppError::ValidationError("无效的状态值".to_string())),
+    };
+
+    let store = AdminUserStore::new(state.database.clone());
+
+    // 检查用户是否存在
+    let admin_user = store.find_by_id(&admin_user_uuid).await?
+        .ok_or_else(|| AppError::NotFound("管理员用户不存在".to_string()))?;
+
+    // 更新状态
+    sqlx::query!(
+        "UPDATE admin_users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        status as AdminUserStatus,
+        admin_user_uuid
+    )
+    .execute(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    // 记录操作日志（需要从JWT中获取当前操作者ID）
+    // TODO: 从JWT claims中获取操作者ID
+    if let Err(e) = record_admin_operation(
+        &state.database,
+        None, // TODO: 获取当前管理员用户ID
+        "update_admin_user_status",
+        Some("admin_user"),
+        Some(admin_user_uuid),
+        Some(serde_json::json!({
+            "old_status": admin_user.status,
+            "new_status": status,
+            "username": admin_user.username
+        })),
+        None,
+        None,
+    ).await {
+        tracing::warn!("记录管理员操作日志失败: {:?}", e);
+    }
+
+    Ok(Json(AdminOperationResponse {
+        success: true,
+        message: "管理员用户状态更新成功".to_string(),
+    }))
+}
+
+/// 创建默认管理员用户（临时API，仅用于初始化）
+pub async fn create_default_admin_user(
+    State(state): State<AppState>,
+) -> Result<Json<AdminOperationResponse>, AppError> {
+    tracing::info!("开始创建默认管理员用户");
+
+    let store = AdminUserStore::new(state.database.clone());
+
+    // 检查是否已存在管理员用户
+    tracing::info!("检查是否已存在管理员用户");
+    match store.list_admin_users(1, 1, None, None).await {
+        Ok(existing_users) => {
+            if existing_users.1 > 0 {
+                tracing::info!("管理员用户已存在，跳过创建");
+                return Ok(Json(AdminOperationResponse {
+                    success: false,
+                    message: "管理员用户已存在，无需重复创建".to_string(),
+                }));
+            }
+        }
+        Err(e) => {
+            tracing::error!("查询管理员用户失败: {:?}", e);
+            return Err(e);
+        }
+    }
+
+    tracing::info!("创建默认管理员用户");
+    // 创建默认管理员用户
+    let request = CreateAdminUserRequest {
+        username: "admin".to_string(),
+        email: "admin@redcode-im.com".to_string(),
+        password: "admin123".to_string(),
+        nickname: Some("系统管理员".to_string()),
+    };
+
+    match store.create_admin_user(request).await {
+        Ok(_) => {
+            tracing::info!("默认管理员用户创建成功");
+            Ok(Json(AdminOperationResponse {
+                success: true,
+                message: "默认管理员用户创建成功，用户名: admin，密码: admin123".to_string(),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("创建管理员用户失败: {:?}", e);
+            Err(e)
+        }
+    }
+}
+
+/// 检查管理员用户（临时调试API）
+pub async fn check_admin_users(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let store = AdminUserStore::new(state.database.clone());
+
+    match store.list_admin_users(1, 10, None, None).await {
+        Ok((users, total)) => {
+            let user_list: Vec<serde_json::Value> = users.into_iter()
+                .map(|user| serde_json::json!({
+                    "id": user.id.to_string(),
+                    "username": user.username,
+                    "email": user.email,
+                    "status": format!("{:?}", user.status),
+                    "created_at": user.created_at.to_rfc3339()
+                }))
+                .collect();
+
+            Ok(Json(serde_json::json!({
+                "total": total,
+                "users": user_list
+            })))
+        }
+        Err(e) => {
+            tracing::error!("查询管理员用户失败: {:?}", e);
+            Err(e)
+        }
+    }
+}
+
+/// 重置管理员密码（临时API）
+pub async fn reset_admin_password(
+    State(state): State<AppState>,
+) -> Result<Json<AdminOperationResponse>, AppError> {
+    use crate::auth::hash_password;
+
+    let new_password = "admin123";
+    let hashed_password = hash_password(new_password)
+        .map_err(|_| AppError::InternalError("密码哈希失败".to_string()))?;
+
+    let result = sqlx::query!(
+        "UPDATE admin_users SET password_hash = $1, password_changed_at = CURRENT_TIMESTAMP WHERE username = $2",
+        hashed_password,
+        "admin"
+    )
+    .execute(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    if result.rows_affected() > 0 {
+        Ok(Json(AdminOperationResponse {
+            success: true,
+            message: format!("管理员密码已重置为: {}", new_password),
+        }))
+    } else {
+        Ok(Json(AdminOperationResponse {
+            success: false,
+            message: "未找到管理员用户".to_string(),
+        }))
+    }
 }
 
 pub async fn get_data_statistics(
@@ -1062,9 +1403,9 @@ pub async fn update_user(
 
     if let Some(status) = &req.status {
         let status_enum = match status.as_str() {
-            "active" => UserStatus::Active,
-            "inactive" => UserStatus::Inactive,
-            "banned" => UserStatus::Banned,
+            "active" => DbUserStatus::Active,
+            "inactive" => DbUserStatus::Inactive,
+            "banned" => DbUserStatus::Banned,
             _ => {
                 return Ok(Json(UserOperationResponse {
                     success: false,
@@ -1648,9 +1989,9 @@ pub async fn update_user_status(
     let user_id = Uuid::parse_str(&user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let status = match req.status.as_str() {
-        "active" => UserStatus::Active,
-        "inactive" => UserStatus::Inactive,
-        "banned" => UserStatus::Banned,
+        "active" => DbUserStatus::Active,
+        "inactive" => DbUserStatus::Inactive,
+        "banned" => DbUserStatus::Banned,
         _ => return Err(StatusCode::BAD_REQUEST),
     };
 
@@ -2778,4 +3119,333 @@ pub async fn test_cos_create_bucket(
             message: format!("创建 bucket 失败: {}", e),
         })),
     }
+}
+
+// ========== 管理员用户管理相关 ==========
+
+use crate::auth::hash_password;
+
+/// 管理员用户数据存储
+pub struct AdminUserStore {
+    pool: sqlx::PgPool,
+}
+
+impl AdminUserStore {
+    pub fn new(database: crate::database::Database) -> Self {
+        Self { pool: database.pool }
+    }
+
+    /// 根据用户名查找管理员用户
+    pub async fn find_by_username(&self, username: &str) -> Result<Option<AdminUser>, AppError> {
+        let user = sqlx::query_as!(
+            AdminUser,
+            r#"SELECT
+                id, username, email, password_hash, nickname, avatar_url,
+                status as "status: AdminUserStatus",
+                last_login_at, login_attempts, locked_until,
+                require_password_change, password_changed_at,
+                created_at, updated_at, deleted_at
+            FROM admin_users
+            WHERE username = $1 AND deleted_at IS NULL"#,
+            username
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(user)
+    }
+
+    /// 根据ID查找管理员用户
+    pub async fn find_by_id(&self, id: &Uuid) -> Result<Option<AdminUser>, AppError> {
+        let user = sqlx::query_as!(
+            AdminUser,
+            r#"SELECT
+                id, username, email, password_hash, nickname, avatar_url,
+                status as "status: AdminUserStatus",
+                last_login_at, login_attempts, locked_until,
+                require_password_change, password_changed_at,
+                created_at, updated_at, deleted_at
+            FROM admin_users
+            WHERE id = $1 AND deleted_at IS NULL"#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(user)
+    }
+
+    /// 验证管理员用户登录
+    pub async fn authenticate(
+        &self,
+        request: crate::models::LoginRequest,
+    ) -> Result<Option<AdminUser>, AppError> {
+        let user = match self.find_by_username(&request.username).await? {
+            Some(u) => u,
+            None => return Ok(None),
+        };
+
+        // 验证密码
+        let is_valid = bcrypt::verify(&request.password, &user.password_hash)
+            .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
+
+        if !is_valid {
+            // 记录登录失败
+            self.record_login_failure(&user.id, "密码错误").await?;
+            return Ok(None);
+        }
+
+        Ok(Some(user))
+    }
+
+    /// 记录登录历史
+    pub async fn record_login_history(
+        &self,
+        admin_user_id: &Uuid,
+        ip_address: Option<IpNetwork>,
+        user_agent: Option<String>,
+        success: bool,
+        failure_reason: Option<String>,
+    ) -> Result<(), AppError> {
+        sqlx::query!(
+            r#"INSERT INTO admin_login_history
+                (admin_user_id, ip_address, user_agent, success, failure_reason)
+            VALUES ($1, $2, $3, $4, $5)"#,
+            admin_user_id,
+            ip_address,
+            user_agent,
+            success,
+            failure_reason
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(())
+    }
+
+    /// 记录登录失败
+    pub async fn record_login_failure(
+        &self,
+        admin_user_id: &Uuid,
+        reason: &str,
+    ) -> Result<(), AppError> {
+        // 增加登录失败次数
+        sqlx::query!(
+            r#"UPDATE admin_users
+            SET login_attempts = login_attempts + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1"#,
+            admin_user_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        // 记录登录历史
+        self.record_login_history(admin_user_id, None, None, false, Some(reason.to_string())).await?;
+
+        Ok(())
+    }
+
+    /// 更新登录信息（成功登录后调用）
+    pub async fn update_login_info(&self, admin_user_id: &Uuid) -> Result<(), AppError> {
+        sqlx::query!(
+            r#"UPDATE admin_users
+            SET last_login_at = CURRENT_TIMESTAMP,
+                login_attempts = 0,
+                locked_until = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1"#,
+            admin_user_id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(())
+    }
+
+    /// 创建管理员用户
+    pub async fn create_admin_user(
+        &self,
+        request: CreateAdminUserRequest,
+    ) -> Result<AdminUser, AppError> {
+        let password_hash = hash_password(&request.password)
+            .map_err(|_| AppError::InternalError("密码哈希失败".to_string()))?;
+
+        let user = sqlx::query_as!(
+            AdminUser,
+            r#"INSERT INTO admin_users
+                (username, email, password_hash, nickname, status, require_password_change, password_changed_at)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+            RETURNING
+                id, username, email, password_hash, nickname, avatar_url,
+                status as "status: AdminUserStatus",
+                last_login_at, login_attempts, locked_until,
+                require_password_change, password_changed_at,
+                created_at, updated_at, deleted_at"#,
+            request.username,
+            request.email,
+            password_hash,
+            request.nickname,
+            AdminUserStatus::Active as AdminUserStatus,
+            false
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(user)
+    }
+
+    /// 获取管理员用户列表
+    pub async fn list_admin_users(
+        &self,
+        page: usize,
+        page_size: usize,
+        status: Option<AdminUserStatus>,
+        username: Option<String>,
+    ) -> Result<(Vec<AdminUser>, i64), AppError> {
+        let offset = (page - 1) * page_size;
+
+        let mut query = sqlx::QueryBuilder::new(
+            r#"SELECT
+                id, username, email, password_hash, nickname, avatar_url,
+                status,
+                last_login_at, login_attempts, locked_until,
+                require_password_change, password_changed_at,
+                created_at, updated_at, deleted_at,
+                COUNT(*) OVER() as total_count
+            FROM admin_users
+            WHERE deleted_at IS NULL"#
+        );
+
+        if let Some(status) = status {
+            query.push(" AND status = ");
+            query.push_bind(status);
+        }
+
+        if let Some(username) = username {
+            query.push(" AND username ILIKE ");
+            query.push_bind(format!("%{}%", username));
+        }
+
+        query.push(" ORDER BY created_at DESC LIMIT ");
+        query.push_bind(page_size as i64);
+        query.push(" OFFSET ");
+        query.push_bind(offset as i64);
+
+        let rows = query
+            .build_query_as::<AdminUserWithCount>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
+
+        let total = rows.first().map(|r| r.total_count).unwrap_or(0);
+        let users = rows.into_iter().map(|r| r.into()).collect();
+
+        Ok((users, total))
+    }
+}
+
+/// 管理员用户查询结果（包含总数）
+#[derive(FromRow)]
+struct AdminUserWithCount {
+    id: Uuid,
+    username: String,
+    email: String,
+    password_hash: String,
+    nickname: Option<String>,
+    avatar_url: Option<String>,
+    status: i16,
+    last_login_at: Option<DateTime<Utc>>,
+    login_attempts: i16,
+    locked_until: Option<DateTime<Utc>>,
+    require_password_change: bool,
+    password_changed_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    deleted_at: Option<DateTime<Utc>>,
+    total_count: i64,
+}
+
+impl From<AdminUserWithCount> for AdminUser {
+    fn from(row: AdminUserWithCount) -> Self {
+        AdminUser {
+            id: row.id,
+            username: row.username,
+            email: row.email,
+            password_hash: row.password_hash,
+            nickname: row.nickname,
+            avatar_url: row.avatar_url,
+            status: match row.status {
+                0 => AdminUserStatus::Active,
+                1 => AdminUserStatus::Inactive,
+                2 => AdminUserStatus::Banned,
+                3 => AdminUserStatus::Locked,
+                _ => AdminUserStatus::Active, // 默认值
+            },
+            last_login_at: row.last_login_at,
+            login_attempts: row.login_attempts,
+            locked_until: row.locked_until,
+            require_password_change: row.require_password_change,
+            password_changed_at: row.password_changed_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            deleted_at: row.deleted_at,
+        }
+    }
+}
+
+/// 数据库管理员用户转换为API响应
+pub fn db_admin_user_to_api_user_info(db_user: &AdminUser) -> AdminUserInfo {
+    AdminUserInfo {
+        id: db_user.id.to_string(),
+        username: db_user.username.clone(),
+        email: db_user.email.clone(),
+        nickname: db_user.nickname.clone(),
+        avatar_url: db_user.avatar_url.clone(),
+        status: match db_user.status {
+            AdminUserStatus::Active => "active".to_string(),
+            AdminUserStatus::Inactive => "inactive".to_string(),
+            AdminUserStatus::Banned => "banned".to_string(),
+            AdminUserStatus::Locked => "locked".to_string(),
+        },
+        last_login_at: db_user.last_login_at.map(|dt| dt.to_rfc3339()),
+        created_at: db_user.created_at.to_rfc3339(),
+        updated_at: db_user.updated_at.to_rfc3339(),
+    }
+}
+
+/// 记录管理员操作日志
+async fn record_admin_operation(
+    database: &crate::database::Database,
+    admin_user_id: Option<Uuid>,
+    operation: &str,
+    resource_type: Option<&str>,
+    resource_id: Option<Uuid>,
+    details: Option<serde_json::Value>,
+    ip_address: Option<IpNetwork>,
+    user_agent: Option<String>,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        r#"INSERT INTO admin_operation_logs
+            (admin_user_id, operation, resource_type, resource_id, details, ip_address, user_agent)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
+        admin_user_id,
+        operation,
+        resource_type,
+        resource_id,
+        details,
+        ip_address,
+        user_agent
+    )
+    .execute(&database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    Ok(())
 }

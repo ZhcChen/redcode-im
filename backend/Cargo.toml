@@ -30,9 +30,10 @@
  # ID 生成
  uuid = { version = "1.11", features = ["v4", "v7", "serde"] }
 
- # 数据库
- sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "sqlite", "chrono", "uuid", "macros", "migrate", "bigdecimal"], default-features = false }
- bigdecimal = "0.4"
+# 数据库
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "sqlite", "chrono", "uuid", "macros", "migrate", "bigdecimal", "json", "ipnetwork"], default-features = false }
+bigdecimal = "0.4"
+ipnetwork = "0.20"
 
  # 缓存
  redis = { version = "0.32.7", features = ["tokio-comp", "json", "cluster"] }

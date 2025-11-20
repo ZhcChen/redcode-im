@@ -1,4 +1,6 @@
 use crate::auth::{generate_token, hash_password};
+use crate::database::models::AdminUserStatus;
+use crate::models::UserStatus;
 use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
@@ -428,4 +430,128 @@ pub async fn get_current_user(
         .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
 
     Ok(Json(db_user_to_api_user_info(&db_user)))
+}
+
+/// 管理员登录
+pub async fn admin_login(
+    State(state): State<AppState>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    // 基础验证
+    if payload.username.trim().is_empty() || payload.password.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "用户名和密码不能为空".to_string(),
+        ));
+    }
+
+    let store = admin::AdminUserStore::new(state.database.clone());
+
+    let db_admin_user = match store.authenticate(crate::models::LoginRequest {
+        username: payload.username.clone(),
+        password: payload.password.clone(),
+    }).await? {
+        Some(u) => u,
+        None => {
+            return Err(AppError::InvalidCredentials);
+        }
+    };
+
+    // 检查账户状态
+    if db_admin_user.status != AdminUserStatus::Active {
+        return Err(AppError::Forbidden("账户已被禁用或锁定".to_string()));
+    }
+
+    // 检查账户是否被锁定
+    if let Some(locked_until) = db_admin_user.locked_until {
+        if locked_until > chrono::Utc::now() {
+            return Err(AppError::Forbidden("账户已被临时锁定".to_string()));
+        }
+    }
+
+    // 记录登录历史
+    let client_ip = None; // TODO: 从请求中获取客户端IP
+    let user_agent = None; // TODO: 从请求中获取User-Agent
+
+    if let Err(e) = store.record_login_history(
+        &db_admin_user.id,
+        client_ip.map(|ip: std::net::IpAddr| ip.into()),
+        user_agent,
+        true,
+        None
+    ).await {
+        tracing::warn!("记录管理员登录历史失败: {:?}", e);
+    }
+
+    // 更新最后登录时间和重置登录尝试次数
+    if let Err(e) = store.update_login_info(&db_admin_user.id).await {
+        tracing::warn!("更新管理员登录信息失败: {:?}", e);
+    }
+
+    info!("Admin user logged in successfully: {}", db_admin_user.username);
+
+    // 生成 JWT token（可设置更短的过期时间以提高安全性）
+    let claims = Claims {
+        sub: db_admin_user.id.to_string(),
+        username: db_admin_user.username.clone(),
+        exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize, // 8小时过期
+        iat: chrono::Utc::now().timestamp() as usize,
+    };
+
+    let token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+
+    let response = LoginResponse {
+        token,
+        user: UserInfo {
+            id: db_admin_user.id.to_string(),
+            username: db_admin_user.username.clone(),
+            email: db_admin_user.email.clone(),
+            nickname: db_admin_user.nickname.clone(),
+            avatar_url: db_admin_user.avatar_url.clone(),
+            avatar_object_key: None,
+            status: match db_admin_user.status {
+                AdminUserStatus::Active => UserStatus::Active,
+                AdminUserStatus::Inactive => UserStatus::Inactive,
+                AdminUserStatus::Banned => UserStatus::Banned,
+                AdminUserStatus::Locked => UserStatus::Banned,
+            },
+        },
+    };
+
+    Ok(Json(response))
+}
+
+/// 获取当前管理员用户信息
+pub async fn get_current_admin_user(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<admin::AdminUserInfo>, AppError> {
+    let admin_user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+
+    let store = admin::AdminUserStore::new(state.database.clone());
+
+    let db_admin_user = store
+        .find_by_id(&admin_user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+
+    // 转换为 API 层响应
+    let admin_user_info = admin::AdminUserInfo {
+        id: db_admin_user.id.to_string(),
+        username: db_admin_user.username.clone(),
+        email: db_admin_user.email.clone(),
+        nickname: db_admin_user.nickname.clone(),
+        avatar_url: db_admin_user.avatar_url.clone(),
+        status: match db_admin_user.status {
+            AdminUserStatus::Active => "active".to_string(),
+            AdminUserStatus::Inactive => "inactive".to_string(),
+            AdminUserStatus::Banned => "banned".to_string(),
+            AdminUserStatus::Locked => "locked".to_string(),
+        },
+        last_login_at: db_admin_user.last_login_at.map(|dt| dt.to_rfc3339()),
+        created_at: db_admin_user.created_at.to_rfc3339(),
+        updated_at: db_admin_user.updated_at.to_rfc3339(),
+    };
+    Ok(Json(admin_user_info))
 }

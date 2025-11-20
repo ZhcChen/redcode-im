@@ -33,10 +33,89 @@ pub enum UserStatus {
     Banned = 2,
 }
 
+/// 管理后台用户状态枚举
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
+)]
+#[repr(i16)]
+#[sqlx(type_name = "int2")]
+pub enum AdminUserStatus {
+    Active = 0,
+    Inactive = 1,
+    Banned = 2,
+    Locked = 3,
+}
+
+impl Default for AdminUserStatus {
+    fn default() -> Self {
+        AdminUserStatus::Active
+    }
+}
+
 impl Default for UserStatus {
     fn default() -> Self {
         UserStatus::Active
     }
+}
+
+/// 管理后台用户表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AdminUser {
+    pub id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub password_hash: String,
+    pub nickname: Option<String>,
+    pub avatar_url: Option<String>,
+    pub status: AdminUserStatus,
+    pub last_login_at: Option<DateTime<Utc>>,
+    pub login_attempts: i16,
+    pub locked_until: Option<DateTime<Utc>>,
+    pub require_password_change: bool,
+    pub password_changed_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+/// 管理员用户角色关联表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
+pub struct AdminUserRole {
+    pub id: Uuid,
+    pub admin_user_id: Uuid,
+    pub role_id: Uuid,
+    pub assigned_by: Option<Uuid>,
+    pub assigned_at: DateTime<Utc>,
+}
+
+/// 管理员登录历史表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
+pub struct AdminLoginHistory {
+    pub id: Uuid,
+    pub admin_user_id: Uuid,
+    pub ip_address: Option<std::net::IpAddr>,
+    pub user_agent: Option<String>,
+    pub login_at: DateTime<Utc>,
+    pub logout_at: Option<DateTime<Utc>>,
+    pub success: bool,
+    pub failure_reason: Option<String>,
+}
+
+/// 管理员操作日志表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[allow(dead_code)]
+pub struct AdminOperationLog {
+    pub id: Uuid,
+    pub admin_user_id: Option<Uuid>,
+    pub operation: String,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<Uuid>,
+    pub details: Option<Value>,
+    pub ip_address: Option<std::net::IpAddr>,
+    pub user_agent: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
 /// 权限表模型

@@ -256,20 +256,6 @@ class AuthRepository {
       } catch (_) {}
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
-
-      // 登录成功后启动 WebSocket 连接
-      try {
-        await WebSocketService.instance.connect();
-        if (kDebugMode) {
-          debugPrint('[Auth] WebSocket 连接启动成功 (Mock SMS)');
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('[Auth] WebSocket 连接启动失败 (Mock SMS): $e');
-        }
-        // WebSocket 连接失败不影响登录成功
-      }
-
       _authStateController.add(AuthState.authenticated);
       return session;
     }

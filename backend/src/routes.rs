@@ -32,6 +32,11 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/login", post(auth::login))
         .route("/auth/login/sms", post(auth::login_with_sms))
         .route("/auth/sms/send", post(auth::send_login_sms))
+        .route("/auth/admin/login", post(auth::admin_login))
+        .route(
+            "/auth/admin/me",
+            get(auth::get_current_admin_user).route_layer(middleware::from_fn(auth_middleware)),
+        )
         .route(
             "/settings/privacy-policy",
             get(settings::get_privacy_policy),
@@ -45,7 +50,13 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/settings/captcha",
             get(settings::get_captcha_setting_public),
-        );
+        )
+        // 临时API：创建默认管理员用户（仅用于初始化）
+        .route("/api/admin/init-default-admin", post(admin::create_default_admin_user))
+        // 临时API：检查管理员用户
+        .route("/api/admin/check-admin-users", get(admin::check_admin_users))
+        // 临时API：重置管理员密码
+        .route("/api/admin/reset-admin-password", post(admin::reset_admin_password));
 
     // 需要认证的路由
     let protected_routes = Router::new()
@@ -91,6 +102,13 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/permissions/check",
             post(admin::check_user_permission),
+        )
+        // 管理员用户管理API
+        .route("/api/admin/admin-users", get(admin::get_admin_user_list))
+        .route("/api/admin/admin-users", post(admin::create_admin_user))
+        .route(
+            "/api/admin/admin-users/{admin_user_id}/status",
+            patch(admin::update_admin_user_status),
         )
         // 文件管理和存储统计API
         .route(
