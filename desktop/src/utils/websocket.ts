@@ -241,6 +241,23 @@ class WebSocketManager {
     // 显示封禁提示
     toast.error(`账户已被封禁：${reason}`);
     
+    // 获取当前账号信息
+    const currentAccountId = (store.state as any).accounts?.currentAccountId;
+    const allAccounts = (store.state as any).accounts?.accounts || [];
+    
+    if (!this.lastUserId || !currentAccountId) {
+      return;
+    }
+    
+    // 查找被封禁的账号信息
+    const bannedAccount = allAccounts.find((acc: any) => 
+      acc.userInfo.id === this.lastUserId || acc.id === this.lastUserId
+    );
+    
+    if (!bannedAccount) {
+      return;
+    }
+    
     // 清除认证信息
     this.lastAuthToken = null;
     this.lastUserId = null;
@@ -248,11 +265,26 @@ class WebSocketManager {
     // 断开WebSocket连接
     void WebSocketApi.disconnect();
     
-    // 清除本地存储的token
-    void store.dispatch('logout');
-    
-    // 跳转到登录页面
-    window.location.href = '/login';
+    // 检查是否为多账号模式
+    if (allAccounts.length > 1) {
+      // 多账号模式：移除被封禁的账号
+      console.log('多账号模式，移除被封禁账号:', bannedAccount.id);
+      void store.dispatch('accounts/removeAccount', bannedAccount.id);
+      
+      // 如果被封禁的是当前账号，切换到其他账号
+      if (bannedAccount.id === currentAccountId) {
+        const remainingAccounts = allAccounts.filter((acc: any) => acc.id !== bannedAccount.id);
+        if (remainingAccounts.length > 0) {
+          // 切换到第一个可用账号
+          void store.dispatch('accounts/switchAccount', remainingAccounts[0].id);
+        }
+      }
+    } else {
+      // 单账号模式：直接登出并跳转登录页
+      console.log('单账号模式，跳转登录页');
+      void store.dispatch('logout');
+      window.location.href = '/login';
+    }
   }
 
   /**
