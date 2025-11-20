@@ -218,15 +218,20 @@ class WebSocketManager {
         break;
       }
 
+      case 'userbanned':
       case 'user_banned': {
-        // payload 是 TauriEventPayload 类型，包含 type 和 payload 字段
-        // 但对于 user_banned，user_id 和 reason 直接在顶层
-        const userId = (payload as any).user_id;
-        const reason = (payload as any).reason;
+        // payload 结构形如 { type: 'UserBanned', payload: { user_id, reason } }
+        const detail = ((payload as any)?.payload ?? payload) || {};
+        const userId = detail.user_id ?? detail.userId;
+        const reason = detail.reason ?? '管理员封禁';
 
-        console.log('收到用户封禁事件:', { userId, reason, lastUserId: this.lastUserId });
+        console.log('收到用户封禁事件:', {
+          userId,
+          reason,
+          lastUserId: this.lastUserId,
+        });
 
-        if (userId === this.lastUserId) {
+        if (userId && userId === this.lastUserId) {
           // 当前用户被封禁，清除token并跳转到登录页面
           this.handleUserBanned(reason);
         }

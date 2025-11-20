@@ -97,7 +97,7 @@ pub async fn login(
 
     // 检查用户封禁状态
     if db_user.status == crate::database::models::UserStatus::Banned {
-        return Err(AppError::Forbidden("ACCOUNT_BANNED: 账户已被封禁，无法登录".to_string()));
+        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
     }
 
     info!("User logged in successfully: {}", db_user.username);
