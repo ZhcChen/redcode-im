@@ -41,6 +41,10 @@
             </a-form-item>
           </a-form>
         </a-tab-pane>
+
+        <a-tab-pane key="api-test" title="API测试">
+          <ApiTest />
+        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
@@ -51,6 +55,7 @@
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
   import { getAppName, updateAppName } from '@/api/settings';
+  import ApiTest from '../api-test/index.vue';
 
   const { loading, setLoading } = useLoading(false);
 
