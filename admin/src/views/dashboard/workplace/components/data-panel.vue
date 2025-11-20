@@ -1,5 +1,5 @@
 <template>
-  <StatisticCard title="系统概览">
+  <StatisticCard title="数据统计">
     <a-grid :cols="24" :row-gap="16" class="panel">
       <a-grid-item
         class="panel-col"
