@@ -1928,6 +1928,13 @@ pub async fn update_user_status(
 
     let store = UserStore::new(state.database.clone());
 
+    // 获取用户当前状态用于日志和推送
+    let old_user = store
+        .find_by_id(&user_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
     let updated = store
         .update_user_status(&user_id, status)
         .await
@@ -1935,6 +1942,18 @@ pub async fn update_user_status(
 
     if !updated {
         return Err(StatusCode::NOT_FOUND);
+    }
+
+    // 如果用户被封禁，向其所有客户端发送封禁通知
+    if status == DbUserStatus::Banned && old_user.status != DbUserStatus::Banned {
+        let ban_push = crate::websocket::ServerPush::UserBanned {
+            user_id: user_id.to_string(),
+            reason: "管理员封禁".to_string(),
+        };
+        
+        state.connection_manager.send_to_user(&user_id.to_string(), ban_push).await;
+        
+        tracing::info!("用户 {} 已被封禁，已向其所有客户端发送通知", user_id);
     }
 
     Ok(())

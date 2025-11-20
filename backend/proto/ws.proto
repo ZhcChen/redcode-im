@@ -38,6 +38,7 @@ message ServerEvent {
     ServerPong pong = 9;
     ServerFriendRequestUpdate friend_request_update = 10;
     ServerRoomCreated room_created = 11;
+    ServerBanned user_banned = 12;
   }
 }
 
@@ -151,6 +152,11 @@ message ServerRoomCreated {
   string description = 6;
   string avatar_url = 7;
   string created_at = 8;
+}
+
+message ServerBanned {
+  string user_id = 1;
+  string reason = 2;
 }
 
 enum PubSubPriority {

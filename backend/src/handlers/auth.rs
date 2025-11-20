@@ -95,6 +95,11 @@ pub async fn login(
         }
     };
 
+    // 检查用户封禁状态
+    if db_user.status == crate::database::models::UserStatus::Banned {
+        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+    }
+
     info!("User logged in successfully: {}", db_user.username);
 
     // 生成 JWT token
@@ -237,7 +242,13 @@ pub async fn login_with_sms(
 
     let store = UserStore::new(state.database.clone());
     let db_user = match store.find_by_username(phone).await? {
-        Some(user) => user,
+        Some(user) => {
+            // 检查用户封禁状态
+            if user.status == crate::database::models::UserStatus::Banned {
+                return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+            }
+            user
+        },
         None => {
             let auto_request = build_auto_registration_request(phone);
             let db_request = api_create_user_to_db(&auto_request);
@@ -253,7 +264,13 @@ pub async fn login_with_sms(
                         phone
                     );
                     match store.find_by_username(phone).await? {
-                        Some(existing) => existing,
+                        Some(existing) => {
+                            // 检查用户封禁状态
+                            if existing.status == crate::database::models::UserStatus::Banned {
+                                return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+                            }
+                            existing
+                        },
                         None => {
                             return Err(AppError::ValidationError(
                                 "该账号已存在但当前不可登录，请联系管理员".to_string(),

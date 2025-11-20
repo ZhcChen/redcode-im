@@ -66,6 +66,7 @@ pub enum ServerPush {
     Pong,
     FriendRequestUpdate { pending_count: i32 },
     RoomCreated { data: RoomCreatedPayload },
+    UserBanned { user_id: String, reason: String },
 }
 
 impl ServerPush {
@@ -82,6 +83,7 @@ impl ServerPush {
             ServerPush::Pong => "pong",
             ServerPush::FriendRequestUpdate { .. } => "friend_request_update",
             ServerPush::RoomCreated { .. } => "room_created",
+            ServerPush::UserBanned { .. } => "user_banned",
         }
     }
 
@@ -152,6 +154,11 @@ impl ServerPush {
                 "description": data.description,
                 "avatar_url": data.avatar_url,
                 "created_at": data.created_at.map(|ts| ts.to_rfc3339()),
+            }),
+            ServerPush::UserBanned { user_id, reason } => json!({
+                "type": "user_banned",
+                "user_id": user_id,
+                "reason": reason,
             }),
         }
     }
@@ -232,6 +239,10 @@ impl ServerPush {
                     .created_at
                     .map(|ts| ts.to_rfc3339())
                     .unwrap_or_default(),
+            }),
+            ServerPush::UserBanned { user_id, reason } => Payload::UserBanned(ws::ServerBanned {
+                user_id: user_id.clone(),
+                reason: reason.clone(),
             }),
         };
 
