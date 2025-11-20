@@ -168,7 +168,7 @@
         v-model:visible="detailModalVisible"
         title="更新事件详情"
         width="800px"
-        :footer="null"
+        :footer="false"
       >
         <div v-if="selectedEvent" class="event-detail">
           <a-descriptions :column="2" bordered>

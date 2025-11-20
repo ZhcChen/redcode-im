@@ -75,6 +75,7 @@
 <script lang="ts" setup>
   import { ref } from 'vue';
   import useLoading from '@/hooks/loading';
+  import { getPopularContent } from '@/api/dashboard';
 
   interface PopularRecord {
     key: number;
@@ -83,29 +84,44 @@
     increases: number;
   }
 
-  // 模拟数据
-  const queryPopularList = () => {
-    const data: PopularRecord[] = [
-      {
-        key: 1,
-        clickNumber: '1234',
-        title: '热门内容1',
-        increases: 12,
-      },
-      {
-        key: 2,
-        clickNumber: '567',
-        title: '热门内容2',
-        increases: -5,
-      },
-      {
-        key: 3,
-        clickNumber: '890',
-        title: '热门内容3',
-        increases: 8,
-      },
-    ];
-    return Promise.resolve({ data });
+  // 从 API 获取数据
+  const queryPopularList = async (contentType: string = 'text') => {
+    try {
+      const response = await getPopularContent();
+      const data =
+        response.data[contentType as keyof typeof response.data] || [];
+      const formattedData: PopularRecord[] = data.map((item, index) => ({
+        key: index + 1,
+        clickNumber: item.clickNumber,
+        title: item.title,
+        increases: item.increases,
+      }));
+      return { data: formattedData };
+    } catch (error) {
+      // 如果 API 失败，返回模拟数据
+      console.warn('获取热门内容失败，使用模拟数据:', error);
+      const data: PopularRecord[] = [
+        {
+          key: 1,
+          clickNumber: '1234',
+          title: '热门内容1',
+          increases: 12,
+        },
+        {
+          key: 2,
+          clickNumber: '567',
+          title: '热门内容2',
+          increases: -5,
+        },
+        {
+          key: 3,
+          clickNumber: '890',
+          title: '热门内容3',
+          increases: 8,
+        },
+      ];
+      return { data };
+    }
   };
 
   const type = ref('text');
@@ -114,7 +130,7 @@
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data } = await queryPopularList();
+      const { data } = await queryPopularList(type.value);
       renderList.value = data as any;
     } catch (err) {
       // you can report use errorHandler or other

@@ -23,29 +23,43 @@
   import useChartOption from '@/hooks/chart-option';
   import { ToolTipFormatterParams } from '@/types/echarts';
   import { AnyObject } from '@/types/global';
+  import { getDataStatistics } from '@/api/dashboard';
 
   interface ContentDataRecord {
     x: string;
     y: number;
   }
 
-  // 模拟数据
-  const queryContentData = () => {
-    const data: ContentDataRecord[] = [
-      { x: '1月', y: 100 },
-      { x: '2月', y: 120 },
-      { x: '3月', y: 140 },
-      { x: '4月', y: 110 },
-      { x: '5月', y: 160 },
-      { x: '6月', y: 130 },
-      { x: '7月', y: 150 },
-      { x: '8月', y: 170 },
-      { x: '9月', y: 140 },
-      { x: '10月', y: 160 },
-      { x: '11月', y: 180 },
-      { x: '12月', y: 150 },
-    ];
-    return Promise.resolve({ data });
+  // 从 API 获取数据
+  const queryContentData = async () => {
+    try {
+      const response = await getDataStatistics();
+      const data: ContentDataRecord[] = response.data.daily_messages.map(
+        (item) => ({
+          x: item.date,
+          y: item.count,
+        })
+      );
+      return { data };
+    } catch (error) {
+      // 如果 API 失败，返回模拟数据
+      console.warn('获取数据统计失败，使用模拟数据:', error);
+      const data: ContentDataRecord[] = [
+        { x: '1月', y: 100 },
+        { x: '2月', y: 120 },
+        { x: '3月', y: 140 },
+        { x: '4月', y: 110 },
+        { x: '5月', y: 160 },
+        { x: '6月', y: 130 },
+        { x: '7月', y: 150 },
+        { x: '8月', y: 170 },
+        { x: '9月', y: 140 },
+        { x: '10月', y: 160 },
+        { x: '11月', y: 180 },
+        { x: '12月', y: 150 },
+      ];
+      return { data };
+    }
   };
 
   function graphicFactory(side: AnyObject) {
