@@ -1,15 +1,13 @@
 <template>
   <div class="container">
     <div class="full-panel">
-      <div class="panel">
-        <Banner />
-        <DataPanel />
-        <div class="map-and-stats">
-          <UserWorldMap class="map-section" />
-          <div class="stats-section">
-            <StorageStats />
-            <EmojiStats />
-          </div>
+      <Banner />
+      <DataPanel />
+      <div class="map-and-stats">
+        <UserWorldMap class="map-section" />
+        <div class="stats-section">
+          <StorageStats />
+          <EmojiStats />
         </div>
       </div>
     </div>
@@ -41,12 +39,6 @@
     flex: 1;
   }
 
-  .panel {
-    overflow: auto;
-    background-color: var(--color-bg-2);
-    border-radius: 4px;
-  }
-
   .map-and-stats {
     display: flex;
     gap: 16px;
@@ -64,11 +56,6 @@
       gap: 16px;
       min-width: 0;
     }
-  }
-
-  :deep(.panel-border) {
-    margin-bottom: 0;
-    border-bottom: 1px solid rgb(var(--gray-2));
   }
 </style>
 
