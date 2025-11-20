@@ -1,10 +1,10 @@
 <template>
   <div class="privacy-page">
     <header class="privacy-toolbar">
-      <button class="toolbar-btn back-btn" @click="handleBack">
+      <ToolbarButton variant="back" @click="handleBack">
         <img :src="backIcon" alt="返回" />
         <span>返回</span>
-      </button>
+      </ToolbarButton>
       <div class="toolbar-info">
         <p class="doc-title">{{ documentTitle }}</p>
         <p class="doc-meta">
@@ -13,9 +13,9 @@
           <span v-if="privacyDoc?.updated_by">编辑：{{ privacyDoc?.updated_by }}</span>
         </p>
       </div>
-      <button class="toolbar-btn ghost" @click="fetchDocument" :disabled="loading">
+      <ToolbarButton variant="ghost" @click="fetchDocument" :disabled="loading">
         {{ loading ? '刷新中...' : '刷新' }}
-      </button>
+      </ToolbarButton>
     </header>
 
     <section class="privacy-body">
@@ -25,7 +25,7 @@
       </div>
       <div v-else-if="error" class="privacy-state error">
         <p>{{ error }}</p>
-        <button class="toolbar-btn primary" @click="fetchDocument">重试</button>
+        <ToolbarButton variant="primary" @click="fetchDocument">重试</ToolbarButton>
       </div>
       <article v-else class="privacy-content" v-html="privacyDoc?.content" />
     </section>
@@ -37,6 +37,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import backIcon from '../assets/image/icon-back.svg'
+import ToolbarButton from '../components/ToolbarButton.vue'
 import { SettingsApi, type DocumentContent } from '../api/settings'
 import { toast } from '../utils/toast'
 
@@ -193,45 +194,7 @@ onMounted(() => {
   color: #d1d5db;
 }
 
-.toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  border-radius: 999px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  background: #000;
-  color: #fff;
 
-  &:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
-.toolbar-btn.primary {
-  background: #000;
-  color: #fff;
-}
-
-.toolbar-btn.ghost {
-  background: #000;
-  border: 1px solid #000;
-  color: #fff;
-}
-
-.toolbar-btn.back-btn {
-  background: #000;
-  color: #fff;
 
   img {
     width: 18px;

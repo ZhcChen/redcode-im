@@ -1,10 +1,10 @@
 <template>
   <div class="general-settings-page">
     <header class="settings-toolbar">
-      <button class="toolbar-btn back-btn" @click="handleBack">
+      <ToolbarButton variant="back" @click="handleBack">
         <img :src="backIcon" alt="返回" />
         <span>返回</span>
-      </button>
+      </ToolbarButton>
       <div class="toolbar-title">通用设置</div>
     </header>
 
@@ -92,6 +92,7 @@ import { useStore } from 'vuex'
 import { getDownloadDir, setDownloadDir, getChatlyDownloadDir } from '../utils/download-settings'
 import { toast } from '../utils/toast'
 import backIcon from '../assets/image/icon-back.svg'
+import ToolbarButton from '../components/ToolbarButton.vue'
 import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 
@@ -276,27 +277,6 @@ onMounted(() => {
   color: #111827;
 }
 
-.toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border: none;
-  background: transparent;
-  color: #374151;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: #f3f4f6;
-  }
-
-  img {
-    width: 20px;
-    height: 20px;
-  }
-}
 
 .settings-body {
   flex: 1;
