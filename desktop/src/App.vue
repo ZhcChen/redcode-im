@@ -1066,6 +1066,21 @@ onMounted(async () => {
 
   // 设置 WebSocket 事件监听
   setupWebSocketEventListeners();
+
+  // 应用启动时检查用户登录状态并自动初始化 WebSocket
+  if (isLoggedIn.value && token.value && user.value.id) {
+    createSafeTimeout(async () => {
+      try {
+        // 再次验证登录状态，避免状态变化
+        if (store.getters.isLoggedIn && store.state.token === token.value) {
+          await initWebSocketConnection();
+        }
+      } catch (error) {
+        console.warn('[App] 应用启动时 WebSocket 初始化失败:', error);
+        // WebSocket 初始化失败不影响应用正常启动
+      }
+    }, 1000); // 延迟1秒确保其他初始化完成
+  }
   
   // 使用事件管理器添加监听器
   eventManager.addDocumentListener('visibilitychange', handleVisibilityChange);
