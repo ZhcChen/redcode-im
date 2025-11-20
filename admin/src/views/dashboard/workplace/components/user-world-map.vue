@@ -1,5 +1,5 @@
 <template>
-  <a-card class="user-world-map-card" title="全球用户分布">
+  <StatisticCard title="全球用户分布">
     <template #extra>
       <a-badge :count="totalUsers" :max-count="999" show-zero>
         <a-tag color="blue">总用户数</a-tag>
@@ -26,7 +26,7 @@
         <span>100+ 用户</span>
       </div>
     </div>
-  </a-card>
+  </StatisticCard>
 </template>
 
 <script setup lang="ts">
@@ -34,6 +34,7 @@
   import * as echarts from 'echarts';
   import { Message } from '@arco-design/web-vue';
   import axios from 'axios';
+  import StatisticCard from '@/components/statistic-card/index.vue';
 
   defineOptions({
     name: 'UserWorldMap',
@@ -321,10 +322,6 @@
 </script>
 
 <style scoped>
-  .user-world-map-card {
-    margin-bottom: 16px;
-  }
-
   .map-container {
     width: 100%;
     height: 650px;
