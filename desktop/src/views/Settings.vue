@@ -391,8 +391,8 @@ const handleFileSelect = async (event: Event) => {
 
 // 处理编辑用户名
 const handleEditUsername = () => {
-  // 打开昵称修改对话框
-  newNickname.value = currentUser.value.userName || currentUser.value.username || ''
+  // 打开昵称修改对话框，使用当前昵称作为默认值
+  newNickname.value = currentUser.value.nickname || currentUser.value.userName || currentUser.value.username || ''
   nicknameError.value = ''
   showNicknameDialog.value = true
 }
