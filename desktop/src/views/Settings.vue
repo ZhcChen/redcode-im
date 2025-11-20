@@ -413,7 +413,7 @@ const handleConfirmUpdateNickname = async () => {
   }
   
   // 检查是否与当前昵称相同
-  const currentNickname = currentUser.value.userName || currentUser.value.username || ''
+  const currentNickname = currentUser.value.nickname || currentUser.value.userName || currentUser.value.username || ''
   if (nickname === currentNickname) {
     nicknameError.value = '新昵称与当前昵称相同'
     return
@@ -439,12 +439,12 @@ const handleConfirmUpdateNickname = async () => {
     
     if (updateResult.code === 200) {
       // 更新store中的用户信息
-      store.commit('UPDATE_USER_INFO', { 
-        userName: nickname  // 更新userName字段，这是真正的用户昵称字段
+      store.commit('UPDATE_USER_INFO', {
+        nickname: nickname  // 更新nickname字段，这是真正的用户昵称字段
       })
-      
+
       toast.success('昵称修改成功')
-      
+
       // 关闭对话框
       showNicknameDialog.value = false
       newNickname.value = ''
