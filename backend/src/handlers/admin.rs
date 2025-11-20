@@ -1984,9 +1984,9 @@ pub async fn update_user_status(
             user_id: user_id.to_string(),
             reason: "管理员封禁".to_string(),
         };
-        
+
         state.connection_manager.send_to_user(&user_id.to_string(), ban_push).await;
-        
+
         tracing::info!("用户 {} 已被封禁，已向其所有客户端发送通知", user_id);
     }
 
