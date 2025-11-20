@@ -32,8 +32,9 @@ pub async fn healthz() -> &'static str {
 pub async fn ws(
     State(state): State<crate::AppState>,
     ws: WebSocketUpgrade,
-    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    // axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     params: axum::extract::Query<crate::websocket::WsUpgradeParams>,
 ) -> Result<impl IntoResponse, axum::http::StatusCode> {
-    handle_websocket_upgrade(State(state), ws, axum::extract::ConnectInfo(addr), params).await
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080)); // 临时使用默认地址
+    handle_websocket_upgrade(State(state), ws, addr, params).await
 }
