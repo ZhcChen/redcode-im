@@ -209,10 +209,32 @@
         userList.value = data.users;
         pagination.total = data.total;
       }
-    } catch (error) {
+    } catch (error: any) {
       userList.value = [];
       pagination.total = 0;
-      Message.error('获取用户列表失败');
+
+      // 添加调试信息到控制台
+      console.error('获取用户列表失败:', {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        message: error?.message,
+        data: error?.response?.data,
+      });
+
+      // 根据错误类型显示不同的错误信息
+      if (error?.response?.status === 401) {
+        Message.error('认证失败，请重新登录');
+      } else if (error?.response?.status === 403) {
+        Message.error('没有权限访问用户列表');
+      } else if (error?.response?.status === 404) {
+        Message.error('用户列表接口不存在，请检查后端服务');
+      } else {
+        Message.error(
+          `获取用户列表失败：${
+            error?.message || error?.response?.data?.message || '未知错误'
+          }`
+        );
+      }
     } finally {
       setLoading(false);
     }
