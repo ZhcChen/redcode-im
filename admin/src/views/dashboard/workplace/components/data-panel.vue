@@ -9,7 +9,7 @@
           <a-avatar
             :size="54"
             class="col-avatar"
-            style="background-color: #722ed1"
+            style="background-color: #1890ff"
           >
             <icon-user />
           </a-avatar>
