@@ -85,8 +85,21 @@ axios.interceptors.response.use(
       error?.response?.data?.msg ||
       error.message ||
       'Request Error';
+
+    // 根据状态码显示不同的错误消息
+    let displayMessage = message;
+    if (error?.response?.status === 404) {
+      displayMessage = '请求的资源不存在';
+    } else if (error?.response?.status === 401) {
+      displayMessage = '认证失败，请重新登录';
+    } else if (error?.response?.status === 403) {
+      displayMessage = '没有权限执行此操作';
+    } else if (error?.response?.status === 500) {
+      displayMessage = '服务器内部错误';
+    }
+
     Message.error({
-      content: message,
+      content: displayMessage,
       duration: 5 * 1000,
     });
     return Promise.reject(error);

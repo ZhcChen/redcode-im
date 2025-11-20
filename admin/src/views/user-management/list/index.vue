@@ -263,8 +263,19 @@
           await updateUserStatus(user.id, newStatus);
           Message.success(`${action}成功`);
           await fetchData();
-        } catch (error) {
-          Message.error(`${action}失败，请重试`);
+        } catch (error: any) {
+          // 根据错误类型显示不同的错误信息
+          if (error?.response?.status === 404) {
+            Message.error(`用户 "${user.username}" 不存在或已被删除`);
+          } else if (error?.response?.status === 401) {
+            Message.error(`认证失败，请重新登录`);
+          } else {
+            Message.error(
+              `${action}失败：${
+                error?.message || error?.response?.data?.message || '未知错误'
+              }`
+            );
+          }
         }
       },
     });
