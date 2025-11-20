@@ -217,7 +217,7 @@
             areaColor: '#e5e7eb',
           },
         },
-        zoom: currentMapName === 'china' ? 1.5 : 1.2, // 中国地图缩放比例调整
+        zoom: currentMapName === 'china' ? 1.2 : 0.9, // 调整默认缩放比例，让地图显示得更小
       },
       series: [
         {
