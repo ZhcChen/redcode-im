@@ -18,7 +18,6 @@ use axum::{
     extract::{ws::WebSocketUpgrade, State},
     response::IntoResponse,
 };
-use futures_util::StreamExt;
 
 use crate::websocket::handle_websocket_upgrade;
 
@@ -36,5 +35,5 @@ pub async fn ws(
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     params: axum::extract::Query<crate::websocket::WsUpgradeParams>,
 ) -> Result<impl IntoResponse, axum::http::StatusCode> {
-    handle_websocket_upgrade(State(state), ws, addr, params).await
+    handle_websocket_upgrade(State(state), ws, axum::extract::ConnectInfo(addr), params).await
 }

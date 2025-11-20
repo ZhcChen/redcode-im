@@ -218,8 +218,8 @@ impl ConnectionManager {
                 let client_ip = client_ip.clone();
                 let redis_manager = state.redis.clone();
                 let node_id = state.node_id.clone();
-                let database = state.database.clone();
-                let connection_id = conn_id.to_string();
+                // let database = state.database.clone();
+                // let connection_id = conn_id.to_string();
                 tokio::spawn(async move {
                     let user_uuid = match uuid::Uuid::parse_str(&user_id) {
                         Ok(uuid) => uuid,
@@ -526,7 +526,7 @@ async fn handle_client_event(
 
 // WebSocket处理函数
 pub async fn handle_socket(state: AppState, socket: WebSocket, client_addr: std::net::SocketAddr, format: ConnectionFormat) {
-    let redis_manager = state.redis.clone();
+    // let redis_manager = state.redis.clone();
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let conn_id = format!("conn_{}", Uuid::new_v4());
 
