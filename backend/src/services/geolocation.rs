@@ -53,6 +53,7 @@ pub struct GeolocationService {
     pool: PgPool,
     http_client: reqwest::Client,
     token_cache: Arc<RwLock<Vec<IpInfoToken>>>,
+    #[allow(dead_code)]
     cache_ttl: std::time::Duration,
 }
 

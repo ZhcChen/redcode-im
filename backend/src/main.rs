@@ -15,7 +15,6 @@ mod websocket;
 use std::{
     env,
     fs::{self, OpenOptions},
-    net::SocketAddr,
     path::Path,
     sync::OnceLock,
 };
@@ -29,8 +28,6 @@ use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use tracing_appender::non_blocking::WorkerGuard;
-
-use crate::services::geolocation;
 
 static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
@@ -78,7 +75,9 @@ async fn main() {
         })
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
 
-    let listener = TcpListener::bind(addr).await.expect("bind");
+    let port = env::var("PORT").unwrap_or_else(|_| "8010".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = TcpListener::bind(&addr).await.expect("bind");
     info!("服务已启动");
     axum::serve(listener, app).await.expect("server");
 }
