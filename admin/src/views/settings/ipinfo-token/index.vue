@@ -1,25 +1,44 @@
 <template>
   <div class="ipinfo-token-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.ipinfoToken']" />
-    <a-card class="token-card" title="ipinfo.io Token 管理" :bordered="false">
-      <template #extra>
-        <a-button type="primary" @click="showCreateModal = true">
-          <template #icon>
-            <icon-plus />
-          </template>
-          新增Token
-        </a-button>
-      </template>
+    <a-card class="general-card" title="ipinfo.io Token 管理" :bordered="false">
+      <div class="actions">
+        <a-space>
+          <a-input-search
+            v-model="searchKeyword"
+            placeholder="搜索Token名称"
+            style="width: 300px"
+            allow-clear
+            @search="handleSearch"
+            @clear="handleSearchClear"
+          />
+          <a-button
+            type="primary"
+            :loading="submitLoading"
+            @click="showCreateModal = true"
+          >
+            <template #icon>
+              <icon-plus />
+            </template>
+            新增Token
+          </a-button>
+          <a-button :loading="loading" @click="handleRefresh">
+            <template #icon>
+              <icon-refresh />
+            </template>
+            刷新
+          </a-button>
+        </a-space>
+      </div>
 
       <!-- Token列表 -->
       <a-table
         :columns="columns"
         :data="tokenList"
         :loading="loading"
-        :pagination="pagination"
-        row-key="id"
-        :scroll="{ x: 1200 }"
-        @page-change="handlePageChange"
+        :pagination="false"
+        :scroll="{ x: 'max-content' }"
+        class="token-table"
       >
         <template #status="{ record }">
           <a-tag
@@ -74,11 +93,19 @@
     <a-modal
       v-model:visible="showCreateModal"
       :title="isEditing ? '编辑Token' : '新增Token'"
+      :width="600"
       :confirm-loading="submitLoading"
-      @ok="handleSubmit"
+      @before-ok="handleBeforeOk"
       @cancel="handleCancel"
     >
-      <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
+      <a-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-align="left"
+        :label-col-props="{ span: 6 }"
+        :wrapper-col-props="{ span: 18 }"
+      >
         <a-form-item field="name" label="Token名称" required>
           <a-input
             v-model="form.name"
@@ -155,6 +182,7 @@
   const currentEditId = ref('');
   const tokenList = ref<TokenItem[]>([]);
   const total = ref(0);
+  const searchKeyword = ref('');
 
   // 分页配置
   const currentPage = ref(1);
@@ -206,55 +234,57 @@
     {
       title: 'Token名称',
       dataIndex: 'name',
-      width: 150,
+      width: 200,
+      ellipsis: true,
     },
     {
       title: 'Token值',
       dataIndex: 'token',
-      width: 200,
+      width: 300,
       ellipsis: true,
     },
     {
       title: '月额度',
       slotName: 'usage',
-      width: 150,
+      width: 180,
     },
     {
       title: '状态',
       slotName: 'status',
-      width: 80,
+      width: 100,
     },
     {
       title: '重置日期',
       dataIndex: 'resetDate',
-      width: 120,
+      width: 140,
     },
     {
       title: '最后使用',
       dataIndex: 'lastUsedAt',
-      width: 160,
+      width: 180,
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
-      width: 160,
+      width: 180,
     },
     {
       title: '操作',
       slotName: 'actions',
-      width: 180,
+      width: 220,
       fixed: 'right',
     },
   ];
 
   // 获取Token列表
-  const fetchTokenList = async () => {
+  const fetchTokenList = async (keyword?: string) => {
     try {
       loading.value = true;
       const response = await axios.get('/api/admin/ipinfo-tokens', {
         params: {
           page: currentPage.value,
           page_size: pageSize.value,
+          search: keyword,
         },
       });
       tokenList.value = response.data.list;
@@ -277,61 +307,80 @@
     formRef.value?.resetFields();
   };
 
+  // 搜索处理
+  const handleSearch = (value: string) => {
+    currentPage.value = 1;
+    fetchTokenList(value);
+  };
+
+  // 清除搜索
+  const handleSearchClear = () => {
+    searchKeyword.value = '';
+    currentPage.value = 1;
+    fetchTokenList();
+  };
+
+  // 刷新
+  const handleRefresh = () => {
+    fetchTokenList(searchKeyword.value || undefined);
+  };
+
   // 分页变化处理
   const handlePageChange = (page: number, size: number) => {
     currentPage.value = page;
     pageSize.value = size;
-    fetchTokenList();
+    fetchTokenList(searchKeyword.value || undefined);
   };
 
   // 创建Token
   const handleCreate = async () => {
-    try {
-      submitLoading.value = true;
-      await axios.post('/api/admin/ipinfo-tokens', form);
-      Message.success('创建Token成功');
-      showCreateModal.value = false;
-      resetForm();
-      fetchTokenList();
-    } catch (error: any) {
-      Message.error(error.response?.data?.message || '创建Token失败');
-    } finally {
-      submitLoading.value = false;
-    }
+    await axios.post('/api/admin/ipinfo-tokens', form);
+    Message.success('创建Token成功');
+    showCreateModal.value = false;
+    resetForm();
+    fetchTokenList(searchKeyword.value || undefined);
   };
 
   // 更新Token
   const handleUpdate = async () => {
-    try {
-      submitLoading.value = true;
-      await axios.patch(
-        `/api/admin/ipinfo-tokens/${currentEditId.value}`,
-        form
-      );
-      Message.success('更新Token成功');
-      showCreateModal.value = false;
-      resetForm();
-      fetchTokenList();
-    } catch (error: any) {
-      Message.error(error.response?.data?.message || '更新Token失败');
-    } finally {
-      submitLoading.value = false;
-    }
+    await axios.patch(`/api/admin/ipinfo-tokens/${currentEditId.value}`, form);
+    Message.success('更新Token成功');
+    showCreateModal.value = false;
+    resetForm();
+    fetchTokenList(searchKeyword.value || undefined);
   };
 
-  // 提交表单
-  const handleSubmit = async () => {
-    try {
-      const valid = await formRef.value?.validate();
-      if (!valid) return;
+  // 表单提交前验证
+  const handleBeforeOk = async (done: (closed: boolean) => void) => {
+    if (!formRef.value) {
+      done(false);
+      return;
+    }
 
+    try {
+      const errors = await formRef.value.validate();
+      if (errors) {
+        done(false);
+        return;
+      }
+    } catch (error) {
+      done(false);
+      return;
+    }
+
+    try {
+      submitLoading.value = true;
       if (isEditing.value) {
         await handleUpdate();
       } else {
         await handleCreate();
       }
-    } catch (error) {
-      // 验证错误已由表单处理
+      done(true);
+    } catch (error: any) {
+      Message.error(error.response?.data?.message || '操作失败');
+      done(false);
+    } finally {
+      submitLoading.value = false;
     }
   };
 
@@ -358,7 +407,7 @@
         try {
           await axios.delete(`/api/admin/ipinfo-tokens/${record.id}`);
           Message.success('删除Token成功');
-          fetchTokenList();
+          fetchTokenList(searchKeyword.value || undefined);
         } catch (error: any) {
           Message.error(error.response?.data?.message || '删除Token失败');
         }
@@ -371,7 +420,7 @@
     try {
       await axios.post(`/api/admin/ipinfo-tokens/${record.id}/reset`);
       Message.success('重置Token使用量成功');
-      fetchTokenList();
+      fetchTokenList(searchKeyword.value || undefined);
     } catch (error: any) {
       Message.error('重置Token使用量失败');
     }
@@ -391,16 +440,26 @@
 
 <style lang="less" scoped>
   .ipinfo-token-container {
-    .token-card {
-      margin-top: 16px;
-    }
+    padding: 0 20px 20px;
+  }
 
-    .usage-text {
-      margin-top: 4px;
-      color: #666;
-      font-size: 12px;
-      text-align: center;
-    }
+  .general-card {
+    margin-top: 16px;
+  }
+
+  .actions {
+    margin-bottom: 16px;
+  }
+
+  .token-card {
+    margin-top: 16px;
+  }
+
+  .usage-text {
+    margin-top: 4px;
+    color: #666;
+    font-size: 12px;
+    text-align: center;
   }
 
   :deep(.arco-table-th) {
