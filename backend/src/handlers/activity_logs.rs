@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::services::geolocation;
 
 use crate::error::AppError;
+use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserHeartbeatLog {
@@ -313,3 +314,18 @@ pub async fn get_user_geolocation(
         Ok(Json(None))
     }
 }
+
+/// 获取全球用户分布数据（用于地图显示）
+pub async fn get_global_user_distribution(
+    State(_state): State<AppState>,
+) -> Result<Json<Vec<crate::services::geolocation::UserLocationMapData>>, AppError> {
+    if let Some(geolocation_service) = crate::services::geolocation::get_geolocation_service() {
+        let distribution = geolocation_service.get_global_user_distribution().await?;
+        Ok(Json(distribution))
+    } else {
+        Err(AppError::InternalError(
+            "地理位置服务未初始化".to_string(),
+        ))
+    }
+}
+

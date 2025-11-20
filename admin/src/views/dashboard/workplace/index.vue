@@ -4,6 +4,7 @@
       <div class="panel">
         <Banner />
         <DataPanel />
+        <UserWorldMap class="dashboard-workplace__map" />
       </div>
     </div>
   </div>
@@ -12,6 +13,7 @@
 <script lang="ts" setup>
   import Banner from './components/banner.vue';
   import DataPanel from './components/data-panel.vue';
+  import UserWorldMap from './components/user-world-map.vue';
   // 移除了其他模板组件
 </script>
 
@@ -23,9 +25,9 @@
 
 <style lang="less" scoped>
   .container {
-    background-color: var(--color-fill-2);
     padding: 16px 20px;
     padding-bottom: 0;
+    background-color: var(--color-fill-2);
   }
 
   .full-panel {
@@ -33,14 +35,18 @@
   }
 
   .panel {
+    overflow: auto;
     background-color: var(--color-bg-2);
     border-radius: 4px;
-    overflow: auto;
   }
 
   :deep(.panel-border) {
     margin-bottom: 0;
     border-bottom: 1px solid rgb(var(--gray-2));
+  }
+
+  &__map {
+    margin-top: 16px;
   }
 </style>
 

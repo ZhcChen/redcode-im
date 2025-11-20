@@ -48,6 +48,25 @@ pub struct UserGeolocation {
     pub updated_at: DateTime<Utc>,
 }
 
+/// 用于地图显示的用户地理位置汇总数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserLocationMapData {
+    pub latitude: f64,
+    pub longitude: f64,
+    pub country: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+    pub user_count: i64,
+    pub users: Vec<UserLocationPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserLocationPoint {
+    pub user_id: uuid::Uuid,
+    pub username: String,
+    pub nickname: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct GeolocationService {
     pool: PgPool,
@@ -336,6 +355,82 @@ impl GeolocationService {
         let mut cache = self.token_cache.write().await;
         cache.clear();
         debug!("清理了token缓存");
+    }
+
+    /// 获取全球用户分布数据（用于地图显示）
+    pub async fn get_global_user_distribution(&self) -> Result<Vec<UserLocationMapData>, AppError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                ug.latitude,
+                ug.longitude,
+                ug.country,
+                ug.region,
+                ug.city,
+                ug.user_id,
+                u.username,
+                u.nickname
+            FROM user_geolocations ug
+            INNER JOIN users u ON ug.user_id = u.id
+            WHERE ug.latitude IS NOT NULL
+                AND ug.longitude IS NOT NULL
+                AND u.deleted_at IS NULL
+            ORDER BY ug.country, ug.region, ug.city
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        // 按地理位置聚合数据
+        let mut location_map: std::collections::HashMap<String, UserLocationMapData> =
+            std::collections::HashMap::new();
+
+        for row in rows {
+            let latitude: f64 = row.try_get("latitude")?;
+            let longitude: f64 = row.try_get("longitude")?;
+            let country: Option<String> = row.try_get("country")?;
+            let region: Option<String> = row.try_get("region")?;
+            let city: Option<String> = row.try_get("city")?;
+            let user_id: uuid::Uuid = row.try_get("user_id")?;
+            let username: String = row.try_get("username")?;
+            let nickname: Option<String> = row.try_get("nickname")?;
+
+            // 使用 lat,lng 作为唯一键
+            let key = format!("{:.4},{:.4}", latitude, longitude);
+
+            if let Some(location) = location_map.get_mut(&key) {
+                location.user_count += 1;
+                location.users.push(UserLocationPoint {
+                    user_id,
+                    username,
+                    nickname,
+                });
+            } else {
+                location_map.insert(
+                    key.clone(),
+                    UserLocationMapData {
+                        latitude,
+                        longitude,
+                        country: country.clone(),
+                        region: region.clone(),
+                        city: city.clone(),
+                        user_count: 1,
+                        users: vec![UserLocationPoint {
+                            user_id,
+                            username,
+                            nickname,
+                        }],
+                    },
+                );
+            }
+        }
+
+        // 转换为向量并按用户数降序排序
+        let mut result: Vec<UserLocationMapData> = location_map.into_values().collect();
+        result.sort_by(|a, b| b.user_count.cmp(&a.user_count));
+
+        info!("成功获取全球用户分布数据，共 {} 个位置", result.len());
+        Ok(result)
     }
 }
 
