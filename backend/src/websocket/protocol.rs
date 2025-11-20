@@ -55,18 +55,50 @@ pub struct RoomCreatedPayload {
 
 #[derive(Debug, Clone)]
 pub enum ServerPush {
-    Authed { user_id: String, conn_id: String },
-    Joined { room_id: Uuid },
-    Left { room_id: Uuid },
-    Message { data: CrossNodeMessage },
-    MessageRead { data: ReadReceiptEvent },
-    MessageUpdate { data: MessageUpdatePayload },
-    PinUpdate { data: PinUpdatePayload },
-    Error { message: String },
+    Authed {
+        user_id: String,
+        conn_id: String,
+    },
+    Joined {
+        room_id: Uuid,
+    },
+    Left {
+        room_id: Uuid,
+    },
+    Message {
+        data: CrossNodeMessage,
+    },
+    MessageRead {
+        data: ReadReceiptEvent,
+    },
+    MessageUpdate {
+        data: MessageUpdatePayload,
+    },
+    PinUpdate {
+        data: PinUpdatePayload,
+    },
+    Error {
+        message: String,
+    },
     Pong,
-    FriendRequestUpdate { pending_count: i32 },
-    RoomCreated { data: RoomCreatedPayload },
-    UserBanned { user_id: String, reason: String },
+    FriendRequestUpdate {
+        pending_count: i32,
+    },
+    RoomCreated {
+        data: RoomCreatedPayload,
+    },
+    UserBanned {
+        user_id: String,
+        reason: String,
+    },
+    GroupDissolved {
+        room_id: String,
+    },
+    GroupOwnerTransferred {
+        room_id: String,
+        old_owner_id: String,
+        new_owner_id: String,
+    },
 }
 
 impl ServerPush {
@@ -84,6 +116,8 @@ impl ServerPush {
             ServerPush::FriendRequestUpdate { .. } => "friend_request_update",
             ServerPush::RoomCreated { .. } => "room_created",
             ServerPush::UserBanned { .. } => "user_banned",
+            ServerPush::GroupDissolved { .. } => "group_dissolved",
+            ServerPush::GroupOwnerTransferred { .. } => "group_owner_transferred",
         }
     }
 
@@ -159,6 +193,20 @@ impl ServerPush {
                 "type": "user_banned",
                 "user_id": user_id,
                 "reason": reason,
+            }),
+            ServerPush::GroupDissolved { room_id } => json!({
+                "type": "group_dissolved",
+                "room_id": room_id,
+            }),
+            ServerPush::GroupOwnerTransferred {
+                room_id,
+                old_owner_id,
+                new_owner_id,
+            } => json!({
+                "type": "group_owner_transferred",
+                "room_id": room_id,
+                "old_owner_id": old_owner_id,
+                "new_owner_id": new_owner_id,
             }),
         }
     }
@@ -243,6 +291,20 @@ impl ServerPush {
             ServerPush::UserBanned { user_id, reason } => Payload::UserBanned(ws::ServerBanned {
                 user_id: user_id.clone(),
                 reason: reason.clone(),
+            }),
+            ServerPush::GroupDissolved { room_id } => {
+                Payload::GroupDissolved(ws::ServerGroupDissolved {
+                    room_id: room_id.clone(),
+                })
+            }
+            ServerPush::GroupOwnerTransferred {
+                room_id,
+                old_owner_id,
+                new_owner_id,
+            } => Payload::GroupOwnerTransferred(ws::ServerGroupOwnerTransferred {
+                room_id: room_id.clone(),
+                old_owner_id: old_owner_id.clone(),
+                new_owner_id: new_owner_id.clone(),
             }),
         };
 

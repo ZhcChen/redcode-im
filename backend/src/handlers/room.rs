@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::database::{
+    group_management_store::GroupManagementStore,
     models::{MemberRole, Room, RoomType},
     room_store::RoomStore,
 };
@@ -281,6 +282,22 @@ pub struct DeleteChatResponse {
     pub success: bool,
 }
 
+#[derive(Serialize)]
+pub struct DissolveRoomResponse {
+    pub success: bool,
+}
+
+#[derive(Deserialize)]
+pub struct TransferRoomOwnerPayload {
+    pub new_owner_id: String,
+}
+
+#[derive(Serialize)]
+pub struct TransferRoomOwnerResponse {
+    pub room_id: String,
+    pub owner_id: String,
+}
+
 pub async fn delete_chat(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -300,6 +317,143 @@ pub async fn delete_chat(
     }
 
     Ok(Json(DeleteChatResponse { success }))
+}
+
+pub async fn dissolve_room(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<DissolveRoomResponse>, AppError> {
+    let operator_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let room_store = RoomStore::new(state.database.pool());
+    let room = room_store
+        .get_room(room_id)
+        .await
+        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+
+    if room.room_type != RoomType::Group {
+        return Err(AppError::ValidationError(
+            "Only group rooms can be dissolved".to_string(),
+        ));
+    }
+
+    let member_ids = room_store.list_member_ids(room_id).await?;
+    if member_ids.is_empty() {
+        return Err(AppError::NotFound("Room has no members".to_string()));
+    }
+
+    let success = room_store.dissolve_room(room_id, operator_id).await?;
+    if !success {
+        return Err(AppError::Forbidden(
+            "Only group owner can dissolve the room".to_string(),
+        ));
+    }
+
+    let group_store = GroupManagementStore::new(state.database.pool());
+    let _ = group_store
+        .log_operation(
+            room_id,
+            operator_id,
+            None,
+            "dissolve_group",
+            Some(serde_json::json!({ "operator_id": operator_id })),
+        )
+        .await;
+
+    for user_id in member_ids {
+        let payload = ServerPush::GroupDissolved {
+            room_id: room_id.to_string(),
+        };
+        state
+            .connection_manager
+            .send_to_user(&user_id.to_string(), payload)
+            .await;
+    }
+
+    Ok(Json(DissolveRoomResponse { success: true }))
+}
+
+pub async fn transfer_room_owner(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+    Json(payload): Json<TransferRoomOwnerPayload>,
+) -> Result<Json<TransferRoomOwnerResponse>, AppError> {
+    let operator_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let new_owner_id = Uuid::parse_str(payload.new_owner_id.trim())
+        .map_err(|_| AppError::ValidationError("Invalid new owner user id".to_string()))?;
+
+    if new_owner_id == operator_id {
+        return Err(AppError::ValidationError(
+            "New owner must be different from current owner".to_string(),
+        ));
+    }
+
+    let room_store = RoomStore::new(state.database.pool());
+    let room = room_store
+        .get_room(room_id)
+        .await
+        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+
+    if room.room_type != RoomType::Group {
+        return Err(AppError::ValidationError(
+            "Only group rooms support ownership transfer".to_string(),
+        ));
+    }
+
+    let updated_room = match room_store
+        .transfer_room_owner(room_id, operator_id, new_owner_id)
+        .await
+    {
+        Ok(room) => room,
+        Err(sqlx::Error::RowNotFound) => {
+            return Err(AppError::NotFound(
+                "Target user is not in this group".to_string(),
+            ))
+        }
+        Err(sqlx::Error::Protocol(msg)) => {
+            return Err(AppError::Forbidden(msg));
+        }
+        Err(err) => return Err(AppError::InternalError(err.to_string())),
+    };
+
+    let member_ids = room_store.list_member_ids(room_id).await?;
+
+    let group_store = GroupManagementStore::new(state.database.pool());
+    let _ = group_store
+        .log_operation(
+            room_id,
+            operator_id,
+            Some(new_owner_id),
+            "transfer_group_owner",
+            Some(serde_json::json!({
+                "old_owner_id": operator_id,
+                "new_owner_id": new_owner_id
+            })),
+        )
+        .await;
+
+    let payload = ServerPush::GroupOwnerTransferred {
+        room_id: room_id.to_string(),
+        old_owner_id: operator_id.to_string(),
+        new_owner_id: new_owner_id.to_string(),
+    };
+
+    for user_id in member_ids {
+        state
+            .connection_manager
+            .send_to_user(&user_id.to_string(), payload.clone())
+            .await;
+    }
+
+    Ok(Json(TransferRoomOwnerResponse {
+        room_id: updated_room.id.to_string(),
+        owner_id: updated_room.owner_id.to_string(),
+    }))
 }
 
 pub async fn update_notification_settings(

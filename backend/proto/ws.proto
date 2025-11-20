@@ -39,6 +39,8 @@ message ServerEvent {
     ServerFriendRequestUpdate friend_request_update = 10;
     ServerRoomCreated room_created = 11;
     ServerBanned user_banned = 12;
+    ServerGroupDissolved group_dissolved = 13;
+    ServerGroupOwnerTransferred group_owner_transferred = 14;
   }
 }
 
@@ -157,6 +159,16 @@ message ServerRoomCreated {
 message ServerBanned {
   string user_id = 1;
   string reason = 2;
+}
+
+message ServerGroupDissolved {
+  string room_id = 1;
+}
+
+message ServerGroupOwnerTransferred {
+  string room_id = 1;
+  string old_owner_id = 2;
+  string new_owner_id = 3;
 }
 
 enum PubSubPriority {

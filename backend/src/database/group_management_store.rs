@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,6 +29,7 @@ impl<'a> GroupManagementStore<'a> {
             r#"
             SELECT id, room_id, join_approval_required, member_can_invite,
                    member_can_add_friends, require_admin_to_add_friends, max_members,
+                   global_mute_enabled, global_mute_until, global_mute_reason, global_mute_set_by,
                    created_at, updated_at
             FROM group_settings
             WHERE room_id = $1
@@ -38,7 +39,34 @@ impl<'a> GroupManagementStore<'a> {
         .fetch_optional(self.pool)
         .await?;
 
-        Ok(settings)
+        if let Some(settings) = settings {
+            if settings.global_mute_enabled {
+                if let Some(until) = settings.global_mute_until {
+                    if until <= Utc::now() {
+                        let cleared = self.clear_global_mute(room_id).await?;
+                        return Ok(Some(cleared));
+                    }
+                }
+            }
+            Ok(Some(settings))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn ensure_group_settings_row(&self, room_id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            INSERT INTO group_settings (room_id)
+            VALUES ($1)
+            ON CONFLICT (room_id) DO NOTHING
+            "#,
+        )
+        .bind(room_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn update_group_settings(
@@ -46,32 +74,7 @@ impl<'a> GroupManagementStore<'a> {
         room_id: Uuid,
         request: UpdateGroupSettingsRequest,
     ) -> Result<GroupSettings, sqlx::Error> {
-        let settings = self.get_group_settings(room_id).await?;
-
-        if settings.is_none() {
-            // 如果设置不存在，创建默认设置
-            let new_settings = sqlx::query_as::<_, GroupSettings>(
-                r#"
-                INSERT INTO group_settings
-                (room_id, join_approval_required, member_can_invite, member_can_add_friends,
-                 require_admin_to_add_friends, max_members)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, room_id, join_approval_required, member_can_invite,
-                         member_can_add_friends, require_admin_to_add_friends, max_members,
-                         created_at, updated_at
-                "#,
-            )
-            .bind(room_id)
-            .bind(request.join_approval_required.unwrap_or(false))
-            .bind(request.member_can_invite.unwrap_or(true))
-            .bind(request.member_can_add_friends.unwrap_or(true))
-            .bind(request.require_admin_to_add_friends.unwrap_or(false))
-            .bind(request.max_members.unwrap_or(500))
-            .fetch_one(self.pool)
-            .await?;
-
-            return Ok(new_settings);
-        }
+        self.ensure_group_settings_row(room_id).await?;
 
         let updated = sqlx::query_as::<_, GroupSettings>(
             r#"
@@ -85,6 +88,7 @@ impl<'a> GroupManagementStore<'a> {
             WHERE room_id = $1
             RETURNING id, room_id, join_approval_required, member_can_invite,
                      member_can_add_friends, require_admin_to_add_friends, max_members,
+                     global_mute_enabled, global_mute_until, global_mute_reason, global_mute_set_by,
                      created_at, updated_at
             "#,
         )
@@ -98,6 +102,71 @@ impl<'a> GroupManagementStore<'a> {
         .await?;
 
         Ok(updated)
+    }
+
+    pub async fn set_global_mute_state(
+        &self,
+        room_id: Uuid,
+        set_by: Uuid,
+        enabled: bool,
+        reason: Option<String>,
+        duration_minutes: Option<i64>,
+    ) -> Result<GroupSettings, sqlx::Error> {
+        self.ensure_group_settings_row(room_id).await?;
+
+        let duration = duration_minutes.map(|value| value.max(0) as f64);
+
+        let updated = sqlx::query_as::<_, GroupSettings>(
+            r#"
+            UPDATE group_settings
+            SET global_mute_enabled = $2,
+                global_mute_reason = CASE WHEN $2 THEN $3 ELSE NULL END,
+                global_mute_set_by = CASE WHEN $2 THEN $4 ELSE NULL END,
+                global_mute_until = CASE
+                    WHEN $2 THEN
+                        CASE WHEN $5 IS NOT NULL THEN NOW() + ($5 * INTERVAL '1 minute') ELSE NULL END
+                    ELSE NULL
+                END,
+                updated_at = NOW()
+            WHERE room_id = $1
+            RETURNING id, room_id, join_approval_required, member_can_invite,
+                     member_can_add_friends, require_admin_to_add_friends, max_members,
+                     global_mute_enabled, global_mute_until, global_mute_reason, global_mute_set_by,
+                     created_at, updated_at
+            "#,
+        )
+        .bind(room_id)
+        .bind(enabled)
+        .bind(reason)
+        .bind(set_by)
+        .bind(duration)
+        .fetch_one(self.pool)
+        .await?;
+
+        Ok(updated)
+    }
+
+    pub async fn clear_global_mute(&self, room_id: Uuid) -> Result<GroupSettings, sqlx::Error> {
+        let cleared = sqlx::query_as::<_, GroupSettings>(
+            r#"
+            UPDATE group_settings
+            SET global_mute_enabled = FALSE,
+                global_mute_reason = NULL,
+                global_mute_set_by = NULL,
+                global_mute_until = NULL,
+                updated_at = NOW()
+            WHERE room_id = $1
+            RETURNING id, room_id, join_approval_required, member_can_invite,
+                     member_can_add_friends, require_admin_to_add_friends, max_members,
+                     global_mute_enabled, global_mute_until, global_mute_reason, global_mute_set_by,
+                     created_at, updated_at
+            "#,
+        )
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await?;
+
+        Ok(cleared)
     }
 
     // ===== 群公告管理 =====
@@ -540,6 +609,38 @@ impl<'a> GroupManagementStore<'a> {
         .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn find_active_mute(
+        &self,
+        room_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Option<GroupMute>, sqlx::Error> {
+        let mute = sqlx::query_as::<_, GroupMute>(
+            r#"
+            SELECT id, room_id, user_id, muted_by, reason, mute_duration_hours, muted_at, unmuted_at, is_active
+            FROM group_mutes
+            WHERE room_id = $1 AND user_id = $2 AND is_active = TRUE
+            LIMIT 1
+            "#,
+        )
+        .bind(room_id)
+        .bind(user_id)
+        .fetch_optional(self.pool)
+        .await?;
+
+        if let Some(mute) = mute {
+            if mute.mute_duration_hours > 0 {
+                let expire_at = mute.muted_at + Duration::hours(mute.mute_duration_hours as i64);
+                if expire_at <= Utc::now() {
+                    let _ = self.unmute_user(room_id, user_id).await?;
+                    return Ok(None);
+                }
+            }
+            return Ok(Some(mute));
+        }
+
+        Ok(None)
     }
 
     pub async fn list_muted_users(&self, room_id: Uuid) -> Result<Vec<GroupMute>, sqlx::Error> {

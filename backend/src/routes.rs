@@ -6,8 +6,8 @@ use axum::{
 
 use crate::auth::auth_middleware;
 use crate::handlers::{
-    activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management, healthz, message,
-    message_read, message_search, room, root, settings, user, version, ws,
+    activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
+    healthz, message, message_read, message_search, room, root, settings, user, version, ws,
 };
 use crate::AppState;
 
@@ -52,11 +52,20 @@ pub fn create_routes() -> Router<AppState> {
             get(settings::get_captcha_setting_public),
         )
         // 临时API：创建默认管理员用户（仅用于初始化）
-        .route("/api/admin/init-default-admin", post(admin::create_default_admin_user))
+        .route(
+            "/api/admin/init-default-admin",
+            post(admin::create_default_admin_user),
+        )
         // 临时API：检查管理员用户
-        .route("/api/admin/check-admin-users", get(admin::check_admin_users))
+        .route(
+            "/api/admin/check-admin-users",
+            get(admin::check_admin_users),
+        )
         // 临时API：重置管理员密码
-        .route("/api/admin/reset-admin-password", post(admin::reset_admin_password));
+        .route(
+            "/api/admin/reset-admin-password",
+            post(admin::reset_admin_password),
+        );
 
     // 需要认证的路由
     let protected_routes = Router::new()
@@ -218,10 +227,15 @@ pub fn create_routes() -> Router<AppState> {
             post(version::deactivate_hot_update),
         )
         // ipinfo Token管理API
-        .route("/api/admin/ipinfo-tokens", get(admin::get_token_list).post(admin::create_token))
+        .route(
+            "/api/admin/ipinfo-tokens",
+            get(admin::get_token_list).post(admin::create_token),
+        )
         .route(
             "/api/admin/ipinfo-tokens/{token_id}",
-            get(admin::get_token_list).patch(admin::update_token).delete(admin::delete_token),
+            get(admin::get_token_list)
+                .patch(admin::update_token)
+                .delete(admin::delete_token),
         )
         .route(
             "/api/admin/ipinfo-tokens/{token_id}/reset",
@@ -247,12 +261,27 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/feedbacks", post(feedback::submit_feedback))
         // activity logs
-        .route("/activity/heartbeat", post(activity_logs::create_heartbeat_log))
+        .route(
+            "/activity/heartbeat",
+            post(activity_logs::create_heartbeat_log),
+        )
         .route("/activity/login", post(activity_logs::create_login_history))
-        .route("/activity/login/{log_id}/logout", post(activity_logs::update_login_logout))
-        .route("/users/{user_id}/activity/login-history", get(activity_logs::get_user_login_history))
-        .route("/users/{user_id}/activity/heartbeat-logs", get(activity_logs::get_user_heartbeat_logs))
-        .route("/users/{user_id}/geolocation", get(activity_logs::get_user_geolocation))
+        .route(
+            "/activity/login/{log_id}/logout",
+            post(activity_logs::update_login_logout),
+        )
+        .route(
+            "/users/{user_id}/activity/login-history",
+            get(activity_logs::get_user_login_history),
+        )
+        .route(
+            "/users/{user_id}/activity/heartbeat-logs",
+            get(activity_logs::get_user_heartbeat_logs),
+        )
+        .route(
+            "/users/{user_id}/geolocation",
+            get(activity_logs::get_user_geolocation),
+        )
         .route(
             "/api/admin/users/geolocation/distribution",
             get(activity_logs::get_global_user_distribution),
@@ -301,7 +330,11 @@ pub fn create_routes() -> Router<AppState> {
         .route("/rooms/{room_id}/join", post(room::join_room))
         .route("/rooms/{room_id}/leave", post(room::leave_room))
         .route("/rooms/{room_id}/members", get(room::list_members))
-        .route("/rooms/{room_id}", patch(room::update_room))
+        .route(
+            "/rooms/{room_id}",
+            patch(room::update_room).delete(room::dissolve_room),
+        )
+        .route("/rooms/{room_id}/transfer", post(room::transfer_room_owner))
         .route(
             "/rooms/{room_id}/avatar/direct-upload",
             post(room::generate_room_avatar_direct_upload),
@@ -424,6 +457,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/{room_id}/mutes",
             post(group_management::mute_user).get(group_management::list_muted_users),
+        )
+        .route(
+            "/rooms/{room_id}/mutes/global",
+            post(group_management::update_global_mute),
         )
         .route(
             "/rooms/{room_id}/mutes/{muted_user_id}",

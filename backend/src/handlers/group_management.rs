@@ -27,6 +27,13 @@ pub struct GroupSettingsResponse {
     pub settings: GroupSettings,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateGlobalMuteRequest {
+    pub enabled: bool,
+    pub reason: Option<String>,
+    pub duration_minutes: Option<i64>,
+}
+
 pub async fn get_group_settings(
     State(state): State<AppState>,
     Path(room_id): Path<Uuid>,
@@ -37,6 +44,69 @@ pub async fn get_group_settings(
         .get_group_settings(room_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?;
+
+    Ok(Json(GroupSettingsResponse { settings }))
+}
+
+pub async fn update_global_mute(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+    Json(request): Json<UpdateGlobalMuteRequest>,
+) -> Result<Json<GroupSettingsResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = GroupManagementStore::new(state.database.pool());
+    let can_manage = store.can_manage_group(room_id, user_id).await?;
+    if !can_manage {
+        return Err(AppError::Forbidden(
+            "Only group owner or admin can update mute status".to_string(),
+        ));
+    }
+
+    let settings = store
+        .set_global_mute_state(
+            room_id,
+            user_id,
+            request.enabled,
+            request.reason.clone(),
+            request.duration_minutes,
+        )
+        .await?;
+
+    let log_payload = {
+        use serde_json::Value;
+        let mut map = serde_json::Map::new();
+        if let Some(reason) = &request.reason {
+            map.insert("reason".to_string(), Value::String(reason.clone()));
+        }
+        if let Some(duration) = request.duration_minutes {
+            map.insert(
+                "duration_minutes".to_string(),
+                Value::Number(duration.into()),
+            );
+        }
+        if map.is_empty() {
+            None
+        } else {
+            Some(Value::Object(map))
+        }
+    };
+
+    let _ = store
+        .log_operation(
+            room_id,
+            user_id,
+            None,
+            if request.enabled {
+                "enable_global_mute"
+            } else {
+                "disable_global_mute"
+            },
+            log_payload,
+        )
+        .await;
 
     Ok(Json(GroupSettingsResponse { settings }))
 }

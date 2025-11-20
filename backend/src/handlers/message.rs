@@ -9,12 +9,14 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::database::{
+    group_management_store::GroupManagementStore,
     message_read_store::MessageReadStore,
     message_store::{MessageStore, NewMessagePart},
     models::{
-        MessagePart, MessagePartType, MessageType, MessageWithSender, StorageProvider,
+        MessagePart, MessagePartType, MessageType, MessageWithSender, RoomType, StorageProvider,
         StorageProviderType,
     },
+    room_store::RoomStore,
     storage_provider_store::StorageProviderStore,
 };
 use crate::error::AppError;
@@ -31,7 +33,7 @@ use crate::storage;
 use crate::storage::DirectUploadSignature;
 use crate::AppState;
 use ::redis::AsyncCommands;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 #[derive(Deserialize)]
 pub struct SendMessagePayload {
@@ -55,6 +57,58 @@ struct PreparedMessagePart {
     duration_ms: Option<i32>,
     thumbnail_key: Option<String>,
     extra: Option<Value>,
+}
+
+async fn ensure_group_message_permissions(
+    state: &AppState,
+    room_id: Uuid,
+    sender_id: Uuid,
+) -> Result<(), AppError> {
+    let room_store = RoomStore::new(state.database.pool());
+    let room = room_store
+        .get_room(room_id)
+        .await
+        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+
+    if room.room_type != RoomType::Group {
+        return Ok(());
+    }
+
+    let group_store = GroupManagementStore::new(state.database.pool());
+
+    if let Some(mute) = group_store.find_active_mute(room_id, sender_id).await? {
+        let mut message = String::from("您已被禁言");
+        if mute.mute_duration_hours > 0 {
+            let expire_at = mute.muted_at + Duration::hours(mute.mute_duration_hours as i64);
+            if expire_at > Utc::now() {
+                message.push_str(&format!("，预计 {} 解除", expire_at.to_rfc3339()));
+            }
+        }
+        if let Some(reason) = mute.reason {
+            message.push_str(&format!("：{}", reason));
+        }
+        return Err(AppError::Forbidden(message));
+    }
+
+    if let Some(settings) = group_store.get_group_settings(room_id).await? {
+        if settings.global_mute_enabled {
+            let can_manage = group_store.can_manage_group(room_id, sender_id).await?;
+            if !can_manage {
+                let mut message = String::from("当前群聊已开启全体禁言");
+                if let Some(reason) = settings.global_mute_reason.as_ref() {
+                    message.push_str(&format!("：{}", reason));
+                }
+                if let Some(until) = settings.global_mute_until {
+                    if until > Utc::now() {
+                        message.push_str(&format!("，预计 {} 解除", until.to_rfc3339()));
+                    }
+                }
+                return Err(AppError::Forbidden(message));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn normalize_message_parts(
@@ -450,6 +504,8 @@ pub async fn send_message(
         )));
     }
 
+    ensure_group_message_permissions(&state, room_id, sender_id).await?;
+
     // 简单速率限制：用户在房间内每10秒最多发送30条
     {
         let mut conn = state
@@ -598,6 +654,8 @@ pub async fn forward_message(
             "用户不在目标房间，无法转发消息".to_string(),
         ));
     }
+
+    ensure_group_message_permissions(&state, room_id, sender_id).await?;
 
     let original = store
         .get_message_with_sender(payload.original_message_id)
@@ -1101,33 +1159,33 @@ pub async fn generate_message_attachment_download_url(
     let storage_service = storage::create_storage_service(&provider)?;
 
     // 生成缓存键
-    let cache_key = CacheKeys::download_url_cache(
-        key,
-        &provider.id.to_string(),
-        expires,
-    );
+    let cache_key = CacheKeys::download_url_cache(key, &provider.id.to_string(), expires);
 
     // 创建缓存管理器
     let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
 
     // 尝试从缓存获取URL
-    let download_url = if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
-        cached_url
-    } else {
-        // 缓存未命中，生成新的URL
-        let url = storage_service
-        .generate_download_url(key, Some(expires))
-        .await?;
+    let download_url =
+        if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
+            cached_url
+        } else {
+            // 缓存未命中，生成新的URL
+            let url = storage_service
+                .generate_download_url(key, Some(expires))
+                .await?;
 
-        // 缓存URL，过期时间为URL有效期的90%
-        let cache_ttl = (expires as f64 * 0.9) as u64;
+            // 缓存URL，过期时间为URL有效期的90%
+            let cache_ttl = (expires as f64 * 0.9) as u64;
 
-        if let Err(e) = cache_manager.cache_download_url(&cache_key, &url, cache_ttl).await {
-            error!("缓存消息附件下载URL失败: {:?}", e);
-        }
+            if let Err(e) = cache_manager
+                .cache_download_url(&cache_key, &url, cache_ttl)
+                .await
+            {
+                error!("缓存消息附件下载URL失败: {:?}", e);
+            }
 
-        url
-    };
+            url
+        };
 
     Ok(Json(MessageAttachmentDownloadResponse {
         success: true,

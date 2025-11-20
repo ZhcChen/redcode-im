@@ -141,6 +141,10 @@ pub enum TauriEventPayload {
     RoomCreated(serde_json::Value),
     /// 用户被封禁
     UserBanned { user_id: String, reason: String },
+    /// 群被解散
+    GroupDissolved { room_id: String },
+    /// 群主变更
+    GroupOwnerTransferred { room_id: String, old_owner_id: String, new_owner_id: String },
     /// 错误
     Error { message: String },
     /// Pong
@@ -229,6 +233,16 @@ impl TauriEventPayload {
                 user_id: banned.user_id,
                 reason: banned.reason,
             }),
+            ws::server_event::Payload::GroupDissolved(dissolved) => Some(Self::GroupDissolved {
+                room_id: dissolved.room_id,
+            }),
+            ws::server_event::Payload::GroupOwnerTransferred(transferred) => {
+                Some(Self::GroupOwnerTransferred {
+                    room_id: transferred.room_id,
+                    old_owner_id: transferred.old_owner_id,
+                    new_owner_id: transferred.new_owner_id,
+                })
+            }
             ws::server_event::Payload::Error(err) => Some(Self::Error {
                 message: err.message,
             }),

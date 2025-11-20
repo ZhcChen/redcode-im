@@ -485,6 +485,116 @@ impl<'a> RoomStore<'a> {
         Ok(room_result.rows_affected() > 0)
     }
 
+    pub async fn dissolve_room(
+        &self,
+        room_id: Uuid,
+        operator_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        let owner_id: Option<Uuid> = sqlx::query_scalar(
+            r#"SELECT owner_id FROM rooms WHERE id = $1 AND deleted_at IS NULL"#,
+        )
+        .bind(room_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if owner_id != Some(operator_id) {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+
+        let room_result = sqlx::query(
+            r#"
+            UPDATE rooms
+            SET deleted_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            UPDATE room_members
+            SET deleted_at = NOW()
+            WHERE room_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(room_result.rows_affected() > 0)
+    }
+
+    pub async fn transfer_room_owner(
+        &self,
+        room_id: Uuid,
+        operator_id: Uuid,
+        new_owner_id: Uuid,
+    ) -> Result<Room, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        let room: Room = sqlx::query_as(
+            r#"
+            SELECT id, name, description, avatar_url, avatar_object_key, room_type, owner_id,
+                   created_at, updated_at, deleted_at
+            FROM rooms
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if room.owner_id != operator_id {
+            tx.rollback().await?;
+            return Err(sqlx::Error::Protocol(
+                "Only room owner can transfer".to_string(),
+            ));
+        }
+
+        let is_member: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            SELECT user_id FROM room_members
+            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+            LIMIT 1
+            "#,
+        )
+        .bind(room_id)
+        .bind(new_owner_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if is_member.is_none() {
+            tx.rollback().await?;
+            return Err(sqlx::Error::RowNotFound);
+        }
+
+        let updated_room = sqlx::query_as::<_, Room>(
+            r#"
+            UPDATE rooms
+            SET owner_id = $2,
+                updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            RETURNING id, name, description, avatar_url, avatar_object_key, room_type,
+                      owner_id, created_at, updated_at, deleted_at
+            "#,
+        )
+        .bind(room_id)
+        .bind(new_owner_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(updated_room)
+    }
+
     pub async fn pin_room_for_user(
         &self,
         user_id: Uuid,
@@ -544,11 +654,11 @@ impl<'a> RoomStore<'a> {
         Ok(member)
     }
 
-    /// 获取房间房主ID
-    pub async fn get_room_owner(&self, room_id: Uuid) -> Result<Uuid, sqlx::Error> {
+    pub async fn get_room(&self, room_id: Uuid) -> Result<Room, sqlx::Error> {
         let room = sqlx::query_as::<_, Room>(
             r#"
-            SELECT id, name, description, avatar_url, avatar_object_key, room_type, owner_id, created_at, updated_at, deleted_at
+            SELECT id, name, description, avatar_url, avatar_object_key, room_type,
+                   owner_id, created_at, updated_at, deleted_at
             FROM rooms
             WHERE id = $1 AND deleted_at IS NULL
             "#,
@@ -556,7 +666,29 @@ impl<'a> RoomStore<'a> {
         .bind(room_id)
         .fetch_one(self.pool)
         .await?;
+
+        Ok(room)
+    }
+
+    /// 获取房间房主ID
+    pub async fn get_room_owner(&self, room_id: Uuid) -> Result<Uuid, sqlx::Error> {
+        let room = self.get_room(room_id).await?;
         Ok(room.owner_id)
+    }
+
+    pub async fn list_member_ids(&self, room_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+        let rows = sqlx::query_scalar::<_, Uuid>(
+            r#"
+            SELECT user_id
+            FROM room_members
+            WHERE room_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(rows)
     }
 
     /// 更新房间信息

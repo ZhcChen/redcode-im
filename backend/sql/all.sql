@@ -382,6 +382,10 @@ CREATE TABLE IF NOT EXISTS group_settings (
     member_can_add_friends BOOLEAN DEFAULT TRUE,
     require_admin_to_add_friends BOOLEAN DEFAULT FALSE,
     max_members INTEGER DEFAULT 500,
+    global_mute_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    global_mute_until TIMESTAMPTZ,
+    global_mute_reason TEXT,
+    global_mute_set_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(room_id)
@@ -479,6 +483,7 @@ CREATE INDEX IF NOT EXISTS idx_join_requests_room_id ON join_requests(room_id);
 CREATE INDEX IF NOT EXISTS idx_join_requests_status ON join_requests(status);
 CREATE INDEX IF NOT EXISTS idx_group_invitations_room_id ON group_invitations(room_id);
 CREATE INDEX IF NOT EXISTS idx_group_invitations_status ON group_invitations(status);
+CREATE INDEX IF NOT EXISTS idx_group_settings_global_mute ON group_settings(global_mute_enabled);
 CREATE INDEX IF NOT EXISTS idx_group_admins_room_id ON group_admins(room_id);
 CREATE INDEX IF NOT EXISTS idx_group_admins_admin_id ON group_admins(admin_id);
 CREATE INDEX IF NOT EXISTS idx_group_operation_logs_room_id ON group_operation_logs(room_id);
@@ -515,6 +520,10 @@ SELECT
     gs.member_can_add_friends,
     gs.require_admin_to_add_friends,
     gs.max_members,
+    gs.global_mute_enabled,
+    gs.global_mute_until,
+    gs.global_mute_reason,
+    gs.global_mute_set_by,
     (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id AND rm.deleted_at IS NULL) AS current_member_count,
     (SELECT COUNT(*) FROM group_announcements ga WHERE ga.room_id = r.id) AS announcement_count,
     (SELECT COUNT(*) FROM join_requests jr WHERE jr.room_id = r.id AND jr.status = 0) AS pending_request_count
