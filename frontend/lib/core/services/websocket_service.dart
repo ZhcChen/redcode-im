@@ -779,10 +779,10 @@ class WebSocketService with ChangeNotifier {
     unawaited(() async {
       try {
         final session = await _tokenStorage.readSession();
-        if (session != null && session.userId == event.userId) {
+        if (session != null && session.user.id == event.userId) {
           // 当前用户被封禁，清除token并断开连接
           debugPrint('Current user banned, logging out...');
-          await _tokenStorage.clearSession();
+          await _tokenStorage.clear();
           await disconnect();
           
           // 通知应用跳转到登录页面
