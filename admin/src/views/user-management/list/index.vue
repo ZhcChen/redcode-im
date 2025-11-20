@@ -69,24 +69,11 @@
             <a-button
               type="text"
               size="small"
-              :disabled="Boolean(record.deleted_at)"
-              @click="
-                handleUpdateStatus(
-                  record,
-                  record.status === 'active' ? 'inactive' : 'active'
-                )
-              "
-            >
-              {{ record.status === 'active' ? '禁用' : '启用' }}
-            </a-button>
-            <a-button
-              type="text"
-              size="small"
-              status="danger"
+              :status="record.status === 'banned' ? 'normal' : 'danger'"
               :disabled="Boolean(record.deleted_at)"
               @click="handleBanUser(record)"
             >
-              封禁
+              {{ record.status === 'banned' ? '解禁' : '封禁' }}
             </a-button>
           </a-space>
         </template>
@@ -251,42 +238,33 @@
     fetchData();
   };
 
-  const handleUpdateStatus = async (
-    user: UserInfo,
-    status: 'active' | 'inactive'
-  ) => {
-    if (user.deleted_at) {
-      Message.info('已注销账号无法变更状态');
-      return;
-    }
-    try {
-      await updateUserStatus(user.id, status);
-      Message.success('操作成功');
-      await fetchData();
-    } catch (error) {
-      Message.error('操作失败，请重试');
-    }
-  };
-
   const handleBanUser = (user: UserInfo) => {
     if (user.deleted_at) {
-      Message.info('已注销账号无法封禁');
+      Message.info('已注销账号无法操作');
       return;
     }
+
+    const isBanned = user.status === 'banned';
+    const action = isBanned ? '解禁' : '封禁';
+    const newStatus = isBanned ? 'active' : 'banned';
 
     Modal.confirm({
       title: '确认操作',
-      content: `确定要封禁用户 "${user.username}" 吗？封禁后用户将无法登录系统。`,
-      okText: '确认封禁',
+      content: `确定要${action}用户 "${user.username}" 吗？${
+        isBanned
+          ? '解禁后用户将可以正常登录系统。'
+          : '封禁后用户将无法登录系统。'
+      }`,
+      okText: `确认${action}`,
       cancelText: '取消',
-      okButtonProps: { status: 'danger' },
+      okButtonProps: { status: isBanned ? 'normal' : 'danger' },
       onOk: async () => {
         try {
-          await updateUserStatus(user.id, 'banned');
-          Message.success('操作成功');
+          await updateUserStatus(user.id, newStatus);
+          Message.success(`${action}成功`);
           await fetchData();
         } catch (error) {
-          Message.error('操作失败，请重试');
+          Message.error(`${action}失败，请重试`);
         }
       },
     });
@@ -304,14 +282,14 @@
 
 <style lang="less" scoped>
   .user-list-container {
-    padding: 0 20px 20px 20px;
+    padding: 0 20px 20px;
 
     .general-card {
       .header-actions {
-        margin-bottom: 16px;
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
       }
     }
   }
