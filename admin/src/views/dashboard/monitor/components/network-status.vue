@@ -127,8 +127,8 @@
 
   onMounted(() => {
     fetchNetworkData();
-    // 每5秒更新一次
-    timer = window.setInterval(fetchNetworkData, 5000);
+    // 每3秒更新一次
+    timer = window.setInterval(fetchNetworkData, 3000);
   });
 
   onUnmounted(() => {

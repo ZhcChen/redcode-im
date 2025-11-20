@@ -96,12 +96,13 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, onUnmounted } from 'vue';
   import useLoading from '@/hooks/loading';
   import { getSystemStats, type SystemStats } from '@/api/dashboard';
 
   const { setLoading } = useLoading(true);
   const systemStats = ref<SystemStats>();
+  let timer: number | null = null;
 
   const fetchData = async () => {
     try {
@@ -117,6 +118,14 @@
 
   onMounted(() => {
     fetchData();
+    // 每3秒轮询一次
+    timer = window.setInterval(fetchData, 3000);
+  });
+
+  onUnmounted(() => {
+    if (timer) {
+      clearInterval(timer);
+    }
   });
 </script>
 

@@ -63,10 +63,11 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, onUnmounted } from 'vue';
   import { getSystemStats, type SystemStats } from '@/api/dashboard';
 
   const systemStats = ref<SystemStats>();
+  let timer: number | null = null;
 
   const getLoadClass = (load: number): string => {
     if (load < 1) return 'load-normal';
@@ -102,6 +103,14 @@
 
   onMounted(() => {
     fetchData();
+    // 每3秒更新一次
+    timer = window.setInterval(fetchData, 3000);
+  });
+
+  onUnmounted(() => {
+    if (timer) {
+      clearInterval(timer);
+    }
   });
 </script>
 

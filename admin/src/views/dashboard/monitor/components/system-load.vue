@@ -125,8 +125,8 @@
 
   onMounted(() => {
     fetchLoadData();
-    // 每10秒更新一次
-    timer = window.setInterval(fetchLoadData, 10000);
+    // 每3秒更新一次
+    timer = window.setInterval(fetchLoadData, 3000);
   });
 
   onUnmounted(() => {

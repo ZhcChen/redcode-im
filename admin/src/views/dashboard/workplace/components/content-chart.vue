@@ -17,7 +17,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref } from 'vue';
+  import { ref, onMounted, onUnmounted } from 'vue';
   import { graphic } from 'echarts';
   import useLoading from '@/hooks/loading';
   import useChartOption from '@/hooks/chart-option';
@@ -82,6 +82,8 @@
     graphicFactory({ left: '2.6%' }),
     graphicFactory({ right: 0 }),
   ]);
+  let timer: number | null = null;
+
   const { chartOption } = useChartOption(() => {
     return {
       grid: {
@@ -215,6 +217,9 @@
     setLoading(true);
     try {
       const { data: chartData } = await queryContentData();
+      // 清空现有数据
+      xAxis.value = [];
+      chartsData.value = [];
       chartData.forEach((el: ContentDataRecord, idx: number) => {
         xAxis.value.push(el.x);
         chartsData.value.push(el.y);
@@ -231,7 +236,18 @@
       setLoading(false);
     }
   };
-  fetchData();
+
+  onMounted(() => {
+    fetchData();
+    // 每3秒更新一次
+    timer = window.setInterval(fetchData, 3000);
+  });
+
+  onUnmounted(() => {
+    if (timer) {
+      clearInterval(timer);
+    }
+  });
 </script>
 
 <style scoped lang="less"></style>

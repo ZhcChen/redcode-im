@@ -73,7 +73,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref } from 'vue';
+  import { ref, onMounted, onUnmounted } from 'vue';
   import useLoading from '@/hooks/loading';
   import { getPopularContent } from '@/api/dashboard';
 
@@ -127,6 +127,8 @@
   const type = ref('text');
   const { loading, setLoading } = useLoading();
   const renderList = ref<PopularRecord[]>();
+  let timer: number | null = null;
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -138,10 +140,22 @@
       setLoading(false);
     }
   };
+
   const typeChange = (contentType: string) => {
     fetchData();
   };
-  fetchData();
+
+  onMounted(() => {
+    fetchData();
+    // 每3秒更新一次
+    timer = window.setInterval(fetchData, 3000);
+  });
+
+  onUnmounted(() => {
+    if (timer) {
+      clearInterval(timer);
+    }
+  });
 </script>
 
 <style scoped lang="less">
