@@ -13,6 +13,7 @@ pub mod models;
 pub mod proto;
 pub mod redis;
 pub mod routes;
+pub mod services;
 pub mod storage;
 pub mod websocket;
 

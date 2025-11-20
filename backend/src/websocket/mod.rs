@@ -18,9 +18,9 @@ use std::{
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
-use crate::{auth, proto::ws, AppState};
+use crate::{auth, proto::ws, services::geolocation, AppState};
 use protocol::{ConnectionFormat, OutboundFrame};
-use tracing::{error, info};
+use tracing::{debug, error, info, trace, warn};
 
 // WebSocket连接管理器
 pub struct ConnectionManager {
@@ -232,31 +232,41 @@ impl ConnectionManager {
                         tracing::debug!("更新Redis会话心跳失败: {}", e);
                     }
 
-                    // 记录心跳日志到数据库
-                    let request = crate::handlers::activity_logs::CreateHeartbeatLogRequest {
-                        user_id: user_uuid,
-                        ip_address: client_ip.to_string(),
-                        user_agent: None,
-                        connection_id: connection_id.to_string(),
-                        node_id: Some(node_id),
-                        device_info: None,
+                    // 检查用户IP是否变化，如果变化则更新地理位置
+                    let ip_changed = if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                        geolocation_service.has_user_ip_changed(&user_uuid, &client_ip.to_string()).await.unwrap_or(true)
+                    } else {
+                        false // 服务未启用，不处理地理位置
                     };
 
-                    if let Err(e) = sqlx::query(
-                        r#"
-                        INSERT INTO user_heartbeat_logs (user_id, ip_address, user_agent, connection_id, node_id, device_info)
-                        VALUES ($1, $2::inet, $3, $4, $5, $6)
-                        "#,
-                    )
-                    .bind(request.user_id)
-                    .bind(&request.ip_address)
-                    .bind(&request.user_agent)
-                    .bind(&request.connection_id)
-                    .bind(&request.node_id)
-                    .bind(&request.device_info)
-                    .execute(&database.pool)
-                    .await {
-                        tracing::debug!("记录心跳日志失败: {}", e);
+                    if ip_changed {
+                        // 异步查询和更新地理位置
+                        let user_uuid_clone = user_uuid;
+                        let client_ip_clone = client_ip.to_string();
+                        tokio::spawn(async move {
+                            if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                                info!("检测到用户 {} IP变化: {}", user_uuid_clone, client_ip_clone);
+                                match geolocation_service.query_ip_geolocation(&client_ip_clone).await {
+                                    Ok(Some(mut geolocation)) => {
+                                        geolocation.user_id = user_uuid_clone;
+                                        if let Err(e) = geolocation_service.update_user_geolocation(&user_uuid_clone, &client_ip_clone, &geolocation).await {
+                                            warn!("更新用户地理位置失败: {}", e);
+                                        } else {
+                                            info!("成功更新用户 {} 的地理位置: {:?}, {:?}", user_uuid_clone, geolocation.city, geolocation.country);
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        warn!("无法获取IP {} 的地理位置信息", client_ip_clone);
+                                    }
+                                    Err(e) => {
+                                        error!("查询地理位置时发生错误: {}", e);
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // IP没有变化，静默跳过
+                        trace!("用户 {} IP未变化，跳过地理位置更新", user_uuid);
                     }
                 });
 
@@ -379,25 +389,26 @@ async fn handle_client_event(
                     )
                     .await;
 
-                // 异步记录用户登录历史
-                let user_uuid_clone = user_id.clone();
+                // 异步记录用户登录历史和初始化地理位置
+                let user_id_clone = user_id.clone();
                 let client_ip_clone = client_addr.ip().to_string();
                 let state_clone = state.clone();
                 tokio::spawn(async move {
-                    let user_uuid = match uuid::Uuid::parse_str(&user_uuid_clone) {
+                    let user_uuid = match uuid::Uuid::parse_str(&user_id_clone) {
                         Ok(uuid) => uuid,
                         Err(_) => return,
                     };
 
-                    let request = crate::handlers::activity_logs::CreateLoginHistoryRequest {
+                    // 记录登录历史
+                    let login_request = crate::handlers::activity_logs::CreateLoginHistoryRequest {
                         user_id: user_uuid,
-                        ip_address: client_ip_clone,
-                        user_agent: None, // WebSocket连接通常没有User-Agent
+                        ip_address: client_ip_clone.clone(),
+                        user_agent: None,
                         login_method: "websocket".to_string(),
                         success: true,
                         failure_reason: None,
                         device_info: Some(serde_json::json!({
-                            "connection_format": "json", // 这里format变量不可用，使用默认值
+                            "connection_format": "json",
                             "node_id": state_clone.node_id
                         })),
                     };
@@ -408,16 +419,49 @@ async fn handle_client_event(
                         VALUES ($1, $2::inet, $3, $4, $5, $6, $7)
                         "#,
                     )
-                    .bind(request.user_id)
-                    .bind(&request.ip_address)
-                    .bind(&request.user_agent)
-                    .bind(&request.login_method)
-                    .bind(request.success)
-                    .bind(&request.failure_reason)
-                    .bind(&request.device_info)
+                    .bind(login_request.user_id)
+                    .bind(&login_request.ip_address)
+                    .bind(&login_request.user_agent)
+                    .bind(&login_request.login_method)
+                    .bind(login_request.success)
+                    .bind(&login_request.failure_reason)
+                    .bind(&login_request.device_info)
                     .execute(&state_clone.database.pool)
                     .await {
                         tracing::warn!("记录用户登录历史失败: {}", e);
+                    }
+
+                    // 初始化或更新用户地理位置（如果地理位置服务启用）
+                    let should_update_geolocation = if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                        geolocation_service.has_user_ip_changed(&user_uuid, &client_ip_clone).await.unwrap_or(true)
+                    } else {
+                        false
+                    };
+
+                    if should_update_geolocation {
+                        // 需要初始化地理位置
+                        let user_uuid_clone = user_uuid;
+                        let client_ip_clone_2 = client_ip_clone.clone();
+                        tokio::spawn(async move {
+                            if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                                match geolocation_service.query_ip_geolocation(&client_ip_clone_2).await {
+                                    Ok(Some(mut geolocation)) => {
+                                        geolocation.user_id = user_uuid_clone;
+                                        if let Err(e) = geolocation_service.update_user_geolocation(&user_uuid_clone, &client_ip_clone_2, &geolocation).await {
+                                            warn!("初始化用户地理位置失败: {}", e);
+                                        } else {
+                                            info!("成功初始化用户 {} 的地理位置: {:?}, {:?}", user_uuid_clone, geolocation.city, geolocation.country);
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        debug!("无法获取用户 {} 初始地理位置信息", user_uuid_clone);
+                                    }
+                                    Err(e) => {
+                                        warn!("查询用户初始地理位置时发生错误: {}", e);
+                                    }
+                                }
+                            }
+                        });
                     }
                 });
 

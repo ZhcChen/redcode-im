@@ -8,6 +8,7 @@ mod models;
 mod proto;
 mod redis;
 mod routes;
+mod services;
 mod storage;
 mod websocket;
 
@@ -28,6 +29,8 @@ use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use tracing_appender::non_blocking::WorkerGuard;
+
+use crate::services::geolocation;
 
 static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
@@ -68,11 +71,14 @@ async fn main() {
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(AppState {
-            database,
+            database: database.clone(),
             redis: redis_manager,
             node_id,
             connection_manager: std::sync::Arc::new(websocket::ConnectionManager::new()),
         });
+
+    // 初始化地理位置服务
+    geolocation::init_geolocation_service(database.pool.clone());
 
     let port: u16 = env::var("PORT")
         .ok()

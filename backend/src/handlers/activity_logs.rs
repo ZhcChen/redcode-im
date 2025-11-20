@@ -2,7 +2,10 @@ use axum::{extract::State, http::StatusCode, Json};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use tracing::error;
 use uuid::Uuid;
+
+use crate::services::geolocation;
 
 use crate::error::AppError;
 
@@ -291,4 +294,22 @@ pub async fn get_user_heartbeat_logs(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(logs))
+}
+
+pub async fn get_user_geolocation(
+    State(_state): State<crate::AppState>,
+    axum::extract::Path(user_id): axum::extract::Path<Uuid>,
+) -> Result<Json<Option<serde_json::Value>>, AppError> {
+    if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+        let geolocation = geolocation_service.get_user_geolocation(&user_id).await?;
+        match geolocation {
+            Some(loc) => Ok(Json(Some(serde_json::to_value(loc).map_err(|e| {
+                error!("序列化地理位置信息失败: {}", e);
+                AppError::DatabaseError(sqlx::Error::RowNotFound)
+            })?))),
+            None => Ok(Json(None))
+        }
+    } else {
+        Ok(Json(None))
+    }
 }

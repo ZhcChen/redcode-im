@@ -237,6 +237,7 @@ pub fn create_routes() -> Router<AppState> {
         .route("/activity/login/{log_id}/logout", post(activity_logs::update_login_logout))
         .route("/users/{user_id}/activity/login-history", get(activity_logs::get_user_login_history))
         .route("/users/{user_id}/activity/heartbeat-logs", get(activity_logs::get_user_heartbeat_logs))
+        .route("/users/{user_id}/geolocation", get(activity_logs::get_user_geolocation))
         // users
         .route("/users/search", get(user::search_users))
         .route(
