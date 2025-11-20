@@ -20,6 +20,7 @@ use sqlx::{FromRow, Row};
 use tracing::error;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SystemStats {
     pub total_users: i64,
     pub online_users: i64,
@@ -367,17 +368,34 @@ pub async fn get_dashboard_stats(
 }
 
 async fn get_online_users_count(state: &AppState) -> Result<i64, AppError> {
-    // 使用 WebSocket 连接管理器统计实时在线用户
-    let count = state.connection_manager.get_online_user_count().await;
-    Ok(count as i64)
+    // 优先使用 WebSocket 连接管理器统计实时在线用户
+    let ws_count = state.connection_manager.get_online_user_count().await;
+
+    // 如果 WebSocket 统计为 0，尝试通过最后活动时间估算（30分钟内有更新的用户）
+    if ws_count == 0 {
+        let pool = &state.database.pool;
+        let estimated_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users
+             WHERE deleted_at IS NULL
+             AND status = 0  -- active users
+             AND updated_at > NOW() - INTERVAL '30 minutes'",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(estimated_count)
+    } else {
+        Ok(ws_count as i64)
+    }
 }
 
 async fn get_active_rooms_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
-    // 统计最近1小时内有消息的房间（更准确反映实时活跃）
+    // 统计最近24小时内有消息的房间（更准确反映活跃状态）
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT room_id) FROM messages
          WHERE deleted_at IS NULL
-         AND created_at > NOW() - INTERVAL '1 hour'",
+         AND created_at > NOW() - INTERVAL '24 hours'",
     )
     .fetch_one(pool)
     .await?;
@@ -385,12 +403,11 @@ async fn get_active_rooms_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error>
 }
 
 async fn get_today_messages_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
-    // 使用 Asia/Shanghai 时区确保统计准确性
+    // 使用 UTC 时间，统计今天的消息（简化逻辑，避免时区转换问题）
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM messages
          WHERE deleted_at IS NULL
-         AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai') = 
-             DATE(NOW() AT TIME ZONE 'Asia/Shanghai')",
+         AND DATE(created_at) = CURRENT_DATE",
     )
     .fetch_one(pool)
     .await?;
