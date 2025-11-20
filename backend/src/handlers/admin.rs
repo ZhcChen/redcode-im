@@ -320,7 +320,7 @@ pub async fn get_dashboard_stats(
                 AppError::DatabaseError(e)
             })?;
 
-    let online_users = get_online_users_count(pool).await.unwrap_or(0);
+    let online_users = get_online_users_count(&state).await.unwrap_or(0);
 
     // 获取房间统计
     let total_rooms: i64 =
@@ -366,24 +366,18 @@ pub async fn get_dashboard_stats(
     Ok(Json(stats))
 }
 
-async fn get_online_users_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
-    // 假设我们有在线状态记录，或者通过最近活动时间判断
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM users
-         WHERE deleted_at IS NULL
-         AND updated_at > NOW() - INTERVAL '30 minutes'",
-    )
-    .fetch_one(pool)
-    .await?;
-    Ok(count)
+async fn get_online_users_count(state: &AppState) -> Result<i64, AppError> {
+    // 使用 WebSocket 连接管理器统计实时在线用户
+    let count = state.connection_manager.get_online_user_count().await;
+    Ok(count as i64)
 }
 
 async fn get_active_rooms_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
-    // 假设活跃房间是指最近24小时内有消息的房间
+    // 统计最近1小时内有消息的房间（更准确反映实时活跃）
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT room_id) FROM messages
          WHERE deleted_at IS NULL
-         AND created_at > NOW() - INTERVAL '24 hours'",
+         AND created_at > NOW() - INTERVAL '1 hour'",
     )
     .fetch_one(pool)
     .await?;
@@ -391,10 +385,12 @@ async fn get_active_rooms_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error>
 }
 
 async fn get_today_messages_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
+    // 使用 Asia/Shanghai 时区确保统计准确性
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM messages
          WHERE deleted_at IS NULL
-         AND DATE(created_at) = CURRENT_DATE",
+         AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai') = 
+             DATE(NOW() AT TIME ZONE 'Asia/Shanghai')",
     )
     .fetch_one(pool)
     .await?;
