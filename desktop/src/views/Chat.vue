@@ -4732,23 +4732,21 @@ const handleCreateGroupConfirm = async (data: {
     let avatarUrl: string | undefined
     if (data.avatar && data.avatar.startsWith('data:')) {
       try {
-        
-        // 将 base64 转换为 Blob
+        // 直接从 data URL 创建 File 对象
         const response = await fetch(data.avatar)
         const blob = await response.blob()
         const file = new File([blob], 'group-avatar.jpg', { type: 'image/jpeg' })
-        
+
         // 上传文件
         const uploadResult = await FileApi.uploadFile({
-        file,
-        category: 'group_avatar',
-        isPublic: true,
-        description: '群头像'
-      })
+          file,
+          category: 'group_avatar',
+          isPublic: true,
+          description: '群头像'
+        })
 
         if (uploadResult.code === 200 && uploadResult.data) {
           avatarUrl = FileApi.buildImageUrl(uploadResult.data)
-        } else {
         }
       } catch (error: any) {
       }

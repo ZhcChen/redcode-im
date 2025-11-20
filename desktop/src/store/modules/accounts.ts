@@ -627,13 +627,16 @@ const accountsModule = {
       await Promise.all(
         state.accounts.map(async account => {
           try {
-            const [chatResponse, friendResponse] = await Promise.all([
-              fetchJsonWithAccountToken('/chats', account.token),
-              fetchJsonWithAccountToken('/friends/requests?direction=incoming&status=pending', account.token)
-            ])
+            // 使用 Rust 命令并行加载聊天列表和好友请求
+            const loadResult = await invoke<{
+              chats: any[];
+              friend_requests: any[];
+            }>('account_load_data', { token: account.token })
+            const [chats, friendRequests] = [loadResult.chats, loadResult.friend_requests]
 
-            if (chatResponse?.success && Array.isArray(chatResponse.data)) {
-              const totalUnread = chatResponse.data.reduce((sum: number, chat: any) => {
+            // 处理聊天列表
+            if (Array.isArray(chats)) {
+              const totalUnread = chats.reduce((sum: number, chat: any) => {
                 return sum + (chat.unread_count ?? chat.unreadCount ?? 0)
               }, 0)
 
@@ -643,9 +646,9 @@ const accountsModule = {
               })
             }
 
-            if (friendResponse?.success) {
-              const pendingList = Array.isArray(friendResponse.data) ? friendResponse.data : []
-              const pendingCount = pendingList.length
+            // 处理好友请求
+            if (Array.isArray(friendRequests)) {
+              const pendingCount = friendRequests.length
               commit('UPDATE_FRIEND_REQUEST_COUNT', {
                 accountId: account.id,
                 count: pendingCount
@@ -660,30 +663,6 @@ const accountsModule = {
         })
       )
     }
-  }
-}
-
-async function fetchJsonWithAccountToken(path: string, token: string) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15000)
-
-  try {
-    const response = await fetch(`${apiConfig.API_BASE_URL}${path}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      },
-      signal: controller.signal
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    return await response.json()
-  } finally {
-    clearTimeout(timeout)
   }
 }
 
