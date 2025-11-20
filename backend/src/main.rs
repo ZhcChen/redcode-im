@@ -56,6 +56,11 @@ async fn main() {
         .expect("Redis 连接测试失败");
     info!("Redis 连接初始化完成!");
 
+    // 初始化地理位置服务
+    info!("正在初始化地理位置服务...");
+    services::geolocation::init_geolocation_service(database.pool().clone());
+    info!("地理位置服务初始化完成!");
+
     // 启动后台任务
     let node_id = start_background_tasks(redis_manager.clone()).await;
 
