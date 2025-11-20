@@ -114,9 +114,25 @@ impl UserStore {
         Ok(user)
     }
 
+    /// 按用户名查找用户（支持所有状态）
+    pub async fn find_by_username_any_status(&self, username: &str) -> Result<Option<User>, Error> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            FROM users
+            WHERE username = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(username)
+        .fetch_optional(&self.database.pool)
+        .await?;
+
+        Ok(user)
+    }
+
     /// 验证用户登录
     pub async fn authenticate(&self, request: LoginRequest) -> Result<Option<User>, Error> {
-        if let Some(user) = self.find_by_username(&request.username).await? {
+        if let Some(user) = self.find_by_username_any_status(&request.username).await? {
             if verify(&request.password, &user.password_hash).unwrap_or(false) {
                 return Ok(Some(user));
             }
