@@ -114,7 +114,7 @@
 
   // 渲染地图
   async function renderMap() {
-    if (!mapContainer.value || locationData.value.length === 0) return;
+    if (!mapContainer.value) return;
 
     // 先加载地图数据
     const loaded = await loadWorldMap();
@@ -125,20 +125,22 @@
       chartInstance = echarts.init(mapContainer.value);
     }
 
-    // 准备数据
-    const scatterData = locationData.value.map((item) => ({
-      name: item.city || item.region || item.country || '未知',
-      value: [item.longitude, item.latitude, item.user_count],
-      itemStyle: {
-        color: getPointColor(item.user_count),
-        opacity: 0.8,
-      },
-      symbolSize: getPointSize(item.user_count),
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          const data = locationData.value[params.dataIndex];
-          return `
+    // 准备数据 - 如果没有数据则使用空数组
+    const scatterData =
+      locationData.value.length > 0
+        ? locationData.value.map((item) => ({
+            name: item.city || item.region || item.country || '未知',
+            value: [item.longitude, item.latitude, item.user_count],
+            itemStyle: {
+              color: getPointColor(item.user_count),
+              opacity: 0.8,
+            },
+            symbolSize: getPointSize(item.user_count),
+            tooltip: {
+              trigger: 'item',
+              formatter: (params: any) => {
+                const data = locationData.value[params.dataIndex];
+                return `
           <div style="padding: 8px;">
             <div style="font-weight: bold; margin-bottom: 8px;">${
               data.city || '未知城市'
@@ -151,16 +153,17 @@
             </div>
           </div>
         `;
-        },
-      },
-      emphasis: {
-        itemStyle: {
-          opacity: 1,
-          shadowBlur: 10,
-          shadowColor: getPointColor(item.user_count),
-        },
-      },
-    }));
+              },
+            },
+            emphasis: {
+              itemStyle: {
+                opacity: 1,
+                shadowBlur: 10,
+                shadowColor: getPointColor(item.user_count),
+              },
+            },
+          }))
+        : [];
 
     // 配置选项
     const option: echarts.EChartsOption = {
@@ -207,14 +210,16 @@
     // 设置配置
     chartInstance.setOption(option);
 
-    // 添加点击事件
-    chartInstance.on('click', (params: any) => {
-      if (params.data && params.dataIndex !== undefined) {
-        const locationInfo = locationData.value[params.dataIndex];
-        console.log('点击位置:', locationInfo);
-        // 未来可以添加显示用户详情的逻辑
-      }
-    });
+    // 添加点击事件 - 只有有数据时才添加
+    if (locationData.value.length > 0) {
+      chartInstance.on('click', (params: any) => {
+        if (params.data && params.dataIndex !== undefined) {
+          const locationInfo = locationData.value[params.dataIndex];
+          console.log('点击位置:', locationInfo);
+          // 未来可以添加显示用户详情的逻辑
+        }
+      });
+    }
 
     // 响应式
     window.addEventListener('resize', handleResize);
@@ -242,14 +247,23 @@
           (sum, item) => sum + item.user_count,
           0
         );
-        await renderMap();
+      } else {
+        // 如果没有数据，设置为空数组
+        locationData.value = [];
+        totalUsers.value = 0;
       }
+      // 无论是否有数据都要渲染地图
+      await renderMap();
     } catch (error: any) {
       Message.error(
         `获取用户分布数据失败: ${
           error.response?.data?.message || error.message
         }`
       );
+      // 即使请求失败也要显示空地图
+      locationData.value = [];
+      totalUsers.value = 0;
+      await renderMap();
     } finally {
       loading.value = false;
     }
@@ -266,9 +280,8 @@
 
   // 监听数据变化
   watch(locationData, async () => {
-    if (locationData.value.length > 0) {
-      await renderMap();
-    }
+    // 无论数据是否为空都要重新渲染地图
+    await renderMap();
   });
 </script>
 
