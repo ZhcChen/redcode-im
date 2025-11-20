@@ -49,20 +49,6 @@ class AuthRepository {
       } catch (_) {}
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
-
-      // 登录成功后启动 WebSocket 连接
-      try {
-        await WebSocketService.instance.connect();
-        if (kDebugMode) {
-          debugPrint('[Auth] WebSocket 连接启动成功 (Mock)');
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('[Auth] WebSocket 连接启动失败 (Mock): $e');
-        }
-        // WebSocket 连接失败不影响登录成功
-      }
-
       _authStateController.add(AuthState.authenticated);
       return session;
     }
@@ -152,20 +138,6 @@ class AuthRepository {
         } catch (_) {}
         await MessageService.instance.clearAll();
         FriendStore.instance.clearAll();
-
-        // 登录成功后启动 WebSocket 连接
-        try {
-          await WebSocketService.instance.connect();
-          if (kDebugMode) {
-            debugPrint('[Auth] WebSocket 连接启动成功');
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            debugPrint('[Auth] WebSocket 连接启动失败: $e');
-          }
-          // WebSocket 连接失败不影响登录成功
-        }
-
         _authStateController.add(AuthState.authenticated);
         if (kDebugMode) {
           debugPrint('[Auth] 登录流程完成');
@@ -332,20 +304,6 @@ class AuthRepository {
       } catch (_) {}
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
-
-      // 登录成功后启动 WebSocket 连接
-      try {
-        await WebSocketService.instance.connect();
-        if (kDebugMode) {
-          debugPrint('[Auth] WebSocket 连接启动成功 (SMS)');
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('[Auth] WebSocket 连接启动失败 (SMS): $e');
-        }
-        // WebSocket 连接失败不影响登录成功
-      }
-
       _authStateController.add(AuthState.authenticated);
       return session;
     }

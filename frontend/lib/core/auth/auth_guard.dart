@@ -68,6 +68,15 @@ class _AuthGuardState extends State<AuthGuard> {
             (route) => false,
           );
         }
+      } else {
+        // 有有效会话，启动 WebSocket 连接
+        try {
+          await WebSocketService.instance.connect();
+          debugPrint('[AuthGuard] WebSocket 连接启动成功');
+        } catch (e) {
+          debugPrint('[AuthGuard] WebSocket 连接启动失败: $e');
+          // WebSocket 连接失败不影响应用正常使用
+        }
       }
       // 注意：这里不立即验证会话，因为在启动页面已经验证过了
       // 只在有明确错误时才跳转
