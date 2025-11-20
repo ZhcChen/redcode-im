@@ -1912,37 +1912,71 @@ pub async fn delete_files_batch(
     }))
 }
 
+/// 更新用户状态
 pub async fn update_user_status(
     State(state): State<AppState>,
     Path(user_id): Path<String>,
     Json(req): Json<UpdateUserStatusRequest>,
 ) -> Result<(), StatusCode> {
-    let user_id = Uuid::parse_str(&user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    info!("收到更新用户状态请求: user_id={}, status={}", user_id, req.status);
+    
+    let user_id = Uuid::parse_str(&user_id).map_err(|e| {
+        error!("无效的用户ID格式: {}, 错误: {}", user_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
 
     let status = match req.status.as_str() {
-        "active" => DbUserStatus::Active,
-        "inactive" => DbUserStatus::Inactive,
-        "banned" => DbUserStatus::Banned,
-        _ => return Err(StatusCode::BAD_REQUEST),
+        "active" => {
+            info!("设置用户状态为: active");
+            DbUserStatus::Active
+        },
+        "inactive" => {
+            info!("设置用户状态为: inactive");
+            DbUserStatus::Inactive
+        },
+        "banned" => {
+            info!("设置用户状态为: banned");
+            DbUserStatus::Banned
+        },
+        _ => {
+            error!("无效的用户状态: {}", req.status);
+            return Err(StatusCode::BAD_REQUEST);
+        }
     };
 
     let store = UserStore::new(state.database.clone());
 
     // 获取用户当前状态用于日志和推送
+    info!("获取用户当前状态...");
     let old_user = store
         .find_by_id(&user_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .map_err(|e| {
+            error!("查询用户失败: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or_else(|| {
+            error!("用户不存在: {}", user_id);
+            StatusCode::NOT_FOUND
+        })?;
 
+    info!("用户当前状态: {:?}", old_user.status);
+
+    info!("更新用户状态...");
     let updated = store
         .update_user_status(&user_id, status)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!("更新用户状态失败: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     if !updated {
+        error!("用户状态更新失败，可能用户不存在: {}", user_id);
         return Err(StatusCode::NOT_FOUND);
     }
+
+    info!("用户状态更新成功: {} -> {:?}", user_id, status);
 
     // 如果用户被封禁，向其所有客户端发送封禁通知
     if status == DbUserStatus::Banned && old_user.status != DbUserStatus::Banned {
@@ -3906,7 +3940,7 @@ pub async fn test_geolocation_api(
             
             let response = GeolocationApiTestResponse {
                 ip: geo.ip_address,
-                hostname: None, // ipinfo.io返回的数据中没有hostname字段在UserGeolocation中
+                hostname: geo.hostname,
                 city: geo.city,
                 region: geo.region,
                 country: geo.country,

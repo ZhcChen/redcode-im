@@ -41,6 +41,7 @@ pub struct UserGeolocation {
     pub country: Option<String>,
     pub region: Option<String>,
     pub city: Option<String>,
+    pub hostname: Option<String>,
     pub isp: Option<String>,
     pub timezone: Option<String>,
     pub zip_code: Option<String>,
@@ -239,7 +240,8 @@ impl GeolocationService {
         info!("API响应状态正常，开始解析JSON...");
         let ip_info: IpInfoResponse = match response.json::<IpInfoResponse>().await {
             Ok(data) => {
-                info!("JSON解析成功，IP={}, 城市={:?}", data.ip, data.city);
+                info!("JSON解析成功，完整响应: {:?}", data);
+                info!("IP={}, 城市={:?}", data.ip, data.city);
                 data
             },
             Err(e) => {
@@ -271,6 +273,7 @@ impl GeolocationService {
             country: ip_info.country,
             region: ip_info.region,
             city: ip_info.city,
+            hostname: ip_info.hostname,
             isp: ip_info.org,
             timezone: ip_info.timezone,
             zip_code: ip_info.postal,
@@ -308,6 +311,7 @@ impl GeolocationService {
                 country: row.try_get("country")?,
                 region: row.try_get("region")?,
                 city: row.try_get("city")?,
+                hostname: row.try_get("hostname")?,
                 isp: row.try_get("isp")?,
                 timezone: row.try_get("timezone")?,
                 zip_code: row.try_get("zip_code")?,
