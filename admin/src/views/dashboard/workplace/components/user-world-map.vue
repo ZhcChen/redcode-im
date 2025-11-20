@@ -1,5 +1,5 @@
 <template>
-  <a-card class="user-world-map-card" :title="title">
+  <a-card class="user-world-map-card" title="全球用户分布">
     <template #extra>
       <a-badge :count="totalUsers" :max-count="999" show-zero>
         <a-tag color="blue">总用户数</a-tag>
@@ -39,20 +39,12 @@
     name: 'UserWorldMap',
   });
 
-  const props = withDefaults(
-    defineProps<{
-      title?: string;
-    }>(),
-    {
-      title: '全球用户分布',
-    }
-  );
-
   const mapContainer = ref<HTMLElement>();
   const totalUsers = ref(0);
   let chartInstance: echarts.ECharts | null = null;
   const loading = ref(false);
   let mapDataLoaded = false;
+  let currentMapName = 'world'; // 添加当前地图名称变量
 
   interface UserLocation {
     latitude: number;
@@ -98,16 +90,57 @@
     if (mapDataLoaded) return true;
 
     try {
-      const response = await fetch(
-        'https://geo.datav.aliyun.com/areas_v3/bound/world.json'
+      // 尝试多个数据源
+      const mapSources = [
+        'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', // 中国地图
+        'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson', // 备用世界地图
+        'https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/world-countries.json', // 另一个备用源
+      ];
+
+      let geoJson = null;
+      let mapName = 'world';
+      let loadedSource = '';
+
+      // 使用 Promise.any 尝试多个数据源
+      const loadPromises = mapSources.map(async (source) => {
+        const response = await fetch(source);
+        if (response.ok) {
+          return { data: await response.json(), source };
+        }
+        throw new Error(`Failed to load ${source}`);
+      });
+
+      // 使用 Promise.allSettled 找到第一个成功的结果
+      const results = await Promise.allSettled(loadPromises);
+      const successResult = results.find(
+        (
+          result
+        ): result is {
+          status: 'fulfilled';
+          value: { data: any; source: string };
+        } => result.status === 'fulfilled'
       );
-      const geoJson = await response.json();
-      echarts.registerMap('world', geoJson);
+
+      if (successResult) {
+        geoJson = successResult.value.data;
+        loadedSource = successResult.value.source;
+      } else {
+        throw new Error('所有地图数据源都无法访问');
+      }
+
+      // 如果是中国地图数据，需要调整名称
+      if (loadedSource.includes('100000_full.json')) {
+        mapName = 'china';
+      }
+
+      echarts.registerMap(mapName, geoJson);
+      currentMapName = mapName; // 设置当前地图名称
       mapDataLoaded = true;
       return true;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('加载世界地图数据失败:', error);
-      Message.error('加载地图数据失败');
+      Message.error('加载地图数据失败，请检查网络连接');
       return false;
     }
   }
@@ -172,7 +205,7 @@
         trigger: 'item',
       },
       geo: {
-        map: 'world',
+        map: currentMapName,
         roam: true,
         itemStyle: {
           areaColor: '#f3f4f6',
@@ -183,7 +216,7 @@
             areaColor: '#e5e7eb',
           },
         },
-        zoom: 1.2,
+        zoom: currentMapName === 'china' ? 1.5 : 1.2, // 中国地图缩放比例调整
       },
       series: [
         {
@@ -215,6 +248,7 @@
       chartInstance.on('click', (params: any) => {
         if (params.data && params.dataIndex !== undefined) {
           const locationInfo = locationData.value[params.dataIndex];
+          // eslint-disable-next-line no-console
           console.log('点击位置:', locationInfo);
           // 未来可以添加显示用户详情的逻辑
         }
