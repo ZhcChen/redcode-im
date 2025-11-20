@@ -42,7 +42,7 @@
           ></b-input>
         </div>
       </div>
-      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin) || loginType === 'register'">
+      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin) || (loginType === 'register' && requireCaptchaForLogin)">
         <div class="login-container-form-item-label">验证码</div>
         <div
           class="login-container-form-item-value login-container-form-item-value-captcha"
@@ -150,12 +150,20 @@ const showAgreementDialog = ref(false);
 const agreementDialogTitle = ref("用户协议");
 const agreementDialogContent = ref("");
 
-// 登录类型选项
-const loginTabs = [
-  { label: "密码登录", value: "password" },
-  { label: "验证码登录", value: "captcha" },
-  { label: "注册", value: "register" },
-];
+// 登录类型选项 - 根据验证码设置动态显示
+const loginTabs = computed(() => {
+  const tabs = [
+    { label: "密码登录", value: "password" },
+    { label: "注册", value: "register" },
+  ];
+
+  // 只有开启验证码时才显示验证码登录 tab
+  if (requireCaptchaForLogin.value) {
+    tabs.splice(1, 0, { label: "验证码登录", value: "captcha" });
+  }
+
+  return tabs;
+});
 
 // 窗口大小管理
 let originalSize: { width: number; height: number } | null = null;
@@ -254,7 +262,20 @@ async function loadCaptchaSetting() {
   try {
     const response = await SettingsApi.getCaptchaSetting();
     if (response.success && response.data) {
-      requireCaptchaForLogin.value = response.data.require_captcha_for_login;
+      const newCaptchaSetting = response.data.require_captcha_for_login;
+      const oldCaptchaSetting = requireCaptchaForLogin.value;
+
+      requireCaptchaForLogin.value = newCaptchaSetting;
+
+      // 如果验证码设置发生变化，调整当前登录类型
+      if (newCaptchaSetting !== oldCaptchaSetting) {
+        // 如果关闭了验证码但当前是验证码登录，切换到密码登录
+        if (!newCaptchaSetting && loginType.value === 'captcha') {
+          loginType.value = 'password';
+          loginForm.value.captcha = '';
+        }
+        // 如果开启验证码，可以保持当前选择
+      }
     }
   } catch (error) {
     // 静默失败，使用默认值 false
@@ -863,14 +884,17 @@ function validateRegisterForm(): boolean {
     return false;
   }
 
-  if (!loginForm.value.captcha.trim()) {
-    toast.error("请输入验证码");
-    return false;
-  }
+  // 验证验证码（如果开启验证码）
+  if (requireCaptchaForLogin.value) {
+    if (!loginForm.value.captcha.trim()) {
+      toast.error("请输入验证码");
+      return false;
+    }
 
-  if (loginForm.value.captcha.length !== 6) {
-    toast.error("验证码长度为6位");
-    return false;
+    if (loginForm.value.captcha.length !== 6) {
+      toast.error("验证码长度为6位");
+      return false;
+    }
   }
 
   if (!isAgreed.value) {
