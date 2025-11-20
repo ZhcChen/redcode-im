@@ -32,9 +32,9 @@
           <a-avatar
             :size="54"
             class="col-avatar"
-            style="background-color: #2db7f5"
+            style="background-color: #13c2c2"
           >
-            <icon-check-circle />
+            <icon-user-add />
           </a-avatar>
           <a-statistic
             title="在线用户"
