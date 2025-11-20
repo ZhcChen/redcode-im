@@ -22,6 +22,7 @@ use crate::models::{
     convert::db_message_to_api_message_info, MessageDeliveryStatus, MessageInfo,
     MessagePartPayload, MessagePartType as ApiMessagePartType,
 };
+use crate::redis::cache::CacheManager;
 use crate::redis::models::{
     CacheKeys, CrossNodeMessage, ForwardMessagePayload, MessagePartEnvelope, MessagePriority,
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
@@ -1099,9 +1100,34 @@ pub async fn generate_message_attachment_download_url(
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
 
-    let download_url = storage_service
-        .generate_download_url(key, Some(expires))
-        .await?;
+    // 生成缓存键
+    let cache_key = CacheKeys::download_url_cache(
+        key,
+        &provider.id.to_string(),
+        expires,
+    );
+
+    // 创建缓存管理器
+    let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
+
+    // 尝试从缓存获取URL
+    let download_url = if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
+        cached_url
+    } else {
+        // 缓存未命中，生成新的URL
+        let url = storage_service
+            .generate_download_url(key, Some(expires))
+            .await?;
+
+        // 缓存URL，过期时间为URL有效期的90%
+        let cache_ttl = (expires as f64 * 0.9) as u64;
+
+        if let Err(e) = cache_manager.cache_download_url(&cache_key, &url, cache_ttl).await {
+            error!("缓存消息附件下载URL失败: {:?}", e);
+        }
+
+        url
+    };
 
     Ok(Json(MessageAttachmentDownloadResponse {
         success: true,

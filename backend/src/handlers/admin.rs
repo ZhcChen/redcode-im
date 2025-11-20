@@ -18,9 +18,11 @@ use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::storage;
 use crate::AppState;
+use crate::redis::cache::CacheManager;
+use crate::redis::models::CacheKeys;
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{FromRow, Row};
-use tracing::error;
+use tracing::{error, info};
 
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
@@ -2570,15 +2572,49 @@ pub async fn test_cos_download_url(
 
     let storage_service = storage::create_storage_service(&provider)?;
 
+    // 生成缓存键
+    let cache_key = CacheKeys::download_url_cache(
+        req.key.trim(),
+        &provider.id.to_string(),
+        req.expires_in_seconds.unwrap_or(3600),
+    );
+
+    // 创建缓存管理器
+    let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
+
+    // 尝试从缓存获取URL
+    if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
+        info!("命中下载URL缓存: {}", req.key.trim());
+        return Ok(Json(TestCosDownloadUrlResponse {
+            success: true,
+            url: Some(cached_url),
+            message: "生成下载链接成功（缓存）".to_string(),
+        }));
+    }
+
+    // 缓存未命中，生成新的URL
     match storage_service
         .generate_download_url(req.key.trim(), req.expires_in_seconds)
         .await
     {
-        Ok(url) => Ok(Json(TestCosDownloadUrlResponse {
-            success: true,
-            url: Some(url),
-            message: "生成下载链接成功".to_string(),
-        })),
+        Ok(url) => {
+            // 缓存URL，过期时间为URL有效期的90%
+            let url_expires_in = req.expires_in_seconds.unwrap_or(3600);
+            let cache_ttl = (url_expires_in as f64 * 0.9) as u64; // 90% of URL expiration time
+
+            if let Err(e) = cache_manager.cache_download_url(&cache_key, &url, cache_ttl).await {
+                error!("缓存下载URL失败: {:?}", e);
+                // 缓存失败不影响正常功能，继续返回URL
+            } else {
+                info!("缓存下载URL成功: {} (TTL: {}s)", req.key.trim(), cache_ttl);
+            }
+
+            Ok(Json(TestCosDownloadUrlResponse {
+                success: true,
+                url: Some(url),
+                message: "生成下载链接成功".to_string(),
+            }))
+        },
         Err(e) => Ok(Json(TestCosDownloadUrlResponse {
             success: false,
             url: None,

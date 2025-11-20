@@ -41,8 +41,14 @@
       >
         <template #icon_url="{ record }">
           <img
-            v-if="record.icon_url"
+            v-if="record.icon_url && !isExpiredUrl(record.icon_url)"
             :src="record.icon_url"
+            alt="表情包图标"
+            class="pack-icon"
+          />
+          <img
+            v-else-if="record.icon_url && isExpiredUrl(record.icon_url)"
+            :src="getRefreshedUrl(record.icon_url)"
             alt="表情包图标"
             class="pack-icon"
           />
@@ -236,8 +242,14 @@
           >
             <template #icon_url="{ record }">
               <img
-                v-if="record.icon_url"
+                v-if="record.icon_url && !isExpiredUrl(record.icon_url)"
                 :src="record.icon_url"
+                alt="表情包图标"
+                class="pack-icon"
+              />
+              <img
+                v-else-if="record.icon_url && isExpiredUrl(record.icon_url)"
+                :src="getRefreshedUrl(record.icon_url)"
                 alt="表情包图标"
                 class="pack-icon"
               />
@@ -415,7 +427,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, computed, onMounted } from 'vue';
+  import { ref, reactive, computed, onMounted, defineComponent } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
   import {
@@ -438,6 +450,101 @@
     type StorageProvider,
   } from '@/api/settings';
   import { uploadWithSignature } from '@/utils/direct-upload';
+
+  // 检查URL是否可能是过期的临时URL
+  const isExpiredUrl = (url: string) => {
+    // 简单检查：如果包含cos.域名且有查询参数，认为是临时URL
+    return url.includes('cos.') && url.includes('?');
+  };
+
+  // 获取刷新的URL（暂时返回原URL，后续可以实现真正的刷新逻辑）
+  const getRefreshedUrl = (url: string) => {
+    // TODO: 实现从存储key重新生成临时URL的逻辑
+    // 目前返回原URL以避免破坏现有功能
+    return url;
+  };
+
+  // 注释掉原来的PackIcon组件定义
+  /*
+  const PackIcon = defineComponent({
+    props: {
+      url: String,
+    },
+    setup(props: { url: string }) {
+      const imageSrc = ref<string | null>(null);
+      const isLoading = ref(false);
+
+      const loadImage = async () => {
+        if (!props.url) return;
+
+        // 如果URL看起来像是COS的临时URL，尝试提取key并重新获取
+        if (props.url.includes('cos.') && props.url.includes('?')) {
+          try {
+            isLoading.value = true;
+            // 从URL中提取key（假设URL格式为 https://bucket.cos.region.myqcloud.com/path/to/file?参数）
+            const urlObj = new URL(props.url);
+            const key = urlObj.pathname.substring(1); // 去掉开头的/
+
+            // 获取默认存储提供商
+            let provider: StorageProvider | null = null;
+            try {
+              const { data } = await getDefaultStorageProvider();
+              provider = data;
+            } catch (error) {
+              // 获取存储提供商失败，使用原URL
+            }
+
+            if (provider) {
+              // 生成新的临时URL
+              const { data: urlData } = await testCosDownloadUrl({
+                provider_id: provider.id,
+                key,
+                expires_in_seconds: 3600, // 1小时
+              });
+
+              if (urlData.success && urlData.url) {
+                imageSrc.value = urlData.url;
+                return;
+              }
+            }
+          } catch (error) {
+            // 重新获取图片URL失败，使用原URL
+          } finally {
+            isLoading.value = false;
+          }
+        }
+
+        // 如果重新获取失败或不是COS URL，直接使用原URL
+        imageSrc.value = props.url;
+      };
+
+      onMounted(() => {
+        loadImage();
+      });
+
+      return () => {
+        if (isLoading.value) {
+          return <div class="pack-icon-placeholder">加载中...</div>;
+        }
+
+        if (imageSrc.value) {
+          return (
+            <img
+              src={imageSrc.value}
+              alt="表情包图标"
+              class="pack-icon"
+              onError={() => {
+                // 如果图片加载失败，显示占位符
+                imageSrc.value = null;
+              }}
+            />
+          );
+        }
+
+        return <span class="pack-icon-placeholder">无图标</span>;
+      };
+    },
+  };
 
   const { loading: listLoading, setLoading: setListLoading } =
     useLoading(false);
@@ -1095,6 +1202,7 @@
     }
   });
 </script>
+
 
 <style lang="less" scoped>
   .emoji-pack-settings-container {

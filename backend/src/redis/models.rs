@@ -758,4 +758,10 @@ impl CacheKeys {
     pub fn room_cache(room_id: &Uuid) -> String {
         format!("cache:room:{}", room_id)
     }
+
+    /// 下载URL缓存键
+    /// key: 文件路径, provider_id: 存储提供商ID, expires_in: 过期时间(秒)
+    pub fn download_url_cache(key: &str, provider_id: &str, expires_in: u32) -> String {
+        format!("cache:download_url:{}:{}:{}", key, provider_id, expires_in)
+    }
 }

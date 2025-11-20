@@ -365,4 +365,24 @@ impl CacheManager {
         warn!("清空所有 Redis 缓存");
         Ok(())
     }
+
+    /// 缓存下载URL
+    /// ttl_seconds: 缓存过期时间，建议设置为URL有效期的90%
+    pub async fn cache_download_url(
+        &self,
+        cache_key: &str,
+        download_url: &str,
+        ttl_seconds: u64,
+    ) -> RedisResult<()> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        conn.set_ex::<_, _, ()>(cache_key, download_url, ttl_seconds).await?;
+        Ok(())
+    }
+
+    /// 获取缓存的下载URL
+    pub async fn get_cached_download_url(&self, cache_key: &str) -> RedisResult<Option<String>> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let url: Option<String> = conn.get(cache_key).await?;
+        Ok(url)
+    }
 }
