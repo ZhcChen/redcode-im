@@ -699,8 +699,8 @@ httpClient.addErrorInterceptor((error) => {
 
   if (error.message.includes('HTTP 403')) {
     // 区分不同场景的403错误
-    if (error.message.includes('/auth/login')) {
-      // 登录接口返回403，说明账号被封禁
+    if (error.message.includes('ACCOUNT_BANNED') || error.message.includes('/auth/login')) {
+      // 包含ACCOUNT_BANNED前缀或来自登录接口，说明账号被封禁
       return new Error('账号已被封禁，无法登录');
     }
     return new Error('权限不足，无法访问该资源');
