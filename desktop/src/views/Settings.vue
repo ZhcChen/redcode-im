@@ -243,9 +243,9 @@ onMounted(async () => {
   }
 })
 
-// 用户显示名称（使用userName字段作为昵称）
+// 用户显示名称（优先使用nickname字段作为昵称）
 const userDisplayName = computed(() => {
-  return currentUser.value.userName || currentUser.value.username || '用户'
+  return currentUser.value.nickname || currentUser.value.userName || currentUser.value.username || '用户'
 })
 
 // 用户头像本地路径
