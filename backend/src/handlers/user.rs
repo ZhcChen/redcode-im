@@ -258,8 +258,8 @@ pub async fn get_avatar_download_url(
     } else {
         // 缓存未命中，生成新的URL
         let url = storage_service
-            .generate_download_url(&key, params.expires_in_seconds)
-            .await?;
+        .generate_download_url(&key, params.expires_in_seconds)
+        .await?;
 
         // 缓存URL，过期时间为URL有效期的90%
         let url_expires_in = params.expires_in_seconds.unwrap_or(3600);

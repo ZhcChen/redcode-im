@@ -428,12 +428,12 @@ const handleConfirmUpdateNickname = async () => {
     
     if (updateResult.code === 200) {
       // 更新store中的用户信息
-      store.commit('UPDATE_USER_INFO', {
+      store.commit('UPDATE_USER_INFO', { 
         nickname: nickname  // 更新nickname字段，这是真正的用户昵称字段
       })
-
+      
       toast.success('昵称修改成功')
-
+      
       // 关闭对话框
       showNicknameDialog.value = false
       newNickname.value = ''

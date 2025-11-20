@@ -2610,9 +2610,9 @@ pub async fn test_cos_download_url(
             }
 
             Ok(Json(TestCosDownloadUrlResponse {
-                success: true,
-                url: Some(url),
-                message: "生成下载链接成功".to_string(),
+            success: true,
+            url: Some(url),
+            message: "生成下载链接成功".to_string(),
             }))
         },
         Err(e) => Ok(Json(TestCosDownloadUrlResponse {

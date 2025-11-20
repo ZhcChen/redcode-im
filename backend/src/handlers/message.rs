@@ -1116,8 +1116,8 @@ pub async fn generate_message_attachment_download_url(
     } else {
         // 缓存未命中，生成新的URL
         let url = storage_service
-            .generate_download_url(key, Some(expires))
-            .await?;
+        .generate_download_url(key, Some(expires))
+        .await?;
 
         // 缓存URL，过期时间为URL有效期的90%
         let cache_ttl = (expires as f64 * 0.9) as u64;
