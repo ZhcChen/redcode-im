@@ -217,6 +217,9 @@ impl WebSocketClient {
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.retain(|r| r != room_id);
                 }
+                TauriEventPayload::UserBanned { user_id, reason } => {
+                    logger::log_message(format!("用户被封禁: user_id={}, reason={}", user_id, reason));
+                }
                 _ => {}
             }
 

@@ -139,6 +139,8 @@ pub enum TauriEventPayload {
     FriendRequestUpdate { pending_count: i32 },
     /// 房间创建
     RoomCreated(serde_json::Value),
+    /// 用户被封禁
+    UserBanned { user_id: String, reason: String },
     /// 错误
     Error { message: String },
     /// Pong
@@ -223,6 +225,10 @@ impl TauriEventPayload {
                 });
                 Some(Self::RoomCreated(json))
             }
+            ws::server_event::Payload::UserBanned(banned) => Some(Self::UserBanned {
+                user_id: banned.user_id,
+                reason: banned.reason,
+            }),
             ws::server_event::Payload::Error(err) => Some(Self::Error {
                 message: err.message,
             }),
