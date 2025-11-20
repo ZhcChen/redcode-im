@@ -3468,7 +3468,7 @@ pub async fn get_token_list(
         .into_iter()
         .map(|row| {
             Ok(IpInfoTokenInfo {
-                id: row.try_get::<String, _>("id")?,
+                id: row.try_get::<Uuid, _>("id")?.to_string(),
                 name: row.try_get("name")?,
                 token: row.try_get("token")?,
                 monthly_limit: row.try_get("monthly_limit")?,
@@ -3550,7 +3550,7 @@ pub async fn create_token(
     .map_err(|e| AppError::DatabaseError(e))?;
 
     let token = IpInfoTokenInfo {
-        id: row.try_get::<String, _>("id")?,
+        id: row.try_get::<Uuid, _>("id")?.to_string(),
         name: row.try_get("name")?,
         token: row.try_get("token")?,
         monthly_limit: row.try_get("monthly_limit")?,
@@ -3671,7 +3671,7 @@ pub async fn update_token(
     .map_err(|e| AppError::DatabaseError(e))?;
 
     let token = IpInfoTokenInfo {
-        id: row.try_get::<String, _>("id")?,
+        id: row.try_get::<Uuid, _>("id")?.to_string(),
         name: row.try_get("name")?,
         token: row.try_get("token")?,
         monthly_limit: row.try_get("monthly_limit")?,
@@ -3764,7 +3764,7 @@ pub async fn reset_token_usage(
     .map_err(|e| AppError::DatabaseError(e))?;
 
     let token = IpInfoTokenInfo {
-        id: row.try_get::<String, _>("id")?,
+        id: row.try_get::<Uuid, _>("id")?.to_string(),
         name: row.try_get("name")?,
         token: row.try_get("token")?,
         monthly_limit: row.try_get("monthly_limit")?,
