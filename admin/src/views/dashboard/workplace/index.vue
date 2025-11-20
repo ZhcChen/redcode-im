@@ -4,7 +4,13 @@
       <div class="panel">
         <Banner />
         <DataPanel />
-        <UserWorldMap class="dashboard-workplace__map" />
+        <div class="map-and-stats">
+          <UserWorldMap class="map-section" />
+          <div class="stats-section">
+            <StorageStats />
+            <EmojiStats />
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -14,7 +20,8 @@
   import Banner from './components/banner.vue';
   import DataPanel from './components/data-panel.vue';
   import UserWorldMap from './components/user-world-map.vue';
-  // 移除了其他模板组件
+  import StorageStats from './components/storage-stats.vue';
+  import EmojiStats from './components/emoji-stats.vue';
 </script>
 
 <script lang="ts">
@@ -40,13 +47,28 @@
     border-radius: 4px;
   }
 
+  .map-and-stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+
+    .map-section {
+      flex: 2;
+      min-width: 0;
+    }
+
+    .stats-section {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+  }
+
   :deep(.panel-border) {
     margin-bottom: 0;
     border-bottom: 1px solid rgb(var(--gray-2));
-  }
-
-  &__map {
-    margin-top: 16px;
   }
 </style>
 
