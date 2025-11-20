@@ -86,14 +86,14 @@
 
     return [
       { label: 'IP地址', value: testResult.value.ip || '-' },
-      { label: '主机名', value: testResult.value.hostname || '-' },
-      { label: '城市', value: testResult.value.city || '-' },
-      { label: '地区', value: testResult.value.region || '-' },
-      { label: '国家', value: testResult.value.country || '-' },
-      { label: '经纬度', value: testResult.value.loc || '-' },
-      { label: '组织', value: testResult.value.org || '-' },
-      { label: '邮编', value: testResult.value.postal || '-' },
-      { label: '时区', value: testResult.value.timezone || '-' },
+      { label: '主机名', value: testResult.value.hostname || '未知' },
+      { label: '城市', value: testResult.value.city || '未知' },
+      { label: '地区/州', value: testResult.value.region || '未知' },
+      { label: '国家', value: testResult.value.country || '未知' },
+      { label: '经纬度', value: testResult.value.loc || '未知' },
+      { label: 'ISP/组织', value: testResult.value.org || '未知' },
+      { label: '邮政编码', value: testResult.value.postal || '未知' },
+      { label: '时区', value: testResult.value.timezone || '未知' },
     ];
   });
 
