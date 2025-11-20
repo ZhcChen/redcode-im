@@ -7,7 +7,7 @@
       >
         <a-space>
           <a-avatar :size="54" class="col-avatar">
-            <icon-user-group />
+            <icon-user />
           </a-avatar>
           <a-statistic
             title="用户总数"
