@@ -194,14 +194,6 @@ onMounted(() => {
   color: #d1d5db;
 }
 
-
-
-  img {
-    width: 18px;
-    height: 18px;
-  }
-}
-
 .privacy-body {
   flex: 1;
   padding: 24px 32px 32px;
