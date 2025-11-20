@@ -75,28 +75,12 @@ async fn main() {
             redis: redis_manager,
             node_id,
             connection_manager: std::sync::Arc::new(websocket::ConnectionManager::new()),
-        });
-
-    // 初始化地理位置服务
-    geolocation::init_geolocation_service(database.pool.clone());
-
-    let port: u16 = env::var("PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(8010);
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-
-    info!("服务器启动在 {}", addr);
-    info!("PostgreSQL + Redis 多节点架构已就绪!");
+        })
+        .into_make_service_with_connect_info::<std::net::SocketAddr>();
 
     let listener = TcpListener::bind(addr).await.expect("bind");
     info!("服务已启动");
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-    )
-    .await
-    .expect("server");
+    axum::serve(listener, app).await.expect("server");
 }
 
 fn init_tracing() {
