@@ -6,7 +6,11 @@
         :span="{ xs: 12, sm: 12, md: 12, lg: 12, xl: 12, xxl: 6 }"
       >
         <a-space>
-          <a-avatar :size="54" class="col-avatar">
+          <a-avatar
+            :size="54"
+            class="col-avatar"
+            style="background-color: #722ed1"
+          >
             <icon-user />
           </a-avatar>
           <a-statistic
