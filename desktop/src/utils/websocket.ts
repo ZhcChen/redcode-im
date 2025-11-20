@@ -218,9 +218,41 @@ class WebSocketManager {
         break;
       }
 
+      case 'user_banned': {
+        const data = payload.payload as { user_id: string; reason: string };
+        if (data.user_id === this.lastUserId) {
+          // 当前用户被封禁，清除token并跳转到登录页面
+          this.handleUserBanned(data.reason);
+        }
+        break;
+      }
+
       default:
         break;
     }
+  }
+
+  /**
+   * 处理用户封禁事件
+   */
+  private handleUserBanned(reason: string): void {
+    console.warn('用户被封禁:', reason);
+    
+    // 显示封禁提示
+    toast.error(`账户已被封禁：${reason}`);
+    
+    // 清除认证信息
+    this.lastAuthToken = null;
+    this.lastUserId = null;
+    
+    // 断开WebSocket连接
+    void WebSocketApi.disconnect();
+    
+    // 清除本地存储的token
+    void store.dispatch('logout');
+    
+    // 跳转到登录页面
+    window.location.href = '/login';
   }
 
   /**
