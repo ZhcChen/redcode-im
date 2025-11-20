@@ -207,6 +207,10 @@
       geo: {
         map: currentMapName,
         roam: true,
+        top: '5%', // 距离容器顶部5%的距离
+        bottom: '5%', // 距离容器底部5%的距离
+        left: '5%', // 距离容器左侧5%的距离
+        right: '5%', // 距离容器右侧5%的距离
         itemStyle: {
           areaColor: '#f3f4f6',
           borderColor: '#d1d5db',
