@@ -204,12 +204,12 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
-  background: #f1f5f9;
-  color: #0f172a;
+  background: #000;
+  color: #fff;
 
   &:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
   }
 
   &:disabled {
@@ -219,19 +219,19 @@ onMounted(() => {
 }
 
 .toolbar-btn.primary {
-  background: #2563eb;
+  background: #000;
   color: #fff;
 }
 
 .toolbar-btn.ghost {
-  background: transparent;
-  border: 1px solid #e2e8f0;
-  color: #1d4ed8;
+  background: #000;
+  border: 1px solid #000;
+  color: #fff;
 }
 
 .toolbar-btn.back-btn {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #000;
+  color: #fff;
 
   img {
     width: 18px;
