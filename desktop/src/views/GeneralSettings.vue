@@ -27,6 +27,38 @@
           文件下载将保存到此目录
         </div>
       </div>
+
+      <!-- 隐私协议设置 -->
+      <div class="settings-section">
+        <div class="settings-item">
+          <div class="settings-item-label">隐私协议</div>
+          <div class="settings-item-value">查看应用隐私协议</div>
+          <div class="settings-item-actions">
+            <button class="settings-item-action" @click="handleViewPrivacy">
+              查看
+            </button>
+          </div>
+        </div>
+        <div class="settings-item-hint">
+          了解我们如何保护您的隐私和数据安全
+        </div>
+      </div>
+
+      <!-- 用户协议设置 -->
+      <div class="settings-section">
+        <div class="settings-item">
+          <div class="settings-item-label">用户协议</div>
+          <div class="settings-item-value">查看应用使用条款</div>
+          <div class="settings-item-actions">
+            <button class="settings-item-action" @click="handleViewUserAgreement">
+              查看
+            </button>
+          </div>
+        </div>
+        <div class="settings-item-hint">
+          阅读使用我们的服务需要遵守的条款和条件
+        </div>
+      </div>
     </section>
 
     <!-- 修改下载位置对话框 -->
@@ -166,6 +198,52 @@ const handleResetDownloadDir = async () => {
     toast.error('重置下载目录失败: ' + (error?.message || '未知错误'))
   } finally {
     isResetting.value = false
+  }
+}
+
+// 处理查看隐私协议
+const handleViewPrivacy = async () => {
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/privacy',
+        name: 'Privacy',
+        params: { type: 'privacy' },
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    try {
+      await router.push('/home/privacy?type=privacy')
+    } catch (error: any) {
+      toast.error('暂时无法打开隐私协议，请稍后重试')
+    }
+  }
+}
+
+// 处理查看用户协议
+const handleViewUserAgreement = async () => {
+  // 如果有多账号架构，更新账号的路由状态
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/privacy',
+        name: 'Privacy',
+        params: { type: 'user-agreement' },
+        query: {}
+      }
+    })
+  } else {
+    // 否则使用全局路由
+    try {
+      await router.push('/home/privacy?type=user-agreement')
+    } catch (error: any) {
+      toast.error('暂时无法打开用户协议，请稍后重试')
+    }
   }
 }
 

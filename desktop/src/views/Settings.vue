@@ -88,17 +88,6 @@
       </div>
     </div>
 
-    <!-- 隐私政策模块 -->
-    <div class="settings-section privacy-section">
-      <div class="privacy-container" @click.stop="handleViewPrivacy">
-        <div class="privacy-text">隐私政策</div>
-        <img 
-          :src="rightIcon" 
-          alt="查看" 
-          class="privacy-icon"
-        />
-      </div>
-    </div>
 
     <!-- 关于模块 -->
     <div class="settings-section about-section">
@@ -493,28 +482,6 @@ const handleViewGeneral = async () => {
   }
 }
 
-// 处理查看隐私政策
-const handleViewPrivacy = async () => {
-  // 如果有多账号架构，更新账号的路由状态
-  if (props.accountId) {
-    store.dispatch('accounts/saveAccountRouteState', {
-      accountId: props.accountId,
-      routeState: {
-        path: '/home/privacy',
-        name: 'Privacy',
-        params: {},
-        query: {}
-      }
-    })
-  } else {
-    // 否则使用全局路由
-    try {
-      await router.push('/home/privacy')
-    } catch (error) {
-      toast.error('暂时无法打开隐私政策，请稍后重试')
-    }
-  }
-}
 
 // 处理退出登录
 const handleLogout = async () => {
@@ -681,9 +648,6 @@ const handleDownloadUpdate = async () => {
   margin-top: 24px;
 }
 
-.privacy-section {
-  margin-top: 24px;
-}
 
 .about-section {
   margin-top: 24px;

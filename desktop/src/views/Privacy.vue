@@ -13,7 +13,7 @@
           <span v-if="privacyDoc?.updated_by">编辑：{{ privacyDoc?.updated_by }}</span>
         </p>
       </div>
-      <button class="toolbar-btn ghost" @click="fetchPrivacy" :disabled="loading">
+      <button class="toolbar-btn ghost" @click="fetchDocument" :disabled="loading">
         {{ loading ? '刷新中...' : '刷新' }}
       </button>
     </header>
@@ -21,11 +21,11 @@
     <section class="privacy-body">
       <div v-if="loading" class="privacy-state">
         <span class="state-dot" />
-        <span>正在加载隐私政策...</span>
+        <span>正在加载{{ documentType === 'user-agreement' ? '用户协议' : '隐私协议' }}...</span>
       </div>
       <div v-else-if="error" class="privacy-state error">
         <p>{{ error }}</p>
-        <button class="toolbar-btn primary" @click="fetchPrivacy">重试</button>
+        <button class="toolbar-btn primary" @click="fetchDocument">重试</button>
       </div>
       <article v-else class="privacy-content" v-html="privacyDoc?.content" />
     </section>
@@ -33,8 +33,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import backIcon from '../assets/image/icon-back.svg'
 import { SettingsApi, type DocumentContent } from '../api/settings'
@@ -50,12 +50,21 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const router = useRouter()
+const route = useRoute()
 const store = useStore()
 const loading = ref(true)
 const error = ref(null as string | null)
 const privacyDoc = ref(null as DocumentContent | null)
 
-const documentTitle = computed(() => privacyDoc.value?.title ?? '隐私政策')
+// 文档类型：privacy 或 user-agreement
+const documentType = ref('privacy')
+
+const documentTitle = computed(() => {
+  if (privacyDoc.value?.title) {
+    return privacyDoc.value.title
+  }
+  return documentType.value === 'user-agreement' ? '用户协议' : '隐私协议'
+})
 const formattedUpdatedAt = computed(() => {
   const value = privacyDoc.value?.updated_at
   if (!value) {
@@ -69,18 +78,24 @@ const formattedUpdatedAt = computed(() => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 })
 
-const fetchPrivacy = async () => {
+const fetchDocument = async () => {
   loading.value = true
   error.value = null
   try {
-    const response = await SettingsApi.getPrivacyPolicy()
+    let response
+    if (documentType.value === 'user-agreement') {
+      response = await SettingsApi.getUserAgreement()
+    } else {
+      response = await SettingsApi.getPrivacyPolicy()
+    }
+
     if (response.code === 200 && response.data) {
       privacyDoc.value = response.data
     } else {
-      throw new Error(response.message || '获取隐私政策失败')
+      throw new Error(response.message || `获取${documentType.value === 'user-agreement' ? '用户协议' : '隐私协议'}失败`)
     }
   } catch (err: any) {
-    const message = err?.message || '获取隐私政策失败'
+    const message = err?.message || `获取${documentType.value === 'user-agreement' ? '用户协议' : '隐私协议'}失败`
     error.value = message
     toast.error(message)
   } finally {
@@ -106,7 +121,31 @@ const handleBack = () => {
   }
 }
 
-onMounted(fetchPrivacy)
+// 初始化文档类型
+const initDocumentType = () => {
+  const type = route.query.type as string || route.params.type as string || 'privacy'
+  documentType.value = type === 'user-agreement' ? 'user-agreement' : 'privacy'
+}
+
+// 监听路由参数变化
+watch(() => route.query.type, (newType) => {
+  if (newType) {
+    documentType.value = newType === 'user-agreement' ? 'user-agreement' : 'privacy'
+    fetchDocument()
+  }
+})
+
+watch(() => route.params.type, (newType) => {
+  if (newType) {
+    documentType.value = newType === 'user-agreement' ? 'user-agreement' : 'privacy'
+    fetchDocument()
+  }
+})
+
+onMounted(() => {
+  initDocumentType()
+  fetchDocument()
+})
 </script>
 
 <style lang="scss" scoped>
