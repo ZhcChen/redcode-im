@@ -139,7 +139,7 @@ impl GeolocationService {
     }
 
     /// 更新token使用统计
-    pub async fn update_token_usage(&self, token_id: &uuid::Uuid, success: bool) -> Result<(), AppError> {
+    pub async fn update_token_usage(&self, token_id: &uuid::Uuid, ip_address: &str, success: bool) -> Result<(), AppError> {
         // 更新token使用统计
         sqlx::query(
             r#"
@@ -164,11 +164,12 @@ impl GeolocationService {
         // 记录使用日志
         sqlx::query(
             r#"
-            INSERT INTO ipinfo_token_usage_logs (token_id, success)
-            VALUES ($1, $2)
+            INSERT INTO ipinfo_token_usage_logs (token_id, ip_address, success)
+            VALUES ($1, $2::inet, $3)
             "#,
         )
         .bind(token_id)
+        .bind(ip_address)
         .bind(success)
         .execute(&self.pool)
         .await?;
@@ -195,14 +196,14 @@ impl GeolocationService {
             Ok(resp) => resp,
             Err(e) => {
                 error!("地理位置API请求失败: {}", e);
-                self.update_token_usage(&token.id, false).await?;
+                self.update_token_usage(&token.id, ip, false).await?;
                 return Ok(None);
             }
         };
 
         if !response.status().is_success() {
             warn!("地理位置API返回错误状态: {}", response.status());
-            self.update_token_usage(&token.id, false).await?;
+            self.update_token_usage(&token.id, ip, false).await?;
             return Ok(None);
         }
 
@@ -210,7 +211,7 @@ impl GeolocationService {
             Ok(data) => data,
             Err(e) => {
                 error!("解析地理位置API响应失败: {}", e);
-                self.update_token_usage(&token.id, false).await?;
+                self.update_token_usage(&token.id, ip, false).await?;
                 return Ok(None);
             }
         };
@@ -245,7 +246,7 @@ impl GeolocationService {
         };
 
         // 更新token使用统计
-        self.update_token_usage(&token.id, true).await?;
+        self.update_token_usage(&token.id, ip, true).await?;
 
         debug!("成功获取IP {} 的地理位置: {:?}", ip, geolocation);
         Ok(Some(geolocation))
