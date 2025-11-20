@@ -264,6 +264,10 @@
           Message.success(`${action}成功`);
           await fetchData();
         } catch (error: any) {
+          // 标记为自定义处理，避免全局拦截器重复显示错误消息
+          error.config = error.config || {};
+          error.config.suppressGlobalErrorMessage = true;
+
           // 根据错误类型显示不同的错误信息
           if (error?.response?.status === 404) {
             Message.error(`用户 "${user.username}" 不存在或已被删除`);
