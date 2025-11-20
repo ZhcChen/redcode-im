@@ -841,8 +841,7 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, client_addr: std:
 pub async fn handle_websocket_upgrade(
     State(state): State<AppState>,
     ws: WebSocketUpgrade,
-    // axum::extract::ConnectInfo(client_addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
-    client_addr: std::net::SocketAddr,
+    axum::extract::ConnectInfo(client_addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     // 可选的查询参数中的token
     axum::extract::Query(params): axum::extract::Query<WsUpgradeParams>,
 ) -> Result<impl IntoResponse, StatusCode> {
