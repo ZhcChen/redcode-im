@@ -217,6 +217,16 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/hot-updates/{id}/deactivate",
             post(version::deactivate_hot_update),
         )
+        // ipinfo Token管理API
+        .route("/api/admin/ipinfo-tokens", get(admin::get_token_list).post(admin::create_token))
+        .route(
+            "/api/admin/ipinfo-tokens/{token_id}",
+            get(admin::get_token_list).patch(admin::update_token).delete(admin::delete_token),
+        )
+        .route(
+            "/api/admin/ipinfo-tokens/{token_id}/reset",
+            post(admin::reset_token_usage),
+        )
         // 聊天记录管理API
         .route(
             "/api/admin/chat-history",

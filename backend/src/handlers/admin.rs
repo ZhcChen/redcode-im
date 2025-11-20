@@ -3378,3 +3378,403 @@ async fn record_admin_operation(
 
     Ok(())
 }
+
+// ===== ipinfo.io Token 管理 API =====
+
+/// ipinfo Token信息（API响应）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IpInfoTokenInfo {
+    pub id: String,
+    pub name: String,
+    pub token: String,
+    pub monthly_limit: i32,
+    pub used_count: i32,
+    pub reset_date: String,
+    pub status: String,
+    pub last_used_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 创建Token请求
+#[derive(Debug, Deserialize)]
+pub struct CreateTokenRequest {
+    pub name: String,
+    pub token: String,
+    pub monthly_limit: Option<i32>,
+}
+
+/// 更新Token请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateTokenRequest {
+    pub name: Option<String>,
+    pub token: Option<String>,
+    pub monthly_limit: Option<i32>,
+    pub status: Option<String>,
+}
+
+/// Token列表响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenListResponse {
+    pub list: Vec<IpInfoTokenInfo>,
+    pub total: i64,
+}
+
+/// 获取Token列表
+pub async fn get_token_list(
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<TokenListResponse>, AppError> {
+    let page: i32 = params.get("page").and_then(|s| s.parse().ok()).unwrap_or(1);
+    let page_size: i32 = params.get("page_size").and_then(|s| s.parse().ok()).unwrap_or(10);
+    let status_filter = params.get("status");
+
+    let offset = (page - 1) * page_size;
+
+    let tokens = if let Some(status) = status_filter {
+        sqlx::query(
+            r#"
+            SELECT id, name, token, monthly_limit, used_count, reset_date, status, last_used_at, created_at, updated_at
+            FROM ipinfo_tokens
+            WHERE status = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(status)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(&state.database.pool)
+        .await
+    } else {
+        sqlx::query(
+            r#"
+            SELECT id, name, token, monthly_limit, used_count, reset_date, status, last_used_at, created_at, updated_at
+            FROM ipinfo_tokens
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+            "#,
+        )
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(&state.database.pool)
+        .await
+    }
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    let list: Vec<IpInfoTokenInfo> = tokens
+        .into_iter()
+        .map(|row| {
+            Ok(IpInfoTokenInfo {
+                id: row.try_get::<String, _>("id")?,
+                name: row.try_get("name")?,
+                token: row.try_get("token")?,
+                monthly_limit: row.try_get("monthly_limit")?,
+                used_count: row.try_get("used_count")?,
+                reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
+                status: row.try_get("status")?,
+                last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+                created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
+                updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+    // 获取总数
+    let total_query = if status_filter.is_some() {
+        "SELECT COUNT(*) as count FROM ipinfo_tokens WHERE status = $1"
+    } else {
+        "SELECT COUNT(*) as count FROM ipinfo_tokens"
+    };
+
+    let total = if let Some(status) = status_filter {
+        sqlx::query_scalar::<_, Option<i64>>(total_query)
+            .bind(status)
+            .fetch_one(&state.database.pool)
+            .await
+    } else {
+        sqlx::query_scalar::<_, Option<i64>>(total_query)
+            .fetch_one(&state.database.pool)
+            .await
+    }
+    .map_err(|e| AppError::DatabaseError(e))?
+    .unwrap_or(0);
+
+    Ok(Json(TokenListResponse { list, total }))
+}
+
+/// 创建Token
+pub async fn create_token(
+    State(state): State<AppState>,
+    Json(request): Json<CreateTokenRequest>,
+) -> Result<Json<IpInfoTokenInfo>, AppError> {
+    // 验证输入
+    if request.name.trim().is_empty() {
+        return Err(AppError::ValidationError("Token名称不能为空".to_string()));
+    }
+    if request.token.trim().is_empty() {
+        return Err(AppError::ValidationError("Token值不能为空".to_string()));
+    }
+
+    // 检查名称是否已存在
+    let existing = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM ipinfo_tokens WHERE name = $1"
+    )
+    .bind(&request.name)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    if existing > 0 {
+        return Err(AppError::AlreadyExists("Token名称已存在".to_string()));
+    }
+
+    let monthly_limit = request.monthly_limit.unwrap_or(50000);
+
+    // 创建Token
+    let row = sqlx::query(
+        r#"
+        INSERT INTO ipinfo_tokens (name, token, monthly_limit)
+        VALUES ($1, $2, $3)
+        RETURNING id, name, token, monthly_limit, used_count, reset_date, status, last_used_at, created_at, updated_at
+        "#,
+    )
+    .bind(&request.name)
+    .bind(&request.token)
+    .bind(monthly_limit)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    let token = IpInfoTokenInfo {
+        id: row.try_get::<String, _>("id")?,
+        name: row.try_get("name")?,
+        token: row.try_get("token")?,
+        monthly_limit: row.try_get("monthly_limit")?,
+        used_count: row.try_get("used_count")?,
+        reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
+        status: row.try_get("status")?,
+        last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+        created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
+        updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
+    };
+
+    Ok(Json(token))
+}
+
+/// 更新Token
+pub async fn update_token(
+    State(state): State<AppState>,
+    Path(token_id): Path<String>,
+    Json(request): Json<UpdateTokenRequest>,
+) -> Result<Json<IpInfoTokenInfo>, AppError> {
+    let token_uuid = Uuid::parse_str(&token_id)
+        .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
+
+    // 检查Token是否存在
+    let existing = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1"
+    )
+    .bind(&token_uuid)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    if existing == 0 {
+        return Err(AppError::NotFound("Token不存在".to_string()));
+    }
+
+    // 检查名称是否与其他Token冲突
+    if let Some(ref name) = request.name {
+        if !name.trim().is_empty() {
+            let name_conflict = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM ipinfo_tokens WHERE name = $1 AND id != $2"
+            )
+            .bind(name)
+            .bind(&token_uuid)
+            .fetch_one(&state.database.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
+
+            if name_conflict > 0 {
+                return Err(AppError::AlreadyExists("Token名称已存在".to_string()));
+            }
+        }
+    }
+
+    // 构建更新SQL
+    if request.name.is_none() && request.token.is_none() && request.monthly_limit.is_none() && request.status.is_none() {
+        return Err(AppError::ValidationError("没有需要更新的字段".to_string()));
+    }
+
+    // 动态构建SQL语句
+    let mut set_clauses = Vec::new();
+    let mut param_count = 1;
+    let mut bind_values: Vec<String> = vec![];
+
+    if let Some(ref name) = request.name {
+        if !name.trim().is_empty() {
+            set_clauses.push(format!("name = ${}", param_count));
+            bind_values.push(name.clone());
+            param_count += 1;
+        }
+    }
+
+    if let Some(ref token) = request.token {
+        if !token.trim().is_empty() {
+            set_clauses.push(format!("token = ${}", param_count));
+            bind_values.push(token.clone());
+            param_count += 1;
+        }
+    }
+
+    if let Some(monthly_limit) = request.monthly_limit {
+        set_clauses.push(format!("monthly_limit = ${}", param_count));
+        bind_values.push(monthly_limit.to_string());
+        param_count += 1;
+    }
+
+    if let Some(ref status) = request.status {
+        set_clauses.push(format!("status = ${}", param_count));
+        bind_values.push(status.clone());
+        param_count += 1;
+    }
+
+    set_clauses.push("updated_at = NOW()".to_string());
+
+    let update_sql = format!(
+        "UPDATE ipinfo_tokens SET {} WHERE id = ${}",
+        set_clauses.join(", "),
+        param_count
+    );
+
+    // 执行更新
+    let mut query_builder = sqlx::query(&update_sql);
+    for value in bind_values {
+        query_builder = query_builder.bind(value);
+    }
+    query_builder.bind(&token_uuid).execute(&state.database.pool).await.map_err(|e| AppError::DatabaseError(e))?;
+
+    // 获取更新后的Token信息
+    let row = sqlx::query(
+        r#"
+        SELECT id, name, token, monthly_limit, used_count, reset_date, status, last_used_at, created_at, updated_at
+        FROM ipinfo_tokens WHERE id = $1
+        "#,
+    )
+    .bind(&token_uuid)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    let token = IpInfoTokenInfo {
+        id: row.try_get::<String, _>("id")?,
+        name: row.try_get("name")?,
+        token: row.try_get("token")?,
+        monthly_limit: row.try_get("monthly_limit")?,
+        used_count: row.try_get("used_count")?,
+        reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
+        status: row.try_get("status")?,
+        last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+        created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
+        updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
+    };
+
+    Ok(Json(token))
+}
+
+/// 删除Token
+pub async fn delete_token(
+    State(state): State<AppState>,
+    Path(token_id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let token_uuid = Uuid::parse_str(&token_id)
+        .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
+
+    // 检查Token是否存在
+    let existing = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1"
+    )
+    .bind(&token_uuid)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    if existing == 0 {
+        return Err(AppError::NotFound("Token不存在".to_string()));
+    }
+
+    // 删除Token（级联删除使用记录）
+    sqlx::query("DELETE FROM ipinfo_tokens WHERE id = $1")
+        .bind(&token_uuid)
+        .execute(&state.database.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// 重置Token使用量
+pub async fn reset_token_usage(
+    State(state): State<AppState>,
+    Path(token_id): Path<String>,
+) -> Result<Json<IpInfoTokenInfo>, AppError> {
+    let token_uuid = Uuid::parse_str(&token_id)
+        .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
+
+    // 检查Token是否存在
+    let existing = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1"
+    )
+    .bind(&token_uuid)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    if existing == 0 {
+        return Err(AppError::NotFound("Token不存在".to_string()));
+    }
+
+    // 重置使用量
+    sqlx::query(
+        r#"
+        UPDATE ipinfo_tokens
+        SET used_count = 0, status = 'active', reset_date = CURRENT_DATE + INTERVAL '1 month', updated_at = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(&token_uuid)
+    .execute(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    // 获取更新后的Token信息
+    let row = sqlx::query(
+        r#"
+        SELECT id, name, token, monthly_limit, used_count, reset_date, status, last_used_at, created_at, updated_at
+        FROM ipinfo_tokens WHERE id = $1
+        "#,
+    )
+    .bind(&token_uuid)
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    let token = IpInfoTokenInfo {
+        id: row.try_get::<String, _>("id")?,
+        name: row.try_get("name")?,
+        token: row.try_get("token")?,
+        monthly_limit: row.try_get("monthly_limit")?,
+        used_count: row.try_get("used_count")?,
+        reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
+        status: row.try_get("status")?,
+        last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+        created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
+        updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
+    };
+
+    Ok(Json(token))
+}
