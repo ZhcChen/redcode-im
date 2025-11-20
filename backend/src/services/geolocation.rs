@@ -91,14 +91,20 @@ impl GeolocationService {
 
     /// 获取可用的token
     pub async fn get_available_token(&self) -> Result<Option<IpInfoToken>, AppError> {
+        info!("开始获取可用的地理位置API token");
+        
         // 先检查缓存
         {
             let cache = self.token_cache.read().await;
+            info!("缓存中有 {} 个token", cache.len());
             if let Some(token) = cache.iter().find(|t| t.status == "active") {
+                info!("从缓存获取到可用token: ID={}, name={}", token.id, token.name);
                 return Ok(Some(token.clone()));
             }
+            info!("缓存中没有可用的active token");
         }
 
+        info!("从数据库查询可用token...");
         // 从数据库获取
         let tokens = sqlx::query(
             r#"
@@ -110,7 +116,11 @@ impl GeolocationService {
             "#,
         )
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            error!("查询数据库token失败: {}", e);
+            AppError::DatabaseError(e)
+        })?;
 
         if let Some(row) = tokens {
             let token = IpInfoToken {
@@ -124,16 +134,19 @@ impl GeolocationService {
                 last_used_at: row.try_get("last_used_at")?,
             };
 
+            info!("从数据库获取到token: ID={}, name={}, used_count={}/{}, status={}", 
+                token.id, token.name, token.used_count, token.monthly_limit, token.status);
+
             // 更新缓存
             {
                 let mut cache = self.token_cache.write().await;
-                cache.clear();
                 cache.push(token.clone());
+                info!("token已添加到缓存，缓存大小: {}", cache.len());
             }
 
             Ok(Some(token))
         } else {
-            warn!("没有可用的ipinfo.io token");
+            error!("数据库中没有找到可用的active token");
             Ok(None)
         }
     }
@@ -179,8 +192,13 @@ impl GeolocationService {
 
     /// 查询IP地理位置
     pub async fn query_ip_geolocation(&self, ip: &str) -> Result<Option<UserGeolocation>, AppError> {
+        info!("开始查询IP {} 的地理位置", ip);
+        
         let token = match self.get_available_token().await? {
-            Some(token) => token,
+            Some(token) => {
+                info!("获取到可用token: ID={}, name={}", token.id, token.name);
+                token
+            },
             None => {
                 warn!("没有可用的token用于查询IP: {}", ip);
                 return Ok(None);
@@ -188,12 +206,15 @@ impl GeolocationService {
         };
 
         let url = format!("https://ipinfo.io/{}/json?token={}", ip, token.token);
+        info!("构建请求URL: {}", url);
 
-        debug!("查询地理位置: {}", url);
-
+        debug!("发送地理位置API请求...");
         let response = self.http_client.get(&url).send().await;
         let response = match response {
-            Ok(resp) => resp,
+            Ok(resp) => {
+                info!("API请求成功，状态码: {}", resp.status());
+                resp
+            },
             Err(e) => {
                 error!("地理位置API请求失败: {}", e);
                 self.update_token_usage(&token.id, ip, false).await?;
@@ -203,12 +224,24 @@ impl GeolocationService {
 
         if !response.status().is_success() {
             warn!("地理位置API返回错误状态: {}", response.status());
+            let status_text = response.status().to_string();
+            error!("完整状态信息: {}", status_text);
+            
+            // 尝试读取错误响应内容
+            if let Ok(error_text) = response.text().await {
+                error!("错误响应内容: {}", error_text);
+            }
+            
             self.update_token_usage(&token.id, ip, false).await?;
             return Ok(None);
         }
 
-        let ip_info: IpInfoResponse = match response.json().await {
-            Ok(data) => data,
+        info!("API响应状态正常，开始解析JSON...");
+        let ip_info: IpInfoResponse = match response.json::<IpInfoResponse>().await {
+            Ok(data) => {
+                info!("JSON解析成功，IP={}, 城市={:?}", data.ip, data.city);
+                data
+            },
             Err(e) => {
                 error!("解析地理位置API响应失败: {}", e);
                 self.update_token_usage(&token.id, ip, false).await?;

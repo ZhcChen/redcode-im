@@ -227,6 +227,11 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/ipinfo-tokens/{token_id}/reset",
             post(admin::reset_token_usage),
         )
+        // 地理位置API测试
+        .route(
+            "/api/admin/test-geolocation-api",
+            post(admin::test_geolocation_api),
+        )
         // 聊天记录管理API
         .route(
             "/api/admin/chat-history",

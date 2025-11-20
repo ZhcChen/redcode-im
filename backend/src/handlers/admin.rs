@@ -3833,3 +3833,101 @@ pub async fn reset_token_usage(
 
     Ok(Json(token))
 }
+
+/// 地理位置API测试请求
+#[derive(Debug, Deserialize)]
+pub struct GeolocationApiTestRequest {
+    pub ip_address: String,
+}
+
+/// 地理位置API测试响应
+#[derive(Debug, Serialize)]
+pub struct GeolocationApiTestResponse {
+    pub ip: String,
+    pub hostname: Option<String>,
+    pub city: Option<String>,
+    pub region: Option<String>,
+    pub country: Option<String>,
+    pub loc: Option<String>,
+    pub org: Option<String>,
+    pub postal: Option<String>,
+    pub timezone: Option<String>,
+}
+
+/// 测试地理位置API
+pub async fn test_geolocation_api(
+    State(_state): State<AppState>,
+    Json(request): Json<GeolocationApiTestRequest>,
+) -> Result<Json<GeolocationApiTestResponse>, AppError> {
+    info!("收到地理位置API测试请求，IP地址: {}", request.ip_address);
+    
+    // 验证IP地址格式
+    let ip_address = request.ip_address.trim();
+    if ip_address.is_empty() {
+        error!("IP地址为空");
+        return Err(AppError::ValidationError("IP地址不能为空".to_string()));
+    }
+
+    // 简单的IP地址格式验证
+    let ip_parts: Vec<&str> = ip_address.split('.').collect();
+    if ip_parts.len() != 4 {
+        error!("IP地址格式无效，分段数量: {}", ip_parts.len());
+        return Err(AppError::ValidationError("IP地址格式无效".to_string()));
+    }
+    
+    for (i, part) in ip_parts.iter().enumerate() {
+        if let Ok(_num) = part.parse::<u8>() {
+            info!("IP段 {} 验证通过: {}", i, part);
+        } else {
+            error!("IP段 {} 验证失败: {}", i, part);
+            return Err(AppError::ValidationError("IP地址格式无效".to_string()));
+        }
+    }
+
+    info!("IP地址格式验证通过: {}", ip_address);
+
+    // 调用地理位置服务进行测试
+    info!("正在获取地理位置服务...");
+    let geolocation_service = crate::services::geolocation::get_geolocation_service();
+    
+    if geolocation_service.is_none() {
+        error!("地理位置服务未初始化");
+        return Err(AppError::InternalError("地理位置服务未初始化".to_string()));
+    }
+    
+    let geolocation_service = geolocation_service.unwrap();
+    info!("地理位置服务获取成功");
+
+    info!("开始查询IP {} 的地理位置...", ip_address);
+    match geolocation_service.query_ip_geolocation(ip_address).await {
+        Ok(Some(geo)) => {
+            info!("地理位置查询成功: IP={}, 城市={:?}, 国家={:?}", 
+                geo.ip_address, geo.city, geo.country);
+            
+            let response = GeolocationApiTestResponse {
+                ip: geo.ip_address,
+                hostname: None, // ipinfo.io返回的数据中没有hostname字段在UserGeolocation中
+                city: geo.city,
+                region: geo.region,
+                country: geo.country,
+                loc: if let (Some(lat), Some(lon)) = (geo.latitude, geo.longitude) {
+                    Some(format!("{},{}", lat, lon))
+                } else {
+                    None
+                },
+                org: geo.isp,
+                postal: geo.zip_code,
+                timezone: geo.timezone,
+            };
+            Ok(Json(response))
+        }
+        Ok(None) => {
+            error!("地理位置查询返回None结果");
+            Err(AppError::InternalError("无法获取地理位置信息".to_string()))
+        }
+        Err(e) => {
+            error!("地理位置API测试失败: {}", e);
+            Err(AppError::InternalError(format!("API测试失败: {}", e)))
+        }
+    }
+}
