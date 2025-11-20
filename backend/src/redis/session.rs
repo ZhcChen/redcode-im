@@ -37,6 +37,7 @@ impl SessionManager {
         &self,
         user_id: Uuid,
         socket_id: String,
+        client_ip: std::net::IpAddr,
         rooms: Vec<Uuid>,
     ) -> RedisResult<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
@@ -47,6 +48,7 @@ impl SessionManager {
             socket_id: socket_id.clone(),
             rooms,
             last_heartbeat: Utc::now(),
+            client_ip,
             created_at: Utc::now(),
         };
 
@@ -98,6 +100,35 @@ impl SessionManager {
                 info!("用户会话不存在: {}", user_id);
                 Ok(None)
             }
+        }
+    }
+
+    /// 更新会话心跳和IP
+    #[allow(dead_code)]
+    pub async fn update_session_heartbeat_with_ip(&self, user_id: &Uuid, client_ip: std::net::IpAddr) -> RedisResult<bool> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let session_key = CacheKeys::user_session(user_id);
+
+        // 获取现有会话信息
+        if let Some(mut session) = self.get_user_session(user_id).await? {
+            session.last_heartbeat = Utc::now();
+            session.client_ip = client_ip;
+
+            let session_json = serde_json::to_string(&session).map_err(|e| {
+                redis::RedisError::from((
+                    redis::ErrorKind::TypeError,
+                    "JSON序列化失败",
+                    e.to_string(),
+                ))
+            })?;
+
+            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
+                .await?;
+            info!("更新会话心跳和IP: {} ({})", user_id, client_ip);
+            Ok(true)
+        } else {
+            warn!("尝试更新不存在的会话: {}", user_id);
+            Ok(false)
         }
     }
 

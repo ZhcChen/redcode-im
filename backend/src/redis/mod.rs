@@ -86,4 +86,9 @@ impl RedisManager {
     pub fn get_session_client(&self) -> &Client {
         &self.session_client
     }
+
+    /// 获取会话管理器
+    pub fn get_session_manager(&self, node_id: String) -> session::SessionManager {
+        session::SessionManager::new(self.session_client.clone(), node_id)
+    }
 }

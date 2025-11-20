@@ -52,6 +52,7 @@ pub struct SessionInfo {
     pub socket_id: String,
     pub rooms: Vec<Uuid>,
     pub last_heartbeat: DateTime<Utc>,
+    pub client_ip: std::net::IpAddr,
     pub created_at: DateTime<Utc>,
 }
 

@@ -40,6 +40,7 @@ pub struct ConnectionInfo {
     #[allow(dead_code)]
     pub connected_at: chrono::DateTime<chrono::Utc>,
     pub last_ping: chrono::DateTime<chrono::Utc>,
+    pub client_ip: std::net::IpAddr,
     pub format: ConnectionFormat,
     pub sender: mpsc::UnboundedSender<OutboundFrame>,
 }
@@ -58,6 +59,7 @@ impl ConnectionManager {
         &self,
         conn_id: String,
         user_id: String,
+        client_ip: std::net::IpAddr,
         format: ConnectionFormat,
         sender: mpsc::UnboundedSender<OutboundFrame>,
     ) {
@@ -66,6 +68,7 @@ impl ConnectionManager {
             user_id: user_id.clone(),
             connected_at: chrono::Utc::now(),
             last_ping: chrono::Utc::now(),
+            client_ip,
             format,
             sender,
         };
@@ -203,12 +206,31 @@ impl ConnectionManager {
             .unwrap_or_default()
     }
 
-    // 心跳更新
-    pub async fn update_ping(&self, conn_id: &str) -> bool {
+    // 心跳更新 - 记录客户端IP
+    pub async fn update_ping(&self, conn_id: &str, client_ip: std::net::IpAddr, state: &AppState) -> bool {
         let mut user_conns = self.user_connections.write().await;
         for connections in user_conns.values_mut() {
             if let Some(conn_info) = connections.get_mut(conn_id) {
                 conn_info.last_ping = chrono::Utc::now();
+
+                // 异步更新Redis会话心跳信息（不阻塞心跳响应）
+                let user_id = conn_info.user_id.clone();
+                let client_ip = client_ip.clone();
+                let redis_manager = state.redis.clone();
+                let node_id = state.node_id.clone();
+                tokio::spawn(async move {
+                    let user_uuid = match uuid::Uuid::parse_str(&user_id) {
+                        Ok(uuid) => uuid,
+                        Err(_) => return,
+                    };
+
+                    // 获取会话管理器并更新心跳和IP
+                    let session_manager = redis_manager.get_session_manager(node_id);
+                    if let Err(e) = session_manager.update_session_heartbeat_with_ip(&user_uuid, client_ip).await {
+                        tracing::debug!("更新Redis会话心跳失败: {}", e);
+                    }
+                });
+
                 return true;
             }
         }
@@ -307,10 +329,12 @@ impl TryFrom<ws::ClientEvent> for ClientEvent {
 async fn handle_client_event(
     event: ClientEvent,
     conn_id: &str,
+    client_addr: std::net::SocketAddr,
     format: ConnectionFormat,
     connection_manager: Arc<ConnectionManager>,
     out_tx: &mpsc::UnboundedSender<OutboundFrame>,
     pubsub_cmd_tx: &mpsc::UnboundedSender<PubSubCmd>,
+    state: &AppState,
 ) -> Result<(), String> {
     match event {
         ClientEvent::Auth { token } => match auth::verify_token(&token) {
@@ -320,6 +344,7 @@ async fn handle_client_event(
                     .register_connection(
                         conn_id.to_string(),
                         user_id.clone(),
+                        client_addr.ip(),
                         format,
                         out_tx.clone(),
                     )
@@ -377,7 +402,7 @@ async fn handle_client_event(
             }
         }
         ClientEvent::Ping => {
-            connection_manager.update_ping(conn_id).await;
+            connection_manager.update_ping(conn_id, client_addr.ip(), state).await;
             let _ = out_tx.send(ServerPush::Pong.encode(format));
             Ok(())
         }
@@ -385,7 +410,8 @@ async fn handle_client_event(
 }
 
 // WebSocket处理函数
-pub async fn handle_socket(state: AppState, socket: WebSocket, format: ConnectionFormat) {
+pub async fn handle_socket(state: AppState, socket: WebSocket, client_addr: std::net::SocketAddr, format: ConnectionFormat) {
+    let redis_manager = state.redis.clone();
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let conn_id = format!("conn_{}", Uuid::new_v4());
 
@@ -577,10 +603,12 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
                         if let Err(err) = handle_client_event(
                             event,
                             &conn_id,
+                            client_addr,
                             format,
                             connection_manager.clone(),
                             &out_tx,
                             &pubsub_cmd_tx,
+                            &state,
                         )
                         .await
                         {
@@ -613,10 +641,12 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
                                 if let Err(err) = handle_client_event(
                                     event,
                                     &conn_id,
+                                    client_addr,
                                     format,
                                     connection_manager.clone(),
                                     &out_tx,
                                     &pubsub_cmd_tx,
+                                    &state,
                                 )
                                 .await
                                 {
@@ -663,11 +693,11 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
                 }
             }
             Message::Ping(_) => {
-                connection_manager.update_ping(&conn_id).await;
+                connection_manager.update_ping(&conn_id, client_addr.ip(), &state).await;
                 let _ = out_tx.send(ServerPush::Pong.encode(format));
             }
             Message::Pong(_) => {
-                connection_manager.update_ping(&conn_id).await;
+                connection_manager.update_ping(&conn_id, client_addr.ip(), &state).await;
             }
             Message::Close(_) => {
                 break;
@@ -696,6 +726,7 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, format: Connectio
 pub async fn handle_websocket_upgrade(
     State(state): State<AppState>,
     ws: WebSocketUpgrade,
+    axum::extract::ConnectInfo(client_addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     // 可选的查询参数中的token
     axum::extract::Query(params): axum::extract::Query<WsUpgradeParams>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -711,7 +742,7 @@ pub async fn handle_websocket_upgrade(
                     connection_format.as_str()
                 );
                 return Ok(
-                    ws.on_upgrade(move |socket| handle_socket(state, socket, connection_format))
+                    ws.on_upgrade(move |socket| handle_socket(state, socket, client_addr, connection_format))
                 );
             }
             Err(e) => {
@@ -726,7 +757,7 @@ pub async fn handle_websocket_upgrade(
         "WebSocket握手完成（未提前认证），等待客户端认证，格式: {}",
         connection_format.as_str()
     );
-    Ok(ws.on_upgrade(move |socket| handle_socket(state, socket, connection_format)))
+    Ok(ws.on_upgrade(move |socket| handle_socket(state, socket, client_addr, connection_format)))
 }
 
 #[derive(serde::Deserialize)]
