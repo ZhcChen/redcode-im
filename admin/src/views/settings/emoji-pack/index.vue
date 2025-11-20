@@ -464,88 +464,6 @@
     return url;
   };
 
-  // 注释掉原来的PackIcon组件定义
-  /*
-  const PackIcon = defineComponent({
-    props: {
-      url: String,
-    },
-    setup(props: { url: string }) {
-      const imageSrc = ref<string | null>(null);
-      const isLoading = ref(false);
-
-      const loadImage = async () => {
-        if (!props.url) return;
-
-        // 如果URL看起来像是COS的临时URL，尝试提取key并重新获取
-        if (props.url.includes('cos.') && props.url.includes('?')) {
-          try {
-            isLoading.value = true;
-            // 从URL中提取key（假设URL格式为 https://bucket.cos.region.myqcloud.com/path/to/file?参数）
-            const urlObj = new URL(props.url);
-            const key = urlObj.pathname.substring(1); // 去掉开头的/
-
-            // 获取默认存储提供商
-            let provider: StorageProvider | null = null;
-            try {
-              const { data } = await getDefaultStorageProvider();
-              provider = data;
-            } catch (error) {
-              // 获取存储提供商失败，使用原URL
-            }
-
-            if (provider) {
-              // 生成新的临时URL
-              const { data: urlData } = await testCosDownloadUrl({
-                provider_id: provider.id,
-                key,
-                expires_in_seconds: 3600, // 1小时
-              });
-
-              if (urlData.success && urlData.url) {
-                imageSrc.value = urlData.url;
-                return;
-              }
-            }
-          } catch (error) {
-            // 重新获取图片URL失败，使用原URL
-          } finally {
-            isLoading.value = false;
-          }
-        }
-
-        // 如果重新获取失败或不是COS URL，直接使用原URL
-        imageSrc.value = props.url;
-      };
-
-      onMounted(() => {
-        loadImage();
-      });
-
-      return () => {
-        if (isLoading.value) {
-          return <div class="pack-icon-placeholder">加载中...</div>;
-        }
-
-        if (imageSrc.value) {
-          return (
-            <img
-              src={imageSrc.value}
-              alt="表情包图标"
-              class="pack-icon"
-              onError={() => {
-                // 如果图片加载失败，显示占位符
-                imageSrc.value = null;
-              }}
-            />
-          );
-        }
-
-        return <span class="pack-icon-placeholder">无图标</span>;
-      };
-    },
-  };
-
   const { loading: listLoading, setLoading: setListLoading } =
     useLoading(false);
   const { loading: actionLoading, setLoading: setActionLoading } =
@@ -1203,14 +1121,9 @@
   });
 </script>
 
-
 <style lang="less" scoped>
   .emoji-pack-settings-container {
     padding: 0 20px 20px;
-  }
-
-  .general-card {
-    margin-top: 16px;
   }
 
   .actions {

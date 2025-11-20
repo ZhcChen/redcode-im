@@ -814,8 +814,4 @@
   .cos-test-container {
     padding: 0 20px 20px;
   }
-
-  .cos-test-container .general-card {
-    margin-top: 16px;
-  }
 </style>

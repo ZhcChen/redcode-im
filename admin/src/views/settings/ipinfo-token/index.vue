@@ -443,10 +443,6 @@
     padding: 0 20px 20px;
   }
 
-  .general-card {
-    margin-top: 16px;
-  }
-
   .actions {
     margin-bottom: 16px;
   }
