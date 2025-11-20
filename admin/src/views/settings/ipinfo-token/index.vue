@@ -123,9 +123,9 @@
   import { ref, reactive, onMounted, computed } from 'vue';
   import { Message, Modal } from '@arco-design/web-vue';
   import { IconPlus } from '@arco-design/web-vue/es/icon';
+  import axios from 'axios';
 
   import Breadcrumb from '@/components/breadcrumb/index.vue';
-  import { request } from '@/hooks/request';
 
   interface TokenItem {
     id: string;
@@ -251,7 +251,7 @@
   const fetchTokenList = async () => {
     try {
       loading.value = true;
-      const response = await request.get('/api/admin/ipinfo-tokens', {
+      const response = await axios.get('/api/admin/ipinfo-tokens', {
         params: {
           page: currentPage.value,
           page_size: pageSize.value,
@@ -288,7 +288,7 @@
   const handleCreate = async () => {
     try {
       submitLoading.value = true;
-      await request.post('/api/admin/ipinfo-tokens', form);
+      await axios.post('/api/admin/ipinfo-tokens', form);
       Message.success('创建Token成功');
       showCreateModal.value = false;
       resetForm();
@@ -304,7 +304,7 @@
   const handleUpdate = async () => {
     try {
       submitLoading.value = true;
-      await request.patch(
+      await axios.patch(
         `/api/admin/ipinfo-tokens/${currentEditId.value}`,
         form
       );
@@ -356,7 +356,7 @@
       okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
-          await request.delete(`/api/admin/ipinfo-tokens/${record.id}`);
+          await axios.delete(`/api/admin/ipinfo-tokens/${record.id}`);
           Message.success('删除Token成功');
           fetchTokenList();
         } catch (error: any) {
@@ -369,7 +369,7 @@
   // 重置Token使用量
   const handleReset = async (record: TokenItem) => {
     try {
-      await request.post(`/api/admin/ipinfo-tokens/${record.id}/reset`);
+      await axios.post(`/api/admin/ipinfo-tokens/${record.id}/reset`);
       Message.success('重置Token使用量成功');
       fetchTokenList();
     } catch (error: any) {
