@@ -333,21 +333,6 @@ pub struct UpdateRoleRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AssignRoleRequest {
-    pub user_id: String,
-    pub role_id: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct UserRoleResponse {
-    pub user_id: String,
-    pub role_id: String,
-    pub role_name: String,
-    pub role_code: String,
-    pub assigned_at: String,
-}
-
-#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct CheckPermissionRequest {
     pub user_id: String,
@@ -1681,45 +1666,6 @@ pub async fn delete_role(
     }))
 }
 
-/// 分配角色给用户（简化版本）
-pub async fn assign_role_to_user(
-    State(_state): State<AppState>,
-    Json(req): Json<AssignRoleRequest>,
-) -> Result<Json<RoleOperationResponse>, AppError> {
-    // 简化版本，仅验证输入格式
-    if req.user_id.is_empty() || req.role_id.is_empty() {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "用户ID和角色ID不能为空".to_string(),
-        }));
-    }
-
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色分配成功（简化版本）".to_string(),
-    }))
-}
-
-/// 撤销用户角色（简化版本）
-pub async fn revoke_role_from_user(
-    State(_state): State<AppState>,
-    Path(user_id): Path<String>,
-    Path(role_id): Path<String>,
-) -> Result<Json<RoleOperationResponse>, AppError> {
-    // 简化版本，仅验证输入格式
-    if user_id.is_empty() || role_id.is_empty() {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "用户ID和角色ID不能为空".to_string(),
-        }));
-    }
-
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色撤销成功（简化版本）".to_string(),
-    }))
-}
-
 /// 检查用户权限
 pub async fn check_user_permission(
     State(_state): State<AppState>,
@@ -1732,23 +1678,6 @@ pub async fn check_user_permission(
     let has_permission = true; // 简化处理，实际应该查询数据库
 
     Ok(Json(CheckPermissionResponse { has_permission }))
-}
-
-/// 获取用户角色列表（简化版本）
-pub async fn get_user_roles(
-    State(_state): State<AppState>,
-    Path(user_id): Path<String>,
-) -> Result<Json<Vec<UserRoleResponse>>, AppError> {
-    // 简化版本，返回模拟数据
-    let roles = vec![UserRoleResponse {
-        user_id: user_id.clone(),
-        role_id: "1".to_string(),
-        role_name: "超级管理员".to_string(),
-        role_code: "super_admin".to_string(),
-        assigned_at: chrono::Utc::now().to_rfc3339(),
-    }];
-
-    Ok(Json(roles))
 }
 
 #[derive(Debug, Serialize)]

@@ -82,10 +82,6 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/users/{user_id}/status",
             patch(admin::update_user_status),
         )
-        .route(
-            "/api/admin/users/{user_id}/roles",
-            get(admin::get_user_roles),
-        )
         // 权限管理API
         .route("/api/admin/permissions", get(admin::get_permissions))
         .route("/api/admin/roles", get(admin::get_roles))
@@ -93,11 +89,6 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/roles/{role_id}",
             patch(admin::update_role).delete(admin::delete_role),
-        )
-        .route("/api/admin/roles/assign", post(admin::assign_role_to_user))
-        .route(
-            "/api/admin/users/{user_id}/roles/{role_id}",
-            delete(admin::revoke_role_from_user),
         )
         .route(
             "/api/admin/permissions/check",

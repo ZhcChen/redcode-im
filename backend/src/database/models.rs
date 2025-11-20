@@ -141,17 +141,6 @@ pub struct Role {
     pub updated_at: DateTime<Utc>,
 }
 
-/// 用户角色关联表模型
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-#[allow(dead_code)]
-pub struct UserRole {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub role_id: Uuid,
-    pub assigned_by: Uuid,
-    pub assigned_at: DateTime<Utc>,
-}
-
 /// 角色权限关联表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 #[allow(dead_code)]
