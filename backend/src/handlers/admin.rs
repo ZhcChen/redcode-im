@@ -1949,7 +1949,7 @@ pub async fn update_user_status(
     // 获取用户当前状态用于日志和推送
     info!("获取用户当前状态...");
     let old_user = store
-        .find_by_id(&user_id)
+        .find_by_id_any_status(&user_id)
         .await
         .map_err(|e| {
             error!("查询用户失败: {}", e);

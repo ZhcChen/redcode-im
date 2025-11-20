@@ -80,6 +80,22 @@ impl UserStore {
         Ok(user)
     }
 
+    /// 按ID查找用户（不受状态限制，用于管理员操作）
+    pub async fn find_by_id_any_status(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            FROM users
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(user_id)
+        .fetch_optional(&self.database.pool)
+        .await?;
+
+        Ok(user)
+    }
+
     /// 根据邮箱查找用户
     #[allow(dead_code)] // 保留用于将来可能的功能
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, Error> {
