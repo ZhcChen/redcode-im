@@ -91,7 +91,12 @@ async fn main() {
 
     let listener = TcpListener::bind(addr).await.expect("bind");
     info!("服务已启动");
-    axum::serve(listener, app).await.expect("server");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("server");
 }
 
 fn init_tracing() {
