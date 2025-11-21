@@ -3,3 +3,7 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# 部署配置文件
+deploy.config
+admin-dist-*.7z

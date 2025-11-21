@@ -1,0 +1,11 @@
+# 部署配置文件
+# 复制此文件为 deploy.config 并修改配置
+
+# 服务器用户名
+SERVER_USER="root"
+
+# 服务器 IP 或域名
+SERVER_HOST="your-server-ip"
+
+# 服务器部署路径
+SERVER_PATH="/var/www/admin"
