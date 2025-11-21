@@ -113,6 +113,9 @@ ssh ${SERVER_HOST} bash -s << EOF
     rm -f /tmp/\${ARCHIVE_NAME}
 
     # 设置权限
+    # 关键: 设置父目录权限,让 Nginx 能进入 (最常见的 403 原因!)
+    chmod 755 /home /home/ubuntu
+
     # 目录权限: 755 (所有者rwx,组和其他用户rx - Nginx需要x权限进入目录)
     find \${SERVER_PATH} -type d -exec chmod 755 {} \;
     # 文件权限: 644 (所有者rw,组和其他用户r - Nginx只需要读权限)

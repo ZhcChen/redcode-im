@@ -375,16 +375,30 @@ cd admin
    sudo systemctl reload nginx
    ```
 
-2. **父目录权限不足** ⚠️ 关键
+2. **父目录权限不足** ⚠️ 最常见！
+
+   **问题**: `/home/ubuntu` 默认权限是 750，其他用户(nginx)无法进入
+
+   **错误日志**:
+   ```
+   stat() "/home/ubuntu/admin/" failed (13: Permission denied)
+   ```
+
+   **解决方案**:
    ```bash
-   # Nginx 需要对整个路径都有 x 权限
+   # 关键: 设置父目录权限,让 Nginx 能进入
    sudo chmod 755 /home
    sudo chmod 755 /home/ubuntu
    sudo chmod 755 /home/ubuntu/admin
 
+   # 验证: 测试 nginx 用户能否访问
+   sudo -u www-data cat /home/ubuntu/admin/index.html
+
    # 检查整个路径权限
-   namei -l /home/ubuntu/admin
+   namei -l /home/ubuntu/admin/index.html
    ```
+
+   **说明**: Nginx 需要对从根目录到目标文件的**整个路径**都有 x (执行/进入) 权限！
 
 3. **文件和目录权限**:
    ```bash
