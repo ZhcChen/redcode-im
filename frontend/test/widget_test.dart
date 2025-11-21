@@ -5,17 +5,23 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/features/auth/login_page.dart';
 
 void main() {
   testWidgets('Login page renders welcome text', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(375, 812),
+        minTextAdapt: true,
+        builder: (_, __) => const MaterialApp(home: LoginPage()),
+      ),
+    );
     await tester.pump();
 
-    expect(find.text('Hello!'), findsOneWidget);
+    expect(find.text('你好！'), findsOneWidget);
     expect(find.text('登录账号'), findsOneWidget);
   });
 }
