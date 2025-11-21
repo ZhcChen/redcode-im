@@ -35,33 +35,41 @@ cargo test
 ## 3. 生产环境构建
 
 ### 3.1 构建发布二进制
-> macOS 开发机需先安装 musl 交叉编译器，并手动构建一次 Linux 版 OpenSSL，示例：
-> ```bash
-> brew tap messense/macos-cross-toolchains
-> brew install x86_64-unknown-linux-musl
-> rustup target add x86_64-unknown-linux-musl
-> 
-> # 构建 Linux/musl 版 OpenSSL 并安装到 ~/.musl-openssl
-> TMPDIR="$(mktemp -d)"
-> curl -L https://www.openssl.org/source/openssl-3.3.1.tar.gz -o "$TMPDIR/openssl.tar.gz"
-> tar -xf "$TMPDIR/openssl.tar.gz" -C "$TMPDIR"
-> cd "$TMPDIR/openssl-3.3.1"
-> CC="x86_64-unknown-linux-musl-gcc" \
->   ./Configure linux-x86_64 no-shared --prefix="$HOME/.musl-openssl" --openssldir="$HOME/.musl-openssl"
-> make -j"$(sysctl -n hw.ncpu)"
-> make install
-> ```
-> 构建时可在命令前临时注入 OpenSSL/编译器变量，避免污染全局环境：
-> ```bash
-> OPENSSL_DIR="$HOME/.musl-openssl" \
-> OPENSSL_LIB_DIR="$OPENSSL_DIR/lib" \
-> OPENSSL_INCLUDE_DIR="$OPENSSL_DIR/include" \
-> PKG_CONFIG_ALLOW_CROSS=1 \
-> PKG_CONFIG_PATH="$OPENSSL_LIB_DIR/pkgconfig" \
-> CC_x86_64_unknown_linux_musl=x86_64-unknown-linux-musl-gcc \
-> cargo build --release --target x86_64-unknown-linux-musl
-> ```
-输出会生成在 `target/x86_64-unknown-linux-musl/release/redcode-im-backend`，部署时只需携带该二进制以及 `.env`/环境变量即可：
+
+#### 方案 A：直接使用 `cargo build --release`
+```bash
+cargo build --release
+```
+> 生成的二进制位于 `target/release/redcode-im-backend`，架构与当前主机一致（例如 Mac mini M4 会生成 `aarch64-apple-darwin` 可执行文件）。该方案适合在同架构的 macOS/Linux 环境调试使用；若部署目标是 x86_64 Linux，需要改用方案 B 交叉编译对应架构。
+
+#### 方案 B：使用 Docker 镜像交叉编译（推荐生成 Linux/musl 二进制）
+
+在执行交叉编译前，请确保 PostgreSQL/Redis 服务已在宿主机监听（可通过 `docker compose up -d postgres redis-session redis-cache` 启动默认依赖）。
+```bash
+docker run --rm \
+  --add-host=host.docker.internal:host-gateway \
+  -v "$(cd .. && pwd)":/work \
+  -w /work/backend \
+  -e DATABASE_URL=postgresql://postgres:123456@host.docker.internal:5432/redcode_im \
+  messense/rust-musl-cross:x86_64-musl \
+  bash -c 'set -euo pipefail; \
+           apt-get update && apt-get install -y --no-install-recommends pkg-config curl ca-certificates build-essential perl && \
+           OPENSSL_VERSION=3.3.1 && \
+           cd /tmp && \
+           curl -fsSLO https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz && \
+           tar xf openssl-${OPENSSL_VERSION}.tar.gz && \
+           cd openssl-${OPENSSL_VERSION} && \
+           CC=x86_64-unknown-linux-musl-gcc ./Configure linux-x86_64 no-shared --prefix=/usr/local/musl --openssldir=/usr/local/musl --libdir=/usr/local/musl/lib && \
+           make -j$(nproc) && make install_sw && \
+           cd /work/backend && \
+           OPENSSL_DIR=/usr/local/musl \
+           OPENSSL_LIB_DIR=/usr/local/musl/lib \
+           OPENSSL_INCLUDE_DIR=/usr/local/musl/include \
+           PKG_CONFIG_ALLOW_CROSS=1 \
+           PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
+           cargo build --release --target x86_64-unknown-linux-musl'
+```
+> 单条命令即完成 OpenSSL 编译与交叉构建（首次运行约需 3~5 分钟下载、编译 OpenSSL 3.3.1），产物位于 `target/x86_64-unknown-linux-musl/release/redcode-im-backend`，可直接部署到 Linux/x86 或打包到 Docker。`--add-host=host.docker.internal:host-gateway` 让 Linux 主机也能解析 `host.docker.internal`，以便容器访问宿主机上的 PostgreSQL。若使用自定义数据库地址，请将 `-e DATABASE_URL=...` 替换为实际连接串，同时务必保持仓库根目录（含 `init_admin_tables.sql`）挂载到 `/work`。
 ```bash
 DATABASE_URL=... \
 REDIS_SESSION_URL=... \
@@ -71,19 +79,53 @@ PORT=8010 \
 ./target/x86_64-unknown-linux-musl/release/redcode-im-backend
 ```
 
+#### 方案 C：使用 Zig + cargo-zigbuild（macOS 直接产出 Linux/musl 二进制）
+
+Zig 自带完整的 musl toolchain，可在本机无需 Docker 的情况下交叉编译。准备步骤：
+1. 安装 Zig（例如 `brew install zig`）
+2. 安装 `cargo-zigbuild`：`cargo install cargo-zigbuild --locked`
+3. 准备 SQLx 所需的数据库：保持 `DATABASE_URL` 可访问，或提前执行 `cargo sqlx prepare` 并设置 `SQLX_OFFLINE=1`
+
+完成依赖后执行脚本：
+```bash
+# 可改为 aarch64-unknown-linux-musl / dev 等组合
+TARGET=x86_64-unknown-linux-musl \
+PROFILE=release \
+scripts/build-linux-zig.sh
+```
+> 脚本会自动导入 `.env`、校验 `zig`/`cargo-zigbuild` 是否就绪，并执行 `cargo zigbuild --target $TARGET --release`。构建产物位于 `target/$TARGET/$PROFILE/redcode-im-backend`。
+
+相较方案 B，该方案无需重复编译 OpenSSL，也可以通过 `TARGET`/`PROFILE` 环境变量一次产出多种架构。若希望与服务器一致，保持默认的 `x86_64-unknown-linux-musl` 即可。
+
 ### 3.2 以 Docker 方式构建
-1. **准备发布产物**：
+1. **准备发布产物**（推荐使用方案 B 的 Docker 命令）：
    ```bash
-   OPENSSL_DIR="$HOME/.musl-openssl" \
-   OPENSSL_LIB_DIR="$OPENSSL_DIR/lib" \
-   OPENSSL_INCLUDE_DIR="$OPENSSL_DIR/include" \
-   PKG_CONFIG_ALLOW_CROSS=1 \
-   PKG_CONFIG_PATH="$OPENSSL_LIB_DIR/pkgconfig" \
-   CC_x86_64_unknown_linux_musl=x86_64-unknown-linux-musl-gcc \
-   cargo build --release --target x86_64-unknown-linux-musl
+   docker run --rm \
+     --add-host=host.docker.internal:host-gateway \
+     -v "$(cd .. && pwd)":/work \
+     -w /work/backend \
+     -e DATABASE_URL=postgresql://postgres:123456@host.docker.internal:5432/redcode_im \
+     messense/rust-musl-cross:x86_64-musl \
+     bash -c 'set -euo pipefail; \
+              apt-get update && apt-get install -y --no-install-recommends pkg-config curl ca-certificates build-essential perl && \
+              OPENSSL_VERSION=3.3.1 && \
+              cd /tmp && \
+              curl -fsSLO https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz && \
+              tar xf openssl-${OPENSSL_VERSION}.tar.gz && \
+              cd openssl-${OPENSSL_VERSION} && \
+             CC=x86_64-unknown-linux-musl-gcc ./Configure linux-x86_64 no-shared --prefix=/usr/local/musl --openssldir=/usr/local/musl --libdir=/usr/local/musl/lib && \
+             make -j$(nproc) && make install_sw && \
+             cd /work/backend && \
+             OPENSSL_DIR=/usr/local/musl \
+             OPENSSL_LIB_DIR=/usr/local/musl/lib \
+             OPENSSL_INCLUDE_DIR=/usr/local/musl/include \
+             PKG_CONFIG_ALLOW_CROSS=1 \
+             PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
+             cargo build --release --target x86_64-unknown-linux-musl'
    cp target/x86_64-unknown-linux-musl/release/redcode-im-backend docker/
-   cp .env docker/        # 若不希望把敏感信息打包进镜像，可复制精简版 .env
+   cp .env docker/
    ```
+   > 若仅在本机调试，可直接使用方案 A 生成的 `target/release/redcode-im-backend`，但部署到 Linux/x86 时需使用方案 B。
 2. **构建精简运行镜像**：`docker/Dockerfile` 仅复制上述二进制与 `.env`，不包含数据库或其他依赖。
    ```bash
    docker build -f docker/Dockerfile -t redcode-im/backend:latest docker
