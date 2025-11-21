@@ -222,7 +222,7 @@ PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
 class _FavoriteAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return SvgPicture.asset(AppAssets.chatFavorite, width: 56, height: 56);
+    return SvgPicture.asset(AppAssets.chatFavorite, width: 48, height: 48);
   }
 }
 
