@@ -16,6 +16,7 @@ SERVER_HOST="xin-im-prod-0"  # 使用 SSH config 中配置的别名
 SERVER_PATH="/home/ubuntu/admin"
 DIST_DIR="dist"
 ARCHIVE_NAME="admin-dist-$(date +%Y%m%d-%H%M%S).7z"
+POST_DEPLOY_COMMAND=""  # 部署完成后执行的自定义命令
 
 # 加载配置文件
 CONFIG_FILE="${SCRIPT_DIR}/deploy.config"
@@ -122,6 +123,24 @@ EOF
 if [ $? -ne 0 ]; then
     echo -e "${RED}服务器部署失败!${NC}"
     exit 1
+fi
+
+# 执行部署后自定义命令
+if [ -n "${POST_DEPLOY_COMMAND}" ]; then
+    echo -e "\n${YELLOW}执行部署后命令...${NC}"
+    echo -e "命令: ${POST_DEPLOY_COMMAND}"
+
+    ssh ${SERVER_HOST} bash -s << EOF
+        set -e
+        ${POST_DEPLOY_COMMAND}
+EOF
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ 命令执行成功${NC}"
+    else
+        echo -e "${RED}✗ 命令执行失败${NC}"
+        exit 1
+    fi
 fi
 
 # 清理本地压缩文件

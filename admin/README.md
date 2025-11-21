@@ -150,6 +150,9 @@ vim deploy.config
 SERVER_HOST="xin-im-prod-0"
 SERVER_PATH="/home/ubuntu/admin"
 
+# 部署完成后执行的自定义命令 (可选)
+POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
+
 # 或者直接使用 user@host 格式
 # SERVER_HOST="user@192.168.1.100"
 ```
@@ -167,6 +170,7 @@ SERVER_PATH="/home/ubuntu/admin"
 - ✅ 服务器端自动解压和部署
 - ✅ 自动备份旧版本
 - ✅ 设置文件权限
+- ✅ 执行自定义部署后命令 (如果配置了 POST_DEPLOY_COMMAND)
 
 ### 部署前置要求
 
@@ -258,6 +262,59 @@ SERVER_PATH="/home/ubuntu/admin"
 ========================================
 访问地址: http://admin.chatlyme.com
 ```
+
+### 自定义部署后命令
+
+部署脚本支持在文件上传并解压完成后,自动执行自定义命令。这对于需要重启服务、清理缓存等操作非常有用。
+
+#### 配置方式
+
+在 `deploy.config` 文件中添加 `POST_DEPLOY_COMMAND` 配置:
+
+```bash
+# 单条命令示例: 重启 Nginx
+POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
+
+# 多条命令示例: 使用 && 连接
+POST_DEPLOY_COMMAND="sudo systemctl reload nginx && echo 'Nginx reloaded'"
+
+# 执行脚本示例
+POST_DEPLOY_COMMAND="cd /home/ubuntu && ./restart-services.sh"
+```
+
+#### 常见使用场景
+
+1. **重启 Web 服务器**
+   ```bash
+   POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
+   ```
+
+2. **清理缓存**
+   ```bash
+   POST_DEPLOY_COMMAND="redis-cli FLUSHALL"
+   ```
+
+3. **通知其他服务**
+   ```bash
+   POST_DEPLOY_COMMAND="curl -X POST http://api.example.com/webhook/deploy"
+   ```
+
+4. **执行自定义脚本**
+   ```bash
+   POST_DEPLOY_COMMAND="/home/ubuntu/scripts/post-deploy.sh"
+   ```
+
+5. **组合多个操作**
+   ```bash
+   POST_DEPLOY_COMMAND="sudo systemctl reload nginx && pm2 restart app && echo 'Deployment completed'"
+   ```
+
+#### 注意事项
+
+- 如果命令需要 sudo 权限,确保 SSH 用户有相应的 sudo 权限
+- 命令执行失败会导致整个部署失败
+- 可以使用 `&&` 连接多条命令,前一条失败会中断后续执行
+- 如果不需要自定义命令,保持 `POST_DEPLOY_COMMAND=""` 为空即可
 
 ### Docker 部署
 

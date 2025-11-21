@@ -7,3 +7,10 @@ SERVER_HOST="xin-im-prod-0"
 
 # 服务器部署路径
 SERVER_PATH="/home/ubuntu/admin"
+
+# 部署完成后执行的自定义命令 (可选)
+# 示例: 重启 nginx
+# POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
+# 示例: 执行多条命令
+# POST_DEPLOY_COMMAND="cd /home/ubuntu && ./restart.sh && echo 'Service restarted'"
+POST_DEPLOY_COMMAND=""
