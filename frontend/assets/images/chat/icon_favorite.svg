@@ -1,12 +1,12 @@
 <svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="fav_bg" x1="12" y1="10" x2="46" y2="48" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#6B8CFF"/>
-      <stop offset="1" stop-color="#9CABFF"/>
+      <stop stop-color="#00C2B3"/>
+      <stop offset="1" stop-color="#66DBD1"/>
     </linearGradient>
     <linearGradient id="fav_star" x1="18" y1="20" x2="38" y2="40" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#E7EEFF"/>
+      <stop offset="1" stop-color="#E7FBF9"/>
     </linearGradient>
   </defs>
   <rect x="4" y="4" width="48" height="48" rx="16" fill="url(#fav_bg)"/>
