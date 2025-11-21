@@ -521,8 +521,8 @@
 
   /* 详情弹窗样式 */
   .event-detail {
-    .device-info-section,
-    .message-section {
+    /* 分开定义,避免 CSS 压缩器警告 */
+    .device-info-section {
       margin-top: 20px;
 
       h4 {
@@ -530,9 +530,7 @@
         color: rgb(var(--arcoblue-6));
         font-weight: 500;
       }
-    }
 
-    .device-info-section {
       :deep(.arco-textarea) {
         font-size: 12px;
         font-family: Monaco, Menlo, 'Ubuntu Mono', monospace;
@@ -541,6 +539,14 @@
     }
 
     .message-section {
+      margin-top: 20px;
+
+      h4 {
+        margin-bottom: 8px;
+        color: rgb(var(--arcoblue-6));
+        font-weight: 500;
+      }
+
       :deep(.arco-alert) {
         margin-bottom: 0;
       }

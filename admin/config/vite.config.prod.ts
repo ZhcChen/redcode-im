@@ -31,6 +31,15 @@ export default mergeConfig(
         },
       },
       chunkSizeWarningLimit: 2000,
+      // 抑制 CSS 嵌套语法警告(不影响功能,只是压缩器的限制)
+      cssMinify: 'esbuild',
+    },
+    // esbuild 配置
+    esbuild: {
+      logOverride: {
+        'css-syntax-error': 'silent',
+        'invalid-@nest': 'silent',
+      },
     },
   },
   baseConfig
