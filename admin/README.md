@@ -355,19 +355,53 @@ bun install
 
 **现象**: 页面可以访问(200),但是部分 JS/CSS 文件返回 404
 
+**可能的根本原因** ⚠️:
+
+1. **部署脚本权限设置失败** (最常见)
+   - 如果看到 `chmod: changing permissions of '/home': Operation not permitted`
+   - 说明普通用户无法修改 /home 目录权限
+   - 需要手动执行: `sudo chmod 755 /home /home/ubuntu`
+
+2. **压缩命令问题** (已修复)
+   - 旧版本使用 `7z a ... *` 可能不完整
+   - 新版本使用 `7z a ... . -r` 递归压缩所有内容
+
+3. **浏览器缓存**
+   - 浏览器缓存了旧的 404 响应
+   - 需要硬刷新或清除缓存
+
+**快速修复** (在服务器上执行):
+```bash
+# 1. 设置父目录权限 (最关键!)
+sudo chmod 755 /home /home/ubuntu
+
+# 2. 设置部署目录权限
+find /home/ubuntu/admin -type d -exec chmod 755 {} \;
+find /home/ubuntu/admin -type f -exec chmod 644 {} \;
+
+# 3. 重新加载 nginx
+sudo systemctl reload nginx
+
+# 4. 清除浏览器缓存并测试 (Ctrl+Shift+R / Cmd+Shift+R)
+```
+
 **诊断步骤**:
 ```bash
-# 1. 检查所有 JS 文件是否都存在
-ls -lh /home/ubuntu/admin/assets/*.js
+# 1. 检查父目录权限 (最重要!)
+ls -ld /home /home/ubuntu /home/ubuntu/admin
+# 应该都显示 drwxr-xr-x (755)
 
-# 2. 查看 nginx 访问日志,找出哪些文件 404
+# 2. 检查所有 JS 文件是否都存在
+ls -lh /home/ubuntu/admin/assets/*.js | wc -l
+
+# 3. 查看 nginx 访问日志,找出哪些文件 404
 sudo tail -50 /var/log/nginx/access.log | grep "\.js"
 
-# 3. 检查文件权限是否一致
-find /home/ubuntu/admin -name "*.js" -exec ls -lh {} \;
+# 4. 测试 nginx 用户能否访问文件
+sudo -u www-data cat /home/ubuntu/admin/index.html >/dev/null && echo "✓ 可访问" || echo "✗ 无法访问"
 
-# 4. 测试直接访问 404 的文件
-curl -I http://admin.chatlyme.com/assets/your-file.js
+# 5. 运行完整诊断脚本
+./diagnose-js-404.sh
 ```
 
 **常见原因**:

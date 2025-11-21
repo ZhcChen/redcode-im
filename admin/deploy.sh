@@ -60,15 +60,20 @@ fi
 # 删除旧的压缩文件
 rm -f admin-dist-*.7z
 
-# 压缩 dist 目录中的所有文件
+# 压缩 dist 目录中的所有文件 (使用 . 而不是 * 来包含所有文件和目录)
 cd ${DIST_DIR}
-7z a -t7z -mx=9 ../${ARCHIVE_NAME} *
+7z a -t7z -mx=9 ../${ARCHIVE_NAME} . -r
 cd ..
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}压缩失败!${NC}"
     exit 1
 fi
+
+# 验证压缩文件内容
+echo -e "${YELLOW}验证压缩文件内容...${NC}"
+echo "压缩包中的文件列表 (前 20 行):"
+7z l ${ARCHIVE_NAME} | head -25
 
 echo -e "${GREEN}✓ 压缩完成: ${ARCHIVE_NAME}${NC}"
 
@@ -107,19 +112,59 @@ ssh ${SERVER_HOST} bash -s << EOF
     mkdir -p \${SERVER_PATH}
 
     # 解压文件到目标目录
-    7z x /tmp/\${ARCHIVE_NAME} -o\${SERVER_PATH}
+    echo "解压文件到: \${SERVER_PATH}"
+    7z x /tmp/\${ARCHIVE_NAME} -o\${SERVER_PATH} -y
+
+    # 验证解压结果
+    echo "解压后的文件结构:"
+    ls -lh \${SERVER_PATH} | head -15
+
+    if [ -d "\${SERVER_PATH}/assets" ]; then
+        echo "assets 目录内容 (前 10 个文件):"
+        ls -lh \${SERVER_PATH}/assets | head -10
+        ASSETS_COUNT=\$(find \${SERVER_PATH}/assets -type f | wc -l)
+        echo "assets 目录文件总数: \${ASSETS_COUNT}"
+    fi
 
     # 删除临时文件
     rm -f /tmp/\${ARCHIVE_NAME}
 
     # 设置权限
-    # 关键: 设置父目录权限,让 Nginx 能进入 (最常见的 403 原因!)
-    chmod 755 /home /home/ubuntu
+    echo "设置文件权限..."
 
     # 目录权限: 755 (所有者rwx,组和其他用户rx - Nginx需要x权限进入目录)
     find \${SERVER_PATH} -type d -exec chmod 755 {} \;
     # 文件权限: 644 (所有者rw,组和其他用户r - Nginx只需要读权限)
     find \${SERVER_PATH} -type f -exec chmod 644 {} \;
+
+    # 关键: 设置父目录权限,让 Nginx 能进入 (最常见的 403 原因!)
+    echo "设置父目录权限..."
+
+    # 尝试设置 /home/ubuntu 权限 (当前用户应该有权限)
+    if chmod 755 /home/ubuntu 2>/dev/null; then
+        echo "✓ 已设置 /home/ubuntu 权限为 755"
+    else
+        echo "⚠ 警告: 无法修改 /home/ubuntu 权限"
+    fi
+
+    # 尝试设置 /home 权限 (通常需要 sudo)
+    if chmod 755 /home 2>/dev/null; then
+        echo "✓ 已设置 /home 权限为 755"
+    elif command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
+        echo "尝试使用 sudo 设置 /home 权限..."
+        if sudo chmod 755 /home 2>/dev/null; then
+            echo "✓ 已使用 sudo 设置 /home 权限为 755"
+        else
+            echo "⚠ 警告: 即使使用 sudo 也无法修改 /home 权限"
+        fi
+    else
+        echo "⚠ 警告: 无法修改 /home 权限,且无 sudo 权限"
+        echo "   如果遇到 403 错误,请手动执行: sudo chmod 755 /home"
+    fi
+
+    # 验证关键路径权限
+    echo "验证权限设置:"
+    ls -ld /home/ubuntu \${SERVER_PATH} | awk '{print \$1, \$NF}'
 
     # 可选: 如果需要将所有者改为 nginx 用户,取消下面的注释
     # sudo chown -R www-data:www-data \${SERVER_PATH}
@@ -158,3 +203,14 @@ echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}部署成功! 🎉${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo -e "访问地址: http://admin.chatlyme.com"
+
+# 提示: 检查 nginx 配置
+echo -e "\n${YELLOW}温馨提示:${NC}"
+echo -e "1. 确保服务器上的 nginx 配置是最新的"
+echo -e "   当前本地配置: ${SCRIPT_DIR}/nginx/nginx.conf"
+echo -e "   服务器配置路径: /etc/nginx/sites-enabled/admin.conf"
+echo -e ""
+echo -e "2. 如果遇到 JS 文件 404 问题:"
+echo -e "   - 清除浏览器缓存 (Ctrl+Shift+R / Cmd+Shift+R)"
+echo -e "   - 在服务器上运行诊断脚本: ./diagnose-js-404.sh"
+echo -e "   - 重新加载 nginx: sudo systemctl reload nginx"
