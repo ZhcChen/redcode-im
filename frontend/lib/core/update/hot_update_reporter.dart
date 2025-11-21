@@ -49,11 +49,6 @@ class HotUpdateReporter {
       );
     } catch (error) {
       // 静默失败，避免影响主流程
-      // 在开发模式下可以打印错误
-      assert(() {
-        print('[HotUpdateReporter] Report failed: $error');
-        return true;
-      }());
     }
   }
 

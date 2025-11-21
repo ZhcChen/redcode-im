@@ -207,8 +207,6 @@ class AvatarCache {
   Future<void> clear(String id) async {
     // 尝试判断是用户ID还是房间ID来决定调用哪个方法
     // 这是一个临时解决方案，未来应该移除这个方法
-    print('[AvatarCache] DEPRECATED: clear() is deprecated, use clearUser() or clearRoom()');
-    // 简单的逻辑：如果ID长度小于等于房间ID的典型长度，可能是用户ID
     // 这里我们调用两个方法来确保清理
     await clearUser(id);
     await clearRoom(id);

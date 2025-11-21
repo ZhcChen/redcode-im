@@ -622,40 +622,24 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   void initState() {
     super.initState();
     _cachedAvatarPath = widget.chat.localAvatarPath;
-    print('[ChatAvatar] ========== 初始化聊天头像 ==========');
-    print('[ChatAvatar] roomId: ${widget.chat.roomId}');
-    print('[ChatAvatar] name: ${widget.chat.name}');
-    print('[ChatAvatar] type: ${widget.chat.type}');
-    print('[ChatAvatar] avatarObjectKey: ${widget.chat.avatarObjectKey}');
-    print('[ChatAvatar] localAvatarPath: ${widget.chat.localAvatarPath}');
-    print('[ChatAvatar] avatar: ${widget.chat.avatar}');
-    print('[ChatAvatar] extra: ${widget.chat.extra}');
-    
+
     // 验证本地缓存文件是否真的存在
     bool needsLoad = false;
     if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
       final file = File(_cachedAvatarPath!);
       if (!file.existsSync()) {
-        print('[ChatAvatar] ⚠️ 本地文件不存在: $_cachedAvatarPath');
         _cachedAvatarPath = null;
         needsLoad = true;
-      } else {
-        print('[ChatAvatar] ✅ 使用本地缓存: $_cachedAvatarPath');
       }
     } else {
       needsLoad = true;
     }
-    
+
     // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
     if (needsLoad &&
         widget.chat.avatarObjectKey != null &&
         widget.chat.avatarObjectKey!.isNotEmpty) {
-      print('[ChatAvatar] ⚠️ 需要异步加载头像');
       _loadAvatar();
-    } else if (!needsLoad) {
-      // 已有本地缓存，不需要加载
-    } else {
-      print('[ChatAvatar] ⚠️ 无avatarObjectKey，使用默认头像');
     }
   }
 
@@ -674,14 +658,9 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   }
 
   Future<void> _loadAvatar() async {
-    print('[ChatAvatar] _loadAvatar 被调用');
-    if (_isLoading) {
-      print('[ChatAvatar] ⚠️ 正在加载中，跳过');
-      return;
-    }
+    if (_isLoading) return;
     if (widget.chat.avatarObjectKey == null ||
         widget.chat.avatarObjectKey!.isEmpty) {
-      print('[ChatAvatar] ⚠️ avatarObjectKey为空，跳过');
       return;
     }
 
@@ -691,39 +670,33 @@ class _ChatAvatarState extends State<_ChatAvatar> {
 
     try {
       String? cachedPath;
-      
+
       // 根据聊天类型选择不同的头像服务
       if (widget.chat.type == ChatType.single) {
         // 单聊使用用户头像服务
         final userId = widget.chat.extra?['friend_user_id'] as String? ??
             widget.chat.extra?['friendUserId'] as String? ??
             widget.chat.roomId;
-        
-        print('[ChatAvatar] 单聊，使用用户头像服务，userId: $userId');
+
         cachedPath = await _userAvatarService.loadAndCacheAvatar(
           userId: userId,
           avatarObjectKey: widget.chat.avatarObjectKey,
         );
       } else {
         // 群聊使用房间头像服务
-        print('[ChatAvatar] 群聊，使用房间头像服务，roomId: ${widget.chat.roomId}');
         cachedPath = await _roomAvatarService.loadAndCacheAvatar(
           roomId: widget.chat.roomId,
           avatarObjectKey: widget.chat.avatarObjectKey,
         );
       }
-      
-      print('[ChatAvatar] 加载结果: $cachedPath');
+
       if (mounted) {
         setState(() {
           _cachedAvatarPath = cachedPath;
           _isLoading = false;
         });
-        print('[ChatAvatar] ✅ 状态已更新');
       }
     } catch (e, stackTrace) {
-      print('[ChatAvatar] ❌ 加载异常: $e');
-      print('[ChatAvatar] 堆栈: $stackTrace');
       if (mounted) {
         setState(() {
           _isLoading = false;
