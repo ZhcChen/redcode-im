@@ -351,7 +351,53 @@ ssh-copy-id user@server-ip
 bun install
 ```
 
-#### 5. 部署后访问 403/404
+#### 5. 部署后页面加载但部分 JS 文件 404
+
+**现象**: 页面可以访问(200),但是部分 JS/CSS 文件返回 404
+
+**诊断步骤**:
+```bash
+# 1. 检查所有 JS 文件是否都存在
+ls -lh /home/ubuntu/admin/assets/*.js
+
+# 2. 查看 nginx 访问日志,找出哪些文件 404
+sudo tail -50 /var/log/nginx/access.log | grep "\.js"
+
+# 3. 检查文件权限是否一致
+find /home/ubuntu/admin -name "*.js" -exec ls -lh {} \;
+
+# 4. 测试直接访问 404 的文件
+curl -I http://admin.chatlyme.com/assets/your-file.js
+```
+
+**常见原因**:
+1. **浏览器缓存** - 浏览器缓存了旧的 404 响应
+   ```bash
+   # 解决: 清除浏览器缓存或硬刷新 (Ctrl+Shift+R / Cmd+Shift+R)
+   ```
+
+2. **index.html 中的路径错误** - 构建时生成的路径不正确
+   ```bash
+   # 检查 index.html 中的资源引用路径
+   grep -o 'src="[^"]*"' /home/ubuntu/admin/index.html
+   grep -o 'href="[^"]*"' /home/ubuntu/admin/index.html
+   ```
+
+3. **Vite 构建配置问题** - base 路径配置不正确
+   ```javascript
+   // vite.config.ts 应该配置:
+   export default defineConfig({
+     base: '/',  // 确保是根路径
+   })
+   ```
+
+4. **文件名大小写敏感** - Linux 区分大小写
+   ```bash
+   # 检查文件名是否与引用一致
+   # 例如: App.js vs app.js
+   ```
+
+#### 6. 部署后访问 403/404
 
 **快速诊断工具**:
 ```bash
