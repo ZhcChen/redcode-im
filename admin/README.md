@@ -150,9 +150,6 @@ vim deploy.config
 SERVER_HOST="xin-im-prod-0"
 SERVER_PATH="/home/ubuntu/admin"
 
-# 部署完成后执行的自定义命令 (可选)
-POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
-
 # 或者直接使用 user@host 格式
 # SERVER_HOST="user@192.168.1.100"
 ```
@@ -167,10 +164,9 @@ POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
 - ✅ 构建项目 (`bun run build`)
 - ✅ 压缩 dist 目录 (使用 7z)
 - ✅ 上传到服务器 (通过 SCP)
-- ✅ 服务器端自动解压和部署
-- ✅ 自动备份旧版本
-- ✅ 设置文件权限
-- ✅ 执行自定义部署后命令 (如果配置了 POST_DEPLOY_COMMAND)
+- 📋 显示服务器端部署命令 (需要手动执行)
+
+脚本执行完成后,会显示一条可以直接复制的服务器端部署命令,在服务器上执行即可完成部署
 
 ### 部署前置要求
 
@@ -251,70 +247,39 @@ POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
 目标路径: /home/ubuntu/admin
 ✓ 上传完成
 
-在服务器上解压并部署...
-备份旧文件到: /home/ubuntu/admin_backup_20241121-153010
-部署完成!
-
 清理本地文件...
 
 ========================================
-部署成功! 🎉
+上传成功! 🎉
 ========================================
+
+下一步: 登录服务器手动部署
+========================================
+
+实际命令 (复制粘贴执行):
+
+ssh xin-im-prod-0 << 'REMOTE_CMD'
+# 备份
+[ -d "/home/ubuntu/admin" ] && cp -r /home/ubuntu/admin /home/ubuntu/admin_backup_$(date +%Y%m%d-%H%M%S)
+
+# 重新部署
+rm -rf /home/ubuntu/admin
+mkdir -p /home/ubuntu/admin
+7z x /tmp/admin-dist-20241121-153000.7z -o/home/ubuntu/admin -y
+
+# 设置权限
+sudo chmod 755 /home /home/ubuntu
+find /home/ubuntu/admin -type d -exec chmod 755 {} \;
+find /home/ubuntu/admin -type f -exec chmod 644 {} \;
+
+# 清理
+rm -f /tmp/admin-dist-20241121-153000.7z
+
+echo "部署完成!"
+REMOTE_CMD
+
 访问地址: http://admin.chatlyme.com
 ```
-
-### 自定义部署后命令
-
-部署脚本支持在文件上传并解压完成后,自动执行自定义命令。这对于需要重启服务、清理缓存等操作非常有用。
-
-#### 配置方式
-
-在 `deploy.config` 文件中添加 `POST_DEPLOY_COMMAND` 配置:
-
-```bash
-# 单条命令示例: 重启 Nginx
-POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
-
-# 多条命令示例: 使用 && 连接
-POST_DEPLOY_COMMAND="sudo systemctl reload nginx && echo 'Nginx reloaded'"
-
-# 执行脚本示例
-POST_DEPLOY_COMMAND="cd /home/ubuntu && ./restart-services.sh"
-```
-
-#### 常见使用场景
-
-1. **重启 Web 服务器**
-   ```bash
-   POST_DEPLOY_COMMAND="sudo systemctl reload nginx"
-   ```
-
-2. **清理缓存**
-   ```bash
-   POST_DEPLOY_COMMAND="redis-cli FLUSHALL"
-   ```
-
-3. **通知其他服务**
-   ```bash
-   POST_DEPLOY_COMMAND="curl -X POST http://api.example.com/webhook/deploy"
-   ```
-
-4. **执行自定义脚本**
-   ```bash
-   POST_DEPLOY_COMMAND="/home/ubuntu/scripts/post-deploy.sh"
-   ```
-
-5. **组合多个操作**
-   ```bash
-   POST_DEPLOY_COMMAND="sudo systemctl reload nginx && pm2 restart app && echo 'Deployment completed'"
-   ```
-
-#### 注意事项
-
-- 如果命令需要 sudo 权限,确保 SSH 用户有相应的 sudo 权限
-- 命令执行失败会导致整个部署失败
-- 可以使用 `&&` 连接多条命令,前一条失败会中断后续执行
-- 如果不需要自定义命令,保持 `POST_DEPLOY_COMMAND=""` 为空即可
 
 ### Docker 部署
 
