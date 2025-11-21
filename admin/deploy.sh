@@ -88,32 +88,33 @@ echo -e "${GREEN}✓ 上传完成${NC}"
 
 # 在服务器上解压并部署
 echo -e "\n${YELLOW}在服务器上解压并部署...${NC}"
-ssh ${SERVER_HOST} << EOF
+ssh ${SERVER_HOST} bash -s << EOF
     set -e
 
-    # 创建目标目录
-    mkdir -p ${SERVER_PATH}
+    SERVER_PATH="${SERVER_PATH}"
+    ARCHIVE_NAME="${ARCHIVE_NAME}"
 
     # 备份旧文件
-    if [ -d "${SERVER_PATH}" ] && [ "\$(ls -A ${SERVER_PATH})" ]; then
-        BACKUP_DIR="${SERVER_PATH}_backup_\$(date +%Y%m%d-%H%M%S)"
+    if [ -d "\${SERVER_PATH}" ] && [ "\$(ls -A \${SERVER_PATH} 2>/dev/null)" ]; then
+        BACKUP_DIR="\${SERVER_PATH}_backup_\$(date +%Y%m%d-%H%M%S)"
         echo "备份旧文件到: \${BACKUP_DIR}"
-        cp -r ${SERVER_PATH} \${BACKUP_DIR}
+        cp -r \${SERVER_PATH} \${BACKUP_DIR}
     fi
 
-    # 清空目标目录
-    rm -rf ${SERVER_PATH}/*
+    # 完全删除旧目录并重新创建
+    rm -rf \${SERVER_PATH}
+    mkdir -p \${SERVER_PATH}
 
-    # 解压文件
-    cd ${SERVER_PATH}
-    7z x /tmp/${ARCHIVE_NAME}
+    # 解压文件到目标目录
+    7z x /tmp/\${ARCHIVE_NAME} -o\${SERVER_PATH}
 
     # 删除临时文件
-    rm -f /tmp/${ARCHIVE_NAME}
+    rm -f /tmp/\${ARCHIVE_NAME}
 
-    # 设置权限
-    chown -R www-data:www-data ${SERVER_PATH}
-    chmod -R 755 ${SERVER_PATH}
+    # 设置权限 (根据实际用户调整,ubuntu 用户通常不需要改为 www-data)
+    # 如果使用 nginx,取消下面的注释
+    # sudo chown -R www-data:www-data \${SERVER_PATH}
+    chmod -R 755 \${SERVER_PATH}
 
     echo "部署完成!"
 EOF
