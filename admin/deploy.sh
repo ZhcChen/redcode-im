@@ -12,8 +12,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 默认配置
-SERVER_USER="root"
-SERVER_HOST="your-server-ip"
+SERVER_HOST="xin-im-prod-0"  # 使用 SSH config 中配置的别名
 SERVER_PATH="/var/www/admin"
 DIST_DIR="dist"
 ARCHIVE_NAME="admin-dist-$(date +%Y%m%d-%H%M%S).7z"
@@ -74,11 +73,11 @@ echo -e "${GREEN}✓ 压缩完成: ${ARCHIVE_NAME}${NC}"
 
 # 步骤 3: 上传到服务器
 echo -e "\n${YELLOW}[3/3] 上传到服务器...${NC}"
-echo -e "服务器: ${SERVER_USER}@${SERVER_HOST}"
+echo -e "服务器: ${SERVER_HOST}"
 echo -e "目标路径: ${SERVER_PATH}"
 
 # 上传压缩文件
-scp ${ARCHIVE_NAME} ${SERVER_USER}@${SERVER_HOST}:/tmp/
+scp ${ARCHIVE_NAME} ${SERVER_HOST}:/tmp/
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}上传失败!${NC}"
@@ -89,7 +88,7 @@ echo -e "${GREEN}✓ 上传完成${NC}"
 
 # 在服务器上解压并部署
 echo -e "\n${YELLOW}在服务器上解压并部署...${NC}"
-ssh ${SERVER_USER}@${SERVER_HOST} << EOF
+ssh ${SERVER_HOST} << EOF
     set -e
 
     # 创建目标目录

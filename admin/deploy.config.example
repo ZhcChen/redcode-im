@@ -1,11 +1,9 @@
 # 部署配置文件
 # 复制此文件为 deploy.config 并修改配置
 
-# 服务器用户名
-SERVER_USER="root"
-
-# 服务器 IP 或域名
-SERVER_HOST="your-server-ip"
+# 服务器别名 (使用 SSH config 中配置的别名)
+# 或者直接使用 IP/域名,如: user@192.168.1.100
+SERVER_HOST="xin-im-prod-0"
 
 # 服务器部署路径
 SERVER_PATH="/var/www/admin"

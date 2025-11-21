@@ -146,9 +146,12 @@ vim deploy.config
 
 配置示例:
 ```bash
-SERVER_USER="root"
-SERVER_HOST="your-server-ip"
+# 使用 SSH config 中配置的别名
+SERVER_HOST="xin-im-prod-0"
 SERVER_PATH="/var/www/admin"
+
+# 或者直接使用 user@host 格式
+# SERVER_HOST="user@192.168.1.100"
 ```
 
 2. **执行部署**
@@ -186,7 +189,22 @@ SERVER_PATH="/var/www/admin"
    sudo yum install p7zip
    ```
 
-3. **SSH 密钥** - 免密登录服务器
+3. **SSH 配置** - 配置服务器连接
+
+   方式一: 使用 SSH config 别名 (推荐)
+   ```bash
+   # 编辑 SSH 配置文件
+   vim ~/.ssh/config
+
+   # 添加服务器配置
+   Host xin-im-prod-0
+       HostName your-server-ip
+       User root
+       Port 22
+       IdentityFile ~/.ssh/id_rsa
+   ```
+
+   方式二: 使用免密登录
    ```bash
    # 生成 SSH 密钥
    ssh-keygen -t rsa -b 4096
@@ -225,7 +243,7 @@ SERVER_PATH="/var/www/admin"
 ✓ 压缩完成: admin-dist-20241121-153000.7z
 
 [3/3] 上传到服务器...
-服务器: root@123.456.789.0
+服务器: xin-im-prod-0
 目标路径: /var/www/admin
 ✓ 上传完成
 
