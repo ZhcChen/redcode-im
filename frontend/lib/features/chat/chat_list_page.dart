@@ -726,15 +726,21 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
       final file = File(_cachedAvatarPath!);
       if (file.existsSync()) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(48),
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              // 如果文件读取失败，显示默认头像
-              return _buildDefaultAvatar();
-            },
+        return Container(
+          width: 48,
+          height: 48,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(48),
+            child: Image.file(
+              file,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                // 如果文件读取失败，显示默认头像
+                return _buildDefaultAvatar();
+              },
+            ),
           ),
         );
       }
@@ -745,6 +751,8 @@ class _ChatAvatarState extends State<_ChatAvatar> {
         widget.chat.avatarObjectKey != null &&
         widget.chat.avatarObjectKey!.isNotEmpty) {
       return Container(
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(48),
@@ -763,13 +771,17 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     final avatar = widget.chat.avatar;
     if (avatar != null && avatar.isNotEmpty) {
       if (avatar.endsWith('.svg')) {
-        return SvgPicture.asset(avatar);
+        return SvgPicture.asset(avatar, width: 48, height: 48);
       }
       // asset头像
       if (!avatar.startsWith('http://') && !avatar.startsWith('https://')) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(48),
-          child: Image.asset(avatar, fit: BoxFit.cover),
+        return Container(
+          width: 48,
+          height: 48,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(48),
+            child: Image.asset(avatar, width: 48, height: 48, fit: BoxFit.cover),
+          ),
         );
       }
     }
