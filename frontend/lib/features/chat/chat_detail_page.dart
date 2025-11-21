@@ -7,6 +7,43 @@ import 'models/chat_conversation.dart';
 import 'models/chat_message.dart';
 import 'widgets/chat_message_bubble.dart';
 
+// 字符串哈希函数（与桌面端保持一致）
+int _hashCode(String str) {
+  int hash = 0;
+  for (int i = 0; i < str.length; i++) {
+    int char = str.codeUnitAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash.abs();
+}
+
+// 预设色调（与桌面端保持一致）
+List<Color> _getAvatarColors() {
+  return [
+    const Color(0xFF6366f1), // 靛蓝
+    const Color(0xFF8b5cf6), // 紫色
+    const Color(0xFFec4899), // 粉红
+    const Color(0xFFf43f5e), // 玫瑰
+    const Color(0xFFf59e0b), // 琥珀
+    const Color(0xFF10b981), // 翠绿
+    const Color(0xFF06b6d4), // 青色
+    const Color(0xFF3b82f6), // 蓝色
+    const Color(0xFF6366f1), // 靛蓝
+    const Color(0xFFa855f7), // 紫罗兰
+  ];
+}
+
+// 根据文本生成背景色（与桌面端保持一致）
+Color _generateBackgroundColor(String text) {
+  if (!text.isEmpty) {
+    final colors = _getAvatarColors();
+    final hash = _hashCode(text);
+    return colors[hash % colors.length];
+  }
+  return _getAvatarColors().first;
+}
+
 class ChatDetailPage extends StatefulWidget {
   const ChatDetailPage({super.key, required this.conversation});
 
@@ -476,12 +513,13 @@ class _ConversationAvatar extends StatelessWidget {
     const size = 44.0;
     final name = this.name.trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    
+    final backgroundColor = _generateBackgroundColor(name);
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.12),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(size / 2),
       ),
       child: Center(
@@ -489,7 +527,7 @@ class _ConversationAvatar extends StatelessWidget {
           initial,
           style: TextStyle(
             fontSize: 18,
-            color: AppColors.primary,
+            color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
