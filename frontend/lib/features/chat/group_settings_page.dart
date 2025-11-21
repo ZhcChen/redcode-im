@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/room_service.dart';
+import '../../core/storage/token_storage.dart';
 import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/tip_dialog.dart';
 import 'models/chat_model.dart';
@@ -20,19 +22,26 @@ class GroupSettingsPage extends StatefulWidget {
 class _GroupSettingsPageState extends State<GroupSettingsPage> {
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
+  late final RoomService _roomService;
+  final TokenStorage _tokenStorage = const TokenStorage();
   bool _isMuted = false;
   bool _isPinned = false;
   bool _isForbidden = false;
+  bool _isLoadingMembers = false;
+  bool _isLoadingSettings = false;
+  String? _currentUserId;
+  bool _isGroupOwner = false;
 
   // 群成员列表
   List<Map<String, dynamic>> _members = [];
-  bool _isLoadingMembers = false;
 
   @override
   void initState() {
     super.initState();
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
+    _roomService = RoomService();
+    _loadCurrentUser();
     _loadSettings();
     _loadMembers(); // 加载群成员
   }
@@ -46,7 +55,37 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    // TODO: 从后端加载设置
+    if (widget.chat.type != ChatType.group) return;
+    setState(() => _isLoadingSettings = true);
+    try {
+      final settings = await _roomService.fetchGroupSettings(
+        widget.chat.roomId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isForbidden = settings.globalMuteEnabled;
+        _isLoadingSettings = false;
+      });
+    } catch (e) {
+      debugPrint('加载群设置失败: $e');
+      if (mounted) {
+        setState(() => _isLoadingSettings = false);
+      }
+    }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final session = await _tokenStorage.readSession();
+      if (!mounted) return;
+      final userId = session?.user.id;
+      setState(() {
+        _currentUserId = userId;
+        _isGroupOwner = _computeOwnership(currentUserId: userId);
+      });
+    } catch (e) {
+      debugPrint('加载当前用户失败: $e');
+    }
   }
 
   Future<void> _loadMembers() async {
@@ -56,21 +95,23 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
     try {
       final members = await _chatProvider.getRoomMembers(widget.chat.roomId);
+      if (!mounted) return;
       setState(() {
         _members = members;
         _isLoadingMembers = false;
+        _isGroupOwner = _computeOwnership(membersOverride: members);
       });
     } catch (e) {
       debugPrint('加载群成员失败: $e');
-      setState(() => _isLoadingMembers = false);
+      if (mounted) {
+        setState(() => _isLoadingMembers = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isGroupOwner =
-        widget.chat.extra?['is_owner'] == true ||
-        widget.chat.extra?['isOwner'] == true;
+    final isGroupOwner = _isGroupOwner;
     final memberCount = _chatProvider.cachedMemberCount(widget.chat.roomId);
     final navbarTitle = widget.chat.type == ChatType.group
         ? '聊天信息${memberCount != null ? "($memberCount)" : ""}'
@@ -339,10 +380,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             _SwitchTile(
               label: '禁止发送消息',
               value: _isForbidden,
-              onChanged: (value) {
-                setState(() => _isForbidden = value);
-                debugPrint('Toggle forbidden: $value');
-              },
+              loading: _isLoadingSettings,
+              onChanged: _handleGlobalMuteToggle,
             ),
           _SwitchTile(
             label: '消息免打扰',
@@ -398,6 +437,31 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             ),
           ),
           const SizedBox(height: 12),
+          if (isGroupOwner) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => _showTransferOwnerDialog(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.surface,
+                  foregroundColor: AppColors.textPrimary,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  '转让群主',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -419,10 +483,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
               ),
               child: Text(
                 isGroupOwner ? '解散群组' : '退出群聊',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w500),
               ),
             ),
           ),
@@ -461,10 +522,52 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       title: '解散群组',
       content: '确认要解散群聊吗？',
       confirmDanger: true,
-      onConfirm: () async {
-        debugPrint('Dissolve group confirmed');
-        return true;
-      },
+      onConfirm: _handleDissolveGroup,
+    );
+  }
+
+  void _showTransferOwnerDialog(BuildContext context) {
+    if (_members.isEmpty) {
+      _showSnackBar('暂无可转让的成员');
+      return;
+    }
+
+    final candidates = _members
+        .where((member) => member['user_id'] != _currentUserId)
+        .toList();
+
+    if (candidates.isEmpty) {
+      _showSnackBar('暂无可转让的成员');
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: candidates.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final member = candidates[index];
+            final displayName =
+                member['nickname'] as String? ??
+                member['username'] as String? ??
+                '成员';
+            return ListTile(
+              title: Text(displayName),
+              subtitle: Text(member['username'] as String? ?? ''),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                final memberId = member['user_id'] as String?;
+                if (memberId != null) {
+                  _transferOwnership(memberId, displayName);
+                }
+              },
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -539,18 +642,124 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     // 这里可以使用 image_picker 等插件
     // 然后调用 _chatProvider.uploadGroupAvatar 上传头像
   }
+
+  Future<void> _transferOwnership(String newOwnerId, String displayName) async {
+    try {
+      await _roomService.transferRoomOwner(
+        roomId: widget.chat.roomId,
+        newOwnerId: newOwnerId,
+      );
+      if (mounted) {
+        setState(() => _isGroupOwner = false);
+      }
+      _showSnackBar('已成功转让给 $displayName');
+      await _loadMembers();
+      await _loadSettings();
+    } catch (e) {
+      _showSnackBar('转让失败：$e');
+    }
+  }
+
+  Future<bool> _handleDissolveGroup() async {
+    try {
+      await _roomService.dissolveGroup(widget.chat.roomId);
+      if (mounted) {
+        _showSnackBar('群聊已解散');
+        Navigator.of(context).pop();
+      }
+      return true;
+    } catch (e) {
+      _showSnackBar('解散失败：$e');
+      return false;
+    }
+  }
+
+  Future<void> _handleGlobalMuteToggle(bool value) async {
+    if (widget.chat.type != ChatType.group) return;
+    if (!mounted) return;
+    setState(() {
+      _isForbidden = value;
+      _isLoadingSettings = true;
+    });
+    try {
+      await _roomService.updateGlobalMute(
+        roomId: widget.chat.roomId,
+        enabled: value,
+      );
+      _showSnackBar(value ? '已开启全体禁言' : '已关闭全体禁言');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isForbidden = !value);
+      }
+      _showSnackBar('更新失败：$e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingSettings = false);
+      }
+    }
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  bool _computeOwnership({
+    String? currentUserId,
+    List<Map<String, dynamic>>? membersOverride,
+  }) {
+    if (widget.chat.type != ChatType.group) return false;
+    final userId = currentUserId ?? _currentUserId;
+    if (userId == null || userId.isEmpty) {
+      return false;
+    }
+
+    final extra = widget.chat.extra;
+    if (extra?['is_owner'] == true || extra?['isOwner'] == true) {
+      return true;
+    }
+
+    final ownerCandidates = <dynamic>[extra?['owner_id'], extra?['ownerId']];
+    for (final candidate in ownerCandidates) {
+      final ownerId = candidate is String ? candidate : candidate?.toString();
+      if (ownerId != null && ownerId.isNotEmpty && ownerId == userId) {
+        return true;
+      }
+    }
+
+    final members = membersOverride ?? _members;
+    for (final member in members) {
+      final roleValue = member['role'] ?? member['member_role'];
+      final role = roleValue is String
+          ? roleValue.toLowerCase()
+          : roleValue?.toString().toLowerCase();
+      final memberIdValue =
+          member['user_id'] ?? member['userId'] ?? member['id'];
+      final memberId = memberIdValue is String
+          ? memberIdValue
+          : memberIdValue?.toString();
+      if (role == 'owner' && memberId == userId) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 class _SwitchTile extends StatelessWidget {
   const _SwitchTile({
     required this.label,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
+    this.loading = false,
   });
 
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -571,7 +780,11 @@ class _SwitchTile extends StatelessWidget {
                   ),
                 ),
               ),
-              CustomSwitch(value: value, onChanged: onChanged),
+              CustomSwitch(
+                value: value,
+                onChanged: onChanged,
+                loading: loading,
+              ),
             ],
           ),
         ),

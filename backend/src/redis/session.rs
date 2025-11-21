@@ -105,7 +105,11 @@ impl SessionManager {
 
     /// 更新会话心跳和IP
     #[allow(dead_code)]
-    pub async fn update_session_heartbeat_with_ip(&self, user_id: &Uuid, client_ip: std::net::IpAddr) -> RedisResult<bool> {
+    pub async fn update_session_heartbeat_with_ip(
+        &self,
+        user_id: &Uuid,
+        client_ip: std::net::IpAddr,
+    ) -> RedisResult<bool> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let session_key = CacheKeys::user_session(user_id);
 

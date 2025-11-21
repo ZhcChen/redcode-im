@@ -93,13 +93,16 @@ impl GeolocationService {
     /// 获取可用的token
     pub async fn get_available_token(&self) -> Result<Option<IpInfoToken>, AppError> {
         info!("开始获取可用的地理位置API token");
-        
+
         // 先检查缓存
         {
             let cache = self.token_cache.read().await;
             info!("缓存中有 {} 个token", cache.len());
             if let Some(token) = cache.iter().find(|t| t.status == "active") {
-                info!("从缓存获取到可用token: ID={}, name={}", token.id, token.name);
+                info!(
+                    "从缓存获取到可用token: ID={}, name={}",
+                    token.id, token.name
+                );
                 return Ok(Some(token.clone()));
             }
             info!("缓存中没有可用的active token");
@@ -135,8 +138,10 @@ impl GeolocationService {
                 last_used_at: row.try_get("last_used_at")?,
             };
 
-            info!("从数据库获取到token: ID={}, name={}, used_count={}/{}, status={}", 
-                token.id, token.name, token.used_count, token.monthly_limit, token.status);
+            info!(
+                "从数据库获取到token: ID={}, name={}, used_count={}/{}, status={}",
+                token.id, token.name, token.used_count, token.monthly_limit, token.status
+            );
 
             // 更新缓存
             {
@@ -153,7 +158,12 @@ impl GeolocationService {
     }
 
     /// 更新token使用统计
-    pub async fn update_token_usage(&self, token_id: &uuid::Uuid, ip_address: &str, success: bool) -> Result<(), AppError> {
+    pub async fn update_token_usage(
+        &self,
+        token_id: &uuid::Uuid,
+        ip_address: &str,
+        success: bool,
+    ) -> Result<(), AppError> {
         // 更新token使用统计
         sqlx::query(
             r#"
@@ -192,14 +202,17 @@ impl GeolocationService {
     }
 
     /// 查询IP地理位置
-    pub async fn query_ip_geolocation(&self, ip: &str) -> Result<Option<UserGeolocation>, AppError> {
+    pub async fn query_ip_geolocation(
+        &self,
+        ip: &str,
+    ) -> Result<Option<UserGeolocation>, AppError> {
         info!("开始查询IP {} 的地理位置", ip);
-        
+
         let token = match self.get_available_token().await? {
             Some(token) => {
                 info!("获取到可用token: ID={}, name={}", token.id, token.name);
                 token
-            },
+            }
             None => {
                 warn!("没有可用的token用于查询IP: {}", ip);
                 return Ok(None);
@@ -215,7 +228,7 @@ impl GeolocationService {
             Ok(resp) => {
                 info!("API请求成功，状态码: {}", resp.status());
                 resp
-            },
+            }
             Err(e) => {
                 error!("地理位置API请求失败: {}", e);
                 self.update_token_usage(&token.id, ip, false).await?;
@@ -227,12 +240,12 @@ impl GeolocationService {
             warn!("地理位置API返回错误状态: {}", response.status());
             let status_text = response.status().to_string();
             error!("完整状态信息: {}", status_text);
-            
+
             // 尝试读取错误响应内容
             if let Ok(error_text) = response.text().await {
                 error!("错误响应内容: {}", error_text);
             }
-            
+
             self.update_token_usage(&token.id, ip, false).await?;
             return Ok(None);
         }
@@ -243,7 +256,7 @@ impl GeolocationService {
                 info!("JSON解析成功，完整响应: {:?}", data);
                 info!("IP={}, 城市={:?}", data.ip, data.city);
                 data
-            },
+            }
             Err(e) => {
                 error!("解析地理位置API响应失败: {}", e);
                 self.update_token_usage(&token.id, ip, false).await?;
@@ -289,7 +302,10 @@ impl GeolocationService {
     }
 
     /// 获取用户的地理位置
-    pub async fn get_user_geolocation(&self, user_id: &uuid::Uuid) -> Result<Option<UserGeolocation>, AppError> {
+    pub async fn get_user_geolocation(
+        &self,
+        user_id: &uuid::Uuid,
+    ) -> Result<Option<UserGeolocation>, AppError> {
         let row = sqlx::query(
             r#"
             SELECT user_id, ip_address::text, latitude, longitude, country, region, city,
@@ -325,7 +341,12 @@ impl GeolocationService {
     }
 
     /// 更新用户的地理位置
-    pub async fn update_user_geolocation(&self, user_id: &uuid::Uuid, ip: &str, geolocation: &UserGeolocation) -> Result<(), AppError> {
+    pub async fn update_user_geolocation(
+        &self,
+        user_id: &uuid::Uuid,
+        ip: &str,
+        geolocation: &UserGeolocation,
+    ) -> Result<(), AppError> {
         sqlx::query(
             r#"
             INSERT INTO user_geolocations (
@@ -362,12 +383,19 @@ impl GeolocationService {
         .execute(&self.pool)
         .await?;
 
-        info!("更新用户 {} 的地理位置: IP={}, 城市={:?}", user_id, ip, geolocation.city);
+        info!(
+            "更新用户 {} 的地理位置: IP={}, 城市={:?}",
+            user_id, ip, geolocation.city
+        );
         Ok(())
     }
 
     /// 检查用户IP是否变化
-    pub async fn has_user_ip_changed(&self, user_id: &uuid::Uuid, current_ip: &str) -> Result<bool, AppError> {
+    pub async fn has_user_ip_changed(
+        &self,
+        user_id: &uuid::Uuid,
+        current_ip: &str,
+    ) -> Result<bool, AppError> {
         let row = sqlx::query(
             r#"
             SELECT ip_address::text as ip

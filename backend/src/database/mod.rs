@@ -93,12 +93,17 @@ impl Database {
 
         if !admin_tables_exist {
             tracing::info!("创建管理员用户相关表...");
-            const ADMIN_SQL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../init_admin_tables.sql"));
+            const ADMIN_SQL: &str = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../init_admin_tables.sql"
+            ));
             for stmt in split_sql_statements(ADMIN_SQL) {
                 if stmt.trim().is_empty() {
                     continue;
                 }
-                sqlx::query(&stmt).execute(&mut *self.pool.acquire().await?).await?;
+                sqlx::query(&stmt)
+                    .execute(&mut *self.pool.acquire().await?)
+                    .await?;
             }
             tracing::info!("管理员用户表创建完成");
         } else {

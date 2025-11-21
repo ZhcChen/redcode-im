@@ -7,11 +7,11 @@ use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo};
+use crate::redis::cache::CacheManager;
+use crate::redis::models::CacheKeys;
 use crate::storage;
 use crate::storage::DirectUploadSignature;
 use crate::AppState;
-use crate::redis::cache::CacheManager;
-use crate::redis::models::CacheKeys;
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
@@ -253,24 +253,28 @@ pub async fn get_avatar_download_url(
     let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
 
     // 尝试从缓存获取URL
-    let download_url = if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
-        cached_url
-    } else {
-        // 缓存未命中，生成新的URL
-        let url = storage_service
-        .generate_download_url(&key, params.expires_in_seconds)
-        .await?;
+    let download_url =
+        if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
+            cached_url
+        } else {
+            // 缓存未命中，生成新的URL
+            let url = storage_service
+                .generate_download_url(&key, params.expires_in_seconds)
+                .await?;
 
-        // 缓存URL，过期时间为URL有效期的90%
-        let url_expires_in = params.expires_in_seconds.unwrap_or(3600);
-        let cache_ttl = (url_expires_in as f64 * 0.9) as u64;
+            // 缓存URL，过期时间为URL有效期的90%
+            let url_expires_in = params.expires_in_seconds.unwrap_or(3600);
+            let cache_ttl = (url_expires_in as f64 * 0.9) as u64;
 
-        if let Err(e) = cache_manager.cache_download_url(&cache_key, &url, cache_ttl).await {
-            warn!("缓存头像下载URL失败: {:?}", e);
-        }
+            if let Err(e) = cache_manager
+                .cache_download_url(&cache_key, &url, cache_ttl)
+                .await
+            {
+                warn!("缓存头像下载URL失败: {:?}", e);
+            }
 
-        url
-    };
+            url
+        };
 
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,

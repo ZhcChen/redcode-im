@@ -8,6 +8,7 @@ import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/auth/auth_state.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/network/direct_upload.dart';
 import '../../../core/services/websocket_service.dart';
@@ -23,10 +24,8 @@ class AuthRepository {
     : _storage = storage ?? TokenStorage();
 
   final TokenStorage _storage;
-  final StreamController<AuthState> _authStateController =
-      StreamController.broadcast();
 
-  Stream<AuthState> get authStateStream => _authStateController.stream;
+  Stream<AuthState> get authStateStream => AuthStateBus.stream;
 
   Future<AuthSession> login({
     required String username,
@@ -49,7 +48,7 @@ class AuthRepository {
       } catch (_) {}
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
-      _authStateController.add(AuthState.authenticated);
+      AuthStateBus.emit(AuthState.authenticated);
       return session;
     }
 
@@ -138,7 +137,7 @@ class AuthRepository {
         } catch (_) {}
         await MessageService.instance.clearAll();
         FriendStore.instance.clearAll();
-        _authStateController.add(AuthState.authenticated);
+        AuthStateBus.emit(AuthState.authenticated);
         if (kDebugMode) {
           debugPrint('[Auth] 登录流程完成');
         }
@@ -256,7 +255,7 @@ class AuthRepository {
       } catch (_) {}
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
-      _authStateController.add(AuthState.authenticated);
+      AuthStateBus.emit(AuthState.authenticated);
       return session;
     }
 
@@ -290,7 +289,7 @@ class AuthRepository {
       } catch (_) {}
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
-      _authStateController.add(AuthState.authenticated);
+      AuthStateBus.emit(AuthState.authenticated);
       return session;
     }
 
@@ -384,7 +383,7 @@ class AuthRepository {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       var updatedUser = AuthUser.fromJson(data);
-      
+
       // 如果只是更新昵称，不需要重新处理头像缓存
       // 保持原有的头像缓存信息
       if (nickname != null && avatarUrl == null) {
@@ -399,9 +398,9 @@ class AuthRepository {
         // 更新头像时才处理头像缓存
         updatedUser = await _attachAvatarCache(session.token, updatedUser);
       }
-      
+
       await _storage.updateUser(updatedUser);
-      _authStateController.add(AuthState.authenticated);
+      AuthStateBus.emit(AuthState.authenticated);
       return updatedUser;
     }
 
@@ -554,7 +553,7 @@ class AuthRepository {
       localAvatarPath: localPath,
     );
     await _storage.updateUser(updatedUser);
-    _authStateController.add(AuthState.authenticated);
+    AuthStateBus.emit(AuthState.authenticated);
     return updatedUser;
   }
 
@@ -577,7 +576,7 @@ class AuthRepository {
 
     if (response.statusCode == 200) {
       await _storage.clear();
-      _authStateController.add(AuthState.unauthenticated);
+      AuthStateBus.emit(AuthState.unauthenticated);
       return;
     }
 
@@ -620,7 +619,7 @@ class AuthRepository {
 
     if (response.statusCode == 401) {
       await _storage.clear();
-      _authStateController.add(AuthState.unauthenticated);
+      AuthStateBus.emit(AuthState.unauthenticated);
       return null;
     }
 
@@ -636,7 +635,7 @@ class AuthRepository {
     FriendStore.instance.clearAll();
 
     await _storage.clear();
-    _authStateController.add(AuthState.unauthenticated);
+    AuthStateBus.emit(AuthState.unauthenticated);
   }
 
   Future<AuthUser> _attachAvatarCache(String token, AuthUser user) async {
@@ -799,5 +798,3 @@ class AuthException implements Exception {
   @override
   String toString() => 'AuthException: $message';
 }
-
-enum AuthState { authenticated, unauthenticated }

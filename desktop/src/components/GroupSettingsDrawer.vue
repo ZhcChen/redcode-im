@@ -81,6 +81,24 @@
             </div>
           </div>
 
+          <div class="setting-item" v-if="isGroupOwner">
+            <div class="setting-label">全体禁言</div>
+            <div class="setting-value">
+              <BSwitch
+                :model-value="globalMuteEnabled ?? false"
+                :disabled="globalMuteLoading"
+                @change="handleGlobalMuteChange"
+              />
+            </div>
+          </div>
+
+          <div class="setting-item" v-if="isGroupOwner" @click="handleTransferOwner">
+            <div class="setting-label">转让群主</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
           <div class="setting-item" @click="handleClearHistory">
             <div class="setting-label">清除聊天记录</div>
             <div class="setting-value">
@@ -92,8 +110,11 @@
             <div class="setting-label">举报群聊</div>
           </div>
 
-          <div class="setting-item danger" @click="handleLeaveGroup">
-            <div class="setting-label">退出群聊</div>
+          <div
+            class="setting-item danger"
+            @click="isGroupOwner ? handleDissolveGroup() : handleLeaveGroup()"
+          >
+            <div class="setting-label">{{ isGroupOwner ? '解散群聊' : '退出群聊' }}</div>
           </div>
         </template>
 
@@ -162,6 +183,9 @@ interface Props {
   visible: boolean
   groupInfo?: GroupInfo | null
   groupMembers?: RoomMember[]
+  isGroupOwner?: boolean
+  globalMuteEnabled?: boolean
+  globalMuteLoading?: boolean
 }
 
 interface Emits {
@@ -177,12 +201,18 @@ interface Emits {
   (e: 'clear-history'): void
   (e: 'report-group'): void
   (e: 'leave-group'): void
+  (e: 'toggle-global-mute', value: boolean): void
+  (e: 'transfer-owner'): void
+  (e: 'dissolve-group'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   groupInfo: null,
-  groupMembers: () => []
+  groupMembers: () => [],
+  isGroupOwner: false,
+  globalMuteEnabled: false,
+  globalMuteLoading: false
 })
 const emit = defineEmits<Emits>()
 
@@ -271,6 +301,18 @@ const handleAddMember = () => {
 const handleRemoveMember = () => {
   // 显示删除成员对话框
   emit('remove-member')
+}
+
+const handleTransferOwner = () => {
+  emit('transfer-owner')
+}
+
+const handleGlobalMuteChange = (value: boolean) => {
+  emit('toggle-global-mute', value)
+}
+
+const handleDissolveGroup = () => {
+  emit('dissolve-group')
 }
 
 const toggleMemberExpansion = () => {

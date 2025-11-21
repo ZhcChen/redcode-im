@@ -55,6 +55,26 @@ interface BackendRoomInfo {
   extra?: Record<string, unknown> | null;
 }
 
+interface BackendGroupSettings {
+  room_id: string;
+  global_mute_enabled: boolean;
+  global_mute_reason?: string | null;
+  global_mute_until?: string | null;
+  join_approval_required?: boolean;
+  member_can_invite?: boolean;
+  max_members?: number;
+}
+
+export interface GroupSettings {
+  roomId: string;
+  globalMuteEnabled: boolean;
+  globalMuteReason?: string | null;
+  globalMuteUntil?: string | null;
+  joinApprovalRequired?: boolean;
+  memberCanInvite?: boolean;
+  maxMembers?: number;
+}
+
 interface BackendRoomMember {
   user_id: string;
   username: string;
@@ -196,6 +216,11 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
     extra.description = room.description;
   }
 
+  if (room.owner_id) {
+    extra.owner_id = room.owner_id;
+    extra.ownerId = room.owner_id;
+  }
+
   const result = {
     id: room.id,
     roomId: room.id,
@@ -215,6 +240,16 @@ const mapRoomInfo = (room: BackendRoomInfo): Chat => {
 
   return result;
 };
+
+const mapGroupSettings = (settings: BackendGroupSettings): GroupSettings => ({
+  roomId: settings.room_id,
+  globalMuteEnabled: Boolean(settings.global_mute_enabled),
+  globalMuteReason: settings.global_mute_reason ?? null,
+  globalMuteUntil: settings.global_mute_until ?? null,
+  joinApprovalRequired: settings.join_approval_required,
+  memberCanInvite: settings.member_can_invite,
+  maxMembers: settings.max_members ?? undefined,
+});
 
 const mapRoomMemberRole = (role: string): RoomMemberRole => {
   switch (role) {
@@ -305,6 +340,96 @@ export class GroupApi {
     return {
       ...response,
       data: response.data.map(mapRoomMember),
+    };
+  }
+
+  static async getGroupSettings(params: {
+    roomId: string;
+  }): Promise<ApiResponse<GroupSettings>> {
+    const response = await get<{ settings: BackendGroupSettings }>(
+      `/rooms/${params.roomId}/settings`,
+    );
+
+    if (!response.success || !response.data?.settings) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupSettings(response.data.settings),
+    };
+  }
+
+  static async updateGlobalMute(params: {
+    roomId: string;
+    enabled: boolean;
+    reason?: string;
+    durationMinutes?: number;
+  }): Promise<ApiResponse<GroupSettings>> {
+    const payload: Record<string, unknown> = {
+      enabled: params.enabled,
+    };
+    if (params.reason && params.reason.trim().length > 0) {
+      payload.reason = params.reason.trim();
+    }
+    if (typeof params.durationMinutes === 'number') {
+      payload.duration_minutes = params.durationMinutes;
+    }
+
+    const response = await post<{ settings: BackendGroupSettings }>(
+      `/rooms/${params.roomId}/mutes/global`,
+      payload,
+    );
+
+    if (!response.success || !response.data?.settings) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupSettings(response.data.settings),
+    };
+  }
+
+  static async dissolveGroup(params: {
+    roomId: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    const response = await del<{ success: boolean }>(
+      `/rooms/${params.roomId}`,
+    );
+    return response;
+  }
+
+  static async transferGroupOwner(params: {
+    roomId: string;
+    newOwnerId: string;
+  }): Promise<ApiResponse<{ roomId: string; ownerId: string }>> {
+    const response = await post<{ room_id: string; owner_id: string }>(
+      `/rooms/${params.roomId}/transfer`,
+      {
+        new_owner_id: params.newOwnerId,
+      },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        roomId: response.data.room_id,
+        ownerId: response.data.owner_id,
+      },
     };
   }
 

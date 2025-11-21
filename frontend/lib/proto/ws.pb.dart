@@ -1714,10 +1714,7 @@ class ServerRoomCreated extends $pb.GeneratedMessage {
 }
 
 class ServerBanned extends $pb.GeneratedMessage {
-  factory ServerBanned({
-    $core.String? userId,
-    $core.String? reason,
-  }) {
+  factory ServerBanned({$core.String? userId, $core.String? reason}) {
     final $result = create();
     if (userId != null) {
       $result.userId = userId;
@@ -1797,6 +1794,8 @@ enum ServerEvent_Payload {
   friendRequestUpdate,
   roomCreated,
   userBanned,
+  groupDissolved,
+  groupOwnerTransferred,
   notSet,
 }
 
@@ -1814,6 +1813,8 @@ class ServerEvent extends $pb.GeneratedMessage {
     ServerFriendRequestUpdate? friendRequestUpdate,
     ServerRoomCreated? roomCreated,
     ServerBanned? userBanned,
+    ServerGroupDissolved? groupDissolved,
+    ServerGroupOwnerTransferred? groupOwnerTransferred,
   }) {
     final $result = create();
     if (authed != null) {
@@ -1852,6 +1853,12 @@ class ServerEvent extends $pb.GeneratedMessage {
     if (userBanned != null) {
       $result.userBanned = userBanned;
     }
+    if (groupDissolved != null) {
+      $result.groupDissolved = groupDissolved;
+    }
+    if (groupOwnerTransferred != null) {
+      $result.groupOwnerTransferred = groupOwnerTransferred;
+    }
     return $result;
   }
   ServerEvent._() : super();
@@ -1869,6 +1876,8 @@ class ServerEvent extends $pb.GeneratedMessage {
     10: ServerEvent_Payload.friendRequestUpdate,
     11: ServerEvent_Payload.roomCreated,
     12: ServerEvent_Payload.userBanned,
+    13: ServerEvent_Payload.groupDissolved,
+    14: ServerEvent_Payload.groupOwnerTransferred,
     0: ServerEvent_Payload.notSet,
   };
   static final $pb.BuilderInfo _i =
@@ -1877,7 +1886,7 @@ class ServerEvent extends $pb.GeneratedMessage {
           package: const $pb.PackageName('ws'),
           createEmptyInstance: create,
         )
-        ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
         ..aOM<ServerAuthed>(1, 'authed', subBuilder: ServerAuthed.create)
         ..aOM<ServerJoined>(2, 'joined', subBuilder: ServerJoined.create)
         ..aOM<ServerLeft>(3, 'left', subBuilder: ServerLeft.create)
@@ -1909,10 +1918,16 @@ class ServerEvent extends $pb.GeneratedMessage {
           'roomCreated',
           subBuilder: ServerRoomCreated.create,
         )
-        ..aOM<ServerBanned>(
-          12,
-          'userBanned',
-          subBuilder: ServerBanned.create,
+        ..aOM<ServerBanned>(12, 'userBanned', subBuilder: ServerBanned.create)
+        ..aOM<ServerGroupDissolved>(
+          13,
+          'groupDissolved',
+          subBuilder: ServerGroupDissolved.create,
+        )
+        ..aOM<ServerGroupOwnerTransferred>(
+          14,
+          'groupOwnerTransferred',
+          subBuilder: ServerGroupOwnerTransferred.create,
         )
         ..hasRequiredFields = false;
 
@@ -2107,4 +2122,179 @@ class ServerEvent extends $pb.GeneratedMessage {
   void clearUserBanned() => clearField(12);
   @$pb.TagNumber(12)
   ServerBanned ensureUserBanned() => $_ensure(11);
+
+  @$pb.TagNumber(13)
+  ServerGroupDissolved get groupDissolved => $_getN(12);
+  @$pb.TagNumber(13)
+  set groupDissolved(ServerGroupDissolved v) {
+    setField(13, v);
+  }
+
+  @$pb.TagNumber(13)
+  $core.bool hasGroupDissolved() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearGroupDissolved() => clearField(13);
+  @$pb.TagNumber(13)
+  ServerGroupDissolved ensureGroupDissolved() => $_ensure(12);
+
+  @$pb.TagNumber(14)
+  ServerGroupOwnerTransferred get groupOwnerTransferred => $_getN(13);
+  @$pb.TagNumber(14)
+  set groupOwnerTransferred(ServerGroupOwnerTransferred v) {
+    setField(14, v);
+  }
+
+  @$pb.TagNumber(14)
+  $core.bool hasGroupOwnerTransferred() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearGroupOwnerTransferred() => clearField(14);
+  @$pb.TagNumber(14)
+  ServerGroupOwnerTransferred ensureGroupOwnerTransferred() => $_ensure(13);
+}
+
+class ServerGroupDissolved extends $pb.GeneratedMessage {
+  factory ServerGroupDissolved({$core.String? roomId}) {
+    final $result = create();
+    if (roomId != null) {
+      $result.roomId = roomId;
+    }
+    return $result;
+  }
+  ServerGroupDissolved._() : super();
+  static final $pb.BuilderInfo _i =
+      $pb.BuilderInfo(
+          'ServerGroupDissolved',
+          package: const $pb.PackageName('ws'),
+          createEmptyInstance: create,
+        )
+        ..aOS(1, 'roomId')
+        ..hasRequiredFields = false;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupDissolved create() => ServerGroupDissolved._();
+  ServerGroupDissolved createEmptyInstance() => create();
+  static $pb.PbList<ServerGroupDissolved> createRepeated() =>
+      $pb.PbList<ServerGroupDissolved>();
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupDissolved getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerGroupDissolved>(create);
+  static ServerGroupDissolved? _defaultInstance;
+
+  @$core.override
+  ServerGroupDissolved clone() =>
+      ServerGroupDissolved()..mergeFromMessage(this);
+
+  @$core.override
+  ServerGroupDissolved copyWith(void Function(ServerGroupDissolved) updates) =>
+      super.copyWith((message) => updates(message as ServerGroupDissolved))
+          as ServerGroupDissolved;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String v) {
+    $_setString(0, v);
+  }
+
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => clearField(1);
+}
+
+class ServerGroupOwnerTransferred extends $pb.GeneratedMessage {
+  factory ServerGroupOwnerTransferred({
+    $core.String? roomId,
+    $core.String? oldOwnerId,
+    $core.String? newOwnerId,
+  }) {
+    final $result = create();
+    if (roomId != null) {
+      $result.roomId = roomId;
+    }
+    if (oldOwnerId != null) {
+      $result.oldOwnerId = oldOwnerId;
+    }
+    if (newOwnerId != null) {
+      $result.newOwnerId = newOwnerId;
+    }
+    return $result;
+  }
+  ServerGroupOwnerTransferred._() : super();
+  static final $pb.BuilderInfo _i =
+      $pb.BuilderInfo(
+          'ServerGroupOwnerTransferred',
+          package: const $pb.PackageName('ws'),
+          createEmptyInstance: create,
+        )
+        ..aOS(1, 'roomId')
+        ..aOS(2, 'oldOwnerId')
+        ..aOS(3, 'newOwnerId')
+        ..hasRequiredFields = false;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupOwnerTransferred create() =>
+      ServerGroupOwnerTransferred._();
+  ServerGroupOwnerTransferred createEmptyInstance() => create();
+  static $pb.PbList<ServerGroupOwnerTransferred> createRepeated() =>
+      $pb.PbList<ServerGroupOwnerTransferred>();
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupOwnerTransferred getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerGroupOwnerTransferred>(create);
+  static ServerGroupOwnerTransferred? _defaultInstance;
+
+  @$core.override
+  ServerGroupOwnerTransferred clone() =>
+      ServerGroupOwnerTransferred()..mergeFromMessage(this);
+
+  @$core.override
+  ServerGroupOwnerTransferred copyWith(
+    void Function(ServerGroupOwnerTransferred) updates,
+  ) =>
+      super.copyWith(
+            (message) => updates(message as ServerGroupOwnerTransferred),
+          )
+          as ServerGroupOwnerTransferred;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String v) {
+    $_setString(0, v);
+  }
+
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get oldOwnerId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set oldOwnerId($core.String v) {
+    $_setString(1, v);
+  }
+
+  @$pb.TagNumber(2)
+  $core.bool hasOldOwnerId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearOldOwnerId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get newOwnerId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set newOwnerId($core.String v) {
+    $_setString(2, v);
+  }
+
+  @$pb.TagNumber(3)
+  $core.bool hasNewOwnerId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearNewOwnerId() => clearField(3);
 }

@@ -455,11 +455,13 @@ pub async fn list_user_suite_packs(
             has_pack,
             pack.is_active
         );
-        
-        if has_pack && matches!(
-            pack.is_active,
-            crate::database::models::EmojiPackStatus::Active
-        ) {
+
+        if has_pack
+            && matches!(
+                pack.is_active,
+                crate::database::models::EmojiPackStatus::Active
+            )
+        {
             let items = store.list_items_by_pack(pack.id).await?;
             // 添加详细日志
             tracing::info!(

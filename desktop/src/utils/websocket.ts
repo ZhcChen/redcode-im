@@ -237,6 +237,26 @@ class WebSocketManager {
         }
         break;
       }
+      case 'groupdissolved':
+      case 'group_dissolved': {
+        const detail = ((payload as any)?.payload ?? payload) || {};
+        const roomId = detail.room_id ?? detail.roomId;
+        if (roomId) {
+          this.handleGroupDissolved(roomId);
+        }
+        break;
+      }
+      case 'groupownertransferred':
+      case 'group_owner_transferred': {
+        const detail = ((payload as any)?.payload ?? payload) || {};
+        const roomId = detail.room_id ?? detail.roomId;
+        const newOwnerId = detail.new_owner_id ?? detail.newOwnerId;
+        const oldOwnerId = detail.old_owner_id ?? detail.oldOwnerId;
+        if (roomId && newOwnerId) {
+          this.handleGroupOwnerTransferred(roomId, newOwnerId, oldOwnerId);
+        }
+        break;
+      }
 
       default:
         break;
@@ -296,6 +316,52 @@ class WebSocketManager {
       void store.dispatch('logout');
       window.location.href = '/login';
     }
+  }
+
+  private handleGroupDissolved(roomId: string): void {
+    if (!roomId) return;
+    void store.dispatch('removeChatItem', roomId);
+    this.desiredRooms.delete(roomId);
+    this.leaveRoom(roomId);
+    const currentGroupId = (store.state as any).currentChatGroupId;
+    if (currentGroupId && currentGroupId === roomId) {
+      store.commit('SET_CURRENT_CHAT_GROUP_ID', null);
+    }
+    toast.warning('有群聊已被解散');
+    this.dispatchDomEvent('websocket-group-dissolved', { room_id: roomId });
+  }
+
+  private handleGroupOwnerTransferred(
+    roomId: string,
+    newOwnerId: string,
+    oldOwnerId?: string,
+  ): void {
+    if (!roomId || !newOwnerId) return;
+    const getter = (store.getters as any)?.getChatByGroupId;
+    const chat = typeof getter === 'function' ? getter(roomId) : null;
+    if (chat) {
+      const updatedChat = {
+        ...chat,
+        extra: {
+          ...(chat.extra || {}),
+          owner_id: newOwnerId,
+          ownerId: newOwnerId,
+        },
+      };
+      void store.dispatch('updateChatItem', updatedChat);
+    }
+
+    if (newOwnerId === this.lastUserId) {
+      toast.success('你已成为新的群主');
+    } else if (oldOwnerId && oldOwnerId === this.lastUserId) {
+      toast.info('群主已转让给其他成员');
+    }
+
+    this.dispatchDomEvent('websocket-group-owner-transferred', {
+      room_id: roomId,
+      new_owner_id: newOwnerId,
+      old_owner_id: oldOwnerId,
+    });
   }
 
   /**

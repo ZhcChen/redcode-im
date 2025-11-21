@@ -8,19 +8,19 @@ use serde_json;
 use uuid::Uuid;
 
 use crate::database::models::{
-    AdminUser, AdminUserStatus,
-    CaptchaSettingRecord, Permission, Role, StorageProvider, StorageProviderType, UserStatus as DbUserStatus,
+    AdminUser, AdminUserStatus, CaptchaSettingRecord, Permission, Role, StorageProvider,
+    StorageProviderType, UserStatus as DbUserStatus,
 };
-use ipnetwork::IpNetwork;
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
-use crate::storage;
-use crate::AppState;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
+use crate::storage;
+use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
+use ipnetwork::IpNetwork;
 use sqlx::{FromRow, Row};
 use tracing::{error, info};
 
@@ -780,16 +780,25 @@ pub async fn create_admin_user(
     Json(request): Json<CreateAdminUserRequest>,
 ) -> Result<Json<AdminUserInfo>, AppError> {
     // 基础验证
-    if request.username.trim().is_empty() || request.email.trim().is_empty() || request.password.trim().is_empty() {
-        return Err(AppError::ValidationError("用户名、邮箱和密码不能为空".to_string()));
+    if request.username.trim().is_empty()
+        || request.email.trim().is_empty()
+        || request.password.trim().is_empty()
+    {
+        return Err(AppError::ValidationError(
+            "用户名、邮箱和密码不能为空".to_string(),
+        ));
     }
 
     if request.username.len() < 3 {
-        return Err(AppError::ValidationError("用户名长度至少为3个字符".to_string()));
+        return Err(AppError::ValidationError(
+            "用户名长度至少为3个字符".to_string(),
+        ));
     }
 
     if request.password.len() < 6 {
-        return Err(AppError::ValidationError("密码长度至少为6个字符".to_string()));
+        return Err(AppError::ValidationError(
+            "密码长度至少为6个字符".to_string(),
+        ));
     }
 
     let store = AdminUserStore::new(state.database.clone());
@@ -814,7 +823,9 @@ pub async fn create_admin_user(
         })),
         None,
         None,
-    ).await.ok(); // 忽略记录失败的错误
+    )
+    .await
+    .ok(); // 忽略记录失败的错误
 
     Ok(Json(db_admin_user_to_api_user_info(&admin_user)))
 }
@@ -839,7 +850,9 @@ pub async fn update_admin_user_status(
     let store = AdminUserStore::new(state.database.clone());
 
     // 检查用户是否存在
-    let admin_user = store.find_by_id(&admin_user_uuid).await?
+    let admin_user = store
+        .find_by_id(&admin_user_uuid)
+        .await?
         .ok_or_else(|| AppError::NotFound("管理员用户不存在".to_string()))?;
 
     // 更新状态
@@ -867,7 +880,9 @@ pub async fn update_admin_user_status(
         })),
         None,
         None,
-    ).await {
+    )
+    .await
+    {
         tracing::warn!("记录管理员操作日志失败: {:?}", e);
     }
 
@@ -935,14 +950,17 @@ pub async fn check_admin_users(
 
     match store.list_admin_users(1, 10, None, None).await {
         Ok((users, total)) => {
-            let user_list: Vec<serde_json::Value> = users.into_iter()
-                .map(|user| serde_json::json!({
-                    "id": user.id.to_string(),
-                    "username": user.username,
-                    "email": user.email,
-                    "status": format!("{:?}", user.status),
-                    "created_at": user.created_at.to_rfc3339()
-                }))
+            let user_list: Vec<serde_json::Value> = users
+                .into_iter()
+                .map(|user| {
+                    serde_json::json!({
+                        "id": user.id.to_string(),
+                        "username": user.username,
+                        "email": user.email,
+                        "status": format!("{:?}", user.status),
+                        "created_at": user.created_at.to_rfc3339()
+                    })
+                })
                 .collect();
 
             Ok(Json(serde_json::json!({
@@ -1918,8 +1936,11 @@ pub async fn update_user_status(
     Path(user_id): Path<String>,
     Json(req): Json<UpdateUserStatusRequest>,
 ) -> Result<(), StatusCode> {
-    info!("收到更新用户状态请求: user_id={}, status={}", user_id, req.status);
-    
+    info!(
+        "收到更新用户状态请求: user_id={}, status={}",
+        user_id, req.status
+    );
+
     let user_id = Uuid::parse_str(&user_id).map_err(|e| {
         error!("无效的用户ID格式: {}, 错误: {}", user_id, e);
         StatusCode::BAD_REQUEST
@@ -1929,15 +1950,15 @@ pub async fn update_user_status(
         "active" => {
             info!("设置用户状态为: active");
             DbUserStatus::Active
-        },
+        }
         "inactive" => {
             info!("设置用户状态为: inactive");
             DbUserStatus::Inactive
-        },
+        }
         "banned" => {
             info!("设置用户状态为: banned");
             DbUserStatus::Banned
-        },
+        }
         _ => {
             error!("无效的用户状态: {}", req.status);
             return Err(StatusCode::BAD_REQUEST);
@@ -1985,7 +2006,10 @@ pub async fn update_user_status(
             reason: "管理员封禁".to_string(),
         };
 
-        state.connection_manager.send_to_user(&user_id.to_string(), ban_push).await;
+        state
+            .connection_manager
+            .send_to_user(&user_id.to_string(), ban_push)
+            .await;
 
         tracing::info!("用户 {} 已被封禁，已向其所有客户端发送通知", user_id);
     }
@@ -2655,7 +2679,10 @@ pub async fn test_cos_download_url(
             let url_expires_in = req.expires_in_seconds.unwrap_or(3600);
             let cache_ttl = (url_expires_in as f64 * 0.9) as u64; // 90% of URL expiration time
 
-            if let Err(e) = cache_manager.cache_download_url(&cache_key, &url, cache_ttl).await {
+            if let Err(e) = cache_manager
+                .cache_download_url(&cache_key, &url, cache_ttl)
+                .await
+            {
                 error!("缓存下载URL失败: {:?}", e);
                 // 缓存失败不影响正常功能，继续返回URL
             } else {
@@ -2663,11 +2690,11 @@ pub async fn test_cos_download_url(
             }
 
             Ok(Json(TestCosDownloadUrlResponse {
-            success: true,
-            url: Some(url),
-            message: "生成下载链接成功".to_string(),
+                success: true,
+                url: Some(url),
+                message: "生成下载链接成功".to_string(),
             }))
-        },
+        }
         Err(e) => Ok(Json(TestCosDownloadUrlResponse {
             success: false,
             url: None,
@@ -3150,7 +3177,9 @@ pub struct AdminUserStore {
 
 impl AdminUserStore {
     pub fn new(database: crate::database::Database) -> Self {
-        Self { pool: database.pool }
+        Self {
+            pool: database.pool,
+        }
     }
 
     /// 根据用户名查找管理员用户
@@ -3263,7 +3292,8 @@ impl AdminUserStore {
         .map_err(|e| AppError::DatabaseError(e))?;
 
         // 记录登录历史
-        self.record_login_history(admin_user_id, None, None, false, Some(reason.to_string())).await?;
+        self.record_login_history(admin_user_id, None, None, false, Some(reason.to_string()))
+            .await?;
 
         Ok(())
     }
@@ -3338,7 +3368,7 @@ impl AdminUserStore {
                 created_at, updated_at, deleted_at,
                 COUNT(*) OVER() as total_count
             FROM admin_users
-            WHERE deleted_at IS NULL"#
+            WHERE deleted_at IS NULL"#,
         );
 
         if let Some(status) = status {
@@ -3517,7 +3547,10 @@ pub async fn get_token_list(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<TokenListResponse>, AppError> {
     let page: i32 = params.get("page").and_then(|s| s.parse().ok()).unwrap_or(1);
-    let page_size: i32 = params.get("page_size").and_then(|s| s.parse().ok()).unwrap_or(10);
+    let page_size: i32 = params
+        .get("page_size")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
     let status_filter = params.get("status");
 
     let offset = (page - 1) * page_size;
@@ -3564,7 +3597,9 @@ pub async fn get_token_list(
                 used_count: row.try_get("used_count")?,
                 reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
                 status: row.try_get("status")?,
-                last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+                last_used_at: row
+                    .try_get::<Option<DateTime<Utc>>, _>("last_used_at")?
+                    .map(|dt| dt.to_rfc3339()),
                 created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
                 updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
             })
@@ -3609,13 +3644,12 @@ pub async fn create_token(
     }
 
     // 检查名称是否已存在
-    let existing = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM ipinfo_tokens WHERE name = $1"
-    )
-    .bind(&request.name)
-    .fetch_one(&state.database.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let existing =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE name = $1")
+            .bind(&request.name)
+            .fetch_one(&state.database.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing > 0 {
         return Err(AppError::AlreadyExists("Token名称已存在".to_string()));
@@ -3646,7 +3680,9 @@ pub async fn create_token(
         used_count: row.try_get("used_count")?,
         reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
         status: row.try_get("status")?,
-        last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+        last_used_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("last_used_at")?
+            .map(|dt| dt.to_rfc3339()),
         created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
         updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
     };
@@ -3664,13 +3700,11 @@ pub async fn update_token(
         .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
 
     // 检查Token是否存在
-    let existing = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1"
-    )
-    .bind(&token_uuid)
-    .fetch_one(&state.database.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1")
+        .bind(&token_uuid)
+        .fetch_one(&state.database.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing == 0 {
         return Err(AppError::NotFound("Token不存在".to_string()));
@@ -3680,7 +3714,7 @@ pub async fn update_token(
     if let Some(ref name) = request.name {
         if !name.trim().is_empty() {
             let name_conflict = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM ipinfo_tokens WHERE name = $1 AND id != $2"
+                "SELECT COUNT(*) FROM ipinfo_tokens WHERE name = $1 AND id != $2",
             )
             .bind(name)
             .bind(&token_uuid)
@@ -3695,7 +3729,11 @@ pub async fn update_token(
     }
 
     // 构建更新SQL
-    if request.name.is_none() && request.token.is_none() && request.monthly_limit.is_none() && request.status.is_none() {
+    if request.name.is_none()
+        && request.token.is_none()
+        && request.monthly_limit.is_none()
+        && request.status.is_none()
+    {
         return Err(AppError::ValidationError("没有需要更新的字段".to_string()));
     }
 
@@ -3745,7 +3783,11 @@ pub async fn update_token(
     for value in bind_values {
         query_builder = query_builder.bind(value);
     }
-    query_builder.bind(&token_uuid).execute(&state.database.pool).await.map_err(|e| AppError::DatabaseError(e))?;
+    query_builder
+        .bind(&token_uuid)
+        .execute(&state.database.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
 
     // 获取更新后的Token信息
     let row = sqlx::query(
@@ -3767,7 +3809,9 @@ pub async fn update_token(
         used_count: row.try_get("used_count")?,
         reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
         status: row.try_get("status")?,
-        last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+        last_used_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("last_used_at")?
+            .map(|dt| dt.to_rfc3339()),
         created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
         updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
     };
@@ -3784,13 +3828,11 @@ pub async fn delete_token(
         .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
 
     // 检查Token是否存在
-    let existing = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1"
-    )
-    .bind(&token_uuid)
-    .fetch_one(&state.database.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1")
+        .bind(&token_uuid)
+        .fetch_one(&state.database.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing == 0 {
         return Err(AppError::NotFound("Token不存在".to_string()));
@@ -3815,13 +3857,11 @@ pub async fn reset_token_usage(
         .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
 
     // 检查Token是否存在
-    let existing = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1"
-    )
-    .bind(&token_uuid)
-    .fetch_one(&state.database.pool)
-    .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+    let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1")
+        .bind(&token_uuid)
+        .fetch_one(&state.database.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing == 0 {
         return Err(AppError::NotFound("Token不存在".to_string()));
@@ -3860,7 +3900,9 @@ pub async fn reset_token_usage(
         used_count: row.try_get("used_count")?,
         reset_date: row.try_get::<NaiveDate, _>("reset_date")?.to_string(),
         status: row.try_get("status")?,
-        last_used_at: row.try_get::<Option<DateTime<Utc>>, _>("last_used_at")?.map(|dt| dt.to_rfc3339()),
+        last_used_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("last_used_at")?
+            .map(|dt| dt.to_rfc3339()),
         created_at: row.try_get::<DateTime<Utc>, _>("created_at")?.to_rfc3339(),
         updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?.to_rfc3339(),
     };
@@ -3894,7 +3936,7 @@ pub async fn test_geolocation_api(
     Json(request): Json<GeolocationApiTestRequest>,
 ) -> Result<Json<GeolocationApiTestResponse>, AppError> {
     info!("收到地理位置API测试请求，IP地址: {}", request.ip_address);
-    
+
     // 验证IP地址格式
     let ip_address = request.ip_address.trim();
     if ip_address.is_empty() {
@@ -3908,7 +3950,7 @@ pub async fn test_geolocation_api(
         error!("IP地址格式无效，分段数量: {}", ip_parts.len());
         return Err(AppError::ValidationError("IP地址格式无效".to_string()));
     }
-    
+
     for (i, part) in ip_parts.iter().enumerate() {
         if let Ok(_num) = part.parse::<u8>() {
             info!("IP段 {} 验证通过: {}", i, part);
@@ -3923,21 +3965,23 @@ pub async fn test_geolocation_api(
     // 调用地理位置服务进行测试
     info!("正在获取地理位置服务...");
     let geolocation_service = crate::services::geolocation::get_geolocation_service();
-    
+
     if geolocation_service.is_none() {
         error!("地理位置服务未初始化");
         return Err(AppError::InternalError("地理位置服务未初始化".to_string()));
     }
-    
+
     let geolocation_service = geolocation_service.unwrap();
     info!("地理位置服务获取成功");
 
     info!("开始查询IP {} 的地理位置...", ip_address);
     match geolocation_service.query_ip_geolocation(ip_address).await {
         Ok(Some(geo)) => {
-            info!("地理位置查询成功: IP={}, 城市={:?}, 国家={:?}", 
-                geo.ip_address, geo.city, geo.country);
-            
+            info!(
+                "地理位置查询成功: IP={}, 城市={:?}, 国家={:?}",
+                geo.ip_address, geo.city, geo.country
+            );
+
             let response = GeolocationApiTestResponse {
                 ip: geo.ip_address,
                 hostname: geo.hostname,

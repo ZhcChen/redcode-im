@@ -643,10 +643,11 @@ export const store = createStore<State>({
             
             const beforeCount = state.chatList.list.length
             state.chatList.list = state.chatList.list.filter(chat => {
-                const keep = chat.id !== chatId
-                if (!keep) {
+                const shouldRemove = chat.id === chatId || chat.groupId === chatId
+                if (shouldRemove && state.currentChatGroupId === chat.groupId) {
+                    state.currentChatGroupId = null
                 }
-                return keep
+                return !shouldRemove
             })
             const afterCount = state.chatList.list.length
             

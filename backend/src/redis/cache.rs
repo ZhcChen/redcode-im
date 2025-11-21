@@ -375,7 +375,8 @@ impl CacheManager {
         ttl_seconds: u64,
     ) -> RedisResult<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        conn.set_ex::<_, _, ()>(cache_key, download_url, ttl_seconds).await?;
+        conn.set_ex::<_, _, ()>(cache_key, download_url, ttl_seconds)
+            .await?;
         Ok(())
     }
 

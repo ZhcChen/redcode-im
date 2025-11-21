@@ -6,6 +6,7 @@ import '../services/websocket_service.dart';
 import '../services/message_service.dart';
 import '../services/friend_store.dart';
 import '../services/settings_service.dart';
+import 'auth_state.dart';
 
 /// 认证守卫组件，确保用户已登录
 class AuthGuard extends StatefulWidget {

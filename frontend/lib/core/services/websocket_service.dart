@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart' as uuid_pkg;
 import 'package:async/async.dart';
 
 import '../constants/app_config.dart';
+import '../auth/auth_state.dart';
 import '../storage/token_storage.dart';
 import 'message_service.dart';
 import 'friend_store.dart';
@@ -404,6 +405,20 @@ class WebSocketService with ChangeNotifier {
           userId: event.userBanned.userId,
           reason: event.userBanned.reason,
         );
+      case ws.ServerEvent_Payload.groupDissolved:
+        final roomId = event.groupDissolved.roomId;
+        if (roomId.isEmpty) return null;
+        return _GroupDissolvedEvent(roomId: roomId);
+      case ws.ServerEvent_Payload.groupOwnerTransferred:
+        final payload = event.groupOwnerTransferred;
+        if (payload.roomId.isEmpty || payload.newOwnerId.isEmpty) {
+          return null;
+        }
+        return _GroupOwnerTransferredEvent(
+          roomId: payload.roomId,
+          oldOwnerId: _nullIfEmpty(payload.oldOwnerId),
+          newOwnerId: payload.newOwnerId,
+        );
       case ws.ServerEvent_Payload.notSet:
         return null;
     }
@@ -545,6 +560,22 @@ class WebSocketService with ChangeNotifier {
         final userId = message['user_id']?.toString() ?? '';
         final reason = message['reason']?.toString() ?? '管理员封禁';
         return _UserBannedEvent(userId: userId, reason: reason);
+      case 'group_dissolved':
+      case 'groupdissolved':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        return _GroupDissolvedEvent(roomId: roomId);
+      case 'group_owner_transferred':
+      case 'groupownertransferred':
+        final roomId = message['room_id']?.toString() ?? '';
+        final newOwnerId = message['new_owner_id']?.toString() ?? '';
+        if (roomId.isEmpty || newOwnerId.isEmpty) return null;
+        final oldOwnerId = _nullIfEmpty(message['old_owner_id']?.toString());
+        return _GroupOwnerTransferredEvent(
+          roomId: roomId,
+          oldOwnerId: oldOwnerId,
+          newOwnerId: newOwnerId,
+        );
       default:
         return null;
     }
@@ -583,6 +614,10 @@ class WebSocketService with ChangeNotifier {
       debugPrint('Received pong');
     } else if (event is _UserBannedEvent) {
       _handleUserBanned(event);
+    } else if (event is _GroupDissolvedEvent) {
+      _handleGroupDissolved(event);
+    } else if (event is _GroupOwnerTransferredEvent) {
+      _handleGroupOwnerTransferred(event);
     }
   }
 
@@ -774,7 +809,7 @@ class WebSocketService with ChangeNotifier {
   /// 处理用户封禁事件
   void _handleUserBanned(_UserBannedEvent event) {
     debugPrint('User banned: ${event.userId}, reason: ${event.reason}');
-    
+
     // 获取当前用户信息
     unawaited(() async {
       try {
@@ -784,7 +819,10 @@ class WebSocketService with ChangeNotifier {
           debugPrint('Current user banned, logging out...');
           await _tokenStorage.clear();
           await disconnect();
-          
+
+          // 广播全局认证状态，触发导航回登录页
+          AuthStateBus.emit(AuthState.unauthenticated);
+
           // 通知应用跳转到登录页面
           // 这里可以通过事件总线或其他方式通知应用
           debugPrint('User banned notification sent');
@@ -793,6 +831,24 @@ class WebSocketService with ChangeNotifier {
         debugPrint('Error handling user banned event: $e');
       }
     }());
+  }
+
+  void _handleGroupDissolved(_GroupDissolvedEvent event) {
+    debugPrint('Group dissolved: ${event.roomId}');
+    unawaited(_messageService.handleGroupDissolved(event.roomId));
+    unawaited(leaveRoom(event.roomId));
+  }
+
+  void _handleGroupOwnerTransferred(_GroupOwnerTransferredEvent event) {
+    debugPrint(
+      'Group owner transferred: ${event.roomId} -> ${event.newOwnerId}',
+    );
+    unawaited(
+      _messageService.handleGroupOwnerTransferred(
+        event.roomId,
+        event.newOwnerId,
+      ),
+    );
   }
 
   /// 处理连接错误
@@ -1374,4 +1430,21 @@ class _UserBannedEvent extends _WsEvent {
   const _UserBannedEvent({required this.userId, required this.reason});
   final String userId;
   final String reason;
+}
+
+class _GroupDissolvedEvent extends _WsEvent {
+  const _GroupDissolvedEvent({required this.roomId});
+  final String roomId;
+}
+
+class _GroupOwnerTransferredEvent extends _WsEvent {
+  const _GroupOwnerTransferredEvent({
+    required this.roomId,
+    required this.newOwnerId,
+    this.oldOwnerId,
+  });
+
+  final String roomId;
+  final String newOwnerId;
+  final String? oldOwnerId;
 }

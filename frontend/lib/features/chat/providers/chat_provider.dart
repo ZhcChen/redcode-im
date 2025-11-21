@@ -280,7 +280,12 @@ class ChatProvider with ChangeNotifier {
   }
 
   /// 上传群头像
-  Future<String> uploadGroupAvatar(String roomId, String filePath, String contentType, int fileSize) async {
+  Future<String> uploadGroupAvatar(
+    String roomId,
+    String filePath,
+    String contentType,
+    int fileSize,
+  ) async {
     try {
       final session = await _messageService.tokenStorage.readSession();
       if (session == null) {
@@ -293,10 +298,7 @@ class ChatProvider with ChangeNotifier {
           'Authorization': 'Bearer ${session.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'content_type': contentType,
-          'file_size': fileSize,
-        }),
+        body: jsonEncode({'content_type': contentType, 'file_size': fileSize}),
       );
 
       if (response.statusCode == 200) {
@@ -316,7 +318,10 @@ class ChatProvider with ChangeNotifier {
   }
 
   /// 提交群头像上传
-  Future<String> commitGroupAvatarUpload(String roomId, String uploadKey) async {
+  Future<String> commitGroupAvatarUpload(
+    String roomId,
+    String uploadKey,
+  ) async {
     try {
       final session = await _messageService.tokenStorage.readSession();
       if (session == null) {
@@ -329,9 +334,7 @@ class ChatProvider with ChangeNotifier {
           'Authorization': 'Bearer ${session.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'key': uploadKey,
-        }),
+        body: jsonEncode({'key': uploadKey}),
       );
 
       if (response.statusCode == 200) {
@@ -502,9 +505,18 @@ class ChatProvider with ChangeNotifier {
   /// 消息服务变化回调
   void _onMessageServiceChanged() {
     if (_currentRoomId != null) {
-      _messages = _messageService.getMessages(_currentRoomId!);
-      _primeReadReceiptStateIfNeeded();
-      unawaited(_syncReadState());
+      final exists = _messageService.chats.any(
+        (chat) => chat.roomId == _currentRoomId,
+      );
+      if (exists) {
+        _messages = _messageService.getMessages(_currentRoomId!);
+        _primeReadReceiptStateIfNeeded();
+        unawaited(_syncReadState());
+      } else {
+        _currentRoomId = null;
+        _currentChat = null;
+        _messages = [];
+      }
     }
     _chats = _messageService.chats;
     notifyListeners();

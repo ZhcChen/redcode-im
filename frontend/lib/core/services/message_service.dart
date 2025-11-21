@@ -121,7 +121,7 @@ class MessageService with ChangeNotifier {
   /// 获取房间成员列表详细信息
   Future<List<Map<String, dynamic>>> fetchRoomMembers(String roomId) async {
     if (roomId.isEmpty) return [];
-    
+
     final session = await _tokenStorage.readSession();
     if (session == null) {
       throw Exception('User not authenticated');
@@ -2161,6 +2161,52 @@ class MessageService with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> handleGroupDissolved(String roomId) async {
+    if (roomId.isEmpty) return;
+
+    final existed = _chats.any((chat) => chat.roomId == roomId);
+    _chats.removeWhere((chat) => chat.roomId == roomId);
+    _messagesByRoom.remove(roomId);
+    _pendingMessages.remove(roomId);
+    _pendingPayloads.remove(roomId);
+    _clearMessageReadersForRoom(roomId);
+    _roomMemberCountCache.remove(roomId);
+    _pinnedMessageIds.remove(roomId);
+
+    _syncWebSocketSubscriptions();
+    notifyListeners();
+
+    if (existed) {
+      unawaited(_messageStorage.clear(roomId));
+    }
+  }
+
+  Future<void> handleGroupOwnerTransferred(
+    String roomId,
+    String newOwnerId,
+  ) async {
+    final index = _chats.indexWhere((chat) => chat.roomId == roomId);
+    if (index < 0) return;
+
+    final chat = _chats[index];
+    final extras = <String, dynamic>{
+      if (chat.extra != null) ...chat.extra!,
+      'owner_id': newOwnerId,
+    };
+
+    try {
+      final session = await _tokenStorage.readSession();
+      final isOwner = session?.user.id == newOwnerId;
+      extras['is_owner'] = isOwner;
+      extras['isOwner'] = isOwner;
+    } catch (_) {
+      // ignore
+    }
+
+    _chats[index] = chat.copyWith(extra: extras);
+    notifyListeners();
+  }
+
   /// 清除所有数据
   Future<void> clearAll() async {
     _messagesByRoom.clear();
@@ -2226,7 +2272,7 @@ class MessageService with ChangeNotifier {
       'avatarUrl',
       'avatar',
     ]);
-    
+
     // 解析对方用户的头像信息（单聊）
     final avatarObjectKey = _readString(json, const [
       'friend_avatar_object_key',

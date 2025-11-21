@@ -167,8 +167,14 @@ pub async fn get_user_login_history(
     axum::extract::Path(user_id): axum::extract::Path<Uuid>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<UserLoginHistory>>, AppError> {
-    let limit: i64 = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(50);
-    let offset: i64 = params.get("offset").and_then(|s| s.parse().ok()).unwrap_or(0);
+    let limit: i64 = params
+        .get("limit")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(50);
+    let offset: i64 = params
+        .get("offset")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
 
     let rows = sqlx::query(
         r#"
@@ -218,9 +224,17 @@ pub async fn get_user_heartbeat_logs(
     axum::extract::Path(user_id): axum::extract::Path<Uuid>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<UserHeartbeatLog>>, AppError> {
-    let limit: i64 = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(100);
-    let offset: i64 = params.get("offset").and_then(|s| s.parse().ok()).unwrap_or(0);
-    let since = params.get("since").and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok());
+    let limit: i64 = params
+        .get("limit")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
+    let offset: i64 = params
+        .get("offset")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let since = params
+        .get("since")
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok());
 
     let mut query = r#"
         SELECT id, user_id, ip_address::text, user_agent, connection_id, heartbeat_at, node_id, device_info
@@ -229,7 +243,8 @@ pub async fn get_user_heartbeat_logs(
     "#.to_string();
 
     let mut param_count = 1;
-    let mut bind_values: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send + Sync>> = vec![Box::new(user_id)];
+    let mut bind_values: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send + Sync>> =
+        vec![Box::new(user_id)];
 
     if let Some(since_dt) = since {
         param_count += 1;
@@ -237,7 +252,11 @@ pub async fn get_user_heartbeat_logs(
         bind_values.push(Box::new(since_dt.with_timezone(&Utc)));
     }
 
-    query.push_str(&format!(" ORDER BY heartbeat_at DESC LIMIT ${} OFFSET ${}", param_count + 1, param_count + 2));
+    query.push_str(&format!(
+        " ORDER BY heartbeat_at DESC LIMIT ${} OFFSET ${}",
+        param_count + 1,
+        param_count + 2
+    ));
     bind_values.push(Box::new(limit));
     bind_values.push(Box::new(offset));
 
@@ -308,7 +327,7 @@ pub async fn get_user_geolocation(
                 error!("序列化地理位置信息失败: {}", e);
                 AppError::DatabaseError(sqlx::Error::RowNotFound)
             })?))),
-            None => Ok(Json(None))
+            None => Ok(Json(None)),
         }
     } else {
         Ok(Json(None))
@@ -323,9 +342,6 @@ pub async fn get_global_user_distribution(
         let distribution = geolocation_service.get_global_user_distribution().await?;
         Ok(Json(distribution))
     } else {
-        Err(AppError::InternalError(
-            "地理位置服务未初始化".to_string(),
-        ))
+        Err(AppError::InternalError("地理位置服务未初始化".to_string()))
     }
 }
-

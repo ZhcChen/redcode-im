@@ -207,7 +207,12 @@ impl ConnectionManager {
     }
 
     // 心跳更新 - 记录客户端IP
-    pub async fn update_ping(&self, conn_id: &str, client_ip: std::net::IpAddr, state: &AppState) -> bool {
+    pub async fn update_ping(
+        &self,
+        conn_id: &str,
+        client_ip: std::net::IpAddr,
+        state: &AppState,
+    ) -> bool {
         let mut user_conns = self.user_connections.write().await;
         for connections in user_conns.values_mut() {
             if let Some(conn_info) = connections.get_mut(conn_id) {
@@ -228,31 +233,55 @@ impl ConnectionManager {
 
                     // 获取会话管理器并更新心跳和IP
                     let session_manager = redis_manager.get_session_manager(node_id.clone());
-                    if let Err(e) = session_manager.update_session_heartbeat_with_ip(&user_uuid, client_ip).await {
+                    if let Err(e) = session_manager
+                        .update_session_heartbeat_with_ip(&user_uuid, client_ip)
+                        .await
+                    {
                         tracing::debug!("更新Redis会话心跳失败: {}", e);
                     }
 
                     // 检查用户IP是否变化，如果变化则更新地理位置
-                    let ip_changed = if let Some(geolocation_service) = geolocation::get_geolocation_service() {
-                        geolocation_service.has_user_ip_changed(&user_uuid, &client_ip.to_string()).await.unwrap_or(true)
-                    } else {
-                        false // 服务未启用，不处理地理位置
-                    };
+                    let ip_changed =
+                        if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                            geolocation_service
+                                .has_user_ip_changed(&user_uuid, &client_ip.to_string())
+                                .await
+                                .unwrap_or(true)
+                        } else {
+                            false // 服务未启用，不处理地理位置
+                        };
 
                     if ip_changed {
                         // 异步查询和更新地理位置
                         let user_uuid_clone = user_uuid;
                         let client_ip_clone = client_ip.to_string();
                         tokio::spawn(async move {
-                            if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                            if let Some(geolocation_service) =
+                                geolocation::get_geolocation_service()
+                            {
                                 info!("检测到用户 {} IP变化: {}", user_uuid_clone, client_ip_clone);
-                                match geolocation_service.query_ip_geolocation(&client_ip_clone).await {
+                                match geolocation_service
+                                    .query_ip_geolocation(&client_ip_clone)
+                                    .await
+                                {
                                     Ok(Some(mut geolocation)) => {
                                         geolocation.user_id = user_uuid_clone;
-                                        if let Err(e) = geolocation_service.update_user_geolocation(&user_uuid_clone, &client_ip_clone, &geolocation).await {
+                                        if let Err(e) = geolocation_service
+                                            .update_user_geolocation(
+                                                &user_uuid_clone,
+                                                &client_ip_clone,
+                                                &geolocation,
+                                            )
+                                            .await
+                                        {
                                             warn!("更新用户地理位置失败: {}", e);
                                         } else {
-                                            info!("成功更新用户 {} 的地理位置: {:?}, {:?}", user_uuid_clone, geolocation.city, geolocation.country);
+                                            info!(
+                                                "成功更新用户 {} 的地理位置: {:?}, {:?}",
+                                                user_uuid_clone,
+                                                geolocation.city,
+                                                geolocation.country
+                                            );
                                         }
                                     }
                                     Ok(None) => {
@@ -432,25 +461,46 @@ async fn handle_client_event(
                     }
 
                     // 初始化或更新用户地理位置（如果地理位置服务启用）
-                    let should_update_geolocation = if let Some(geolocation_service) = geolocation::get_geolocation_service() {
-                        geolocation_service.has_user_ip_changed(&user_uuid, &client_ip_clone).await.unwrap_or(true)
-                    } else {
-                        false
-                    };
+                    let should_update_geolocation =
+                        if let Some(geolocation_service) = geolocation::get_geolocation_service() {
+                            geolocation_service
+                                .has_user_ip_changed(&user_uuid, &client_ip_clone)
+                                .await
+                                .unwrap_or(true)
+                        } else {
+                            false
+                        };
 
                     if should_update_geolocation {
                         // 需要初始化地理位置
                         let user_uuid_clone = user_uuid;
                         let client_ip_clone_2 = client_ip_clone.clone();
                         tokio::spawn(async move {
-                            if let Some(geolocation_service) = geolocation::get_geolocation_service() {
-                                match geolocation_service.query_ip_geolocation(&client_ip_clone_2).await {
+                            if let Some(geolocation_service) =
+                                geolocation::get_geolocation_service()
+                            {
+                                match geolocation_service
+                                    .query_ip_geolocation(&client_ip_clone_2)
+                                    .await
+                                {
                                     Ok(Some(mut geolocation)) => {
                                         geolocation.user_id = user_uuid_clone;
-                                        if let Err(e) = geolocation_service.update_user_geolocation(&user_uuid_clone, &client_ip_clone_2, &geolocation).await {
+                                        if let Err(e) = geolocation_service
+                                            .update_user_geolocation(
+                                                &user_uuid_clone,
+                                                &client_ip_clone_2,
+                                                &geolocation,
+                                            )
+                                            .await
+                                        {
                                             warn!("初始化用户地理位置失败: {}", e);
                                         } else {
-                                            info!("成功初始化用户 {} 的地理位置: {:?}, {:?}", user_uuid_clone, geolocation.city, geolocation.country);
+                                            info!(
+                                                "成功初始化用户 {} 的地理位置: {:?}, {:?}",
+                                                user_uuid_clone,
+                                                geolocation.city,
+                                                geolocation.country
+                                            );
                                         }
                                     }
                                     Ok(None) => {
@@ -517,7 +567,9 @@ async fn handle_client_event(
             }
         }
         ClientEvent::Ping => {
-            connection_manager.update_ping(conn_id, client_addr.ip(), state).await;
+            connection_manager
+                .update_ping(conn_id, client_addr.ip(), state)
+                .await;
             let _ = out_tx.send(ServerPush::Pong.encode(format));
             Ok(())
         }
@@ -525,7 +577,12 @@ async fn handle_client_event(
 }
 
 // WebSocket处理函数
-pub async fn handle_socket(state: AppState, socket: WebSocket, client_addr: std::net::SocketAddr, format: ConnectionFormat) {
+pub async fn handle_socket(
+    state: AppState,
+    socket: WebSocket,
+    client_addr: std::net::SocketAddr,
+    format: ConnectionFormat,
+) {
     // let redis_manager = state.redis.clone();
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let conn_id = format!("conn_{}", Uuid::new_v4());
@@ -808,11 +865,15 @@ pub async fn handle_socket(state: AppState, socket: WebSocket, client_addr: std:
                 }
             }
             Message::Ping(_) => {
-                connection_manager.update_ping(&conn_id, client_addr.ip(), &state).await;
+                connection_manager
+                    .update_ping(&conn_id, client_addr.ip(), &state)
+                    .await;
                 let _ = out_tx.send(ServerPush::Pong.encode(format));
             }
             Message::Pong(_) => {
-                connection_manager.update_ping(&conn_id, client_addr.ip(), &state).await;
+                connection_manager
+                    .update_ping(&conn_id, client_addr.ip(), &state)
+                    .await;
             }
             Message::Close(_) => {
                 break;
@@ -856,9 +917,9 @@ pub async fn handle_websocket_upgrade(
                     claims.sub,
                     connection_format.as_str()
                 );
-                return Ok(
-                    ws.on_upgrade(move |socket| handle_socket(state, socket, client_addr, connection_format))
-                );
+                return Ok(ws.on_upgrade(move |socket| {
+                    handle_socket(state, socket, client_addr, connection_format)
+                }));
             }
             Err(e) => {
                 error!("WebSocket握手认证失败: {}", e);

@@ -600,6 +600,9 @@
       :visible="showGroupSettings"
       :group-info="selectedChat"
       :group-members="groupMembers"
+      :is-group-owner="isCurrentUserGroupOwner"
+      :global-mute-enabled="groupSettings?.globalMuteEnabled ?? false"
+      :global-mute-loading="groupSettingsLoading || updatingGlobalMute"
       @close="showGroupSettings = false"
       @edit-group-name="handleEditGroupName"
       @edit-group-avatar="handleEditGroupAvatar"
@@ -612,7 +615,48 @@
       @clear-history="handleClearHistory"
       @report-group="handleReportGroup"
       @leave-group="handleLeaveGroup"
+      @toggle-global-mute="handleToggleGlobalMute"
+      @transfer-owner="openTransferOwnerDialog"
+      @dissolve-group="handleDissolveGroup"
     />
+
+    <Dialog
+      :visible="showTransferOwnerDialog"
+      title="选择新的群主"
+      :show-footer="false"
+      @close="closeTransferOwnerDialog"
+    >
+      <div class="transfer-owner-dialog" v-if="transferableMembers.length">
+        <div
+          v-for="member in transferableMembers"
+          :key="member.userId"
+          class="transfer-owner-item"
+          :class="{ 'transfer-owner-item--selected': member.userId === selectedTransferOwnerId }"
+          @click="selectedTransferOwnerId = member.userId"
+        >
+          <Avatar
+            :src="member.avatarUrl || ''"
+            :text="member.nickname || member.username"
+            :size="40"
+          />
+          <div class="transfer-owner-item__info">
+            <div class="transfer-owner-item__name">{{ member.nickname || member.username }}</div>
+            <div class="transfer-owner-item__username">@{{ member.username }}</div>
+          </div>
+        </div>
+        <div class="transfer-owner-actions">
+          <button class="transfer-owner-btn" @click="closeTransferOwnerDialog">取消</button>
+          <button
+            class="transfer-owner-btn transfer-owner-btn--primary"
+            :disabled="!selectedTransferOwnerId || transferringOwner"
+            @click="confirmTransferOwner"
+          >
+            {{ transferringOwner ? '转让中…' : '确认转让' }}
+          </button>
+        </div>
+      </div>
+      <div v-else class="transfer-owner-empty">暂无可转让的成员</div>
+    </Dialog>
 
     <!-- 语音录制弹窗 -->
     <Dialog
@@ -695,6 +739,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
+import type { GroupSettings } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
 import { UserApi } from '../api/user'
@@ -2232,6 +2277,14 @@ const showGroupSettings = ref<boolean>(false)
 // 群成员数据
 const groupMembers = ref<RoomMember[]>([])
 
+const groupSettings = ref<GroupSettings | null>(null)
+const groupSettingsLoading = ref<boolean>(false)
+const updatingGlobalMute = ref<boolean>(false)
+const showTransferOwnerDialog = ref<boolean>(false)
+const selectedTransferOwnerId = ref<string | null>(null)
+const transferringOwner = ref<boolean>(false)
+const dissolvingGroup = ref<boolean>(false)
+
 // 打开群设置抽屉
 const handleShowGroupSettings = async () => {
   if (!selectedChat.value) return
@@ -2240,6 +2293,16 @@ const handleShowGroupSettings = async () => {
   // 如果是群聊且成员列表为空，先加载群成员
   if (selectedChat.value.groupType === 1 && groupMembers.value.length === 0) {
     await loadGroupMembers(selectedChat.value.groupId)
+  }
+
+  if (selectedChat.value.groupType === 1) {
+    if (isCurrentUserGroupOwner.value) {
+      await loadGroupSettings(selectedChat.value.groupId, { silent: true })
+    } else {
+      groupSettings.value = null
+    }
+  } else {
+    groupSettings.value = null
   }
 
   showGroupSettings.value = true
@@ -2290,6 +2353,36 @@ const messages = ref<Message[]>([])
 const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref<boolean>(false)
 const currentUserId = computed(() => store.getters.currentUser.id)
+
+const isCurrentUserGroupOwner = computed(() => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    return false
+  }
+  const selfId = currentUserId.value ? String(currentUserId.value) : null
+  if (!selfId) return false
+
+  const extra = selectedChat.value.extra || {}
+  const ownerCandidate =
+    (extra && (extra as Record<string, any>).owner_id) ||
+    (extra && (extra as Record<string, any>).ownerId) ||
+    (extra && (extra as Record<string, any>).ownerID) ||
+    (extra && (extra as Record<string, any>).owner)
+
+  if (ownerCandidate && String(ownerCandidate) === selfId) {
+    return true
+  }
+
+  const ownerMember = groupMembers.value.find(
+    (member) => String(member.userId) === selfId && member.role === 'owner'
+  )
+  return !!ownerMember
+})
+
+const transferableMembers = computed(() => {
+  if (!groupMembers.value.length) return []
+  const selfId = currentUserId.value ? String(currentUserId.value) : null
+  return groupMembers.value.filter((member) => String(member.userId) !== selfId)
+})
 
 // 检查消息中的文件是否存在（批量检查，避免频繁调用）
 const checkFilesExistsForMessages = async (messagesToCheck: Message[]) => {
@@ -2525,6 +2618,15 @@ const loadGroupDetailInfo = async (groupId: string) => {
       }
 
       if (selectedChat.value) {
+        const mergedExtra: Record<string, any> = {
+          ...(selectedChat.value.extra || {}),
+          ...(groupInfo.extra || {}),
+        }
+        const ownerFromExtra = (groupInfo.extra || {}).owner_id || (groupInfo.extra || {}).ownerId
+        if (ownerFromExtra) {
+          mergedExtra.owner_id = ownerFromExtra
+          mergedExtra.ownerId = ownerFromExtra
+        }
         selectedChat.value = {
           ...selectedChat.value,
           roomId: groupInfo.roomId,
@@ -2533,7 +2635,8 @@ const loadGroupDetailInfo = async (groupId: string) => {
           groupType: groupInfo.type === ChatType.GROUP ? 1 : 0,
           memberCount: groupInfo.memberCount ?? selectedChat.value.memberCount,
           groupNotice: description,
-          showNoticeFlag: description.trim().length > 0
+          showNoticeFlag: description.trim().length > 0,
+          extra: mergedExtra,
         }
 
       }
@@ -2560,6 +2663,37 @@ const loadGroupDetailInfo = async (groupId: string) => {
 
   } catch (error: any) {
     // 静默处理错误，不影响聊天功能
+  }
+}
+
+const loadGroupSettings = async (
+  groupId: string,
+  options: { silent?: boolean } = {},
+) => {
+  if (!groupId || !isCurrentUserGroupOwner.value) {
+    groupSettings.value = null
+    groupSettingsLoading.value = false
+    return
+  }
+
+  try {
+    groupSettingsLoading.value = true
+    const response = await GroupApi.getGroupSettings({ roomId: groupId })
+    if (response.success && response.data) {
+      groupSettings.value = response.data
+    } else {
+      groupSettings.value = null
+      if (!options.silent) {
+        toast.error(response.message || '加载群设置失败')
+      }
+    }
+  } catch (error: any) {
+    groupSettings.value = null
+    if (!options.silent) {
+      toast.error(error?.message || '加载群设置失败')
+    }
+  } finally {
+    groupSettingsLoading.value = false
   }
 }
 
@@ -6156,6 +6290,48 @@ const handleWebSocketGroupMessage = (event: CustomEvent) => {
   store.dispatch('loadChatList', { forceRefresh: true, compareWithStore: true })
 }
 
+const handleGroupDissolvedEvent = (event: CustomEvent) => {
+  const detail = event.detail || {}
+  const roomId = detail.room_id || detail.roomId
+  if (!roomId) return
+  if (selectedChat.value && selectedChat.value.groupId === roomId) {
+    toast.warning('当前群聊已被解散')
+    selectedChat.value = null
+    messages.value = []
+    messageList.value = []
+    groupMembers.value = []
+    groupSettings.value = null
+    showGroupSettings.value = false
+  }
+}
+
+const handleGroupOwnerTransferredEvent = (event: CustomEvent) => {
+  const detail = event.detail || {}
+  const roomId = detail.room_id || detail.roomId
+  const newOwnerId = detail.new_owner_id || detail.newOwnerId
+  const oldOwnerId = detail.old_owner_id || detail.oldOwnerId
+  if (!roomId || !newOwnerId) return
+
+  if (selectedChat.value && selectedChat.value.groupId === roomId) {
+    const extra = { ...(selectedChat.value.extra || {}) }
+    extra.owner_id = newOwnerId
+    extra.ownerId = newOwnerId
+    selectedChat.value = {
+      ...selectedChat.value,
+      extra
+    }
+    void loadGroupDetailInfo(roomId)
+
+    if (String(newOwnerId) === String(currentUserId.value)) {
+      toast.success('你已成为新的群主')
+      void loadGroupSettings(roomId, { silent: true })
+    } else if (oldOwnerId && String(oldOwnerId) === String(currentUserId.value)) {
+      toast.info('群主已转让给其他成员')
+      groupSettings.value = null
+    }
+  }
+}
+
 onMounted(async () => {
   // 使用事件管理器添加监听器
   eventManager.addWindowListener('resize', handleWindowResize)
@@ -6166,6 +6342,8 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-message-update', handleWebSocketMessageUpdate as EventListener)
   eventManager.addWindowListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
   eventManager.addWindowListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
+  eventManager.addWindowListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
+  eventManager.addWindowListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
@@ -6260,6 +6438,8 @@ onUnmounted(async () => {
   window.removeEventListener('websocket-message-update', handleWebSocketMessageUpdate as EventListener)
   window.removeEventListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
   window.removeEventListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
+  window.removeEventListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
+  window.removeEventListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
 })
 
 // 离开聊天时更新已读时间
@@ -6510,6 +6690,106 @@ const handleLeaveGroup = async () => {
     // 优先使用 API 返回的错误消息
     const errorMessage = error?.response?.message || error?.message || '网络错误';
     toast.error('退出失败: ' + errorMessage)
+  }
+}
+
+const handleToggleGlobalMute = async (value: boolean) => {
+  if (!selectedChat.value) return
+  if (!isCurrentUserGroupOwner.value) {
+    toast.error('只有群主可以操作')
+    return
+  }
+  try {
+    updatingGlobalMute.value = true
+    const response = await GroupApi.updateGlobalMute({
+      roomId: selectedChat.value.groupId,
+      enabled: value
+    })
+    if (response.success && response.data) {
+      groupSettings.value = response.data
+      toast.success(value ? '已开启全体禁言' : '已关闭全体禁言')
+    } else {
+      throw new Error(response.message || '操作失败')
+    }
+  } catch (error: any) {
+    toast.error(error?.message || '操作失败')
+    await loadGroupSettings(selectedChat.value.groupId, { silent: true })
+  } finally {
+    updatingGlobalMute.value = false
+  }
+}
+
+const openTransferOwnerDialog = () => {
+  if (!selectedChat.value) return
+  if (!transferableMembers.value.length) {
+    toast.warning('暂无可转让的成员')
+    return
+  }
+  selectedTransferOwnerId.value = null
+  showTransferOwnerDialog.value = true
+}
+
+const closeTransferOwnerDialog = () => {
+  showTransferOwnerDialog.value = false
+  selectedTransferOwnerId.value = null
+}
+
+const confirmTransferOwner = async () => {
+  if (!selectedChat.value) return
+  const targetId = selectedTransferOwnerId.value
+  if (!targetId) {
+    toast.warning('请选择新的群主')
+    return
+  }
+  try {
+    transferringOwner.value = true
+    const response = await GroupApi.transferGroupOwner({
+      roomId: selectedChat.value.groupId,
+      newOwnerId: targetId
+    })
+    if (!response.success) {
+      throw new Error(response.message || '转让失败')
+    }
+    toast.success('已成功转让群主')
+    showTransferOwnerDialog.value = false
+    await loadGroupDetailInfo(selectedChat.value.groupId)
+    await loadGroupSettings(selectedChat.value.groupId, { silent: true })
+  } catch (error: any) {
+    toast.error(error?.message || '转让失败')
+  } finally {
+    transferringOwner.value = false
+  }
+}
+
+const handleDissolveGroup = async () => {
+  if (!selectedChat.value) return
+  if (!isCurrentUserGroupOwner.value) {
+    toast.error('只有群主可以解散群聊')
+    return
+  }
+  const confirmed = window.confirm('解散群聊后所有成员将失去该会话，确认继续？')
+  if (!confirmed) return
+
+  try {
+    dissolvingGroup.value = true
+    const response = await GroupApi.dissolveGroup({ roomId: selectedChat.value.groupId })
+    if (!response.success) {
+      throw new Error(response.message || '解散失败')
+    }
+    toast.success('群聊已解散')
+    store.dispatch('removeChatItem', selectedChat.value.groupId)
+    webSocketManager.leaveRoom(selectedChat.value.groupId)
+    selectedChat.value = null
+    messages.value = []
+    messageList.value = []
+    groupMembers.value = []
+    groupSettings.value = null
+    showGroupSettings.value = false
+    await store.dispatch('loadChatList', { forceRefresh: true, compareWithStore: true })
+  } catch (error: any) {
+    toast.error(error?.message || '解散失败')
+  } finally {
+    dissolvingGroup.value = false
   }
 }
 
@@ -7747,6 +8027,81 @@ const loadMessageList = async (groupId: string) => {
     color: #dc2626;
     font-size: 14px;
   }
+}
+
+.transfer-owner-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transfer-owner-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #f7f7fb;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.transfer-owner-item--selected {
+  border-color: var(--primary-color, #4ecdc4);
+  background: #e6fffa;
+}
+
+.transfer-owner-item__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.transfer-owner-item__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e1f24;
+}
+
+.transfer-owner-item__username {
+  font-size: 12px;
+  color: #6b6b7b;
+}
+
+.transfer-owner-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.transfer-owner-btn {
+  min-width: 96px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid #d0d1db;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.transfer-owner-btn--primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #36d1dc, #5b86e5);
+  color: #fff;
+}
+
+.transfer-owner-btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.transfer-owner-empty {
+  text-align: center;
+  color: #6b6b7b;
+  padding: 16px 0;
 }
 
 // 搜索高亮样式

@@ -6,6 +6,7 @@
 - 运维部署
   - [部署环境配置](./operations/deployment-env.md)
   - [Docker 部署指南](./operations/docker-deploy.md)
+  - [运行与构建命令速查](./operations/dev-and-build.md)
 - 基础设施
   - [Redis 多实例配置](./infrastructure/redis-setup.md)
   - [Redis 安全加固](./infrastructure/redis-security.md)

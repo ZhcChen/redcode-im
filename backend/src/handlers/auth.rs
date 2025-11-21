@@ -1,6 +1,5 @@
 use crate::auth::{generate_token, hash_password};
 use crate::database::models::AdminUserStatus;
-use crate::models::UserStatus;
 use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
@@ -8,6 +7,7 @@ use crate::handlers::admin;
 use crate::models::convert::{
     api_create_user_to_db, api_login_to_db, db_user_to_api_user_info, string_to_uuid,
 };
+use crate::models::UserStatus;
 use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, UserInfo};
 use crate::AppState;
 use axum::{
@@ -248,7 +248,7 @@ pub async fn login_with_sms(
                 return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
             }
             user
-        },
+        }
         None => {
             let auto_request = build_auto_registration_request(phone);
             let db_request = api_create_user_to_db(&auto_request);
@@ -267,10 +267,12 @@ pub async fn login_with_sms(
                         Some(existing) => {
                             // 检查用户封禁状态
                             if existing.status == crate::database::models::UserStatus::Banned {
-                                return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+                                return Err(AppError::Forbidden(
+                                    "账户已被封禁，无法登录".to_string(),
+                                ));
                             }
                             existing
-                        },
+                        }
                         None => {
                             return Err(AppError::ValidationError(
                                 "该账号已存在但当前不可登录，请联系管理员".to_string(),
@@ -463,10 +465,13 @@ pub async fn admin_login(
 
     let store = admin::AdminUserStore::new(state.database.clone());
 
-    let db_admin_user = match store.authenticate(crate::models::LoginRequest {
-        username: payload.username.clone(),
-        password: payload.password.clone(),
-    }).await? {
+    let db_admin_user = match store
+        .authenticate(crate::models::LoginRequest {
+            username: payload.username.clone(),
+            password: payload.password.clone(),
+        })
+        .await?
+    {
         Some(u) => u,
         None => {
             return Err(AppError::InvalidCredentials);
@@ -489,13 +494,16 @@ pub async fn admin_login(
     let client_ip = None; // TODO: 从请求中获取客户端IP
     let user_agent = None; // TODO: 从请求中获取User-Agent
 
-    if let Err(e) = store.record_login_history(
-        &db_admin_user.id,
-        client_ip.map(|ip: std::net::IpAddr| ip.into()),
-        user_agent,
-        true,
-        None
-    ).await {
+    if let Err(e) = store
+        .record_login_history(
+            &db_admin_user.id,
+            client_ip.map(|ip: std::net::IpAddr| ip.into()),
+            user_agent,
+            true,
+            None,
+        )
+        .await
+    {
         tracing::warn!("记录管理员登录历史失败: {:?}", e);
     }
 
@@ -504,7 +512,10 @@ pub async fn admin_login(
         tracing::warn!("更新管理员登录信息失败: {:?}", e);
     }
 
-    info!("Admin user logged in successfully: {}", db_admin_user.username);
+    info!(
+        "Admin user logged in successfully: {}",
+        db_admin_user.username
+    );
 
     // 生成 JWT token（可设置更短的过期时间以提高安全性）
     let claims = Claims {
