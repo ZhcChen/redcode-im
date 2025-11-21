@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  admin-web:
+    build:
+      context: ..
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    container_name: redcode-admin
+    environment:
+      - TZ=Asia/Shanghai
