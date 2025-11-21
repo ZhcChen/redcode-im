@@ -1,15 +1,15 @@
-<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="fav_bg" x1="8" y1="6" x2="40" y2="42" gradientUnits="userSpaceOnUse">
+    <linearGradient id="fav_bg" x1="10" y1="8" x2="46" y2="48" gradientUnits="userSpaceOnUse">
       <stop stop-color="#00C2B3"/>
       <stop offset="1" stop-color="#66DBD1"/>
     </linearGradient>
-    <linearGradient id="fav_star" x1="16" y1="17" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+    <linearGradient id="fav_star" x1="18" y1="20" x2="38" y2="40" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#E7FBF9"/>
     </linearGradient>
   </defs>
-  <circle cx="24" cy="24" r="24" fill="url(#fav_bg)"/>
-  <path d="M24 15.86L26.606 21.12L32.357 21.85L28.178 25.68L29.24 31.29L24 28.46L18.76 31.29L19.822 25.68L15.643 21.85L21.394 21.12L24 15.86Z" fill="url(#fav_star)"/>
-  <circle cx="35" cy="14.5" r="3.4" fill="#FFFFFF" fill-opacity="0.25"/>
+  <circle cx="28" cy="28" r="28" fill="url(#fav_bg)"/>
+  <path d="M28 18.5L30.8726 24.6405L37.5829 25.4912L32.7915 29.9695L34.1126 36.5088L28 33.2L21.8874 36.5088L23.2085 29.9695L18.4171 25.4912L25.1274 24.6405L28 18.5Z" fill="url(#fav_star)"/>
+  <circle cx="41" cy="17" r="4" fill="#FFFFFF" fill-opacity="0.25"/>
 </svg>
