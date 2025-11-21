@@ -9,7 +9,7 @@
       <stop offset="1" stop-color="#E7FBF9"/>
     </linearGradient>
   </defs>
-  <rect x="4" y="4" width="48" height="48" rx="16" fill="url(#fav_bg)"/>
+  <circle cx="28" cy="28" r="24" fill="url(#fav_bg)"/>
   <path d="M28 18.5L30.8726 24.6405L37.5829 25.4912L32.7915 29.9695L34.1126 36.5088L28 33.2L21.8874 36.5088L23.2085 29.9695L18.4171 25.4912L25.1274 24.6405L28 18.5Z" fill="url(#fav_star)"/>
   <circle cx="41" cy="17" r="4" fill="#FFFFFF" fill-opacity="0.25"/>
 </svg>
