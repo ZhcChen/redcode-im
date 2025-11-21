@@ -353,10 +353,35 @@ bun install
 
 #### 5. 部署后访问 403
 
-设置正确的文件权限:
+Nginx 访问静态文件需要正确的权限设置:
+
+**推荐权限设置** (脚本已自动设置):
 ```bash
+# 目录权限: 755 (Nginx 需要 x 权限进入目录)
+find /home/ubuntu/admin -type d -exec chmod 755 {} \;
+
+# 文件权限: 644 (Nginx 只需要读权限)
+find /home/ubuntu/admin -type f -exec chmod 644 {} \;
+```
+
+**权限说明**:
+- `755` (目录) = `rwxr-xr-x` - 所有者全部权限,其他人可读可执行
+- `644` (文件) = `rw-r--r--` - 所有者可读写,其他人只读
+- ❌ 不要使用 `600` 或 `700` - Nginx 无法访问
+
+**所有者设置** (可选):
+```bash
+# 方式一: 保持当前用户所有者 (推荐)
+# 只要权限正确,Nginx 就能访问
+
+# 方式二: 改为 Nginx 用户所有
 sudo chown -R www-data:www-data /home/ubuntu/admin
-sudo chmod -R 755 /home/ubuntu/admin
+```
+
+**检查 Nginx 运行用户**:
+```bash
+ps aux | grep nginx
+# 通常是 www-data 或 nginx
 ```
 
 ## 开发规范

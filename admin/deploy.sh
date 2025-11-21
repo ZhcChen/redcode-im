@@ -112,10 +112,14 @@ ssh ${SERVER_HOST} bash -s << EOF
     # 删除临时文件
     rm -f /tmp/\${ARCHIVE_NAME}
 
-    # 设置权限 (根据实际用户调整,ubuntu 用户通常不需要改为 www-data)
-    # 如果使用 nginx,取消下面的注释
+    # 设置权限
+    # 目录权限: 755 (所有者rwx,组和其他用户rx - Nginx需要x权限进入目录)
+    find \${SERVER_PATH} -type d -exec chmod 755 {} \;
+    # 文件权限: 644 (所有者rw,组和其他用户r - Nginx只需要读权限)
+    find \${SERVER_PATH} -type f -exec chmod 644 {} \;
+
+    # 可选: 如果需要将所有者改为 nginx 用户,取消下面的注释
     # sudo chown -R www-data:www-data \${SERVER_PATH}
-    chmod -R 755 \${SERVER_PATH}
 
     echo "部署完成!"
 EOF
