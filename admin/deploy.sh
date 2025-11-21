@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 默认配置
 SERVER_HOST="xin-im-prod-0"  # 使用 SSH config 中配置的别名
-SERVER_PATH="/var/www/admin"
+SERVER_PATH="/home/ubuntu/admin"
 DIST_DIR="dist"
 ARCHIVE_NAME="admin-dist-$(date +%Y%m%d-%H%M%S).7z"
 

@@ -6,4 +6,4 @@
 SERVER_HOST="xin-im-prod-0"
 
 # 服务器部署路径
-SERVER_PATH="/var/www/admin"
+SERVER_PATH="/home/ubuntu/admin"

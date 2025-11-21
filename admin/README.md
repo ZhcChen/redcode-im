@@ -148,7 +148,7 @@ vim deploy.config
 ```bash
 # 使用 SSH config 中配置的别名
 SERVER_HOST="xin-im-prod-0"
-SERVER_PATH="/var/www/admin"
+SERVER_PATH="/home/ubuntu/admin"
 
 # 或者直接使用 user@host 格式
 # SERVER_HOST="user@192.168.1.100"
@@ -244,11 +244,11 @@ SERVER_PATH="/var/www/admin"
 
 [3/3] 上传到服务器...
 服务器: xin-im-prod-0
-目标路径: /var/www/admin
+目标路径: /home/ubuntu/admin
 ✓ 上传完成
 
 在服务器上解压并部署...
-备份旧文件到: /var/www/admin_backup_20241121-153010
+备份旧文件到: /home/ubuntu/admin_backup_20241121-153010
 部署完成!
 
 清理本地文件...
@@ -298,8 +298,8 @@ bun install
 
 设置正确的文件权限:
 ```bash
-sudo chown -R www-data:www-data /var/www/admin
-sudo chmod -R 755 /var/www/admin
+sudo chown -R www-data:www-data /home/ubuntu/admin
+sudo chmod -R 755 /home/ubuntu/admin
 ```
 
 ## 开发规范
