@@ -222,19 +222,7 @@ PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
 class _FavoriteAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFEEF2FF), Color(0xFFD6E4FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Center(
-        child: SvgPicture.asset(AppAssets.chatFavorite, width: 28, height: 28),
-      ),
-    );
+    return SvgPicture.asset(AppAssets.chatFavorite, width: 56, height: 56);
   }
 }
 
