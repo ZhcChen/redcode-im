@@ -19,6 +19,6 @@ for host in "${HOSTS[@]}"; do
   echo "已完成上传至 $host"
   echo "------------------------------"
   sleep 1
-fi
+done
 
 echo "全部主机上传完成"
