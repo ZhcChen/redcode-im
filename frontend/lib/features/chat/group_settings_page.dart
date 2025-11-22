@@ -6,6 +6,9 @@ import '../../core/services/room_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/tip_dialog.dart';
+import '../auth/models/auth_user.dart';
+import '../contacts/contact_detail_page.dart';
+import '../contacts/models/friend_models.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 
@@ -292,7 +295,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     final backgroundColor = _generateBackgroundColor(displayName);
 
     return GestureDetector(
-      onTap: () => debugPrint('Member tapped: $displayName'),
+      onTap: () => _navigateToContactDetail(context, member),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -920,6 +923,44 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _navigateToContactDetail(
+    BuildContext context,
+    Map<String, dynamic> member,
+  ) {
+    // 从 member 数据构造 FriendInfo
+    final userId = member['user_id'] as String?;
+    final username = member['username'] as String? ?? '未知用户';
+    final nickname = member['nickname'] as String?;
+    final avatarUrl = member['avatar_url'] as String?;
+    final avatarObjectKey = member['avatar_object_key'] as String?;
+
+    if (userId == null || userId.isEmpty) {
+      _showSnackBar('无法获取用户信息');
+      return;
+    }
+
+    final authUser = AuthUser(
+      id: userId,
+      username: username,
+      nickname: nickname,
+      avatarUrl: avatarUrl,
+      avatarObjectKey: avatarObjectKey,
+    );
+
+    final friendInfo = FriendInfo(
+      id: userId, // 使用 user_id 作为 friend id
+      user: authUser,
+      createdAt: DateTime.now(), // 使用当前时间作为占位
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ContactDetailPage(friend: friendInfo),
+      ),
+    );
   }
 
   bool _computeOwnership({
