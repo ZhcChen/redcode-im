@@ -293,18 +293,19 @@ class ContactsPageState extends State<ContactsPage> {
 
     final Map<String, List<ContactEntry>> grouped = {};
     for (final friend in _friends) {
+      // 标题显示昵称（如果有备注，备注优先显示）
       final displayName = friend.user.nickname?.isNotEmpty == true
           ? friend.user.nickname!
           : friend.user.username;
+      // 副标题显示手机号
+      final phoneNumber = friend.user.username;
       final tag = _letterTag(displayName);
       grouped.putIfAbsent(tag, () => []);
       grouped[tag]!.add(
         ContactEntry.friend(
           id: friend.user.id,
           name: displayName,
-          detail: friend.user.email?.isNotEmpty == true
-              ? friend.user.email
-              : '账号：${friend.user.username}',
+          detail: '手机号：$phoneNumber',
           avatarUrl: friend.user.avatarUrl,
           avatarObjectKey: friend.user.avatarObjectKey,
           localAvatarPath: friend.user.localAvatarPath,
