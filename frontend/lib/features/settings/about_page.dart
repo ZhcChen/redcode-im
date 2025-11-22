@@ -322,6 +322,7 @@ class _AboutPageState extends State<AboutPage> {
                           horizontal: 16,
                           vertical: 2,
                         ),
+                        minimumSize: const Size(0, 28),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -347,6 +348,7 @@ class _AboutPageState extends State<AboutPage> {
                               horizontal: 16,
                               vertical: 2,
                             ),
+                            minimumSize: const Size(0, 28),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -466,6 +468,7 @@ class _AboutPageState extends State<AboutPage> {
                       horizontal: 16,
                       vertical: 2,
                     ),
+                    minimumSize: const Size(0, 28),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
