@@ -543,29 +543,68 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
     showModalBottomSheet<void>(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (sheetContext) => SafeArea(
-        child: ListView.separated(
-          shrinkWrap: true,
-          itemCount: candidates.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final member = candidates[index];
-            final displayName =
-                member['nickname'] as String? ??
-                member['username'] as String? ??
-                '成员';
-            return ListTile(
-              title: Text(displayName),
-              subtitle: Text(member['username'] as String? ?? ''),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                final memberId = member['user_id'] as String?;
-                if (memberId != null) {
-                  _transferOwnership(memberId, displayName);
-                }
-              },
-            );
-          },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 标题栏
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 32), // 占位，保持标题居中
+                  Text(
+                    '选择新群主',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(sheetContext),
+                    child: const Icon(
+                      Icons.close,
+                      size: 24,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // 成员列表
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: candidates.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final member = candidates[index];
+                    final displayName =
+                        member['nickname'] as String? ??
+                        member['username'] as String? ??
+                        '成员';
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(displayName),
+                      subtitle: Text(member['username'] as String? ?? ''),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        final memberId = member['user_id'] as String?;
+                        if (memberId != null) {
+                          _transferOwnership(memberId, displayName);
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
