@@ -32,6 +32,38 @@ const USER_MANAGEMENT: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'chat-history',
+      name: 'UserChatHistoryList',
+      component: () => import('@/views/chat-history/list/index.vue'),
+      meta: {
+        locale: 'menu.userManagement.chatHistory',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
+    {
+      path: 'chat-history/room/:roomId',
+      name: 'RoomChatHistory',
+      component: () => import('@/views/chat-history/room/index.vue'),
+      meta: {
+        locale: 'menu.chatHistory.room',
+        requiresAuth: true,
+        roles: ['admin'],
+        hideInMenu: true,
+      },
+    },
+    {
+      path: 'chat-history/user/:userId',
+      name: 'UserChatHistoryDetail',
+      component: () => import('@/views/chat-history/user/index.vue'),
+      meta: {
+        locale: 'menu.chatHistory.user',
+        requiresAuth: true,
+        roles: ['admin'],
+        hideInMenu: true,
+      },
+    },
   ],
 };
 

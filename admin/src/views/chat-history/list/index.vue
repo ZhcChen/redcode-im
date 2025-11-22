@@ -1,7 +1,9 @@
 <template>
   <div class="container">
-    <Breadcrumb :items="['menu.chatHistory', 'menu.chatHistory.list']" />
-    <a-card class="general-card" :title="$t('menu.chatHistory.list')">
+    <Breadcrumb
+      :items="['menu.userManagement', 'menu.userManagement.chatHistory']"
+    />
+    <a-card class="general-card" :title="$t('menu.userManagement.chatHistory')">
       <a-row>
         <a-col :flex="1">
           <a-form
