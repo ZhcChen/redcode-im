@@ -546,6 +546,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -607,7 +608,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                         color: AppColors.textTertiary,
                       ),
                       filled: true,
-                      fillColor: AppColors.surfaceMuted,
+                      fillColor: const Color(0xFFF5F5F5),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
