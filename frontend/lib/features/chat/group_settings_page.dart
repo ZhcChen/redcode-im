@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/widgets/bottom_picker.dart';
 import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
@@ -983,38 +983,21 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   void _showPickGroupAvatarDialog(BuildContext context) {
-    showDialog(
+    BottomPicker.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('设置群头像'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('拍照'),
-              onTap: () {
-                Navigator.pop(context);
-                _selectGroupAvatarFromCamera(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('从相册选择'),
-              onTap: () {
-                Navigator.pop(context);
-                _selectGroupAvatarFromGallery(context);
-              },
-            ),
-          ],
+      title: '设置群头像',
+      options: [
+        BottomPickerOption(
+          label: '拍照',
+          icon: Icons.camera_alt,
+          onTap: () => _selectGroupAvatarFromCamera(context),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-        ],
-      ),
+        BottomPickerOption(
+          label: '从相册选择',
+          icon: Icons.photo_library,
+          onTap: () => _selectGroupAvatarFromGallery(context),
+        ),
+      ],
     );
   }
 
