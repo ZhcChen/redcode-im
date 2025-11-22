@@ -9,27 +9,48 @@ class AccountSecurityPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('账号与安全'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-      ),
       backgroundColor: AppColors.background,
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        children: [
-          // 修改密码
-          _buildMenuItem(
-            context,
-            title: '修改密码',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
-              );
-            },
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textBlack),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          '账号与安全',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w400,
+            color: AppColors.textBlack,
+            letterSpacing: 0,
+            height: 1.2,
           ),
-        ],
+        ),
+      ),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(
+            top: 16,
+            left: 20,
+            right: 20,
+            bottom: 24,
+          ),
+          children: [
+            // 修改密码
+            _buildMenuItem(
+              context,
+              title: '修改密码',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
