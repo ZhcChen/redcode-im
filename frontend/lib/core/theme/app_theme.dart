@@ -42,7 +42,8 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          minimumSize: Size.fromHeight(44.h),
+          // 仅限制高度，避免默认最小宽度为 Infinity 导致在 Row 中布局报错
+          minimumSize: Size(88.w, 44.h),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28.r),
           ),
