@@ -320,7 +320,7 @@ class _AboutPageState extends State<AboutPage> {
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 4,
+                          vertical: 2,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -345,7 +345,7 @@ class _AboutPageState extends State<AboutPage> {
                             backgroundColor: AppColors.primary,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 4,
+                              vertical: 2,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
@@ -464,7 +464,7 @@ class _AboutPageState extends State<AboutPage> {
                     side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
-                      vertical: 4,
+                      vertical: 2,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
