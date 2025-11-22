@@ -575,6 +575,33 @@ impl<'a> RoomStore<'a> {
             return Err(sqlx::Error::RowNotFound);
         }
 
+        // 更新旧群主的角色为普通成员 (role = 2)
+        sqlx::query(
+            r#"
+            UPDATE room_members
+            SET role = 2
+            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .bind(operator_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // 更新新群主的角色为群主 (role = 0)
+        sqlx::query(
+            r#"
+            UPDATE room_members
+            SET role = 0
+            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .bind(new_owner_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // 更新 rooms 表的 owner_id
         let updated_room = sqlx::query_as::<_, Room>(
             r#"
             UPDATE rooms
