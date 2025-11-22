@@ -22,9 +22,7 @@ class AccountSecurityPage extends StatelessWidget {
           // 修改密码
           _buildMenuItem(
             context,
-            icon: Icons.lock_outline,
             title: '修改密码',
-            subtitle: '通过短信验证码重置密码',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
@@ -38,9 +36,7 @@ class AccountSecurityPage extends StatelessWidget {
 
   Widget _buildMenuItem(
     BuildContext context, {
-    required IconData icon,
     required String title,
-    required String subtitle,
     required VoidCallback onTap,
   }) {
     return Container(
@@ -58,37 +54,14 @@ class AccountSecurityPage extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: AppColors.primary, size: 24),
-                ),
-                const SizedBox(width: 16),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 const Icon(
