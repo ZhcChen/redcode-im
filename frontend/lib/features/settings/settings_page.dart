@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/message_service.dart';
+import '../../core/services/user_avatar_service.dart';
 import '../../core/services/version_service.dart';
 import '../../core/update/hot_update_manager.dart';
 import '../../core/update/hot_update_models.dart';
@@ -23,6 +24,43 @@ import 'account_security_page.dart';
 import 'feedback_page.dart';
 import 'privacy_policy_page.dart';
 import 'widgets/confirm_action_dialog.dart';
+
+// 字符串哈希函数（与聊天列表保持一致）
+int _hashCode(String str) {
+  int hash = 0;
+  for (int i = 0; i < str.length; i++) {
+    int char = str.codeUnitAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash.abs();
+}
+
+// 预设色调（与聊天列表保持一致）
+List<Color> _getAvatarColors() {
+  return [
+    const Color(0xFF6366f1), // 靛蓝
+    const Color(0xFF8b5cf6), // 紫色
+    const Color(0xFFec4899), // 粉红
+    const Color(0xFFf43f5e), // 玫瑰
+    const Color(0xFFf59e0b), // 琥珀
+    const Color(0xFF10b981), // 翠绿
+    const Color(0xFF06b6d4), // 青色
+    const Color(0xFF3b82f6), // 蓝色
+    const Color(0xFF6366f1), // 靛蓝
+    const Color(0xFFa855f7), // 紫罗兰
+  ];
+}
+
+// 根据文本生成背景色（与聊天列表保持一致）
+Color _generateBackgroundColor(String text) {
+  if (!text.isEmpty) {
+    final colors = _getAvatarColors();
+    final hash = _hashCode(text);
+    return colors[hash % colors.length];
+  }
+  return _getAvatarColors().first;
+}
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, this.appName = ''});
@@ -1120,7 +1158,7 @@ Future<void> _handleClearInstalledPatch() async {
   }
 }
 
-class _UserInfoSection extends StatelessWidget {
+class _UserInfoSection extends StatefulWidget {
   const _UserInfoSection({
     this.user,
     this.onEditNickname,
@@ -1136,43 +1174,145 @@ class _UserInfoSection extends StatelessWidget {
   final bool uploadingAvatar;
 
   @override
+  State<_UserInfoSection> createState() => _UserInfoSectionState();
+}
+
+class _UserInfoSectionState extends State<_UserInfoSection> {
+  String? _cachedAvatarPath;
+  bool _isLoadingAvatar = false;
+  final _userAvatarService = UserAvatarService();
+
+  @override
+  void initState() {
+    super.initState();
+    _initAvatar();
+  }
+
+  @override
+  void didUpdateWidget(_UserInfoSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果用户信息变化，重新初始化头像
+    if (widget.user?.id != oldWidget.user?.id ||
+        widget.user?.avatarObjectKey != oldWidget.user?.avatarObjectKey) {
+      _initAvatar();
+    }
+  }
+
+  void _initAvatar() {
+    _cachedAvatarPath = widget.user?.localAvatarPath;
+
+    // 验证本地缓存文件是否存在
+    bool needsLoad = false;
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (!file.existsSync()) {
+        _cachedAvatarPath = null;
+        needsLoad = true;
+      }
+    } else {
+      needsLoad = true;
+    }
+
+    // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
+    if (needsLoad &&
+        widget.user?.avatarObjectKey != null &&
+        widget.user!.avatarObjectKey!.isNotEmpty) {
+      _loadAvatar();
+    }
+  }
+
+  Future<void> _loadAvatar() async {
+    if (_isLoadingAvatar) return;
+    final user = widget.user;
+    if (user == null ||
+        user.avatarObjectKey == null ||
+        user.avatarObjectKey!.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingAvatar = true;
+    });
+
+    try {
+      final cachedPath = await _userAvatarService.loadAndCacheAvatar(
+        userId: user.id,
+        avatarObjectKey: user.avatarObjectKey,
+      );
+
+      if (mounted) {
+        setState(() {
+          _cachedAvatarPath = cachedPath;
+          _isLoadingAvatar = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingAvatar = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildAvatarContent(String displayName) {
+    // 优先使用本地缓存路径
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: 100,
+          height: 100,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _DefaultAvatar(displayName: displayName);
+          },
+        );
+      }
+    }
+
+    // 如果正在加载头像，显示加载指示器
+    if (_isLoadingAvatar &&
+        widget.user?.avatarObjectKey != null &&
+        widget.user!.avatarObjectKey!.isNotEmpty) {
+      return Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          shape: BoxShape.circle,
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    // 默认头像
+    return _DefaultAvatar(displayName: displayName);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final displayName = user?.displayName ?? '未命名用户';
-    final username = user?.username ?? '';
+    final displayName = widget.user?.displayName ?? '未命名用户';
+    final username = widget.user?.username ?? '';
     // 直接显示完整的用户 ID
     final phoneText = username.isNotEmpty ? username : '未绑定';
 
-    final avatarPath = user?.localAvatarPath;
-    final avatarUrl = user?.avatarUrl;
-
-    Widget avatarContent;
-    if (avatarPath != null && avatarPath.isNotEmpty) {
-      avatarContent = Image.file(
-        File(avatarPath),
-        width: 100,
-        height: 100,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _DefaultAvatar(displayName: displayName),
-      );
-    } else if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      avatarContent = Image.network(
-        avatarUrl,
-        width: 100,
-        height: 100,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _DefaultAvatar(displayName: displayName),
-      );
-    } else {
-      avatarContent = _DefaultAvatar(displayName: displayName);
-    }
+    Widget avatarContent = _buildAvatarContent(displayName);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const SizedBox(height: 8),
         GestureDetector(
-          onTap: (onEditAvatar != null && !uploadingAvatar)
-              ? onEditAvatar
+          onTap: (widget.onEditAvatar != null && !widget.uploadingAvatar)
+              ? widget.onEditAvatar
               : null,
           behavior: HitTestBehavior.opaque,
           child: Stack(
@@ -1182,13 +1322,12 @@ class _UserInfoSection extends StatelessWidget {
                 width: 100,
                 height: 100,
                 decoration: BoxDecoration(
-                  color: AppColors.settingsAvatarBg,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
                 ),
                 child: ClipOval(child: avatarContent),
               ),
-              if (uploadingAvatar)
+              if (widget.uploadingAvatar)
                 Positioned.fill(
                   child: Container(
                     decoration: const BoxDecoration(
@@ -1210,7 +1349,7 @@ class _UserInfoSection extends StatelessWidget {
                 top: 0,
                 right: 0,
                 child: Opacity(
-                  opacity: onEditAvatar != null ? 1.0 : 0.4,
+                  opacity: widget.onEditAvatar != null ? 1.0 : 0.4,
                   child: Container(
                     width: 36,
                     height: 36,
@@ -1237,7 +1376,7 @@ class _UserInfoSection extends StatelessWidget {
         const SizedBox(height: 16),
         // 用户昵称
         GestureDetector(
-          onTap: updatingNickname ? null : onEditNickname,
+          onTap: widget.updatingNickname ? null : widget.onEditNickname,
           behavior: HitTestBehavior.opaque,
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1251,7 +1390,7 @@ class _UserInfoSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              if (updatingNickname)
+              if (widget.updatingNickname)
                 const SizedBox(
                   width: 16,
                   height: 16,
@@ -1260,7 +1399,7 @@ class _UserInfoSection extends StatelessWidget {
                     color: AppColors.primary,
                   ),
                 )
-              else if (onEditNickname != null)
+              else if (widget.onEditNickname != null)
                 SizedBox(
                   width: 16,
                   height: 16,
@@ -1302,12 +1441,13 @@ class _DefaultAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = displayName.trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final backgroundColor = _generateBackgroundColor(name);
 
     return Container(
       width: 100,
       height: 100,
-      decoration: const BoxDecoration(
-        color: AppColors.settingsAvatarBg,
+      decoration: BoxDecoration(
+        color: backgroundColor,
         shape: BoxShape.circle,
       ),
       child: Center(
@@ -1315,7 +1455,7 @@ class _DefaultAvatar extends StatelessWidget {
           initial,
           style: const TextStyle(
             fontSize: 40,
-            color: AppColors.settingsTextMuted,
+            color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
