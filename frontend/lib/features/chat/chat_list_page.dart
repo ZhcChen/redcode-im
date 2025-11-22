@@ -102,14 +102,12 @@ class _ChatListView extends StatelessWidget {
 
                       final item = ChatListItem(
                         chat: chat,
-                        avatarBuilder: (avatar) => _ChatAvatar(
-                          chat: chat,
-                        ),
+                        avatarBuilder: (avatar) => _ChatAvatar(chat: chat),
                         showBottomDivider: index != chats.length - 1,
                         onTap: () {
-                          Navigator.of(context).push(
-                            _buildChatDetailRoute(chat: chat),
-                          );
+                          Navigator.of(
+                            context,
+                          ).push(_buildChatDetailRoute(chat: chat));
                         },
                       );
 
@@ -121,13 +119,15 @@ class _ChatListView extends StatelessWidget {
                         key: ValueKey(chat.id),
                         endActionPane: ActionPane(
                           motion: const DrawerMotion(),
-                          extentRatio: 0.4,
+                          extentRatio: 0.6,
                           children: [
                             SlidableAction(
                               onPressed: (_) =>
                                   provider.pinChat(chat.id, !chat.isPinned),
                               foregroundColor: Colors.white,
-                              backgroundColor: AppColors.primary,
+                              backgroundColor: chat.isPinned
+                                  ? Colors.grey.shade600
+                                  : AppColors.primary,
                               label: chat.isPinned ? '取消置顶' : '置顶',
                             ),
                             SlidableAction(
@@ -231,25 +231,23 @@ PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
         end: Offset.zero,
       ).animate(enterCurve);
 
-      final outgoing = Tween<Offset>(
-        begin: Offset.zero,
-        end: const Offset(-0.12, 0),
-      ).animate(
-        CurvedAnimation(
-          parent: secondaryAnimation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        ),
-      );
+      final outgoing =
+          Tween<Offset>(
+            begin: Offset.zero,
+            end: const Offset(-0.12, 0),
+          ).animate(
+            CurvedAnimation(
+              parent: secondaryAnimation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+          );
 
       return SlideTransition(
         position: outgoing,
         child: SlideTransition(
           position: incoming,
-          child: FadeTransition(
-            opacity: fadeCurve,
-            child: child,
-          ),
+          child: FadeTransition(opacity: fadeCurve, child: child),
         ),
       );
     },
@@ -262,9 +260,7 @@ class _FavoriteAvatar extends StatelessWidget {
     return Container(
       width: 48,
       height: 48,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(48),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(48)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(48),
         child: SvgPicture.asset(AppAssets.chatFavorite, fit: BoxFit.cover),
@@ -721,7 +717,8 @@ class _ChatAvatarState extends State<_ChatAvatar> {
       // 根据聊天类型选择不同的头像服务
       if (widget.chat.type == ChatType.single) {
         // 单聊使用用户头像服务
-        final userId = widget.chat.extra?['friend_user_id'] as String? ??
+        final userId =
+            widget.chat.extra?['friend_user_id'] as String? ??
             widget.chat.extra?['friendUserId'] as String? ??
             widget.chat.roomId;
 
@@ -817,7 +814,12 @@ class _ChatAvatarState extends State<_ChatAvatar> {
           height: 48,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(48),
-            child: Image.asset(avatar, width: 48, height: 48, fit: BoxFit.cover),
+            child: Image.asset(
+              avatar,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+            ),
           ),
         );
       }
@@ -872,13 +874,14 @@ class _EmptyPlaceholder extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             isEmptySearch ? '未找到相关会话' : '暂无会话',
-            style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 16,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
-            isEmptySearch
-                ? '试试其他关键词'
-                : '开始一段新的聊天吧',
+            isEmptySearch ? '试试其他关键词' : '开始一段新的聊天吧',
             style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
           ),
         ],
