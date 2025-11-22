@@ -281,13 +281,26 @@ class _AboutPageState extends State<AboutPage> {
                       onPressed: _checkingVersion
                           ? null
                           : () => _checkForUpdate(auto: false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(
+                          color: AppColors.primary.withOpacity(0.5),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                       child: _checkingVersion
                           ? const SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('检查更新'),
+                          : const Text('检查'),
                     ),
                     if (_hasUpdate && latest != null)
                       Padding(
@@ -296,6 +309,16 @@ class _AboutPageState extends State<AboutPage> {
                           onPressed: _downloadInProgress
                               ? null
                               : _downloadUpdate,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
                           child: _downloadInProgress
                               ? const SizedBox(
                                   width: 16,
@@ -305,7 +328,7 @@ class _AboutPageState extends State<AboutPage> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text('下载更新'),
+                              : const Text('下载'),
                         ),
                       ),
                   ],
@@ -406,7 +429,7 @@ class _AboutPageState extends State<AboutPage> {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        '我们非常重视您的体验，欢迎留下任何问题或建议。',
+                        '遇到问题或有建议？告诉我们',
                         style: TextStyle(
                           fontSize: 13,
                           color: AppColors.settingsTextMuted,
@@ -417,6 +440,17 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 OutlinedButton(
                   onPressed: _openFeedback,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                   child: const Text('反馈'),
                 ),
               ],
