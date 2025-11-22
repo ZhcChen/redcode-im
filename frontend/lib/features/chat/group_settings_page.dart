@@ -541,71 +541,134 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       return;
     }
 
+    final searchController = TextEditingController();
+
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 标题栏
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final searchText = searchController.text.toLowerCase();
+          final filteredCandidates = searchText.isEmpty
+              ? candidates
+              : candidates.where((member) {
+                  final nickname = (member['nickname'] as String? ?? '')
+                      .toLowerCase();
+                  final username = (member['username'] as String? ?? '')
+                      .toLowerCase();
+                  return nickname.contains(searchText) ||
+                      username.contains(searchText);
+                }).toList();
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(width: 32), // 占位，保持标题居中
-                  Text(
-                    '选择新群主',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
+                  // 标题栏
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 32),
+                      Text(
+                        '选择新群主',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(sheetContext),
+                        child: const Icon(
+                          Icons.close,
+                          size: 24,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(sheetContext),
-                    child: const Icon(
-                      Icons.close,
-                      size: 24,
-                      color: AppColors.textSecondary,
+                  const SizedBox(height: 16),
+                  // 搜索框
+                  TextField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: '搜索成员',
+                      hintStyle: TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 14.sp,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.textTertiary,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surfaceMuted,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
+                    onChanged: (_) => setSheetState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  // 成员列表
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                    ),
+                    child: filteredCandidates.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              '没有找到匹配的成员',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14.sp,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: filteredCandidates.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final member = filteredCandidates[index];
+                              final displayName =
+                                  member['nickname'] as String? ??
+                                  member['username'] as String? ??
+                                  '成员';
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(displayName),
+                                subtitle: Text(
+                                  member['username'] as String? ?? '',
+                                ),
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  final memberId = member['user_id'] as String?;
+                                  if (memberId != null) {
+                                    _transferOwnership(memberId, displayName);
+                                  }
+                                },
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              // 成员列表
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: candidates.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final member = candidates[index];
-                    final displayName =
-                        member['nickname'] as String? ??
-                        member['username'] as String? ??
-                        '成员';
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(displayName),
-                      subtitle: Text(member['username'] as String? ?? ''),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        final memberId = member['user_id'] as String?;
-                        if (memberId != null) {
-                          _transferOwnership(memberId, displayName);
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
