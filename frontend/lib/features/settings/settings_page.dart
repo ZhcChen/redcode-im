@@ -1,13 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/services/message_service.dart';
 import '../../core/services/user_avatar_service.dart';
 import '../../core/widgets/input_dialog.dart';
 import '../auth/data/auth_repository.dart';
@@ -15,7 +13,7 @@ import '../auth/login_page.dart';
 import '../auth/models/auth_user.dart';
 import 'about_page.dart';
 import 'account_security_page.dart';
-import 'feedback_page.dart';
+import 'chat_settings_page.dart';
 import 'privacy_policy_page.dart';
 import 'widgets/confirm_action_dialog.dart';
 
@@ -69,7 +67,6 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _loading = true;
   bool _deactivating = false;
   bool _updatingNickname = false;
-  bool _clearingCache = false;
   bool _uploadingAvatar = false;
 
   @override
@@ -115,7 +112,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (!mounted) return;
     setState(() => _updatingNickname = true);
-    
+
     try {
       final updated = await _authRepository.updateProfile(nickname: newName);
       if (!mounted) {
@@ -129,9 +126,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _updatingNickname = false;
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('昵称已更新')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('昵称已更新')));
         }
       });
     } on AuthException catch (error) {
@@ -139,18 +136,18 @@ class _SettingsPageState extends State<SettingsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() => _updatingNickname = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       });
     } catch (e) {
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() => _updatingNickname = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('昵称更新失败：${e.toString()}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('昵称更新失败：${e.toString()}')));
       });
     }
   }
@@ -303,56 +300,16 @@ class _SettingsPageState extends State<SettingsPage> {
     ).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyPage()));
   }
 
-  Future<void> _openFeedback() async {
-    final submitted = await Navigator.of(
+  void _openChatSettings() {
+    Navigator.of(
       context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const FeedbackPage()));
-    if (submitted == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('反馈已提交，我们会尽快处理')));
-    }
+    ).push(MaterialPageRoute(builder: (_) => const ChatSettingsPage()));
   }
 
   Future<void> _openAbout() async {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const AboutPage()));
-  }
-
-  Future<void> _clearLocalCache() async {
-    if (_clearingCache) return;
-
-    final confirm = await showConfirmActionDialog(
-      context,
-      title: '清除缓存',
-      message: '将删除本地聊天记录缓存数据，确认继续？',
-      confirmLabel: '清除',
-    );
-    if (!mounted || confirm != true) {
-      return;
-    }
-
-    setState(() => _clearingCache = true);
-    try {
-      await MessageService.instance.clearAll();
-      await MessageService.instance.fetchChats();
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('缓存已清除')));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('清除缓存失败：$error')));
-    } finally {
-      if (mounted) {
-        setState(() => _clearingCache = false);
-      } else {
-        _clearingCache = false;
-      }
-    }
   }
 
   @override
@@ -362,41 +319,8 @@ class _SettingsPageState extends State<SettingsPage> {
         title: '账号与安全',
         onTap: () async => _openAccountSecurity(),
       ),
-      _SettingItemData(title: '隐私政策', onTap: () async => _openPrivacyPolicy()),
-      _SettingItemData(title: '意见反馈', onTap: _openFeedback),
-      _SettingItemData(
-        title: '清理缓存',
-        onTap: _clearingCache ? null : _clearLocalCache,
-        trailingBuilder: (_) => AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(scale: animation, child: child),
-            );
-          },
-          child: _clearingCache
-              ? SizedBox(
-                  key: const ValueKey('clearing-cache'),
-                  width: 18,
-                  height: 18,
-                  child: const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                )
-              : const SizedBox(
-                  key: ValueKey('cache-arrow'),
-                  width: 7,
-                  height: 15,
-                  child: Icon(
-                    Icons.chevron_right,
-                    size: 15,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-        ),
-      ),
+      _SettingItemData(title: '隐私协议', onTap: () async => _openPrivacyPolicy()),
+      _SettingItemData(title: '聊天', onTap: () async => _openChatSettings()),
       _SettingItemData(title: '关于Chatly', onTap: _openAbout),
     ];
 
@@ -761,10 +685,7 @@ class _DefaultAvatar extends StatelessWidget {
     return Container(
       width: 100,
       height: 100,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: backgroundColor, shape: BoxShape.circle),
       child: Center(
         child: Text(
           initial,

@@ -12,6 +12,7 @@ import '../../core/services/version_service.dart';
 import '../../core/update/hot_update_manager.dart';
 import '../../core/update/hot_update_models.dart';
 import '../../core/update/update_center.dart';
+import 'feedback_page.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -722,6 +723,76 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
+  Future<void> _openFeedback() async {
+    final submitted = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const FeedbackPage()));
+    if (submitted == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('反馈已提交，我们会尽快处理')));
+    }
+  }
+
+  Widget _buildFeedbackCard() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '意见反馈',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        '我们非常重视您的体验，欢迎留下任何问题或建议。',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.settingsTextMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: _openFeedback,
+                  child: const Text('反馈'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentVersionLabel = _packageInfo != null
@@ -757,6 +828,7 @@ class _AboutPageState extends State<AboutPage> {
             children: [
               _buildVersionCard(currentVersionLabel),
               _buildHotUpdateCard(),
+              _buildFeedbackCard(),
               const SizedBox(height: 20),
             ],
           ),
