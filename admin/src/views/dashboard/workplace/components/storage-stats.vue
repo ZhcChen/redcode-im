@@ -18,8 +18,8 @@
       </div>
 
       <div class="stat-item">
-        <div class="stat-icon">
-          <icon-hard-drive />
+        <div class="stat-icon storage-icon">
+          <icon-storage />
         </div>
         <div class="stat-content">
           <div class="stat-value">{{
@@ -144,6 +144,11 @@
     font-size: 20px;
     background-color: var(--color-primary-light-1);
     border-radius: 8px;
+  }
+
+  .stat-icon.storage-icon {
+    color: rgb(var(--orange-6));
+    background-color: rgb(var(--orange-1));
   }
 
   .stat-content {
