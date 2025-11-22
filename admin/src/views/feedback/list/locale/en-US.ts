@@ -1,5 +1,6 @@
 export default {
-  'feedback.user': 'User',
+  'feedback.userNickname': 'User Nickname',
+  'feedback.userPhone': 'User Phone',
   'feedback.userId': 'User ID',
   'feedback.userId.placeholder': 'Paste user ID to filter',
   'feedback.keyword': 'Keyword',

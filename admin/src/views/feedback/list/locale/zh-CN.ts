@@ -1,5 +1,6 @@
 export default {
-  'feedback.user': '用户',
+  'feedback.userNickname': '用户昵称',
+  'feedback.userPhone': '用户手机号',
   'feedback.userId': '用户ID',
   'feedback.userId.placeholder': '支持粘贴用户ID精确筛选',
   'feedback.keyword': '关键词',

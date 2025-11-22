@@ -22,6 +22,16 @@ const USER_MANAGEMENT: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'feedback',
+      name: 'UserFeedback',
+      component: () => import('@/views/feedback/list/index.vue'),
+      meta: {
+        locale: 'menu.userManagement.feedback',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

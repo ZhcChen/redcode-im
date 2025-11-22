@@ -1,7 +1,9 @@
 <template>
   <div class="container">
-    <Breadcrumb :items="['menu.feedback', 'menu.feedback.list']" />
-    <a-card class="general-card" :title="$t('menu.feedback.list')">
+    <Breadcrumb
+      :items="['menu.userManagement', 'menu.userManagement.feedback']"
+    />
+    <a-card class="general-card" :title="$t('menu.userManagement.feedback')">
       <a-row>
         <a-col :flex="1">
           <a-form
@@ -63,17 +65,22 @@
       >
         <template #columns>
           <a-table-column
-            :title="$t('feedback.user')"
-            data-index="username"
-            :width="220"
+            :title="$t('feedback.userNickname')"
+            data-index="nickname"
+            :width="180"
           >
             <template #cell="{ record }">
-              <div class="user-info">
-                <div class="user-name">
-                  {{ record.nickname || record.username || record.userId }}
-                </div>
-                <div class="user-id">ID: {{ record.userId }}</div>
-              </div>
+              {{ record.nickname || record.username || '-' }}
+            </template>
+          </a-table-column>
+
+          <a-table-column
+            :title="$t('feedback.userPhone')"
+            data-index="username"
+            :width="150"
+          >
+            <template #cell="{ record }">
+              {{ record.username || '-' }}
             </template>
           </a-table-column>
 
@@ -209,22 +216,5 @@
   .search-actions {
     display: flex;
     align-items: flex-end;
-  }
-
-  .user-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    line-height: 1.4;
-  }
-
-  .user-name {
-    color: var(--color-text-1);
-    font-weight: 600;
-  }
-
-  .user-id {
-    color: var(--color-text-3);
-    font-size: 12px;
   }
 </style>
