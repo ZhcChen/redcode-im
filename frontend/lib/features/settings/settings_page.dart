@@ -57,9 +57,7 @@ Color _generateBackgroundColor(String text) {
 }
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, this.appName = ''});
-
-  final String appName;
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -319,8 +317,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openAbout() async {
     await Navigator.of(
       context,
-    ).push(MaterialPageRoute(
-        builder: (_) => AboutPage(appName: widget.appName)));
+    ).push(MaterialPageRoute(builder: (_) => const AboutPage()));
   }
 
   Future<void> _clearLocalCache() async {

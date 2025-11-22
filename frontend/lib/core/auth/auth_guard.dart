@@ -5,7 +5,7 @@ import '../../features/auth/login_page.dart';
 import '../services/websocket_service.dart';
 import '../services/message_service.dart';
 import '../services/friend_store.dart';
-import '../services/settings_service.dart';
+import '../services/app_config_service.dart';
 import 'auth_state.dart';
 
 /// 认证守卫组件，确保用户已登录
@@ -20,7 +20,7 @@ class AuthGuard extends StatefulWidget {
 
 class _AuthGuardState extends State<AuthGuard> {
   final AuthRepository _authRepository = AuthRepository();
-  final SettingsService _settingsService = SettingsService();
+  final AppConfigService _appConfigService = AppConfigService.instance;
   StreamSubscription<AuthState>? _authSubscription;
   String _appName = '';
 
@@ -46,7 +46,8 @@ class _AuthGuardState extends State<AuthGuard> {
 
   Future<void> _loadAppName() async {
     try {
-      final appName = await _settingsService.fetchAppName();
+      // 从 SQLite 获取应用名
+      final appName = await _appConfigService.getAppName();
       if (mounted) {
         setState(() {
           _appName = appName;

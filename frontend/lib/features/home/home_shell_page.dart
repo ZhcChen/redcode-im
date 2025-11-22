@@ -12,9 +12,7 @@ import '../contacts/contacts_page.dart';
 import '../settings/settings_page.dart';
 
 class HomeShellPage extends StatefulWidget {
-  const HomeShellPage({super.key, this.appName = ''});
-
-  final String appName;
+  const HomeShellPage({super.key});
 
   @override
   State<HomeShellPage> createState() => _HomeShellPageState();
@@ -89,7 +87,7 @@ class _HomeShellPageState extends State<HomeShellPage> {
         children: [
           const ChatListPage(),
           ContactsPage(key: _contactsKey),
-          SettingsPage(appName: widget.appName),
+          const SettingsPage(),
         ],
       ),
       bottomNavigationBar: AnimatedBuilder(

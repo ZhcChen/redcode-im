@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
+import '../../core/services/app_config_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/widgets/agreement_content_dialog.dart';
 import '../../core/widgets/agreement_tip_dialog.dart';
@@ -18,9 +19,7 @@ import 'data/auth_repository.dart';
 enum LoginType { password, sms, register }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, this.appName = ''});
-
-  final String appName;
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -34,9 +33,11 @@ class _LoginPageState extends State<LoginPage> {
   bool _sendingCode = false;
   Timer? _smsTimer;
   bool _requireCaptchaForLogin = false;
+  String _appName = '';
 
   final AuthRepository _authRepository = AuthRepository();
   final SettingsService _settingsService = SettingsService();
+  final AppConfigService _appConfigService = AppConfigService.instance;
 
   final TextEditingController _mobileCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
@@ -54,8 +55,22 @@ class _LoginPageState extends State<LoginPage> {
         statusBarBrightness: Brightness.light,
       ),
     );
+    _loadAppName();
     _loadCaptchaSetting();
     _loadAgreementState();
+  }
+
+  Future<void> _loadAppName() async {
+    try {
+      final appName = await _appConfigService.getAppName();
+      if (mounted) {
+        setState(() {
+          _appName = appName;
+        });
+      }
+    } catch (_) {
+      // 静默失败，使用默认值
+    }
   }
 
   Future<void> _loadCaptchaSetting() async {
@@ -161,7 +176,7 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          widget.appName.isNotEmpty ? '欢迎来到 ${widget.appName}' : '欢迎',
+                          _appName.isNotEmpty ? '欢迎来到 $_appName' : '欢迎',
                           style: TextStyle(
                             fontSize: 16.sp,
                             color: AppColors.textBlack,

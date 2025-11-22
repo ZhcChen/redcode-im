@@ -7,15 +7,14 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/app_config_service.dart';
 import '../../core/services/version_service.dart';
 import '../../core/update/hot_update_manager.dart';
 import '../../core/update/hot_update_models.dart';
 import '../../core/update/update_center.dart';
 
 class AboutPage extends StatefulWidget {
-  const AboutPage({super.key, this.appName = ''});
-
-  final String appName;
+  const AboutPage({super.key});
 
   @override
   State<AboutPage> createState() => _AboutPageState();
@@ -23,6 +22,7 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   final VersionService _versionService = VersionService();
+  final AppConfigService _appConfigService = AppConfigService.instance;
   HotUpdateManager? _hotUpdateManager;
   HotUpdateState _hotUpdateState = const HotUpdateState();
   bool _checkingVersion = false;
@@ -31,12 +31,27 @@ class _AboutPageState extends State<AboutPage> {
   VersionCheckResult? _versionResult;
   String? _downloadedFilePath;
   int? _downloadedFileSize;
+  String _appName = '';
 
   @override
   void initState() {
     super.initState();
+    _loadAppName();
     _initVersionInfo();
     _initHotUpdateManager();
+  }
+
+  Future<void> _loadAppName() async {
+    try {
+      final appName = await _appConfigService.getAppName();
+      if (mounted) {
+        setState(() {
+          _appName = appName;
+        });
+      }
+    } catch (_) {
+      // 静默失败，使用默认值
+    }
   }
 
   Future<void> _initVersionInfo() async {
@@ -723,9 +738,9 @@ class _AboutPageState extends State<AboutPage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textBlack),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          '关于Chatly',
-          style: TextStyle(
+        title: Text(
+          _appName.isNotEmpty ? '关于$_appName' : '关于',
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w400,
             color: AppColors.textBlack,

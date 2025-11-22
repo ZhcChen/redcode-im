@@ -11,7 +11,7 @@ import '../../core/auth/auth_guard.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/debug/debug_logger.dart';
-import '../../core/services/settings_service.dart';
+import '../../core/services/app_config_service.dart';
 import '../../core/services/version_service.dart';
 import '../../core/update/update_center.dart';
 import '../auth/data/auth_repository.dart';
@@ -28,7 +28,7 @@ class SplashPage extends StatefulWidget {
 class _SplashPageState extends State<SplashPage> {
   final AuthRepository _authRepository = AuthRepository();
   final VersionService _versionService = VersionService();
-  final SettingsService _settingsService = SettingsService();
+  final AppConfigService _appConfigService = AppConfigService.instance;
   bool _navigated = false;
   String _appName = '';
 
@@ -41,12 +41,21 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _loadAppName() async {
     try {
-      final appName = await _settingsService.fetchAppName();
+      // 优先从 SQLite 获取，如果没有则从 API 获取并缓存
+      final appName = await _appConfigService.getAppName();
       if (mounted) {
         setState(() {
           _appName = appName;
         });
       }
+      // 异步刷新应用名（不阻塞 UI）
+      _appConfigService.refreshAppName().then((refreshedName) {
+        if (mounted && refreshedName.isNotEmpty && refreshedName != _appName) {
+          setState(() {
+            _appName = refreshedName;
+          });
+        }
+      });
     } catch (_) {
       // 静默失败，使用默认值
     }
@@ -115,7 +124,7 @@ class _SplashPageState extends State<SplashPage> {
     _navigated = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(childBuilder: (appName) => HomeShellPage(appName: appName)),
+        builder: (_) => AuthGuard(childBuilder: (_) => const HomeShellPage()),
       ),
     );
   }
@@ -124,7 +133,7 @@ class _SplashPageState extends State<SplashPage> {
     _navigated = true;
     Navigator.of(
       context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => LoginPage(appName: _appName)));
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
   }
 
   Future<bool> _ensureAppUpToDate() async {
