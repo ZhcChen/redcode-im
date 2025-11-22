@@ -55,7 +55,7 @@ class StyledTextField extends StatelessWidget {
         fillColor: enabled ? Colors.white : Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 14,
+          vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
