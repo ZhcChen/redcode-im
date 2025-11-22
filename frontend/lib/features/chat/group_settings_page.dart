@@ -658,7 +658,11 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                                   Navigator.pop(sheetContext);
                                   final memberId = member['user_id'] as String?;
                                   if (memberId != null) {
-                                    _transferOwnership(memberId, displayName);
+                                    _showTransferConfirmDialog(
+                                      context,
+                                      memberId,
+                                      displayName,
+                                    );
                                   }
                                 },
                               );
@@ -671,6 +675,22 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           );
         },
       ),
+    );
+  }
+
+  void _showTransferConfirmDialog(
+    BuildContext context,
+    String memberId,
+    String displayName,
+  ) {
+    TipDialog.showConfirm(
+      context,
+      title: '转让群主',
+      content: '确认将群主转让给「$displayName」吗？转让后你将成为普通成员。',
+      onConfirm: () async {
+        await _transferOwnership(memberId, displayName);
+        return true;
+      },
     );
   }
 
