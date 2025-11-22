@@ -421,16 +421,6 @@ class ContactsPageState extends State<ContactsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Image.asset(
-              AppAssets.loginLogo,
-              width: 48,
-              height: 48,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(width: 12),
           const Expanded(
             child: Text(
               '联系人',
