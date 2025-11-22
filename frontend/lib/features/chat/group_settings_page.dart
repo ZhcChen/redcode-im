@@ -415,28 +415,6 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () {
-                _showClearMessagesDialog(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFBC6847),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                '清空聊天记录',
-                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w500),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           if (isGroupOwner) ...[
             SizedBox(
               width: double.infinity,
@@ -462,6 +440,28 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             ),
             const SizedBox(height: 12),
           ],
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                _showClearMessagesDialog(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFBC6847),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                '清空聊天记录',
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             height: 48,
