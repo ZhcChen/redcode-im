@@ -9,6 +9,41 @@ import '../../core/widgets/tip_dialog.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 
+// 字符串哈希函数（与桌面端保持一致）
+int _hashCode(String str) {
+  int hash = 0;
+  for (int i = 0; i < str.length; i++) {
+    int char = str.codeUnitAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash.abs();
+}
+
+// 预设色调（与桌面端保持一致）
+List<Color> _getAvatarColors() {
+  return [
+    const Color(0xFF6366f1), // 靛蓝
+    const Color(0xFF8b5cf6), // 紫色
+    const Color(0xFFec4899), // 粉红
+    const Color(0xFFf43f5e), // 玫瑰
+    const Color(0xFFf59e0b), // 琥珀
+    const Color(0xFF10b981), // 翠绿
+    const Color(0xFF06b6d4), // 青色
+    const Color(0xFF3b82f6), // 蓝色
+  ];
+}
+
+// 根据名称生成背景色
+Color _generateBackgroundColor(String text) {
+  if (text.isNotEmpty) {
+    final colors = _getAvatarColors();
+    final hash = _hashCode(text);
+    return colors[hash % colors.length];
+  }
+  return _getAvatarColors().first;
+}
+
 class GroupSettingsPage extends StatefulWidget {
   const GroupSettingsPage({super.key, required this.chat, this.chatProvider});
 
@@ -243,30 +278,88 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     final avatarUrl = member['avatar_url'] as String?;
     final displayName = nickname?.isNotEmpty == true ? nickname! : username;
     final firstLetter = displayName.isNotEmpty
-        ? displayName.substring(0, 1)
+        ? displayName.substring(0, 1).toUpperCase()
         : '?';
+
+    // 判断是否是群主
+    final roleValue = member['role'] ?? member['member_role'];
+    final role = roleValue is String
+        ? roleValue.toLowerCase()
+        : roleValue?.toString();
+    final isOwner = role == 'owner';
+
+    // 使用哈希背景色（与聊天列表一致）
+    final backgroundColor = _generateBackgroundColor(displayName);
 
     return GestureDetector(
       onTap: () => debugPrint('Member tapped: $displayName'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.surfaceMuted,
-            backgroundImage: avatarUrl?.isNotEmpty == true
-                ? NetworkImage(avatarUrl!)
-                : null,
-            child: avatarUrl?.isNotEmpty != true
-                ? Text(
-                    firstLetter,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.primary,
+          Stack(
+            children: [
+              // 头像
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(48),
+                ),
+                child: avatarUrl?.isNotEmpty == true
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(48),
+                        child: Image.network(
+                          avatarUrl!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Text(
+                                firstLetter,
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          firstLetter,
+                          style: const TextStyle(
+                            fontSize: 19,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+              ),
+              // 群主标识
+              if (isOwner)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB800),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
-                  )
-                : null,
+                    child: const Icon(
+                      Icons.star,
+                      size: 10,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
