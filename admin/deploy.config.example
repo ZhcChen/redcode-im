@@ -1,9 +1,0 @@
-# 部署配置文件
-# 复制此文件为 deploy.config 并修改配置
-
-# 服务器别名 (使用 SSH config 中配置的别名)
-# 或者直接使用 IP/域名,如: user@192.168.1.100
-SERVER_HOST="xin-im-prod-0"
-
-# 服务器部署路径
-SERVER_PATH="/home/ubuntu/admin"
