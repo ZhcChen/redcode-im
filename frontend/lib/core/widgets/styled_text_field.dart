@@ -30,6 +30,10 @@ class StyledTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMultiline = maxLines != null && maxLines! > 1;
+    final contentPadding = EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: isMultiline ? 16 : 18,
+    );
 
     return TextFormField(
       controller: controller,
@@ -57,10 +61,9 @@ class StyledTextField extends StatelessWidget {
         alignLabelWithHint: isMultiline,
         filled: true,
         fillColor: enabled ? Colors.white : Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 20,
-        ),
+        contentPadding: contentPadding,
+        // 提升表单输入框的可点击与可视高度，覆盖全局 InputDecorationTheme 的 44px 限制
+        constraints: BoxConstraints(minHeight: isMultiline ? 140 : 56),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
