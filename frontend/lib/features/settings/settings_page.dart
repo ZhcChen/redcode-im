@@ -316,8 +316,8 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _openAbout() {
-    Navigator.of(
+  Future<void> _openAbout() async {
+    await Navigator.of(
       context,
     ).push(MaterialPageRoute(
         builder: (_) => AboutPage(appName: widget.appName)));
