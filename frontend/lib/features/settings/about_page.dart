@@ -185,6 +185,46 @@ class _AboutPageState extends State<AboutPage> {
     return '$size B';
   }
 
+  Widget _buildHeaderSection() {
+    final currentVersionLabel = _packageInfo != null
+        ? 'Version: ${_packageInfo!.version}'
+        : 'Version: 获取中…';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Column(
+        children: [
+          // Logo
+          Image.asset(
+            'assets/images/login/app_logo.png',
+            width: 80,
+            height: 80,
+          ),
+          const SizedBox(height: 16),
+          // 应用名
+          Text(
+            _appName.isNotEmpty ? _appName : '加载中…',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 版本号
+          Text(
+            currentVersionLabel,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.settingsTextMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVersionCard(String currentVersionLabel) {
     final latest = _latestVersion;
     final releaseNotes = latest?.releaseNotes;
@@ -220,24 +260,16 @@ class _AboutPageState extends State<AboutPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '检查更新',
+                        '检查新版本',
                         style: TextStyle(
                           fontSize: 16.0.sp,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '当前：$currentVersionLabel',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.settingsTextMuted,
-                        ),
-                      ),
                       if (_hasUpdate && latest != null)
                         Padding(
-                          padding: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.only(top: 8),
                           child: Row(
                             children: [
                               Container(
@@ -288,7 +320,7 @@ class _AboutPageState extends State<AboutPage> {
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 8,
+                          vertical: 4,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -313,7 +345,7 @@ class _AboutPageState extends State<AboutPage> {
                             backgroundColor: AppColors.primary,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 8,
+                              vertical: 4,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
@@ -416,26 +448,13 @@ class _AboutPageState extends State<AboutPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '意见反馈',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        '遇到问题或有建议？告诉我们',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.settingsTextMuted,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '意见反馈',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 OutlinedButton(
@@ -445,7 +464,7 @@ class _AboutPageState extends State<AboutPage> {
                     side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
-                      vertical: 8,
+                      vertical: 4,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -494,6 +513,7 @@ class _AboutPageState extends State<AboutPage> {
           padding: const EdgeInsets.only(top: 16),
           child: Column(
             children: [
+              _buildHeaderSection(),
               _buildVersionCard(currentVersionLabel),
               _buildFeedbackCard(),
               const SizedBox(height: 20),
