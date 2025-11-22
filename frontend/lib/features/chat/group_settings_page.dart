@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/widgets/custom_switch.dart';
@@ -45,6 +50,178 @@ Color _generateBackgroundColor(String text) {
     return colors[hash % colors.length];
   }
   return _getAvatarColors().first;
+}
+
+class _GroupAvatar extends StatefulWidget {
+  const _GroupAvatar({required this.chat});
+
+  final Chat chat;
+
+  @override
+  State<_GroupAvatar> createState() => _GroupAvatarState();
+}
+
+class _GroupAvatarState extends State<_GroupAvatar> {
+  String? _cachedAvatarPath;
+  bool _isLoading = false;
+  final _roomAvatarService = RoomAvatarService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedAvatarPath = widget.chat.localAvatarPath;
+
+    // 验证本地缓存文件是否真的存在
+    bool needsLoad = false;
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (!file.existsSync()) {
+        _cachedAvatarPath = null;
+        needsLoad = true;
+      }
+    } else {
+      needsLoad = true;
+    }
+
+    // 如果有avatarObjectKey但没有有效的本地缓存，异步加载
+    if (needsLoad &&
+        widget.chat.avatarObjectKey != null &&
+        widget.chat.avatarObjectKey!.isNotEmpty) {
+      _loadAvatar();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_GroupAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果avatarObjectKey变化，重新加载
+    if (widget.chat.avatarObjectKey != oldWidget.chat.avatarObjectKey) {
+      _cachedAvatarPath = widget.chat.localAvatarPath;
+      if (widget.chat.avatarObjectKey != null &&
+          widget.chat.avatarObjectKey!.isNotEmpty &&
+          _cachedAvatarPath == null) {
+        _loadAvatar();
+      }
+    }
+  }
+
+  Future<void> _loadAvatar() async {
+    if (_isLoading) return;
+    if (widget.chat.avatarObjectKey == null ||
+        widget.chat.avatarObjectKey!.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final cachedPath = await _roomAvatarService.loadAndCacheAvatar(
+        roomId: widget.chat.roomId,
+        avatarObjectKey: widget.chat.avatarObjectKey!,
+      );
+
+      if (mounted) {
+        setState(() {
+          _cachedAvatarPath = cachedPath;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 优先使用本地缓存路径
+    if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
+      final file = File(_cachedAvatarPath!);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(48),
+          child: Image.file(
+            file,
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildDefaultAvatar();
+            },
+          ),
+        );
+      }
+    }
+
+    // 如果有avatarObjectKey但还在加载中，显示加载指示器
+    if (_isLoading &&
+        widget.chat.avatarObjectKey != null &&
+        widget.chat.avatarObjectKey!.isNotEmpty) {
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(48),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    // 处理其他类型的头像（asset、svg等）
+    final avatar = widget.chat.avatar;
+    if (avatar != null && avatar.isNotEmpty) {
+      if (avatar.endsWith('.svg')) {
+        return SvgPicture.asset(avatar, width: 36, height: 36);
+      }
+      // asset头像
+      if (!avatar.startsWith('http://') && !avatar.startsWith('https://')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(48),
+          child: Image.asset(avatar, width: 36, height: 36, fit: BoxFit.cover),
+        );
+      }
+    }
+
+    // 默认头像
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    final name = widget.chat.name.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final backgroundColor = _generateBackgroundColor(name);
+
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(48),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class GroupSettingsPage extends StatefulWidget {
@@ -430,16 +607,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           ),
           _SettingTile(
             label: '群头像',
-            trailing: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.surfaceMuted,
-              backgroundImage: widget.chat.avatar != null
-                  ? AssetImage(widget.chat.avatar!)
-                  : null,
-              child: widget.chat.avatar == null
-                  ? const Icon(Icons.group, size: 20)
-                  : null,
-            ),
+            trailing: _GroupAvatar(chat: widget.chat),
             onTap: () {
               _showPickGroupAvatarDialog(context);
             },
