@@ -119,7 +119,7 @@ class _ChatListView extends StatelessWidget {
                         key: ValueKey(chat.id),
                         endActionPane: ActionPane(
                           motion: const DrawerMotion(),
-                          extentRatio: 0.5,
+                          extentRatio: 0.45,
                           children: [
                             SlidableAction(
                               onPressed: (_) =>
