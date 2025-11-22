@@ -130,12 +130,18 @@ class _ChatListView extends StatelessWidget {
                                   : AppColors.primary,
                               label: chat.isPinned ? '取消置顶' : '置顶',
                               flex: chat.isPinned ? 2 : 1, // 取消置顶按钮宽度翻倍
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                             ),
                             SlidableAction(
                               onPressed: (_) => provider.deleteChat(chat.id),
                               foregroundColor: Colors.white,
                               backgroundColor: AppColors.danger,
                               label: '删除',
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                             ),
                           ],
                         ),
