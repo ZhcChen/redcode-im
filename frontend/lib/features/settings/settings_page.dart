@@ -1139,13 +1139,8 @@ class _UserInfoSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final displayName = user?.displayName ?? '未命名用户';
     final username = user?.username ?? '';
-    // 如果 username 是 11 位数字（手机号格式），则格式化显示
-    final phoneText =
-        username.isNotEmpty && RegExp(r'^\d{11}$').hasMatch(username)
-        ? '${username.substring(0, 3)}****${username.substring(username.length - 4)}'
-        : username.isNotEmpty
-        ? username
-        : '未绑定';
+    // 直接显示完整的用户 ID
+    final phoneText = username.isNotEmpty ? username : '未绑定';
 
     final avatarPath = user?.localAvatarPath;
     final avatarUrl = user?.avatarUrl;
@@ -1285,7 +1280,7 @@ class _UserInfoSection extends StatelessWidget {
         const SizedBox(height: 12),
         // 手机号
         Text(
-          'ID：$phoneText',
+          '手机号：$phoneText',
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
