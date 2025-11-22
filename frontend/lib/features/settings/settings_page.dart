@@ -291,7 +291,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void _openAccountSecurity() {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => AccountSecurityPage(user: _user)));
+    ).push(MaterialPageRoute(builder: (_) => const AccountSecurityPage()));
   }
 
   void _openPrivacyPolicy() {
