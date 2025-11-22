@@ -39,10 +39,10 @@ class StyledTextField extends StatelessWidget {
       validator: validator,
       keyboardType: keyboardType,
       enabled: enabled,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 16,
         color: AppColors.textPrimary,
-        height: 1.5,
+        height: isMultiline ? 1.6 : 1.5,
       ),
       decoration: InputDecoration(
         labelText: labelText,
@@ -57,9 +57,9 @@ class StyledTextField extends StatelessWidget {
         alignLabelWithHint: isMultiline,
         filled: true,
         fillColor: enabled ? Colors.white : Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 20,
+          vertical: isMultiline ? 16 : 20,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
