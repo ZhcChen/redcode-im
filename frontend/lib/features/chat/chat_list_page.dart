@@ -119,7 +119,7 @@ class _ChatListView extends StatelessWidget {
                         key: ValueKey(chat.id),
                         endActionPane: ActionPane(
                           motion: const DrawerMotion(),
-                          extentRatio: 0.55,
+                          extentRatio: 0.5,
                           children: [
                             SlidableAction(
                               onPressed: (_) =>
@@ -129,7 +129,9 @@ class _ChatListView extends StatelessWidget {
                                   ? Colors.grey.shade600
                                   : AppColors.primary,
                               label: chat.isPinned ? '取消置顶' : '置顶',
-                              flex: chat.isPinned ? 2 : 1, // 取消置顶按钮宽度翻倍
+                              flex: chat.isPinned
+                                  ? 2
+                                  : 1, // 已置顶：取消置顶flex=2，删除flex=1；未置顶：置顶flex=1，删除flex=1
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
                               ),
