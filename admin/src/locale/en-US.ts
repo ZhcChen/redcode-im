@@ -7,6 +7,7 @@ import localeMonitor from '@/views/dashboard/monitor/locale/en-US';
 
 import localeUserManagement from '@/views/user-management/list/locale/en-US';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/en-US';
+import localeFeedback from '@/views/feedback/list/locale/en-US';
 /** simple end */
 import localeSettings from './en-US/settings';
 
@@ -17,6 +18,8 @@ export default {
   'menu.server.monitor': 'Monitor-Server',
   'menu.userManagement': 'User Management',
   'menu.userManagement.list': 'User List',
+  'menu.feedback': 'Feedback',
+  'menu.feedback.list': 'Feedback List',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
   'menu.settings.privacyPolicy': 'Privacy Agreement',
@@ -48,5 +51,6 @@ export default {
   ...localeMonitor,
   ...localeUserManagement,
   ...localeCaptchaSettings,
+  ...localeFeedback,
   /** simple end */
 };

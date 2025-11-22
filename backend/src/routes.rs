@@ -91,6 +91,7 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/users/{user_id}/status",
             patch(admin::update_user_status),
         )
+        .route("/api/admin/feedbacks", get(admin::list_feedbacks))
         // 权限管理API
         .route("/api/admin/permissions", get(admin::get_permissions))
         .route("/api/admin/roles", get(admin::get_roles))

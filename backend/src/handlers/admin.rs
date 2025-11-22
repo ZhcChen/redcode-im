@@ -21,7 +21,7 @@ use crate::storage;
 use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
 use ipnetwork::IpNetwork;
-use sqlx::{FromRow, Row};
+use sqlx::{FromRow, Postgres, QueryBuilder, Row};
 use tracing::{error, info};
 
 /// 管理员用户信息（API响应）
@@ -196,6 +196,38 @@ pub struct UserListResponse {
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserStatusRequest {
     pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FeedbackListParams {
+    #[serde(default = "default_page")]
+    pub page: usize,
+    #[serde(default = "default_page_size", alias = "pageSize")]
+    pub page_size: usize,
+    #[serde(alias = "userId")]
+    pub user_id: Option<String>,
+    pub keyword: Option<String>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackItem {
+    pub id: String,
+    pub user_id: String,
+    pub username: Option<String>,
+    pub nickname: Option<String>,
+    pub contact: Option<String>,
+    pub content: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackListResponse {
+    pub feedbacks: Vec<FeedbackItem>,
+    pub total: i64,
+    pub page: usize,
+    pub page_size: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -772,6 +804,123 @@ pub async fn get_admin_user_list(
         page,
         page_size,
     }))
+}
+
+pub async fn list_feedbacks(
+    State(state): State<AppState>,
+    Query(params): Query<FeedbackListParams>,
+) -> Result<Json<FeedbackListResponse>, AppError> {
+    let page = params.page.max(1);
+    let page_size = params.page_size.max(1).min(100);
+    let offset = (page - 1) * page_size;
+
+    let user_id = if let Some(user_id) = params
+        .user_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(
+            Uuid::parse_str(user_id)
+                .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?,
+        )
+    } else {
+        None
+    };
+
+    let keyword = params
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_lowercase());
+
+    let mut list_query = QueryBuilder::<Postgres>::new(
+        "SELECT f.id, f.user_id, u.username, u.nickname, f.contact, f.content, f.created_at \
+         FROM feedbacks f \
+         LEFT JOIN users u ON u.id = f.user_id",
+    );
+    apply_feedback_filters(&mut list_query, user_id, keyword.as_deref());
+    list_query.push(" ORDER BY f.created_at DESC LIMIT ");
+    list_query.push_bind(page_size as i64);
+    list_query.push(" OFFSET ");
+    list_query.push_bind(offset as i64);
+
+    let feedback_rows = list_query
+        .build_query_as::<FeedbackRow>()
+        .fetch_all(&state.database.pool)
+        .await
+        .map_err(AppError::DatabaseError)?;
+
+    let mut count_query = QueryBuilder::<Postgres>::new(
+        "SELECT COUNT(*) AS total FROM feedbacks f LEFT JOIN users u ON u.id = f.user_id",
+    );
+    apply_feedback_filters(&mut count_query, user_id, keyword.as_deref());
+
+    let total: i64 = count_query
+        .build_query_scalar()
+        .fetch_one(&state.database.pool)
+        .await
+        .map_err(AppError::DatabaseError)?;
+
+    let feedbacks = feedback_rows
+        .into_iter()
+        .map(|row| FeedbackItem {
+            id: row.id.to_string(),
+            user_id: row.user_id.to_string(),
+            username: row.username,
+            nickname: row.nickname,
+            contact: row.contact,
+            content: row.content,
+            created_at: row.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(FeedbackListResponse {
+        feedbacks,
+        total,
+        page,
+        page_size,
+    }))
+}
+
+fn apply_feedback_filters(
+    builder: &mut QueryBuilder<Postgres>,
+    user_id: Option<Uuid>,
+    keyword: Option<&str>,
+) {
+    let mut has_where = false;
+
+    if let Some(user_id) = user_id {
+        builder.push(" WHERE f.user_id = ");
+        builder.push_bind(user_id);
+        has_where = true;
+    }
+
+    if let Some(keyword) = keyword {
+        let like = format!("%{}%", keyword);
+        builder.push(if has_where { " AND (" } else { " WHERE (" });
+        builder.push("LOWER(f.content) LIKE ");
+        builder.push_bind(like.clone());
+        builder.push(" OR LOWER(COALESCE(f.contact, '')) LIKE ");
+        builder.push_bind(like.clone());
+        builder.push(" OR LOWER(COALESCE(u.username, '')) LIKE ");
+        builder.push_bind(like.clone());
+        builder.push(" OR LOWER(COALESCE(u.nickname, '')) LIKE ");
+        builder.push_bind(like);
+        builder.push(")");
+    }
+}
+
+#[derive(Debug, FromRow)]
+struct FeedbackRow {
+    id: Uuid,
+    user_id: Uuid,
+    username: Option<String>,
+    nickname: Option<String>,
+    contact: Option<String>,
+    content: String,
+    created_at: DateTime<Utc>,
 }
 
 /// 创建管理员用户
