@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/feedback_service.dart';
+import '../../core/widgets/styled_text_field.dart';
 
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
@@ -134,46 +135,13 @@ class _FeedbackPageState extends State<FeedbackPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  TextFormField(
+                  StyledTextField(
                     controller: _contentController,
+                    labelText: '反馈内容',
+                    hintText: '请详细描述您遇到的问题或建议',
                     maxLines: 8,
                     minLines: 4,
                     maxLength: 500,
-                    decoration: InputDecoration(
-                      labelText: '反馈内容',
-                      labelStyle: const TextStyle(
-                        color: AppColors.textSecondary,
-                      ),
-                      hintText: '请详细描述您遇到的问题或建议',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.primary,
-                          width: 1.5,
-                        ),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.danger),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.danger,
-                          width: 1.5,
-                        ),
-                      ),
-                    ),
                     validator: (value) {
                       final trimmed = value?.trim() ?? '';
                       if (trimmed.isEmpty) {
@@ -186,32 +154,11 @@ class _FeedbackPageState extends State<FeedbackPage> {
                     },
                   ),
                   const SizedBox(height: 20),
-                  TextFormField(
+                  StyledTextField(
                     controller: _contactController,
+                    labelText: '联系方式（选填）',
+                    hintText: '邮箱、手机号或微信号',
                     maxLength: 60,
-                    decoration: InputDecoration(
-                      labelText: '联系方式（选填）',
-                      labelStyle: const TextStyle(
-                        color: AppColors.textSecondary,
-                      ),
-                      hintText: '邮箱、手机号或微信号',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.primary,
-                          width: 1.5,
-                        ),
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
