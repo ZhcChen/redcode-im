@@ -132,9 +132,9 @@ class _ChatListView extends StatelessWidget {
                               flex: chat.isPinned
                                   ? 2
                                   : 1, // 已置顶：取消置顶flex=2，删除flex=1；未置顶：置顶flex=1，删除flex=1
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
+                              padding: chat.isPinned
+                                  ? const EdgeInsets.symmetric(horizontal: 4)
+                                  : const EdgeInsets.symmetric(horizontal: 8),
                             ),
                             SlidableAction(
                               onPressed: (_) => provider.deleteChat(chat.id),
