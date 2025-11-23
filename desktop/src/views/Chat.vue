@@ -8009,20 +8009,28 @@ const loadMessageList = async (groupId: string) => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--primary-color, #00c2b3);
+  background: transparent;
+  border: 2px solid var(--primary-color, #00c2b3);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: transparent;
   font-size: 10px;
   cursor: pointer;
   box-shadow: 0 0 0 2px #fff;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .select-indicator.other,
 .select-indicator.self {
   left: -20px;
   bottom: 16px;
+}
+
+.select-indicator.active {
+  background: var(--primary-color, #00c2b3);
+  color: #fff;
+  border-color: var(--primary-color, #00c2b3);
 }
 
 .chat-input {
