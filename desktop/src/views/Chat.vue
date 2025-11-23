@@ -3791,25 +3791,39 @@ const resolveContentTypeFromParts = (parts: MessagePart[] | undefined, fallback:
   return fallback
 }
 
-const mapQuotedMessageToUi = (quoted: DomainMessage['quotedMessage'] | null | undefined, fallbackRoomId?: string): QuotedMessage | undefined => {
-  if (!quoted) return undefined
+const mapQuotedMessageToUi = (quotedRaw: DomainMessage['quotedMessage'] | null | undefined, fallbackRoomId?: string): QuotedMessage | undefined => {
+  if (!quotedRaw) return undefined
+
+  // 兼容后端 snake_case 和 camelCase 字段
+  const quoted: any = quotedRaw as any
 
   const quotedParts = quoted.parts ? cloneMessageParts(quoted.parts) : undefined
 
-  const senderName = (quoted as any).senderNickname || (quoted as any).senderName || (quoted as any).senderUsername || ''
-  const senderUsername = (quoted as any).senderUsername || (quoted as any).senderName || ''
+  const senderName = quoted.senderNickname
+    || quoted.sender_nickname
+    || quoted.senderName
+    || quoted.sender_name
+    || quoted.senderUsername
+    || quoted.sender_username
+    || ''
+
+  const senderUsername = quoted.senderUsername
+    || quoted.sender_username
+    || quoted.senderName
+    || quoted.sender_name
+    || ''
 
   return {
     id: quoted.id,
-    roomId: quoted.roomId || fallbackRoomId || '',
-    senderId: quoted.senderId,
+    roomId: quoted.roomId || quoted.room_id || fallbackRoomId || '',
+    senderId: quoted.senderId || quoted.sender_id || '',
     senderUsername,
     senderName,
-    senderAvatar: (quoted as any).senderAvatar || (quoted as any).senderAvatarUrl || null,
+    senderAvatar: quoted.senderAvatar || quoted.sender_avatar || quoted.senderAvatarUrl || quoted.sender_avatar_url || null,
     content: quoted.content,
-    type: quoted.type || MessageType.TEXT,
-    createdAt: quoted.createdAt ? new Date(quoted.createdAt) : null,
-    isDeleted: !!quoted.isDeleted,
+    type: quoted.type || quoted.messageType || MessageType.TEXT,
+    createdAt: quoted.createdAt ? new Date(quoted.createdAt) : quoted.created_at ? new Date(quoted.created_at) : null,
+    isDeleted: !!(quoted.isDeleted ?? quoted.is_deleted),
     parts: quotedParts,
   }
 }
@@ -3849,7 +3863,7 @@ const mapDomainMessageToUi = (msg: DomainMessage): Message => {
     isEdited: !!(msg.extra && (msg.extra as Record<string, unknown>).edited),
     parts,
     roomId: msg.roomId,
-    quotedMessage: mapQuotedMessageToUi((msg as any).quotedMessage, msg.roomId),
+    quotedMessage: mapQuotedMessageToUi((msg as any).quotedMessage || (msg as any).quoted_message, msg.roomId),
   }
 }
 
