@@ -5507,6 +5507,7 @@ const selectMessage = (message: Message, selected: boolean) => {
 }
 
 const toggleMessageSelection = (message: Message) => {
+  if (isDraggingSelect.value) return
   if (!multiSelectMode.value) return
   if (selectedMessageIds.has(message.id)) {
     selectMessage(message, false)
