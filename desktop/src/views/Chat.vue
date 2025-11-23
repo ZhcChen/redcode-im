@@ -8763,17 +8763,16 @@ const loadMessageList = async (groupId: string) => {
 .quoted-highlighted {
   border: none;
   border-radius: 10px;
-  background-color: var(--primary-color, #4ecdc4) !important;
+  background-color: rgba(78, 205, 196, 0.5) !important; /* 主色 50% 透明，只影响背景 */
   animation: quoted-highlight-fade 5s ease-out forwards;
-  opacity: 0.5;
 }
 
 @keyframes quoted-highlight-fade {
   0% {
-    opacity: 0.5;
+    background-color: rgba(78, 205, 196, 0.5);
   }
   100% {
-    opacity: 0;
+    background-color: rgba(78, 205, 196, 0);
   }
 }
 
