@@ -8765,8 +8765,27 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-highlighted {
+  position: relative;
   border-radius: 0;
   animation: quoted-highlight-fade 5s ease-out;
+}
+
+.quoted-highlighted::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -24px;
+  right: -24px;
+  background-color: rgba(78, 205, 196, 0.5);
+  pointer-events: none;
+  animation: quoted-highlight-fade 5s ease-out forwards;
+  z-index: 0;
+}
+
+.quoted-highlighted > * {
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes quoted-highlight-fade {
