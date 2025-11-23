@@ -774,10 +774,9 @@
           class="forward-item"
         >
           <input
-            type="radio"
-            name="forward-target"
+            type="checkbox"
             :value="chat.groupId"
-            v-model="forwardTargetId"
+            v-model="forwardTargetIds"
           />
           <span class="forward-name">{{ chat.name }}</span>
         </label>
@@ -5188,10 +5187,14 @@ const showForwardDialog = ref(false)
 const forwardSourceMessage = ref<Message | null>(null)
 const forwardTargetIds = ref<string[]>([])
 
-const handleMessageMenuForward = () => {
-  const target = messageContextMenuTarget.value
-  if (!target || !canForwardMessage(target)) return
-  forwardSourceMessage.value = target
+const handleMessageMenuForward = (message?: Message) => {
+  const target = message ?? messageContextMenuTarget.value
+  if (!multiSelectMode.value) {
+    if (!target || !canForwardMessage(target)) return
+    forwardSourceMessage.value = target
+  } else {
+    forwardSourceMessage.value = null
+  }
   forwardTargetIds.value = []
   showMessageContextMenu.value = false
   showForwardDialog.value = true
@@ -5321,6 +5324,7 @@ const exitMultiSelect = () => {
 
 const toggleMessageSelection = (message: Message) => {
   if (!multiSelectMode.value) return
+  if (message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG) return
   if (selectedMessageIds.has(message.id)) {
     selectedMessageIds.delete(message.id)
   } else {
@@ -5366,6 +5370,16 @@ const handleMessageMenuDownload = async () => {
   if (!target) return
   showMessageContextMenu.value = false
   await handleFileDownload(target)
+}
+
+const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    showMessageContextMenu.value = false
+    showContextMenu.value = false
+    if (multiSelectMode.value) {
+      exitMultiSelect()
+    }
+  }
 }
 
 // 计算可用于转发的会话列表（排除当前会话）
@@ -6743,6 +6757,7 @@ onMounted(async () => {
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('keydown', handleGlobalKeydown)
 
   // 尝试恢复当前账号的缓存状态
   const currentAccountId = store.state.accounts?.currentAccountId
@@ -6825,6 +6840,7 @@ onUnmounted(async () => {
 
   // 移除点击外部关闭表情选择器的监听器
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('keydown', handleGlobalKeydown)
 
   // 移除WebSocket事件监听
   window.removeEventListener('websocket-chat-message', handleWebSocketMessage as EventListener)
@@ -7558,6 +7574,10 @@ const loadMessageList = async (groupId: string) => {
     border-radius: 10px;
     border: 1px solid #cde0ff;
     padding: 4px 6px;
+  }
+
+  .message-checkbox {
+    padding-top: 4px;
   }
 
   &.own-message {
