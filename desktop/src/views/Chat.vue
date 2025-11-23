@@ -8004,13 +8004,9 @@ const loadMessageList = async (groupId: string) => {
   box-shadow: 0 0 0 2px #fff;
 }
 
-.select-indicator.other {
-  right: -16px;
-  bottom: 16px;
-}
-
+.select-indicator.other,
 .select-indicator.self {
-  left: -16px;
+  left: -20px;
   bottom: 16px;
 }
 
