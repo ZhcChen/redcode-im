@@ -230,6 +230,19 @@ pub struct MessageUpdatePayload {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomUpdatePayload {
+    pub room_id: Uuid,
+    pub room_name: String,
+    pub room_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_object_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// 置顶消息事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PinUpdatePayload {
@@ -263,6 +276,10 @@ pub enum PubSubPayload {
         #[serde(flatten)]
         data: PinUpdatePayload,
     },
+    RoomUpdate {
+        #[serde(flatten)]
+        data: RoomUpdatePayload,
+    },
 }
 
 /// 缓存键生成器
@@ -282,6 +299,9 @@ impl PubSubPayload {
             }
             PubSubPayload::PinUpdate { data } => {
                 Payload::PinUpdate(ws::PubSubPinUpdate::from(data))
+            }
+            PubSubPayload::RoomUpdate { data } => {
+                Payload::RoomUpdate(ws::PubSubRoomUpdate::from(data))
             }
         };
 
@@ -320,6 +340,10 @@ impl TryFrom<ws::PubSubEvent> for PubSubPayload {
             Payload::PinUpdate(update) => {
                 let data = PinUpdatePayload::try_from(update)?;
                 Ok(PubSubPayload::PinUpdate { data })
+            }
+            Payload::RoomUpdate(update) => {
+                let data = RoomUpdatePayload::try_from(update)?;
+                Ok(PubSubPayload::RoomUpdate { data })
             }
         }
     }
@@ -441,6 +465,48 @@ impl TryFrom<ws::PubSubMessageUpdate> for MessageUpdatePayload {
             deleted_at: option_from_string(value.deleted_at)
                 .map(|val| parse_datetime(&val, "deleted_at"))
                 .transpose()?,
+        })
+    }
+}
+
+impl From<&RoomUpdatePayload> for ws::PubSubRoomUpdate {
+    fn from(value: &RoomUpdatePayload) -> Self {
+        ws::PubSubRoomUpdate {
+            room_id: value.room_id.to_string(),
+            room_name: value.room_name.clone(),
+            room_type: value.room_type.clone(),
+            avatar_url: value.avatar_url.clone().unwrap_or_default(),
+            avatar_object_key: value.avatar_object_key.clone().unwrap_or_default(),
+            description: value.description.clone().unwrap_or_default(),
+        }
+    }
+}
+
+impl TryFrom<ws::PubSubRoomUpdate> for RoomUpdatePayload {
+    type Error = String;
+
+    fn try_from(value: ws::PubSubRoomUpdate) -> Result<Self, Self::Error> {
+        let room_id = Uuid::parse_str(&value.room_id).map_err(|e| e.to_string())?;
+
+        Ok(RoomUpdatePayload {
+            room_id,
+            room_name: value.room_name,
+            room_type: value.room_type,
+            avatar_url: if value.avatar_url.is_empty() {
+                None
+            } else {
+                Some(value.avatar_url)
+            },
+            avatar_object_key: if value.avatar_object_key.is_empty() {
+                None
+            } else {
+                Some(value.avatar_object_key)
+            },
+            description: if value.description.is_empty() {
+                None
+            } else {
+                Some(value.description)
+            },
         })
     }
 }

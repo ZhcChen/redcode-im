@@ -195,6 +195,7 @@ impl PubSubManager {
             PubSubPayload::ReadReceipt { data } => data.source_node != node_id,
             PubSubPayload::MessageUpdate { .. } => true,
             PubSubPayload::PinUpdate { .. } => true,
+            PubSubPayload::RoomUpdate { .. } => true,
         };
 
         if !should_forward {
@@ -230,6 +231,12 @@ impl PubSubManager {
                         .map(|id| id.to_string())
                         .unwrap_or_else(|| "<none>".to_string()),
                     data.is_pinned
+                );
+            }
+            PubSubPayload::RoomUpdate { data } => {
+                info!(
+                    "收到跨节点房间更新 [{}]: 房间={}, 新头像Key={:?}",
+                    node_id, data.room_id, data.avatar_object_key
                 );
             }
         }

@@ -1,5 +1,5 @@
 mod protocol;
-pub use protocol::{RoomCreatedPayload, ServerPush};
+pub use protocol::{RoomCreatedPayload, RoomUpdatedPayload, ServerPush};
 
 use axum::extract::{
     ws::{Message, WebSocket, WebSocketUpgrade},
@@ -755,6 +755,18 @@ pub async fn handle_socket(
                             }
                             crate::redis::models::PubSubPayload::PinUpdate { data } => {
                                 ServerPush::PinUpdate { data }
+                            }
+                            crate::redis::models::PubSubPayload::RoomUpdate { data } => {
+                                ServerPush::RoomUpdated {
+                                    data: RoomUpdatedPayload {
+                                        room_id: data.room_id,
+                                        room_name: data.room_name.clone(),
+                                        room_type: data.room_type.clone(),
+                                        avatar_url: data.avatar_url.clone(),
+                                        avatar_object_key: data.avatar_object_key.clone(),
+                                        description: data.description.clone(),
+                                    },
+                                }
                             }
                         };
 

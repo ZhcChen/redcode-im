@@ -448,6 +448,17 @@ class WebSocketService with ChangeNotifier {
           initiatorId: _nullIfEmpty(payload.initiatorId),
           createdAt: _parseDateTime(_nullIfEmpty(payload.createdAt)),
         );
+      case ws.ServerEvent_Payload.roomUpdated:
+        final payload = event.roomUpdated;
+        if (payload.roomId.isEmpty) return null;
+        return _RoomUpdatedEvent(
+          roomId: payload.roomId,
+          roomName: payload.roomName,
+          roomType: _nullIfEmpty(payload.roomType),
+          avatarUrl: _nullIfEmpty(payload.avatarUrl),
+          avatarObjectKey: _nullIfEmpty(payload.avatarObjectKey),
+          description: _nullIfEmpty(payload.description),
+        );
       case ws.ServerEvent_Payload.error:
         return _ErrorEvent(message: event.error.message);
       case ws.ServerEvent_Payload.pong:
@@ -576,6 +587,20 @@ class WebSocketService with ChangeNotifier {
           initiatorId: _nullIfEmpty(message['initiator_id']?.toString()),
           createdAt: _parseDateTime(message['created_at']?.toString()),
         );
+      case 'room_updated':
+      case 'room.updated':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        return _RoomUpdatedEvent(
+          roomId: roomId,
+          roomName: message['room_name']?.toString() ?? '',
+          roomType: _nullIfEmpty(message['room_type']?.toString()),
+          avatarUrl: _nullIfEmpty(message['avatar_url']?.toString()),
+          avatarObjectKey: _nullIfEmpty(
+            message['avatar_object_key']?.toString(),
+          ),
+          description: _nullIfEmpty(message['description']?.toString()),
+        );
       case 'friendship.created':
       case 'friendship_created':
         final data = message['friend'] ?? message['user'];
@@ -652,6 +677,8 @@ class WebSocketService with ChangeNotifier {
       _handleFriendRequestUpdate(event);
     } else if (event is _RoomCreatedEvent) {
       _handleRoomCreated(event);
+    } else if (event is _RoomUpdatedEvent) {
+      _handleRoomUpdated(event);
     } else if (event is _FriendshipCreatedEvent) {
       _handleFriendshipCreated(event);
     } else if (event is _FriendshipDeletedEvent) {
@@ -859,6 +886,30 @@ class WebSocketService with ChangeNotifier {
 
     unawaited(joinRoom(roomId));
     unawaited(_messageService.fetchChats());
+  }
+
+  void _handleRoomUpdated(_RoomUpdatedEvent event) {
+    final roomId = event.roomId;
+    if (roomId.isEmpty) return;
+
+    _messageService.ensureRoomPlaceholder(
+      roomId: roomId,
+      name: event.roomName,
+      roomType: event.roomType,
+      avatarUrl: event.avatarUrl,
+      description: event.description,
+    );
+
+    if (event.avatarObjectKey != null && event.avatarObjectKey!.isNotEmpty) {
+      _messageService.updateRoomAvatar(
+        roomId: roomId,
+        avatarObjectKey: event.avatarObjectKey!,
+        localAvatarPath: null,
+      );
+    }
+
+    // 轻量强制刷新会话列表，确保其他字段也同步
+    unawaited(_messageService.fetchChats(force: true));
   }
 
   /// 处理服务器错误
@@ -1448,6 +1499,24 @@ class _RoomCreatedEvent extends _WsEvent {
   final String? description;
   final String? initiatorId;
   final DateTime? createdAt;
+}
+
+class _RoomUpdatedEvent extends _WsEvent {
+  const _RoomUpdatedEvent({
+    required this.roomId,
+    required this.roomName,
+    this.roomType,
+    this.avatarUrl,
+    this.avatarObjectKey,
+    this.description,
+  });
+
+  final String roomId;
+  final String roomName;
+  final String? roomType;
+  final String? avatarUrl;
+  final String? avatarObjectKey;
+  final String? description;
 }
 
 class _FriendshipCreatedEvent extends _WsEvent {

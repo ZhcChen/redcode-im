@@ -41,6 +41,7 @@ message ServerEvent {
     ServerBanned user_banned = 12;
     ServerGroupDissolved group_dissolved = 13;
     ServerGroupOwnerTransferred group_owner_transferred = 14;
+    ServerRoomUpdated room_updated = 15;
   }
 }
 
@@ -171,6 +172,15 @@ message ServerGroupOwnerTransferred {
   string new_owner_id = 3;
 }
 
+message ServerRoomUpdated {
+  string room_id = 1;
+  string room_name = 2;
+  string room_type = 3;
+  string avatar_url = 4;
+  string avatar_object_key = 5;
+  string description = 6;
+}
+
 enum PubSubPriority {
   PUBSUB_PRIORITY_UNKNOWN = 0;
   PUBSUB_PRIORITY_CRITICAL = 1;
@@ -220,11 +230,21 @@ message PubSubPinUpdate {
   string pinned_by = 5;
 }
 
+message PubSubRoomUpdate {
+  string room_id = 1;
+  string room_name = 2;
+  string room_type = 3;
+  string avatar_url = 4;
+  string avatar_object_key = 5;
+  string description = 6;
+}
+
 message PubSubEvent {
   oneof payload {
     PubSubMessage message = 1;
     PubSubReadReceipt read_receipt = 2;
     PubSubMessageUpdate message_update = 3;
     PubSubPinUpdate pin_update = 4;
+    PubSubRoomUpdate room_update = 5;
   }
 }

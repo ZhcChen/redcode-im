@@ -5,6 +5,7 @@ use axum::{
     response::Json,
 };
 use chrono;
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,6 +17,7 @@ use crate::database::{
 use crate::error::AppError;
 use crate::models::convert::{db_chat_summary_to_api, string_to_uuid};
 use crate::models::{ChatSummary, Claims};
+use crate::redis::models::{CacheKeys, PubSubPayload, RoomUpdatePayload};
 use crate::websocket::{RoomCreatedPayload, ServerPush};
 use crate::AppState;
 
@@ -769,7 +771,7 @@ pub async fn commit_room_avatar_upload(
     let avatar_url = storage_service.get_file_url(key);
 
     // 更新房间头像：存储 object_key 和 url
-    store
+    let room = store
         .update_room(
             room_id,
             None,
@@ -778,6 +780,37 @@ pub async fn commit_room_avatar_upload(
             Some(key.to_string()),
         )
         .await?;
+
+    // 向房间成员广播头像更新事件
+    let room_update = RoomUpdatePayload {
+        room_id,
+        room_name: room.name.clone(),
+        room_type: room.room_type.to_string(),
+        avatar_url: room.avatar_url.clone(),
+        avatar_object_key: room.avatar_object_key.clone(),
+        description: room.description.clone(),
+    };
+
+    let payload = PubSubPayload::RoomUpdate { data: room_update };
+    let channel = CacheKeys::pubsub_channel(&room_id);
+    let mut conn = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await;
+
+    match conn {
+        Ok(ref mut c) => {
+            let encoded = payload.encode_protobuf();
+            let publish_result: redis::RedisResult<i32> = c.publish(&channel, encoded).await;
+            if let Err(err) = publish_result {
+                tracing::error!("广播房间头像更新失败: {:?}", err);
+            }
+        }
+        Err(err) => {
+            tracing::error!("获取Redis连接失败，无法广播房间更新: {:?}", err);
+        }
+    }
 
     Ok(Json(CommitRoomAvatarUploadResponse {
         success: true,

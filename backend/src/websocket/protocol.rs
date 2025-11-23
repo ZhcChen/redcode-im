@@ -54,6 +54,16 @@ pub struct RoomCreatedPayload {
 }
 
 #[derive(Debug, Clone)]
+pub struct RoomUpdatedPayload {
+    pub room_id: Uuid,
+    pub room_name: String,
+    pub room_type: String,
+    pub avatar_url: Option<String>,
+    pub avatar_object_key: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub enum ServerPush {
     Authed {
         user_id: String,
@@ -87,6 +97,9 @@ pub enum ServerPush {
     RoomCreated {
         data: RoomCreatedPayload,
     },
+    RoomUpdated {
+        data: RoomUpdatedPayload,
+    },
     UserBanned {
         user_id: String,
         reason: String,
@@ -115,6 +128,7 @@ impl ServerPush {
             ServerPush::Pong => "pong",
             ServerPush::FriendRequestUpdate { .. } => "friend_request_update",
             ServerPush::RoomCreated { .. } => "room_created",
+            ServerPush::RoomUpdated { .. } => "room_updated",
             ServerPush::UserBanned { .. } => "user_banned",
             ServerPush::GroupDissolved { .. } => "group_dissolved",
             ServerPush::GroupOwnerTransferred { .. } => "group_owner_transferred",
@@ -188,6 +202,15 @@ impl ServerPush {
                 "description": data.description,
                 "avatar_url": data.avatar_url,
                 "created_at": data.created_at.map(|ts| ts.to_rfc3339()),
+            }),
+            ServerPush::RoomUpdated { data } => json!({
+                "type": "room_updated",
+                "room_id": data.room_id,
+                "room_name": data.room_name,
+                "room_type": data.room_type,
+                "avatar_url": data.avatar_url,
+                "avatar_object_key": data.avatar_object_key,
+                "description": data.description,
             }),
             ServerPush::UserBanned { user_id, reason } => json!({
                 "type": "user_banned",
@@ -287,6 +310,14 @@ impl ServerPush {
                     .created_at
                     .map(|ts| ts.to_rfc3339())
                     .unwrap_or_default(),
+            }),
+            ServerPush::RoomUpdated { data } => Payload::RoomUpdated(ws::ServerRoomUpdated {
+                room_id: data.room_id.to_string(),
+                room_name: data.room_name.clone(),
+                room_type: data.room_type.clone(),
+                avatar_url: data.avatar_url.clone().unwrap_or_default(),
+                avatar_object_key: data.avatar_object_key.clone().unwrap_or_default(),
+                description: data.description.clone().unwrap_or_default(),
             }),
             ServerPush::UserBanned { user_id, reason } => Payload::UserBanned(ws::ServerBanned {
                 user_id: user_id.clone(),
