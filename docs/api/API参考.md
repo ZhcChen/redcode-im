@@ -755,54 +755,62 @@ Authorization: Bearer <your-jwt-token>
 #### 1. 获取最新版本
 - **接口**: `GET /versions/latest`
 - **权限**: 公开
-- **功能**: 获取客户端最新可用版本信息
+- **功能**: 获取指定平台、渠道的最新启用版本
 - **Handler**: `version::latest_version`
-- **查询参数**: `?platform=windows&channel=stable`
+- **查询参数**: `platform`（必填），`channel`（必填，默认为 `stable`），`current_version`（可选，用于判断是否有更新）
 
-#### 2. 下载版本
+#### 2. 获取最新版本下载链接
+- **接口**: `GET /versions/latest/download-url`
+- **权限**: 公开
+- **功能**: 直接生成最新启用版本的临时下载链接（无需登录）
+- **Handler**: `version::download_latest_version`
+- **查询参数**: `platform`（必填），`channel`（必填，默认为 `stable`），`expires_in_seconds`（可选，临时链接有效期，默认存储服务默认值）
+- **响应字段**: `version`（版本详情），`download_url`（临时直链）
+
+#### 3. 下载指定版本
 - **接口**: `GET /versions/download`
 - **权限**: 公开
-- **功能**: 下载指定版本的安装包
+- **功能**: 为指定版本生成临时下载链接
 - **Handler**: `version::download_version`
-- **查询参数**: `?version=1.0.0&platform=windows`
+- **查询参数**: `id`（必填，版本 ID），`expires_in_seconds`（可选）
 
-#### 3. 生成版本上传签名
+#### 4. 生成版本上传签名
 - **接口**: `POST /api/admin/app-versions/upload/signature`
 - **权限**: 管理员
 - **功能**: 生成版本文件上传签名
 - **Handler**: `version::generate_version_upload_signature`
 
-#### 4. 获取版本列表
+#### 5. 获取版本列表
 - **接口**: `GET /api/admin/app-versions`
 - **权限**: 管理员
 - **功能**: 获取所有版本记录
 - **Handler**: `version::list_app_versions`
 
-#### 5. 创建版本
+#### 6. 创建版本
 - **接口**: `POST /api/admin/app-versions`
 - **权限**: 管理员
 - **功能**: 创建新版本记录
 - **Handler**: `version::create_app_version`
 
-#### 6. 获取版本详情
+#### 7. 获取版本详情
 - **接口**: `GET /api/admin/app-versions/:id`
 - **权限**: 管理员
 - **功能**: 获取版本详细信息
 - **Handler**: `version::get_app_version`
 
-#### 7. 更新版本
+#### 8. 更新版本
 - **接口**: `PATCH /api/admin/app-versions/:id`
 - **权限**: 管理员
 - **功能**: 修改版本信息
 - **Handler**: `version::update_app_version`
 
-#### 8. 删除版本
+#### 9. 删除版本
 - **接口**: `DELETE /api/admin/app-versions/:id`
 - **权限**: 管理员
 - **功能**: 删除版本记录
 - **Handler**: `version::delete_app_version`
 
-#### 9. 停用版本
+#### 10. 停用版本
 - **接口**: `POST /api/admin/app-versions/:id/deactivate`
 - **权限**: 管理员
 - **功能**: 停用指定版本

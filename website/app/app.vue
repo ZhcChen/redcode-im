@@ -26,6 +26,8 @@
           </div>
           <button
             class="flex h-11 w-full min-w-[120px] cursor-pointer items-center justify-center rounded-xl px-4 text-sm font-bold tracking-[0.015em] text-white bg-[#13a4ec] sm:w-auto"
+            type="button"
+            @click="handlePrimaryDownload"
           >
             <span class="truncate">下载</span>
           </button>
@@ -56,6 +58,8 @@
                 </div>
                 <button
                   class="flex h-12 w-full min-w-[180px] max-w-[320px] cursor-pointer items-center justify-center rounded-xl bg-[#13a4ec] px-5 text-base font-bold leading-normal tracking-[0.015em] text-white sm:w-auto"
+                  type="button"
+                  @click="handlePrimaryDownload"
                 >
                   <span class="truncate">立即下载</span>
                 </button>
@@ -191,17 +195,23 @@
                   </div>
                 </div>
                 <div class="flex flex-wrap gap-3">
-                  <a
-                    v-for="item in mobileDownloads"
-                    :key="item.label"
-                    :href="item.href"
-                    class="flex min-w-[160px] flex-1 cursor-pointer items-center justify-between rounded-2xl bg-[#13a4ec] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0f7bcf] hover:shadow-lg"
-                  >
-                    <div class="flex flex-col">
-                      <span class="text-sm font-bold text-white">{{ item.label }}</span>
-                      <span v-if="item.subLabel" class="text-xs font-medium text-[#d7ecfb]">{{ item.subLabel }}</span>
-                    </div>
-                    <svg
+              <a
+                v-for="item in mobileDownloads"
+                :key="item.label"
+                :href="item.href || '#'"
+                class="flex min-w-[160px] flex-1 cursor-pointer items-center justify-between rounded-2xl bg-[#13a4ec] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0f7bcf] hover:shadow-lg"
+                :class="!item.href ? 'opacity-80' : ''"
+                @click.prevent="handleDownloadClick(item)"
+              >
+                <div class="flex flex-col">
+                  <span class="text-sm font-bold text-white">{{ item.label }}</span>
+                  <span v-if="item.subLabel || item.versionText" class="text-xs font-medium text-[#d7ecfb]">
+                    <template v-if="item.subLabel">{{ item.subLabel }}</template>
+                    <template v-if="item.subLabel && item.versionText"> · </template>
+                    <template v-if="item.versionText">{{ item.versionText }}</template>
+                  </span>
+                </div>
+                <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 256 256"
                       width="20"
@@ -242,17 +252,23 @@
                   </div>
                 </div>
                 <div class="flex flex-col gap-3">
-                  <a
-                    v-for="item in desktopDownloads"
-                    :key="item.label"
-                    :href="item.href"
-                    class="flex w-full items-center justify-between rounded-2xl bg-[#111618] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0b1114] hover:shadow-lg"
-                  >
-                    <div class="flex flex-col">
-                      <span class="text-sm font-bold text-white">{{ item.label }}</span>
-                      <span class="text-xs font-medium text-[#d9dde0]">{{ item.subLabel }}</span>
-                    </div>
-                    <svg
+              <a
+                v-for="item in desktopDownloads"
+                :key="item.label"
+                :href="item.href || '#'"
+                class="flex w-full items-center justify-between rounded-2xl bg-[#111618] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0b1114] hover:shadow-lg"
+                :class="!item.href ? 'opacity-80' : ''"
+                @click.prevent="handleDownloadClick(item)"
+              >
+                <div class="flex flex-col">
+                  <span class="text-sm font-bold text-white">{{ item.label }}</span>
+                  <span v-if="item.subLabel || item.versionText" class="text-xs font-medium text-[#d9dde0]">
+                    <template v-if="item.subLabel">{{ item.subLabel }}</template>
+                    <template v-if="item.subLabel && item.versionText"> · </template>
+                    <template v-if="item.versionText">{{ item.versionText }}</template>
+                  </span>
+                </div>
+                <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 256 256"
                       width="20"
@@ -291,36 +307,166 @@
 </template>
 
 <script setup>
-const mobileDownloads = [
+const runtimeConfig = useRuntimeConfig()
+const apiBase = runtimeConfig.public.apiBase
+
+const mobileDownloads = ref([
   {
+    key: 'ios',
     label: '下载 iOS 版',
     subLabel: 'App Store 安装',
-    href: '#'
+    platform: 'ios',
+    channel: 'stable',
+    href: ''
   },
   {
+    key: 'android',
     label: '下载 Android 版',
     subLabel: '应用商店 / APK 包',
-    href: '#'
+    platform: 'android',
+    channel: 'stable',
+    href: ''
   }
-]
+])
 
-const desktopDownloads = [
+const desktopDownloads = ref([
   {
+    key: 'windows',
     label: '下载 Windows 版',
     subLabel: '适配 Windows 7 及以上',
-    href: '#'
+    platform: 'windows',
+    channel: 'stable',
+    href: ''
   },
   {
+    key: 'macosIntel',
     label: '下载 macOS 版 (Intel)',
     subLabel: 'x64 处理器专用安装包',
-    href: '#'
+    platform: 'macos',
+    channel: 'stable-macos-intel',
+    href: ''
   },
   {
+    key: 'macosArm',
     label: '下载 macOS 版 (Apple 芯片)',
     subLabel: '适配 Apple Silicon (M 系列)',
-    href: '#'
+    platform: 'macos',
+    channel: 'stable-macos-arm64',
+    href: ''
   }
-]
+])
+
+const downloadLinkMap = ref({})
+const isFetching = ref(false)
+
+const allDownloadItems = computed(() => [
+  ...mobileDownloads.value,
+  ...desktopDownloads.value
+])
+
+const fetchDownloadUrl = async (item) => {
+  if (!apiBase) return
+  try {
+    const data = await $fetch(`${apiBase}/versions/latest/download-url`, {
+      params: {
+        platform: item.platform,
+        channel: item.channel,
+        expires_in_seconds: 900
+      }
+    })
+
+    if (data?.success && data.download_url) {
+      item.href = data.download_url
+      downloadLinkMap.value[item.key] = data.download_url
+      if (data.version?.version) {
+        item.versionText = `v${data.version.version}`
+      }
+    }
+  } catch (error) {
+    console.error(`获取 ${item.label} 下载链接失败`, error)
+  }
+}
+
+const refreshDownloadLinks = async () => {
+  if (!process.client || isFetching.value) return
+  isFetching.value = true
+  try {
+    await Promise.all(allDownloadItems.value.map((item) => fetchDownloadUrl(item)))
+  } finally {
+    isFetching.value = false
+  }
+}
+
+const detectPlatformKey = () => {
+  if (!process.client) return 'windows'
+  const ua = (navigator.userAgent || '').toLowerCase()
+  const archRaw = navigator.userAgentData?.architecture || ''
+  const arch = typeof archRaw === 'string' ? archRaw.toLowerCase() : ''
+
+  if (/iphone|ipad|ipod/.test(ua)) return 'ios'
+  if (/android/.test(ua)) return 'android'
+  if (/mac os x/.test(ua)) {
+    if ((arch && arch.includes('arm')) || /arm|aarch64|apple silicon/.test(ua)) {
+      return 'macosArm'
+    }
+    return 'macosIntel'
+  }
+  if (/win/.test(ua)) return 'windows'
+  return 'windows'
+}
+
+const primaryDownloadUrl = computed(() => {
+  const order = Array.from(
+    new Set([
+      detectPlatformKey(),
+      'windows',
+      'macosArm',
+      'macosIntel',
+      'android',
+      'ios'
+    ])
+  )
+
+  for (const key of order) {
+    const url = downloadLinkMap.value[key]
+    if (url) {
+      return url
+    }
+  }
+  return ''
+})
+
+const handlePrimaryDownload = async () => {
+  if (!process.client) return
+  if (!Object.keys(downloadLinkMap.value).length) {
+    await refreshDownloadLinks()
+  }
+
+  const url = primaryDownloadUrl.value
+  if (url) {
+    window.open(url, '_blank')
+  } else {
+    window.alert('下载链接获取中，请稍后重试')
+  }
+}
+
+const handleDownloadClick = async (item) => {
+  if (!process.client) return
+
+  if (!item.href) {
+    await fetchDownloadUrl(item)
+  }
+
+  if (item.href) {
+    window.open(item.href, '_blank')
+  } else {
+    window.alert('下载链接暂不可用，请稍后重试')
+  }
+}
+
+onMounted(() => {
+  refreshDownloadLinks()
+})
 
 useHead({
   title: 'Chatly',

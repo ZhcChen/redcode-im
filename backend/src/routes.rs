@@ -18,6 +18,10 @@ pub fn create_routes() -> Router<AppState> {
         .route("/healthz", get(healthz))
         .route("/ws", get(ws))
         .route("/versions/latest", get(version::latest_version))
+        .route(
+            "/versions/latest/download-url",
+            get(version::download_latest_version),
+        )
         .route("/versions/hot-update", get(version::latest_hot_update))
         .route("/versions/download", get(version::download_version))
         .route(

@@ -61,6 +61,22 @@ pub struct HotUpdateListResponse {
     pub items: Vec<crate::models::HotUpdateInfo>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct LatestVersionDownloadParams {
+    pub platform: String,
+    #[serde(default = "default_channel")]
+    pub channel: String,
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LatestVersionDownloadResponse {
+    pub success: bool,
+    pub message: String,
+    pub version: Option<crate::models::AppVersionInfo>,
+    pub download_url: Option<String>,
+}
+
 pub async fn generate_version_upload_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -300,12 +316,13 @@ pub async fn download_version(
         .await?
         .ok_or_else(|| AppError::NotFound("版本不存在".to_string()))?;
 
-    let provider = load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
-
-    let download_url = storage_service
-        .generate_download_url(&version.download_key, params.expires_in_seconds)
-        .await?;
+    let download_url = resolve_download_url(
+        &state,
+        &version.download_key,
+        version.download_url.as_ref(),
+        params.expires_in_seconds,
+    )
+    .await?;
 
     Ok(Json(VersionDownloadResponse {
         success: true,
@@ -324,15 +341,13 @@ pub async fn download_hot_update(
         .await?
         .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
 
-    let signed_url = if let Some(explicit) = &patch.download_url {
-        explicit.clone()
-    } else {
-        let provider = load_default_storage_provider(&state).await?;
-        let storage_service = storage::create_storage_service(&provider)?;
-        storage_service
-            .generate_download_url(&patch.download_key, params.expires_in_seconds)
-            .await?
-    };
+    let signed_url = resolve_download_url(
+        &state,
+        &patch.download_key,
+        patch.download_url.as_ref(),
+        params.expires_in_seconds,
+    )
+    .await?;
 
     Ok(Json(HotUpdateDownloadResponse {
         success: true,
@@ -740,6 +755,62 @@ fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppErro
         ));
     }
     Ok(())
+}
+
+pub async fn download_latest_version(
+    State(state): State<AppState>,
+    Query(params): Query<LatestVersionDownloadParams>,
+) -> Result<Json<LatestVersionDownloadResponse>, AppError> {
+    let platform = Platform::from_str(params.platform.trim()).ok_or_else(|| {
+        AppError::ValidationError(format!(
+            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
+            params.platform
+        ))
+    })?;
+
+    let channel = params.channel.trim();
+    if channel.is_empty() {
+        return Err(AppError::ValidationError("channel 不能为空".to_string()));
+    }
+
+    let store = VersionStore::new(state.database.clone());
+    let latest = store
+        .find_latest_active(platform, channel)
+        .await?
+        .ok_or_else(|| AppError::NotFound("暂无可用版本".to_string()))?;
+
+    let download_url = resolve_download_url(
+        &state,
+        &latest.download_key,
+        latest.download_url.as_ref(),
+        params.expires_in_seconds,
+    )
+    .await?;
+
+    Ok(Json(LatestVersionDownloadResponse {
+        success: true,
+        message: "生成下载链接成功".to_string(),
+        version: Some(db_app_version_to_api(&latest)),
+        download_url: Some(download_url),
+    }))
+}
+
+async fn resolve_download_url(
+    state: &AppState,
+    download_key: &str,
+    explicit_download_url: Option<&String>,
+    expires_in_seconds: Option<u32>,
+) -> Result<String, AppError> {
+    if let Some(url) = explicit_download_url {
+        return Ok(url.clone());
+    }
+
+    let provider = load_default_storage_provider(state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+    let download_url = storage_service
+        .generate_download_url(download_key, expires_in_seconds)
+        .await?;
+    Ok(download_url)
 }
 
 async fn load_default_storage_provider(
