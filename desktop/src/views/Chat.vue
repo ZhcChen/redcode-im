@@ -3551,6 +3551,23 @@ const getQuotedInitial = (quoted: QuotedMessage | null | undefined): string => {
   return name.trim().charAt(0).toUpperCase()
 }
 
+const getSenderAvatarById = (userId?: string | null): string | null => {
+  if (!userId) return null
+
+  // 先从当前消息列表里找本地已解析的头像
+  const msgAvatar = messages.value.find((m) => m.senderId === userId && m.senderAvatar)?.senderAvatar
+  if (msgAvatar) return msgAvatar
+
+  const msgLocal = messages.value.find((m) => m.senderId === userId && m.senderAvatarLocalPath)?.senderAvatarLocalPath
+  if (msgLocal) return msgLocal
+
+  // 再从已加载的群成员列表里找头像 URL
+  const member = groupMembers.value.find((m) => m.userId === userId)
+  if (member?.avatarUrl) return member.avatarUrl
+
+  return null
+}
+
 const getQuotedText = (quoted: QuotedMessage): string => {
   if (Array.isArray(quoted.parts) && quoted.parts.length > 0) {
     const textPart = quoted.parts.find((part) => part.type === MessagePartType.TEXT && part.text?.trim())
