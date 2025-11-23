@@ -41,7 +41,7 @@
 ```
 读取保存的Token
     ↓
-建立WebSocket连接 (ws://localhost:8010/ws)
+建立WebSocket连接 (wss://api.chatlyme.com/ws)
     ↓
 发送认证消息 {"type": "auth", "token": "..."}
     ↓
@@ -110,8 +110,8 @@ flutter run
 `frontend/lib/core/constants/app_config.dart`
 ```dart
 class AppConfig {
-  static const apiBaseUrl = 'http://localhost:8010';  // 后端API地址
-  static const wsUrl = 'ws://localhost:8010/ws';      // WebSocket地址
+  static const apiBaseUrl = 'https://api.chatlyme.com';  // 后端API地址
+  static const wsUrl = 'wss://api.chatlyme.com/ws';      // WebSocket地址
   static const useMockData = false;                    // 关闭Mock模式
 }
 ```

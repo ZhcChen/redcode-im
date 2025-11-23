@@ -2,7 +2,7 @@
 
 # 测试前端是否能访问后端 API
 
-API_BASE="http://localhost:8010"
+API_BASE="https://api.chatlyme.com"
 echo "测试前端 API 访问..."
 echo ""
 
