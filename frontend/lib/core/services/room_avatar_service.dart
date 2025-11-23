@@ -50,7 +50,7 @@ class RoomAvatarService {
         }
       }
     } catch (e, stackTrace) {
-      // API不存在或失败，返回null
+      debugPrint('获取群头像下载地址失败 room=$roomId err=$e');
     }
     return null;
   }
@@ -108,7 +108,7 @@ class RoomAvatarService {
         return cachedPath;
       }
     } catch (e, stackTrace) {
-      // 下载失败，返回null
+      debugPrint('群头像下载失败 room=$roomId key=$avatarObjectKey err=$e');
     }
 
     return null;

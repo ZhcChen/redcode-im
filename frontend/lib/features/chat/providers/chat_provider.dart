@@ -68,6 +68,20 @@ class ChatProvider with ChangeNotifier {
       if (chat.name.toLowerCase().contains(keyword)) {
         return true;
       }
+      // 匹配备注/描述等附加信息
+      final extra = chat.extra;
+      final candidateFields = <String?>[
+        extra?['friend_remark'] as String?,
+        extra?['friendRemark'] as String?,
+        extra?['friend_nickname'] as String?,
+        extra?['friendNickname'] as String?,
+        extra?['description'] as String?,
+      ];
+      for (final field in candidateFields) {
+        if (field != null && field.toLowerCase().contains(keyword)) {
+          return true;
+        }
+      }
       // 匹配最后消息内容
       if (chat.lastMessage.toLowerCase().contains(keyword)) {
         return true;
