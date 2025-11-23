@@ -166,12 +166,12 @@
                   <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
                     <div class="quoted-header">
                       <Avatar
-                        v-if="getQuotedAvatar(message.quotedMessage)"
-                        :src="getQuotedAvatar(message.quotedMessage)"
-                        :size="24"
+                        :src="getQuotedAvatar(message.quotedMessage)
+                          || getSenderAvatarById(message.quotedMessage.senderId)
+                          || undefined"
                         :text="getQuotedInitial(message.quotedMessage)"
+                        :size="24"
                       />
-                      <div v-else class="quoted-avatar-fallback">{{ getQuotedInitial(message.quotedMessage) }}</div>
                       <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
                     </div>
                     <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
@@ -314,12 +314,12 @@
                 <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
                   <div class="quoted-header">
                     <Avatar
-                      v-if="getQuotedAvatar(message.quotedMessage)"
-                      :src="getQuotedAvatar(message.quotedMessage)"
-                      :size="24"
+                      :src="getQuotedAvatar(message.quotedMessage)
+                        || getSenderAvatarById(message.quotedMessage.senderId)
+                        || undefined"
                       :text="getQuotedInitial(message.quotedMessage)"
+                      :size="24"
                     />
-                    <div v-else class="quoted-avatar-fallback">{{ getQuotedInitial(message.quotedMessage) }}</div>
                     <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
                   </div>
                   <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
@@ -8741,7 +8741,6 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-block {
-  border-left: 3px solid #1c9083;
   padding: 12px 16px;
   margin-bottom: 8px;
   background: #f9fcfd;
