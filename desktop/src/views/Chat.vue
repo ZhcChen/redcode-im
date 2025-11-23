@@ -5567,21 +5567,43 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
 // 拖拽多选
 const isDraggingSelect = ref(false)
 const dragSelectedIds = new Set<string>()
+const dragAnchorMessageId = ref<string | null>(null)
+const hasCrossedMessage = ref(false)
+
+const clearBrowserSelection = () => {
+  const selection = window.getSelection()
+  if (selection && selection.removeAllRanges) {
+    selection.removeAllRanges()
+  }
+}
 
 const handleMouseDownOnMessages = (event: MouseEvent) => {
   if (event.button !== 0) return // 仅左键
-  isDraggingSelect.value = true
+  const target = (event.target as HTMLElement)?.closest('[data-message-id]') as HTMLElement | null
+  dragAnchorMessageId.value = target?.getAttribute('data-message-id') || null
   dragSelectedIds.clear()
-  enterMultiSelect()
+  hasCrossedMessage.value = false
+  isDraggingSelect.value = !!dragAnchorMessageId.value
 }
 
 const handleMouseMoveOnMessages = (event: MouseEvent) => {
   if (!isDraggingSelect.value) return
   const target = (event.target as HTMLElement)?.closest('[data-message-id]') as HTMLElement | null
-  if (!target) return
-  const id = target.getAttribute('data-message-id')
+  const id = target?.getAttribute('data-message-id')
   if (!id) return
-  if (!dragSelectedIds.has(id)) {
+
+  if (!multiSelectMode.value && dragAnchorMessageId.value && id !== dragAnchorMessageId.value) {
+    // 第一次跨消息，进入多选模式
+    enterMultiSelect()
+    clearBrowserSelection()
+    hasCrossedMessage.value = true
+
+    // 选中起点与当前目标
+    const anchorMsg = messages.value.find((m) => m.id === dragAnchorMessageId.value)
+    if (anchorMsg) selectMessage(anchorMsg, true)
+  }
+
+  if (multiSelectMode.value && !dragSelectedIds.has(id)) {
     dragSelectedIds.add(id)
     const msg = messages.value.find((m) => m.id === id)
     if (msg) selectMessage(msg, true)
@@ -5589,8 +5611,12 @@ const handleMouseMoveOnMessages = (event: MouseEvent) => {
 }
 
 const handleMouseUpOnMessages = () => {
-  if (!isDraggingSelect.value) return
+  if (multiSelectMode.value && isDraggingSelect.value && hasCrossedMessage.value) {
+    clearBrowserSelection()
+  }
   isDraggingSelect.value = false
+  hasCrossedMessage.value = false
+  dragAnchorMessageId.value = null
   dragSelectedIds.clear()
 }
 
