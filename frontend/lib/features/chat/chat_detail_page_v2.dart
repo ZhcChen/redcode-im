@@ -443,15 +443,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               ),
               const SizedBox(width: 8),
 
-              // 头像
-              if (widget.chatAvatar != null) ...[
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage: AssetImage(widget.chatAvatar!),
-                ),
-                const SizedBox(width: 12),
-              ],
-
               // 标题
               Expanded(
                 child: Column(
