@@ -547,6 +547,13 @@ class ChatProvider with ChangeNotifier {
     if (status == ConnectionStatus.authenticated && _currentRoomId != null) {
       // 重新订阅当前房间
       _webSocketService.joinRoom(_currentRoomId!);
+
+      // 刚重连完成后，补拉当前房间信息（头像/名称等可能在离线期间已更新）
+      final roomId = _currentRoomId!;
+      final chat = _currentChat;
+      if (chat != null) {
+        unawaited(_messageService.updateChatInfo(roomId, chat.type));
+      }
     }
   }
 
