@@ -5588,7 +5588,8 @@ const handleMouseDownOnMessages = (event: MouseEvent) => {
 
 const handleMouseMoveOnMessages = (event: MouseEvent) => {
   if (!isDraggingSelect.value) return
-  const target = (event.target as HTMLElement)?.closest('[data-message-id]') as HTMLElement | null
+  const hovered = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
+  const target = hovered?.closest('[data-message-id]') as HTMLElement | null
   const id = target?.getAttribute('data-message-id')
   if (!id) return
 
