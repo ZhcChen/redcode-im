@@ -129,7 +129,7 @@
       <div class="chat-window" v-if="selectedChat">
         <div
           class="chat-messages"
-          :class="{ 'multi-select-active': multiSelectMode }"
+          :class="{ 'multi-select-active': multiSelectMode, 'drag-selecting': isDragSelectingClass }"
           ref="chatMessagesRef"
           @mousedown.left="handleMouseDownOnMessages"
           @mousemove="handleMouseMoveOnMessages"
@@ -5569,6 +5569,7 @@ const isDraggingSelect = ref(false)
 const dragSelectedIds = new Set<string>()
 const dragAnchorMessageId = ref<string | null>(null)
 const hasCrossedMessage = ref(false)
+const isDragSelectingClass = computed(() => isDraggingSelect.value || multiSelectMode.value)
 
 const clearBrowserSelection = () => {
   const selection = window.getSelection()
@@ -5584,6 +5585,9 @@ const handleMouseDownOnMessages = (event: MouseEvent) => {
   dragSelectedIds.clear()
   hasCrossedMessage.value = false
   isDraggingSelect.value = !!dragAnchorMessageId.value
+  if (isDraggingSelect.value) {
+    clearBrowserSelection()
+  }
 }
 
 const handleMouseMoveOnMessages = (event: MouseEvent) => {
@@ -5601,7 +5605,10 @@ const handleMouseMoveOnMessages = (event: MouseEvent) => {
 
     // 选中起点与当前目标
     const anchorMsg = messages.value.find((m) => m.id === dragAnchorMessageId.value)
-    if (anchorMsg) selectMessage(anchorMsg, true)
+    if (anchorMsg) {
+      selectMessage(anchorMsg, true)
+      dragSelectedIds.add(anchorMsg.id)
+    }
   }
 
   if (multiSelectMode.value && !dragSelectedIds.has(id)) {
@@ -7818,6 +7825,10 @@ const loadMessageList = async (groupId: string) => {
   }
 
   &.multi-select-active {
+    user-select: none;
+  }
+
+  &.drag-selecting {
     user-select: none;
   }
 }
