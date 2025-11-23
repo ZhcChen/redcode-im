@@ -8765,28 +8765,16 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-highlighted {
-  position: relative;
-  overflow: hidden;
   border-radius: 10px;
+  animation: quoted-highlight-fade 5s ease-out;
 }
 
-.quoted-highlighted::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-color: var(--primary-color, #4ecdc4);
-  opacity: 0.5; /* 50% 透明起始 */
-  pointer-events: none;
-  animation: quoted-highlight-overlay 5s ease-out forwards;
-}
-
-@keyframes quoted-highlight-overlay {
+@keyframes quoted-highlight-fade {
   0% {
-    opacity: 0.5;
+    background-color: rgba(78, 205, 196, 0.5);
   }
   100% {
-    opacity: 0;
+    background-color: rgba(78, 205, 196, 0);
   }
 }
 
