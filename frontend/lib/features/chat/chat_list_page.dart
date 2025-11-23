@@ -269,10 +269,23 @@ class _FavoriteAvatar extends StatelessWidget {
     return Container(
       width: 48,
       height: 48,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(48)),
-      child: ClipRRect(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(48),
-        child: SvgPicture.asset(AppAssets.chatFavorite, fit: BoxFit.cover),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF00C2B3), // 青色
+            Color(0xFF66DBD1), // 浅青色
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.star,
+          color: Colors.white.withOpacity(0.95),
+          size: 24,
+        ),
       ),
     );
   }
