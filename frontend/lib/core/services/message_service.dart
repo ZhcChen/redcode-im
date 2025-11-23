@@ -14,6 +14,7 @@ import '../network/direct_upload.dart';
 import '../storage/attachment_cache.dart';
 import '../storage/token_storage.dart';
 import '../storage/message_storage.dart';
+import '../storage/chat_cache.dart';
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
@@ -55,12 +56,19 @@ class MessageAttachmentDraft {
 
 /// 消息服务 - 管理消息的发送、接收和存储
 class MessageService with ChangeNotifier {
-  MessageService({TokenStorage? tokenStorage, MessageStorage? messageStorage})
-    : _tokenStorage = tokenStorage ?? const TokenStorage(),
-      _messageStorage = messageStorage ?? const MessageStorage();
+  MessageService({
+    TokenStorage? tokenStorage,
+    MessageStorage? messageStorage,
+    ChatCache? chatCache,
+  }) : _tokenStorage = tokenStorage ?? const TokenStorage(),
+       _messageStorage = messageStorage ?? const MessageStorage(),
+       _chatCache = chatCache ?? const ChatCache() {
+    _loadCachedChats();
+  }
 
   final TokenStorage _tokenStorage;
   final MessageStorage _messageStorage;
+  final ChatCache _chatCache;
 
   // 消息存储 (roomId -> messages)
   final Map<String, List<Message>> _messagesByRoom = {};
@@ -70,7 +78,7 @@ class MessageService with ChangeNotifier {
   final Map<String, _PendingMessagePayload> _pendingPayloads = {};
 
   // 聊天列表
-  final List<Chat> _chats = [];
+  List<Chat> _chats = [];
   final Map<String, List<MessageReader>> _messageReadersCache = {};
   final Map<String, int> _roomMemberCountCache = {};
   final Map<String, String> _pinnedMessageIds = {};
@@ -81,6 +89,10 @@ class MessageService with ChangeNotifier {
     _instance ??= MessageService();
     return _instance!;
   }
+
+  // 防抖定时器
+  Timer? _fetchChatsDebouncer;
+  bool _isLoadingChatsFromCache = false;
 
   /// 获取房间的消息列表
   List<Message> getMessages(String roomId) {
@@ -224,8 +236,52 @@ class MessageService with ChangeNotifier {
     return List<MessageReader>.from(readers);
   }
 
-  /// 从服务器拉取会话列表
-  Future<List<Chat>> fetchChats() async {
+  /// 从缓存加载会话列表
+  Future<void> _loadCachedChats() async {
+    if (_isLoadingChatsFromCache) return;
+    _isLoadingChatsFromCache = true;
+
+    try {
+      final cachedChats = await _chatCache.loadChats();
+      if (cachedChats != null && cachedChats.isNotEmpty) {
+        _chats = cachedChats;
+        notifyListeners();
+        debugPrint('Loaded ${cachedChats.length} chats from cache');
+      }
+    } catch (e) {
+      debugPrint('Failed to load cached chats: $e');
+    } finally {
+      _isLoadingChatsFromCache = false;
+    }
+  }
+
+  /// 从服务器拉取会话列表（带防抖）
+  Future<List<Chat>> fetchChats({bool force = false}) async {
+    // 如果不是强制刷新，使用防抖
+    if (!force) {
+      // 取消之前的防抖定时器
+      _fetchChatsDebouncer?.cancel();
+
+      // 设置新的防抖定时器（500ms）
+      final completer = Completer<List<Chat>>();
+      _fetchChatsDebouncer = Timer(const Duration(milliseconds: 500), () async {
+        try {
+          final result = await _actualFetchChats();
+          completer.complete(result);
+        } catch (e) {
+          completer.completeError(e);
+        }
+      });
+
+      return completer.future;
+    }
+
+    // 强制刷新直接执行
+    return _actualFetchChats();
+  }
+
+  /// 实际执行拉取会话列表
+  Future<List<Chat>> _actualFetchChats() async {
     final session = await _tokenStorage.readSession();
     if (session == null) {
       throw Exception('User not authenticated');
@@ -282,6 +338,9 @@ class MessageService with ChangeNotifier {
     _sortChats();
     _syncWebSocketSubscriptions();
     notifyListeners();
+
+    // 保存到缓存（异步，不阻塞返回）
+    unawaited(_chatCache.saveChats(chats));
 
     return chats;
   }
@@ -2224,7 +2283,9 @@ class MessageService with ChangeNotifier {
       localAvatarPath: localAvatarPath,
     );
 
-    debugPrint('[MessageService] 已更新 roomId=$roomId 的头像: key=$avatarObjectKey, path=$localAvatarPath');
+    debugPrint(
+      '[MessageService] 已更新 roomId=$roomId 的头像: key=$avatarObjectKey, path=$localAvatarPath',
+    );
     notifyListeners();
   }
 

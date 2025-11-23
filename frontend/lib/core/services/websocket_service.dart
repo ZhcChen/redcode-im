@@ -5,7 +5,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as ws_status;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart' as uuid_pkg;
-import 'package:async/async.dart';
 
 import '../constants/app_config.dart';
 import '../auth/auth_state.dart';
@@ -13,6 +12,7 @@ import '../storage/token_storage.dart';
 import 'message_service.dart';
 import 'friend_store.dart';
 import 'friend_service.dart';
+import 'room_subscription_manager.dart';
 import '../../features/contacts/models/friend_models.dart';
 import '../../features/auth/models/auth_user.dart';
 import '../../proto/ws.pb.dart' as ws;
@@ -33,10 +33,15 @@ enum ConnectionStatus {
 class WebSocketService with ChangeNotifier {
   WebSocketService({TokenStorage? tokenStorage, MessageService? messageService})
     : _tokenStorage = tokenStorage ?? const TokenStorage(),
-      _messageService = messageService ?? MessageService.instance;
+      _messageService = messageService ?? MessageService.instance {
+    _initRoomManager();
+  }
 
   final TokenStorage _tokenStorage;
   final MessageService _messageService;
+
+  // 房间订阅管理器
+  late final RoomSubscriptionManager _roomManager;
 
   // WebSocket相关
   WebSocketChannel? _channel;
@@ -74,6 +79,29 @@ class WebSocketService with ChangeNotifier {
   static WebSocketService get instance {
     _instance ??= WebSocketService();
     return _instance!;
+  }
+
+  /// 初始化房间管理器
+  void _initRoomManager() {
+    _roomManager = RoomSubscriptionManager(
+      maxActiveRooms: 20, // 最多保持20个活跃房间
+      roomExpirationMinutes: 60, // 1小时后过期
+    );
+
+    // 设置订阅/取消订阅回调
+    _roomManager.onRoomSubscribe = (roomId) {
+      if (_isAuthenticated && !_subscribedRooms.contains(roomId)) {
+        _actualJoinRoom(roomId);
+      }
+    };
+
+    _roomManager.onRoomUnsubscribe = (roomId) {
+      if (_subscribedRooms.contains(roomId)) {
+        _actualLeaveRoom(roomId);
+      }
+    };
+
+    _roomManager.init();
   }
 
   /// 连接WebSocket
@@ -147,6 +175,9 @@ class WebSocketService with ChangeNotifier {
     _pendingJoinRooms.clear();
     _connectionId = null;
 
+    // 清理房间管理器
+    _roomManager.clearAll();
+
     _setStatus(ConnectionStatus.disconnected);
   }
 
@@ -156,10 +187,12 @@ class WebSocketService with ChangeNotifier {
     _sendClientEvent(event);
   }
 
-  /// 加入房间
+  /// 加入房间（使用智能管理）
   Future<void> joinRoom(String roomId) async {
     if (roomId.isEmpty) return;
 
+    // 通过房间管理器管理订阅
+    _roomManager.markRoomActive(roomId);
     _desiredRooms.add(roomId);
 
     if (!_isAuthenticated) {
@@ -169,6 +202,8 @@ class WebSocketService with ChangeNotifier {
 
     if (_subscribedRooms.contains(roomId)) {
       debugPrint('Already subscribed to room: $roomId');
+      // 即使已订阅，也要更新活跃状态
+      _roomManager.markRoomActive(roomId);
       return;
     }
 
@@ -177,10 +212,19 @@ class WebSocketService with ChangeNotifier {
       return;
     }
 
+    _actualJoinRoom(roomId);
+  }
+
+  /// 实际执行加入房间
+  void _actualJoinRoom(String roomId) {
+    if (!_isAuthenticated || roomId.isEmpty) return;
+
     final event = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
     _pendingJoinRooms.add(roomId);
-
     _sendClientEvent(event);
+    debugPrint(
+      'Joining room: $roomId (active rooms: ${_roomManager.getActiveRooms().length})',
+    );
   }
 
   /// 离开房间
@@ -188,6 +232,7 @@ class WebSocketService with ChangeNotifier {
     if (roomId.isEmpty) return;
 
     _desiredRooms.remove(roomId);
+    _roomManager.removeRoom(roomId);
 
     if (!_isAuthenticated) {
       debugPrint('Defer leave until authenticated: $roomId');
@@ -202,10 +247,17 @@ class WebSocketService with ChangeNotifier {
       return;
     }
 
+    _actualLeaveRoom(roomId);
+  }
+
+  /// 实际执行离开房间
+  void _actualLeaveRoom(String roomId) {
+    if (roomId.isEmpty) return;
+
     final event = ws.ClientEvent(leave: ws.ClientLeave(roomId: roomId));
     _pendingJoinRooms.remove(roomId);
-
     _sendClientEvent(event);
+    debugPrint('Leaving room: $roomId');
   }
 
   /// 确保订阅指定房间；可选是否解除不在列表中的房间
@@ -632,15 +684,23 @@ class WebSocketService with ChangeNotifier {
     _setStatus(ConnectionStatus.authenticated);
     debugPrint('WebSocket authenticated: $_connectionId');
 
-    // 重新订阅期待的房间
-    final rooms = List<String>.from(_desiredRooms);
+    // 优化：不再自动加入所有历史房间，改为按需加入
+    // 只保留当前正在查看的房间（如果有）
     _subscribedRooms.clear();
     _pendingJoinRooms.clear();
-    for (final roomId in rooms) {
-      if (roomId.isEmpty) continue;
-      final joinEvent = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
-      _pendingJoinRooms.add(roomId);
-      _sendClientEvent(joinEvent);
+
+    // 如果有正在查看的房间，重新加入
+    if (_desiredRooms.length == 1) {
+      // 用户正在聊天详情页
+      final currentRoom = _desiredRooms.first;
+      if (currentRoom.isNotEmpty) {
+        final joinEvent = ws.ClientEvent(
+          join: ws.ClientJoin(roomId: currentRoom),
+        );
+        _pendingJoinRooms.add(currentRoom);
+        _sendClientEvent(joinEvent);
+        debugPrint('Rejoining current room after auth: $currentRoom');
+      }
     }
 
     // 认证成功后刷新：
@@ -947,6 +1007,7 @@ class WebSocketService with ChangeNotifier {
   @override
   void dispose() {
     disconnect();
+    _roomManager.dispose();
     super.dispose();
   }
 }
