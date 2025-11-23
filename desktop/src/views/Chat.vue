@@ -7822,11 +7822,11 @@ const loadMessageList = async (groupId: string) => {
 }
 
   .message {
-  display: flex;
-  align-items: flex-start; /* 顶部对齐，让用户名和头像顶部对齐 */
-  gap: 8px;
-  position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
-  margin-bottom: 8px; /* 添加消息间距 */
+    display: flex;
+    align-items: flex-start; /* 顶部对齐，让用户名和头像顶部对齐 */
+    gap: 8px;
+    position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
+    margin-bottom: 8px; /* 添加消息间距 */
 
   &.selected-message {
     position: relative;
@@ -8002,6 +8002,11 @@ const loadMessageList = async (groupId: string) => {
       color: $message-time-other-color;
     }
   }
+
+  // 对方消息整体右移，为左侧选择控件留白
+  &:not(.own-message) {
+    padding-left: 32px;
+  }
 }
 
 .select-indicator {
@@ -8023,7 +8028,7 @@ const loadMessageList = async (groupId: string) => {
 
 .select-indicator.other,
 .select-indicator.self {
-  left: 16px;
+  left: 8px;
   top: 8px;
 }
 
