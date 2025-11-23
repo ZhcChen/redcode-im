@@ -12,6 +12,7 @@ import '../constants/app_assets.dart';
 import '../constants/app_config.dart';
 import '../network/direct_upload.dart';
 import '../storage/attachment_cache.dart';
+import '../storage/avatar_cache.dart';
 import '../storage/token_storage.dart';
 import '../storage/message_storage.dart';
 import '../storage/chat_cache.dart';
