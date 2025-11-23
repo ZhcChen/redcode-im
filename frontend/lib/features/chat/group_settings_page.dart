@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
@@ -1099,6 +1100,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
       final contentType = lookupMimeType(file.path) ?? 'application/octet-stream';
       final fileSize = await file.length();
+      final filename = p.basename(file.path);
       final directUri = Uri.parse(
         '${AppConfig.apiBaseUrl}/rooms/${widget.chat.roomId}/avatar/direct-upload',
       );
@@ -1110,6 +1112,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
+          'filename': filename,
           'content_type': contentType,
           'file_size': fileSize,
         }),
