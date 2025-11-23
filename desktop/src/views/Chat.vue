@@ -4228,6 +4228,23 @@ const sendMessage = async () => {
   const tempId = `${timestamp}`
   const user = store.getters.currentUser
 
+  const quotedFromReply = replyingMessage.value
+    ? {
+        id: replyingMessage.value.id,
+        roomId: replyingMessage.value.roomId || groupId,
+        senderId: replyingMessage.value.senderId,
+        senderUsername: replyingMessage.value.senderName,
+        senderName: replyingMessage.value.senderName,
+        senderNickname: (replyingMessage.value as any).senderNickname || replyingMessage.value.senderName,
+        senderAvatar: replyingMessage.value.senderAvatar ?? undefined,
+        content: getTextContent(replyingMessage.value),
+        type: MessageType.TEXT,
+        createdAt: replyingMessage.value.createTime ? new Date(replyingMessage.value.createTime) : null,
+        parts: cloneMessageParts(replyingMessage.value.parts),
+        isDeleted: replyingMessage.value.isDeleted,
+      }
+    : undefined
+
   const tempMessage: Message = {
     id: tempId,
     content,
@@ -4240,21 +4257,7 @@ const sendMessage = async () => {
     status: 1,
     createTime: getTimeStr(timestamp),
     timestamp,
-    quotedMessage: replyingMessage.value
-      ? {
-          id: replyingMessage.value.id,
-          roomId: replyingMessage.value.roomId || groupId,
-          senderId: replyingMessage.value.senderId,
-          senderUsername: replyingMessage.value.senderName,
-          senderNickname: replyingMessage.value.senderName,
-          senderAvatarUrl: replyingMessage.value.senderAvatar ?? undefined,
-          content: getTextContent(replyingMessage.value),
-          messageType: 'text',
-          createdAt: replyingMessage.value.createTime,
-          parts: replyingMessage.value.parts,
-          isDeleted: replyingMessage.value.isDeleted,
-        }
-      : undefined,
+    quotedMessage: quotedFromReply,
   }
 
   messages.value.push(tempMessage)
@@ -8709,10 +8712,10 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-block {
-  padding-left: 10px;
+  padding: 12px 16px;
   margin-bottom: 8px;
   background: #eafffd;
-  border-radius: 8px;
+  border-radius: 16px;
 
   .quoted-sender {
     font-size: 12px;
