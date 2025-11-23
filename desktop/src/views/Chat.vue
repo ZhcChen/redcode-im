@@ -124,7 +124,7 @@
           <div v-if="messages.length === 0" class="empty-container">
             <div class="empty-text">暂无消息，开始聊天吧</div>
           </div>
-          <div v-else class="message" v-for="message in messages" :key="message.id" :data-message-id="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 5, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }">
+          <div v-else class="message" v-for="message in messages" :key="message.id" :data-message-id="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 5, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }" @contextmenu.prevent="handleMessageContextMenu(message, $event)">
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -691,6 +691,18 @@
     @delete="handleContextMenuDelete"
   />
 
+  <!-- 消息右键菜单 -->
+  <MessageContextMenu
+    v-model:visible="showMessageContextMenu"
+    :position="messageContextMenuPosition"
+    :can-copy="!!messageContextMenuTarget && canCopyMessage(messageContextMenuTarget)"
+    :can-download="!!messageContextMenuTarget && canDownloadMessage(messageContextMenuTarget)"
+    :can-delete="!!messageContextMenuTarget && messageContextMenuTarget.isSelf"
+    @copy="handleMessageMenuCopy"
+    @download="handleMessageMenuDownload"
+    @delete="handleMessageMenuDelete"
+  />
+
   <!-- 删除对话确认对话框 -->
   <ConfirmDialog
     v-model:visible="showDeleteConfirm"
@@ -735,6 +747,7 @@ import MediaPreview from '../components/MediaPreview.vue'
 import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
 import VoiceMessage from '../components/VoiceMessage.vue'
 import ChatContextMenu from '../components/ChatContextMenu.vue'
+import MessageContextMenu from '../components/MessageContextMenu.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
@@ -2267,6 +2280,11 @@ const showContextMenu = ref<boolean>(false)
 const contextMenuPosition = ref<{ x: number; y: number }>({ x: 0, y: 0 })
 const contextMenuChat = ref<ChatItem | null>(null)
 
+// 消息右键菜单状态
+const showMessageContextMenu = ref<boolean>(false)
+const messageContextMenuPosition = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+const messageContextMenuTarget = ref<Message | null>(null)
+
 // 删除对话确认对话框状态
 const showDeleteConfirm = ref<boolean>(false)
 const deleteTargetChat = ref<ChatItem | null>(null)
@@ -3408,6 +3426,29 @@ const getTextContent = (message: Message): string => {
   }
 
   return ''
+}
+
+const canCopyMessage = (message: Message | null): boolean => {
+  if (!message) return false
+  if (message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG) return false
+  const text = getTextContent(message)
+  return Boolean(text && text.trim().length)
+}
+
+const canDownloadMessage = (message: Message | null): boolean => {
+  if (!message) return false
+  if (Array.isArray(message.parts)) {
+    return message.parts.some(
+      (part) => part.type === MessagePartType.FILE && Boolean(part.attachment?.key || part.attachment?.downloadUrl),
+    )
+  }
+
+  if (typeof message.content === 'object' && message.content) {
+    const content: any = message.content
+    return Boolean(content.key || content.downloadUrl)
+  }
+
+  return false
 }
 
 // 工具函数
@@ -4976,6 +5017,82 @@ const handleChatContextMenu = (chat: ChatItem, event: MouseEvent) => {
   }
   showContextMenu.value = true
   
+}
+
+// 消息右键菜单
+const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
+  if (message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG) return
+  event.preventDefault()
+  event.stopPropagation()
+
+  messageContextMenuTarget.value = message
+  messageContextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY,
+  }
+  showMessageContextMenu.value = true
+}
+
+const handleMessageMenuCopy = async () => {
+  const target = messageContextMenuTarget.value
+  if (!target) return
+  const text = getTextContent(target)
+  if (!text || !text.trim()) {
+    toast.warning('该消息没有可复制的文本')
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success('复制成功')
+  } catch (error) {
+    console.error('复制失败', error)
+    toast.error('复制失败，请重试')
+  } finally {
+    showMessageContextMenu.value = false
+  }
+}
+
+const handleMessageMenuDelete = async () => {
+  const target = messageContextMenuTarget.value
+  if (!target) return
+  if (!target.isSelf) {
+    toast.warning('只能删除自己发送的消息')
+    showMessageContextMenu.value = false
+    return
+  }
+
+  const roomId = target.roomId || selectedChat.value?.groupId
+  if (!roomId) {
+    toast.error('缺少房间信息，无法删除')
+    showMessageContextMenu.value = false
+    return
+  }
+
+  try {
+    const res = await MessageApi.deleteMessage({ groupId: roomId, messageId: target.id })
+    if (res.success) {
+      const index = messages.value.findIndex((msg) => msg.id === target.id)
+      if (index !== -1) {
+        messages.value.splice(index, 1)
+      }
+      toast.success('消息已删除')
+    } else {
+      toast.error(res.message || '删除失败')
+    }
+  } catch (error) {
+    console.error('删除消息失败', error)
+    toast.error('删除失败，请重试')
+  } finally {
+    showMessageContextMenu.value = false
+  }
+}
+
+const handleMessageMenuDownload = async () => {
+  const target = messageContextMenuTarget.value
+  if (!target) return
+  showMessageContextMenu.value = false
+  await handleFileDownload(target)
 }
 
 // 处理置顶/取消置顶
