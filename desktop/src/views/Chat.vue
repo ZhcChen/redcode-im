@@ -7851,7 +7851,7 @@ const loadMessageList = async (groupId: string) => {
 
 .chat-messages {
   flex: 1;
-  padding: 24px 48px; /* 增加左右padding，为选择指示器留出空间 */
+  padding: 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -7885,7 +7885,6 @@ const loadMessageList = async (groupId: string) => {
     gap: 8px;
     position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
     margin-bottom: 8px; /* 添加消息间距 */
-    overflow: visible; /* 允许选择指示器显示在外部 */
 
   &.selected-message {
     &::before {
@@ -8068,10 +8067,10 @@ const loadMessageList = async (groupId: string) => {
 
 .select-indicator {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: transparent;
   border: 2px solid var(--primary-color, #00c2b3);
   display: flex;
   align-items: center;
@@ -8079,18 +8078,13 @@ const loadMessageList = async (groupId: string) => {
   color: transparent;
   font-size: 10px;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 2px #fff;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  z-index: 10; /* 确保在其他元素之上 */
 }
 
-.select-indicator.other {
-  left: -30px; /* 放在内容左侧外部，稍微远一点 */
-  top: 8px;
-}
-
+.select-indicator.other,
 .select-indicator.self {
-  right: -30px; /* 自己的消息，放在内容右侧外部 */
+  left: 0;
   top: 8px;
 }
 
@@ -8434,10 +8428,8 @@ const loadMessageList = async (groupId: string) => {
   margin-right: 8px;
 }
 
-// 恢复message-content的相对定位，用于选择指示器定位
 .message-content {
   position: relative;
-  overflow: visible; /* 允许选择指示器显示在外部 */
 }
 
 // 对于他人消息，message-content-row使用flex布局
@@ -8446,7 +8438,6 @@ const loadMessageList = async (groupId: string) => {
   flex-direction: column;
   max-width: 40vw; /* 使用视口宽度单位，更好地响应窗口大小变化 */
   min-width: 200px; /* 设置最小宽度，避免过窄 */
-  overflow: visible; /* 允许选择指示器显示在外部 */
 }
 
 // 对于自己的消息，也使用flex布局
