@@ -418,6 +418,11 @@
           </div>
         </div>
         <div class="chat-input">
+          <div v-if="replyingMessage" class="reply-bar">
+            <div class="reply-title">回复 {{ replyingMessage.senderName }}</div>
+            <div class="reply-content">{{ getTextContent(replyingMessage) }}</div>
+            <button class="reply-close" @click="clearReplyingMessage">×</button>
+          </div>
           <div class="input-container">
             <div class="input-left-actions">
               <img
@@ -659,11 +664,11 @@
     </Dialog>
 
     <!-- 语音录制弹窗 -->
-    <Dialog
-      :visible="showVoiceRecorder"
-      title="语音消息"
-      @close="closeVoiceRecorder"
-    >
+  <Dialog
+    :visible="showVoiceRecorder"
+    title="语音消息"
+    @close="closeVoiceRecorder"
+  >
       <VoiceMessage
         :show-recorder="true"
         @voice-send="handleVoiceSend"
@@ -696,9 +701,16 @@
     v-model:visible="showMessageContextMenu"
     :position="messageContextMenuPosition"
     :can-copy="!!messageContextMenuTarget && canCopyMessage(messageContextMenuTarget)"
+    :can-quote="!!messageContextMenuTarget && !messageContextMenuTarget.isDeleted"
+    :can-forward="!!messageContextMenuTarget && canForwardMessage(messageContextMenuTarget)"
+    :can-pin="!!messageContextMenuTarget && !messageContextMenuTarget.isDeleted"
+    :is-pinned="!!messageContextMenuTarget?.pinnedAt"
     :can-download="!!messageContextMenuTarget && canDownloadMessage(messageContextMenuTarget)"
     :can-delete="!!messageContextMenuTarget && messageContextMenuTarget.isSelf"
     @copy="handleMessageMenuCopy"
+    @quote="handleMessageMenuQuote"
+    @forward="handleMessageMenuForward"
+    @pin="handleMessageMenuPin"
     @download="handleMessageMenuDownload"
     @delete="handleMessageMenuDelete"
   />
@@ -715,11 +727,40 @@
     @confirm="confirmDelete"
     @cancel="cancelDelete"
   />
+
+  <!-- 转发选择对话框 -->
+  <Dialog
+    :visible="showForwardDialog"
+    title="选择转发会话"
+    @close="showForwardDialog = false"
+  >
+    <div class="forward-dialog">
+      <div class="forward-list">
+        <label
+          v-for="chat in forwardableChats"
+          :key="chat.id"
+          class="forward-item"
+        >
+          <input
+            type="radio"
+            name="forward-target"
+            :value="chat.groupId"
+            v-model="forwardTargetId"
+          />
+          <span class="forward-name">{{ chat.name }}</span>
+        </label>
+      </div>
+      <div class="forward-actions">
+        <button class="btn" @click="showForwardDialog = false">取消</button>
+        <button class="btn primary" @click="confirmForward">确认转发</button>
+      </div>
+    </div>
+  </Dialog>
 </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 
@@ -2289,6 +2330,9 @@ const messageContextMenuTarget = ref<Message | null>(null)
 const showDeleteConfirm = ref<boolean>(false)
 const deleteTargetChat = ref<ChatItem | null>(null)
 
+// 回复消息状态
+const replyingMessage = ref<Message | null>(null)
+
 // 群设置抽屉状态
 const showGroupSettings = ref<boolean>(false)
 
@@ -3451,6 +3495,24 @@ const canDownloadMessage = (message: Message | null): boolean => {
   return false
 }
 
+const canForwardMessage = (message: Message | null): boolean => {
+  if (!message || message.isDeleted) return false
+  // 仅文本支持转发（与移动端保持一致）
+  if (message.contentType && message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE) {
+    return false
+  }
+  if (typeof message.content === 'string' && message.content.trim()) return true
+  if (Array.isArray(message.parts)) {
+    const textPart = message.parts.find((p) => p.type === MessagePartType.TEXT && p.text?.trim())
+    return Boolean(textPart?.text)
+  }
+  if (typeof message.content === 'object' && message.content) {
+    const text = (message.content as any).text
+    return Boolean(text && text.trim())
+  }
+  return false
+}
+
 // 工具函数
 const formatTime = (timeStr: string) => {
   if (!timeStr) return ''
@@ -4070,7 +4132,22 @@ const sendMessage = async () => {
     messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
     status: 1,
     createTime: getTimeStr(timestamp),
-    timestamp
+    timestamp,
+    quotedMessage: replyingMessage.value
+      ? {
+          id: replyingMessage.value.id,
+          roomId: replyingMessage.value.roomId || groupId,
+          senderId: replyingMessage.value.senderId,
+          senderUsername: replyingMessage.value.senderName,
+          senderNickname: replyingMessage.value.senderName,
+          senderAvatarUrl: replyingMessage.value.senderAvatar ?? undefined,
+          content: getTextContent(replyingMessage.value),
+          messageType: 'text',
+          createdAt: replyingMessage.value.createTime,
+          parts: replyingMessage.value.parts,
+          isDeleted: replyingMessage.value.isDeleted,
+        }
+      : undefined,
   }
 
   messages.value.push(tempMessage)
@@ -4083,6 +4160,7 @@ const sendMessage = async () => {
     const apiMessage = await webSocketManager.sendMessage({
       roomId: groupId,
       content,
+      replyToMessageId: replyingMessage.value?.id,
     }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
     if (apiMessage) {
@@ -4157,6 +4235,8 @@ const sendMessage = async () => {
     // 发送失败时，从 recentSentMessages 中删除临时消息ID
     recentSentMessages.value.delete(tempId)
     toast.error('消息发送失败: ' + (error.message || '网络错误'))
+  } finally {
+    clearReplyingMessage()
   }
 }
 
@@ -5053,6 +5133,100 @@ const handleMessageMenuCopy = async () => {
   }
 }
 
+const replyingMessage = ref<Message | null>(null)
+
+const handleMessageMenuQuote = () => {
+  const target = messageContextMenuTarget.value
+  if (!target) return
+  replyingMessage.value = target
+  showMessageContextMenu.value = false
+  // 聚焦输入框
+  nextTick(() => {
+    messageInput.value?.focus()
+  })
+}
+
+// 清除回复状态
+const clearReplyingMessage = () => {
+  replyingMessage.value = null
+}
+
+// 转发相关状态
+const showForwardDialog = ref(false)
+const forwardSourceMessage = ref<Message | null>(null)
+const forwardTargetId = ref<string>('')
+
+const handleMessageMenuForward = () => {
+  const target = messageContextMenuTarget.value
+  if (!target || !canForwardMessage(target)) return
+  forwardSourceMessage.value = target
+  forwardTargetId.value = ''
+  showMessageContextMenu.value = false
+  showForwardDialog.value = true
+}
+
+const confirmForward = async () => {
+  const source = forwardSourceMessage.value
+  if (!source) return
+  const targetRoomId = forwardTargetId.value || selectedChat.value?.groupId
+  if (!targetRoomId) {
+    toast.warning('请选择要转发的会话')
+    return
+  }
+
+  try {
+    const res = await MessageApi.forwardMessage({
+      groupId: source.roomId || selectedChat.value?.groupId || '',
+      messageId: source.id,
+      targetRoomIds: [targetRoomId],
+    })
+    if (res.success) {
+      toast.success('已转发')
+    } else {
+      toast.error(res.message || '转发失败')
+    }
+  } catch (error) {
+    console.error('转发失败', error)
+    toast.error('转发失败，请稍后重试')
+  } finally {
+    showForwardDialog.value = false
+    forwardSourceMessage.value = null
+  }
+}
+
+const handleMessageMenuPin = async () => {
+  const target = messageContextMenuTarget.value
+  if (!target) return
+  const roomId = target.roomId || selectedChat.value?.groupId
+  if (!roomId) return
+
+  const isPinned = Boolean(target.pinnedAt)
+  try {
+    if (isPinned) {
+      const res = await MessageApi.unpinMessage({ groupId: roomId, messageId: target.id })
+      if (res.success) {
+        target.pinnedAt = null
+        toast.success('已取消置顶')
+      } else {
+        toast.error(res.message || '取消置顶失败')
+      }
+    } else {
+      const res = await MessageApi.pinMessage({ groupId: roomId, messageId: target.id, currentUserId: currentUserId.value })
+      if (res.success) {
+        target.pinnedAt = res.data?.pinnedAt || new Date()
+        toast.success('消息已置顶')
+      } else {
+        toast.error(res.message || '置顶失败')
+      }
+    }
+  } catch (error) {
+    console.error('置顶/取消置顶失败', error)
+    toast.error('操作失败，请稍后再试')
+  } finally {
+    showMessageContextMenu.value = false
+  }
+}
+
 const handleMessageMenuDelete = async () => {
   const target = messageContextMenuTarget.value
   if (!target) return
@@ -5094,6 +5268,12 @@ const handleMessageMenuDownload = async () => {
   showMessageContextMenu.value = false
   await handleFileDownload(target)
 }
+
+// 计算可用于转发的会话列表（排除当前会话）
+const forwardableChats = computed(() => {
+  const currentId = selectedChat.value?.groupId
+  return chatList.value.filter((chat) => chat.groupId !== currentId)
+})
 
 // 处理置顶/取消置顶
 const handleContextMenuPin = async (chat: ChatItem) => {
@@ -7426,6 +7606,47 @@ const loadMessageList = async (groupId: string) => {
 
 .chat-input {
   padding: 16px 24px 40px 24px;
+
+  .reply-bar {
+    position: relative;
+    padding: 10px 36px 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: #f5f7fb;
+    border: 1px solid #e5e7ee;
+
+    .reply-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 4px;
+    }
+
+    .reply-content {
+      font-size: 13px;
+      color: #1f2937;
+      line-height: 1.4;
+      max-height: 2.8em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .reply-close {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      border: none;
+      background: transparent;
+      font-size: 16px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 4px;
+
+      &:hover {
+        color: #111827;
+      }
+    }
+  }
   
   .input-container {
     display: flex;
@@ -8237,6 +8458,74 @@ const loadMessageList = async (groupId: string) => {
   100% {
     background-color: #fef3c7;
     transform: scale(1);
+  }
+}
+
+.forward-dialog {
+  min-width: 320px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .forward-list {
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .forward-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+
+    &:hover {
+      border-color: var(--primary-color, #4ecdc4);
+      background: #f7fffd;
+    }
+
+    input[type='radio'] {
+      cursor: pointer;
+    }
+
+    .forward-name {
+      font-size: 14px;
+      color: #1f2937;
+      flex: 1;
+    }
+  }
+
+  .forward-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .btn {
+      min-width: 88px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &.primary {
+        background: linear-gradient(135deg, #36d1dc, #5b86e5);
+        border-color: transparent;
+        color: white;
+      }
+
+      &:hover {
+        opacity: 0.9;
+      }
+    }
   }
 }
 </style>
