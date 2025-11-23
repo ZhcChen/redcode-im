@@ -18,6 +18,10 @@ import '../storage/chat_cache.dart';
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
+import 'room_avatar_service.dart';
+import 'room_service.dart';
+import 'user_avatar_service.dart';
+import 'user_service.dart';
 import 'websocket_service.dart';
 
 /// 消息状态
@@ -2963,6 +2967,79 @@ class MessageService with ChangeNotifier {
       originSenderId: forward.senderId,
       originSenderName: originSenderName,
     );
+  }
+
+  /// 更新聊天信息（包括头像）
+  Future<void> updateChatInfo(String roomId, ChatType chatType) async {
+    try {
+      final chatIndex = _chats.indexWhere((c) => c.roomId == roomId);
+      if (chatIndex < 0) return;
+
+      final chat = _chats[chatIndex];
+
+      if (chatType == ChatType.group) {
+        // 更新群聊信息
+        final roomService = RoomService(tokenStorage: _tokenStorage);
+        final roomDetail = await roomService.fetchRoomDetail(roomId);
+
+        if (roomDetail != null) {
+          final avatarObjectKey = roomDetail['avatar_object_key'] as String?;
+          String? localAvatarPath;
+
+          // 如果有新的头像，下载并缓存
+          if (avatarObjectKey != null && avatarObjectKey.isNotEmpty) {
+            final roomAvatarService = RoomAvatarService(tokenStorage: _tokenStorage);
+            localAvatarPath = await roomAvatarService.loadAndCacheAvatar(
+              roomId: roomId,
+              avatarObjectKey: avatarObjectKey,
+            );
+          }
+
+          // 更新聊天信息
+          _chats[chatIndex] = chat.copyWith(
+            name: roomDetail['name'] as String? ?? chat.name,
+            avatarObjectKey: avatarObjectKey,
+            localAvatarPath: localAvatarPath,
+          );
+
+          notifyListeners();
+          unawaited(_chatCache.saveChats(_chats));
+        }
+      } else if (chatType == ChatType.single) {
+        // 更新单聊信息（用户信息）
+        final userId = chat.extra?['friend_user_id'] as String? ??
+                      chat.extra?['friendUserId'] as String? ??
+                      roomId;
+
+        final userService = UserService(tokenStorage: _tokenStorage);
+        final userDetail = await userService.fetchUserDetail(userId);
+
+        if (userDetail != null) {
+          final avatarObjectKey = userDetail['avatar_object_key'] as String?;
+          String? localAvatarPath;
+
+          // 如果有新的头像，下载并缓存
+          if (avatarObjectKey != null && avatarObjectKey.isNotEmpty) {
+            final userAvatarService = UserAvatarService(tokenStorage: _tokenStorage);
+            localAvatarPath = await userAvatarService.loadAndCacheAvatar(
+              userId: userId,
+              avatarObjectKey: avatarObjectKey,
+            );
+          }
+
+          // 更新聊天信息
+          _chats[chatIndex] = chat.copyWith(
+            avatarObjectKey: avatarObjectKey,
+            localAvatarPath: localAvatarPath,
+          );
+
+          notifyListeners();
+          unawaited(_chatCache.saveChats(_chats));
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to update chat info: $e');
+    }
   }
 }
 

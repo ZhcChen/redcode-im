@@ -253,4 +253,27 @@ class RoomService {
       );
     }
   }
+
+  /// 获取群详情信息
+  Future<Map<String, dynamic>?> fetchRoomDetail(String roomId) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+
+    try {
+      final headers = await _authHeaders();
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId');
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded['room'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (e) {
+      // 静默失败，返回 null
+    }
+    return null;
+  }
 }

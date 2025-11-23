@@ -48,6 +48,8 @@ List<Color> _getAvatarColors() {
     const Color(0xFF10b981), // 翠绿
     const Color(0xFF06b6d4), // 青色
     const Color(0xFF3b82f6), // 蓝色
+    const Color(0xFF6366f1), // 靛蓝
+    const Color(0xFFa855f7), // 紫罗兰
   ];
 }
 

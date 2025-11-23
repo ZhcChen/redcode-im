@@ -124,6 +124,9 @@ class ChatProvider with ChangeNotifier {
     // 加入WebSocket房间
     await _webSocketService.joinRoom(roomId);
 
+    // 异步更新聊天信息（包括头像）
+    unawaited(_messageService.updateChatInfo(roomId, chat.type));
+
     if (delayHistoryLoad) {
       _scheduleInitialHistoryLoad();
     } else {
