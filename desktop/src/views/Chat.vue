@@ -169,7 +169,7 @@
                   v-if="multiSelectMode"
                   class="select-indicator other"
                   :class="{ active: isMessageSelected(message) }"
-                  @click.stop="toggleMessageSelection(message)"
+                  @click.stop="handleIndicatorClick(message)"
                 >
                   ✓
                 </div>
@@ -326,7 +326,7 @@
                 v-if="multiSelectMode"
                 class="select-indicator self"
                 :class="{ active: isMessageSelected(message) }"
-                @click.stop="toggleMessageSelection(message)"
+                @click.stop="handleIndicatorClick(message)"
               >
                 ✓
               </div>
@@ -5571,6 +5571,26 @@ const dragAnchorMessageId = ref<string | null>(null)
 const hasCrossedMessage = ref(false)
 const isDragSelectingClass = computed(() => isDraggingSelect.value || multiSelectMode.value)
 
+const getMessageIdAtPoint = (clientX: number, clientY: number): string | null => {
+  const container = chatMessagesRef.value
+  if (!container) return null
+  const items = container.querySelectorAll('[data-message-id]') as NodeListOf<HTMLElement>
+  for (const el of items) {
+    const rect = el.getBoundingClientRect()
+    if (clientY >= rect.top && clientY <= rect.bottom) {
+      return el.getAttribute('data-message-id')
+    }
+  }
+  return null
+}
+
+const ensureMultiSelectMode = () => {
+  if (!multiSelectMode.value) {
+    enterMultiSelect()
+    clearBrowserSelection()
+  }
+}
+
 const clearBrowserSelection = () => {
   const selection = window.getSelection()
   if (selection && selection.removeAllRanges) {
@@ -5592,15 +5612,12 @@ const handleMouseDownOnMessages = (event: MouseEvent) => {
 
 const handleMouseMoveOnMessages = (event: MouseEvent) => {
   if (!isDraggingSelect.value) return
-  const hovered = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
-  const target = hovered?.closest('[data-message-id]') as HTMLElement | null
-  const id = target?.getAttribute('data-message-id')
+  const id = getMessageIdAtPoint(event.clientX, event.clientY)
   if (!id) return
 
   if (!multiSelectMode.value && dragAnchorMessageId.value && id !== dragAnchorMessageId.value) {
     // 第一次跨消息，进入多选模式
-    enterMultiSelect()
-    clearBrowserSelection()
+    ensureMultiSelectMode()
     hasCrossedMessage.value = true
 
     // 选中起点与当前目标
@@ -5626,6 +5643,11 @@ const handleMouseUpOnMessages = () => {
   hasCrossedMessage.value = false
   dragAnchorMessageId.value = null
   dragSelectedIds.clear()
+}
+
+const handleIndicatorClick = (message: Message) => {
+  ensureMultiSelectMode()
+  toggleMessageSelection(message)
 }
 
 // 计算可用于转发的会话列表（排除当前会话）
