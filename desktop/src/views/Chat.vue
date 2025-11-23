@@ -8712,11 +8712,11 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-block {
-  border-left: 3px solid #57c8be;
+  border-left: 3px solid #1c9083;
   padding: 12px 16px;
   margin-bottom: 8px;
   background: #eafffd;
-  border-radius: 16px;
+  border-radius: 4px;
 
   .quoted-sender {
     font-size: 12px;
