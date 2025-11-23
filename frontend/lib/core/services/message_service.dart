@@ -3039,6 +3039,10 @@ class MessageService with ChangeNotifier {
           notifyListeners();
           unawaited(_chatCache.saveChats(_chats));
         }
+        // 如果拉取详情失败，降级为强制刷新会话列表，确保头像/名称同步
+        else {
+          unawaited(fetchChats(force: true));
+        }
       } else if (chatType == ChatType.single) {
         // 更新单聊信息（用户信息）
         final userId =
