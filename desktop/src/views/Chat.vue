@@ -164,7 +164,16 @@
                 <!-- 引用消息预览 -->
                 <template v-if="message.quotedMessage">
                   <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
-                    <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
+                    <div class="quoted-header">
+                      <Avatar
+                        v-if="getQuotedAvatar(message.quotedMessage)"
+                        :src="getQuotedAvatar(message.quotedMessage)"
+                        :size="24"
+                        :text="getQuotedInitial(message.quotedMessage)"
+                      />
+                      <div v-else class="quoted-avatar-fallback">{{ getQuotedInitial(message.quotedMessage) }}</div>
+                      <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
+                    </div>
                     <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
                   </div>
                 </template>
@@ -303,7 +312,16 @@
             <div v-else class="message-content">
               <template v-if="message.quotedMessage">
                 <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
-                  <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
+                  <div class="quoted-header">
+                    <Avatar
+                      v-if="getQuotedAvatar(message.quotedMessage)"
+                      :src="getQuotedAvatar(message.quotedMessage)"
+                      :size="24"
+                      :text="getQuotedInitial(message.quotedMessage)"
+                    />
+                    <div v-else class="quoted-avatar-fallback">{{ getQuotedInitial(message.quotedMessage) }}</div>
+                    <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
+                  </div>
                   <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
                 </div>
               </template>
@@ -3520,6 +3538,17 @@ const getTextContent = (message: Message): string => {
 
 const getQuotedSenderName = (quoted: QuotedMessage): string => {
   return quoted.senderNickname || quoted.senderName || quoted.senderUsername || quoted.senderId || '引用'
+}
+
+const getQuotedAvatar = (quoted: QuotedMessage | null | undefined): string | null => {
+  if (!quoted) return null
+  return quoted.senderAvatar || quoted.senderAvatarUrl || null
+}
+
+const getQuotedInitial = (quoted: QuotedMessage | null | undefined): string => {
+  const name = getQuotedSenderName(quoted as QuotedMessage)
+  if (!name) return '?'
+  return name.trim().charAt(0).toUpperCase()
 }
 
 const getQuotedText = (quoted: QuotedMessage): string => {
@@ -8715,14 +8744,33 @@ const loadMessageList = async (groupId: string) => {
   border-left: 3px solid #1c9083;
   padding: 12px 16px;
   margin-bottom: 8px;
-  background: #eafffd;
-  border-radius: 4px;
+  background: #f9fcfd;
+  border-radius: 16px;
+
+  .quoted-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .quoted-avatar-fallback {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #cfd8e3;
+    color: #4b5563;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
 
   .quoted-sender {
-    font-size: 16px;
+    font-size: 12px;
     font-weight: 600;
-    color: $primary-color;
-    margin-bottom: 4px;
+    color: #9a9bb1;
   }
 
   .quoted-text {
