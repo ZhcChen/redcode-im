@@ -8719,14 +8719,15 @@ const loadMessageList = async (groupId: string) => {
   border-radius: 4px;
 
   .quoted-sender {
-    font-size: 12px;
-    color: #6b7280;
+    font-size: 16px;
+    font-weight: 600;
+    color: $primary-color;
     margin-bottom: 4px;
   }
 
   .quoted-text {
-    font-size: 13px;
-    color: #1f2937;
+    font-size: 16px;
+    color: #111827;
     line-height: 1.4;
     word-break: break-word;
   }
