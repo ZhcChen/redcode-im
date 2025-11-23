@@ -298,6 +298,12 @@ pub struct TransferRoomOwnerResponse {
     pub owner_id: String,
 }
 
+#[derive(Serialize)]
+pub struct RoomDetailResponse {
+    pub success: bool,
+    pub room: Room,
+}
+
 pub async fn delete_chat(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -317,6 +323,33 @@ pub async fn delete_chat(
     }
 
     Ok(Json(DeleteChatResponse { success }))
+}
+
+/// 获取房间详情（需要成员身份）
+pub async fn get_room(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<RoomDetailResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+
+    // 仅允许房间成员查看
+    let is_member = store.is_user_in_room(room_id, user_id).await?;
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
+    }
+
+    let room = store.get_room(room_id).await?;
+
+    Ok(Json(RoomDetailResponse {
+        success: true,
+        room,
+    }))
 }
 
 pub async fn dissolve_room(

@@ -2361,9 +2361,19 @@ class MessageService with ChangeNotifier {
     ]);
 
     // 解析对方用户的头像信息（单聊）
-    final avatarObjectKey = _readString(json, const [
+    final friendAvatarObjectKey = _readString(json, const [
       'friend_avatar_object_key',
       'friendAvatarObjectKey',
+    ]);
+
+    // 群头像 object key（后端字段名 room_avatar_object_key）
+    final roomAvatarObjectKey = _readString(json, const [
+      'room_avatar_object_key',
+      'roomAvatarObjectKey',
+    ]);
+
+    // 兼容早期字段 avatar_object_key / avatarObjectKey
+    final legacyAvatarObjectKey = _readString(json, const [
       'avatar_object_key',
       'avatarObjectKey',
     ]);
@@ -2445,6 +2455,10 @@ class MessageService with ChangeNotifier {
     }
 
     final effectiveUnread = chatType == ChatType.favorite ? 0 : unread;
+
+    final avatarObjectKey = chatType == ChatType.group
+        ? (roomAvatarObjectKey ?? legacyAvatarObjectKey)
+        : (friendAvatarObjectKey ?? legacyAvatarObjectKey);
 
     return Chat(
       id: roomId,
@@ -2992,12 +3006,16 @@ class MessageService with ChangeNotifier {
           final avatarKeyChanged = newAvatarObjectKey != oldAvatarObjectKey;
 
           if (newAvatarObjectKey != null && newAvatarObjectKey.isNotEmpty) {
-            final roomAvatarService = RoomAvatarService(tokenStorage: _tokenStorage);
+            final roomAvatarService = RoomAvatarService(
+              tokenStorage: _tokenStorage,
+            );
 
             if (avatarKeyChanged) {
               // 如果头像key发生变化，先清除旧缓存
               await AvatarCache.instance.clearRoom(roomId);
-              debugPrint('Room $roomId avatar key changed from $oldAvatarObjectKey to $newAvatarObjectKey, clearing cache');
+              debugPrint(
+                'Room $roomId avatar key changed from $oldAvatarObjectKey to $newAvatarObjectKey, clearing cache',
+              );
             }
 
             // 加载新头像（如果key变化了会重新下载）
@@ -3023,9 +3041,10 @@ class MessageService with ChangeNotifier {
         }
       } else if (chatType == ChatType.single) {
         // 更新单聊信息（用户信息）
-        final userId = chat.extra?['friend_user_id'] as String? ??
-                      chat.extra?['friendUserId'] as String? ??
-                      roomId;
+        final userId =
+            chat.extra?['friend_user_id'] as String? ??
+            chat.extra?['friendUserId'] as String? ??
+            roomId;
 
         final userService = UserService(tokenStorage: _tokenStorage);
         final userDetail = await userService.fetchUserDetail(userId);
@@ -3039,12 +3058,16 @@ class MessageService with ChangeNotifier {
           final avatarKeyChanged = newAvatarObjectKey != oldAvatarObjectKey;
 
           if (newAvatarObjectKey != null && newAvatarObjectKey.isNotEmpty) {
-            final userAvatarService = UserAvatarService(tokenStorage: _tokenStorage);
+            final userAvatarService = UserAvatarService(
+              tokenStorage: _tokenStorage,
+            );
 
             if (avatarKeyChanged) {
               // 如果头像key发生变化，先清除旧缓存
               await AvatarCache.instance.clearUser(userId);
-              debugPrint('User $userId avatar key changed from $oldAvatarObjectKey to $newAvatarObjectKey, clearing cache');
+              debugPrint(
+                'User $userId avatar key changed from $oldAvatarObjectKey to $newAvatarObjectKey, clearing cache',
+              );
             }
 
             // 加载新头像（如果key变化了会重新下载）

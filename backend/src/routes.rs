@@ -333,7 +333,9 @@ pub fn create_routes() -> Router<AppState> {
         .route("/rooms/{room_id}/members", get(room::list_members))
         .route(
             "/rooms/{room_id}",
-            patch(room::update_room).delete(room::dissolve_room),
+            get(room::get_room)
+                .patch(room::update_room)
+                .delete(room::dissolve_room),
         )
         .route("/rooms/{room_id}/transfer", post(room::transfer_room_owner))
         .route(
