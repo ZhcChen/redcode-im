@@ -8791,7 +8791,7 @@ const loadMessageList = async (groupId: string) => {
 
   .quoted-text {
     font-size: 16px;
-    color: #111827;
+    color: #2c2d3a;
     line-height: 1.4;
     word-break: break-word;
   }
