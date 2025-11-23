@@ -643,9 +643,11 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                   ),
             onTap: _isUploadingAvatar
                 ? null
-                : () {
-                    _showPickGroupAvatarDialog(context);
-                  },
+                : (_isGroupOwner
+                    ? () {
+                        _showPickGroupAvatarDialog(context);
+                      }
+                    : null),
           ),
           _SettingTile(
             label: '群公告',
@@ -1205,7 +1207,30 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       }
     } catch (error) {
       if (!mounted) return;
-      _showSnackBar('头像更新失败: $error');
+      String errorMessage = '头像更新失败';
+
+      // 解析错误信息，提供友好提示
+      final errorStr = error.toString();
+      if (errorStr.contains('Forbidden') ||
+          errorStr.contains('Only room owner') ||
+          errorStr.contains('权限')) {
+        errorMessage = '只有群主或管理员可以修改群头像';
+      } else if (errorStr.contains('Only image files')) {
+        errorMessage = '只支持图片格式文件';
+      } else if (errorStr.contains('文件大小超出限制')) {
+        errorMessage = '图片文件过大，请选择较小的图片';
+      } else if (errorStr.contains('HTTP 403')) {
+        errorMessage = '权限不足，只有群主或管理员可以修改群头像';
+      } else if (errorStr.contains('HTTP 400')) {
+        errorMessage = '上传参数错误，请重试';
+      } else if (errorStr.contains('HTTP 401')) {
+        errorMessage = '登录状态已过期，请重新登录';
+      } else {
+        errorMessage = '头像更新失败: $error';
+      }
+
+      _showSnackBar(errorMessage);
+      debugPrint('群头像上传失败: $error');
     } finally {
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
