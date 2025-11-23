@@ -87,6 +87,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   String? _lastMessageId;
   int _lastMessageCount = 0;
   Message? _quotedMessage;
+  bool _multiSelectMode = false;
+  final Set<String> _selectedMessageIds = <String>{};
   final Map<String, GlobalKey> _messageItemKeys = {};
 
   bool _showEmojiPanel = false;
@@ -150,6 +152,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   @override
   void dispose() {
+    _clearMultiSelect();
     _keyboardUpdateTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _chatProvider.leaveChatRoom();
@@ -214,6 +217,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         attachments: attachments,
         quotedMessage: _quotedMessage,
       );
+      _clearMultiSelect();
       if (!mounted) return;
       if (trimmed != null && trimmed.isNotEmpty) {
         _textController.clear();
@@ -386,6 +390,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             child: Column(
               children: [
                 _buildHeader(context),
+                if (_multiSelectMode) _buildMultiSelectBar(Theme.of(context)),
                 Expanded(
                   child: RepaintBoundary(
                     child: _buildMessageList(listBottomPadding),
@@ -623,6 +628,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 message.id,
                 () => GlobalKey(),
               );
+              final isSelected = _selectedMessageIds.contains(message.id);
 
               final showTimestamp = message.shouldShowTimestamp(
                 previousMessage,
@@ -656,6 +662,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                           : null,
                       onBubbleTap: _showMessageActions,
                       onQuoteTap: _scrollToMessage,
+                      onStartSelection: () => _startMultiSelect(message),
+                      onToggleSelection: () => _toggleMessageSelection(message),
+                      isSelected: isSelected,
+                      multiSelectMode: _multiSelectMode,
                     ),
                   ],
                 ),
@@ -675,6 +685,44 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
         return content;
       },
+    );
+  }
+
+  Widget _buildMultiSelectBar(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          bottom: BorderSide(color: AppColors.divider, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '已选 $_selectedCount 条',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: _selectedCount == 0 ? null : _forwardSelectedMessages,
+            child: const Text('转发'),
+          ),
+          const SizedBox(width: 6),
+          TextButton(
+            onPressed: _selectedCount == 0 ? null : _deleteSelectedMessages,
+            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            onPressed: _clearMultiSelect,
+            icon: const Icon(Icons.close),
+            tooltip: '退出多选',
+          ),
+        ],
+      ),
     );
   }
 
@@ -784,6 +832,103 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     setState(() => _quotedMessage = null);
   }
 
+  void _startMultiSelect(Message message) {
+    if (_multiSelectMode) return;
+    setState(() {
+      _multiSelectMode = true;
+      _selectedMessageIds
+        ..clear()
+        ..add(message.id);
+    });
+  }
+
+  void _toggleMessageSelection(Message message) {
+    if (!_multiSelectMode) return;
+    setState(() {
+      if (_selectedMessageIds.contains(message.id)) {
+        _selectedMessageIds.remove(message.id);
+      } else {
+        _selectedMessageIds.add(message.id);
+      }
+    });
+  }
+
+  void _clearMultiSelect() {
+    if (!_multiSelectMode && _selectedMessageIds.isEmpty) return;
+    setState(() {
+      _multiSelectMode = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  int get _selectedCount => _selectedMessageIds.length;
+
+  Future<void> _deleteSelectedMessages() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final messages = List<Message>.from(
+      _chatProvider.messages,
+    ).where((m) => _selectedMessageIds.contains(m.id)).toList();
+    final nonSelf = messages.where((m) => !m.isSelf).toList();
+    if (nonSelf.isNotEmpty) {
+      _showErrorSnack('只能删除自己发送的消息');
+      return;
+    }
+    for (final msg in messages) {
+      try {
+        await _chatProvider.deleteMessage(msg);
+      } catch (e) {
+        debugPrint('删除消息失败: $e');
+        _showErrorSnack('删除消息失败');
+        return;
+      }
+    }
+    _clearMultiSelect();
+  }
+
+  Future<void> _forwardSelectedMessages() async {
+    if (_selectedMessageIds.isEmpty) return;
+    final messages = List<Message>.from(
+      _chatProvider.messages,
+    ).where((m) => _selectedMessageIds.contains(m.id)).toList();
+    // 仅转发文本
+    final invalid = messages.where((m) => m.type != MessageType.text).toList();
+    if (invalid.isNotEmpty) {
+      _showErrorSnack('当前仅支持转发文本消息');
+      return;
+    }
+
+    final chats = List<Chat>.from(_chatProvider.chats);
+    if (chats.isEmpty) {
+      _showErrorSnack('暂无可转发的会话');
+      return;
+    }
+
+    final targetChat = await showModalBottomSheet<Chat>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final height = MediaQuery.of(sheetContext).size.height * 0.72;
+        return SizedBox(
+          height: height,
+          child: _ForwardTargetSheet(chats: chats, message: messages.first),
+        );
+      },
+    );
+
+    if (!mounted || targetChat == null) return;
+
+    try {
+      for (final msg in messages) {
+        await _chatProvider.forwardMessage(msg, targetChat);
+      }
+      _showSnack('已转发到${targetChat.name}');
+      _clearMultiSelect();
+    } catch (e) {
+      debugPrint('批量转发失败: $e');
+      _showErrorSnack('转发失败，请稍后重试');
+    }
+  }
+
   void _scrollToMessage(String messageId) {
     final key = _messageItemKeys[messageId];
     final targetContext = key?.currentContext;
@@ -811,6 +956,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _showErrorSnack(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showSnack(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.showSnackBar(SnackBar(content: Text(message)));
   }
@@ -944,6 +1094,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     Message message,
     bool isSelf,
   ) async {
+    if (_multiSelectMode) return;
     if (mounted && (_showEmojiPanel || _showMorePanel)) {
       setState(() {
         _showEmojiPanel = false;
@@ -1605,6 +1756,10 @@ class _MessageBubble extends StatefulWidget {
     this.onShowReadReceipts,
     this.onBubbleTap,
     this.onQuoteTap,
+    this.onStartSelection,
+    this.onToggleSelection,
+    this.isSelected = false,
+    this.multiSelectMode = false,
   });
 
   final Message message;
@@ -1614,6 +1769,10 @@ class _MessageBubble extends StatefulWidget {
   final void Function(Offset tapPosition, Message message, bool isSelf)?
   onBubbleTap;
   final void Function(String messageId)? onQuoteTap;
+  final VoidCallback? onStartSelection;
+  final VoidCallback? onToggleSelection;
+  final bool isSelected;
+  final bool multiSelectMode;
 
   static const double _avatarRadius = 12;
   static const double _avatarSpacing = 8;
@@ -1625,6 +1784,7 @@ class _MessageBubble extends StatefulWidget {
 class _MessageBubbleState extends State<_MessageBubble> {
   Message get _message => widget.message;
   bool get _isSelf => _message.isSelf;
+  Offset? _lastTapPosition;
 
   @override
   Widget build(BuildContext context) {
@@ -1636,19 +1796,40 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final maxWidth = screenWidth * 0.8;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: _buildBubbleContainer(
-              context,
-              child: _buildMessageContent(context),
-              isSelf: true,
+      child: GestureDetector(
+        onTapDown: (details) => _lastTapPosition = details.globalPosition,
+        onTap: () {
+          if (widget.multiSelectMode) {
+            widget.onToggleSelection?.call();
+          } else {
+            widget.onBubbleTap?.call(
+              _lastTapPosition ?? Offset.zero,
+              _message,
+              _isSelf,
+            );
+          }
+        },
+        onLongPress: widget.onStartSelection,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (widget.multiSelectMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _SelectionIndicator(isSelected: widget.isSelected),
+              ),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: _buildBubbleContainer(
+                context,
+                child: _buildMessageContent(context),
+                isSelf: true,
+                isSelected: widget.isSelected,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1658,35 +1839,56 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final displayName = _message.displaySenderName;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAvatar(false),
-          const SizedBox(width: _MessageBubble._avatarSpacing),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                    height: 1.05,
+      child: GestureDetector(
+        onTapDown: (details) => _lastTapPosition = details.globalPosition,
+        onTap: () {
+          if (widget.multiSelectMode) {
+            widget.onToggleSelection?.call();
+          } else {
+            widget.onBubbleTap?.call(
+              _lastTapPosition ?? Offset.zero,
+              _message,
+              _isSelf,
+            );
+          }
+        },
+        onLongPress: widget.onStartSelection,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.multiSelectMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, top: 4),
+                child: _SelectionIndicator(isSelected: widget.isSelected),
+              ),
+            _buildAvatar(false),
+            const SizedBox(width: _MessageBubble._avatarSpacing),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                      height: 1.05,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                _buildBubbleContainer(
-                  context,
-                  child: _buildMessageContent(context),
-                  isSelf: false,
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  _buildBubbleContainer(
+                    context,
+                    child: _buildMessageContent(context),
+                    isSelf: false,
+                    isSelected: widget.isSelected,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2030,31 +2232,33 @@ class _MessageBubbleState extends State<_MessageBubble> {
     BuildContext context, {
     required Widget child,
     required bool isSelf,
+    bool isSelected = false,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTapUp: (details) =>
-          widget.onBubbleTap?.call(details.globalPosition, _message, isSelf),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelf ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(isSelf ? 16 : 0),
-            topRight: const Radius.circular(16),
-            bottomLeft: const Radius.circular(16),
-            bottomRight: Radius.circular(isSelf ? 0 : 16),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isSelf ? AppColors.primary : Colors.white,
+        border: isSelected
+            ? Border.all(
+                color: AppColors.primary.withValues(alpha: 0.5),
+                width: 1,
+              )
+            : null,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(isSelf ? 16 : 0),
+          topRight: const Radius.circular(16),
+          bottomLeft: const Radius.circular(16),
+          bottomRight: Radius.circular(isSelf ? 0 : 16),
         ),
-        child: child,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: child,
     );
   }
 
@@ -2162,6 +2366,33 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
+  }
+}
+
+class _SelectionIndicator extends StatelessWidget {
+  const _SelectionIndicator({required this.isSelected});
+
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? AppColors.primary : AppColors.divider,
+          width: 2,
+        ),
+        color: isSelected
+            ? AppColors.primary.withValues(alpha: 0.15)
+            : Colors.transparent,
+      ),
+      child: isSelected
+          ? const Icon(Icons.check, size: 14, color: AppColors.primary)
+          : null,
+    );
   }
 }
 
