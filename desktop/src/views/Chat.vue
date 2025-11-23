@@ -3596,8 +3596,11 @@ const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
   const target = chatMessagesRef.value?.querySelector(`[data-message-id="${quoted.id}"]`) as HTMLElement | null
   if (target) {
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    target.classList.add('search-highlighted')
-    setTimeout(() => target.classList.remove('search-highlighted'), 1600)
+    target.classList.remove('quoted-highlighted')
+    // 强制重排以便重复点击也能触发动画
+    void target.offsetWidth
+    target.classList.add('quoted-highlighted')
+    setTimeout(() => target.classList.remove('quoted-highlighted'), 5200)
   }
 }
 
@@ -8754,6 +8757,23 @@ const loadMessageList = async (groupId: string) => {
   100% {
     background-color: #fef3c7;
     transform: scale(1);
+  }
+}
+
+.quoted-highlighted {
+  border: none;
+  border-radius: 10px;
+  background-color: var(--primary-color, #4ecdc4) !important;
+  animation: quoted-highlight-fade 5s ease-out forwards;
+  opacity: 0.5;
+}
+
+@keyframes quoted-highlight-fade {
+  0% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
