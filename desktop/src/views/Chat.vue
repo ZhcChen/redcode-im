@@ -127,7 +127,13 @@
       </div>
       
       <div class="chat-window" v-if="selectedChat">
-        <div class="chat-messages" ref="chatMessagesRef">
+        <div
+          class="chat-messages"
+          ref="chatMessagesRef"
+          @mousedown.left="handleMouseDownOnMessages"
+          @mousemove="handleMouseMoveOnMessages"
+          @mouseup="handleMouseUpOnMessages"
+        >
           <div v-if="messages.length === 0" class="empty-container">
             <div class="empty-text">暂无消息，开始聊天吧</div>
           </div>
@@ -146,9 +152,6 @@
             @contextmenu.prevent="handleMessageContextMenu(message, $event)"
             @click="toggleMessageSelection(message)"
           >
-            <div v-if="multiSelectMode" class="message-checkbox">
-              <input type="checkbox" :checked="isMessageSelected(message)" />
-            </div>
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -161,6 +164,14 @@
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
               <div class="message-content">
+                <div
+                  v-if="multiSelectMode"
+                  class="select-indicator other"
+                  :class="{ active: isMessageSelected(message) }"
+                  @click.stop="toggleMessageSelection(message)"
+                >
+                  ✓
+                </div>
                 <!-- 引用消息预览 -->
                 <template v-if="message.quotedMessage">
                   <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
@@ -310,6 +321,14 @@
               </div>
             </div>
             <div v-else class="message-content">
+              <div
+                v-if="multiSelectMode"
+                class="select-indicator self"
+                :class="{ active: isMessageSelected(message) }"
+                @click.stop="toggleMessageSelection(message)"
+              >
+                ✓
+              </div>
               <template v-if="message.quotedMessage">
                 <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
                   <div class="quoted-header">
@@ -5461,14 +5480,13 @@ const handleMessageMenuDelete = async () => {
   }
 }
 
-// 多选模式
+// 多选模式（拖拽进入）
 const multiSelectMode = ref(false)
 const selectedMessageIds = new Set<string>()
 
-const toggleMultiSelect = () => {
-  multiSelectMode.value = !multiSelectMode.value
+const enterMultiSelect = () => {
   if (!multiSelectMode.value) {
-    selectedMessageIds.clear()
+    multiSelectMode.value = true
   }
 }
 
@@ -5477,13 +5495,21 @@ const exitMultiSelect = () => {
   selectedMessageIds.clear()
 }
 
+const selectMessage = (message: Message, selected: boolean) => {
+  if (message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG) return
+  if (selected) {
+    selectedMessageIds.add(message.id)
+  } else {
+    selectedMessageIds.delete(message.id)
+  }
+}
+
 const toggleMessageSelection = (message: Message) => {
   if (!multiSelectMode.value) return
-  if (message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG) return
   if (selectedMessageIds.has(message.id)) {
-    selectedMessageIds.delete(message.id)
+    selectMessage(message, false)
   } else {
-    selectedMessageIds.add(message.id)
+    selectMessage(message, true)
   }
 }
 
@@ -5535,6 +5561,36 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
       exitMultiSelect()
     }
   }
+}
+
+// 拖拽多选
+const isDraggingSelect = ref(false)
+const dragSelectedIds = new Set<string>()
+
+const handleMouseDownOnMessages = (event: MouseEvent) => {
+  if (event.button !== 0) return // 仅左键
+  isDraggingSelect.value = true
+  dragSelectedIds.clear()
+  enterMultiSelect()
+}
+
+const handleMouseMoveOnMessages = (event: MouseEvent) => {
+  if (!isDraggingSelect.value) return
+  const target = (event.target as HTMLElement)?.closest('[data-message-id]') as HTMLElement | null
+  if (!target) return
+  const id = target.getAttribute('data-message-id')
+  if (!id) return
+  if (!dragSelectedIds.has(id)) {
+    dragSelectedIds.add(id)
+    const msg = messages.value.find((m) => m.id === id)
+    if (msg) selectMessage(msg, true)
+  }
+}
+
+const handleMouseUpOnMessages = () => {
+  if (!isDraggingSelect.value) return
+  isDraggingSelect.value = false
+  dragSelectedIds.clear()
 }
 
 // 计算可用于转发的会话列表（排除当前会话）
@@ -7829,10 +7885,10 @@ const loadMessageList = async (groupId: string) => {
     }
   }
 
-  .message-content {
-    background-color: #ffffff;
-    padding: 12px 16px;
-    border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
+    .message-content {
+      background-color: #ffffff;
+      padding: 12px 16px;
+      border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
     max-width: 100%; /* 占满 message-wrapper 的宽度，message-wrapper 已设置 60% */
     word-wrap: break-word;
     white-space: pre-wrap; /* 保留换行符和空格 */
@@ -7886,6 +7942,31 @@ const loadMessageList = async (groupId: string) => {
       color: $message-time-other-color;
     }
   }
+}
+
+.select-indicator {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary-color, #00c2b3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.select-indicator.other {
+  right: -16px;
+  bottom: 16px;
+}
+
+.select-indicator.self {
+  left: -16px;
+  bottom: 16px;
 }
 
 .chat-input {
