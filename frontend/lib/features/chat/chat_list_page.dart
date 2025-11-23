@@ -266,25 +266,24 @@ PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
 class _FavoriteAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    const initial = '收';
+    const primaryColor = AppColors.primary;
+
     return Container(
       width: 48,
       height: 48,
       decoration: BoxDecoration(
+        color: primaryColor,
         borderRadius: BorderRadius.circular(48),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF00C2B3), // 青色
-            Color(0xFF66DBD1), // 浅青色
-          ],
-        ),
       ),
       child: Center(
-        child: Icon(
-          Icons.star,
-          color: Colors.white.withOpacity(0.95),
-          size: 24,
+        child: Text(
+          initial,
+          style: const TextStyle(
+            fontSize: 19,
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
