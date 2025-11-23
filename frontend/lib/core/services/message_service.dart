@@ -2272,24 +2272,42 @@ class MessageService with ChangeNotifier {
   }
 
   /// 更新群头像
-  void updateRoomAvatar({
+  Future<void> updateRoomAvatar({
     required String roomId,
     required String avatarObjectKey,
     String? localAvatarPath,
-  }) {
+  }) async {
     final index = _chats.indexWhere((chat) => chat.roomId == roomId);
     if (index < 0) {
       debugPrint('[MessageService] 未找到 roomId=$roomId 的聊天，无法更新头像');
       return;
     }
 
-    _chats[index] = _chats[index].copyWith(
+    final chat = _chats[index];
+    final keyChanged = chat.avatarObjectKey != avatarObjectKey;
+
+    // 如果 key 变化，清理旧缓存
+    if (keyChanged) {
+      await AvatarCache.instance.clearRoom(roomId);
+    }
+
+    // 若未提供本地路径，则尝试拉取并缓存
+    var resolvedPath = localAvatarPath;
+    if (resolvedPath == null || resolvedPath.isEmpty) {
+      final roomAvatarService = RoomAvatarService(tokenStorage: _tokenStorage);
+      resolvedPath = await roomAvatarService.loadAndCacheAvatar(
+        roomId: roomId,
+        avatarObjectKey: avatarObjectKey,
+      );
+    }
+
+    _chats[index] = chat.copyWith(
       avatarObjectKey: avatarObjectKey,
-      localAvatarPath: localAvatarPath,
+      localAvatarPath: resolvedPath,
     );
 
     debugPrint(
-      '[MessageService] 已更新 roomId=$roomId 的头像: key=$avatarObjectKey, path=$localAvatarPath',
+      '[MessageService] 已更新 roomId=$roomId 的头像: key=$avatarObjectKey, path=$resolvedPath',
     );
     notifyListeners();
   }

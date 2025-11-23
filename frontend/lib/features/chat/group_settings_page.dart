@@ -648,10 +648,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             onTap: _isUploadingAvatar
                 ? null
                 : (_isGroupOwner
-                    ? () {
-                        _showPickGroupAvatarDialog(context);
-                      }
-                    : null),
+                      ? () {
+                          _showPickGroupAvatarDialog(context);
+                        }
+                      : null),
           ),
           _SettingTile(
             label: '群公告',
@@ -1105,7 +1105,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         throw Exception('用户未登录');
       }
 
-      final contentType = lookupMimeType(file.path) ?? 'application/octet-stream';
+      final contentType =
+          lookupMimeType(file.path) ?? 'application/octet-stream';
       final fileSize = await file.length();
       final filename = p.basename(file.path);
       final directUri = Uri.parse(
@@ -1117,7 +1118,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         'content_type': contentType,
         'file_size': fileSize,
       };
-      debugPrint('请求群头像上传签名: roomId=${widget.chat.roomId}, filename=$filename, contentType=$contentType, fileSize=$fileSize');
+      debugPrint(
+        '请求群头像上传签名: roomId=${widget.chat.roomId}, filename=$filename, contentType=$contentType, fileSize=$fileSize',
+      );
 
       final directResponse = await http.post(
         directUri,
@@ -1131,11 +1134,16 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       if (!mounted) return;
 
       if (directResponse.statusCode != 200) {
-        debugPrint('获取上传签名失败: 状态码=${directResponse.statusCode}, 响应=${directResponse.body}');
-        throw Exception('获取上传签名失败 (HTTP ${directResponse.statusCode}): ${directResponse.body}');
+        debugPrint(
+          '获取上传签名失败: 状态码=${directResponse.statusCode}, 响应=${directResponse.body}',
+        );
+        throw Exception(
+          '获取上传签名失败 (HTTP ${directResponse.statusCode}): ${directResponse.body}',
+        );
       }
 
-      final directPayload = jsonDecode(directResponse.body) as Map<String, dynamic>;
+      final directPayload =
+          jsonDecode(directResponse.body) as Map<String, dynamic>;
       debugPrint('直传签名响应: $directPayload');
 
       final directSuccess = directPayload['success'] as bool? ?? false;
@@ -1146,7 +1154,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       }
 
       final key = directPayload['key'] as String?;
-      final signatureMap = directPayload['signature'] as Map<String, dynamic>? ?? {};
+      final signatureMap =
+          directPayload['signature'] as Map<String, dynamic>? ?? {};
       if (key == null || signatureMap.isEmpty) {
         throw Exception('上传签名响应不完整');
       }
@@ -1182,10 +1191,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           'Authorization': 'Bearer ${session.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'key': key,
-          'delete_previous': true,
-        }),
+        body: jsonEncode({'key': key, 'delete_previous': true}),
       );
 
       if (!mounted) return;
@@ -1194,7 +1200,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         throw Exception('提交头像信息失败: ${commitResponse.body}');
       }
 
-      final commitPayload = jsonDecode(commitResponse.body) as Map<String, dynamic>;
+      final commitPayload =
+          jsonDecode(commitResponse.body) as Map<String, dynamic>;
       final commitSuccess = commitPayload['success'] as bool? ?? false;
       if (!commitSuccess) {
         final message = commitPayload['message'] as String?;
@@ -1218,10 +1225,12 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         });
 
         // 6. 更新聊天列表中的头像
-        MessageService.instance.updateRoomAvatar(
-          roomId: widget.chat.roomId,
-          avatarObjectKey: key,
-          localAvatarPath: localPath,
+        unawaited(
+          MessageService.instance.updateRoomAvatar(
+            roomId: widget.chat.roomId,
+            avatarObjectKey: key,
+            localAvatarPath: localPath,
+          ),
         );
 
         _showSnackBar('群头像已更新');
