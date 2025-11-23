@@ -31,7 +31,7 @@
         />
         
       </div>
-      <div class="chat-header-right" v-if="selectedChat">
+  <div class="chat-header-right" v-if="selectedChat">
         <Avatar
           :src="selectedChat.avatarLocalPath"
           :text="selectedChat.name"
@@ -51,6 +51,13 @@
         <!-- 单聊设置按钮 -->
         <div v-if="selectedChat.groupType === 0" class="group-settings-btn" @click="handleShowGroupSettings">
           <img src="@/assets/image/icon-menu.svg" alt="聊天设置" class="settings-icon" />
+        </div>
+        <!-- 多选开关 -->
+        <div class="multi-select-toggle">
+          <label>
+            <input type="checkbox" v-model="multiSelectMode" />
+            多选
+          </label>
         </div>
       </div>
       <h2 v-else></h2>
@@ -124,7 +131,24 @@
           <div v-if="messages.length === 0" class="empty-container">
             <div class="empty-text">暂无消息，开始聊天吧</div>
           </div>
-          <div v-else class="message" v-for="message in messages" :key="message.id" :data-message-id="message.id" :class="{ 'own-message': message.isSelf, 'message-failed': message.status === 5, 'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG }" @contextmenu.prevent="handleMessageContextMenu(message, $event)">
+          <div
+            v-else
+            class="message"
+            v-for="message in messages"
+            :key="message.id"
+            :data-message-id="message.id"
+            :class="{
+              'own-message': message.isSelf,
+              'message-failed': message.status === 5,
+              'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG,
+              'selected-message': isMessageSelected(message)
+            }"
+            @contextmenu.prevent="handleMessageContextMenu(message, $event)"
+            @click="toggleMessageSelection(message)"
+          >
+            <div v-if="multiSelectMode" class="message-checkbox">
+              <input type="checkbox" :checked="isMessageSelected(message)" />
+            </div>
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -422,6 +446,14 @@
             <div class="reply-title">回复 {{ replyingMessage.senderName }}</div>
             <div class="reply-content">{{ getTextContent(replyingMessage) }}</div>
             <button class="reply-close" @click="clearReplyingMessage">×</button>
+          </div>
+          <div v-if="multiSelectMode" class="multi-select-bar">
+            <div class="multi-select-count">已选择 {{ selectedMessagesCount }} 条</div>
+            <div class="multi-select-actions">
+              <button class="btn" @click="exitMultiSelect">取消</button>
+              <button class="btn" :disabled="selectedMessagesCount === 0" @click="handleMessageMenuForward">转发</button>
+              <button class="btn danger" :disabled="selectedMessagesCount === 0" @click="deleteSelectedMessages">删除</button>
+            </div>
           </div>
           <div class="input-container">
             <div class="input-left-actions">
@@ -5154,40 +5186,49 @@ const clearReplyingMessage = () => {
 // 转发相关状态
 const showForwardDialog = ref(false)
 const forwardSourceMessage = ref<Message | null>(null)
-const forwardTargetId = ref<string>('')
+const forwardTargetIds = ref<string[]>([])
 
 const handleMessageMenuForward = () => {
   const target = messageContextMenuTarget.value
   if (!target || !canForwardMessage(target)) return
   forwardSourceMessage.value = target
-  forwardTargetId.value = ''
+  forwardTargetIds.value = []
   showMessageContextMenu.value = false
   showForwardDialog.value = true
 }
 
 const confirmForward = async () => {
-  const source = forwardSourceMessage.value
-  if (!source) return
-  const targetRoomId = forwardTargetId.value || selectedChat.value?.groupId
-  if (!targetRoomId) {
+  const sources: Message[] = multiSelectMode.value
+    ? messages.value.filter((m) => selectedMessageIds.has(m.id))
+    : (forwardSourceMessage.value ? [forwardSourceMessage.value] : [])
+
+  if (!sources.length) {
+    toast.warning('请选择要转发的消息')
+    return
+  }
+  if (!forwardTargetIds.value.length) {
     toast.warning('请选择要转发的会话')
     return
   }
 
   try {
-    const res = await MessageApi.forwardMessage({
-      groupId: source.roomId || selectedChat.value?.groupId || '',
-      messageId: source.id,
-      targetRoomIds: [targetRoomId],
-    })
-    if (res.success) {
-      toast.success('已转发')
-    } else {
-      toast.error(res.message || '转发失败')
+    for (const source of sources) {
+      const res = await MessageApi.forwardMessage({
+        groupId: source.roomId || selectedChat.value?.groupId || '',
+        messageId: source.id,
+        targetRoomIds: forwardTargetIds.value,
+      })
+      if (!res.success) {
+        throw new Error(res.message || '转发失败')
+      }
+    }
+    toast.success('已转发')
+    if (multiSelectMode.value) {
+      exitMultiSelect()
     }
   } catch (error) {
     console.error('转发失败', error)
-    toast.error('转发失败，请稍后重试')
+    toast.error(error instanceof Error ? error.message : '转发失败，请稍后重试')
   } finally {
     showForwardDialog.value = false
     forwardSourceMessage.value = null
@@ -5259,6 +5300,64 @@ const handleMessageMenuDelete = async () => {
     toast.error('删除失败，请重试')
   } finally {
     showMessageContextMenu.value = false
+  }
+}
+
+// 多选模式
+const multiSelectMode = ref(false)
+const selectedMessageIds = new Set<string>()
+
+const toggleMultiSelect = () => {
+  multiSelectMode.value = !multiSelectMode.value
+  if (!multiSelectMode.value) {
+    selectedMessageIds.clear()
+  }
+}
+
+const exitMultiSelect = () => {
+  multiSelectMode.value = false
+  selectedMessageIds.clear()
+}
+
+const toggleMessageSelection = (message: Message) => {
+  if (!multiSelectMode.value) return
+  if (selectedMessageIds.has(message.id)) {
+    selectedMessageIds.delete(message.id)
+  } else {
+    selectedMessageIds.add(message.id)
+  }
+}
+
+const isMessageSelected = (message: Message) => selectedMessageIds.has(message.id)
+
+const selectedMessagesCount = computed(() => selectedMessageIds.size)
+
+const deleteSelectedMessages = async () => {
+  if (!selectedMessageIds.size) return
+  const roomId = selectedChat.value?.groupId
+  if (!roomId) return
+
+  const targets = messages.value.filter((m) => selectedMessageIds.has(m.id))
+  const invalid = targets.filter((m) => !m.isSelf)
+  if (invalid.length) {
+    toast.warning('只能删除自己发送的消息')
+    return
+  }
+
+  try {
+    for (const msg of targets) {
+      const res = await MessageApi.deleteMessage({ groupId: roomId, messageId: msg.id })
+      if (!res.success) {
+        throw new Error(res.message || '删除失败')
+      }
+      const idx = messages.value.findIndex((m) => m.id === msg.id)
+      if (idx !== -1) messages.value.splice(idx, 1)
+    }
+    toast.success('已删除所选消息')
+    exitMultiSelect()
+  } catch (error) {
+    console.error('批量删除失败', error)
+    toast.error(error instanceof Error ? error.message : '删除失败')
   }
 }
 
@@ -7454,6 +7553,13 @@ const loadMessageList = async (groupId: string) => {
   position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
   margin-bottom: 8px; /* 添加消息间距 */
 
+  &.selected-message {
+    background: #f4f8ff;
+    border-radius: 10px;
+    border: 1px solid #cde0ff;
+    padding: 4px 6px;
+  }
+
   &.own-message {
     flex-direction: row-reverse;
 
@@ -7727,6 +7833,53 @@ const loadMessageList = async (groupId: string) => {
 
     .send-icon {
       // 发送图标特殊样式
+    }
+  }
+
+  .multi-select-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: #eef2ff;
+    border: 1px solid #dfe4ff;
+
+    .multi-select-count {
+      font-size: 13px;
+      color: #1f2937;
+      font-weight: 600;
+    }
+
+    .multi-select-actions {
+      display: flex;
+      gap: 8px;
+
+      .btn {
+        min-width: 70px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        &.danger {
+          background: #ffecef;
+          border-color: #ffcdd4;
+          color: #d1434b;
+        }
+
+        &:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+      }
     }
   }
 }
