@@ -298,7 +298,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         _isLoadingSettings = false;
       });
     } catch (e) {
-      debugPrint('加载群设置失败: $e');
+      // 群设置加载失败不影响核心功能，仅记录日志
+      debugPrint('[群设置] 加载失败（不影响功能）: $e');
       if (mounted) {
         setState(() => _isLoadingSettings = false);
       }
@@ -1092,6 +1093,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       return;
     }
 
+    if (!mounted) return;
     setState(() => _isUploadingAvatar = true);
     try {
       // 1. 获取上传签名
@@ -1122,6 +1124,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         },
         body: jsonEncode(requestBody),
       );
+
+      if (!mounted) return;
 
       if (directResponse.statusCode != 200) {
         debugPrint('获取上传签名失败: 状态码=${directResponse.statusCode}, 响应=${directResponse.body}');
@@ -1154,6 +1158,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       uploadRequest.bodyBytes = await file.readAsBytes();
 
       final uploadResponse = await uploadRequest.send();
+      if (!mounted) return;
+
       if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
         final body = await uploadResponse.stream.bytesToString();
         throw Exception(
@@ -1179,6 +1185,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         }),
       );
 
+      if (!mounted) return;
+
       if (commitResponse.statusCode != 200) {
         throw Exception('提交头像信息失败: ${commitResponse.body}');
       }
@@ -1196,6 +1204,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         objectKey: key,
         source: file,
       );
+
+      if (!mounted) return;
 
       // 5. 更新本地状态并刷新 UI
       if (mounted) {
