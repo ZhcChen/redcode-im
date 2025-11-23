@@ -52,13 +52,6 @@
         <div v-if="selectedChat.groupType === 0" class="group-settings-btn" @click="handleShowGroupSettings">
           <img src="@/assets/image/icon-menu.svg" alt="聊天设置" class="settings-icon" />
         </div>
-        <!-- 多选开关 -->
-        <div class="multi-select-toggle">
-          <label>
-            <input type="checkbox" v-model="multiSelectMode" />
-            多选
-          </label>
-        </div>
       </div>
       <h2 v-else></h2>
     </div>
