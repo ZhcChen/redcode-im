@@ -1,12 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_config.dart';
+import '../../core/network/direct_upload.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
+import '../../core/storage/avatar_cache.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/widgets/bottom_picker.dart';
 import '../../core/widgets/custom_switch.dart';
@@ -53,7 +60,7 @@ Color _generateBackgroundColor(String text) {
 }
 
 class _GroupAvatar extends StatefulWidget {
-  const _GroupAvatar({required this.chat});
+  const _GroupAvatar({super.key, required this.chat});
 
   final Chat chat;
 
@@ -244,8 +251,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   bool _isForbidden = false;
   bool _isLoadingMembers = false;
   bool _isLoadingSettings = false;
+  bool _isUploadingAvatar = false;
   String? _currentUserId;
   bool _isGroupOwner = false;
+  String? _avatarObjectKey; // 用于跟踪最新的头像 key
 
   // 群成员列表
   List<Map<String, dynamic>> _members = [];
@@ -256,6 +265,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
     _roomService = RoomService();
+    _avatarObjectKey = widget.chat.avatarObjectKey; // 初始化头像 key
     _loadCurrentUser();
     _loadSettings();
     _loadMembers(); // 加载群成员
@@ -607,10 +617,29 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           ),
           _SettingTile(
             label: '群头像',
-            trailing: _GroupAvatar(chat: widget.chat),
-            onTap: () {
-              _showPickGroupAvatarDialog(context);
-            },
+            trailing: _isUploadingAvatar
+                ? const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : _GroupAvatar(
+                    key: ValueKey(_avatarObjectKey),
+                    chat: widget.chat.copyWith(
+                      avatarObjectKey: _avatarObjectKey,
+                    ),
+                  ),
+            onTap: _isUploadingAvatar
+                ? null
+                : () {
+                    _showPickGroupAvatarDialog(context);
+                  },
           ),
           _SettingTile(
             label: '群公告',
@@ -1001,16 +1030,172 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     );
   }
 
-  void _selectGroupAvatarFromCamera(BuildContext context) async {
-    // TODO: 实现相机选择功能
-    debugPrint('Select group avatar from camera');
+  Future<void> _selectGroupAvatarFromCamera(BuildContext context) async {
+    Navigator.pop(context); // 关闭底部选择器
+    if (_isUploadingAvatar) return;
+
+    final picker = ImagePicker();
+    XFile? pickedFile;
+    try {
+      pickedFile = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar('打开相机失败: $error');
+      return;
+    }
+
+    if (pickedFile == null) return;
+    await _handleGroupAvatarUpload(pickedFile);
   }
 
-  void _selectGroupAvatarFromGallery(BuildContext context) async {
-    debugPrint('Select group avatar from gallery');
-    // TODO: 实现从相册选择功能
-    // 这里可以使用 image_picker 等插件
-    // 然后调用 _chatProvider.uploadGroupAvatar 上传头像
+  Future<void> _selectGroupAvatarFromGallery(BuildContext context) async {
+    Navigator.pop(context); // 关闭底部选择器
+    if (_isUploadingAvatar) return;
+
+    final picker = ImagePicker();
+    XFile? pickedFile;
+    try {
+      pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar('打开相册失败: $error');
+      return;
+    }
+
+    if (pickedFile == null) return;
+    await _handleGroupAvatarUpload(pickedFile);
+  }
+
+  Future<void> _handleGroupAvatarUpload(XFile pickedFile) async {
+    final file = File(pickedFile.path);
+    if (!await file.exists()) {
+      if (!mounted) return;
+      _showSnackBar('未找到所选文件');
+      return;
+    }
+
+    setState(() => _isUploadingAvatar = true);
+    try {
+      // 1. 获取上传签名
+      final session = await _tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('用户未登录');
+      }
+
+      final contentType = lookupMimeType(file.path) ?? 'application/octet-stream';
+      final fileSize = await file.length();
+      final directUri = Uri.parse(
+        '${AppConfig.apiBaseUrl}/rooms/${widget.chat.roomId}/avatar/direct-upload',
+      );
+
+      final directResponse = await http.post(
+        directUri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'content_type': contentType,
+          'file_size': fileSize,
+        }),
+      );
+
+      if (directResponse.statusCode != 200) {
+        throw Exception('获取上传签名失败: ${directResponse.body}');
+      }
+
+      final directPayload = jsonDecode(directResponse.body) as Map<String, dynamic>;
+      final directSuccess = directPayload['success'] as bool? ?? false;
+      if (!directSuccess) {
+        final message = directPayload['message'] as String?;
+        throw Exception(message ?? '获取上传签名失败');
+      }
+
+      final key = directPayload['key'] as String?;
+      final signatureMap = directPayload['signature'] as Map<String, dynamic>? ?? {};
+      if (key == null || signatureMap.isEmpty) {
+        throw Exception('上传签名响应不完整');
+      }
+
+      // 2. 上传文件到 OSS
+      final signature = DirectUploadSignature.fromJson(signatureMap);
+      final uploadRequest = http.Request(
+        signature.method,
+        Uri.parse(signature.url),
+      );
+      signature.applyHeaders(uploadRequest, defaultContentType: contentType);
+      uploadRequest.bodyBytes = await file.readAsBytes();
+
+      final uploadResponse = await uploadRequest.send();
+      if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
+        final body = await uploadResponse.stream.bytesToString();
+        throw Exception(
+          body.isNotEmpty
+              ? '上传失败: $body'
+              : '上传失败，状态码 ${uploadResponse.statusCode}',
+        );
+      }
+
+      // 3. 提交上传信息
+      final commitUri = Uri.parse(
+        '${AppConfig.apiBaseUrl}/rooms/${widget.chat.roomId}/avatar/commit',
+      );
+      final commitResponse = await http.post(
+        commitUri,
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'key': key,
+          'delete_previous': true,
+        }),
+      );
+
+      if (commitResponse.statusCode != 200) {
+        throw Exception('提交头像信息失败: ${commitResponse.body}');
+      }
+
+      final commitPayload = jsonDecode(commitResponse.body) as Map<String, dynamic>;
+      final commitSuccess = commitPayload['success'] as bool? ?? false;
+      if (!commitSuccess) {
+        final message = commitPayload['message'] as String?;
+        throw Exception(message ?? '提交头像信息失败');
+      }
+
+      // 4. 保存到本地缓存
+      final localPath = await AvatarCache.instance.saveRoomAvatar(
+        roomId: widget.chat.roomId,
+        objectKey: key,
+        source: file,
+      );
+
+      // 5. 更新本地状态并刷新 UI
+      if (mounted) {
+        setState(() {
+          // 更新头像 key，触发 _GroupAvatar 通过新的 key 重新构建
+          _avatarObjectKey = key;
+        });
+        _showSnackBar('群头像已更新');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar('头像更新失败: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+      }
+    }
   }
 
   Future<void> _transferOwnership(String newOwnerId, String displayName) async {
