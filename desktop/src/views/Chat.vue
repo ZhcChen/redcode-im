@@ -161,6 +161,14 @@
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
               <div class="message-content">
+                <!-- 引用消息预览 -->
+                <template v-if="message.quotedMessage">
+                  <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
+                    <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
+                    <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                  </div>
+                </template>
+
                 <!-- 文本消息 -->
                 <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
                   {{ getTextContent(message) }}
@@ -293,6 +301,13 @@
               </div>
             </div>
             <div v-else class="message-content">
+              <template v-if="message.quotedMessage">
+                <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
+                  <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
+                  <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                </div>
+              </template>
+
               <!-- 文本消息 -->
               <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
                 {{ getTextContent(message) }}
@@ -3501,6 +3516,43 @@ const getTextContent = (message: Message): string => {
   }
 
   return ''
+}
+
+const getQuotedSenderName = (quoted: QuotedMessage): string => {
+  return quoted.senderNickname || quoted.senderUsername || quoted.senderId || '引用'
+}
+
+const getQuotedText = (quoted: QuotedMessage): string => {
+  if (Array.isArray(quoted.parts) && quoted.parts.length > 0) {
+    const textPart = quoted.parts.find((part) => part.type === MessagePartType.TEXT && part.text?.trim())
+    if (textPart?.text) return textPart.text
+    const first = quoted.parts[0]
+    switch (first.type) {
+      case MessagePartType.IMAGE:
+        return '[图片]'
+      case MessagePartType.VIDEO:
+        return '[视频]'
+      case MessagePartType.AUDIO:
+        return '[语音]'
+      case MessagePartType.FILE:
+        return '[文件]'
+      default:
+        break
+    }
+  }
+
+  if (quoted.content) return quoted.content
+  return '[引用消息]'
+}
+
+const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
+  if (!quoted?.id) return
+  const target = chatMessagesRef.value?.querySelector(`[data-message-id="${quoted.id}"]`) as HTMLElement | null
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.classList.add('search-highlighted')
+    setTimeout(() => target.classList.remove('search-highlighted'), 1600)
+  }
 }
 
 const canCopyMessage = (message: Message | null): boolean => {
@@ -8629,6 +8681,27 @@ const loadMessageList = async (groupId: string) => {
   100% {
     background-color: #fef3c7;
     transform: scale(1);
+  }
+}
+
+.quoted-block {
+  border-left: 3px solid #cfd8e3;
+  padding-left: 10px;
+  margin-bottom: 8px;
+  background: #f7f9fc;
+  border-radius: 8px;
+
+  .quoted-sender {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 4px;
+  }
+
+  .quoted-text {
+    font-size: 13px;
+    color: #1f2937;
+    line-height: 1.4;
+    word-break: break-word;
   }
 }
 
