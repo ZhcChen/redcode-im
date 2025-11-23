@@ -5507,8 +5507,12 @@ const selectMessage = (message: Message, selected: boolean) => {
 }
 
 const toggleMessageSelection = (message: Message) => {
-  if (isDraggingSelect.value) return
+  // 只有在多选模式下才能切换选中状态
   if (!multiSelectMode.value) return
+
+  // 系统消息不能被选中
+  if (message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG) return
+
   if (selectedMessageIds.has(message.id)) {
     selectMessage(message, false)
   } else {
@@ -5569,6 +5573,7 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
 // 拖拽多选
 const isDraggingSelect = ref(false)
 const dragAnchorMessageId = ref<string | null>(null)
+const dragStartPosition = ref<{ x: number; y: number } | null>(null)
 const isDragSelectingClass = computed(() => isDraggingSelect.value || multiSelectMode.value)
 
 const getMessageIdAtPoint = (clientX: number, clientY: number): string | null => {
@@ -5595,13 +5600,25 @@ const handleMouseDownOnMessages = (event: MouseEvent) => {
   if (event.button !== 0) return // 仅左键
   const target = (event.target as HTMLElement)?.closest('[data-message-id]') as HTMLElement | null
   dragAnchorMessageId.value = target?.getAttribute('data-message-id') || null
-  isDraggingSelect.value = !!dragAnchorMessageId.value
-  if (isDraggingSelect.value) {
+  // 记录鼠标按下位置，用于判断是否真的进行了拖拽
+  dragStartPosition.value = { x: event.clientX, y: event.clientY }
+  isDraggingSelect.value = false // 先不设置为拖拽状态，等鼠标移动后再确定
+  if (dragAnchorMessageId.value) {
     clearBrowserSelection()
   }
 }
 
 const handleMouseMoveOnMessages = (event: MouseEvent) => {
+  // 如果有锚点消息，检查是否真的在拖拽
+  if (dragAnchorMessageId.value && dragStartPosition.value && !isDraggingSelect.value) {
+    // 计算鼠标移动距离，超过阈值才认为是拖拽
+    const deltaX = Math.abs(event.clientX - dragStartPosition.value.x)
+    const deltaY = Math.abs(event.clientY - dragStartPosition.value.y)
+    if (deltaX > 5 || deltaY > 5) {
+      isDraggingSelect.value = true
+    }
+  }
+
   if (!isDraggingSelect.value) return
   const id = getMessageIdAtPoint(event.clientX, event.clientY)
   if (!id) return
@@ -5621,6 +5638,9 @@ const handleMouseMoveOnMessages = (event: MouseEvent) => {
       const startIndex = Math.min(anchorIndex, currentIndex)
       const endIndex = Math.max(anchorIndex, currentIndex)
 
+      // 先清除所有选中状态
+      selectedMessageIds.clear()
+
       // 选中范围内的所有消息
       for (let i = startIndex; i <= endIndex; i++) {
         selectMessage(messages.value[i], true)
@@ -5633,8 +5653,10 @@ const handleMouseUpOnMessages = () => {
   if (multiSelectMode.value && isDraggingSelect.value) {
     clearBrowserSelection()
   }
+  // 重置拖拽状态
   isDraggingSelect.value = false
   dragAnchorMessageId.value = null
+  dragStartPosition.value = null
 }
 
 const handleIndicatorClick = (message: Message) => {
@@ -5643,9 +5665,9 @@ const handleIndicatorClick = (message: Message) => {
 }
 
 const handleMessageHover = (message: Message) => {
-  if (!(isDraggingSelect.value || multiSelectMode.value)) return
-  ensureMultiSelectMode()
-  selectMessage(message, true)
+  // 只有在拖拽选择时才自动选中悬停的消息
+  if (!isDraggingSelect.value) return
+  // 拖拽时无需处理悬停，handleMouseMoveOnMessages 已经处理了
 }
 
 // 计算可用于转发的会话列表（排除当前会话）
