@@ -7775,6 +7775,21 @@ const loadMessageList = async (groupId: string) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  user-select: none; /* 默认禁用文本选中 */
+
+  .message-content,
+  .quoted-block,
+  .system-message-text,
+  .file-name,
+  .file-size,
+  .message-sender-name,
+  .message-time-other,
+  .message-time,
+  .quoted-text,
+  .quoted-sender {
+    user-select: text;
+  }
+
   &.multi-select-active {
     user-select: none;
   }
