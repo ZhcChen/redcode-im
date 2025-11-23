@@ -845,7 +845,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 
@@ -5484,7 +5484,7 @@ const handleMessageMenuDelete = async () => {
 
 // 多选模式（拖拽进入）
 const multiSelectMode = ref(false)
-const selectedMessageIds = new Set<string>()
+const selectedMessageIds = reactive(new Set<string>())
 
 const enterMultiSelect = () => {
   if (!multiSelectMode.value) {
