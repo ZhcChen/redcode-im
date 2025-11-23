@@ -40,8 +40,14 @@ void main() {
       final restored = Message.fromCacheJson(cache);
 
       expect(restored.id, message.id);
-      expect(restored.forwardInfo?.displaySourceName, forwardInfo.displaySourceName);
-      expect(restored.forwardInfo?.originSenderName, forwardInfo.originSenderName);
+      expect(
+        restored.forwardInfo?.displaySourceName,
+        forwardInfo.displaySourceName,
+      );
+      expect(
+        restored.forwardInfo?.originSenderName,
+        forwardInfo.originSenderName,
+      );
       expect(restored.isPinned, isTrue);
       expect(
         restored.pinnedAt?.toUtc().millisecondsSinceEpoch,

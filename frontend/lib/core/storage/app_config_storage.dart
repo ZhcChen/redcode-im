@@ -31,15 +31,11 @@ class AppConfigStorage {
   /// 保存应用名称
   Future<void> saveAppName(String appName) async {
     final db = await _openDatabase();
-    await db.insert(
-      _configTable,
-      {
-        'key': _keyAppName,
-        'value': appName,
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert(_configTable, {
+      'key': _keyAppName,
+      'value': appName,
+      'updated_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   /// 清空所有配置

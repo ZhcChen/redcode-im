@@ -24,7 +24,7 @@ class EmojiItemService {
     try {
       // 下载表情图片
       final response = await http.get(Uri.parse(imageUrl));
-      
+
       if (response.statusCode == 200) {
         // 保存到临时文件
         final tempDir = await Directory.systemTemp.createTemp();
@@ -53,4 +53,3 @@ class EmojiItemService {
     return null;
   }
 }
-

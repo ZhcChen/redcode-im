@@ -73,10 +73,7 @@ class VersionCheckResult {
 }
 
 class VersionDownloadResult {
-  VersionDownloadResult({
-    required this.filePath,
-    required this.fileSize,
-  });
+  VersionDownloadResult({required this.filePath, required this.fileSize});
 
   final String filePath;
   final int fileSize;
@@ -104,10 +101,7 @@ class VersionService {
 
     final response = await _client.get(uri);
     if (response.statusCode != 200) {
-      throw HttpException(
-        '版本检查失败: HTTP ${response.statusCode}',
-        uri: uri,
-      );
+      throw HttpException('版本检查失败: HTTP ${response.statusCode}', uri: uri);
     }
 
     final Map<String, dynamic> payload =
@@ -115,8 +109,9 @@ class VersionService {
     final hasUpdate = payload['has_update'] as bool? ?? false;
     final current = payload['current_version'] as String?;
     final latestJson = payload['version'] as Map<String, dynamic>?;
-    final latest =
-        latestJson != null ? AppVersionInfo.fromJson(latestJson) : null;
+    final latest = latestJson != null
+        ? AppVersionInfo.fromJson(latestJson)
+        : null;
 
     return VersionCheckResult(
       hasUpdate: hasUpdate && latest != null,
@@ -137,10 +132,7 @@ class VersionService {
     final uri = Uri.parse(signedUrl);
     final http.Response response = await _client.get(uri);
     if (response.statusCode != 200) {
-      throw HttpException(
-        '下载更新失败: HTTP ${response.statusCode}',
-        uri: uri,
-      );
+      throw HttpException('下载更新失败: HTTP ${response.statusCode}', uri: uri);
     }
 
     final bytes = response.bodyBytes;
@@ -150,10 +142,7 @@ class VersionService {
     final file = File(filePath);
     await file.writeAsBytes(bytes, flush: true);
 
-    return VersionDownloadResult(
-      filePath: file.path,
-      fileSize: bytes.length,
-    );
+    return VersionDownloadResult(filePath: file.path, fileSize: bytes.length);
   }
 
   Future<Directory> _resolveDownloadDirectory() async {
@@ -173,7 +162,10 @@ class VersionService {
       if (urlExt.isNotEmpty) return urlExt;
       return '.pkg';
     }();
-    final safeChannel = version.channel.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '');
+    final safeChannel = version.channel.replaceAll(
+      RegExp(r'[^a-zA-Z0-9_-]'),
+      '',
+    );
     return 'bear_chat_${version.platform}_${safeChannel}_${version.version}$extension';
   }
 
@@ -181,18 +173,16 @@ class VersionService {
     required String id,
     int expiresInSeconds = 600,
   }) async {
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/versions/download')
-        .replace(queryParameters: <String, String>{
-      'id': id,
-      'expires_in_seconds': expiresInSeconds.toString(),
-    });
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/versions/download').replace(
+      queryParameters: <String, String>{
+        'id': id,
+        'expires_in_seconds': expiresInSeconds.toString(),
+      },
+    );
 
     final response = await _client.get(uri);
     if (response.statusCode != 200) {
-      throw HttpException(
-        '获取下载链接失败: HTTP ${response.statusCode}',
-        uri: uri,
-      );
+      throw HttpException('获取下载链接失败: HTTP ${response.statusCode}', uri: uri);
     }
 
     final Map<String, dynamic> payload =

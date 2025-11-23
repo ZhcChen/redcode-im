@@ -33,10 +33,7 @@ class AppTheme {
           horizontal: 24,
           vertical: 10,
         ),
-        constraints: BoxConstraints(
-          minHeight: 44.h,
-          maxHeight: 44.h,
-        ),
+        constraints: BoxConstraints(minHeight: 44.h, maxHeight: 44.h),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

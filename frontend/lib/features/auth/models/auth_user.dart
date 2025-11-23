@@ -39,10 +39,8 @@ class AuthUser {
       if (email != null) 'email': email,
       if (nickname != null) 'nickname': nickname,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
-      if (avatarObjectKey != null)
-        'avatar_object_key': avatarObjectKey,
-      if (localAvatarPath != null)
-        'local_avatar_path': localAvatarPath,
+      if (avatarObjectKey != null) 'avatar_object_key': avatarObjectKey,
+      if (localAvatarPath != null) 'local_avatar_path': localAvatarPath,
       if (status != null) 'status': status,
     };
   }
@@ -66,8 +64,9 @@ class AuthUser {
       nickname: nickname ?? this.nickname,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       avatarObjectKey: avatarObjectKey ?? this.avatarObjectKey,
-      localAvatarPath:
-          clearLocalAvatarPath ? null : (localAvatarPath ?? this.localAvatarPath),
+      localAvatarPath: clearLocalAvatarPath
+          ? null
+          : (localAvatarPath ?? this.localAvatarPath),
       status: status ?? this.status,
     );
   }

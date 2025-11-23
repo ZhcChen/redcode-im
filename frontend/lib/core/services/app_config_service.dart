@@ -6,8 +6,8 @@ class AppConfigService {
   AppConfigService({
     AppConfigStorage? storage,
     SettingsService? settingsService,
-  })  : _storage = storage ?? const AppConfigStorage(),
-        _settingsService = settingsService ?? SettingsService();
+  }) : _storage = storage ?? const AppConfigStorage(),
+       _settingsService = settingsService ?? SettingsService();
 
   final AppConfigStorage _storage;
   final SettingsService _settingsService;

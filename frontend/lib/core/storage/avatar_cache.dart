@@ -178,7 +178,10 @@ class AvatarCache {
     return null;
   }
 
-  Future<void> _writeUserRecord(String userId, _AvatarCacheRecord? record) async {
+  Future<void> _writeUserRecord(
+    String userId,
+    _AvatarCacheRecord? record,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = '$_userPrefsKeyPrefix$userId';
     if (record == null) {
@@ -189,7 +192,10 @@ class AvatarCache {
     await prefs.setString(storageKey, raw);
   }
 
-  Future<void> _writeRoomRecord(String roomId, _AvatarCacheRecord? record) async {
+  Future<void> _writeRoomRecord(
+    String roomId,
+    _AvatarCacheRecord? record,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final storageKey = '$_roomPrefsKeyPrefix$roomId';
     if (record == null) {

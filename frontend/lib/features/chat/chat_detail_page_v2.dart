@@ -3070,10 +3070,8 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
         const SizedBox(width: 8),
 
-          // 文本输入框 - 支持自动扩展高度，最多显示 6 行
-          Expanded(
-            child: _buildTextInput(context),
-          ),
+        // 文本输入框 - 支持自动扩展高度，最多显示 6 行
+        Expanded(child: _buildTextInput(context)),
 
         const SizedBox(width: 8),
 
@@ -3100,8 +3098,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
     const verticalPadding = 10.0;
 
     final mediaQuery = MediaQuery.maybeOf(context);
-    final textScaler =
-        mediaQuery?.textScaler ?? const TextScaler.linear(1.0);
+    final textScaler = mediaQuery?.textScaler ?? const TextScaler.linear(1.0);
     final scaledFontSize = textScaler.scale(baseFontSize);
     final textStyle = TextStyle(
       fontSize: baseFontSize,
@@ -3136,15 +3133,17 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         } else {
           lineHeight = scaledFontSize * 1.3;
         }
-        final int lineCount =
-            metrics.isEmpty ? 1 : metrics.length.clamp(1, maxVisibleLines);
+        final int lineCount = metrics.isEmpty
+            ? 1
+            : metrics.length.clamp(1, maxVisibleLines);
         final bool isSingleLine = lineCount == 1;
 
         final minHeight = lineHeight + verticalPadding * 2;
         final maxHeight = lineHeight * maxVisibleLines + verticalPadding * 2;
         final neededHeight = painter.height + verticalPadding * 2;
-        final clampedHeight =
-            neededHeight.clamp(minHeight, maxHeight).toDouble();
+        final clampedHeight = neededHeight
+            .clamp(minHeight, maxHeight)
+            .toDouble();
 
         return ConstrainedBox(
           constraints: BoxConstraints(

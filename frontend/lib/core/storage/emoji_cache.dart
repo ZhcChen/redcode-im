@@ -47,17 +47,14 @@ class EmojiCache {
   }
 
   /// 保存表情到缓存
-  Future<String> save({
-    required String imageUrl,
-    required File source,
-  }) async {
+  Future<String> save({required String imageUrl, required File source}) async {
     final cacheDir = await _ensureCacheDir();
     // 从 URL 中提取文件扩展名，如果没有则从源文件获取
     final urlExtension = _getExtensionFromUrl(imageUrl);
     final extension = urlExtension.isNotEmpty
         ? urlExtension
         : p.extension(source.path);
-    
+
     // 使用 URL 的 hash 作为文件名
     final safeName = '${imageUrl.hashCode.abs().toRadixString(16)}$extension';
     final targetPath = p.join(cacheDir.path, safeName);
@@ -126,4 +123,3 @@ class _EmojiCacheRecord {
   final String imageUrl;
   final String path;
 }
-

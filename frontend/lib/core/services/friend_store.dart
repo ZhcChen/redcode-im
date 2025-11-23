@@ -7,7 +7,7 @@ import '../storage/friend_storage.dart';
 /// 全局好友状态存储（首屏 HTTP，全局增量由 WS 驱动）
 class FriendStore with ChangeNotifier {
   FriendStore._internal({FriendStorage? friendStorage})
-      : _friendStorage = friendStorage ?? const FriendStorage();
+    : _friendStorage = friendStorage ?? const FriendStorage();
 
   static FriendStore? _instance;
   static FriendStore get instance => _instance ??= FriendStore._internal();

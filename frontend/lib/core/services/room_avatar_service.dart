@@ -10,7 +10,7 @@ import '../storage/token_storage.dart';
 /// 群头像服务，用于获取和缓存房间头像
 class RoomAvatarService {
   RoomAvatarService({TokenStorage? tokenStorage})
-      : _tokenStorage = tokenStorage ?? const TokenStorage();
+    : _tokenStorage = tokenStorage ?? const TokenStorage();
 
   final TokenStorage _tokenStorage;
 
@@ -32,11 +32,12 @@ class RoomAvatarService {
   }) async {
     try {
       final headers = await _authHeaders();
-      final uri = Uri.parse(
-        '${AppConfig.apiBaseUrl}/rooms/$roomId/avatar/url',
-      ).replace(queryParameters: {
-        'expires_in_seconds': expiresInSeconds.toString(),
-      });
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/avatar/url')
+          .replace(
+            queryParameters: {
+              'expires_in_seconds': expiresInSeconds.toString(),
+            },
+          );
 
       final response = await http.get(uri, headers: headers);
 

@@ -186,7 +186,8 @@ class _ProfileHeader extends StatelessWidget {
                       width: 88,
                       height: 88,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildDefaultAvatar(displayName),
+                      errorBuilder: (_, __, ___) =>
+                          _buildDefaultAvatar(displayName),
                     )
                   : _buildDefaultAvatar(displayName),
             ),
@@ -251,10 +252,7 @@ class _ProfileHeader extends StatelessWidget {
     return Container(
       width: 88,
       height: 88,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: backgroundColor, shape: BoxShape.circle),
       child: Center(
         child: Text(
           initial,

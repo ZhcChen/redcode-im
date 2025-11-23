@@ -26,10 +26,8 @@ class AgreementContentDialog extends StatelessWidget {
     return showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (context) => AgreementContentDialog(
-        title: title,
-        htmlContent: htmlContent,
-      ),
+      builder: (context) =>
+          AgreementContentDialog(title: title, htmlContent: htmlContent),
     );
   }
 
@@ -78,9 +76,7 @@ class AgreementContentDialog extends StatelessWidget {
                       lineHeight: LineHeight(1.5),
                       color: AppColors.textBlack,
                     ),
-                    'p': Style(
-                      margin: Margins.only(bottom: 12),
-                    ),
+                    'p': Style(margin: Margins.only(bottom: 12)),
                     'h1': Style(
                       fontSize: FontSize(16),
                       fontWeight: FontWeight.w600,
@@ -120,10 +116,7 @@ class AgreementContentDialog extends StatelessWidget {
                   ),
                   child: const Text(
                     '我知道了',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ),
               ),
@@ -134,4 +127,3 @@ class AgreementContentDialog extends StatelessWidget {
     );
   }
 }
-

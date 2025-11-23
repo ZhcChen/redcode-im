@@ -17,7 +17,7 @@ class AppColors {
   static const Color divider = Color(0xFFE5E8EC);
   static const Color iconPrimary = Color(0xFF2C2D3A);
   static const Color iconSecondary = Color(0xFF9CA0B4);
-  
+
   // Settings page specific colors
   static const Color settingsDivider = Color(0xFFF5F5F5);
   static const Color settingsTextMuted = Color(0xFF9B9BB0);

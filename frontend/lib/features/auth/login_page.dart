@@ -75,7 +75,8 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _loadCaptchaSetting() async {
     try {
-      final requireCaptcha = await _settingsService.fetchRequireCaptchaForLogin();
+      final requireCaptcha = await _settingsService
+          .fetchRequireCaptchaForLogin();
       if (mounted) {
         setState(() {
           _requireCaptchaForLogin = requireCaptcha;
@@ -150,59 +151,59 @@ class _LoginPageState extends State<LoginPage> {
                   fit: BoxFit.cover,
                 ),
               ),
-            SingleChildScrollView(
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top,
-                bottom: 32.h,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 48.h),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24.w),
-                    child: Text(
-                      '你好！',
-                      style: TextStyle(
-                        fontSize: 32.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textBlack,
+              SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top,
+                  bottom: 32.h,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 48.h),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24.w),
+                      child: Text(
+                        '你好！',
+                        style: TextStyle(
+                          fontSize: 32.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textBlack,
+                        ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _appName.isNotEmpty ? '欢迎来到 $_appName' : '欢迎',
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            color: AppColors.textBlack,
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _appName.isNotEmpty ? '欢迎来到 $_appName' : '欢迎',
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              color: AppColors.textBlack,
+                            ),
                           ),
-                        ),
-                        SvgPicture.asset(AppAssets.loginTitle, height: 24.h),
-                      ],
+                          SvgPicture.asset(AppAssets.loginTitle, height: 24.h),
+                        ],
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 32.h),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    child: _buildLoginCard(context),
-                  ),
-                ],
-              ),
-            ),
-            if (_loading)
-              Positioned.fill(
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  child: const Center(child: CircularProgressIndicator()),
+                    SizedBox(height: 32.h),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16.w),
+                      child: _buildLoginCard(context),
+                    ),
+                  ],
                 ),
               ),
-          ],
-        ),
+              if (_loading)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -284,10 +285,7 @@ class _LoginPageState extends State<LoginPage> {
                 SizedBox(height: 24.h),
                 ElevatedButton(
                   onPressed: _loading ? null : _submit,
-                  child: Text(
-                    _submitText,
-                    style: TextStyle(fontSize: 14.sp),
-                  ),
+                  child: Text(_submitText, style: TextStyle(fontSize: 14.sp)),
                 ),
                 SizedBox(height: 24.h),
                 _buildAgreeRow(),
@@ -397,16 +395,10 @@ class _LoginPageState extends State<LoginPage> {
       obscureText: obscureText,
       keyboardType: keyboardType,
       enabled: enabled,
-      style: TextStyle(
-        fontSize: 14.sp,
-        color: AppColors.textPrimary,
-      ),
+      style: TextStyle(fontSize: 14.sp, color: AppColors.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(
-          fontSize: 14.sp,
-          color: AppColors.textSecondary,
-        ),
+        hintStyle: TextStyle(fontSize: 14.sp, color: AppColors.textSecondary),
         suffixIcon: suffix != null
             ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
             : null,
@@ -425,7 +417,9 @@ class _LoginPageState extends State<LoginPage> {
         padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         minimumSize: const Size(0, 0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
       ),
       child: _sendingCode
           ? SizedBox(

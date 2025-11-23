@@ -18,10 +18,7 @@ class FriendStorage {
   /// 加载缓存的联系人列表
   Future<List<FriendInfo>> loadFriends() async {
     final db = await _openDatabase();
-    final rows = await db.query(
-      _friendTable,
-      orderBy: 'created_at ASC',
-    );
+    final rows = await db.query(_friendTable, orderBy: 'created_at ASC');
 
     final friends = <FriendInfo>[];
     for (final row in rows) {
@@ -131,4 +128,3 @@ class FriendStorage {
     return null;
   }
 }
-

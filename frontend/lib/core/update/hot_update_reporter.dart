@@ -27,7 +27,9 @@ class HotUpdateReporter {
       // 收集客户端详细信息
       final clientDetails = await _collectClientDetails();
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/versions/hot-update-events');
+      final uri = Uri.parse(
+        '${AppConfig.apiBaseUrl}/versions/hot-update-events',
+      );
       final body = <String, dynamic>{
         'platform': platform,
         'base_version': baseVersion,
@@ -38,7 +40,8 @@ class HotUpdateReporter {
         if (clientId != null && clientId.isNotEmpty) 'client_id': clientId,
         if (message != null && message.isNotEmpty) 'message': message,
         if (buildNumber != null) 'build_number': buildNumber,
-        if (triggerSource != null && triggerSource.isNotEmpty) 'trigger_source': triggerSource,
+        if (triggerSource != null && triggerSource.isNotEmpty)
+          'trigger_source': triggerSource,
         ...clientDetails, // 展开客户端详细信息
       };
 
@@ -59,11 +62,17 @@ class HotUpdateReporter {
       // 操作系统信息
       if (Platform.isAndroid) {
         details['os_version'] = 'Android ${Platform.operatingSystemVersion}';
-        details['os_arch'] = Platform.version.contains('arm64') ? 'arm64' : 'arm';
-        details['app_arch'] = Platform.version.contains('arm64') ? 'arm64' : 'arm';
+        details['os_arch'] = Platform.version.contains('arm64')
+            ? 'arm64'
+            : 'arm';
+        details['app_arch'] = Platform.version.contains('arm64')
+            ? 'arm64'
+            : 'arm';
       } else if (Platform.isIOS) {
         details['os_version'] = 'iOS ${Platform.operatingSystemVersion}';
-        details['os_arch'] = Platform.version.contains('arm64') ? 'arm64' : 'arm64'; // iOS通常是arm64
+        details['os_arch'] = Platform.version.contains('arm64')
+            ? 'arm64'
+            : 'arm64'; // iOS通常是arm64
         details['app_arch'] = 'arm64';
       } else {
         details['os_version'] = Platform.operatingSystem;
@@ -111,7 +120,6 @@ class HotUpdateReporter {
       if (deviceInfoList.isNotEmpty) {
         details['device_info'] = deviceInfoList.join(',');
       }
-
     } catch (error) {
       // 如果收集设备信息失败，使用基本信息
       details['device_info'] = 'collection_failed:$error';

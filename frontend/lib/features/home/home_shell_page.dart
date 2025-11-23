@@ -129,8 +129,9 @@ class _HomeShellPageState extends State<HomeShellPage> {
                   item: item,
                   selected: selected,
                   onTap: () => _handleTabSelected(i),
-                  badgeCount:
-                      i == 0 ? chatBadgeCount : (i == 1 ? contactBadgeCount : 0),
+                  badgeCount: i == 0
+                      ? chatBadgeCount
+                      : (i == 1 ? contactBadgeCount : 0),
                 ),
               );
             }),

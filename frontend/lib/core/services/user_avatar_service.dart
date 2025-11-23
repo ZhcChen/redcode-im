@@ -10,7 +10,7 @@ import '../storage/avatar_cache.dart';
 /// 用户头像服务，用于获取和缓存其他用户的头像
 class UserAvatarService {
   UserAvatarService({TokenStorage? tokenStorage})
-      : _tokenStorage = tokenStorage ?? const TokenStorage();
+    : _tokenStorage = tokenStorage ?? const TokenStorage();
 
   final TokenStorage _tokenStorage;
 
@@ -35,11 +35,12 @@ class UserAvatarService {
       // 尝试使用通用API（如果后端支持）
       // 如果后端不支持，这里会返回null，然后使用本地缓存或默认头像
       final headers = await _authHeaders();
-      final uri = Uri.parse(
-        '${AppConfig.apiBaseUrl}/users/$userId/avatar/url',
-      ).replace(queryParameters: {
-        'expires_in_seconds': expiresInSeconds.toString(),
-      });
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/users/$userId/avatar/url')
+          .replace(
+            queryParameters: {
+              'expires_in_seconds': expiresInSeconds.toString(),
+            },
+          );
 
       final response = await http.get(uri, headers: headers);
 

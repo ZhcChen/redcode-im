@@ -179,7 +179,8 @@ class HotUpdateManager extends ChangeNotifier {
     _installedPatch = null;
     _activeAssetsDir = null;
     final rollbackBase = previousPatch?.baseVersion;
-    final rollbackPatch = previousPatch?.patchVersion ?? _state.patch?.patchVersion;
+    final rollbackPatch =
+        previousPatch?.patchVersion ?? _state.patch?.patchVersion;
     final rollbackChannel = _state.patch?.channel;
     if (rollbackBase != null && rollbackPatch != null) {
       await _reportEvent(
