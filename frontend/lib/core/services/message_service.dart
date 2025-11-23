@@ -2983,22 +2983,37 @@ class MessageService with ChangeNotifier {
         final roomDetail = await roomService.fetchRoomDetail(roomId);
 
         if (roomDetail != null) {
-          final avatarObjectKey = roomDetail['avatar_object_key'] as String?;
+          final newAvatarObjectKey = roomDetail['avatar_object_key'] as String?;
+          final oldAvatarObjectKey = chat.avatarObjectKey;
           String? localAvatarPath;
 
-          // 如果有新的头像，下载并缓存
-          if (avatarObjectKey != null && avatarObjectKey.isNotEmpty) {
+          // 检查头像key是否发生变化
+          final avatarKeyChanged = newAvatarObjectKey != oldAvatarObjectKey;
+
+          if (newAvatarObjectKey != null && newAvatarObjectKey.isNotEmpty) {
             final roomAvatarService = RoomAvatarService(tokenStorage: _tokenStorage);
+
+            if (avatarKeyChanged) {
+              // 如果头像key发生变化，先清除旧缓存
+              await AvatarCache.instance.clearRoom(roomId);
+              debugPrint('Room $roomId avatar key changed from $oldAvatarObjectKey to $newAvatarObjectKey, clearing cache');
+            }
+
+            // 加载新头像（如果key变化了会重新下载）
             localAvatarPath = await roomAvatarService.loadAndCacheAvatar(
               roomId: roomId,
-              avatarObjectKey: avatarObjectKey,
+              avatarObjectKey: newAvatarObjectKey,
             );
+          } else if (avatarKeyChanged && oldAvatarObjectKey != null) {
+            // 如果新的avatarObjectKey为空但旧的不为空，清除缓存
+            await AvatarCache.instance.clearRoom(roomId);
+            debugPrint('Room $roomId avatar removed, clearing cache');
           }
 
           // 更新聊天信息
           _chats[chatIndex] = chat.copyWith(
             name: roomDetail['name'] as String? ?? chat.name,
-            avatarObjectKey: avatarObjectKey,
+            avatarObjectKey: newAvatarObjectKey,
             localAvatarPath: localAvatarPath,
           );
 
@@ -3015,21 +3030,36 @@ class MessageService with ChangeNotifier {
         final userDetail = await userService.fetchUserDetail(userId);
 
         if (userDetail != null) {
-          final avatarObjectKey = userDetail['avatar_object_key'] as String?;
+          final newAvatarObjectKey = userDetail['avatar_object_key'] as String?;
+          final oldAvatarObjectKey = chat.avatarObjectKey;
           String? localAvatarPath;
 
-          // 如果有新的头像，下载并缓存
-          if (avatarObjectKey != null && avatarObjectKey.isNotEmpty) {
+          // 检查头像key是否发生变化
+          final avatarKeyChanged = newAvatarObjectKey != oldAvatarObjectKey;
+
+          if (newAvatarObjectKey != null && newAvatarObjectKey.isNotEmpty) {
             final userAvatarService = UserAvatarService(tokenStorage: _tokenStorage);
+
+            if (avatarKeyChanged) {
+              // 如果头像key发生变化，先清除旧缓存
+              await AvatarCache.instance.clearUser(userId);
+              debugPrint('User $userId avatar key changed from $oldAvatarObjectKey to $newAvatarObjectKey, clearing cache');
+            }
+
+            // 加载新头像（如果key变化了会重新下载）
             localAvatarPath = await userAvatarService.loadAndCacheAvatar(
               userId: userId,
-              avatarObjectKey: avatarObjectKey,
+              avatarObjectKey: newAvatarObjectKey,
             );
+          } else if (avatarKeyChanged && oldAvatarObjectKey != null) {
+            // 如果新的avatarObjectKey为空但旧的不为空，清除缓存
+            await AvatarCache.instance.clearUser(userId);
+            debugPrint('User $userId avatar removed, clearing cache');
           }
 
           // 更新聊天信息
           _chats[chatIndex] = chat.copyWith(
-            avatarObjectKey: avatarObjectKey,
+            avatarObjectKey: newAvatarObjectKey,
             localAvatarPath: localAvatarPath,
           );
 

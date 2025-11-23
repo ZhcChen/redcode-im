@@ -75,12 +75,12 @@ class UserAvatarService {
     required String? avatarObjectKey,
   }) async {
     if (avatarObjectKey == null || avatarObjectKey.isEmpty) {
-      await AvatarCache.instance.clear(userId);
+      await AvatarCache.instance.clearUser(userId);
       return null;
     }
 
     // 先检查本地缓存
-    final cachedPath = await AvatarCache.instance.resolveLocalPath(
+    final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
       userId: userId,
       objectKey: avatarObjectKey,
     );
@@ -108,7 +108,7 @@ class UserAvatarService {
         await tempFile.writeAsBytes(response.bodyBytes);
 
         // 保存到缓存
-        final cachedPath = await AvatarCache.instance.save(
+        final cachedPath = await AvatarCache.instance.saveUserAvatar(
           userId: userId,
           objectKey: avatarObjectKey,
           source: tempFile,
