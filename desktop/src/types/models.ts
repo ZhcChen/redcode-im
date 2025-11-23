@@ -114,6 +114,7 @@ export interface QuotedMessage {
   senderId: string;
   senderUsername: string;
   senderName: string;
+  senderNickname?: string | null;
   senderAvatar?: string | null;
   content?: string | null;
   type: MessageType;

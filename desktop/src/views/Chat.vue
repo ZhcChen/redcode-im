@@ -3519,7 +3519,7 @@ const getTextContent = (message: Message): string => {
 }
 
 const getQuotedSenderName = (quoted: QuotedMessage): string => {
-  return quoted.senderNickname || quoted.senderUsername || quoted.senderId || '引用'
+  return quoted.senderNickname || quoted.senderName || quoted.senderUsername || quoted.senderId || '引用'
 }
 
 const getQuotedText = (quoted: QuotedMessage): string => {
@@ -3727,6 +3727,29 @@ const resolveContentTypeFromParts = (parts: MessagePart[] | undefined, fallback:
   return fallback
 }
 
+const mapQuotedMessageToUi = (quoted: DomainMessage['quotedMessage'] | null | undefined, fallbackRoomId?: string): QuotedMessage | undefined => {
+  if (!quoted) return undefined
+
+  const quotedParts = quoted.parts ? cloneMessageParts(quoted.parts) : undefined
+
+  const senderName = (quoted as any).senderNickname || (quoted as any).senderName || (quoted as any).senderUsername || ''
+  const senderUsername = (quoted as any).senderUsername || (quoted as any).senderName || ''
+
+  return {
+    id: quoted.id,
+    roomId: quoted.roomId || fallbackRoomId || '',
+    senderId: quoted.senderId,
+    senderUsername,
+    senderName,
+    senderAvatar: (quoted as any).senderAvatar || (quoted as any).senderAvatarUrl || null,
+    content: quoted.content,
+    type: quoted.type || MessageType.TEXT,
+    createdAt: quoted.createdAt ? new Date(quoted.createdAt) : null,
+    isDeleted: !!quoted.isDeleted,
+    parts: quotedParts,
+  }
+}
+
 const mapDomainMessageToUi = (msg: DomainMessage): Message => {
   const timestamp = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)
   const messageType = msg.type === MessageType.SYSTEM
@@ -3762,6 +3785,7 @@ const mapDomainMessageToUi = (msg: DomainMessage): Message => {
     isEdited: !!(msg.extra && (msg.extra as Record<string, unknown>).edited),
     parts,
     roomId: msg.roomId,
+    quotedMessage: mapQuotedMessageToUi((msg as any).quotedMessage, msg.roomId),
   }
 }
 
@@ -8685,7 +8709,6 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-block {
-  border-left: 3px solid #cfd8e3;
   padding-left: 10px;
   margin-bottom: 8px;
   background: #eafffd;
