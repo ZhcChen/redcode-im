@@ -101,12 +101,17 @@ class _GroupAvatarState extends State<_GroupAvatar> {
   @override
   void didUpdateWidget(_GroupAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 如果avatarObjectKey变化，重新加载
+    // 如果avatarObjectKey变化，重新加载头像
     if (widget.chat.avatarObjectKey != oldWidget.chat.avatarObjectKey) {
-      _cachedAvatarPath = widget.chat.localAvatarPath;
+      // 清空旧的缓存路径，强制重新加载
+      setState(() {
+        _cachedAvatarPath = null;
+        _isLoading = false;
+      });
+
+      // 如果有新的 avatarObjectKey，异步加载
       if (widget.chat.avatarObjectKey != null &&
-          widget.chat.avatarObjectKey!.isNotEmpty &&
-          _cachedAvatarPath == null) {
+          widget.chat.avatarObjectKey!.isNotEmpty) {
         _loadAvatar();
       }
     }
@@ -1031,7 +1036,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   Future<void> _selectGroupAvatarFromCamera(BuildContext context) async {
-    Navigator.pop(context); // 关闭底部选择器
+    // BottomPicker 会自动关闭弹窗，不需要手动 pop
     if (_isUploadingAvatar) return;
 
     final picker = ImagePicker();
@@ -1054,7 +1059,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   Future<void> _selectGroupAvatarFromGallery(BuildContext context) async {
-    Navigator.pop(context); // 关闭底部选择器
+    // BottomPicker 会自动关闭弹窗，不需要手动 pop
     if (_isUploadingAvatar) return;
 
     final picker = ImagePicker();
