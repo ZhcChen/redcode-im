@@ -8688,7 +8688,7 @@ const loadMessageList = async (groupId: string) => {
   border-left: 3px solid #cfd8e3;
   padding-left: 10px;
   margin-bottom: 8px;
-  background: #f7f9fc;
+  background: #eafffd;
   border-radius: 8px;
 
   .quoted-sender {

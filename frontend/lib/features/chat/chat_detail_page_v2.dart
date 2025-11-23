@@ -2409,9 +2409,7 @@ class _QuotedMessagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = isSelf
-        ? Colors.white.withValues(alpha: 0.18)
-        : AppColors.surfaceMuted;
+    const background = Color(0xFFEAFFFD);
     final borderColor = isSelf
         ? Colors.white.withValues(alpha: 0.24)
         : AppColors.divider;
