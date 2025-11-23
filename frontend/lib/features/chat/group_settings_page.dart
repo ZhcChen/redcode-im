@@ -1226,12 +1226,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         });
 
         // 6. 更新聊天列表中的头像
-        unawaited(
-          MessageService.instance.updateRoomAvatar(
-            roomId: widget.chat.roomId,
-            avatarObjectKey: key,
-            localAvatarPath: localPath,
-          ),
+        await MessageService.instance.updateRoomAvatar(
+          roomId: widget.chat.roomId,
+          avatarObjectKey: key,
+          localAvatarPath: localPath,
         );
 
         _showSnackBar('群头像已更新');
