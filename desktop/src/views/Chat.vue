@@ -2472,6 +2472,7 @@ const showVoiceRecorder = ref<boolean>(false)
 // 聊天消息容器引用
 const chatMessagesRef = ref<HTMLElement | null>(null)
 const messageInput = ref<HTMLTextAreaElement | null>(null)
+const quotedHighlightTimers = new Map<string, number>()
 
 // 数据状态管理 - 使用store中的数据
 const chatList = computed(() => store.getters.chatList)
@@ -3601,10 +3602,20 @@ const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
     // 触发高亮动画（覆盖层渐隐）
+    const existingTimer = quotedHighlightTimers.get(quoted.id)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      quotedHighlightTimers.delete(quoted.id)
+    }
+
     target.classList.remove('quoted-highlighted')
     void target.offsetWidth
     target.classList.add('quoted-highlighted')
-    setTimeout(() => target.classList.remove('quoted-highlighted'), 5200)
+    const timer = window.setTimeout(() => {
+      target.classList.remove('quoted-highlighted')
+      quotedHighlightTimers.delete(quoted.id)
+    }, 5200)
+    quotedHighlightTimers.set(quoted.id, timer)
   })
 }
 
@@ -6959,6 +6970,9 @@ onUnmounted(async () => {
 
   // 清理所有临时本地URL，避免内存泄漏
   Array.from(blobUrlRegistry).forEach((url) => releaseBlobUrl(url))
+
+  quotedHighlightTimers.forEach((t) => clearTimeout(t))
+  quotedHighlightTimers.clear()
 
   // 清理图片预缓存
   imagePreloadCache.value.clear()
