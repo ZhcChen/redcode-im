@@ -7821,7 +7821,7 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-.message {
+  .message {
   display: flex;
   align-items: flex-start; /* 顶部对齐，让用户名和头像顶部对齐 */
   gap: 8px;
@@ -7829,10 +7829,25 @@ const loadMessageList = async (groupId: string) => {
   margin-bottom: 8px; /* 添加消息间距 */
 
   &.selected-message {
-    background: #f4f8ff;
-    border-radius: 10px;
-    border: 1px solid #cde0ff;
-    padding: 4px 6px;
+    position: relative;
+    border-radius: 0;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -24px;
+      right: -24px;
+      background-color: rgba(78, 205, 196, 0.3);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
   }
 
   .message-checkbox {
