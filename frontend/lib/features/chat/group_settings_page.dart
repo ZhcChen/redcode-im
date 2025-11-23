@@ -1105,27 +1105,34 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         '${AppConfig.apiBaseUrl}/rooms/${widget.chat.roomId}/avatar/direct-upload',
       );
 
+      final requestBody = {
+        'filename': filename,
+        'content_type': contentType,
+        'file_size': fileSize,
+      };
+      debugPrint('请求群头像上传签名: roomId=${widget.chat.roomId}, filename=$filename, contentType=$contentType, fileSize=$fileSize');
+
       final directResponse = await http.post(
         directUri,
         headers: {
           'Authorization': 'Bearer ${session.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'filename': filename,
-          'content_type': contentType,
-          'file_size': fileSize,
-        }),
+        body: jsonEncode(requestBody),
       );
 
       if (directResponse.statusCode != 200) {
-        throw Exception('获取上传签名失败: ${directResponse.body}');
+        debugPrint('获取上传签名失败: 状态码=${directResponse.statusCode}, 响应=${directResponse.body}');
+        throw Exception('获取上传签名失败 (HTTP ${directResponse.statusCode}): ${directResponse.body}');
       }
 
       final directPayload = jsonDecode(directResponse.body) as Map<String, dynamic>;
+      debugPrint('直传签名响应: $directPayload');
+
       final directSuccess = directPayload['success'] as bool? ?? false;
       if (!directSuccess) {
         final message = directPayload['message'] as String?;
+        debugPrint('获取上传签名失败: success=false, message=$message');
         throw Exception(message ?? '获取上传签名失败');
       }
 
