@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
 import '../../core/network/direct_upload.dart';
+import '../../core/services/message_service.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/storage/avatar_cache.dart';
@@ -1213,6 +1214,14 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           // 更新头像 key，触发 _GroupAvatar 通过新的 key 重新构建
           _avatarObjectKey = key;
         });
+
+        // 6. 更新聊天列表中的头像
+        MessageService.instance.updateRoomAvatar(
+          roomId: widget.chat.roomId,
+          avatarObjectKey: key,
+          localAvatarPath: localPath,
+        );
+
         _showSnackBar('群头像已更新');
       }
     } catch (error) {

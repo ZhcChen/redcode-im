@@ -2207,6 +2207,27 @@ class MessageService with ChangeNotifier {
     notifyListeners();
   }
 
+  /// 更新群头像
+  void updateRoomAvatar({
+    required String roomId,
+    required String avatarObjectKey,
+    String? localAvatarPath,
+  }) {
+    final index = _chats.indexWhere((chat) => chat.roomId == roomId);
+    if (index < 0) {
+      debugPrint('[MessageService] 未找到 roomId=$roomId 的聊天，无法更新头像');
+      return;
+    }
+
+    _chats[index] = _chats[index].copyWith(
+      avatarObjectKey: avatarObjectKey,
+      localAvatarPath: localAvatarPath,
+    );
+
+    debugPrint('[MessageService] 已更新 roomId=$roomId 的头像: key=$avatarObjectKey, path=$localAvatarPath');
+    notifyListeners();
+  }
+
   /// 清除所有数据
   Future<void> clearAll() async {
     _messagesByRoom.clear();
