@@ -58,6 +58,16 @@ class UserAvatarService {
     return null;
   }
 
+  /// 查找用户的本地缓存头像路径
+  /// 只查找缓存，不进行网络请求
+  Future<String?> resolveAvatarLocalPath({
+    required String userId,
+  }) async {
+    // 尝试从缓存中获取任何已存在的头像
+    final cachedPath = await AvatarCache.instance.resolveAnyLocalPath(userId);
+    return cachedPath;
+  }
+
   /// 加载并缓存用户头像
   /// 返回本地缓存路径，如果加载失败返回null
   Future<String?> loadAndCacheAvatar({

@@ -54,6 +54,35 @@ class AvatarCache {
     }
   }
 
+  /// 清除头像缓存（兼容旧接口）
+  Future<void> clear(String userId) async {
+    await clearUser(userId);
+  }
+
+  /// 保存头像到缓存（兼容旧接口）
+  Future<String> save({
+    required String userId,
+    required String objectKey,
+    required File source,
+  }) async {
+    return saveUserAvatar(
+      userId: userId,
+      objectKey: objectKey,
+      source: source,
+    );
+  }
+
+  /// 解析本地缓存路径（兼容旧接口）
+  Future<String?> resolveLocalPath({
+    required String userId,
+    required String objectKey,
+  }) async {
+    return resolveUserLocalPath(
+      userId: userId,
+      objectKey: objectKey,
+    );
+  }
+
   /// 解析用户头像本地缓存路径
   Future<String?> resolveUserLocalPath({
     required String userId,
@@ -85,6 +114,21 @@ class AvatarCache {
       return record.path;
     }
     await _writeRoomRecord(roomId, null);
+    return null;
+  }
+
+  /// 解析任何已存在的用户头像本地缓存路径
+  /// 不检查objectKey，只要有缓存就返回
+  Future<String?> resolveAnyLocalPath(String userId) async {
+    final record = await _readUserRecord(userId);
+    if (record == null) {
+      return null;
+    }
+    final file = File(record.path);
+    if (await file.exists()) {
+      return record.path;
+    }
+    await _writeUserRecord(userId, null);
     return null;
   }
 

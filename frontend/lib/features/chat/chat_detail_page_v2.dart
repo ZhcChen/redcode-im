@@ -30,6 +30,8 @@ import 'models/chat_model.dart';
 import 'models/message_model.dart';
 import 'models/message_reader.dart';
 import 'group_settings_page.dart';
+import 'widgets/message_avatar.dart';
+import 'widgets/quoted_message_avatar.dart';
 
 class ChatDetailPageV2 extends StatefulWidget {
   const ChatDetailPageV2({
@@ -2105,38 +2107,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildAvatar(bool isSelf) {
-    final avatar = _message.senderAvatar;
-    if (avatar != null && avatar.isNotEmpty) {
-      if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-        return CircleAvatar(
-          radius: _MessageBubble._avatarRadius,
-          backgroundImage: NetworkImage(avatar),
-          backgroundColor: AppColors.surface,
-        );
-      }
-      return CircleAvatar(
-        radius: _MessageBubble._avatarRadius,
-        backgroundImage: AssetImage(avatar),
-        backgroundColor: AppColors.surface,
-      );
-    }
-
-    final name = _message.displaySenderName.trim();
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-
-    return CircleAvatar(
+    return MessageAvatar(
+      message: _message,
       radius: _MessageBubble._avatarRadius,
-      backgroundColor: isSelf
-          ? AppColors.primary.withValues(alpha: 0.85)
-          : AppColors.primary.withValues(alpha: 0.12),
-      child: Text(
-        initial,
-        style: TextStyle(
-          fontSize: 14,
-          color: isSelf ? Colors.white : AppColors.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      isSelf: isSelf,
     );
   }
 
@@ -2267,38 +2241,10 @@ class _QuotedMessagePreview extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    const double size = 24;
-    final avatar = quoted.senderAvatar;
-    if (avatar != null && avatar.isNotEmpty) {
-      if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundImage: NetworkImage(avatar),
-          backgroundColor: AppColors.surface,
-        );
-      }
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundImage: AssetImage(avatar),
-        backgroundColor: AppColors.surface,
-      );
-    }
-
-    final name = quoted.displaySenderName.trim();
-    final initial = name.isNotEmpty ? name[0] : '?';
-    return CircleAvatar(
-      radius: size / 2,
-      backgroundColor: isSelf
-          ? AppColors.primary.withValues(alpha: 0.85)
-          : AppColors.primary.withValues(alpha: 0.12),
-      child: Text(
-        initial,
-        style: TextStyle(
-          fontSize: 12,
-          color: isSelf ? Colors.white : AppColors.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+    return QuotedMessageAvatar(
+      quotedMessage: quoted,
+      radius: 12, // size=24, radius=12
+      isSelf: isSelf,
     );
   }
 }
