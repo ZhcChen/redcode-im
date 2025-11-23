@@ -3593,11 +3593,25 @@ const getQuotedText = (quoted: QuotedMessage): string => {
 
 const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
   if (!quoted?.id) return
-  const target = chatMessagesRef.value?.querySelector(`[data-message-id="${quoted.id}"]`) as HTMLElement | null
+  const container = chatMessagesRef.value as HTMLElement | null
+  const target = container?.querySelector(`[data-message-id="${quoted.id}"]`) as HTMLElement | null
+
+  if (target && container) {
+    const targetOffset = target.offsetTop - container.clientHeight / 2 + target.clientHeight / 2
+    container.scrollTo({ top: Math.max(targetOffset, 0), behavior: 'smooth' })
+
+    // 触发高亮动画
+    target.classList.remove('quoted-highlighted')
+    void target.offsetWidth
+    target.classList.add('quoted-highlighted')
+    setTimeout(() => target.classList.remove('quoted-highlighted'), 5200)
+    return
+  }
+
+  // 容器未就绪时退回到元素自带的 scrollIntoView
   if (target) {
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
     target.classList.remove('quoted-highlighted')
-    // 强制重排以便重复点击也能触发动画
     void target.offsetWidth
     target.classList.add('quoted-highlighted')
     setTimeout(() => target.classList.remove('quoted-highlighted'), 5200)
