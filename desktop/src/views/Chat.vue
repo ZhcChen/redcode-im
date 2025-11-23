@@ -7887,17 +7887,15 @@ const loadMessageList = async (groupId: string) => {
     margin-bottom: 8px; /* 添加消息间距 */
 
   &.selected-message {
-    position: relative;
-    border-radius: 0;
-
     &::before {
       content: '';
       position: absolute;
       top: 0;
       bottom: 0;
-      left: -24px;
-      right: -24px;
-      background-color: rgba(78, 205, 196, 0.3);
+      left: -12px;
+      right: -12px;
+      background-color: rgba(0, 0, 0, 0.05); /* 浅灰色背景 */
+      border-radius: 8px;
       pointer-events: none;
       z-index: 0;
     }
@@ -8084,9 +8082,13 @@ const loadMessageList = async (groupId: string) => {
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.select-indicator.other,
+.select-indicator.other {
+  left: -24px; /* 放在内容左侧外部 */
+  top: 8px;
+}
+
 .select-indicator.self {
-  left: 0;
+  right: -24px; /* 自己的消息，放在内容右侧外部 */
   top: 8px;
 }
 
@@ -8430,9 +8432,9 @@ const loadMessageList = async (groupId: string) => {
   margin-right: 8px;
 }
 
-// 移除message-content的相对定位
+// 恢复message-content的相对定位，用于选择指示器定位
 .message-content {
-  // position: relative; 已移除
+  position: relative;
 }
 
 // 对于他人消息，message-content-row使用flex布局
