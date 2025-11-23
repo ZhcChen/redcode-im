@@ -5164,8 +5164,6 @@ const handleMessageMenuCopy = async () => {
   }
 }
 
-const replyingMessage = ref<Message | null>(null)
-
 const handleMessageMenuQuote = () => {
   const target = messageContextMenuTarget.value
   if (!target) return
