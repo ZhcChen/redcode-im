@@ -152,6 +152,7 @@
             }"
             @contextmenu.prevent="handleMessageContextMenu(message, $event)"
             @click="toggleMessageSelection(message)"
+            @mouseenter="handleMessageHover(message)"
           >
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
@@ -5630,6 +5631,12 @@ const handleMouseUpOnMessages = () => {
 const handleIndicatorClick = (message: Message) => {
   ensureMultiSelectMode()
   toggleMessageSelection(message)
+}
+
+const handleMessageHover = (message: Message) => {
+  if (!(isDraggingSelect.value || multiSelectMode.value)) return
+  ensureMultiSelectMode()
+  selectMessage(message, true)
 }
 
 // 计算可用于转发的会话列表（排除当前会话）
