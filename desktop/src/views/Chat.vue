@@ -129,6 +129,7 @@
       <div class="chat-window" v-if="selectedChat">
         <div
           class="chat-messages"
+          :class="{ 'multi-select-active': multiSelectMode }"
           ref="chatMessagesRef"
           @mousedown.left="handleMouseDownOnMessages"
           @mousemove="handleMouseMoveOnMessages"
@@ -7774,6 +7775,9 @@ const loadMessageList = async (groupId: string) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  &.multi-select-active {
+    user-select: none;
+  }
 }
 
 .message {
