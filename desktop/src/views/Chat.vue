@@ -8761,18 +8761,28 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-highlighted {
-  border: none;
+  position: relative;
+  overflow: hidden;
   border-radius: 10px;
-  background-color: rgba(78, 205, 196, 0.5) !important; /* 主色 50% 透明，只影响背景 */
-  animation: quoted-highlight-fade 5s ease-out forwards;
 }
 
-@keyframes quoted-highlight-fade {
+.quoted-highlighted::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--primary-color, #4ecdc4);
+  opacity: 0.5; /* 50% 透明起始 */
+  pointer-events: none;
+  animation: quoted-highlight-overlay 5s ease-out forwards;
+}
+
+@keyframes quoted-highlight-overlay {
   0% {
-    background-color: rgba(78, 205, 196, 0.5);
+    opacity: 0.5;
   }
   100% {
-    background-color: rgba(78, 205, 196, 0);
+    opacity: 0;
   }
 }
 
