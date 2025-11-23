@@ -139,6 +139,8 @@ pub enum TauriEventPayload {
     FriendRequestUpdate { pending_count: i32 },
     /// 房间创建
     RoomCreated(serde_json::Value),
+    /// 房间信息更新
+    RoomUpdated(serde_json::Value),
     /// 用户被封禁
     UserBanned { user_id: String, reason: String },
     /// 群被解散
@@ -228,6 +230,17 @@ impl TauriEventPayload {
                     "created_at": room.created_at,
                 });
                 Some(Self::RoomCreated(json))
+            }
+            ws::server_event::Payload::RoomUpdated(room) => {
+                let json = serde_json::json!({
+                    "room_id": room.room_id,
+                    "room_name": room.room_name,
+                    "room_type": room.room_type,
+                    "avatar_url": room.avatar_url,
+                    "avatar_object_key": room.avatar_object_key,
+                    "description": room.description,
+                });
+                Some(Self::RoomUpdated(json))
             }
             ws::server_event::Payload::UserBanned(banned) => Some(Self::UserBanned {
                 user_id: banned.user_id,
