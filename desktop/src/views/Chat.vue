@@ -8023,8 +8023,8 @@ const loadMessageList = async (groupId: string) => {
 
 .select-indicator.other,
 .select-indicator.self {
-  left: -32px;
-  bottom: 16px;
+  left: 16px;
+  top: 8px;
 }
 
 .select-indicator.active {
