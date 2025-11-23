@@ -5609,15 +5609,23 @@ const handleMouseMoveOnMessages = (event: MouseEvent) => {
   if (!multiSelectMode.value && dragAnchorMessageId.value && id !== dragAnchorMessageId.value) {
     // 第一次跨消息，进入多选模式
     ensureMultiSelectMode()
-
-    // 选中起点
-    const anchorMsg = messages.value.find((m) => m.id === dragAnchorMessageId.value)
-    if (anchorMsg) selectMessage(anchorMsg, true)
   }
 
-  if (multiSelectMode.value) {
-    const msg = messages.value.find((m) => m.id === id)
-    if (msg) selectMessage(msg, true)
+  if (multiSelectMode.value && dragAnchorMessageId.value) {
+    // 找到起点和终点的索引
+    const anchorIndex = messages.value.findIndex((m) => m.id === dragAnchorMessageId.value)
+    const currentIndex = messages.value.findIndex((m) => m.id === id)
+
+    if (anchorIndex !== -1 && currentIndex !== -1) {
+      // 计算范围（支持向上或向下拖拽）
+      const startIndex = Math.min(anchorIndex, currentIndex)
+      const endIndex = Math.max(anchorIndex, currentIndex)
+
+      // 选中范围内的所有消息
+      for (let i = startIndex; i <= endIndex; i++) {
+        selectMessage(messages.value[i], true)
+      }
+    }
   }
 }
 
@@ -7016,6 +7024,8 @@ onMounted(async () => {
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('keydown', handleGlobalKeydown)
+  // 添加全局 mouseup 监听，确保在任何地方释放鼠标都能重置拖拽状态
+  window.addEventListener('mouseup', handleMouseUpOnMessages)
 
   // 尝试恢复当前账号的缓存状态
   const currentAccountId = store.state.accounts?.currentAccountId
@@ -7102,6 +7112,8 @@ onUnmounted(async () => {
   // 移除点击外部关闭表情选择器的监听器
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('keydown', handleGlobalKeydown)
+  // 移除全局 mouseup 监听
+  window.removeEventListener('mouseup', handleMouseUpOnMessages)
 
   // 移除WebSocket事件监听
   window.removeEventListener('websocket-chat-message', handleWebSocketMessage as EventListener)
