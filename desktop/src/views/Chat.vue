@@ -8765,7 +8765,7 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .quoted-highlighted {
-  border-radius: 10px;
+  border-radius: 0;
   animation: quoted-highlight-fade 5s ease-out;
 }
 
