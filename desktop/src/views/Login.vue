@@ -1157,6 +1157,13 @@ async function showPrivacyAgreement() {
   padding: 0;
   margin: 0 auto;
 
+  // 禁用文字选中
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
+
   .login-container-header {
     padding: 16px 0 8px;
   }
@@ -1167,6 +1174,38 @@ async function showPrivacyAgreement() {
     border-radius: 16px;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
     background: #fff;
+  }
+
+  // 输入框允许选中
+  input,
+  textarea {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+    cursor: text;
+  }
+
+  // b-input 组件内部的 input
+  :deep(.b-input input) {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+    cursor: text;
+  }
+
+  // 按钮保持 pointer
+  button,
+  .login-container-form-switch-link,
+  .agreement-link {
+    cursor: pointer;
+  }
+
+  // b-button 和 b-radio 组件
+  :deep(.b-button),
+  :deep(.b-radio) {
+    cursor: pointer;
   }
 }
 </style>
