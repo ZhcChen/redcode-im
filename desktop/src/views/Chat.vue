@@ -63,8 +63,8 @@
         :options="{
           scrollbars: {
             visibility: 'visible', // 始终可见，提升响应速度
-            autoHide: 'leave', // 鼠标离开时才隐藏
-            autoHideDelay: 1000, // 1秒后隐藏
+            autoHide: 'leave', // 鼠标离开时隐藏
+            autoHideDelay: 0, // 立即隐藏，无延迟
             autoHideSuspend: true, // 滚动时暂停自动隐藏
             dragScroll: true,
             clickScroll: true
@@ -9184,14 +9184,14 @@ const loadMessageList = async (groupId: string) => {
     --os-track-bg-hover: transparent; // 悬停时也透明
     --os-track-bg-active: transparent; // 激活时也透明
     --os-handle-border-radius: 10px;
-    --os-handle-bg: rgba(78, 205, 196, 0.6); // 提高默认透明度
-    --os-handle-bg-hover: rgba(78, 205, 196, 0.9);
-    --os-handle-bg-active: #4ECDC4;
+    --os-handle-bg: rgba(0, 0, 0, 0.3); // 固定灰色，30%透明度
+    --os-handle-bg-hover: rgba(0, 0, 0, 0.3); // 悬停时不变色
+    --os-handle-bg-active: rgba(0, 0, 0, 0.3); // 激活时不变色
     --os-handle-min-size: 40px; // 增加最小高度，更容易拖动
     --os-handle-max-size: none;
     --os-handle-perpendicular-size: 60%; // 滑块宽度为轨道的60%
-    --os-handle-perpendicular-size-hover: 80%;
-    --os-handle-perpendicular-size-active: 80%;
+    --os-handle-perpendicular-size-hover: 60%; // 悬停时宽度不变
+    --os-handle-perpendicular-size-active: 60%; // 激活时宽度不变
     --os-handle-interactive-area-offset: 4px; // 增加交互区域
 
     // 移除过渡效果，提升响应速度
@@ -9227,12 +9227,12 @@ const loadMessageList = async (groupId: string) => {
       cursor: grab;
 
       &:hover {
-        width: 8px !important;
+        width: 6px !important; // 悬停时宽度不变
       }
 
       &:active {
         cursor: grabbing;
-        width: 8px !important;
+        width: 6px !important; // 激活时宽度不变
       }
     }
   }
@@ -9251,19 +9251,19 @@ const loadMessageList = async (groupId: string) => {
     }
   }
 
-  // 滚动条滑块
+  // 滚动条滑块 - 固定灰色
   .os-scrollbar-handle {
-    background: rgba(78, 205, 196, 0.6) !important; // 提高默认透明度，更容易看到
+    background: rgba(0, 0, 0, 0.3) !important; // 固定灰色，30%透明度
     border-radius: 10px !important;
     border: none !important;
     box-shadow: none !important;
 
     &:hover {
-      background: rgba(78, 205, 196, 0.9) !important; // 悬停时几乎不透明
+      background: rgba(0, 0, 0, 0.3) !important; // 悬停时颜色不变
     }
 
     &:active {
-      background: #4ECDC4 !important; // 拖动时完全不透明
+      background: rgba(0, 0, 0, 0.3) !important; // 拖动时颜色不变
     }
   }
 
@@ -9279,9 +9279,9 @@ const loadMessageList = async (groupId: string) => {
     --os-track-bg: transparent;
     --os-track-bg-hover: transparent;
     --os-track-bg-active: transparent;
-    --os-handle-bg: rgba(78, 205, 196, 0.5); // 暗色主题下也提高透明度
-    --os-handle-bg-hover: rgba(78, 205, 196, 0.8);
-    --os-handle-bg-active: #4ECDC4;
+    --os-handle-bg: rgba(255, 255, 255, 0.3); // 暗色主题下用白色半透明
+    --os-handle-bg-hover: rgba(255, 255, 255, 0.3); // 悬停时不变色
+    --os-handle-bg-active: rgba(255, 255, 255, 0.3); // 激活时不变色
   }
 
   .os-scrollbar-track {
@@ -9293,14 +9293,14 @@ const loadMessageList = async (groupId: string) => {
   }
 
   .os-scrollbar-handle {
-    background: rgba(78, 205, 196, 0.5) !important; // 提高暗色主题下的默认透明度
+    background: rgba(255, 255, 255, 0.3) !important; // 暗色主题下用白色半透明
 
     &:hover {
-      background: rgba(78, 205, 196, 0.8) !important;
+      background: rgba(255, 255, 255, 0.3) !important; // 悬停时颜色不变
     }
 
     &:active {
-      background: #4ECDC4 !important; // 拖动时完全不透明
+      background: rgba(255, 255, 255, 0.3) !important; // 拖动时颜色不变
     }
   }
 }
