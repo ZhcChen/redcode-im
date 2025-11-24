@@ -4041,11 +4041,15 @@ const formatMessageTime = (timeStr: string) => {
 }
 
 // 滚动到底部函数
-const scrollToBottom = (force = false) => {
+const scrollToBottom = (force = false, instant = true) => {
   const scroll = () => {
     const vp = getMessagesViewport()
     if (vp) {
-      vp.scrollTop = vp.scrollHeight
+      // 使用 scrollTo 方法，支持无动画模式
+      vp.scrollTo({
+        top: vp.scrollHeight,
+        behavior: instant ? 'instant' : 'smooth'
+      })
       return true // 返回 true 表示成功滚动
     }
     return false // 返回 false 表示还没找到 viewport
@@ -4080,7 +4084,11 @@ const scrollToBottomOnLoad = () => {
   const tryScroll = () => {
     const vp = getMessagesViewport()
     if (vp) {
-      vp.scrollTop = vp.scrollHeight
+      // 使用 scrollTo 方法，设置 behavior: 'instant' 无动画直接跳转
+      vp.scrollTo({
+        top: vp.scrollHeight,
+        behavior: 'instant'
+      })
 
       // 检查是否真的滚动到底部了
       const isAtBottom = vp.scrollTop + vp.clientHeight >= vp.scrollHeight - 10
@@ -4111,8 +4119,12 @@ const scrollToBottomAfterImageLoad = () => {
 }
 
 // 监听消息变化，自动滚动到底部
-watch(messages, () => {
-  scrollToBottom()
+watch(messages, (newMessages, oldMessages) => {
+  // 当首次加载消息或消息数量增加时，滚动到底部
+  if (!oldMessages || oldMessages.length === 0 || newMessages.length > oldMessages.length) {
+    // 使用无动画模式滚动
+    scrollToBottom(false, true)
+  }
 }, { flush: 'post' }) // flush: 'post' 确保DOM更新后执行
 
 // 为每个账号缓存页面状态
@@ -4412,7 +4424,7 @@ const sendMessage = async () => {
   // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
   recentSentMessages.value.add(tempId)
   newMessage.value = ''
-  scrollToBottom()
+  scrollToBottom(false, true)
 
   try {
     const apiMessage = await webSocketManager.sendMessage({
@@ -4697,7 +4709,7 @@ const sendEmojiMessage = async (emoji: string) => {
 
     messages.value.push(tempMessage)
     recentSentMessages.value.add(tempId)
-    scrollToBottom()
+    scrollToBottom(false, true)
 
     try {
       const apiMessage = await webSocketManager.sendMessage({
@@ -4734,7 +4746,7 @@ const sendEmojiMessage = async (emoji: string) => {
           recentSentMessages.value.delete(apiMessage.id)
         }, 10000)
       }
-      scrollToBottom()
+      scrollToBottom(false, true)
     } catch (error: any) {
       console.error('发送表情消息失败:', error)
       const tempMessageIndex = messages.value.findIndex(msg => msg.id === tempId)
@@ -5093,7 +5105,7 @@ const uploadAndSendFile = async (file: File) => {
     messages.value.push(tempMessage)
     // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
     recentSentMessages.value.add(tempId)
-    scrollToBottom()
+    scrollToBottom(false, true)
 
     console.log('开始上传文件到COS:', file.name)
     await uploadWithSignature(signatureResponse.data.signature, file, (progress) => {
@@ -5165,7 +5177,7 @@ const uploadAndSendFile = async (file: File) => {
       }, 10000)
     }
 
-    scrollToBottom()
+    scrollToBottom(false, true)
   } catch (error: any) {
     console.error('文件上传失败:', error, {
       fileName: file.name,
@@ -6326,7 +6338,7 @@ const sendGroupCreationSystemMessage = async (groupId: string, groupName: string
 
     // 添加到消息列表
     messages.value.push(localSystemMessage)
-    scrollToBottom()
+    scrollToBottom(false, true)
 
     // 通过WebSocket发送系统消息
     await new Promise((resolve, reject) => {
@@ -6803,7 +6815,7 @@ const handleWebSocketMessage = (event: CustomEvent) => {
           })
         }
 
-        scrollToBottom()
+        scrollToBottom(false, true)
       }
     }
   }
