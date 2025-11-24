@@ -8088,7 +8088,7 @@ const loadMessageList = async (groupId: string) => {
   z-index: 2; /* 确保在选中背景之上 */
   flex-shrink: 0; /* 防止被压缩 */
   left: 8px; /* 所有消息的指示器都在容器左侧 8px */
-  top: 8px;
+  top: 12px; /* 距离容器顶部 12px */
 }
 
 .select-indicator.active {
