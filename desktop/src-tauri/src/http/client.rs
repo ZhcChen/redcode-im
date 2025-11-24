@@ -161,14 +161,23 @@ impl HttpClientState {
             let mut builder = client.request(method.clone(), &url);
             builder = builder.timeout(Duration::from_millis(timeout));
 
-            if options.inject_token {
-                if let Some(token_value) = &token {
-                    builder = builder.header("Authorization", format!("Bearer {}", token_value));
-                }
-            }
-
+            // 先应用用户提供的 headers
             if let Some(header_map) = &headers {
                 builder = Self::apply_headers(builder, header_map)?;
+            }
+
+            // 只有在 headers 中没有 Authorization 且需要注入 token 时才添加
+            if options.inject_token {
+                let has_auth = headers
+                    .as_ref()
+                    .map(|map| map.keys().any(|k| k.eq_ignore_ascii_case("authorization")))
+                    .unwrap_or(false);
+
+                if !has_auth {
+                    if let Some(token_value) = &token {
+                        builder = builder.header("Authorization", format!("Bearer {}", token_value));
+                    }
+                }
             }
 
             if let Some(bytes) = &options.body_bytes {
