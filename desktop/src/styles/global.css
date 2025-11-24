@@ -97,3 +97,15 @@ button {
 [data-theme="dark"] * {
   scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
 }
+
+/* 禁用菜单和列表区域的文字选中 */
+.side-menu,
+.menu-popup,
+.popover-item,
+.chat-list,
+.contact-list {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
