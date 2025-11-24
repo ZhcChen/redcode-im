@@ -9,54 +9,56 @@
     </header>
 
     <ScrollContainer class="settings-body">
-      <!-- 下载位置设置 -->
-      <div class="settings-section">
-        <div class="settings-item">
-          <div class="settings-item-label">下载位置</div>
-          <div class="settings-item-value">{{ downloadDir }}</div>
-          <div class="settings-item-actions">
-            <button class="settings-item-action reset-btn" @click="handleResetDownloadDir" :disabled="isResetting">
-              {{ isResetting ? '重置中...' : '重置' }}
-            </button>
-            <button class="settings-item-action" @click="showChangeDialog = true">
-              更改
-            </button>
+      <div class="settings-body-wrapper">
+        <!-- 下载位置设置 -->
+        <div class="settings-section">
+          <div class="settings-item">
+            <div class="settings-item-label">下载位置</div>
+            <div class="settings-item-value">{{ downloadDir }}</div>
+            <div class="settings-item-actions">
+              <button class="settings-item-action reset-btn" @click="handleResetDownloadDir" :disabled="isResetting">
+                {{ isResetting ? '重置中...' : '重置' }}
+              </button>
+              <button class="settings-item-action" @click="showChangeDialog = true">
+                更改
+              </button>
+            </div>
+          </div>
+          <div class="settings-item-hint">
+            文件下载将保存到此目录
           </div>
         </div>
-        <div class="settings-item-hint">
-          文件下载将保存到此目录
-        </div>
-      </div>
 
-      <!-- 隐私协议设置 -->
-      <div class="settings-section">
-        <div class="settings-item">
-          <div class="settings-item-label">隐私协议</div>
-          <div class="settings-item-value">查看应用隐私协议</div>
-          <div class="settings-item-actions">
-            <button class="settings-item-action" @click="handleViewPrivacy">
-              查看
-            </button>
+        <!-- 隐私协议设置 -->
+        <div class="settings-section">
+          <div class="settings-item">
+            <div class="settings-item-label">隐私协议</div>
+            <div class="settings-item-value">查看应用隐私协议</div>
+            <div class="settings-item-actions">
+              <button class="settings-item-action" @click="handleViewPrivacy">
+                查看
+              </button>
+            </div>
+          </div>
+          <div class="settings-item-hint">
+            了解我们如何保护您的隐私和数据安全
           </div>
         </div>
-        <div class="settings-item-hint">
-          了解我们如何保护您的隐私和数据安全
-        </div>
-      </div>
 
-      <!-- 用户协议设置 -->
-      <div class="settings-section">
-        <div class="settings-item">
-          <div class="settings-item-label">用户协议</div>
-          <div class="settings-item-value">查看应用使用条款</div>
-          <div class="settings-item-actions">
-            <button class="settings-item-action" @click="handleViewUserAgreement">
-              查看
-            </button>
+        <!-- 用户协议设置 -->
+        <div class="settings-section">
+          <div class="settings-item">
+            <div class="settings-item-label">用户协议</div>
+            <div class="settings-item-value">查看应用使用条款</div>
+            <div class="settings-item-actions">
+              <button class="settings-item-action" @click="handleViewUserAgreement">
+                查看
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="settings-item-hint">
-          阅读使用我们的服务需要遵守的条款和条件
+          <div class="settings-item-hint">
+            阅读使用我们的服务需要遵守的条款和条件
+          </div>
         </div>
       </div>
     </ScrollContainer>
@@ -281,6 +283,10 @@ onMounted(() => {
 
 .settings-body {
   flex: 1;
+}
+
+.settings-body-wrapper {
+  min-height: 100%;
   padding: 24px;
   display: flex;
   flex-direction: column;
