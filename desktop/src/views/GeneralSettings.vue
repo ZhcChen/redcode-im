@@ -282,6 +282,9 @@ onMounted(() => {
 .settings-body {
   flex: 1;
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .settings-section {
@@ -289,6 +292,8 @@ onMounted(() => {
   border-radius: 16px;
   padding: 24px;
   margin-bottom: 16px;
+  width: 100%;
+  max-width: 700px;
 }
 
 .settings-item {
