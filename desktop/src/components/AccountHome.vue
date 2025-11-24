@@ -47,77 +47,36 @@ const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 720 }
 
 // 设置主窗口尺寸（固定为 1200x720）
 async function setMainWindowSize() {
-  console.log('[AccountHome] ============ setMainWindowSize START ============')
-  console.log('[AccountHome] Called at:', new Date().toISOString())
-  console.log('[AccountHome] Component accountId:', props.accountId)
-
   try {
     const currentWindow = getCurrentWebviewWindow()
     const isCurrentlyMaximized = await currentWindow.isMaximized()
-    console.log('[AccountHome] Window maximized:', isCurrentlyMaximized)
 
     // 先确保窗口可调整（解除登录页面的限制）
     try {
       await currentWindow.setResizable(true)
-      console.log('[AccountHome] Window set to resizable: SUCCESS')
       // 添加小延迟确保 resizable 状态生效
       await new Promise(resolve => setTimeout(resolve, 50))
     } catch (error) {
-      console.log('[AccountHome] setResizable error:', error)
+      // 静默处理权限错误
     }
 
-    const userResized = hasUserResized()
-    console.log('[AccountHome] User resized status:', userResized)
-
-    // 临时强制执行resize，忽略userResized标志（用于调试）
-    const FORCE_RESIZE = true // 调试标志
-
-    // 如果窗口不是最大化状态，设置为固定大小
-    if (!isCurrentlyMaximized && !userResized) {
-      console.log('[AccountHome] Conditions met for resize (not maximized, not user resized)')
-    } else if (!isCurrentlyMaximized && userResized && FORCE_RESIZE) {
-      console.log('[AccountHome] User resized but FORCE_RESIZE enabled, continuing...')
-    } else if (isCurrentlyMaximized) {
-      console.log('[AccountHome] Window is maximized, skipping resize')
-      return
-    } else if (userResized && !FORCE_RESIZE) {
-      console.log('[AccountHome] User has resized, skipping resize')
-      return
-    }
-
-    // 优先使用 Rust 端设置窗口尺寸（更可靠）
-    console.log('[AccountHome] About to call setWindowSizeViaRust with:', DEFAULT_MAIN_WINDOW_SIZE)
-    console.log('[AccountHome] Calling setWindowSizeViaRust NOW...')
-
-    try {
+    // 如果窗口不是最大化状态且用户没有手动调整过，设置为固定大小
+    if (!isCurrentlyMaximized && !hasUserResized()) {
+      // 优先使用 Rust 端设置窗口尺寸（更可靠）
       const rustSuccess = await setWindowSizeViaRust(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
-      console.log('[AccountHome] setWindowSizeViaRust returned:', rustSuccess)
 
       if (!rustSuccess) {
         // 如果 Rust 端失败，尝试直接设置
-        console.log('[AccountHome] Rust method failed, trying direct method...')
         const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
-        console.log('[AccountHome] Direct method result:', directSuccess)
 
         if (!directSuccess) {
           // 最后使用安全方法
-          console.log('[AccountHome] Direct method failed, using safe method...')
           await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
-          console.log('[AccountHome] Safe method completed')
         }
       }
-    } catch (invokeError) {
-      console.error('[AccountHome] Error calling setWindowSizeViaRust:', invokeError)
-      console.error('[AccountHome] Error stack:', invokeError.stack)
-      // 降级到直接方法
-      console.log('[AccountHome] Fallback to direct method due to invoke error')
-      await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
     }
   } catch (error) {
     console.error('[AccountHome] Failed to set window size:', error)
-    console.error('[AccountHome] Error stack:', error.stack)
-  } finally {
-    console.log('[AccountHome] ============ setMainWindowSize END ============')
   }
 }
 

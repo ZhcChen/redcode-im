@@ -122,61 +122,33 @@ export const hasUserResized = () => userResized
 
 // 使用 Rust 端设置窗口尺寸（推荐方法）
 export async function setWindowSizeViaRust(width: number, height: number): Promise<boolean> {
-  console.log('[setWindowSizeViaRust] ========== START ==========')
-  console.log('[setWindowSizeViaRust] Parameters:', { width, height })
-  console.log('[setWindowSizeViaRust] Called at:', new Date().toISOString())
+  console.log('[setWindowSizeViaRust] Setting window size to:', width, 'x', height)
 
   try {
     suppressResizeFlag = true
-    console.log('[setWindowSizeViaRust] suppressResizeFlag set to true')
 
     // 调用 Rust 端的函数
-    console.log('[setWindowSizeViaRust] About to invoke "set_window_size_and_center"...')
-    console.log('[setWindowSizeViaRust] invoke parameters:', JSON.stringify({ width, height }))
-
     await invoke('set_window_size_and_center', { width, height })
 
-    console.log('[setWindowSizeViaRust] invoke() completed successfully!')
-
     // 验证实际尺寸
-    console.log('[setWindowSizeViaRust] Starting size verification...')
     const win = getCurrentWebviewWindow()
     const actualPhysicalSize = await win.innerSize()
-    console.log('[setWindowSizeViaRust] Physical size:', actualPhysicalSize)
-
-    const monitor = await currentMonitor().catch((err) => {
-      console.log('[setWindowSizeViaRust] currentMonitor() error:', err)
-      return null as any
-    })
+    const monitor = await currentMonitor().catch(() => null as any)
     const scaleFactor = monitor?.scaleFactor ?? 1
-    console.log('[setWindowSizeViaRust] Scale factor:', scaleFactor)
 
     const actualLogicalWidth = Math.round(actualPhysicalSize.width / scaleFactor)
     const actualLogicalHeight = Math.round(actualPhysicalSize.height / scaleFactor)
 
-    console.log('[setWindowSizeViaRust] Verification Results:')
-    console.log('  - Target logical:', width, 'x', height, 'px')
-    console.log('  - Actual logical:', actualLogicalWidth, 'x', actualLogicalHeight, 'px')
-    console.log('  - Physical size:', actualPhysicalSize.width, 'x', actualPhysicalSize.height, 'px')
-    console.log('  - Success:', actualLogicalWidth === width && actualLogicalHeight === height)
+    console.log('[setWindowSizeViaRust] Window resized - target:', width, 'x', height, ', actual:', actualLogicalWidth, 'x', actualLogicalHeight)
 
     setTimeout(() => {
       suppressResizeFlag = false
-      console.log('[setWindowSizeViaRust] suppressResizeFlag reset to false (after 200ms)')
     }, 200)
 
-    console.log('[setWindowSizeViaRust] ========== END (SUCCESS) ==========')
     return true
-  } catch (error: any) {
-    console.error('[setWindowSizeViaRust] ========== ERROR ==========')
-    console.error('[setWindowSizeViaRust] Error occurred:', error)
-    console.error('[setWindowSizeViaRust] Error message:', error?.message)
-    console.error('[setWindowSizeViaRust] Error stack:', error?.stack)
-    console.error('[setWindowSizeViaRust] Error type:', typeof error)
-    console.error('[setWindowSizeViaRust] Error details:', JSON.stringify(error))
+  } catch (error) {
+    console.error('[setWindowSizeViaRust] Failed:', error)
     suppressResizeFlag = false
-    console.log('[setWindowSizeViaRust] suppressResizeFlag reset to false (due to error)')
-    console.log('[setWindowSizeViaRust] ========== END (FAILED) ==========')
     return false
   }
 }
@@ -184,26 +156,11 @@ export async function setWindowSizeViaRust(width: number, height: number): Promi
 // 直接设置窗口尺寸，不做任何限制（用于测试）
 export async function setWindowSizeDirect(width: number, height: number) {
   const win = getCurrentWebviewWindow()
-  console.log('[setWindowSizeDirect] Target size:', width, 'x', height, '(logical pixels)')
 
   try {
     suppressResizeFlag = true
     await win.setSize(new LogicalSize(width, height))
     await win.center()
-
-    // 验证实际设置的尺寸
-    const actualPhysicalSize = await win.innerSize()
-    const monitor = await currentMonitor().catch(() => null as any)
-    const scaleFactor = monitor?.scaleFactor ?? 1
-
-    // 转换为逻辑像素以便理解
-    const actualLogicalWidth = actualPhysicalSize.width / scaleFactor
-    const actualLogicalHeight = actualPhysicalSize.height / scaleFactor
-
-    console.log('[setWindowSizeDirect] Size set successfully!')
-    console.log('  - Logical size:', Math.round(actualLogicalWidth), 'x', Math.round(actualLogicalHeight), 'px')
-    console.log('  - Physical size:', actualPhysicalSize.width, 'x', actualPhysicalSize.height, 'px')
-    console.log('  - DPI scale factor:', scaleFactor)
 
     setTimeout(() => {
       suppressResizeFlag = false
