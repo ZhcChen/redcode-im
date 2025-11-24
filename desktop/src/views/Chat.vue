@@ -62,10 +62,10 @@
         :style="{ width: chatListWidth + 'px' }"
         :options="{
           scrollbars: {
-            visibility: 'auto', // 自动显示隐藏
-            autoHide: 'move', // 鼠标移动时显示
-            autoHideDelay: 500, // 隐藏延迟（毫秒）
-            autoHideSuspend: false, // 不暂停自动隐藏
+            visibility: 'visible', // 始终可见，提升响应速度
+            autoHide: 'leave', // 鼠标离开时才隐藏
+            autoHideDelay: 1000, // 1秒后隐藏
+            autoHideSuspend: true, // 滚动时暂停自动隐藏
             dragScroll: true,
             clickScroll: true
           }
@@ -9160,25 +9160,17 @@ const loadMessageList = async (groupId: string) => {
   // 确保正确的高度和布局
   height: 100%;
 
-  // 优化滚动性能
-  -webkit-overflow-scrolling: touch; // iOS 滚动优化
-  will-change: scroll-position; // 提示浏览器优化滚动
-  transform: translateZ(0); // 启用 GPU 加速
-  backface-visibility: hidden; // 减少重绘
+  // 移除可能影响性能的优化，让滚动更直接
 
   // OverlayScrollbars 容器样式
   .os-viewport {
-    // 视口性能优化
-    -webkit-overflow-scrolling: touch !important;
+    // 不添加额外的性能优化，保持原生滚动体验
     overscroll-behavior: contain; // 防止滚动链
-    // 不使用 scroll-behavior: smooth，保持直接跟手的滚动体验
   }
 
   // 内容容器优化
   .os-content {
-    // 防止内容闪烁
-    -webkit-transform: translateZ(0);
-    -webkit-backface-visibility: hidden;
+    // 保持简单，避免过度优化
   }
 
   // OverlayScrollbars 滚动条样式
@@ -9192,8 +9184,8 @@ const loadMessageList = async (groupId: string) => {
     --os-track-bg-hover: transparent; // 悬停时也透明
     --os-track-bg-active: transparent; // 激活时也透明
     --os-handle-border-radius: 10px;
-    --os-handle-bg: rgba(78, 205, 196, 0.5); // 半透明的主题色
-    --os-handle-bg-hover: rgba(78, 205, 196, 0.8);
+    --os-handle-bg: rgba(78, 205, 196, 0.6); // 提高默认透明度
+    --os-handle-bg-hover: rgba(78, 205, 196, 0.9);
     --os-handle-bg-active: #4ECDC4;
     --os-handle-min-size: 40px; // 增加最小高度，更容易拖动
     --os-handle-max-size: none;
@@ -9202,19 +9194,18 @@ const loadMessageList = async (groupId: string) => {
     --os-handle-perpendicular-size-active: 80%;
     --os-handle-interactive-area-offset: 4px; // 增加交互区域
 
-    // 添加过渡效果
-    transition: opacity 0.3s ease;
+    // 移除过渡效果，提升响应速度
   }
 
-  // 滚动条淡入淡出效果
+  // 滚动条淡入淡出效果 - 减少过渡时间
   .os-scrollbar-hidden {
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.1s ease; // 更快的隐藏
   }
 
   .os-scrollbar-visible {
     opacity: 1;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.1s ease; // 更快的显示
   }
 
   // 垂直滚动条
@@ -9231,7 +9222,8 @@ const loadMessageList = async (groupId: string) => {
     .os-scrollbar-handle {
       width: 6px !important;
       min-height: 40px !important;
-      transition: all 0.2s ease;
+      // 移除过渡动画，让响应更直接
+      transition: none !important;
       cursor: grab;
 
       &:hover {
@@ -9261,13 +9253,13 @@ const loadMessageList = async (groupId: string) => {
 
   // 滚动条滑块
   .os-scrollbar-handle {
-    background: rgba(78, 205, 196, 0.4) !important; // 半透明主题色
+    background: rgba(78, 205, 196, 0.6) !important; // 提高默认透明度，更容易看到
     border-radius: 10px !important;
     border: none !important;
     box-shadow: none !important;
 
     &:hover {
-      background: rgba(78, 205, 196, 0.8) !important; // 悬停时更明显
+      background: rgba(78, 205, 196, 0.9) !important; // 悬停时几乎不透明
     }
 
     &:active {
@@ -9287,9 +9279,9 @@ const loadMessageList = async (groupId: string) => {
     --os-track-bg: transparent;
     --os-track-bg-hover: transparent;
     --os-track-bg-active: transparent;
-    --os-handle-bg: rgba(78, 205, 196, 0.3); // 暗色主题下更低的透明度
-    --os-handle-bg-hover: rgba(78, 205, 196, 0.6);
-    --os-handle-bg-active: rgba(78, 205, 196, 0.9);
+    --os-handle-bg: rgba(78, 205, 196, 0.5); // 暗色主题下也提高透明度
+    --os-handle-bg-hover: rgba(78, 205, 196, 0.8);
+    --os-handle-bg-active: #4ECDC4;
   }
 
   .os-scrollbar-track {
@@ -9301,14 +9293,14 @@ const loadMessageList = async (groupId: string) => {
   }
 
   .os-scrollbar-handle {
-    background: rgba(78, 205, 196, 0.3) !important;
+    background: rgba(78, 205, 196, 0.5) !important; // 提高暗色主题下的默认透明度
 
     &:hover {
-      background: rgba(78, 205, 196, 0.6) !important;
+      background: rgba(78, 205, 196, 0.8) !important;
     }
 
     &:active {
-      background: rgba(78, 205, 196, 0.9) !important;
+      background: #4ECDC4 !important; // 拖动时完全不透明
     }
   }
 }
