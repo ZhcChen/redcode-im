@@ -115,7 +115,7 @@
     </div>
 
     <!-- 搜索结果 -->
-    <div v-if="searchResults.length > 0" class="search-results">
+    <ScrollContainer v-if="searchResults.length > 0" class="search-results">
       <!-- 按日期分组 -->
       <div v-for="group in groupedResults" :key="group.date" class="result-group">
         <div class="group-header">{{ group.date }}</div>
@@ -146,7 +146,7 @@
           {{ isLoadingMore ? '加载中...' : '加载更多' }}
         </button>
       </div>
-    </div>
+    </ScrollContainer>
 
     <!-- 无搜索结果 -->
     <div v-if="!isSearching && searchQuery && searchResults.length === 0" class="no-results">
@@ -195,6 +195,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { SearchApi, SearchUtils, type MessageSearchResult, type SearchParams, type SearchStats } from '@/api/search';
+import ScrollContainer from './ScrollContainer.vue';
 
 // Props
 const props = defineProps<{
@@ -499,7 +500,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   max-height: 200px;
-  overflow-y: auto;
 }
 
 .suggestion-item {
@@ -603,7 +603,6 @@ onUnmounted(() => {
 
 .search-results {
   max-height: 500px;
-  overflow-y: auto;
 }
 
 .result-group {

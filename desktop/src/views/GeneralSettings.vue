@@ -8,7 +8,7 @@
       <div class="toolbar-title">通用设置</div>
     </header>
 
-    <section class="settings-body">
+    <ScrollContainer class="settings-body">
       <!-- 下载位置设置 -->
       <div class="settings-section">
         <div class="settings-item">
@@ -59,7 +59,7 @@
           阅读使用我们的服务需要遵守的条款和条件
         </div>
       </div>
-    </section>
+    </ScrollContainer>
 
     <!-- 修改下载位置对话框 -->
     <Dialog
@@ -95,6 +95,7 @@ import backIcon from '../assets/image/icon-back.svg'
 import ToolbarButton from '../components/ToolbarButton.vue'
 import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
+import ScrollContainer from '../components/ScrollContainer.vue'
 
 // Props: 接收账号ID（可选，用于多实例页面架构）
 interface Props {
@@ -281,7 +282,6 @@ onMounted(() => {
 .settings-body {
   flex: 1;
   padding: 24px;
-  overflow-y: auto;
 }
 
 .settings-section {

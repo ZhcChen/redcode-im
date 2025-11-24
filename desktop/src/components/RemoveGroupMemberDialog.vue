@@ -32,7 +32,7 @@
       </div>
 
       <!-- 群成员列表 -->
-      <div class="member-list">
+      <ScrollContainer class="member-list">
         <div
           v-for="member in filteredMembers"
           :key="member.userId"
@@ -59,7 +59,7 @@
         <div v-if="filteredMembers.length === 0" class="empty-state">
           <div class="empty-text">{{ searchKeyword ? '未找到匹配的成员' : '暂无群成员' }}</div>
         </div>
-      </div>
+      </ScrollContainer>
     </div>
   </Dialog>
 </template>
@@ -69,6 +69,7 @@ import { ref, computed, watch } from 'vue'
 import Dialog from './Dialog.vue'
 import SearchInput from './SearchInput.vue'
 import Avatar from './Avatar.vue'
+import ScrollContainer from './ScrollContainer.vue'
 import type { RoomMember } from '@/types/models'
 
 interface Props {
@@ -245,7 +246,6 @@ watch(() => props.visible, (newVal) => {
 
 .member-list {
   flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;

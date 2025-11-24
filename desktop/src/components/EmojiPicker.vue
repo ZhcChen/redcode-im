@@ -78,7 +78,7 @@
         >
           加载中...
         </div>
-        <div v-else class="emoji-grid" :class="getGridClass()">
+        <ScrollContainer v-else class="emoji-grid" :class="getGridClass()">
           <div
             v-for="(item, index) in currentItems"
             :key="index"
@@ -116,7 +116,7 @@
           >
             暂无自定义表情<br />请在设置中添加表情包
           </div>
-        </div>
+        </ScrollContainer>
       </div>
     </div>
 
@@ -144,6 +144,7 @@ import { api } from '../api'
 import { EmojiItemApi } from '../api/emoji-item'
 import type { EmojiPack, EmojiItem } from '../api/emoji-pack'
 import { toast } from '../utils/toast'
+import ScrollContainer from './ScrollContainer.vue'
 
 interface Emoji {
   emoji: string
@@ -874,7 +875,6 @@ const CachedEmojiImage = defineComponent({
 
 .emoji-content {
   flex: 1;
-  overflow-y: auto;
   overflow-x: hidden;
   padding: 10px;
   box-sizing: border-box;
@@ -922,7 +922,6 @@ const CachedEmojiImage = defineComponent({
   flex-direction: column;
   gap: 8px;
   max-height: 200px;
-  overflow-y: auto;
 }
 
 .search-result-item {

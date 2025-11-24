@@ -46,7 +46,6 @@ function handleClose() {
 <style scoped lang="scss">
 .agreement-dialog-content {
   max-height: 60vh;
-  overflow-y: auto;
   padding: 8px 0;
   color: var(--text-primary);
   line-height: 1.6;

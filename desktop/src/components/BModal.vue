@@ -18,9 +18,9 @@
               ×
             </button>
           </header>
-          <section class="b-modal-body">
+          <ScrollContainer class="b-modal-body">
             <slot />
-          </section>
+          </ScrollContainer>
         </div>
       </div>
     </transition>
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import ScrollContainer from './ScrollContainer.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -135,7 +136,6 @@ function handleClose() {
 
 .b-modal-body {
   padding: 12px 24px 24px;
-  overflow-y: auto;
 }
 
 @keyframes b-modal-pop {

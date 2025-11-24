@@ -10,9 +10,9 @@
                 <img src="@/assets/image/icon-close.svg" alt="关闭" />
               </button>
             </div>
-            <div class="dialog-content">
+            <ScrollContainer class="dialog-content">
               <slot></slot>
-            </div>
+            </ScrollContainer>
             <div v-if="showFooter" class="dialog-footer">
               <button class="dialog-btn dialog-btn-cancel" @click="handleCancel">
                 {{ cancelText }}
@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import ScrollContainer from './ScrollContainer.vue'
 
 interface Props {
   /** 弹窗标题 */
@@ -196,7 +197,6 @@ defineExpose({
 
 .dialog-content {
   flex: 1;
-  overflow-y: auto;
 
   // 自定义滚动条样式
   &::-webkit-scrollbar {

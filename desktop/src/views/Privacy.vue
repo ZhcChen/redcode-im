@@ -27,7 +27,9 @@
         <p>{{ error }}</p>
         <ToolbarButton variant="primary" @click="fetchDocument">重试</ToolbarButton>
       </div>
-      <article v-else class="privacy-content" v-html="privacyDoc?.content" />
+      <ScrollContainer v-else class="privacy-content">
+        <article v-html="privacyDoc?.content" />
+      </ScrollContainer>
     </section>
   </div>
 </template>
@@ -38,6 +40,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import backIcon from '../assets/image/icon-back.svg'
 import ToolbarButton from '../components/ToolbarButton.vue'
+import ScrollContainer from '../components/ScrollContainer.vue'
 import { SettingsApi, type DocumentContent } from '../api/settings'
 import { toast } from '../utils/toast'
 
@@ -205,7 +208,6 @@ onMounted(() => {
   padding: 32px;
   background: #fff;
   border-radius: 16px;
-  overflow-y: auto;
   color: #1f2937;
   line-height: 1.75;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
