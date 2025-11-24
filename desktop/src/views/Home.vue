@@ -36,11 +36,27 @@ const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 720 };
 async function setMainWindowSize() {
   const logId = `HOME_RESIZE_${Date.now()}`;
   try {
+    const currentWindow = getCurrentWebviewWindow();
+
+    // 先确保窗口可调整（解除登录页面的限制）
+    try {
+      await currentWindow.setResizable(true);
+      console.log('[Home] Window set to resizable');
+      // 添加小延迟确保 resizable 状态生效
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } catch (error) {
+      console.error('[Home] Failed to set resizable:', error);
+    }
+
     if (hasUserResized()) {
+      console.log('[Home] User has resized, skipping auto-resize');
       return
     }
+
+    console.log('[Home] Setting window size to:', DEFAULT_MAIN_WINDOW_SIZE);
     await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
   } catch (error) {
+    console.error('[Home] Failed to set window size:', error);
   }
 }
 

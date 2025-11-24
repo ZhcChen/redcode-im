@@ -492,6 +492,15 @@ async function handleRegister() {
           } catch (error) {
           }
 
+          // 注册后自动登录成功，恢复窗口可调整状态
+          try {
+            const currentWindow = getCurrentWebviewWindow();
+            await currentWindow.setResizable(true);
+            console.log('[Login] Window set to resizable after registration');
+          } catch (error) {
+            console.error('[Login] Failed to set resizable:', error);
+          }
+
           router.replace({ name: "Home" });
         } else {
           toast.error("登录状态异常，请重试");
@@ -710,6 +719,15 @@ async function handleLogin() {
             return;
           }
         } catch (error) {
+        }
+
+        // 登录成功，立即恢复窗口可调整状态（不等待组件卸载）
+        try {
+          const currentWindow = getCurrentWebviewWindow();
+          await currentWindow.setResizable(true);
+          console.log('[Login] Window set to resizable before navigation');
+        } catch (error) {
+          console.error('[Login] Failed to set resizable:', error);
         }
 
         // 主窗口登录，跳转到首页

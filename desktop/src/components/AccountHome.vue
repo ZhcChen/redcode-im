@@ -50,20 +50,26 @@ async function setMainWindowSize() {
   try {
     const currentWindow = getCurrentWebviewWindow()
     const isCurrentlyMaximized = await currentWindow.isMaximized()
-    
-    // 如果窗口不是最大化状态，设置为固定大小
-    if (!isCurrentlyMaximized && !hasUserResized()) {
-      await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
-    }
-    
-    // 设置窗口可调整大小（如果之前被禁用）
+
+    // 先确保窗口可调整（解除登录页面的限制）
     try {
       await currentWindow.setResizable(true)
+      console.log('[AccountHome] Window set to resizable')
+      // 添加小延迟确保 resizable 状态生效
+      await new Promise(resolve => setTimeout(resolve, 50))
     } catch (error) {
-      // 静默失败
+      console.error('[AccountHome] Failed to set resizable:', error)
+    }
+
+    // 如果窗口不是最大化状态，设置为固定大小
+    if (!isCurrentlyMaximized && !hasUserResized()) {
+      console.log('[AccountHome] Setting window size to:', DEFAULT_MAIN_WINDOW_SIZE)
+      await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+    } else {
+      console.log('[AccountHome] Skipping resize - maximized or user resized')
     }
   } catch (error) {
-    // 静默失败，不影响应用运行
+    console.error('[AccountHome] Failed to set window size:', error)
   }
 }
 
