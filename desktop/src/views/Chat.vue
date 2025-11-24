@@ -158,18 +158,19 @@
 
             <!-- 普通用户消息 -->
             <template v-else>
+            <!-- 多选指示器 - 其他用户消息 -->
+            <div
+              v-if="multiSelectMode && !message.isSelf"
+              class="select-indicator other"
+              :class="{ active: isMessageSelected(message) }"
+              @click.stop="handleIndicatorClick(message)"
+            >
+              ✓
+            </div>
             <Avatar v-if="!message.isSelf" :src="message.senderAvatarLocalPath" :text="message.senderName" :size="40" />
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
               <div class="message-content">
-                <div
-                  v-if="multiSelectMode"
-                  class="select-indicator other"
-                  :class="{ active: isMessageSelected(message) }"
-                  @click.stop="handleIndicatorClick(message)"
-                >
-                  ✓
-                </div>
                 <!-- 引用消息预览 -->
                 <template v-if="message.quotedMessage">
                   <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
@@ -318,15 +319,16 @@
                 </div>
               </div>
             </div>
+            <!-- 多选指示器 - 自己的消息 -->
+            <div
+              v-if="multiSelectMode && message.isSelf"
+              class="select-indicator self"
+              :class="{ active: isMessageSelected(message) }"
+              @click.stop="handleIndicatorClick(message)"
+            >
+              ✓
+            </div>
             <div v-else class="message-content">
-              <div
-                v-if="multiSelectMode"
-                class="select-indicator self"
-                :class="{ active: isMessageSelected(message) }"
-                @click.stop="handleIndicatorClick(message)"
-              >
-                ✓
-              </div>
               <template v-if="message.quotedMessage">
                 <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
                   <div class="quoted-header">
@@ -8083,12 +8085,14 @@ const loadMessageList = async (groupId: string) => {
   font-size: 10px;
   box-shadow: 0 0 0 2px #fff;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  z-index: 2; /* 确保在选中背景之上 */
+  flex-shrink: 0; /* 防止被压缩 */
 }
 
 .select-indicator.other,
 .select-indicator.self {
-  left: 0;
-  top: 8px;
+  left: 8px; /* 距离容器左侧 8px */
+  top: 8px; /* 距离容器顶部 8px */
 }
 
 .select-indicator.active {
