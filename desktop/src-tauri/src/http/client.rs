@@ -219,13 +219,26 @@ impl HttpClientState {
                 println!("请求 URL: {}", url);
                 println!("请求方法: {}", method);
                 println!("注入 Token: {}", options.inject_token);
-                println!("Token 值: {}", token.as_ref().map(|t| format!("Bearer {}...(前20字符)", &t.chars().take(20).collect::<String>())).unwrap_or_else(|| "无".to_string()));
+
+                // 打印完整的 token 值用于调试
+                if let Some(t) = &token {
+                    println!("Token 完整值: {}", t);
+                    println!("Token 长度: {} 字符", t.len());
+                    println!("Token 包含特殊字符检查:");
+                    println!("  包含换行符: {}", t.contains('\n') || t.contains('\r'));
+                    println!("  包含空格: {}", t.contains(' '));
+                    println!("  包含制表符: {}", t.contains('\t'));
+                } else {
+                    println!("Token 值: 无");
+                }
+
                 if let Some(header_map) = &headers {
                     println!("请求头:");
                     for (key, value) in header_map {
-                        // 隐藏敏感信息
+                        // 对于 Authorization 头，打印完整值用于调试
                         if key.eq_ignore_ascii_case("authorization") {
-                            println!("  {}: Bearer ***", key);
+                            println!("  {}: {} (完整值)", key, value);
+                            println!("  Authorization 长度: {} 字符", value.len());
                         } else {
                             println!("  {}: {}", key, value);
                         }
