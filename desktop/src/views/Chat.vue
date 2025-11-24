@@ -7744,6 +7744,7 @@ const loadMessageList = async (groupId: string) => {
   flex-shrink: 0;
   height: 100%;
   position: relative;
+  user-select: none;
   // OverlayScrollbars 会自动处理滚动
 }
 
@@ -8315,6 +8316,8 @@ const loadMessageList = async (groupId: string) => {
 
 
 .menu-popup {
+  user-select: none;
+
   .popover-item {
     display: flex;
     align-items: center;

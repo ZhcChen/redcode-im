@@ -1142,6 +1142,7 @@ onUnmounted(() => {
   min-width: 300px;
   max-width: 70vw;
   flex-shrink: 0;
+  user-select: none;
 }
 
 
@@ -1358,6 +1359,8 @@ onUnmounted(() => {
 }
 
 .menu-popup {
+  user-select: none;
+
   .popover-item {
     display: flex;
     align-items: center;

@@ -348,6 +348,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   z-index: 20;
   pointer-events: auto;
+  user-select: none;
 }
 
 .user-avatar {
@@ -438,6 +439,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 12px 16px;
   transition: background-color 0.2s ease;
+  user-select: none;
   
   &:hover {
     background-color: #f5f5f5;
