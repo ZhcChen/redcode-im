@@ -7858,7 +7858,7 @@ const loadMessageList = async (groupId: string) => {
 
 .chat-messages {
   flex: 1;
-  padding: 24px;
+  padding: 24px 12px; /* 上下 24px，左右 12px */
   display: flex;
   flex-direction: column;
   user-select: none; /* 默认禁用文本选中 */
