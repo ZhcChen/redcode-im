@@ -53,7 +53,10 @@ impl HttpClientState {
 
     fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
         let mut builder = Client::builder()
-            .http1_only()
+            // 移除 http1_only() 限制，让 reqwest 自动协商 HTTP 版本
+            .gzip(true) // 明确启用 gzip
+            .brotli(true) // 明确启用 brotli
+            .deflate(true) // 明确启用 deflate
             .timeout(Duration::from_millis(config.timeout_ms))
             .pool_max_idle_per_host(config.connection_pool.max_idle_per_host)
             .user_agent(config.user_agent.clone());
