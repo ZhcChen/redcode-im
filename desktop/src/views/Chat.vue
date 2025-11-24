@@ -328,7 +328,7 @@
             >
               ✓
             </div>
-            <div v-else class="message-content">
+            <div v-if="message.isSelf" class="message-content">
               <template v-if="message.quotedMessage">
                 <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
                   <div class="quoted-header">
