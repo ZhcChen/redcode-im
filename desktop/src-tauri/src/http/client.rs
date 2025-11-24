@@ -54,9 +54,9 @@ impl HttpClientState {
     fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
         let mut builder = Client::builder()
             .http1_only() // 强制使用 HTTP/1.1，避免 HTTP/2 协商问题
-            .gzip(true) // 明确启用 gzip
-            .brotli(true) // 明确启用 brotli
-            .deflate(true) // 明确启用 deflate
+            .gzip(false) // 禁用 gzip 压缩
+            .brotli(false) // 禁用 brotli 压缩
+            .deflate(false) // 禁用 deflate 压缩
             .timeout(Duration::from_millis(config.timeout_ms))
             .pool_max_idle_per_host(config.connection_pool.max_idle_per_host)
             .user_agent(config.user_agent.clone());
