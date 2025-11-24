@@ -250,6 +250,9 @@ class HttpClient {
     return processedConfig;
   }
 
+  // 用于在请求和响应之间传递 URL 信息
+  private requestUrlMap: Map<string, string> = new Map();
+
   /**
    * 执行响应拦截器
    * @param response 响应数据
@@ -407,7 +410,18 @@ class HttpClient {
       throw new Error('Rust HTTP 客户端初始化失败');
     }
 
-    return this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
+    // 保存请求 URL，用于响应拦截器
+    this.requestUrlMap.set(requestId, url);
+
+    try {
+      const response = await this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
+      // 在响应对象中附加 URL 信息
+      (response as any).__requestUrl__ = url;
+      return response;
+    } finally {
+      // 清理请求 URL 记录
+      this.requestUrlMap.delete(requestId);
+    }
   }
 
   private async executeRustRequest<T>(
@@ -747,3 +761,26 @@ export const setLoginTime = (time?: number) => {
 export const clearLoginTime = () => {
   (httpClient as any).lastLoginTime = null;
 };
+
+// 添加联系人列表接口的响应拦截器 - 用于调试
+httpClient.addResponseInterceptor((response) => {
+  // 检查是否是联系人列表接口 (/friends)
+  const requestUrl = (response as any).__requestUrl__;
+
+  if (requestUrl && requestUrl.includes('/friends') && !requestUrl.includes('/friends/requests')) {
+    console.log('\n========================================');
+    console.log('🔍 拦截到联系人列表接口响应:');
+    console.log('========================================');
+    console.log('请求 URL:', requestUrl);
+    console.log('响应状态:', response.success ? '成功' : '失败');
+    console.log('响应代码:', response.code);
+    console.log('响应消息:', response.message);
+    console.log('响应数据:', JSON.stringify(response.data, null, 2));
+    console.log('========================================\n');
+  }
+
+  // 清理附加的 URL 信息
+  delete (response as any).__requestUrl__;
+
+  return response;
+});
