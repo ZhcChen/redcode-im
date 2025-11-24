@@ -8640,10 +8640,10 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-/* 滚动条美化样式 */
+/* 滚动条美化样式 - 覆盖模式 */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -8651,18 +8651,23 @@ const loadMessageList = async (groupId: string) => {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #CCCCCC;
-  border-radius: 2px;
+  background-color: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  transition: all 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #BBBBBB;
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* 针对Firefox的滚动条样式 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #CCCCCC transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
 }
 
 // 系统消息特殊样式
