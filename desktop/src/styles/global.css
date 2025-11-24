@@ -128,3 +128,13 @@ button {
   user-select: text;
   cursor: text;
 }
+
+/* 消息时间禁用选中 */
+.chat-messages .message-time,
+.chat-messages .message-time-other {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
+}
