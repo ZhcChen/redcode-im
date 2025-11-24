@@ -53,7 +53,7 @@ impl HttpClientState {
 
     fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
         let mut builder = Client::builder()
-            // 移除 http1_only() 限制，让 reqwest 自动协商 HTTP 版本
+            .http1_only() // 强制使用 HTTP/1.1，避免 HTTP/2 协商问题
             .gzip(true) // 明确启用 gzip
             .brotli(true) // 明确启用 brotli
             .deflate(true) // 明确启用 deflate
