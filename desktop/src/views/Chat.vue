@@ -8073,8 +8073,8 @@ const loadMessageList = async (groupId: string) => {
 
 .select-indicator {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: transparent;
   border: 2px solid var(--primary-color, #00c2b3);
@@ -8082,17 +8082,21 @@ const loadMessageList = async (groupId: string) => {
   align-items: center;
   justify-content: center;
   color: transparent;
-  font-size: 10px;
-  box-shadow: 0 0 0 2px #fff;
+  font-size: 12px;
+  font-weight: bold;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   z-index: 2; /* 确保在选中背景之上 */
   flex-shrink: 0; /* 防止被压缩 */
 }
 
-.select-indicator.other,
+.select-indicator.other {
+  left: 8px; /* 对方消息：距离容器左侧 8px */
+  top: 8px;
+}
+
 .select-indicator.self {
-  left: 8px; /* 距离容器左侧 8px */
-  top: 8px; /* 距离容器顶部 8px */
+  right: 8px; /* 自己的消息：距离容器右侧 8px（因为 own-message 使用 flex-direction: row-reverse） */
+  top: 8px;
 }
 
 .select-indicator.active {
