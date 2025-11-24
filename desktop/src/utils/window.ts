@@ -4,6 +4,8 @@ import { currentMonitor } from '@tauri-apps/api/window'
 
 // 记录用户是否主动调整过窗口，避免后续逻辑反复覆盖
 let userResized = false
+let suppressResizeFlag = false
+let resizeListenerInstalled = false
 
 export const markUserResized = () => {
   userResized = true
@@ -36,14 +38,23 @@ export async function setWindowSizeSafe(targetWidth: number, targetHeight: numbe
   const finalWLogical = Math.max(400, Math.min(desiredWPhysical, maxWPhysical) / scaleFactor)
   const finalHLogical = Math.max(300, Math.min(desiredHPhysical, maxHPhysical) / scaleFactor)
 
+  // 标记当前为程序设定尺寸，避免 onResized 将其视作用户操作
+  suppressResizeFlag = true
   await win.setSize(new LogicalSize(finalWLogical, finalHLogical))
   await win.center()
+  // 轻微延迟后恢复监听
+  setTimeout(() => {
+    suppressResizeFlag = false
+  }, 200)
 }
 
 // 监听用户主动调整窗口尺寸，需在入口处调用一次
 export async function installUserResizeListener() {
+  if (resizeListenerInstalled) return
+  resizeListenerInstalled = true
   const win = getCurrentWebviewWindow()
   await win.onResized(() => {
+    if (suppressResizeFlag) return
     userResized = true
   })
 }
