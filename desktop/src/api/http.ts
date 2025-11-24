@@ -625,6 +625,10 @@ const noTokenApis = [
   '/auth/register',
   '/auth/sms/send',
   '/settings/privacy-policy',
+  '/settings/user-agreement',
+  '/settings/app-name',
+  '/settings/general',
+  '/settings/captcha',
   '/healthz',
   '/ws'
 ];

@@ -204,23 +204,6 @@ class RustHttpClient {
             : null
       const binaryBodyEncoded = await this.encodeBinaryBody(binaryBody)
 
-
-      try {
-        await invoke('client_debug', {
-          payload: {
-            tag: 'requestRawArgs',
-            method: methodUpper,
-            path,
-            hasBinaryBody: Boolean(binaryBodyEncoded),
-            injectToken: params.injectToken !== false,
-            forceStreaming: params.forceStreaming === true,
-            bodyLength: bodyStr ? bodyStr.length : 0,
-            binaryLength: binaryBodyEncoded ? binaryBodyEncoded.length : 0
-          }
-        })
-      } catch (debugError) {
-      }
-
       const args = {
         method: methodUpper,
         path,
@@ -235,29 +218,8 @@ class RustHttpClient {
         forceStreaming: params.forceStreaming === true
       }
 
-      try {
-        await invoke('client_debug', { payload: { tag: 'requestRawArgsFull', args } })
-      } catch (debugError) {
-      }
-
-      const emitDebug = async (msg: string, data: any) => {
-        try {
-          await invoke('client_debug', { payload: { tag: 'JSLOG', message: msg, data } })
-        } catch {}
-      }
-
-      await emitDebug('[RustHTTP] 🔵 开始调用 Tauri invoke...', { method: methodUpper, path });
       const result = await invoke<string>('http_request', args)
-      await emitDebug('[RustHTTP] 📥 Raw result from Rust', { result: result.substring(0, 500) });
-
-      let response: HttpResponseData
-      try {
-        response = JSON.parse(result)
-        await emitDebug('[RustHTTP] ✅ JSON.parse 成功', {});
-      } catch (parseError) {
-        await emitDebug('[RustHTTP] ❌ JSON.parse 失败', { error: String(parseError) });
-        throw parseError;
-      }
+      const response: HttpResponseData = JSON.parse(result)
       return {
         code: response.code,
         message: response.message,
@@ -456,10 +418,8 @@ class RustHttpClient {
           downloadId: downloadId || null
         })
 
-        console.log('[rust-http] download invoke 返回:', result)
         const response: HttpResponseData = JSON.parse(result)
-        console.log('[rust-http] download 解析后的响应:', response)
-        
+
         // 清理监听器
         if (unlisten) {
           unlisten()
@@ -475,33 +435,28 @@ class RustHttpClient {
         if (unlisten) {
           unlisten()
         }
-        
+
         // Tauri invoke 如果返回 Err，会抛出异常，异常消息是 Rust 端返回的错误字符串（JSON 格式）
-        console.error('[rust-http] download invoke 异常:', error)
-        
         // 尝试解析错误消息为 JSON（Rust 端返回的是序列化的 JSON）
         if (error?.message) {
           try {
             const errorResponse: HttpResponseData = JSON.parse(error.message)
-            console.log('[rust-http] download 错误响应:', errorResponse)
             return {
               success: false,
               message: errorResponse.message || error.message || '文件下载失败'
             }
           } catch (parseError) {
             // 如果不是 JSON，直接使用错误消息
-            console.error('[rust-http] download 错误消息解析失败:', parseError)
             return {
               success: false,
               message: error.message || '文件下载失败'
             }
           }
         }
-        
+
         throw error
       }
     } catch (error: any) {
-      console.error('[rust-http] download 外层异常:', error)
       return {
         success: false,
         message: error?.message || String(error) || '文件下载失败'

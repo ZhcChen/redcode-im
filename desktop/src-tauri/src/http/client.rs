@@ -220,67 +220,13 @@ impl HttpClientState {
                 }),
             );
 
-            // 拦截关键接口请求 - 输出详细的请求信息(用于对比)
-            let should_log = options.path.contains("/friends") && !options.path.contains("/friends/requests")
-                || options.path.contains("/auth/login");
-
-            if should_log {
-                println!("\n========================================");
-                println!("📤 拦截到接口请求: {}", options.path);
-                println!("========================================");
-                println!("请求 URL: {}", url);
-                println!("请求方法: {}", method);
-                println!("User-Agent: {}", config.user_agent);
-                println!("注入 Token: {}", options.inject_token);
-
-                // 打印完整的 token 值用于调试
-                if let Some(t) = &token {
-                    println!("Token 完整值: {}", t);
-                    println!("Token 长度: {} 字符", t.len());
-                    println!("Token 包含特殊字符检查:");
-                    println!("  包含换行符: {}", t.contains('\n') || t.contains('\r'));
-                    println!("  包含空格: {}", t.contains(' '));
-                    println!("  包含制表符: {}", t.contains('\t'));
-                } else {
-                    println!("Token 值: 无");
-                }
-
-                if let Some(header_map) = &headers {
-                    println!("请求头:");
-                    for (key, value) in header_map {
-                        // 对于 Authorization 头,打印完整值用于调试
-                        if key.eq_ignore_ascii_case("authorization") {
-                            println!("  {}: {} (完整值)", key, value);
-                            println!("  Authorization 长度: {} 字符", value.len());
-                        } else {
-                            println!("  {}: {}", key, value);
-                        }
-                    }
-                } else {
-                    println!("请求头: 无");
-                }
-                println!("请求体: {}", body.as_ref().unwrap_or(&"无".to_string()));
-                println!("========================================\n");
-            }
-
-            // 构建请求以检查最终的 headers
+            // 构建请求
             let request = match builder.build() {
                 Ok(req) => req,
                 Err(e) => {
                     return Err(HttpError::from(e));
                 }
             };
-
-            // 打印实际发送的所有 headers(包括 reqwest 自动添加的)
-            if should_log {
-                println!("🔍 实际发送的所有 Headers:");
-                for (key, value) in request.headers() {
-                    if let Ok(val_str) = value.to_str() {
-                        println!("  {}: {}", key, val_str);
-                    }
-                }
-                println!();
-            }
 
             let send_started = Instant::now();
             match client.execute(request).await {
@@ -325,23 +271,6 @@ impl HttpClientState {
                         let text = response.text().await.unwrap_or_default();
                         let outcome = HttpRequestOutcome::from_http(status_code, text);
                         self.record_outcome(&outcome, send_started.elapsed()).await;
-
-                        // 拦截关键接口响应 - 输出到运行控制台(用于对比)
-                        let should_log_response = options.path.contains("/friends") && !options.path.contains("/friends/requests")
-                            || options.path.contains("/auth/login");
-
-                        if should_log_response {
-                            println!("\n========================================");
-                            println!("🔍 拦截到接口响应: {}", options.path);
-                            println!("========================================");
-                            println!("请求 URL: {}", url);
-                            println!("请求方法: {}", method);
-                            println!("响应状态: {}", if outcome.success { "成功" } else { "失败" });
-                            println!("响应消息: {}", outcome.message);
-                            println!("响应数据: {}", serde_json::to_string_pretty(&outcome.payload).unwrap_or_else(|_| "无法序列化".to_string()));
-                            println!("========================================\n");
-                        }
-
                         return Ok(outcome);
                     }
                 }
