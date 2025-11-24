@@ -303,12 +303,12 @@ impl HttpClientState {
                                     payload,
                                 };
                                 self.record_outcome(&outcome, send_started.elapsed()).await;
-                                Ok(outcome)
+                                return Ok(outcome);
                             }
                             Err(err) => {
                                 let http_error = HttpError::from(err);
                                 self.record_error(send_started.elapsed(), &http_error).await;
-                                Err(http_error)
+                                return Err(http_error);
                             }
                         }
                     } else {
@@ -403,6 +403,60 @@ impl HttpClientState {
                 let http_error = HttpError::from(err);
                 self.record_error(start.elapsed(), &http_error).await;
                 Err(http_error)
+            }
+        }
+    }
+
+    pub async fn upload_file(
+        &self,
+        remote_path: String,
+        file_path: PathBuf,
+        content_type: Option<String>,
+    ) -> Result<HttpRequestOutcome, HttpError> {
+        self.ensure_initialized().await?;
+        let (client, config, token) = self.snapshot().await;
+        let url = Self::build_url(&config.base_url, &remote_path, None)?;
+        let file_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| HttpError::InvalidConfig("无法解析文件名".into()))?
+            .to_string();
+        let bytes = fs::read(&file_path).await?;
+
+        let retries = config.max_retries.max(1);
+        let delay = Duration::from_millis(config.retry_delay_ms);
+        let timeout = config.timeout_ms;
+        let mut attempt = 0;
+
+        loop {
+            attempt += 1;
+            let mut part =
+                reqwest::multipart::Part::bytes(bytes.clone()).file_name(file_name.clone());
+            if let Some(ct) = &content_type {
+                if !ct.trim().is_empty() {
+                    part = part.mime_str(ct).map_err(|err| {
+                        HttpError::InvalidConfig(format!("Content-Type 无效: {err}"))
+                    })?;
+                }
+            }
+            let form = reqwest::multipart::Form::new().part("file", part);
+
+            let mut builder = client
+                .post(&url)
+                .multipart(form)
+                .timeout(Duration::from_millis(timeout));
+            if let Some(token_value) = &token {
+                builder = builder.header("Authorization", format!("Bearer {}", token_value));
+            }
+
+            match self.send(builder, false).await {
+                Ok(outcome) => return Ok(outcome),
+                Err(err) => {
+                    if attempt >= retries || !err.is_retryable() {
+                        return Err(err);
+                    }
+                    sleep(delay).await;
+                }
             }
         }
     }
