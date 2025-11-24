@@ -63,7 +63,8 @@ impl Default for HttpClientConfig {
             max_retries: 3,
             retry_delay_ms: 1_000,
             verify_ssl,
-            user_agent: format!("redcode-im-desktop/{}", env!("CARGO_PKG_VERSION")),
+            // 使用标准浏览器 User-Agent，避免被网关拦截
+            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
             connection_pool: ConnectionPoolConfig::default(),
         }
     }
