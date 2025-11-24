@@ -62,15 +62,12 @@
         :style="{ width: chatListWidth + 'px' }"
         :options="{
           scrollbars: {
-            theme: 'os-theme-dark',
+            visibility: 'visible',
             autoHide: 'never',
+            dragScroll: true,
             clickScroll: true
-          },
-          overflow: {
-            x: 'hidden'
           }
         }"
-        defer
       >
         <!-- 只有在初始加载且没有缓存数据时才显示loading -->
         <div v-if="loading && chatList.length === 0" class="loading-container">
@@ -9161,12 +9158,33 @@ const loadMessageList = async (groupId: string) => {
   // 确保正确的高度和布局
   height: 100%;
 
+  // 优化滚动性能
+  -webkit-overflow-scrolling: touch; // iOS 滚动优化
+  will-change: scroll-position; // 提示浏览器优化滚动
+  transform: translateZ(0); // 启用 GPU 加速
+  backface-visibility: hidden; // 减少重绘
+
   // OverlayScrollbars 容器样式
+  .os-viewport {
+    // 视口性能优化
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain; // 防止滚动链
+    // 不使用 scroll-behavior: smooth，保持直接跟手的滚动体验
+  }
+
+  // 内容容器优化
+  .os-content {
+    // 防止内容闪烁
+    -webkit-transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+  }
+
+  // OverlayScrollbars 滚动条样式
   .os-scrollbar {
     // 滚动条轨道和滑块样式
-    --os-size: 10px;
-    --os-padding-perpendicular: 0;
-    --os-padding-axis: 0;
+    --os-size: 12px; // 增加滚动条宽度
+    --os-padding-perpendicular: 2px; // 添加一点内边距
+    --os-padding-axis: 2px;
     --os-track-border-radius: 10px;
     --os-track-bg: rgba(0, 0, 0, 0.05);
     --os-track-bg-hover: rgba(0, 0, 0, 0.08);
@@ -9175,35 +9193,55 @@ const loadMessageList = async (groupId: string) => {
     --os-handle-bg: #4ECDC4; // 使用项目主题色
     --os-handle-bg-hover: #44A08D;
     --os-handle-bg-active: #3d9680;
-    --os-handle-min-size: 30px;
+    --os-handle-min-size: 40px; // 增加最小高度，更容易拖动
     --os-handle-max-size: none;
-    --os-handle-perpendicular-size: 100%;
+    --os-handle-perpendicular-size: 80%; // 滑块宽度为轨道的80%
     --os-handle-perpendicular-size-hover: 100%;
     --os-handle-perpendicular-size-active: 100%;
-    --os-handle-interactive-area-offset: 0;
+    --os-handle-interactive-area-offset: 4px; // 增加交互区域
+
+    // 添加过渡效果
+    transition: opacity 0.2s ease, background 0.2s ease;
   }
 
   // 垂直滚动条
   .os-scrollbar-vertical {
     right: 2px;
-    top: 2px;
-    bottom: 2px;
+    top: 4px;
+    bottom: 4px;
+    width: 12px !important;
+
+    .os-scrollbar-track {
+      width: 12px !important;
+    }
 
     .os-scrollbar-handle {
-      width: 8px !important;
-      transition: all 0.2s ease;
+      width: 10px !important;
+      min-height: 40px !important;
+      transition: width 0.15s ease, background-color 0.15s ease;
+      cursor: grab;
 
       &:hover {
-        width: 10px !important;
+        width: 12px !important;
+      }
+
+      &:active {
+        cursor: grabbing;
+        width: 12px !important;
       }
     }
   }
 
   // 滚动条轨道
   .os-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05) !important;
+    background: rgba(0, 0, 0, 0.03) !important;
+    border-radius: 6px !important;
 
     &:hover {
+      background: rgba(0, 0, 0, 0.05) !important;
+    }
+
+    &:active {
       background: rgba(0, 0, 0, 0.08) !important;
     }
   }
@@ -9211,14 +9249,17 @@ const loadMessageList = async (groupId: string) => {
   // 滚动条滑块
   .os-scrollbar-handle {
     background: #4ECDC4 !important;
-    border-radius: 10px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
     &:hover {
       background: #44A08D !important;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     }
 
     &:active {
       background: #3d9680 !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
   }
 
