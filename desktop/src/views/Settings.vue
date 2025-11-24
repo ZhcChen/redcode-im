@@ -1,5 +1,6 @@
 <template>
   <ScrollContainer class="settings">
+    <div class="settings-wrapper">
     <!-- 头像模块 -->
     <div class="settings-section avatar-section">
       <div class="avatar-container">
@@ -150,6 +151,7 @@
         <p>渠道：{{ currentVersionInfo.channel }}</p>
       </div>
     </Dialog>
+    </div>
   </ScrollContainer>
 </template>
 
@@ -530,11 +532,15 @@ const handleDownloadUpdate = async () => {
 .settings {
   width: 100%;
   height: 100%;
+  background-color: $bg-chat;
+}
+
+.settings-wrapper {
+  min-height: 100%;
   padding: 32px 0 48px;
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: $bg-chat;
   flex-direction: column;
   box-sizing: border-box;
   pointer-events: auto;
