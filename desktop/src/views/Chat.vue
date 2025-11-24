@@ -8073,8 +8073,8 @@ const loadMessageList = async (groupId: string) => {
 
 .select-indicator {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: transparent;
   border: 1.5px solid rgba(0, 0, 0, 0.25); /* 未选中时使用更细的灰色边框 */
@@ -8082,7 +8082,7 @@ const loadMessageList = async (groupId: string) => {
   align-items: center;
   justify-content: center;
   color: transparent;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: bold;
   transition: all 0.2s ease;
   z-index: 2; /* 确保在选中背景之上 */
