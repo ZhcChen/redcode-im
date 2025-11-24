@@ -62,8 +62,10 @@
         :style="{ width: chatListWidth + 'px' }"
         :options="{
           scrollbars: {
-            visibility: 'visible',
-            autoHide: 'never',
+            visibility: 'auto', // 自动显示隐藏
+            autoHide: 'move', // 鼠标移动时显示
+            autoHideDelay: 500, // 隐藏延迟（毫秒）
+            autoHideSuspend: false, // 不暂停自动隐藏
             dragScroll: true,
             clickScroll: true
           }
@@ -9182,84 +9184,94 @@ const loadMessageList = async (groupId: string) => {
   // OverlayScrollbars 滚动条样式
   .os-scrollbar {
     // 滚动条轨道和滑块样式
-    --os-size: 12px; // 增加滚动条宽度
+    --os-size: 10px; // 滚动条宽度
     --os-padding-perpendicular: 2px; // 添加一点内边距
     --os-padding-axis: 2px;
     --os-track-border-radius: 10px;
-    --os-track-bg: rgba(0, 0, 0, 0.05);
-    --os-track-bg-hover: rgba(0, 0, 0, 0.08);
-    --os-track-bg-active: rgba(0, 0, 0, 0.1);
+    --os-track-bg: transparent; // 轨道透明
+    --os-track-bg-hover: transparent; // 悬停时也透明
+    --os-track-bg-active: transparent; // 激活时也透明
     --os-handle-border-radius: 10px;
-    --os-handle-bg: #4ECDC4; // 使用项目主题色
-    --os-handle-bg-hover: #44A08D;
-    --os-handle-bg-active: #3d9680;
+    --os-handle-bg: rgba(78, 205, 196, 0.5); // 半透明的主题色
+    --os-handle-bg-hover: rgba(78, 205, 196, 0.8);
+    --os-handle-bg-active: #4ECDC4;
     --os-handle-min-size: 40px; // 增加最小高度，更容易拖动
     --os-handle-max-size: none;
-    --os-handle-perpendicular-size: 80%; // 滑块宽度为轨道的80%
-    --os-handle-perpendicular-size-hover: 100%;
-    --os-handle-perpendicular-size-active: 100%;
+    --os-handle-perpendicular-size: 60%; // 滑块宽度为轨道的60%
+    --os-handle-perpendicular-size-hover: 80%;
+    --os-handle-perpendicular-size-active: 80%;
     --os-handle-interactive-area-offset: 4px; // 增加交互区域
 
     // 添加过渡效果
-    transition: opacity 0.2s ease, background 0.2s ease;
+    transition: opacity 0.3s ease;
+  }
+
+  // 滚动条淡入淡出效果
+  .os-scrollbar-hidden {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .os-scrollbar-visible {
+    opacity: 1;
+    transition: opacity 0.2s ease;
   }
 
   // 垂直滚动条
   .os-scrollbar-vertical {
-    right: 2px;
+    right: 4px;
     top: 4px;
     bottom: 4px;
-    width: 12px !important;
+    width: 10px !important;
 
     .os-scrollbar-track {
-      width: 12px !important;
+      width: 10px !important;
     }
 
     .os-scrollbar-handle {
-      width: 10px !important;
+      width: 6px !important;
       min-height: 40px !important;
-      transition: width 0.15s ease, background-color 0.15s ease;
+      transition: all 0.2s ease;
       cursor: grab;
 
       &:hover {
-        width: 12px !important;
+        width: 8px !important;
       }
 
       &:active {
         cursor: grabbing;
-        width: 12px !important;
+        width: 8px !important;
       }
     }
   }
 
-  // 滚动条轨道
+  // 滚动条轨道 - 完全透明
   .os-scrollbar-track {
-    background: rgba(0, 0, 0, 0.03) !important;
+    background: transparent !important;
     border-radius: 6px !important;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.05) !important;
+      background: transparent !important;
     }
 
     &:active {
-      background: rgba(0, 0, 0, 0.08) !important;
+      background: transparent !important;
     }
   }
 
   // 滚动条滑块
   .os-scrollbar-handle {
-    background: #4ECDC4 !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: rgba(78, 205, 196, 0.4) !important; // 半透明主题色
+    border-radius: 10px !important;
+    border: none !important;
+    box-shadow: none !important;
 
     &:hover {
-      background: #44A08D !important;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      background: rgba(78, 205, 196, 0.8) !important; // 悬停时更明显
     }
 
     &:active {
-      background: #3d9680 !important;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      background: #4ECDC4 !important; // 拖动时完全不透明
     }
   }
 
@@ -9272,31 +9284,31 @@ const loadMessageList = async (groupId: string) => {
 // 暗色主题支持
 [data-theme="dark"] .chat-list {
   .os-scrollbar {
-    --os-track-bg: rgba(255, 255, 255, 0.05);
-    --os-track-bg-hover: rgba(255, 255, 255, 0.08);
-    --os-track-bg-active: rgba(255, 255, 255, 0.1);
-    --os-handle-bg: #4ECDC4;
-    --os-handle-bg-hover: #5bddd5;
-    --os-handle-bg-active: #6ae6df;
+    --os-track-bg: transparent;
+    --os-track-bg-hover: transparent;
+    --os-track-bg-active: transparent;
+    --os-handle-bg: rgba(78, 205, 196, 0.3); // 暗色主题下更低的透明度
+    --os-handle-bg-hover: rgba(78, 205, 196, 0.6);
+    --os-handle-bg-active: rgba(78, 205, 196, 0.9);
   }
 
   .os-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05) !important;
+    background: transparent !important;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.08) !important;
+      background: transparent !important;
     }
   }
 
   .os-scrollbar-handle {
-    background: #4ECDC4 !important;
+    background: rgba(78, 205, 196, 0.3) !important;
 
     &:hover {
-      background: #5bddd5 !important;
+      background: rgba(78, 205, 196, 0.6) !important;
     }
 
     &:active {
-      background: #6ae6df !important;
+      background: rgba(78, 205, 196, 0.9) !important;
     }
   }
 }
