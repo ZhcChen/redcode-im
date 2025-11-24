@@ -57,19 +57,9 @@
     </div>
     
     <div class="chat-content">
-      <OverlayScrollbarsComponent
+      <ScrollContainer
         class="chat-list"
         :style="{ width: chatListWidth + 'px' }"
-        :options="{
-          scrollbars: {
-            visibility: 'visible', // 始终可见，提升响应速度
-            autoHide: 'leave', // 鼠标离开时隐藏
-            autoHideDelay: 0, // 立即隐藏，无延迟
-            autoHideSuspend: true, // 滚动时暂停自动隐藏
-            dragScroll: true,
-            clickScroll: true
-          }
-        }"
       >
         <!-- 只有在初始加载且没有缓存数据时才显示loading -->
         <div v-if="loading && chatList.length === 0" class="loading-container">
@@ -124,7 +114,7 @@
             </div>
           </div>
         </div>
-      </OverlayScrollbarsComponent>
+      </ScrollContainer>
 
       <div class="resize-handle" 
            @mousedown="startResize"
@@ -133,20 +123,10 @@
       </div>
       
       <div class="chat-window" v-if="selectedChat">
-        <OverlayScrollbarsComponent
+        <ScrollContainer
           class="chat-messages"
           :class="{ 'multi-select-active': multiSelectMode, 'drag-selecting': isDragSelectingClass }"
           ref="chatMessagesRef"
-          :options="{
-            scrollbars: {
-              visibility: 'visible',
-              autoHide: 'leave',
-              autoHideDelay: 0,
-              autoHideSuspend: true,
-              dragScroll: true,
-              clickScroll: true
-            }
-          }"
           @mousedown.left="handleMouseDownOnMessages"
           @mousemove="handleMouseMoveOnMessages"
           @mouseup="handleMouseUpOnMessages"
@@ -510,7 +490,7 @@
             </div>
             </template>
           </div>
-        </OverlayScrollbarsComponent>
+        </ScrollContainer>
         <div class="chat-input">
           <div v-if="replyingMessage" class="reply-bar">
             <div class="reply-title">回复 {{ replyingMessage.senderName }}</div>
@@ -864,8 +844,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-import 'overlayscrollbars/styles/overlayscrollbars.css'
+import ScrollContainer from '../components/ScrollContainer.vue'
 
 // Props: 接收账号ID（用于多实例页面架构）
 interface Props {
@@ -2508,12 +2487,14 @@ const messageList = ref<Message[]>([])
 // 语音相关状态
 const showVoiceRecorder = ref<boolean>(false)
 
-// 聊天消息容器引用 (OverlayScrollbars 组件)
-const chatMessagesRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
+// 聊天消息容器引用 (ScrollContainer 组件)
+const chatMessagesRef = ref<InstanceType<typeof ScrollContainer> | null>(null)
 
 // 获取消息列表的滚动视口元素
 const getMessagesViewport = (): HTMLElement | null => {
-  return chatMessagesRef.value?.osInstance()?.elements().viewport ?? null
+  // ScrollContainer 内部使用 OverlayScrollbarsComponent，需要访问其子组件
+  const scrollContainer = chatMessagesRef.value as any
+  return scrollContainer?.$el?.querySelector('.os-viewport') ?? null
 }
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const quotedHighlightTimers = new Map<string, number>()
@@ -9164,289 +9145,6 @@ const loadMessageList = async (groupId: string) => {
       &:hover {
         opacity: 0.9;
       }
-    }
-  }
-}
-</style>
-
-<!-- 非 scoped 样式块：OverlayScrollbars 自定义样式 -->
-<style lang="scss">
-// OverlayScrollbars 自定义主题样式
-.chat-list {
-  // 确保正确的高度和布局
-  height: 100%;
-
-  // 移除可能影响性能的优化，让滚动更直接
-
-  // OverlayScrollbars 容器样式
-  .os-viewport {
-    // 不添加额外的性能优化，保持原生滚动体验
-    overscroll-behavior: contain; // 防止滚动链
-  }
-
-  // 内容容器优化
-  .os-content {
-    // 保持简单，避免过度优化
-  }
-
-  // OverlayScrollbars 滚动条样式
-  .os-scrollbar {
-    // 滚动条轨道和滑块样式
-    --os-size: 12px; // 增加滚动条宽度
-    --os-padding-perpendicular: 2px; // 添加一点内边距
-    --os-padding-axis: 2px;
-    --os-track-border-radius: 10px;
-    --os-track-bg: transparent; // 轨道透明
-    --os-track-bg-hover: transparent; // 悬停时也透明
-    --os-track-bg-active: transparent; // 激活时也透明
-    --os-handle-border-radius: 10px;
-    --os-handle-bg: rgba(0, 0, 0, 0.3); // 固定灰色，30%透明度
-    --os-handle-bg-hover: rgba(0, 0, 0, 0.3); // 悬停时不变色
-    --os-handle-bg-active: rgba(0, 0, 0, 0.3); // 激活时不变色
-    --os-handle-min-size: 40px; // 增加最小高度，更容易拖动
-    --os-handle-max-size: none;
-    --os-handle-perpendicular-size: 60%; // 滑块宽度为轨道的60%
-    --os-handle-perpendicular-size-hover: 60%; // 悬停时宽度不变
-    --os-handle-perpendicular-size-active: 60%; // 激活时宽度不变
-    --os-handle-interactive-area-offset: 4px; // 增加交互区域
-
-    // 移除过渡效果，提升响应速度
-  }
-
-  // 滚动条淡入淡出效果 - 减少过渡时间
-  .os-scrollbar-hidden {
-    opacity: 0;
-    transition: opacity 0.1s ease; // 更快的隐藏
-  }
-
-  .os-scrollbar-visible {
-    opacity: 1;
-    transition: opacity 0.1s ease; // 更快的显示
-  }
-
-  // 垂直滚动条
-  .os-scrollbar-vertical {
-    right: 4px;
-    top: 4px;
-    bottom: 4px;
-    width: 12px !important; // 增加容器宽度
-
-    .os-scrollbar-track {
-      width: 12px !important; // 增加轨道宽度
-    }
-
-    .os-scrollbar-handle {
-      width: 8px !important; // 增加宽度，更容易拖动
-      min-height: 40px !important;
-      // 移除过渡动画，让响应更直接
-      transition: none !important;
-      // 不设置特殊光标样式，保持默认
-
-      &:hover {
-        width: 8px !important; // 悬停时宽度不变
-      }
-
-      &:active {
-        width: 8px !important; // 激活时宽度不变
-      }
-    }
-  }
-
-  // 滚动条轨道 - 完全透明
-  .os-scrollbar-track {
-    background: transparent !important;
-    border-radius: 6px !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-
-    &:active {
-      background: transparent !important;
-    }
-  }
-
-  // 滚动条滑块 - 固定灰色
-  .os-scrollbar-handle {
-    background: rgba(0, 0, 0, 0.3) !important; // 固定灰色，30%透明度
-    border-radius: 10px !important;
-    border: none !important;
-    box-shadow: none !important;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.3) !important; // 悬停时颜色不变
-    }
-
-    &:active {
-      background: rgba(0, 0, 0, 0.3) !important; // 拖动时颜色不变
-    }
-  }
-
-  // 隐藏水平滚动条
-  .os-scrollbar-horizontal {
-    display: none !important;
-  }
-}
-
-// 暗色主题支持
-[data-theme="dark"] .chat-list {
-  .os-scrollbar {
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-bg: rgba(255, 255, 255, 0.3); // 暗色主题下用白色半透明
-    --os-handle-bg-hover: rgba(255, 255, 255, 0.3); // 悬停时不变色
-    --os-handle-bg-active: rgba(255, 255, 255, 0.3); // 激活时不变色
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(255, 255, 255, 0.3) !important; // 暗色主题下用白色半透明
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.3) !important; // 悬停时颜色不变
-    }
-
-    &:active {
-      background: rgba(255, 255, 255, 0.3) !important; // 拖动时颜色不变
-    }
-  }
-}
-
-// OverlayScrollbars 自定义主题样式 - 消息列表
-.chat-messages {
-  // 确保正确的高度和布局
-  height: 100%;
-
-  // OverlayScrollbars 容器样式
-  .os-viewport {
-    overscroll-behavior: contain; // 防止滚动链
-  }
-
-  // OverlayScrollbars 滚动条样式
-  .os-scrollbar {
-    --os-size: 12px;
-    --os-padding-perpendicular: 2px;
-    --os-padding-axis: 2px;
-    --os-track-border-radius: 10px;
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-border-radius: 10px;
-    --os-handle-bg: rgba(0, 0, 0, 0.3);
-    --os-handle-bg-hover: rgba(0, 0, 0, 0.3);
-    --os-handle-bg-active: rgba(0, 0, 0, 0.3);
-    --os-handle-min-size: 40px;
-    --os-handle-max-size: none;
-    --os-handle-perpendicular-size: 60%;
-    --os-handle-perpendicular-size-hover: 60%;
-    --os-handle-perpendicular-size-active: 60%;
-    --os-handle-interactive-area-offset: 4px;
-  }
-
-  .os-scrollbar-hidden {
-    opacity: 0;
-    transition: opacity 0.1s ease;
-  }
-
-  .os-scrollbar-visible {
-    opacity: 1;
-    transition: opacity 0.1s ease;
-  }
-
-  .os-scrollbar-vertical {
-    right: 4px;
-    top: 4px;
-    bottom: 4px;
-    width: 12px !important;
-
-    .os-scrollbar-track {
-      width: 12px !important;
-    }
-
-    .os-scrollbar-handle {
-      width: 8px !important;
-      min-height: 40px !important;
-      transition: none !important;
-
-      &:hover {
-        width: 8px !important;
-      }
-
-      &:active {
-        width: 8px !important;
-      }
-    }
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-    border-radius: 6px !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-
-    &:active {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(0, 0, 0, 0.3) !important;
-    border-radius: 10px !important;
-    border: none !important;
-    box-shadow: none !important;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.3) !important;
-    }
-
-    &:active {
-      background: rgba(0, 0, 0, 0.3) !important;
-    }
-  }
-
-  .os-scrollbar-horizontal {
-    display: none !important;
-  }
-}
-
-// 暗色主题支持 - 消息列表
-[data-theme="dark"] .chat-messages {
-  .os-scrollbar {
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-bg: rgba(255, 255, 255, 0.3);
-    --os-handle-bg-hover: rgba(255, 255, 255, 0.3);
-    --os-handle-bg-active: rgba(255, 255, 255, 0.3);
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(255, 255, 255, 0.3) !important;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.3) !important;
-    }
-
-    &:active {
-      background: rgba(255, 255, 255, 0.3) !important;
     }
   }
 }

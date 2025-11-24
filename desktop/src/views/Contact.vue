@@ -33,19 +33,9 @@
     </div>
     
     <div class="contact-content">
-      <OverlayScrollbarsComponent
+      <ScrollContainer
         class="contact-list"
         :style="{ width: contactListWidth + 'px' }"
-        :options="{
-          scrollbars: {
-            visibility: 'visible',
-            autoHide: 'leave',
-            autoHideDelay: 0,
-            autoHideSuspend: true,
-            dragScroll: true,
-            clickScroll: true
-          }
-        }"
       >
         <!-- 新的朋友列表 -->
         <div v-if="showFriendRequests" class="friend-requests-view">
@@ -158,7 +148,7 @@
             </div>
           </div>
         </div>
-      </OverlayScrollbarsComponent>
+      </ScrollContainer>
 
       <div class="resize-handle"
            @mousedown="startResize"
@@ -337,8 +327,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-import 'overlayscrollbars/styles/overlayscrollbars.css'
+import ScrollContainer from '../components/ScrollContainer.vue'
 import Avatar from '../components/Avatar.vue'
 import SearchInput from '../components/SearchInput.vue'
 import Popover from '../components/Popover.vue'
@@ -1846,137 +1835,6 @@ onUnmounted(() => {
       &:hover {
         background-color: $primary-dark;
       }
-    }
-  }
-}
-</style>
-
-<!-- 非 scoped 样式块：OverlayScrollbars 自定义样式 -->
-<style lang="scss">
-// OverlayScrollbars 自定义主题样式 - 联系人列表
-.contact-list {
-  height: 100%;
-
-  .os-viewport {
-    overscroll-behavior: contain;
-  }
-
-  .os-scrollbar {
-    --os-size: 12px;
-    --os-padding-perpendicular: 2px;
-    --os-padding-axis: 2px;
-    --os-track-border-radius: 10px;
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-border-radius: 10px;
-    --os-handle-bg: rgba(0, 0, 0, 0.3);
-    --os-handle-bg-hover: rgba(0, 0, 0, 0.3);
-    --os-handle-bg-active: rgba(0, 0, 0, 0.3);
-    --os-handle-min-size: 40px;
-    --os-handle-max-size: none;
-    --os-handle-perpendicular-size: 60%;
-    --os-handle-perpendicular-size-hover: 60%;
-    --os-handle-perpendicular-size-active: 60%;
-    --os-handle-interactive-area-offset: 4px;
-  }
-
-  .os-scrollbar-hidden {
-    opacity: 0;
-    transition: opacity 0.1s ease;
-  }
-
-  .os-scrollbar-visible {
-    opacity: 1;
-    transition: opacity 0.1s ease;
-  }
-
-  .os-scrollbar-vertical {
-    right: 4px;
-    top: 4px;
-    bottom: 4px;
-    width: 12px !important;
-
-    .os-scrollbar-track {
-      width: 12px !important;
-    }
-
-    .os-scrollbar-handle {
-      width: 8px !important;
-      min-height: 40px !important;
-      transition: none !important;
-
-      &:hover {
-        width: 8px !important;
-      }
-
-      &:active {
-        width: 8px !important;
-      }
-    }
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-    border-radius: 6px !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-
-    &:active {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(0, 0, 0, 0.3) !important;
-    border-radius: 10px !important;
-    border: none !important;
-    box-shadow: none !important;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.3) !important;
-    }
-
-    &:active {
-      background: rgba(0, 0, 0, 0.3) !important;
-    }
-  }
-
-  .os-scrollbar-horizontal {
-    display: none !important;
-  }
-}
-
-// 暗色主题支持 - 联系人列表
-[data-theme="dark"] .contact-list {
-  .os-scrollbar {
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-bg: rgba(255, 255, 255, 0.3);
-    --os-handle-bg-hover: rgba(255, 255, 255, 0.3);
-    --os-handle-bg-active: rgba(255, 255, 255, 0.3);
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(255, 255, 255, 0.3) !important;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.3) !important;
-    }
-
-    &:active {
-      background: rgba(255, 255, 255, 0.3) !important;
     }
   }
 }

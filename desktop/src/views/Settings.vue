@@ -1,17 +1,5 @@
 <template>
-  <OverlayScrollbarsComponent
-    class="settings"
-    :options="{
-      scrollbars: {
-        visibility: 'visible',
-        autoHide: 'leave',
-        autoHideDelay: 0,
-        autoHideSuspend: true,
-        dragScroll: true,
-        clickScroll: true
-      }
-    }"
-  >
+  <ScrollContainer class="settings">
     <!-- 头像模块 -->
     <div class="settings-section avatar-section">
       <div class="avatar-container">
@@ -162,15 +150,14 @@
         <p>渠道：{{ currentVersionInfo.channel }}</p>
       </div>
     </Dialog>
-  </OverlayScrollbarsComponent>
+  </ScrollContainer>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-import 'overlayscrollbars/styles/overlayscrollbars.css'
+import ScrollContainer from '../components/ScrollContainer.vue'
 import Avatar from '../components/Avatar.vue'
 import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
@@ -816,136 +803,5 @@ const handleDownloadUpdate = async () => {
     font-size: 14px;
   }
 
-}
-</style>
-
-<!-- 非 scoped 样式块：OverlayScrollbars 自定义样式 -->
-<style lang="scss">
-// OverlayScrollbars 自定义主题样式 - 设置页面
-.settings {
-  height: 100%;
-
-  .os-viewport {
-    overscroll-behavior: contain;
-  }
-
-  .os-scrollbar {
-    --os-size: 12px;
-    --os-padding-perpendicular: 2px;
-    --os-padding-axis: 2px;
-    --os-track-border-radius: 10px;
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-border-radius: 10px;
-    --os-handle-bg: rgba(0, 0, 0, 0.3);
-    --os-handle-bg-hover: rgba(0, 0, 0, 0.3);
-    --os-handle-bg-active: rgba(0, 0, 0, 0.3);
-    --os-handle-min-size: 40px;
-    --os-handle-max-size: none;
-    --os-handle-perpendicular-size: 60%;
-    --os-handle-perpendicular-size-hover: 60%;
-    --os-handle-perpendicular-size-active: 60%;
-    --os-handle-interactive-area-offset: 4px;
-  }
-
-  .os-scrollbar-hidden {
-    opacity: 0;
-    transition: opacity 0.1s ease;
-  }
-
-  .os-scrollbar-visible {
-    opacity: 1;
-    transition: opacity 0.1s ease;
-  }
-
-  .os-scrollbar-vertical {
-    right: 4px;
-    top: 4px;
-    bottom: 4px;
-    width: 12px !important;
-
-    .os-scrollbar-track {
-      width: 12px !important;
-    }
-
-    .os-scrollbar-handle {
-      width: 8px !important;
-      min-height: 40px !important;
-      transition: none !important;
-
-      &:hover {
-        width: 8px !important;
-      }
-
-      &:active {
-        width: 8px !important;
-      }
-    }
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-    border-radius: 6px !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-
-    &:active {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(0, 0, 0, 0.3) !important;
-    border-radius: 10px !important;
-    border: none !important;
-    box-shadow: none !important;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.3) !important;
-    }
-
-    &:active {
-      background: rgba(0, 0, 0, 0.3) !important;
-    }
-  }
-
-  .os-scrollbar-horizontal {
-    display: none !important;
-  }
-}
-
-// 暗色主题支持 - 设置页面
-[data-theme="dark"] .settings {
-  .os-scrollbar {
-    --os-track-bg: transparent;
-    --os-track-bg-hover: transparent;
-    --os-track-bg-active: transparent;
-    --os-handle-bg: rgba(255, 255, 255, 0.3);
-    --os-handle-bg-hover: rgba(255, 255, 255, 0.3);
-    --os-handle-bg-active: rgba(255, 255, 255, 0.3);
-  }
-
-  .os-scrollbar-track {
-    background: transparent !important;
-
-    &:hover {
-      background: transparent !important;
-    }
-  }
-
-  .os-scrollbar-handle {
-    background: rgba(255, 255, 255, 0.3) !important;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.3) !important;
-    }
-
-    &:active {
-      background: rgba(255, 255, 255, 0.3) !important;
-    }
-  }
 }
 </style>
