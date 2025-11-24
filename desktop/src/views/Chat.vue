@@ -8073,18 +8073,18 @@ const loadMessageList = async (groupId: string) => {
 
 .select-indicator {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: transparent;
-  border: 2px solid var(--primary-color, #00c2b3);
+  border: 1.5px solid rgba(0, 0, 0, 0.25); /* 未选中时使用更细的灰色边框 */
   display: flex;
   align-items: center;
   justify-content: center;
   color: transparent;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: all 0.2s ease;
   z-index: 2; /* 确保在选中背景之上 */
   flex-shrink: 0; /* 防止被压缩 */
   left: 8px; /* 所有消息的指示器都在容器左侧 8px */
@@ -8094,7 +8094,7 @@ const loadMessageList = async (groupId: string) => {
 .select-indicator.active {
   background: var(--primary-color, #00c2b3);
   color: #fff;
-  border-color: var(--primary-color, #00c2b3);
+  border: 1.5px solid var(--primary-color, #00c2b3); /* 选中时保持相同粗细的主题色边框 */
 }
 
 .chat-input {
