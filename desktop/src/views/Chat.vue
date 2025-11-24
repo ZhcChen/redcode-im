@@ -133,10 +133,20 @@
       </div>
       
       <div class="chat-window" v-if="selectedChat">
-        <div
+        <OverlayScrollbarsComponent
           class="chat-messages"
           :class="{ 'multi-select-active': multiSelectMode, 'drag-selecting': isDragSelectingClass }"
           ref="chatMessagesRef"
+          :options="{
+            scrollbars: {
+              visibility: 'visible',
+              autoHide: 'leave',
+              autoHideDelay: 0,
+              autoHideSuspend: true,
+              dragScroll: true,
+              clickScroll: true
+            }
+          }"
           @mousedown.left="handleMouseDownOnMessages"
           @mousemove="handleMouseMoveOnMessages"
           @mouseup="handleMouseUpOnMessages"
@@ -500,7 +510,7 @@
             </div>
             </template>
           </div>
-        </div>
+        </OverlayScrollbarsComponent>
         <div class="chat-input">
           <div v-if="replyingMessage" class="reply-bar">
             <div class="reply-title">回复 {{ replyingMessage.senderName }}</div>
@@ -2498,8 +2508,13 @@ const messageList = ref<Message[]>([])
 // 语音相关状态
 const showVoiceRecorder = ref<boolean>(false)
 
-// 聊天消息容器引用
-const chatMessagesRef = ref<HTMLElement | null>(null)
+// 聊天消息容器引用 (OverlayScrollbars 组件)
+const chatMessagesRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
+
+// 获取消息列表的滚动视口元素
+const getMessagesViewport = (): HTMLElement | null => {
+  return chatMessagesRef.value?.osInstance()?.elements().viewport ?? null
+}
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const quotedHighlightTimers = new Map<string, number>()
 
@@ -3624,7 +3639,7 @@ const getQuotedText = (quoted: QuotedMessage): string => {
 const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
   if (!quoted?.id) return
   nextTick(() => {
-    const container = chatMessagesRef.value as HTMLElement | null
+    const container = getMessagesViewport()
     const target = container?.querySelector(`[data-message-id="${quoted.id}"]`) as HTMLElement | null
     if (!target) return
 
@@ -4044,10 +4059,12 @@ const formatMessageTime = (timeStr: string) => {
 
 // 滚动到底部函数
 const scrollToBottom = (force = false) => {
-  if (chatMessagesRef.value) {
+  const viewport = getMessagesViewport()
+  if (viewport) {
     const scroll = () => {
-      if (chatMessagesRef.value) {
-        chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
+      const vp = getMessagesViewport()
+      if (vp) {
+        vp.scrollTop = vp.scrollHeight
       }
     }
 
@@ -7862,7 +7879,6 @@ const loadMessageList = async (groupId: string) => {
 .chat-messages {
   flex: 1;
   padding: 24px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   user-select: none; /* 默认禁用文本选中 */
@@ -9300,6 +9316,137 @@ const loadMessageList = async (groupId: string) => {
 
     &:active {
       background: rgba(255, 255, 255, 0.3) !important; // 拖动时颜色不变
+    }
+  }
+}
+
+// OverlayScrollbars 自定义主题样式 - 消息列表
+.chat-messages {
+  // 确保正确的高度和布局
+  height: 100%;
+
+  // OverlayScrollbars 容器样式
+  .os-viewport {
+    overscroll-behavior: contain; // 防止滚动链
+  }
+
+  // OverlayScrollbars 滚动条样式
+  .os-scrollbar {
+    --os-size: 12px;
+    --os-padding-perpendicular: 2px;
+    --os-padding-axis: 2px;
+    --os-track-border-radius: 10px;
+    --os-track-bg: transparent;
+    --os-track-bg-hover: transparent;
+    --os-track-bg-active: transparent;
+    --os-handle-border-radius: 10px;
+    --os-handle-bg: rgba(0, 0, 0, 0.3);
+    --os-handle-bg-hover: rgba(0, 0, 0, 0.3);
+    --os-handle-bg-active: rgba(0, 0, 0, 0.3);
+    --os-handle-min-size: 40px;
+    --os-handle-max-size: none;
+    --os-handle-perpendicular-size: 60%;
+    --os-handle-perpendicular-size-hover: 60%;
+    --os-handle-perpendicular-size-active: 60%;
+    --os-handle-interactive-area-offset: 4px;
+  }
+
+  .os-scrollbar-hidden {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+
+  .os-scrollbar-visible {
+    opacity: 1;
+    transition: opacity 0.1s ease;
+  }
+
+  .os-scrollbar-vertical {
+    right: 4px;
+    top: 4px;
+    bottom: 4px;
+    width: 12px !important;
+
+    .os-scrollbar-track {
+      width: 12px !important;
+    }
+
+    .os-scrollbar-handle {
+      width: 8px !important;
+      min-height: 40px !important;
+      transition: none !important;
+
+      &:hover {
+        width: 8px !important;
+      }
+
+      &:active {
+        width: 8px !important;
+      }
+    }
+  }
+
+  .os-scrollbar-track {
+    background: transparent !important;
+    border-radius: 6px !important;
+
+    &:hover {
+      background: transparent !important;
+    }
+
+    &:active {
+      background: transparent !important;
+    }
+  }
+
+  .os-scrollbar-handle {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-radius: 10px !important;
+    border: none !important;
+    box-shadow: none !important;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.3) !important;
+    }
+
+    &:active {
+      background: rgba(0, 0, 0, 0.3) !important;
+    }
+  }
+
+  .os-scrollbar-horizontal {
+    display: none !important;
+  }
+}
+
+// 暗色主题支持 - 消息列表
+[data-theme="dark"] .chat-messages {
+  .os-scrollbar {
+    --os-track-bg: transparent;
+    --os-track-bg-hover: transparent;
+    --os-track-bg-active: transparent;
+    --os-handle-bg: rgba(255, 255, 255, 0.3);
+    --os-handle-bg-hover: rgba(255, 255, 255, 0.3);
+    --os-handle-bg-active: rgba(255, 255, 255, 0.3);
+  }
+
+  .os-scrollbar-track {
+    background: transparent !important;
+
+    &:hover {
+      background: transparent !important;
+    }
+  }
+
+  .os-scrollbar-handle {
+    background: rgba(255, 255, 255, 0.3) !important;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3) !important;
+    }
+
+    &:active {
+      background: rgba(255, 255, 255, 0.3) !important;
     }
   }
 }
