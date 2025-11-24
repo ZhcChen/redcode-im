@@ -7906,7 +7906,7 @@ const loadMessageList = async (groupId: string) => {
       z-index: 0;
     }
 
-    > * {
+    > *:not(.select-indicator) {
       position: relative;
       z-index: 1;
     }
@@ -8087,15 +8087,7 @@ const loadMessageList = async (groupId: string) => {
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   z-index: 2; /* 确保在选中背景之上 */
   flex-shrink: 0; /* 防止被压缩 */
-}
-
-.select-indicator.other {
-  left: 8px; /* 对方消息：距离容器左侧 8px */
-  top: 8px;
-}
-
-.select-indicator.self {
-  right: 8px; /* 自己的消息：距离容器右侧 8px（因为 own-message 使用 flex-direction: row-reverse） */
+  left: 8px; /* 所有消息的指示器都在容器左侧 8px */
   top: 8px;
 }
 
