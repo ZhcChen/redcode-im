@@ -57,7 +57,21 @@
     </div>
     
     <div class="chat-content">
-      <div class="chat-list" :style="{ width: chatListWidth + 'px' }">
+      <OverlayScrollbarsComponent
+        class="chat-list"
+        :style="{ width: chatListWidth + 'px' }"
+        :options="{
+          scrollbars: {
+            theme: 'os-theme-dark',
+            autoHide: 'never',
+            clickScroll: true
+          },
+          overflow: {
+            x: 'hidden'
+          }
+        }"
+        defer
+      >
         <!-- 只有在初始加载且没有缓存数据时才显示loading -->
         <div v-if="loading && chatList.length === 0" class="loading-container">
           <div class="loading-text">加载聊天列表中...</div>
@@ -111,8 +125,8 @@
             </div>
           </div>
         </div>
-      </div>
-      
+      </OverlayScrollbarsComponent>
+
       <div class="resize-handle" 
            @mousedown="startResize"
            @dblclick="resetWidth">
@@ -841,6 +855,8 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
+import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+import 'overlayscrollbars/styles/overlayscrollbars.css'
 
 // Props: 接收账号ID（用于多实例页面架构）
 interface Props {
@@ -7730,14 +7746,11 @@ const loadMessageList = async (groupId: string) => {
 .chat-list {
   min-width: 240px; /* 降低最小宽度，给聊天窗口更多响应空间 */
   max-width: 70vw;
-  overflow-y: auto; /* 使用标准的 overflow-y，overlay 已弃用 */
   flex-shrink: 0;
-  scrollbar-gutter: stable; /* 预留滚动条空间，避免内容跳动 */
-
-  // 滚动条样式已移至非 scoped 样式块中定义
+  height: 100%;
+  position: relative;
+  // OverlayScrollbars 会自动处理滚动
 }
-
-// 暂时移除这部分重复定义，下面会在非 scoped 样式块中重新定义
 
 .resize-handle {
   width: 2px;
@@ -9141,103 +9154,109 @@ const loadMessageList = async (groupId: string) => {
 }
 </style>
 
-<!-- 非 scoped 样式块：专门用于滚动条样式，避免 scoped 样式隔离问题 -->
+<!-- 非 scoped 样式块：OverlayScrollbars 自定义样式 -->
 <style lang="scss">
-// 使用多种选择器确保样式生效
-// 1. 直接选择类
+// OverlayScrollbars 自定义主题样式
 .chat-list {
-  // 强制设置滚动条样式
-  &::-webkit-scrollbar {
-    width: 12px !important;
-    height: 12px !important;
+  // 确保正确的高度和布局
+  height: 100%;
+
+  // OverlayScrollbars 容器样式
+  .os-scrollbar {
+    // 滚动条轨道和滑块样式
+    --os-size: 10px;
+    --os-padding-perpendicular: 0;
+    --os-padding-axis: 0;
+    --os-track-border-radius: 10px;
+    --os-track-bg: rgba(0, 0, 0, 0.05);
+    --os-track-bg-hover: rgba(0, 0, 0, 0.08);
+    --os-track-bg-active: rgba(0, 0, 0, 0.1);
+    --os-handle-border-radius: 10px;
+    --os-handle-bg: #4ECDC4; // 使用项目主题色
+    --os-handle-bg-hover: #44A08D;
+    --os-handle-bg-active: #3d9680;
+    --os-handle-min-size: 30px;
+    --os-handle-max-size: none;
+    --os-handle-perpendicular-size: 100%;
+    --os-handle-perpendicular-size-hover: 100%;
+    --os-handle-perpendicular-size-active: 100%;
+    --os-handle-interactive-area-offset: 0;
   }
 
-  &::-webkit-scrollbar-track {
-    background: #ffcccc !important; // 浅红色背景，非常明显
-    border-radius: 6px !important;
+  // 垂直滚动条
+  .os-scrollbar-vertical {
+    right: 2px;
+    top: 2px;
+    bottom: 2px;
+
+    .os-scrollbar-handle {
+      width: 8px !important;
+      transition: all 0.2s ease;
+
+      &:hover {
+        width: 10px !important;
+      }
+    }
   }
 
-  &::-webkit-scrollbar-thumb {
-    background: #ff0000 !important; // 纯红色
-    border-radius: 6px !important;
+  // 滚动条轨道
+  .os-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05) !important;
 
     &:hover {
-      background: #cc0000 !important;
+      background: rgba(0, 0, 0, 0.08) !important;
+    }
+  }
+
+  // 滚动条滑块
+  .os-scrollbar-handle {
+    background: #4ECDC4 !important;
+    border-radius: 10px !important;
+
+    &:hover {
+      background: #44A08D !important;
     }
 
     &:active {
-      background: #990000 !important;
+      background: #3d9680 !important;
     }
   }
 
-  // Firefox
-  scrollbar-width: thin !important;
-  scrollbar-color: #ff0000 #ffcccc !important;
+  // 隐藏水平滚动条
+  .os-scrollbar-horizontal {
+    display: none !important;
+  }
 }
 
-// 2. 使用属性选择器增强优先级
-div[class*="chat-list"] {
-  &::-webkit-scrollbar {
-    width: 12px !important;
-    height: 12px !important;
+// 暗色主题支持
+[data-theme="dark"] .chat-list {
+  .os-scrollbar {
+    --os-track-bg: rgba(255, 255, 255, 0.05);
+    --os-track-bg-hover: rgba(255, 255, 255, 0.08);
+    --os-track-bg-active: rgba(255, 255, 255, 0.1);
+    --os-handle-bg: #4ECDC4;
+    --os-handle-bg-hover: #5bddd5;
+    --os-handle-bg-active: #6ae6df;
   }
 
-  &::-webkit-scrollbar-track {
-    background: #ffcccc !important;
-    border-radius: 6px !important;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #ff0000 !important;
-    border-radius: 6px !important;
+  .os-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05) !important;
 
     &:hover {
-      background: #cc0000 !important;
+      background: rgba(255, 255, 255, 0.08) !important;
     }
   }
-}
 
-// 3. 使用 ID 选择器（如果存在）
-#app .chat-list {
-  &::-webkit-scrollbar {
-    width: 12px !important;
-    height: 12px !important;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #ffcccc !important;
-    border-radius: 6px !important;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #ff0000 !important;
-    border-radius: 6px !important;
-  }
-}
-
-// 4. 全局所有滚动条（最后的手段）
-* {
-  &::-webkit-scrollbar {
-    width: 12px !important;
-    height: 12px !important;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #ffcccc !important;
-    border-radius: 6px !important;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #ff0000 !important;
-    border-radius: 6px !important;
+  .os-scrollbar-handle {
+    background: #4ECDC4 !important;
 
     &:hover {
-      background: #cc0000 !important;
+      background: #5bddd5 !important;
+    }
+
+    &:active {
+      background: #6ae6df !important;
     }
   }
-
-  // Firefox
-  scrollbar-width: thin !important;
-  scrollbar-color: #ff0000 #ffcccc !important;
 }
 </style>
