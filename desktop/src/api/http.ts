@@ -359,10 +359,16 @@ class HttpClient {
     // 为请求生成唯一ID
     const requestId = `${method}_${fullUrl}_${Date.now()}_${Math.random()}`;
 
-    const requestHeaders = {
-      ...this.defaultHeaders,
-      ...headers
-    };
+    // GET 请求不应该包含 Content-Type 头，会被某些网关（如腾讯云 API Gateway）拦截
+    const requestHeaders: Record<string, string> = method === 'GET'
+      ? {
+          'Accept': this.defaultHeaders['Accept'],
+          ...headers
+        }
+      : {
+          ...this.defaultHeaders,
+          ...headers
+        };
     let serializedBody: string | undefined;
     let binaryBodyBase64: string | undefined;
 
