@@ -56,27 +56,73 @@ async fn force_center_window(window: Window) -> Result<(), String> {
 async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> Result<(), String> {
     use tauri::LogicalSize;
 
-    // 获取当前尺寸
-    let current_size = window.inner_size().map_err(|e| e.to_string())?;
     logger::log_message("[RUST_RESIZE] ========== 设置窗口尺寸 ==========");
-    logger::log_message(format!(
-        "[RUST_RESIZE] 调整前尺寸: {}x{}",
-        current_size.width, current_size.height
-    ));
-    logger::log_message(format!("[RUST_RESIZE] 目标尺寸: {}x{}", width, height));
 
+    // 获取当前窗口信息
+    let current_size = window.inner_size().map_err(|e| e.to_string())?;
+    let scale_factor = window.scale_factor().map_err(|e| e.to_string())?;
+    let is_resizable = window.is_resizable().map_err(|e| e.to_string())?;
+    let is_maximized = window.is_maximized().map_err(|e| e.to_string())?;
+
+    // 记录当前状态
+    logger::log_message(format!("[RUST_RESIZE] 当前物理尺寸: {}x{}", current_size.width, current_size.height));
+    logger::log_message(format!("[RUST_RESIZE] DPI 缩放因子: {}", scale_factor));
+    logger::log_message(format!("[RUST_RESIZE] 当前逻辑尺寸: {}x{}",
+        (current_size.width as f64 / scale_factor) as i32,
+        (current_size.height as f64 / scale_factor) as i32
+    ));
+    logger::log_message(format!("[RUST_RESIZE] 窗口可调整: {}", is_resizable));
+    logger::log_message(format!("[RUST_RESIZE] 窗口最大化: {}", is_maximized));
+    logger::log_message(format!("[RUST_RESIZE] 目标逻辑尺寸: {}x{}", width, height));
+
+    // 如果窗口不可调整，先设置为可调整
+    if !is_resizable {
+        logger::log_message("[RUST_RESIZE] 窗口不可调整，尝试设置为可调整");
+        if let Err(e) = window.set_resizable(true) {
+            logger::log_message(format!("[RUST_RESIZE] 设置可调整失败: {}", e));
+        } else {
+            logger::log_message("[RUST_RESIZE] 成功设置为可调整");
+            // 等待状态生效
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        }
+    }
+
+    // 设置窗口尺寸
+    logger::log_message(format!("[RUST_RESIZE] 执行 set_size({}, {})", width, height));
     window
         .set_size(LogicalSize::new(width, height))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            logger::log_message(format!("[RUST_RESIZE] set_size 失败: {}", e));
+            e.to_string()
+        })?;
+
+    // 等待尺寸生效
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    window.center().map_err(|e| e.to_string())?;
+
+    // 居中窗口
+    logger::log_message("[RUST_RESIZE] 居中窗口");
+    window.center().map_err(|e| {
+        logger::log_message(format!("[RUST_RESIZE] center 失败: {}", e));
+        e.to_string()
+    })?;
 
     // 获取调整后的尺寸
     let after_size = window.inner_size().map_err(|e| e.to_string())?;
-    logger::log_message(format!(
-        "[RUST_RESIZE] 调整后尺寸: {}x{}",
-        after_size.width, after_size.height
+    let after_scale = window.scale_factor().map_err(|e| e.to_string())?;
+
+    logger::log_message(format!("[RUST_RESIZE] 调整后物理尺寸: {}x{}", after_size.width, after_size.height));
+    logger::log_message(format!("[RUST_RESIZE] 调整后逻辑尺寸: {}x{}",
+        (after_size.width as f64 / after_scale) as i32,
+        (after_size.height as f64 / after_scale) as i32
     ));
+
+    // 验证是否成功
+    let actual_logical_width = (after_size.width as f64 / after_scale) as i32;
+    let actual_logical_height = (after_size.height as f64 / after_scale) as i32;
+    let success = (actual_logical_width as f64 - width).abs() < 5.0 &&
+                  (actual_logical_height as f64 - height).abs() < 5.0;
+
+    logger::log_message(format!("[RUST_RESIZE] 设置结果: {}", if success { "成功" } else { "尺寸偏差较大" }));
     logger::log_message("[RUST_RESIZE] ========== 设置完成 ==========");
 
     Ok(())

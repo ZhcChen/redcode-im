@@ -21,7 +21,7 @@
 import { computed, watch, onMounted, onActivated, ref } from 'vue'
 import { useStore } from 'vuex'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { setWindowSizeSafe, hasUserResized, installUserResizeListener, setWindowSizeDirect } from '@/utils/window'
+import { setWindowSizeSafe, hasUserResized, installUserResizeListener, setWindowSizeDirect, setWindowSizeViaRust } from '@/utils/window'
 import SideMenu from './SideMenu.vue'
 import Chat from '../views/Chat.vue'
 import Contact from '../views/Contact.vue'
@@ -62,13 +62,20 @@ async function setMainWindowSize() {
 
     // 如果窗口不是最大化状态，设置为固定大小
     if (!isCurrentlyMaximized && !hasUserResized()) {
-      // 设置窗口尺寸
+      // 优先使用 Rust 端设置窗口尺寸（更可靠）
       console.log('[AccountHome] Setting main window size...')
-      const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+      const rustSuccess = await setWindowSizeViaRust(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
 
-      if (!directSuccess) {
-        // 如果直接设置失败，使用安全方法
-        await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+      if (!rustSuccess) {
+        // 如果 Rust 端失败，尝试直接设置
+        console.log('[AccountHome] Rust method failed, trying direct method...')
+        const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+
+        if (!directSuccess) {
+          // 最后使用安全方法
+          console.log('[AccountHome] Direct method failed, using safe method...')
+          await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+        }
       }
     }
   } catch (error) {

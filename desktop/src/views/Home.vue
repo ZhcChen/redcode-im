@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { onMounted, onActivated, onDeactivated, onUnmounted } from 'vue'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { setWindowSizeSafe, hasUserResized, installUserResizeListener, setWindowSizeDirect } from '@/utils/window'
+import { setWindowSizeSafe, hasUserResized, installUserResizeListener, setWindowSizeDirect, setWindowSizeViaRust } from '@/utils/window'
 import SideMenu from '../components/SideMenu.vue'
 
 // 首页组件 - 包含左侧菜单和右侧二级路由内容
@@ -52,13 +52,20 @@ async function setMainWindowSize() {
       return
     }
 
-    // 设置窗口尺寸
+    // 优先使用 Rust 端设置窗口尺寸（更可靠）
     console.log('[Home] Setting main window size...');
-    const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+    const rustSuccess = await setWindowSizeViaRust(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
 
-    if (!directSuccess) {
-      // 如果直接设置失败，使用安全方法
-      await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+    if (!rustSuccess) {
+      // 如果 Rust 端失败，尝试直接设置
+      console.log('[Home] Rust method failed, trying direct method...');
+      const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+
+      if (!directSuccess) {
+        // 最后使用安全方法
+        console.log('[Home] Direct method failed, using safe method...');
+        await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+      }
     }
   } catch (error) {
     console.error('[Home] Failed to set window size:', error);

@@ -1,6 +1,7 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { LogicalSize } from '@tauri-apps/api/dpi'
 import { currentMonitor } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 
 // 记录用户是否主动调整过窗口，避免后续逻辑反复覆盖
 let userResized = false
@@ -118,6 +119,43 @@ export async function installUserResizeListener() {
 }
 
 export const hasUserResized = () => userResized
+
+// 使用 Rust 端设置窗口尺寸（推荐方法）
+export async function setWindowSizeViaRust(width: number, height: number): Promise<boolean> {
+  console.log('[setWindowSizeViaRust] Using Rust backend to set size:', width, 'x', height)
+
+  try {
+    suppressResizeFlag = true
+
+    // 调用 Rust 端的函数
+    await invoke('set_window_size_and_center', { width, height })
+    console.log('[setWindowSizeViaRust] Rust call succeeded')
+
+    // 验证实际尺寸
+    const win = getCurrentWebviewWindow()
+    const actualPhysicalSize = await win.innerSize()
+    const monitor = await currentMonitor().catch(() => null as any)
+    const scaleFactor = monitor?.scaleFactor ?? 1
+
+    const actualLogicalWidth = Math.round(actualPhysicalSize.width / scaleFactor)
+    const actualLogicalHeight = Math.round(actualPhysicalSize.height / scaleFactor)
+
+    console.log('[setWindowSizeViaRust] Verification:')
+    console.log('  - Target:', width, 'x', height, 'px')
+    console.log('  - Actual:', actualLogicalWidth, 'x', actualLogicalHeight, 'px')
+    console.log('  - Success:', actualLogicalWidth === width && actualLogicalHeight === height)
+
+    setTimeout(() => {
+      suppressResizeFlag = false
+    }, 200)
+
+    return true
+  } catch (error) {
+    console.error('[setWindowSizeViaRust] Failed:', error)
+    suppressResizeFlag = false
+    return false
+  }
+}
 
 // 直接设置窗口尺寸，不做任何限制（用于测试）
 export async function setWindowSizeDirect(width: number, height: number) {
