@@ -7757,6 +7757,29 @@ const loadMessageList = async (groupId: string) => {
   scrollbar-color: #ff4d4f transparent !important;
 }
 
+// 全局覆盖，确保收藏夹/聊天列表滚动条样式不被其他全局规则覆盖
+:global(.chat-page .chat-list) {
+  scrollbar-color: #ff4d4f transparent !important;
+}
+
+:global(.chat-page .chat-list::-webkit-scrollbar) {
+  width: 10px !important;
+  height: 10px;
+}
+
+:global(.chat-page .chat-list::-webkit-scrollbar-track) {
+  background: transparent !important;
+}
+
+:global(.chat-page .chat-list::-webkit-scrollbar-thumb) {
+  background: #ff4d4f !important;
+  border-radius: 6px;
+}
+
+:global(.chat-page .chat-list::-webkit-scrollbar-thumb:hover) {
+  background: #d9363e !important;
+}
+
 .resize-handle {
   width: 2px;
   background-color: transparent;
