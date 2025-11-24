@@ -9143,63 +9143,101 @@ const loadMessageList = async (groupId: string) => {
 
 <!-- 非 scoped 样式块：专门用于滚动条样式，避免 scoped 样式隔离问题 -->
 <style lang="scss">
-@use 'sass:color';
-
-// 聊天列表滚动条样式 - 使用鲜艳的颜色便于调试验证
-.chat-page .chat-list {
-  // WebKit 浏览器（Chrome、Safari、Edge）
+// 使用多种选择器确保样式生效
+// 1. 直接选择类
+.chat-list {
+  // 强制设置滚动条样式
   &::-webkit-scrollbar {
-    width: 10px !important;
-    height: 10px !important;
+    width: 12px !important;
+    height: 12px !important;
   }
 
   &::-webkit-scrollbar-track {
-    background: rgba(255, 0, 0, 0.1) !important; // 红色半透明背景，便于看到轨道
-    border-radius: 5px !important;
+    background: #ffcccc !important; // 浅红色背景，非常明显
+    border-radius: 6px !important;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #ff0000 !important; // 纯红色滑块，非常醒目
-    border-radius: 5px !important;
-    border: 2px solid transparent !important;
-    background-clip: padding-box !important;
+    background: #ff0000 !important; // 纯红色
+    border-radius: 6px !important;
 
     &:hover {
-      background: #cc0000 !important; // 深红色
+      background: #cc0000 !important;
     }
 
     &:active {
-      background: #990000 !important; // 更深的红色
+      background: #990000 !important;
     }
   }
 
-  // Firefox 滚动条样式
+  // Firefox
   scrollbar-width: thin !important;
-  scrollbar-color: #ff0000 rgba(255, 0, 0, 0.1) !important;
+  scrollbar-color: #ff0000 #ffcccc !important;
 }
 
-// 确保滚动条样式生效的备选方案
-.chat-list {
+// 2. 使用属性选择器增强优先级
+div[class*="chat-list"] {
   &::-webkit-scrollbar {
-    width: 10px !important;
-    height: 10px !important;
+    width: 12px !important;
+    height: 12px !important;
   }
 
   &::-webkit-scrollbar-track {
-    background: rgba(255, 0, 0, 0.1) !important;
-    border-radius: 5px !important;
+    background: #ffcccc !important;
+    border-radius: 6px !important;
   }
 
   &::-webkit-scrollbar-thumb {
     background: #ff0000 !important;
-    border-radius: 5px !important;
+    border-radius: 6px !important;
+
+    &:hover {
+      background: #cc0000 !important;
+    }
+  }
+}
+
+// 3. 使用 ID 选择器（如果存在）
+#app .chat-list {
+  &::-webkit-scrollbar {
+    width: 12px !important;
+    height: 12px !important;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #ffcccc !important;
+    border-radius: 6px !important;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #ff0000 !important;
+    border-radius: 6px !important;
+  }
+}
+
+// 4. 全局所有滚动条（最后的手段）
+* {
+  &::-webkit-scrollbar {
+    width: 12px !important;
+    height: 12px !important;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #ffcccc !important;
+    border-radius: 6px !important;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #ff0000 !important;
+    border-radius: 6px !important;
 
     &:hover {
       background: #cc0000 !important;
     }
   }
 
+  // Firefox
   scrollbar-width: thin !important;
-  scrollbar-color: #ff0000 rgba(255, 0, 0, 0.1) !important;
+  scrollbar-color: #ff0000 #ffcccc !important;
 }
 </style>
