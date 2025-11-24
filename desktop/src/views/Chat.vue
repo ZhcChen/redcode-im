@@ -7745,16 +7745,16 @@ const loadMessageList = async (groupId: string) => {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #ff4d4f;
+    background: #ff4d4f !important;
     border-radius: 6px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: #d9363e;
+    background: #d9363e !important;
   }
 
   scrollbar-width: thin;
-  scrollbar-color: #ff4d4f transparent;
+  scrollbar-color: #ff4d4f transparent !important;
 }
 
 .resize-handle {
