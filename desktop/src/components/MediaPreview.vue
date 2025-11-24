@@ -535,7 +535,6 @@ watch(() => props.visible, (newVisible) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   transition: background-color 0.2s;
   z-index: 10001;
 
@@ -641,7 +640,6 @@ watch(() => props.visible, (newVisible) => {
       border: none;
       color: white;
       font-size: 20px;
-      cursor: pointer;
       padding: 12px;
       border-radius: 50%;
       width: 48px;
@@ -669,7 +667,6 @@ watch(() => props.visible, (newVisible) => {
       height: 24px; /* 增加高度便于交互 */
       display: flex;
       align-items: center;
-      cursor: pointer;
       padding: 0 8px; /* 增加左右间距 */
 
       .progress-background {
@@ -711,7 +708,6 @@ watch(() => props.visible, (newVisible) => {
           background: $primary-color;
           border: 2px solid white;
           border-radius: 50%;
-          cursor: pointer;
           opacity: 0;
           transition: all 0.2s ease;
           box-shadow: 0 2px 8px rgba(78, 205, 196, 0.4);
@@ -762,7 +758,6 @@ watch(() => props.visible, (newVisible) => {
         border: none;
         color: white;
         font-size: 16px;
-        cursor: pointer;
         padding: 8px;
         border-radius: 50%;
         width: 36px;
@@ -784,7 +779,6 @@ watch(() => props.visible, (newVisible) => {
         background: rgba(255, 255, 255, 0.2);
         border-radius: 3px;
         outline: none;
-        cursor: pointer;
         appearance: none;
 
         &::-webkit-slider-thumb {
@@ -794,7 +788,6 @@ watch(() => props.visible, (newVisible) => {
           background: $primary-color;
           border: 2px solid white;
           border-radius: 50%;
-          cursor: pointer;
           box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
           transition: transform 0.2s ease;
 
@@ -809,7 +802,6 @@ watch(() => props.visible, (newVisible) => {
           background: $primary-color;
           border: 2px solid white;
           border-radius: 50%;
-          cursor: pointer;
           box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
         }
 
@@ -826,7 +818,6 @@ watch(() => props.visible, (newVisible) => {
       border: none;
       color: white;
       font-size: 16px;
-      cursor: pointer;
       padding: 8px;
       border-radius: 50%;
       width: 36px;
@@ -887,7 +878,6 @@ watch(() => props.visible, (newVisible) => {
       align-items: center;
       justify-content: center;
       background: rgba(0, 0, 0, 0.2);
-      cursor: pointer;
       transition: all 0.3s ease;
 
       &:hover {

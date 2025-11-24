@@ -133,7 +133,6 @@ export default {
 .login-form button {
   background-color: #007bff;
   color: white;
-  cursor: pointer;
 }
 
 .login-form button:disabled {
@@ -147,7 +146,6 @@ button {
   color: white;
   border: none;
   border-radius: 4px;
-  cursor: pointer;
 }
 
 button:hover {

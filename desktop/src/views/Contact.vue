@@ -1112,7 +1112,6 @@ onUnmounted(() => {
       width: 24px;
       height: 24px;
       flex-shrink: 0;
-      cursor: pointer;
       transition: opacity 0.2s;
       
       &:hover {
@@ -1203,7 +1202,6 @@ onUnmounted(() => {
   align-items: center;
   height: 72px;
   padding: 0 16px;
-  cursor: pointer;
   transition: background-color 0.2s;
   border-bottom: 1px solid #f0f0f0;
   
@@ -1340,7 +1338,6 @@ onUnmounted(() => {
     width: 160px;
     border-radius: 10px;
     font-size: 14px;
-    cursor: pointer;
     transition: all 0.2s ease;
     border: none;
     background-color: $primary-color;
@@ -1365,7 +1362,6 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     padding: 12px 16px;
-    cursor: pointer;
     transition: background-color 0.2s ease;
     
     &:hover {
@@ -1442,7 +1438,6 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       padding: 12px 0;
-      cursor: pointer;
       transition: background-color 0.2s ease;
       border-bottom: 1px solid #f5f5f5;
       
@@ -1494,7 +1489,6 @@ onUnmounted(() => {
           color: white;
           font-size: 12px;
           border-radius: 16px;
-          cursor: pointer;
           transition: background-color 0.2s ease;
           
           &:hover {
@@ -1548,7 +1542,6 @@ onUnmounted(() => {
     .back-section {
       display: flex;
       align-items: center;
-      cursor: pointer;
       margin-left: 16px; // 新的朋友图标右侧间距16px
       transition: opacity 0.2s ease;
       
@@ -1582,7 +1575,6 @@ onUnmounted(() => {
   align-items: center;
   height: 72px;
   padding: 0 16px;
-  cursor: pointer;
   transition: background-color 0.2s;
   border-bottom: 1px solid #f0f0f0;
   
@@ -1678,7 +1670,6 @@ onUnmounted(() => {
     color: white;
     border-radius: 4px;
     font-size: 14px;
-    cursor: pointer;
     transition: background-color 0.2s ease;
     border: none;
     
@@ -1813,7 +1804,6 @@ onUnmounted(() => {
       width: 160px;
       border-radius: 10px;
       font-size: 14px;
-      cursor: pointer;
       transition: all 0.2s ease;
       border: none;
     }

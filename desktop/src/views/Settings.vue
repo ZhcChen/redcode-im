@@ -624,7 +624,6 @@ const handleDownloadUpdate = async () => {
   border: 1px solid #d1d5db;
   background: #fff;
   color: #374151;
-  cursor: pointer;
   transition: all 0.2s ease;
 }
 
@@ -667,7 +666,6 @@ const handleDownloadUpdate = async () => {
 .avatar-wrapper {
   position: relative;
   display: inline-block;
-  cursor: pointer;
 }
 
 .avatar-edit-icon {
@@ -696,7 +694,6 @@ const handleDownloadUpdate = async () => {
 .username-edit-icon {
   width: 16px;
   height: 16px;
-  cursor: pointer;
 }
 
 .phone-display {
@@ -722,7 +719,6 @@ const handleDownloadUpdate = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
   box-sizing: border-box;
   pointer-events: auto;
 }
@@ -744,7 +740,6 @@ const handleDownloadUpdate = async () => {
   background-color: $logout-bg;
   border: none;
   border-radius: 8px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -17,6 +17,5 @@
     @include flex-center;
     border-radius: 22px;
     font-size: 14px;
-    cursor: pointer;
   }
 </style>

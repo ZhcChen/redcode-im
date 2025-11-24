@@ -253,7 +253,6 @@ onUnmounted(() => {
 
 .popover-trigger {
   display: inline-block;
-  cursor: pointer;
 }
 
 // 整体阴影效果，应用到整个弹窗容器

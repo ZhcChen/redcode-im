@@ -48,7 +48,6 @@ const handleClick = () => {
   border: none;
   background: transparent;
   color: #374151;
-  cursor: pointer;
   border-radius: 8px;
   transition: background-color 0.2s;
   font-size: 14px;

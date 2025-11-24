@@ -352,7 +352,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
@@ -429,7 +428,6 @@ onUnmounted(() => {
   height: 4px;
   background: transparent;
   outline: none;
-  cursor: pointer;
 }
 
 .recording-status {
@@ -456,7 +454,6 @@ onUnmounted(() => {
   color: #dc3545;
   border-radius: 6px;
   font-size: 12px;
-  cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
@@ -475,7 +472,6 @@ onUnmounted(() => {
   padding: 6px 12px;
   border-radius: 6px;
   font-size: 12px;
-  cursor: pointer;
   transition: all 0.2s;
 }
 
@@ -524,7 +520,6 @@ onUnmounted(() => {
   color: white;
   border-radius: 4px;
   font-size: 12px;
-  cursor: pointer;
 
   &:hover {
     background: #5a1518;

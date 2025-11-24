@@ -479,7 +479,6 @@ onUnmounted(() => {
   position: absolute;
   right: 12px;
   color: #64748b;
-  cursor: pointer;
   padding: 4px;
   border-radius: 4px;
   transition: background-color 0.2s;
@@ -507,7 +506,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  cursor: pointer;
   transition: background-color 0.2s;
 }
 
@@ -623,7 +621,6 @@ onUnmounted(() => {
 .result-item {
   padding: 12px 16px;
   border-radius: 8px;
-  cursor: pointer;
   transition: background-color 0.2s;
   margin-bottom: 4px;
   border: 1px solid transparent;
@@ -693,7 +690,6 @@ onUnmounted(() => {
   color: white;
   border: none;
   border-radius: 6px;
-  cursor: pointer;
   font-size: 14px;
   transition: background-color 0.2s;
 }

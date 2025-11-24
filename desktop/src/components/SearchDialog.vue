@@ -106,7 +106,6 @@ const handleResultClick = (result: MessageSearchResult) => {
   border: none;
   padding: 8px;
   border-radius: 6px;
-  cursor: pointer;
   color: #64748b;
   transition: background-color 0.2s, color 0.2s;
 }

@@ -268,7 +268,6 @@ defineExpose({
   font-weight: $font-weight-medium;
   transition: all $transition-base;
   @include flex-center;
-  cursor: pointer;
   
   &:active {
     transform: scale(0.98);

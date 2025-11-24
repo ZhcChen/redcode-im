@@ -1461,7 +1461,6 @@ body {
   border-radius: 8px;
   padding: 10px 18px;
   font-size: 14px;
-  cursor: pointer;
   background: #e2e8f0;
   color: #0f172a;
   transition: background 0.2s;

@@ -7655,7 +7655,6 @@ const loadMessageList = async (groupId: string) => {
       width: 24px;
       height: 24px;
       flex-shrink: 0;
-      cursor: pointer;
       transition: opacity 0.2s;
       
       &:hover {
@@ -7719,7 +7718,6 @@ const loadMessageList = async (groupId: string) => {
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
       transition: opacity 0.2s;
 
       &:hover {
@@ -7788,7 +7786,6 @@ const loadMessageList = async (groupId: string) => {
   align-items: center;
   height: 72px;
   padding: 0 16px;
-  cursor: pointer;
   transition: background-color 0.2s;
   border-bottom: 1px solid #f0f0f0;
   
@@ -8084,7 +8081,6 @@ const loadMessageList = async (groupId: string) => {
   justify-content: center;
   color: transparent;
   font-size: 10px;
-  cursor: pointer;
   box-shadow: 0 0 0 2px #fff;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
@@ -8136,7 +8132,6 @@ const loadMessageList = async (groupId: string) => {
       background: transparent;
       font-size: 16px;
       color: #6b7280;
-      cursor: pointer;
       padding: 4px;
 
       &:hover {
@@ -8194,7 +8189,6 @@ const loadMessageList = async (groupId: string) => {
     .action-icon {
       width: 24px;
       height: 24px;
-      cursor: pointer;
       flex-shrink: 0;
       transition: opacity 0.2s;
 
@@ -8253,7 +8247,6 @@ const loadMessageList = async (groupId: string) => {
         border-radius: 8px;
         border: 1px solid #d1d5db;
         background: white;
-        cursor: pointer;
         transition: all 0.2s ease;
 
         &:disabled {
@@ -8326,7 +8319,6 @@ const loadMessageList = async (groupId: string) => {
     display: flex;
     align-items: center;
     padding: 12px 16px;
-    cursor: pointer;
     transition: background-color 0.2s ease;
     
     &:hover {
@@ -8415,7 +8407,6 @@ const loadMessageList = async (groupId: string) => {
   margin-left: 8px;
   border-radius: 3px;
   font-size: 10px;
-  cursor: pointer;
   transition: background-color 0.2s;
   
   &:hover {
@@ -8477,7 +8468,6 @@ const loadMessageList = async (groupId: string) => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  cursor: pointer;
   transition: background-color 0.2s;
   border-radius: 8px;
   min-width: 200px;
@@ -8731,7 +8721,6 @@ const loadMessageList = async (groupId: string) => {
   max-width: 200px;
   max-height: 200px;
   border-radius: 8px;
-  cursor: pointer;
   transition: opacity 0.2s;
   display: block;
 
@@ -8792,7 +8781,6 @@ const loadMessageList = async (groupId: string) => {
 .video-container {
   position: relative;
   display: inline-block;
-  cursor: pointer;
   border-radius: 8px;
   overflow: hidden;
 
@@ -8929,7 +8917,6 @@ const loadMessageList = async (groupId: string) => {
   border: 1px solid transparent;
   border-radius: 12px;
   background: #f7f7fb;
-  cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
@@ -8968,7 +8955,6 @@ const loadMessageList = async (groupId: string) => {
   border-radius: 999px;
   border: 1px solid #d0d1db;
   background: #fff;
-  cursor: pointer;
   font-weight: 500;
   transition: opacity 0.2s ease;
 }
@@ -9103,7 +9089,6 @@ const loadMessageList = async (groupId: string) => {
     padding: 10px 12px;
     border: 1px solid #e5e7eb;
     border-radius: 10px;
-    cursor: pointer;
     transition: border-color 0.2s ease, background 0.2s ease;
 
     &:hover {
@@ -9112,7 +9097,6 @@ const loadMessageList = async (groupId: string) => {
     }
 
     input[type='radio'] {
-      cursor: pointer;
     }
 
     .forward-name {
@@ -9133,7 +9117,6 @@ const loadMessageList = async (groupId: string) => {
       border-radius: 8px;
       border: 1px solid #d1d5db;
       background: white;
-      cursor: pointer;
       transition: all 0.2s ease;
 
       &.primary {

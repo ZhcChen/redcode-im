@@ -192,7 +192,6 @@ function handleTabClick(value: string | number, disabled?: boolean) {
   padding-bottom: 8px; // 为滑动条留出空间
 
   &-item {
-    cursor: pointer;
     transition: color 0.3s ease;
     color: var(--text-secondary);
     position: relative;

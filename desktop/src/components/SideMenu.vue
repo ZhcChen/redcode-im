@@ -359,7 +359,6 @@ onUnmounted(() => {
   justify-content: center;
   padding: 20px;
   margin-bottom: 10px;
-  cursor: pointer;
   transition: opacity 0.2s ease;
   
   &:hover {
@@ -377,7 +376,6 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 16px 20px;
-  cursor: pointer;
   transition: all 0.2s ease;
   color: $text-secondary;
   
@@ -443,7 +441,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  cursor: pointer;
   transition: background-color 0.2s ease;
   
   &:hover {

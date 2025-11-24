@@ -325,7 +325,6 @@ function resetDragState() {
   &.active {
     background: #00c2b3;
     border-bottom-color: #00c2b3;
-    cursor: pointer; // 激活状态使用指针光标
 
     &:hover:not(.dragging):not(.drag-over) {
       background: #00c2b3;
@@ -451,7 +450,6 @@ function resetDragState() {
   background: transparent;
   color: #94a3b8;
   font-size: 14px;
-  cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
   transition: all 0.2s ease;
@@ -473,7 +471,6 @@ function resetDragState() {
   border-radius: 16px;
   background: rgba(0, 194, 179, 0.12);
   color: #006d65;
-  cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
 

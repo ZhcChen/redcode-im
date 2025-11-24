@@ -147,7 +147,6 @@ const handleCancel = () => {
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  cursor: pointer;
   transition: all 0.2s;
   min-width: 80px;
 

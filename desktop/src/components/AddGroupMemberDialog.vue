@@ -221,7 +221,6 @@ watch(() => props.visible, (newVisible) => {
       justify-content: space-between;
       padding: 12px 0;
       border-bottom: 1px solid #f8f8f8;
-      cursor: pointer;
       transition: background-color 0.2s;
 
       &:hover {
@@ -285,7 +284,6 @@ watch(() => props.visible, (newVisible) => {
       flex-direction: column;
       align-items: center;
       position: relative;
-      cursor: pointer;
 
       .member-name {
         font-size: 11px; /* 稍微减小字体 */
@@ -336,7 +334,6 @@ watch(() => props.visible, (newVisible) => {
       border-radius: 8px;
       border: none;
       font-size: 14px;
-      cursor: pointer;
       transition: all 0.2s;
     }
 

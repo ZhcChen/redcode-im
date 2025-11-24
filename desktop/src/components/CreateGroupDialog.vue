@@ -354,7 +354,6 @@ defineExpose({
     justify-content: center;
     font-size: 28px;
     color: #999;
-    cursor: pointer;
     border-radius: 6px;
     transition: all 0.2s;
 
@@ -383,7 +382,6 @@ defineExpose({
       height: 100px;
       border-radius: 20px;
       overflow: hidden;
-      cursor: pointer;
       transition: all 0.2s;
 
       &:hover {
@@ -469,7 +467,6 @@ defineExpose({
         color: var(--primary-color, #007bff);
         border-radius: 6px;
         font-size: 14px;
-        cursor: pointer;
         transition: all 0.2s;
 
         &:hover:not(:disabled) {
@@ -564,7 +561,6 @@ defineExpose({
           justify-content: center;
           font-size: 16px;
           font-weight: bold;
-          cursor: pointer;
           opacity: 0;
           transition: opacity 0.2s;
         }
@@ -592,7 +588,6 @@ defineExpose({
     padding: 10px 24px;
     border-radius: 8px;
     font-size: 14px;
-    cursor: pointer;
     transition: all 0.2s;
     border: none;
 

@@ -113,7 +113,6 @@ function handleKeypress(event: KeyboardEvent) {
 
     &-suffix {
       margin-left: 8px;
-      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;

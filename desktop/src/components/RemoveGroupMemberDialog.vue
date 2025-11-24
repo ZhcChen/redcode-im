@@ -225,7 +225,6 @@ watch(() => props.visible, (newVal) => {
     background-color: #e3f2fd;
     border-radius: 16px;
     font-size: 12px;
-    cursor: pointer;
     transition: background-color 0.2s;
 
     &:hover {
@@ -260,7 +259,6 @@ watch(() => props.visible, (newVal) => {
   gap: 12px;
   padding: 12px;
   border-radius: 8px;
-  cursor: pointer;
   transition: background-color 0.2s;
 
   &:hover {
@@ -271,7 +269,6 @@ watch(() => props.visible, (newVal) => {
     flex-shrink: 0;
     width: 18px;
     height: 18px;
-    cursor: pointer;
   }
 
   .member-info {

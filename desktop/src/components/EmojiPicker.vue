@@ -827,7 +827,6 @@ const CachedEmojiImage = defineComponent({
   width: 28px;
   height: 28px;
   border-radius: 5px;
-  cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -932,7 +931,6 @@ const CachedEmojiImage = defineComponent({
   gap: 12px;
   padding: 8px;
   border-radius: 8px;
-  cursor: pointer;
   transition: background-color 0.2s;
 
   &:hover {
@@ -1020,7 +1018,6 @@ const CachedEmojiImage = defineComponent({
   justify-content: center;
   aspect-ratio: 1;
   border-radius: 6px;
-  cursor: pointer;
   transition: background-color 0.2s;
   min-width: 0;
   overflow: hidden;
@@ -1122,7 +1119,6 @@ const CachedEmojiImage = defineComponent({
   padding: 8px 16px;
   border-radius: 6px;
   font-size: 14px;
-  cursor: pointer;
   border: none;
   transition: all 0.2s;
 }

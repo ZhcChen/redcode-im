@@ -396,7 +396,6 @@ const handleLeaveGroup = () => {
     width: 24px;
     height: 24px;
     transform: rotate(90deg); /* 顺时针旋转90度 */
-    cursor: pointer;
     transition: opacity 0.2s ease;
 
     &:hover {
@@ -448,7 +447,6 @@ const handleLeaveGroup = () => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    cursor: pointer;
 
     .member-name {
       font-size: 12px;
@@ -487,7 +485,6 @@ const handleLeaveGroup = () => {
   margin-top: 24px;
   font-size: 12px;
   color: #999999;
-  cursor: pointer;
 
   &:hover {
     opacity: 0.7;
@@ -500,7 +497,6 @@ const handleLeaveGroup = () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  cursor: pointer;
   transition: opacity 0.2s;
 
   &:not(:last-child) {

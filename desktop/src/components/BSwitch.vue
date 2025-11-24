@@ -42,7 +42,6 @@ const handleToggle = () => {
   height: 22px;
   background-color: #D0D1DB; /* 关闭时的背景色 */
   border-radius: 11px;
-  cursor: pointer;
   transition: background-color 0.3s ease;
 
   &--checked {

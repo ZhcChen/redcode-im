@@ -125,7 +125,6 @@ function handleClose() {
   border: none;
   background: transparent;
   font-size: 20px;
-  cursor: pointer;
   color: #6b7280;
   padding: 4px;
 

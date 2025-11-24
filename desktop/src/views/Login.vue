@@ -1084,7 +1084,6 @@ async function showPrivacyAgreement() {
 
         .agreement-link {
           color: var(--primary-color);
-          cursor: pointer;
           text-decoration: none;
           transition: opacity 0.2s ease;
 
@@ -1107,7 +1106,6 @@ async function showPrivacyAgreement() {
 
       &-link {
         color: var(--primary-color);
-        cursor: pointer;
         margin-left: 4px;
         font-weight: 500;
 

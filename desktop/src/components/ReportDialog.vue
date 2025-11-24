@@ -212,7 +212,6 @@ watch(() => props.visible, (newVal) => {
   padding: 12px 16px;
   background-color: #f5f5f5;
   border-radius: 8px;
-  cursor: pointer;
   transition: all 0.2s;
 
   &:hover {

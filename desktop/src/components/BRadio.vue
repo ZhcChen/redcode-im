@@ -28,7 +28,6 @@ const onClick = () => {
   height: 16px;
   width: 16px;
   @include flex-center;
-  cursor: pointer;
   user-select: none; // 防止文字被选中
 
   &-selected {
