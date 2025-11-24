@@ -9176,7 +9176,7 @@ const loadMessageList = async (groupId: string) => {
   // OverlayScrollbars 滚动条样式
   .os-scrollbar {
     // 滚动条轨道和滑块样式
-    --os-size: 10px; // 滚动条宽度
+    --os-size: 12px; // 增加滚动条宽度
     --os-padding-perpendicular: 2px; // 添加一点内边距
     --os-padding-axis: 2px;
     --os-track-border-radius: 10px;
@@ -9213,26 +9213,26 @@ const loadMessageList = async (groupId: string) => {
     right: 4px;
     top: 4px;
     bottom: 4px;
-    width: 10px !important;
+    width: 12px !important; // 增加容器宽度
 
     .os-scrollbar-track {
-      width: 10px !important;
+      width: 12px !important; // 增加轨道宽度
     }
 
     .os-scrollbar-handle {
-      width: 6px !important;
+      width: 8px !important; // 增加宽度，更容易拖动
       min-height: 40px !important;
       // 移除过渡动画，让响应更直接
       transition: none !important;
       cursor: grab;
 
       &:hover {
-        width: 6px !important; // 悬停时宽度不变
+        width: 8px !important; // 悬停时宽度不变
       }
 
       &:active {
         cursor: grabbing;
-        width: 6px !important; // 激活时宽度不变
+        width: 8px !important; // 激活时宽度不变
       }
     }
   }
