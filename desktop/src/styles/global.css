@@ -110,3 +110,21 @@ button {
   user-select: none;
   cursor: default;
 }
+
+/* 消息列表：禁用除消息内容外的其他元素选中 */
+.chat-messages {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* 消息内容允许选中 */
+.chat-messages .message-content {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  cursor: text;
+}
