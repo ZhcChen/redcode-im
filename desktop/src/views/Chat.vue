@@ -7736,16 +7736,17 @@ const loadMessageList = async (groupId: string) => {
 
   // 滚动条悬浮样式 - 无背景
   &::-webkit-scrollbar {
-    width: 6px;
+    width: 8px; /* 稍微加宽便于点击 */
+    background-color: transparent;
   }
 
   &::-webkit-scrollbar-track {
-    background: transparent;
+    background-color: transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 6px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
@@ -7753,7 +7754,7 @@ const loadMessageList = async (groupId: string) => {
   }
 
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
 }
 
 .resize-handle {
