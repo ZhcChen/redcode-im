@@ -200,7 +200,7 @@
                 :key="item.label"
                 :href="item.href || '#'"
                 class="flex min-w-[160px] flex-1 cursor-pointer items-center justify-between rounded-2xl bg-[#13a4ec] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0f7bcf] hover:shadow-lg"
-                :class="!item.href ? 'opacity-80' : ''"
+                :class="item.unavailable ? 'cursor-not-allowed opacity-70' : !item.href ? 'opacity-80' : ''"
                 @click.prevent="handleDownloadClick(item)"
               >
                 <div class="flex flex-col">
@@ -257,7 +257,7 @@
                 :key="item.label"
                 :href="item.href || '#'"
                 class="flex w-full items-center justify-between rounded-2xl bg-[#111618] px-4 py-3 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0b1114] hover:shadow-lg"
-                :class="!item.href ? 'opacity-80' : ''"
+                :class="item.unavailable ? 'cursor-not-allowed opacity-70' : !item.href ? 'opacity-80' : ''"
                 @click.prevent="handleDownloadClick(item)"
               >
                 <div class="flex flex-col">
@@ -307,6 +307,8 @@
 </template>
 
 <script setup>
+import { computed, onMounted, ref } from 'vue'
+
 const runtimeConfig = useRuntimeConfig()
 const apiBase = runtimeConfig.public.apiBase
 
@@ -317,7 +319,8 @@ const mobileDownloads = ref([
     subLabel: 'App Store 安装',
     platform: 'ios',
     channel: 'stable',
-    href: ''
+    href: '',
+    unavailable: false
   },
   {
     key: 'android',
@@ -325,7 +328,8 @@ const mobileDownloads = ref([
     subLabel: '应用商店 / APK 包',
     platform: 'android',
     channel: 'stable',
-    href: ''
+    href: '',
+    unavailable: false
   }
 ])
 
@@ -336,7 +340,8 @@ const desktopDownloads = ref([
     subLabel: '适配 Windows 7 及以上',
     platform: 'windows',
     channel: 'stable',
-    href: ''
+    href: '',
+    unavailable: false
   },
   {
     key: 'macosIntel',
@@ -344,7 +349,8 @@ const desktopDownloads = ref([
     subLabel: 'x64 处理器专用安装包',
     platform: 'macos',
     channel: 'stable-macos-intel',
-    href: ''
+    href: '',
+    unavailable: false
   },
   {
     key: 'macosArm',
@@ -352,7 +358,17 @@ const desktopDownloads = ref([
     subLabel: '适配 Apple Silicon (M 系列)',
     platform: 'macos',
     channel: 'stable-macos-arm64',
-    href: ''
+    href: '',
+    unavailable: false
+  },
+  {
+    key: 'linux',
+    label: '下载 Linux 版',
+    subLabel: 'AppImage / deb',
+    platform: 'linux',
+    channel: 'stable',
+    href: '',
+    unavailable: false
   }
 ])
 
@@ -364,8 +380,17 @@ const allDownloadItems = computed(() => [
   ...desktopDownloads.value
 ])
 
+const markUnavailable = (item, reason = '暂无可用安装包') => {
+  item.href = ''
+  item.versionText = reason
+  item.unavailable = true
+}
+
 const fetchDownloadUrl = async (item) => {
-  if (!apiBase) return
+  if (!apiBase) {
+    markUnavailable(item)
+    return
+  }
   try {
     const data = await $fetch(`${apiBase}/versions/latest/download-url`, {
       params: {
@@ -377,13 +402,20 @@ const fetchDownloadUrl = async (item) => {
 
     if (data?.success && data.download_url) {
       item.href = data.download_url
+      item.unavailable = false
       downloadLinkMap.value[item.key] = data.download_url
       if (data.version?.version) {
-        item.versionText = `v${data.version.version}`
+        const build = data.version?.build_number
+        item.versionText = build
+          ? `v${data.version.version} (build ${build})`
+          : `v${data.version.version}`
       }
+      return
     }
+    markUnavailable(item)
   } catch (error) {
     console.error(`获取 ${item.label} 下载链接失败`, error)
+    markUnavailable(item)
   }
 }
 
@@ -411,6 +443,7 @@ const detectPlatformKey = () => {
     }
     return 'macosIntel'
   }
+  if (/linux/.test(ua)) return 'linux'
   if (/win/.test(ua)) return 'windows'
   return 'windows'
 }
@@ -422,6 +455,7 @@ const primaryDownloadUrl = computed(() => {
       'windows',
       'macosArm',
       'macosIntel',
+      'linux',
       'android',
       'ios'
     ])
@@ -446,21 +480,21 @@ const handlePrimaryDownload = async () => {
   if (url) {
     window.open(url, '_blank')
   } else {
-    window.alert('下载链接获取中，请稍后重试')
+    window.alert('暂无可用安装包，请稍后重试')
   }
 }
 
 const handleDownloadClick = async (item) => {
   if (!process.client) return
 
-  if (!item.href) {
+  if (!item.href && !item.unavailable) {
     await fetchDownloadUrl(item)
   }
 
   if (item.href) {
     window.open(item.href, '_blank')
   } else {
-    window.alert('下载链接暂不可用，请稍后重试')
+    window.alert('暂无可用安装包，请稍后重试')
   }
 }
 
