@@ -1,5 +1,17 @@
 <template>
-  <div class="side-menu">
+  <OverlayScrollbarsComponent
+    class="side-menu"
+    :options="{
+      scrollbars: {
+        visibility: 'visible',
+        autoHide: 'leave',
+        autoHideDelay: 0,
+        autoHideSuspend: true,
+        dragScroll: true,
+        clickScroll: true
+      }
+    }"
+  >
     <div class="user-avatar" @click="handleAvatarClick">
       <Avatar 
         :src="userAvatarLocalPath" 
@@ -87,13 +99,15 @@
       :visible="showAccountLoginModal"
       @close="showAccountLoginModal = false"
     />
-  </div>
+  </OverlayScrollbarsComponent>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
+import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+import 'overlayscrollbars/styles/overlayscrollbars.css'
 import Avatar from './Avatar.vue'
 import Popover from './Popover.vue'
 import AccountLoginModal from './AccountLoginModal.vue'
@@ -343,7 +357,6 @@ onUnmounted(() => {
   background-color: $side-menu-bg; // 使用全局变量 #F5F4F5
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   position: sticky;
   top: 0;
   flex-shrink: 0;
@@ -458,6 +471,104 @@ onUnmounted(() => {
     font-size: 14px;
     color: $chat-message-color; // #707991
     white-space: nowrap;
+  }
+}
+</style>
+
+<!-- 非 scoped 样式块：OverlayScrollbars 自定义样式 -->
+<style lang="scss">
+.side-menu {
+  height: 100%;
+
+  .os-viewport {
+    overscroll-behavior: contain;
+  }
+
+  .os-scrollbar {
+    --os-size: 8px;
+    --os-padding-perpendicular: 2px;
+    --os-padding-axis: 2px;
+    --os-track-border-radius: 10px;
+    --os-track-bg: transparent;
+    --os-track-bg-hover: transparent;
+    --os-track-bg-active: transparent;
+    --os-handle-border-radius: 10px;
+    --os-handle-bg: rgba(0, 0, 0, 0.3);
+    --os-handle-bg-hover: rgba(0, 0, 0, 0.3);
+    --os-handle-bg-active: rgba(0, 0, 0, 0.3);
+    --os-handle-min-size: 40px;
+    --os-handle-max-size: none;
+    --os-handle-perpendicular-size: 60%;
+    --os-handle-perpendicular-size-hover: 60%;
+    --os-handle-perpendicular-size-active: 60%;
+    --os-handle-interactive-area-offset: 4px;
+  }
+
+  .os-scrollbar-hidden {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+
+  .os-scrollbar-visible {
+    opacity: 1;
+    transition: opacity 0.1s ease;
+  }
+
+  .os-scrollbar-vertical {
+    right: 2px;
+    top: 4px;
+    bottom: 4px;
+    width: 8px !important;
+
+    .os-scrollbar-track {
+      width: 8px !important;
+    }
+
+    .os-scrollbar-handle {
+      width: 6px !important;
+      min-height: 40px !important;
+      transition: none !important;
+
+      &:hover {
+        width: 6px !important;
+      }
+
+      &:active {
+        width: 6px !important;
+      }
+    }
+  }
+
+  .os-scrollbar-track {
+    background: transparent !important;
+    border-radius: 6px !important;
+
+    &:hover {
+      background: transparent !important;
+    }
+
+    &:active {
+      background: transparent !important;
+    }
+  }
+
+  .os-scrollbar-handle {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-radius: 10px !important;
+    border: none !important;
+    box-shadow: none !important;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.3) !important;
+    }
+
+    &:active {
+      background: rgba(0, 0, 0, 0.3) !important;
+    }
+  }
+
+  .os-scrollbar-horizontal {
+    display: none !important;
   }
 }
 </style>
