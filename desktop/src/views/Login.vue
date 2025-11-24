@@ -282,12 +282,36 @@ async function loadCaptchaSetting() {
   }
 }
 
+// 从本地存储加载上次登录的账号
+function loadLastLoginAccount() {
+  try {
+    const lastAccount = localStorage.getItem('lastLoginAccount');
+    if (lastAccount) {
+      loginForm.value.phone = lastAccount;
+    }
+  } catch (error) {
+    // 静默失败
+  }
+}
+
+// 保存本次登录的账号到本地存储
+function saveLastLoginAccount(account: string) {
+  try {
+    localStorage.setItem('lastLoginAccount', account);
+  } catch (error) {
+    // 静默失败
+  }
+}
+
 // 组件挂载时设置窗口大小
 onMounted(() => {
   try {
     store.dispatch("hideGlobalLoading");
   } catch (error) {
   }
+
+  // 加载上次登录的账号
+  loadLastLoginAccount();
 
   // 加载验证码设置
   void loadCaptchaSetting();
@@ -354,6 +378,9 @@ async function handleRegister() {
 
       if (loginResponse.success && loginResponse.data) {
         setLoginTime();
+
+        // 保存本次登录的账号
+        saveLastLoginAccount(loginForm.value.phone);
 
         const userInfo = loginResponse.data.userInfo;
         const mappedUserInfo = {
@@ -546,6 +573,9 @@ async function handleLogin() {
     if (response.success && response.data) {
       // 登录成功，立即设置登录时间（在状态更新之前）
       setLoginTime();
+
+      // 保存本次登录的账号
+      saveLastLoginAccount(loginForm.value.phone);
 
       // 登录成功，保存用户信息和token到store
       // 将API返回的数据格式映射为Store期望的格式
