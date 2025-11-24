@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue';
+// defineProps 和 defineEmits 是编译器宏，不需要导入
 import MessageSearch from './MessageSearch.vue';
 import type { MessageSearchResult } from '@/api/search';
 

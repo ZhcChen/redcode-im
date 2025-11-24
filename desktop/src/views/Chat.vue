@@ -7734,49 +7734,10 @@ const loadMessageList = async (groupId: string) => {
   flex-shrink: 0;
   scrollbar-gutter: stable; /* 预留滚动条空间，避免内容跳动 */
 
-  // WebKit 浏览器滚动条样式（Chrome、Safari、Edge）
-  &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05); /* 轻微的背景色便于识别滚动区域 */
-    border-radius: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2); /* 使用半透明黑色，在各种背景下都可见 */
-    border-radius: 4px;
-    transition: background 0.2s ease;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.3);
-    }
-
-    &:active {
-      background: rgba(0, 0, 0, 0.4);
-    }
-  }
-
-  // Firefox 滚动条样式
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
+  // 滚动条样式已移至非 scoped 样式块中定义
 }
 
-// 临时使用醒目的颜色验证滚动条样式是否生效
-// TODO: 验证后改回正常颜色
-.chat-list {
-  &::-webkit-scrollbar-thumb {
-    background: $primary-color !important; // 使用主题色，更醒目
-
-    &:hover {
-      background: darken($primary-color, 10%) !important;
-    }
-  }
-
-  scrollbar-color: $primary-color rgba(0, 0, 0, 0.05) !important;
-}
+// 暂时移除这部分重复定义，下面会在非 scoped 样式块中重新定义
 
 .resize-handle {
   width: 2px;
@@ -9177,5 +9138,68 @@ const loadMessageList = async (groupId: string) => {
       }
     }
   }
+}
+</style>
+
+<!-- 非 scoped 样式块：专门用于滚动条样式，避免 scoped 样式隔离问题 -->
+<style lang="scss">
+@use 'sass:color';
+
+// 聊天列表滚动条样式 - 使用鲜艳的颜色便于调试验证
+.chat-page .chat-list {
+  // WebKit 浏览器（Chrome、Safari、Edge）
+  &::-webkit-scrollbar {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 0, 0, 0.1) !important; // 红色半透明背景，便于看到轨道
+    border-radius: 5px !important;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #ff0000 !important; // 纯红色滑块，非常醒目
+    border-radius: 5px !important;
+    border: 2px solid transparent !important;
+    background-clip: padding-box !important;
+
+    &:hover {
+      background: #cc0000 !important; // 深红色
+    }
+
+    &:active {
+      background: #990000 !important; // 更深的红色
+    }
+  }
+
+  // Firefox 滚动条样式
+  scrollbar-width: thin !important;
+  scrollbar-color: #ff0000 rgba(255, 0, 0, 0.1) !important;
+}
+
+// 确保滚动条样式生效的备选方案
+.chat-list {
+  &::-webkit-scrollbar {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 0, 0, 0.1) !important;
+    border-radius: 5px !important;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #ff0000 !important;
+    border-radius: 5px !important;
+
+    &:hover {
+      background: #cc0000 !important;
+    }
+  }
+
+  scrollbar-width: thin !important;
+  scrollbar-color: #ff0000 rgba(255, 0, 0, 0.1) !important;
 }
 </style>
