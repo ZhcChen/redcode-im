@@ -2496,22 +2496,55 @@ const chatMessagesRef = ref<InstanceType<typeof ScrollContainer> | null>(null)
 const getMessagesViewport = (): HTMLElement | null => {
   // ScrollContainer 内部使用 OverlayScrollbarsComponent，需要访问其子组件
   const scrollContainer = chatMessagesRef.value as any
-  const viewport = scrollContainer?.$el?.querySelector('.os-viewport') ?? null
 
-  if (!viewport) {
-    console.log('[ScrollDebug] getMessagesViewport: viewport not found')
-    console.log('[ScrollDebug] chatMessagesRef.value:', !!chatMessagesRef.value)
-    console.log('[ScrollDebug] scrollContainer.$el:', !!scrollContainer?.$el)
+  if (scrollContainer?.$el) {
+    console.log('[ScrollDebug] scrollContainer.$el tagName:', scrollContainer.$el.tagName)
+    console.log('[ScrollDebug] scrollContainer.$el className:', scrollContainer.$el.className)
+    console.log('[ScrollDebug] scrollContainer.$el innerHTML (first 200 chars):', scrollContainer.$el.innerHTML?.substring(0, 200))
 
-    // 尝试其他选择器
-    const alternativeViewport = document.querySelector('.chat-messages .os-viewport') as HTMLElement
-    if (alternativeViewport) {
-      console.log('[ScrollDebug] Found viewport using alternative selector')
-      return alternativeViewport
+    // 尝试多种选择器
+    const selectors = [
+      '.os-viewport',
+      '.os-viewport-native-scrollbars-invisible',
+      '.os-content',
+      '[data-overlayscrollbars-viewport]',
+      '.scroll-container',
+      '.chat-messages-container'
+    ]
+
+    for (const selector of selectors) {
+      const element = scrollContainer.$el.querySelector(selector) as HTMLElement
+      if (element) {
+        console.log('[ScrollDebug] Found element with selector:', selector)
+        return element
+      }
+    }
+
+    // 如果都找不到，尝试直接返回 $el 本身
+    console.log('[ScrollDebug] No viewport found, trying $el itself')
+    if (scrollContainer.$el.scrollHeight > 0) {
+      console.log('[ScrollDebug] Using $el as viewport')
+      return scrollContainer.$el
     }
   }
 
-  return viewport
+  // 尝试全局选择器
+  const globalSelectors = [
+    '.chat-messages .os-viewport',
+    '.chat-messages',
+    '.messages-container'
+  ]
+
+  for (const selector of globalSelectors) {
+    const element = document.querySelector(selector) as HTMLElement
+    if (element && element.scrollHeight > 0) {
+      console.log('[ScrollDebug] Found element with global selector:', selector)
+      return element
+    }
+  }
+
+  console.log('[ScrollDebug] Failed to find any scrollable element')
+  return null
 }
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const quotedHighlightTimers = new Map<string, number>()
@@ -4098,8 +4131,21 @@ const scrollToBottomOnLoad = () => {
   const maxRetries = 30 // 增加到 30 次
 
   const tryScroll = () => {
+    retryCount++
+
+    // 方式1: 使用 ScrollContainer 组件暴露的方法
+    if (chatMessagesRef.value) {
+      console.log('[ScrollDebug] Trying ScrollContainer.scrollToBottom method, attempt:', retryCount)
+      const success = chatMessagesRef.value.scrollToBottom?.(true)
+      if (success) {
+        console.log('[ScrollDebug] Successfully scrolled using ScrollContainer method')
+        return
+      }
+    }
+
+    // 方式2: 使用原来的 getMessagesViewport 方法
     const vp = getMessagesViewport()
-    console.log('[ScrollDebug] tryScroll attempt:', retryCount + 1, 'viewport found:', !!vp)
+    console.log('[ScrollDebug] tryScroll attempt:', retryCount, 'viewport found:', !!vp)
 
     if (vp) {
       const beforeScroll = {
@@ -4134,17 +4180,15 @@ const scrollToBottomOnLoad = () => {
         console.log('[ScrollDebug] Is at bottom:', isAtBottom, 'diff:', Math.abs(vp.scrollTop + vp.clientHeight - vp.scrollHeight))
 
         if (!isAtBottom && retryCount < maxRetries) {
-          retryCount++
           // 使用更短的延迟重试
           setTimeout(tryScroll, 50)
         } else if (isAtBottom) {
-          console.log('[ScrollDebug] Successfully scrolled to bottom after', retryCount + 1, 'attempts')
+          console.log('[ScrollDebug] Successfully scrolled to bottom after', retryCount, 'attempts')
         }
       }, 20)
     } else {
       // 如果还找不到 viewport，继续重试
       if (retryCount < maxRetries) {
-        retryCount++
         setTimeout(tryScroll, 50)
       } else {
         console.error('[ScrollDebug] Failed to find viewport after', maxRetries, 'attempts')

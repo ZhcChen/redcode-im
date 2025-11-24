@@ -1,5 +1,6 @@
 <template>
   <OverlayScrollbarsComponent
+    ref="scrollbarRef"
     :class="['scroll-container', containerClass]"
     :options="scrollOptions"
     v-bind="$attrs"
@@ -9,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
 import 'overlayscrollbars/styles/overlayscrollbars.css'
 
@@ -25,6 +26,9 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'normal'
 })
 
+// 暴露 OverlayScrollbars 组件引用
+const scrollbarRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
+
 // 统一的滚动条配置
 const scrollOptions = {
   scrollbars: {
@@ -36,6 +40,32 @@ const scrollOptions = {
     clickScroll: true
   }
 }
+
+// 暴露滚动方法给父组件
+defineExpose({
+  scrollToBottom: (instant = true) => {
+    const instance = scrollbarRef.value?.osInstance()
+    if (instance) {
+      const { viewport } = instance.elements()
+      if (viewport) {
+        viewport.scrollTo({
+          top: viewport.scrollHeight,
+          behavior: instant ? 'instant' : 'smooth'
+        })
+        return true
+      }
+    }
+    return false
+  },
+  getViewport: () => {
+    const instance = scrollbarRef.value?.osInstance()
+    if (instance) {
+      const { viewport } = instance.elements()
+      return viewport
+    }
+    return null
+  }
+})
 </script>
 
 <style lang="scss" scoped>
