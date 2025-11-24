@@ -2496,7 +2496,22 @@ const chatMessagesRef = ref<InstanceType<typeof ScrollContainer> | null>(null)
 const getMessagesViewport = (): HTMLElement | null => {
   // ScrollContainer 内部使用 OverlayScrollbarsComponent，需要访问其子组件
   const scrollContainer = chatMessagesRef.value as any
-  return scrollContainer?.$el?.querySelector('.os-viewport') ?? null
+  const viewport = scrollContainer?.$el?.querySelector('.os-viewport') ?? null
+
+  if (!viewport) {
+    console.log('[ScrollDebug] getMessagesViewport: viewport not found')
+    console.log('[ScrollDebug] chatMessagesRef.value:', !!chatMessagesRef.value)
+    console.log('[ScrollDebug] scrollContainer.$el:', !!scrollContainer?.$el)
+
+    // 尝试其他选择器
+    const alternativeViewport = document.querySelector('.chat-messages .os-viewport') as HTMLElement
+    if (alternativeViewport) {
+      console.log('[ScrollDebug] Found viewport using alternative selector')
+      return alternativeViewport
+    }
+  }
+
+  return viewport
 }
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const quotedHighlightTimers = new Map<string, number>()
@@ -4078,39 +4093,73 @@ const scrollToBottom = (force = false, instant = true) => {
 
 // 专门用于首次加载消息时的滚动，会持续重试直到成功
 const scrollToBottomOnLoad = () => {
+  console.log('[ScrollDebug] scrollToBottomOnLoad called')
   let retryCount = 0
-  const maxRetries = 20 // 最多重试 20 次
+  const maxRetries = 30 // 增加到 30 次
 
   const tryScroll = () => {
     const vp = getMessagesViewport()
+    console.log('[ScrollDebug] tryScroll attempt:', retryCount + 1, 'viewport found:', !!vp)
+
     if (vp) {
-      // 使用 scrollTo 方法，设置 behavior: 'instant' 无动画直接跳转
+      const beforeScroll = {
+        scrollTop: vp.scrollTop,
+        scrollHeight: vp.scrollHeight,
+        clientHeight: vp.clientHeight
+      }
+
+      // 尝试多种滚动方式
+      // 方式1: scrollTo
       vp.scrollTo({
         top: vp.scrollHeight,
         behavior: 'instant'
       })
 
-      // 检查是否真的滚动到底部了
-      const isAtBottom = vp.scrollTop + vp.clientHeight >= vp.scrollHeight - 10
+      // 方式2: 直接设置 scrollTop
+      vp.scrollTop = vp.scrollHeight
 
-      if (!isAtBottom && retryCount < maxRetries) {
-        retryCount++
-        setTimeout(tryScroll, 100)
-      }
+      // 添加短暂延迟后再检查
+      setTimeout(() => {
+        const afterScroll = {
+          scrollTop: vp.scrollTop,
+          scrollHeight: vp.scrollHeight,
+          clientHeight: vp.clientHeight
+        }
+
+        console.log('[ScrollDebug] Before scroll:', beforeScroll)
+        console.log('[ScrollDebug] After scroll:', afterScroll)
+
+        // 检查是否真的滚动到底部了
+        const isAtBottom = Math.abs(vp.scrollTop + vp.clientHeight - vp.scrollHeight) <= 20
+        console.log('[ScrollDebug] Is at bottom:', isAtBottom, 'diff:', Math.abs(vp.scrollTop + vp.clientHeight - vp.scrollHeight))
+
+        if (!isAtBottom && retryCount < maxRetries) {
+          retryCount++
+          // 使用更短的延迟重试
+          setTimeout(tryScroll, 50)
+        } else if (isAtBottom) {
+          console.log('[ScrollDebug] Successfully scrolled to bottom after', retryCount + 1, 'attempts')
+        }
+      }, 20)
     } else {
       // 如果还找不到 viewport，继续重试
       if (retryCount < maxRetries) {
         retryCount++
-        setTimeout(tryScroll, 100)
+        setTimeout(tryScroll, 50)
+      } else {
+        console.error('[ScrollDebug] Failed to find viewport after', maxRetries, 'attempts')
       }
     }
   }
 
-  // 立即开始第一次尝试
-  tryScroll()
-
-  // 使用 requestAnimationFrame 确保渲染完成
-  requestAnimationFrame(tryScroll)
+  // 等待一小段时间让DOM完全渲染
+  setTimeout(() => {
+    tryScroll()
+    // 使用多个时间点尝试，增加成功率
+    setTimeout(tryScroll, 100)
+    setTimeout(tryScroll, 200)
+    setTimeout(tryScroll, 500)
+  }, 10)
 }
 
 // 专门用于图片加载完成后的滚动
@@ -4303,7 +4352,9 @@ const selectChat = async (chat: ChatItem) => {
 
   // 选择聊天后滚动到底部
   // 等待 Vue 完成 DOM 渲染
+  console.log('[ScrollDebug] selectChat: before nextTick')
   await nextTick()
+  console.log('[ScrollDebug] selectChat: after nextTick, messages count:', messages.value.length)
 
   // 使用持续重试的滚动函数，确保真正滚动到底部
   scrollToBottomOnLoad()
