@@ -7734,7 +7734,7 @@ const loadMessageList = async (groupId: string) => {
   flex-shrink: 0;
   scrollbar-gutter: auto; /* 不预留滚动条空间 */
 
-  // 滚动条悬浮样式 - 无背景
+  // 滚动条悬浮样式 - 无背景，红色滑块用于验证样式生效
   &::-webkit-scrollbar {
     width: 8px; /* 稍微加宽便于点击 */
     background-color: transparent;
@@ -7745,16 +7745,16 @@ const loadMessageList = async (groupId: string) => {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.18);
+    background: #ff4d4f;
     border-radius: 6px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
+    background: #d9363e;
   }
 
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+  scrollbar-color: #ff4d4f transparent;
 }
 
 .resize-handle {
