@@ -54,7 +54,7 @@
           </div>
           
           <!-- 好友申请列表 -->
-          <div class="friend-requests-list">
+          <ScrollContainer class="friend-requests-list">
             <!-- 只有在初始加载且没有缓存数据时才显示loading -->
             <div v-if="isLoadingFriendRequests && friendRequests.length === 0" class="loading-state">
               <div class="loading-text">正在获取好友申请...</div>
@@ -87,9 +87,9 @@
                 <div class="request-message">{{ request.message || '请求添加您为好友' }}</div>
               </div>
             </div>
-          </div>
+          </ScrollContainer>
         </div>
-        
+
         <!-- 联系人主页面 -->
         <div v-else class="contacts-main-view">
           <!-- 固定项目 -->
@@ -264,9 +264,9 @@
           <div class="search-results-header">
             <span>找到 {{ searchResults.length }} 个用户</span>
           </div>
-          <div class="search-results-list">
-            <div 
-              v-for="user in searchResults" 
+          <ScrollContainer class="search-results-list" size="thin">
+            <div
+              v-for="user in searchResults"
               :key="user.id"
               class="search-result-item"
               :class="{ 'disabled': isAddingFriend }"
@@ -294,7 +294,7 @@
                 <span v-else class="add-friend-btn">添加</span>
               </div>
             </div>
-          </div>
+          </ScrollContainer>
         </div>
       </div>
     </Dialog>
@@ -1431,7 +1431,6 @@ onUnmounted(() => {
     
     .search-results-list {
       max-height: 300px;
-      overflow-y: auto;
     }
     
     .search-result-item {
@@ -1567,7 +1566,6 @@ onUnmounted(() => {
 
 .friend-requests-list {
   flex: 1;
-  overflow-y: auto;
 }
 
 .friend-request-item {

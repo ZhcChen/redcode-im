@@ -817,7 +817,7 @@
     @close="showForwardDialog = false"
   >
     <div class="forward-dialog">
-      <div class="forward-list">
+      <ScrollContainer class="forward-list">
         <label
           v-for="chat in forwardableChats"
           :key="chat.id"
@@ -830,7 +830,7 @@
           />
           <span class="forward-name">{{ chat.name }}</span>
         </label>
-      </div>
+      </ScrollContainer>
       <div class="forward-actions">
         <button class="btn" @click="showForwardDialog = false">取消</button>
         <button class="btn primary" @click="confirmForward">确认转发</button>
@@ -9076,7 +9076,6 @@ const loadMessageList = async (groupId: string) => {
 
   .forward-list {
     max-height: 280px;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 8px;
