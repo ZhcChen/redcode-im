@@ -7730,10 +7730,11 @@ const loadMessageList = async (groupId: string) => {
 .chat-list {
   min-width: 240px; /* 降低最小宽度，给聊天窗口更多响应空间 */
   max-width: 70vw;
-  overflow-y: auto;
+  overflow-y: overlay; /* 滚动条悬浮在内容上，不占用空间 */
   flex-shrink: 0;
+  scrollbar-gutter: auto; /* 不预留滚动条空间 */
 
-  // 美化滚动条
+  // 滚动条悬浮样式 - 无背景
   &::-webkit-scrollbar {
     width: 6px;
   }
@@ -7745,7 +7746,6 @@ const loadMessageList = async (groupId: string) => {
   &::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.15);
     border-radius: 3px;
-    transition: background 0.2s ease;
   }
 
   &::-webkit-scrollbar-thumb:hover {
