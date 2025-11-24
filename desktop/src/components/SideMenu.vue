@@ -1,8 +1,5 @@
 <template>
-  <ScrollContainer
-    class="side-menu"
-    size="thin"
-  >
+  <div class="side-menu">
     <div class="user-avatar" @click="handleAvatarClick">
       <Avatar 
         :src="userAvatarLocalPath" 
@@ -90,14 +87,13 @@
       :visible="showAccountLoginModal"
       @close="showAccountLoginModal = false"
     />
-  </ScrollContainer>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
-import ScrollContainer from './ScrollContainer.vue'
 import Avatar from './Avatar.vue'
 import Popover from './Popover.vue'
 import AccountLoginModal from './AccountLoginModal.vue'
