@@ -208,6 +208,32 @@ impl HttpClientState {
                 }),
             );
 
+            // 拦截联系人列表接口请求 - 输出详细的请求信息
+            if options.path.contains("/friends") && !options.path.contains("/friends/requests") {
+                println!("\n========================================");
+                println!("📤 拦截到联系人列表接口请求:");
+                println!("========================================");
+                println!("请求 URL: {}", url);
+                println!("请求方法: {}", method);
+                println!("注入 Token: {}", options.inject_token);
+                println!("Token 值: {}", token.as_ref().map(|t| format!("Bearer {}...(前20字符)", &t.chars().take(20).collect::<String>())).unwrap_or_else(|| "无".to_string()));
+                if let Some(header_map) = &headers {
+                    println!("请求头:");
+                    for (key, value) in header_map {
+                        // 隐藏敏感信息
+                        if key.eq_ignore_ascii_case("authorization") {
+                            println!("  {}: Bearer ***", key);
+                        } else {
+                            println!("  {}: {}", key, value);
+                        }
+                    }
+                } else {
+                    println!("请求头: 无");
+                }
+                println!("请求体: {}", body.as_ref().unwrap_or(&"无".to_string()));
+                println!("========================================\n");
+            }
+
             let send_started = Instant::now();
             match self.send(builder, options.expect_binary).await {
                 Ok(outcome) => {
