@@ -41,11 +41,10 @@ async function setMainWindowSize() {
     // 先确保窗口可调整（解除登录页面的限制）
     try {
       await currentWindow.setResizable(true);
-      console.log('[Home] Window set to resizable');
       // 添加小延迟确保 resizable 状态生效
       await new Promise(resolve => setTimeout(resolve, 50));
     } catch (error) {
-      console.error('[Home] Failed to set resizable:', error);
+      // 静默处理权限错误（已在 capabilities 中配置）
     }
 
     if (hasUserResized()) {
@@ -53,13 +52,12 @@ async function setMainWindowSize() {
       return
     }
 
-    // 先尝试直接设置目标尺寸
-    console.log('[Home] Attempting to set window size to:', DEFAULT_MAIN_WINDOW_SIZE);
+    // 设置窗口尺寸
+    console.log('[Home] Setting main window size...');
     const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
 
     if (!directSuccess) {
       // 如果直接设置失败，使用安全方法
-      console.log('[Home] Direct size failed, using safe method');
       await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
     }
   } catch (error) {

@@ -496,9 +496,8 @@ async function handleRegister() {
           try {
             const currentWindow = getCurrentWebviewWindow();
             await currentWindow.setResizable(true);
-            console.log('[Login] Window set to resizable after registration');
           } catch (error) {
-            console.error('[Login] Failed to set resizable:', error);
+            // 静默处理权限错误
           }
 
           router.replace({ name: "Home" });
@@ -725,9 +724,8 @@ async function handleLogin() {
         try {
           const currentWindow = getCurrentWebviewWindow();
           await currentWindow.setResizable(true);
-          console.log('[Login] Window set to resizable before navigation');
         } catch (error) {
-          console.error('[Login] Failed to set resizable:', error);
+          // 静默处理权限错误
         }
 
         // 主窗口登录，跳转到首页

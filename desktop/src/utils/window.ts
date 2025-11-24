@@ -36,15 +36,14 @@ export async function setWindowSizeSafe(targetWidth: number, targetHeight: numbe
   const screenW = monitor?.size?.width ?? 1920
   const screenH = monitor?.size?.height ?? 1080
 
-  console.log(`[setWindowSizeSafe] Monitor info:`, {
-    monitorAvailable,
-    scaleFactor,
-    screenW,
-    screenH,
-    targetWidth,
-    targetHeight,
-    monitorData: monitor
-  })
+  // 计算逻辑屏幕尺寸
+  const screenWLogical = Math.round(screenW / scaleFactor)
+  const screenHLogical = Math.round(screenH / scaleFactor)
+
+  console.log(`[setWindowSizeSafe] Environment:`)
+  console.log(`  - Screen: ${screenWLogical}x${screenHLogical}px (logical), ${screenW}x${screenH}px (physical)`)
+  console.log(`  - DPI scale: ${scaleFactor}`)
+  console.log(`  - Target: ${targetWidth}x${targetHeight}px`)
 
   // 预留顶部任务栏/标题栏空间，避免贴边被遮挡（Windows 小屏常见）
   // 在高 DPI 下，边距也需要缩放
@@ -70,18 +69,10 @@ export async function setWindowSizeSafe(targetWidth: number, targetHeight: numbe
   const finalWLogical = Math.max(400, finalWPhysical / scaleFactor)
   const finalHLogical = Math.max(300, finalHPhysical / scaleFactor)
 
-  console.log(`[setWindowSizeSafe] Calculation results:`, {
-    finalWLogical,
-    finalHLogical,
-    finalWPhysical,
-    finalHPhysical,
-    desiredWPhysical,
-    desiredHPhysical,
-    maxWPhysical,
-    maxHPhysical,
-    'screenW-margin': screenW - horizontalMarginPhysical,
-    'desired/max': desiredWPhysical <= maxWPhysical ? 'fits' : 'exceeds'
-  })
+  console.log(`[setWindowSizeSafe] Calculated size: ${finalWLogical}x${finalHLogical}px`)
+  if (desiredWPhysical > maxWPhysical || desiredHPhysical > maxHPhysical) {
+    console.log(`  - Size limited by screen (wanted ${targetWidth}x${targetHeight}px)`)
+  }
 
   // 如果目标尺寸合理（不是过大），尝试直接设置
   const isReasonableSize = targetWidth <= 1920 && targetHeight <= 1080
@@ -131,7 +122,7 @@ export const hasUserResized = () => userResized
 // 直接设置窗口尺寸，不做任何限制（用于测试）
 export async function setWindowSizeDirect(width: number, height: number) {
   const win = getCurrentWebviewWindow()
-  console.log('[setWindowSizeDirect] Setting size directly to:', width, 'x', height)
+  console.log('[setWindowSizeDirect] Target size:', width, 'x', height, '(logical pixels)')
 
   try {
     suppressResizeFlag = true
@@ -139,8 +130,18 @@ export async function setWindowSizeDirect(width: number, height: number) {
     await win.center()
 
     // 验证实际设置的尺寸
-    const actualSize = await win.innerSize()
-    console.log('[setWindowSizeDirect] Actual size after setting:', actualSize)
+    const actualPhysicalSize = await win.innerSize()
+    const monitor = await currentMonitor().catch(() => null as any)
+    const scaleFactor = monitor?.scaleFactor ?? 1
+
+    // 转换为逻辑像素以便理解
+    const actualLogicalWidth = actualPhysicalSize.width / scaleFactor
+    const actualLogicalHeight = actualPhysicalSize.height / scaleFactor
+
+    console.log('[setWindowSizeDirect] Size set successfully!')
+    console.log('  - Logical size:', Math.round(actualLogicalWidth), 'x', Math.round(actualLogicalHeight), 'px')
+    console.log('  - Physical size:', actualPhysicalSize.width, 'x', actualPhysicalSize.height, 'px')
+    console.log('  - DPI scale factor:', scaleFactor)
 
     setTimeout(() => {
       suppressResizeFlag = false
