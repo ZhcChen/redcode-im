@@ -21,7 +21,7 @@
 import { computed, watch, onMounted, onActivated, ref } from 'vue'
 import { useStore } from 'vuex'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { setWindowSizeSafe, hasUserResized, installUserResizeListener } from '@/utils/window'
+import { setWindowSizeSafe, hasUserResized, installUserResizeListener, setWindowSizeDirect } from '@/utils/window'
 import SideMenu from './SideMenu.vue'
 import Chat from '../views/Chat.vue'
 import Contact from '../views/Contact.vue'
@@ -63,8 +63,15 @@ async function setMainWindowSize() {
 
     // 如果窗口不是最大化状态，设置为固定大小
     if (!isCurrentlyMaximized && !hasUserResized()) {
-      console.log('[AccountHome] Setting window size to:', DEFAULT_MAIN_WINDOW_SIZE)
-      await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+      // 先尝试直接设置目标尺寸
+      console.log('[AccountHome] Attempting to set window size to:', DEFAULT_MAIN_WINDOW_SIZE)
+      const directSuccess = await setWindowSizeDirect(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+
+      if (!directSuccess) {
+        // 如果直接设置失败，使用安全方法
+        console.log('[AccountHome] Direct size failed, using safe method')
+        await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
+      }
     } else {
       console.log('[AccountHome] Skipping resize - maximized or user resized')
     }

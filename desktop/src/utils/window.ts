@@ -18,25 +18,38 @@ export const resetUserResizedFlag = () => {
 // 在设定窗口尺寸前，依据当前显示器可用空间做裁剪，避免在高 DPI / 小屏上超出屏幕
 export async function setWindowSizeSafe(targetWidth: number, targetHeight: number) {
   const win = getCurrentWebviewWindow()
-  // 获取当前显示器信息，若失败则退回空对象
-  const monitor = await currentMonitor().catch(() => null as any)
 
+  // 获取当前显示器信息
+  let monitor: any
+  let monitorAvailable = false
+  try {
+    monitor = await currentMonitor()
+    monitorAvailable = true
+  } catch (error) {
+    console.warn('[setWindowSizeSafe] Failed to get monitor info:', error)
+    monitor = null
+  }
+
+  // 设置默认值，如果无法获取显示器信息，假设为常见的屏幕尺寸
   const scaleFactor = monitor?.scaleFactor ?? 1
-  const screenW = monitor?.size?.width ?? targetWidth * scaleFactor
-  const screenH = monitor?.size?.height ?? targetHeight * scaleFactor
+  // 如果获取不到屏幕信息，默认为常见的 1920x1080
+  const screenW = monitor?.size?.width ?? 1920
+  const screenH = monitor?.size?.height ?? 1080
 
   console.log(`[setWindowSizeSafe] Monitor info:`, {
+    monitorAvailable,
     scaleFactor,
     screenW,
     screenH,
     targetWidth,
-    targetHeight
+    targetHeight,
+    monitorData: monitor
   })
 
   // 预留顶部任务栏/标题栏空间，避免贴边被遮挡（Windows 小屏常见）
   // 在高 DPI 下，边距也需要缩放
   const verticalMarginLogical = 96
-  const horizontalMarginLogical = 0
+  const horizontalMarginLogical = 40  // 添加左右边距
   const verticalMarginPhysical = verticalMarginLogical * scaleFactor
   const horizontalMarginPhysical = horizontalMarginLogical * scaleFactor
 
@@ -45,17 +58,19 @@ export async function setWindowSizeSafe(targetWidth: number, targetHeight: numbe
   const desiredHPhysical = targetHeight * scaleFactor
 
   // 计算最大允许的物理尺寸（考虑屏幕边距）
-  const maxWPhysical = Math.max(400 * scaleFactor, screenW - horizontalMarginPhysical)
-  const maxHPhysical = Math.max(300 * scaleFactor, screenH - verticalMarginPhysical)
+  // 移除 Math.max 的最小值限制，让窗口可以使用更多屏幕空间
+  const maxWPhysical = screenW - horizontalMarginPhysical
+  const maxHPhysical = screenH - verticalMarginPhysical
 
-  // 计算最终的逻辑尺寸（先限制物理尺寸，然后转换为逻辑尺寸）
+  // 计算最终的物理尺寸（不超过屏幕限制）
   const finalWPhysical = Math.min(desiredWPhysical, maxWPhysical)
   const finalHPhysical = Math.min(desiredHPhysical, maxHPhysical)
 
+  // 转换为逻辑尺寸，保证最小尺寸
   const finalWLogical = Math.max(400, finalWPhysical / scaleFactor)
   const finalHLogical = Math.max(300, finalHPhysical / scaleFactor)
 
-  console.log(`[setWindowSizeSafe] Final calculated size:`, {
+  console.log(`[setWindowSizeSafe] Calculation results:`, {
     finalWLogical,
     finalHLogical,
     finalWPhysical,
@@ -63,13 +78,37 @@ export async function setWindowSizeSafe(targetWidth: number, targetHeight: numbe
     desiredWPhysical,
     desiredHPhysical,
     maxWPhysical,
-    maxHPhysical
+    maxHPhysical,
+    'screenW-margin': screenW - horizontalMarginPhysical,
+    'desired/max': desiredWPhysical <= maxWPhysical ? 'fits' : 'exceeds'
   })
+
+  // 如果目标尺寸合理（不是过大），尝试直接设置
+  const isReasonableSize = targetWidth <= 1920 && targetHeight <= 1080
 
   // 标记当前为程序设定尺寸，避免 onResized 将其视作用户操作
   suppressResizeFlag = true
-  await win.setSize(new LogicalSize(finalWLogical, finalHLogical))
-  await win.center()
+
+  if (isReasonableSize && desiredWPhysical <= maxWPhysical) {
+    // 尝试直接设置目标尺寸
+    try {
+      console.log('[setWindowSizeSafe] Attempting direct size:', targetWidth, targetHeight)
+      await win.setSize(new LogicalSize(targetWidth, targetHeight))
+      await win.center()
+      console.log('[setWindowSizeSafe] Direct size set successfully')
+    } catch (error) {
+      console.warn('[setWindowSizeSafe] Direct size failed, using calculated:', error)
+      // 如果直接设置失败，使用计算后的安全尺寸
+      await win.setSize(new LogicalSize(finalWLogical, finalHLogical))
+      await win.center()
+    }
+  } else {
+    // 使用计算后的安全尺寸
+    console.log('[setWindowSizeSafe] Using calculated safe size')
+    await win.setSize(new LogicalSize(finalWLogical, finalHLogical))
+    await win.center()
+  }
+
   // 轻微延迟后恢复监听
   setTimeout(() => {
     suppressResizeFlag = false
@@ -88,3 +127,28 @@ export async function installUserResizeListener() {
 }
 
 export const hasUserResized = () => userResized
+
+// 直接设置窗口尺寸，不做任何限制（用于测试）
+export async function setWindowSizeDirect(width: number, height: number) {
+  const win = getCurrentWebviewWindow()
+  console.log('[setWindowSizeDirect] Setting size directly to:', width, 'x', height)
+
+  try {
+    suppressResizeFlag = true
+    await win.setSize(new LogicalSize(width, height))
+    await win.center()
+
+    // 验证实际设置的尺寸
+    const actualSize = await win.innerSize()
+    console.log('[setWindowSizeDirect] Actual size after setting:', actualSize)
+
+    setTimeout(() => {
+      suppressResizeFlag = false
+    }, 200)
+
+    return true
+  } catch (error) {
+    console.error('[setWindowSizeDirect] Failed to set size:', error)
+    return false
+  }
+}
