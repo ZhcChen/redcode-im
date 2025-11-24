@@ -15,6 +15,7 @@
 <script setup lang="ts">
 import { onMounted, onActivated, onDeactivated, onUnmounted } from 'vue'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { setWindowSizeSafe, hasUserResized, installUserResizeListener } from '@/utils/window'
 import SideMenu from '../components/SideMenu.vue'
 
 // 首页组件 - 包含左侧菜单和右侧二级路由内容
@@ -35,11 +36,10 @@ const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 800 };
 async function setMainWindowSize() {
   const logId = `HOME_RESIZE_${Date.now()}`;
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('set_window_size_and_center', {
-      width: DEFAULT_MAIN_WINDOW_SIZE.width,
-      height: DEFAULT_MAIN_WINDOW_SIZE.height
-    });
+    if (hasUserResized()) {
+      return
+    }
+    await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
   } catch (error) {
   }
 }
@@ -55,7 +55,7 @@ async function prepareWindowOnLogin() {
     
     
     // 如果不是最大化，设置为默认主窗口尺寸
-    if (!isCurrentlyMaximized) {
+    if (!isCurrentlyMaximized && !hasUserResized()) {
       await setMainWindowSize();
     } else {
     }
@@ -106,6 +106,7 @@ onDeactivated(() => {
 // 组件挂载时
 onMounted(() => {
   const logId = `HOME_MOUNTED_${Date.now()}`;
+  void installUserResizeListener()
   // 立即设置窗口尺寸，避免闪烁
   prepareWindowOnLogin();
 });

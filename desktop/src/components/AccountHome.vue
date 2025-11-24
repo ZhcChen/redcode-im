@@ -21,7 +21,7 @@
 import { computed, watch, onMounted, onActivated, ref } from 'vue'
 import { useStore } from 'vuex'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { LogicalSize } from '@tauri-apps/api/window'
+import { setWindowSizeSafe, hasUserResized, installUserResizeListener } from '@/utils/window'
 import SideMenu from './SideMenu.vue'
 import Chat from '../views/Chat.vue'
 import Contact from '../views/Contact.vue'
@@ -52,9 +52,8 @@ async function setMainWindowSize() {
     const isCurrentlyMaximized = await currentWindow.isMaximized()
     
     // 如果窗口不是最大化状态，设置为固定大小
-    if (!isCurrentlyMaximized) {
-      await currentWindow.setSize(new LogicalSize(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height))
-      await currentWindow.center()
+    if (!isCurrentlyMaximized && !hasUserResized()) {
+      await setWindowSizeSafe(DEFAULT_MAIN_WINDOW_SIZE.width, DEFAULT_MAIN_WINDOW_SIZE.height)
     }
     
     // 设置窗口可调整大小（如果之前被禁用）
@@ -131,6 +130,7 @@ onActivated(() => {
 })
 
 onMounted(() => {
+  void installUserResizeListener()
   // 初始化时，优先使用 store 中保存的路由状态
   const account = store.getters['accounts/getAccountById'](props.accountId)
   if (account?.routeState) {
@@ -189,4 +189,3 @@ onMounted(() => {
   height: 100%;
 }
 </style>
-

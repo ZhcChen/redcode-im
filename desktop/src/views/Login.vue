@@ -106,8 +106,8 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import { invoke } from "@tauri-apps/api/core";
+import { setWindowSizeSafe, installUserResizeListener, resetUserResizedFlag } from "@/utils/window";
 import BInput from "@/components/BInput.vue";
 import BButton from "@/components/BButton.vue";
 import BRadio from "@/components/BRadio.vue";
@@ -142,6 +142,7 @@ const isModalMode = computed(() => props.mode === "modal");
 const DEFAULT_MAIN_WINDOW_SIZE = Object.freeze({ width: 1000, height: 650 });
 
 let loginWindowTimer: number | null = null;
+let resizeListenerInstalled = false;
 
 const isAgreed = ref(true);
 
@@ -202,17 +203,12 @@ async function setLoginWindowSize() {
     } catch (error) {
     }
 
-    
-    // 使用 Rust 后端设置窗口大小并居中
-    await invoke("set_window_size_and_center", { width: 400, height: 650 });
-
-    const afterSize = await currentWindow.innerSize();
+    // 使用前端安全尺寸调整，避免小屏/高DPI溢出
+    await setWindowSizeSafe(400, 650);
   } catch (error) {
     // 回退到前端方法
     try {
-      const currentWindow = getCurrentWebviewWindow();
-      await currentWindow.setSize(new LogicalSize(400, 650));
-      await currentWindow.center();
+      await setWindowSizeSafe(400, 650);
     } catch (fallbackError) {
     }
   }
@@ -238,20 +234,12 @@ async function restoreOriginalWindowSize() {
     if (!originalSize) {
     }
 
-    await invoke("set_window_size_and_center", {
-      width: sizeToRestore.width,
-      height: sizeToRestore.height,
-    });
-
+    await setWindowSizeSafe(sizeToRestore.width, sizeToRestore.height);
   } catch (error) {
     // 回退到前端方法
     const fallbackSize = originalSize ?? DEFAULT_MAIN_WINDOW_SIZE;
     try {
-      const currentWindow = getCurrentWebviewWindow();
-      await currentWindow.setSize(
-        new LogicalSize(fallbackSize.width, fallbackSize.height),
-      );
-      await currentWindow.center();
+      await setWindowSizeSafe(fallbackSize.width, fallbackSize.height);
     } catch (fallbackError) {
     }
   }
@@ -318,6 +306,11 @@ onMounted(() => {
 
   // 添加短暂延迟确保路由跳转完成
   if (!isModalMode.value) {
+    if (!resizeListenerInstalled) {
+      resizeListenerInstalled = true;
+      void installUserResizeListener();
+      resetUserResizedFlag();
+    }
     loginWindowTimer = window.setTimeout(() => {
       loginWindowTimer = null;
       void setLoginWindowSize();
