@@ -122,37 +122,61 @@ export const hasUserResized = () => userResized
 
 // 使用 Rust 端设置窗口尺寸（推荐方法）
 export async function setWindowSizeViaRust(width: number, height: number): Promise<boolean> {
-  console.log('[setWindowSizeViaRust] Using Rust backend to set size:', width, 'x', height)
+  console.log('[setWindowSizeViaRust] ========== START ==========')
+  console.log('[setWindowSizeViaRust] Parameters:', { width, height })
+  console.log('[setWindowSizeViaRust] Called at:', new Date().toISOString())
 
   try {
     suppressResizeFlag = true
+    console.log('[setWindowSizeViaRust] suppressResizeFlag set to true')
 
     // 调用 Rust 端的函数
+    console.log('[setWindowSizeViaRust] About to invoke "set_window_size_and_center"...')
+    console.log('[setWindowSizeViaRust] invoke parameters:', JSON.stringify({ width, height }))
+
     await invoke('set_window_size_and_center', { width, height })
-    console.log('[setWindowSizeViaRust] Rust call succeeded')
+
+    console.log('[setWindowSizeViaRust] invoke() completed successfully!')
 
     // 验证实际尺寸
+    console.log('[setWindowSizeViaRust] Starting size verification...')
     const win = getCurrentWebviewWindow()
     const actualPhysicalSize = await win.innerSize()
-    const monitor = await currentMonitor().catch(() => null as any)
+    console.log('[setWindowSizeViaRust] Physical size:', actualPhysicalSize)
+
+    const monitor = await currentMonitor().catch((err) => {
+      console.log('[setWindowSizeViaRust] currentMonitor() error:', err)
+      return null as any
+    })
     const scaleFactor = monitor?.scaleFactor ?? 1
+    console.log('[setWindowSizeViaRust] Scale factor:', scaleFactor)
 
     const actualLogicalWidth = Math.round(actualPhysicalSize.width / scaleFactor)
     const actualLogicalHeight = Math.round(actualPhysicalSize.height / scaleFactor)
 
-    console.log('[setWindowSizeViaRust] Verification:')
-    console.log('  - Target:', width, 'x', height, 'px')
-    console.log('  - Actual:', actualLogicalWidth, 'x', actualLogicalHeight, 'px')
+    console.log('[setWindowSizeViaRust] Verification Results:')
+    console.log('  - Target logical:', width, 'x', height, 'px')
+    console.log('  - Actual logical:', actualLogicalWidth, 'x', actualLogicalHeight, 'px')
+    console.log('  - Physical size:', actualPhysicalSize.width, 'x', actualPhysicalSize.height, 'px')
     console.log('  - Success:', actualLogicalWidth === width && actualLogicalHeight === height)
 
     setTimeout(() => {
       suppressResizeFlag = false
+      console.log('[setWindowSizeViaRust] suppressResizeFlag reset to false (after 200ms)')
     }, 200)
 
+    console.log('[setWindowSizeViaRust] ========== END (SUCCESS) ==========')
     return true
-  } catch (error) {
-    console.error('[setWindowSizeViaRust] Failed:', error)
+  } catch (error: any) {
+    console.error('[setWindowSizeViaRust] ========== ERROR ==========')
+    console.error('[setWindowSizeViaRust] Error occurred:', error)
+    console.error('[setWindowSizeViaRust] Error message:', error?.message)
+    console.error('[setWindowSizeViaRust] Error stack:', error?.stack)
+    console.error('[setWindowSizeViaRust] Error type:', typeof error)
+    console.error('[setWindowSizeViaRust] Error details:', JSON.stringify(error))
     suppressResizeFlag = false
+    console.log('[setWindowSizeViaRust] suppressResizeFlag reset to false (due to error)')
+    console.log('[setWindowSizeViaRust] ========== END (FAILED) ==========')
     return false
   }
 }
