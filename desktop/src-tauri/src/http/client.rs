@@ -53,7 +53,7 @@ impl HttpClientState {
 
     fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
         let mut builder = Client::builder()
-            .http1_only() // 强制使用 HTTP/1.1，避免 HTTP/2 协商问题
+            .http1_only() // 强制使用 HTTP/1.1,避免 HTTP/2 协商问题
             .gzip(false) // 禁用 gzip 压缩
             .brotli(false) // 禁用 brotli 压缩
             .deflate(false) // 禁用 deflate 压缩
@@ -211,7 +211,7 @@ impl HttpClientState {
                 }),
             );
 
-            // 拦截关键接口请求 - 输出详细的请求信息（用于对比）
+            // 拦截关键接口请求 - 输出详细的请求信息(用于对比)
             let should_log = options.path.contains("/friends") && !options.path.contains("/friends/requests")
                 || options.path.contains("/auth/login");
 
@@ -239,7 +239,7 @@ impl HttpClientState {
                 if let Some(header_map) = &headers {
                     println!("请求头:");
                     for (key, value) in header_map {
-                        // 对于 Authorization 头，打印完整值用于调试
+                        // 对于 Authorization 头,打印完整值用于调试
                         if key.eq_ignore_ascii_case("authorization") {
                             println!("  {}: {} (完整值)", key, value);
                             println!("  Authorization 长度: {} 字符", value.len());
@@ -254,52 +254,93 @@ impl HttpClientState {
                 println!("========================================\n");
             }
 
-            let send_started = Instant::now();
-            match self.send(builder, options.expect_binary).await {
-                Ok(outcome) => {
-                    logger::log_event(
-                        "HTTP_RESPONSE",
-                        json!({
-                            "method": method.to_string(),
-                            "url": url,
-                            "attempt": attempt,
-                            "success": outcome.success,
-                            "message": outcome.message,
-                            "elapsedMs": send_started.elapsed().as_millis()
-                        }),
-                    );
+            // 构建请求以检查最终的 headers
+            let request = match builder.build() {
+                Ok(req) => req,
+                Err(e) => {
+                    return Err(HttpError::from(e));
+                }
+            };
 
-                    // 拦截关键接口响应 - 输出到运行控制台（用于对比）
-                    let should_log = options.path.contains("/friends") && !options.path.contains("/friends/requests")
-                        || options.path.contains("/auth/login");
-
-                    if should_log {
-                        println!("\n========================================");
-                        println!("🔍 拦截到接口响应: {}", options.path);
-                        println!("========================================");
-                        println!("请求 URL: {}", url);
-                        println!("请求方法: {}", method);
-                        println!("响应状态: {}", if outcome.success { "成功" } else { "失败" });
-                        println!("响应消息: {}", outcome.message);
-                        println!("响应数据: {}", serde_json::to_string_pretty(&outcome.payload).unwrap_or_else(|_| "无法序列化".to_string()));
-                        println!("========================================\n");
+            // 打印实际发送的所有 headers(包括 reqwest 自动添加的)
+            if should_log {
+                println!("🔍 实际发送的所有 Headers:");
+                for (key, value) in request.headers() {
+                    if let Ok(val_str) = value.to_str() {
+                        println!("  {}: {}", key, val_str);
                     }
+                }
+                println!();
+            }
 
-                    return Ok(outcome);
+            let send_started = Instant::now();
+            match client.execute(request).await {
+                Ok(response) => {
+                    let status = response.status();
+                    if options.expect_binary {
+                        let headers = Self::headers_to_map(response.headers());
+                        match response.bytes().await {
+                            Ok(bytes) => {
+                                let base64_body = general_purpose::STANDARD.encode(&bytes);
+                                let success = status.is_success();
+                                let message = if success {
+                                    "OK".to_string()
+                                } else {
+                                    format!("HTTP {} 请求失败", status.as_u16())
+                                };
+                                let payload = serde_json::json!({
+                                    "success": success,
+                                    "code": status.as_u16(),
+                                    "message": message,
+                                    "data": {
+                                        "base64": base64_body,
+                                        "headers": headers
+                                    }
+                                });
+                                let outcome = HttpRequestOutcome {
+                                    success,
+                                    message,
+                                    payload,
+                                };
+                                self.record_outcome(&outcome, send_started.elapsed()).await;
+                                Ok(outcome)
+                            }
+                            Err(err) => {
+                                let http_error = HttpError::from(err);
+                                self.record_error(send_started.elapsed(), &http_error).await;
+                                Err(http_error)
+                            }
+                        }
+                    } else {
+                        let status_code = status.as_u16();
+                        let text = response.text().await.unwrap_or_default();
+                        let outcome = HttpRequestOutcome::from_http(status_code, text);
+                        self.record_outcome(&outcome, send_started.elapsed()).await;
+
+                        // 拦截关键接口响应 - 输出到运行控制台(用于对比)
+                        let should_log_response = options.path.contains("/friends") && !options.path.contains("/friends/requests")
+                            || options.path.contains("/auth/login");
+
+                        if should_log_response {
+                            println!("\n========================================");
+                            println!("🔍 拦截到接口响应: {}", options.path);
+                            println!("========================================");
+                            println!("请求 URL: {}", url);
+                            println!("请求方法: {}", method);
+                            println!("响应状态: {}", if outcome.success { "成功" } else { "失败" });
+                            println!("响应消息: {}", outcome.message);
+                            println!("响应数据: {}", serde_json::to_string_pretty(&outcome.payload).unwrap_or_else(|_| "无法序列化".to_string()));
+                            println!("========================================\n");
+                        }
+
+                        return Ok(outcome);
+                    }
                 }
                 Err(err) => {
-                    logger::log_event(
-                        "HTTP_RESPONSE_ERROR",
-                        json!({
-                            "method": method.to_string(),
-                            "url": url,
-                            "attempt": attempt,
-                            "error": err.to_string(),
-                            "elapsedMs": send_started.elapsed().as_millis()
-                        }),
-                    );
-                    if attempt >= retries || !err.is_retryable() {
-                        return Err(err);
+                    let http_error = HttpError::from(err);
+                    self.record_error(send_started.elapsed(), &http_error).await;
+                    if attempt >= retries || !http_error.is_retryable() {
+                        return Err(http_error);
                     }
                     sleep(delay).await;
                 }
@@ -307,56 +348,61 @@ impl HttpClientState {
         }
     }
 
-    pub async fn upload_file(
+    async fn send(
         &self,
-        remote_path: String,
-        file_path: PathBuf,
-        content_type: Option<String>,
+        builder: reqwest::RequestBuilder,
+        expect_binary: bool,
     ) -> Result<HttpRequestOutcome, HttpError> {
-        self.ensure_initialized().await?;
-        let (client, config, token) = self.snapshot().await;
-        let url = Self::build_url(&config.base_url, &remote_path, None)?;
-        let file_name = file_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| HttpError::InvalidConfig("无法解析文件名".into()))?
-            .to_string();
-        let bytes = fs::read(&file_path).await?;
-
-        let retries = config.max_retries.max(1);
-        let delay = Duration::from_millis(config.retry_delay_ms);
-        let timeout = config.timeout_ms;
-        let mut attempt = 0;
-
-        loop {
-            attempt += 1;
-            let mut part =
-                reqwest::multipart::Part::bytes(bytes.clone()).file_name(file_name.clone());
-            if let Some(ct) = &content_type {
-                if !ct.trim().is_empty() {
-                    part = part.mime_str(ct).map_err(|err| {
-                        HttpError::InvalidConfig(format!("Content-Type 无效: {err}"))
-                    })?;
-                }
-            }
-            let form = reqwest::multipart::Form::new().part("file", part);
-
-            let mut builder = client
-                .post(&url)
-                .multipart(form)
-                .timeout(Duration::from_millis(timeout));
-            if let Some(token_value) = &token {
-                builder = builder.header("Authorization", format!("Bearer {}", token_value));
-            }
-
-            match self.send(builder, false).await {
-                Ok(outcome) => return Ok(outcome),
-                Err(err) => {
-                    if attempt >= retries || !err.is_retryable() {
-                        return Err(err);
+        let start = Instant::now();
+        match builder.send().await {
+            Ok(response) => {
+                if expect_binary {
+                    let status = response.status();
+                    let headers = Self::headers_to_map(response.headers());
+                    match response.bytes().await {
+                        Ok(bytes) => {
+                            let base64_body = general_purpose::STANDARD.encode(&bytes);
+                            let success = status.is_success();
+                            let message = if success {
+                                "OK".to_string()
+                            } else {
+                                format!("HTTP {} 请求失败", status.as_u16())
+                            };
+                            let payload = serde_json::json!({
+                                "success": success,
+                                "code": status.as_u16(),
+                                "message": message,
+                                "data": {
+                                    "base64": base64_body,
+                                    "headers": headers
+                                }
+                            });
+                            let outcome = HttpRequestOutcome {
+                                success,
+                                message,
+                                payload,
+                            };
+                            self.record_outcome(&outcome, start.elapsed()).await;
+                            Ok(outcome)
+                        }
+                        Err(err) => {
+                            let http_error = HttpError::from(err);
+                            self.record_error(start.elapsed(), &http_error).await;
+                            Err(http_error)
+                        }
                     }
-                    sleep(delay).await;
+                } else {
+                    let status = response.status().as_u16();
+                    let text = response.text().await.unwrap_or_default();
+                    let outcome = HttpRequestOutcome::from_http(status, text);
+                    self.record_outcome(&outcome, start.elapsed()).await;
+                    Ok(outcome)
                 }
+            }
+            Err(err) => {
+                let http_error = HttpError::from(err);
+                self.record_error(start.elapsed(), &http_error).await;
+                Err(http_error)
             }
         }
     }
@@ -376,7 +422,7 @@ impl HttpClientState {
         progress_callback: Option<Box<dyn Fn(f64) + Send + Sync>>,
     ) -> Result<HttpRequestOutcome, HttpError> {
         logger::log_message(&format!("[download_file_with_progress] 开始下载: url={}, save_path={:?}", url_or_path, save_path));
-        
+
         self.ensure_initialized().await?;
         let (client, config, token) = self.snapshot().await;
         let is_external_url = url_or_path.starts_with("http://") || url_or_path.starts_with("https://");
@@ -389,7 +435,7 @@ impl HttpClientState {
         logger::log_message(&format!("[download_file_with_progress] 最终 URL: {}, is_external: {}", url, is_external_url));
 
         let mut builder = client.get(&url);
-        // 只对内部 API URL 添加 Authorization header，外部 URL（如 COS 签名 URL）不需要
+        // 只对内部 API URL 添加 Authorization header,外部 URL(如 COS 签名 URL)不需要
         if !is_external_url {
             if let Some(token_value) = &token {
                 builder = builder.header("Authorization", format!("Bearer {}", token_value));
@@ -401,7 +447,7 @@ impl HttpClientState {
             Ok(mut resp) => {
                 let status = resp.status();
                 logger::log_message(&format!("[download_file_with_progress] HTTP 状态码: {}", status));
-                
+
                 if !status.is_success() {
                     let text = resp.text().await.unwrap_or_default();
                     logger::log_message(&format!("[download_file_with_progress] HTTP 请求失败: status={}, body={}", status, text));
@@ -420,7 +466,7 @@ impl HttpClientState {
 
                 let total_size = resp.content_length();
                 logger::log_message(&format!("[download_file_with_progress] 文件大小: {:?} bytes", total_size));
-                
+
                 logger::log_message(&format!("[download_file_with_progress] 创建文件: {:?}", save_path));
                 let mut file = fs::File::create(&save_path).await.map_err(|e| {
                     logger::log_message(&format!("[download_file_with_progress] 创建文件失败: {}", e));
@@ -438,7 +484,7 @@ impl HttpClientState {
                         HttpError::Io(e)
                     })?;
                     downloaded += chunk.len() as u64;
-                    
+
                     // 调用进度回调
                     if let Some(callback) = &progress_callback {
                         let progress = if let Some(total) = total_size {
@@ -448,7 +494,7 @@ impl HttpClientState {
                                 0.0
                             }
                         } else {
-                            // 如果没有总大小，返回 -1 表示未知进度
+                            // 如果没有总大小,返回 -1 表示未知进度
                             -1.0
                         };
                         callback(progress);
@@ -602,65 +648,6 @@ impl HttpClientState {
             builder = builder.header(header_name, header_value);
         }
         Ok(builder)
-    }
-
-    async fn send(
-        &self,
-        builder: reqwest::RequestBuilder,
-        expect_binary: bool,
-    ) -> Result<HttpRequestOutcome, HttpError> {
-        let start = Instant::now();
-        match builder.send().await {
-            Ok(response) => {
-                if expect_binary {
-                    let status = response.status();
-                    let headers = Self::headers_to_map(response.headers());
-                    match response.bytes().await {
-                        Ok(bytes) => {
-                            let base64_body = general_purpose::STANDARD.encode(&bytes);
-                            let success = status.is_success();
-                            let message = if success {
-                                "OK".to_string()
-                            } else {
-                                format!("HTTP {} 请求失败", status.as_u16())
-                            };
-                            let payload = serde_json::json!({
-                                "success": success,
-                                "code": status.as_u16(),
-                                "message": message,
-                                "data": {
-                                    "base64": base64_body,
-                                    "headers": headers
-                                }
-                            });
-                            let outcome = HttpRequestOutcome {
-                                success,
-                                message,
-                                payload,
-                            };
-                            self.record_outcome(&outcome, start.elapsed()).await;
-                            Ok(outcome)
-                        }
-                        Err(err) => {
-                            let http_error = HttpError::from(err);
-                            self.record_error(start.elapsed(), &http_error).await;
-                            Err(http_error)
-                        }
-                    }
-                } else {
-                    let status = response.status().as_u16();
-                    let text = response.text().await.unwrap_or_default();
-                    let outcome = HttpRequestOutcome::from_http(status, text);
-                    self.record_outcome(&outcome, start.elapsed()).await;
-                    Ok(outcome)
-                }
-            }
-            Err(err) => {
-                let http_error = HttpError::from(err);
-                self.record_error(start.elapsed(), &http_error).await;
-                Err(http_error)
-            }
-        }
     }
 
     fn headers_to_map(headers: &HeaderMap) -> HashMap<String, String> {
