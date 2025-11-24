@@ -218,6 +218,7 @@ impl HttpClientState {
                 println!("========================================");
                 println!("请求 URL: {}", url);
                 println!("请求方法: {}", method);
+                println!("User-Agent: {}", config.user_agent);
                 println!("注入 Token: {}", options.inject_token);
 
                 // 打印完整的 token 值用于调试
