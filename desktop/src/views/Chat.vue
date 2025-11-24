@@ -4042,30 +4042,67 @@ const formatMessageTime = (timeStr: string) => {
 
 // 滚动到底部函数
 const scrollToBottom = (force = false) => {
-  const viewport = getMessagesViewport()
-  if (viewport) {
-    const scroll = () => {
-      const vp = getMessagesViewport()
-      if (vp) {
-        vp.scrollTop = vp.scrollHeight
+  const scroll = () => {
+    const vp = getMessagesViewport()
+    if (vp) {
+      vp.scrollTop = vp.scrollHeight
+      return true // 返回 true 表示成功滚动
+    }
+    return false // 返回 false 表示还没找到 viewport
+  }
+
+  // 立即尝试滚动
+  scroll()
+
+  // 使用 requestAnimationFrame 确保浏览器完成渲染
+  requestAnimationFrame(() => {
+    scroll()
+    // 再次延迟确保 OverlayScrollbars 初始化完成
+    setTimeout(scroll, 50)
+    setTimeout(scroll, 100)
+  })
+
+  // 如果强制滚动或有图片消息，额外延迟确保图片加载完成
+  if (force || messages.value.some((msg: Message) =>
+    msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+    msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
+  )) {
+    setTimeout(scroll, 200)
+    setTimeout(scroll, 500) // 给图片更多加载时间
+  }
+}
+
+// 专门用于首次加载消息时的滚动，会持续重试直到成功
+const scrollToBottomOnLoad = () => {
+  let retryCount = 0
+  const maxRetries = 20 // 最多重试 20 次
+
+  const tryScroll = () => {
+    const vp = getMessagesViewport()
+    if (vp) {
+      vp.scrollTop = vp.scrollHeight
+
+      // 检查是否真的滚动到底部了
+      const isAtBottom = vp.scrollTop + vp.clientHeight >= vp.scrollHeight - 10
+
+      if (!isAtBottom && retryCount < maxRetries) {
+        retryCount++
+        setTimeout(tryScroll, 100)
+      }
+    } else {
+      // 如果还找不到 viewport，继续重试
+      if (retryCount < maxRetries) {
+        retryCount++
+        setTimeout(tryScroll, 100)
       }
     }
-
-    // 立即滚动一次
-    scroll()
-
-    // 延迟滚动，等待DOM更新
-    setTimeout(scroll, 50)
-
-    // 如果强制滚动或有图片消息，额外延迟确保图片加载完成
-    if (force || messages.value.some((msg: Message) =>
-      msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-      msg.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
-    )) {
-      setTimeout(scroll, 200)
-      setTimeout(scroll, 500) // 给图片更多加载时间
-    }
   }
+
+  // 立即开始第一次尝试
+  tryScroll()
+
+  // 使用 requestAnimationFrame 确保渲染完成
+  requestAnimationFrame(tryScroll)
 }
 
 // 专门用于图片加载完成后的滚动
@@ -4256,12 +4293,8 @@ const selectChat = async (chat: ChatItem) => {
   // 等待 Vue 完成 DOM 渲染
   await nextTick()
 
-  // 使用 force 模式触发更长的延迟重试（处理图片/视频加载）
-  scrollToBottom(true)
-
-  // 添加额外的延迟滚动，确保慢速加载的内容也能正确滚动
-  setTimeout(() => scrollToBottom(true), 1000)
-  setTimeout(() => scrollToBottom(true), 1500)
+  // 使用持续重试的滚动函数，确保真正滚动到底部
+  scrollToBottomOnLoad()
 }
 
 // 标记聊天为已读状态
