@@ -4253,7 +4253,15 @@ const selectChat = async (chat: ChatItem) => {
   }
 
   // 选择聊天后滚动到底部
-  scrollToBottom()
+  // 等待 Vue 完成 DOM 渲染
+  await nextTick()
+
+  // 使用 force 模式触发更长的延迟重试（处理图片/视频加载）
+  scrollToBottom(true)
+
+  // 添加额外的延迟滚动，确保慢速加载的内容也能正确滚动
+  setTimeout(() => scrollToBottom(true), 1000)
+  setTimeout(() => scrollToBottom(true), 1500)
 }
 
 // 标记聊天为已读状态
