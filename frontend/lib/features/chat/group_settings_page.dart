@@ -56,12 +56,11 @@ List<Color> _getAvatarColors() {
 
 // 根据名称生成背景色
 Color _generateBackgroundColor(String text) {
-  if (text.isNotEmpty) {
-    final colors = _getAvatarColors();
-    final hash = _hashCode(text);
-    return colors[hash % colors.length];
-  }
-  return _getAvatarColors().first;
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return const Color(0xFFF0F0F0);
+  final colors = _getAvatarColors();
+  final hash = _hashCode(trimmed);
+  return colors[hash % colors.length];
 }
 
 class _GroupAvatar extends StatefulWidget {

@@ -205,7 +205,8 @@ class _MessageAvatarState extends State<MessageAvatar> {
 
   // 根据文本生成背景色（与聊天列表保持一致）
   Color _generateBackgroundColor(String text) {
-    if (text.isEmpty) return const Color(0xFF6366f1);
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return const Color(0xFFF0F0F0);
 
     // 预设的柔和色调（与桌面端保持一致）
     const colors = [
@@ -221,7 +222,7 @@ class _MessageAvatarState extends State<MessageAvatar> {
       Color(0xFFa855f7), // 紫罗兰
     ];
 
-    final hash = _hashCode(text);
+    final hash = _hashCode(trimmed);
     return colors[hash % colors.length];
   }
 }

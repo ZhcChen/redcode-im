@@ -473,10 +473,10 @@
 
               <div class="message-time">
                 {{ formatMessageTime(message.createTime || message.time) }}
-                <svg v-if="message.isSelf && message.status === 2" class="message-status-icon sent" width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg v-if="message.isSelf && message.status === 2" class="message-status-icon sent" width="20" height="20" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
                 </svg>
-                <svg v-if="message.isSelf && message.status === 4" class="message-status-icon read" width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg v-if="message.isSelf && message.status === 4" class="message-status-icon read" width="20" height="20" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
                   <path fill-rule="evenodd" clip-rule="evenodd" d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z" fill="currentColor"/>
                 </svg>
@@ -493,6 +493,17 @@
             </template>
           </div>
         </ScrollContainer>
+        <button
+          v-if="showScrollToBottom"
+          class="scroll-to-bottom-btn"
+          @click="handleScrollToBottomClick"
+          aria-label="回到最新消息"
+        >
+          <svg class="scroll-to-bottom-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6 12l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="chat-input">
           <div v-if="replyingMessage" class="reply-bar">
             <div class="reply-title">回复 {{ replyingMessage.senderName }}</div>
@@ -516,8 +527,8 @@
                 @click="handleEmojiClick"
               />
               <img
-                src="@/assets/image/icon-upload.svg"
-                alt="上传"
+                src="@/assets/image/icon-file.svg"
+                alt="文件"
                 class="action-icon upload-icon"
                 @click="handleUploadClick"
               />
@@ -2537,6 +2548,42 @@ const getMessagesViewport = (): HTMLElement | null => {
 
   return null
 }
+
+// 消息列表滚动控制
+const showScrollToBottom = ref<boolean>(false)
+const SCROLL_BOTTOM_THRESHOLD = 160
+let messagesViewportEl: HTMLElement | null = null
+
+const handleMessagesScroll = () => {
+  const vp = messagesViewportEl || getMessagesViewport()
+  if (!vp) return
+  const distanceToBottom = vp.scrollHeight - (vp.scrollTop + vp.clientHeight)
+  showScrollToBottom.value = distanceToBottom > SCROLL_BOTTOM_THRESHOLD
+}
+
+const attachMessagesScrollListener = () => {
+  const vp = getMessagesViewport()
+  if (!vp) return
+
+  if (messagesViewportEl && messagesViewportEl !== vp) {
+    messagesViewportEl.removeEventListener('scroll', handleMessagesScroll)
+  }
+
+  if (messagesViewportEl !== vp) {
+    messagesViewportEl = vp
+    messagesViewportEl.addEventListener('scroll', handleMessagesScroll, { passive: true })
+  }
+
+  handleMessagesScroll()
+}
+
+const detachMessagesScrollListener = () => {
+  if (messagesViewportEl) {
+    messagesViewportEl.removeEventListener('scroll', handleMessagesScroll)
+    messagesViewportEl = null
+  }
+}
+
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const quotedHighlightTimers = new Map<string, number>()
 
@@ -3146,6 +3193,9 @@ const loadMessages = async (groupId: string) => {
     toast.error('加载消息失败: ' + errorMessage)
   } finally {
     messagesLoading.value = false
+    nextTick(() => {
+      attachMessagesScrollListener()
+    })
   }
 }
 
@@ -4115,6 +4165,11 @@ const scrollToBottom = (force = false, instant = true) => {
   }
 }
 
+const handleScrollToBottomClick = () => {
+  scrollToBottom(false, false)
+  showScrollToBottom.value = false
+}
+
 // 专门用于首次加载消息时的滚动，会持续重试直到成功
 const scrollToBottomOnLoad = () => {
   let retryCount = 0
@@ -4178,6 +4233,10 @@ watch(messages, (newMessages, oldMessages) => {
     // 使用无动画模式滚动
     scrollToBottom(false, true)
   }
+
+  nextTick(() => {
+    attachMessagesScrollListener()
+  })
 }, { flush: 'post' }) // flush: 'post' 确保DOM更新后执行
 
 // 为每个账号缓存页面状态
@@ -4291,6 +4350,7 @@ watch(
 
 const selectChat = async (chat: ChatItem) => {
   selectedChat.value = chat
+  showScrollToBottom.value = false
   store.commit('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
   
   // 更新账号页面状态中的 currentChatGroupId
@@ -7163,6 +7223,10 @@ onMounted(async () => {
   // 添加全局 mouseup 监听，确保在任何地方释放鼠标都能重置拖拽状态
   window.addEventListener('mouseup', handleMouseUpOnMessages)
 
+  nextTick(() => {
+    attachMessagesScrollListener()
+  })
+
   // 尝试恢复当前账号的缓存状态
   const currentAccountId = store.state.accounts?.currentAccountId
   if (currentAccountId) {
@@ -7261,6 +7325,8 @@ onUnmounted(async () => {
   window.removeEventListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
   window.removeEventListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   window.removeEventListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
+
+  detachMessagesScrollListener()
 })
 
 // 离开聊天时更新已读时间
@@ -7959,6 +8025,7 @@ const loadMessageList = async (groupId: string) => {
   display: flex;
   flex-direction: column;
   background-color: $bg-chat;
+  position: relative;
 }
 
 
@@ -7988,6 +8055,42 @@ const loadMessageList = async (groupId: string) => {
 
   &.drag-selecting {
     user-select: none;
+  }
+}
+
+.scroll-to-bottom-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 110px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s;
+  z-index: 5;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  .scroll-to-bottom-icon {
+    color: #1f1f1f;
   }
 }
 
@@ -8079,8 +8182,8 @@ const loadMessageList = async (groupId: string) => {
       }
 
       .message-status-icon {
-        width: 16px;
-        height: 16px;
+        width: 20px;
+        height: 20px;
         flex-shrink: 0;
         
         &.sent {

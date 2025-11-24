@@ -38,12 +38,11 @@ List<Color> _getAvatarColors() {
 
 // 根据文本生成背景色（与桌面端保持一致）
 Color _generateBackgroundColor(String text) {
-  if (!text.isEmpty) {
-    final colors = _getAvatarColors();
-    final hash = _hashCode(text);
-    return colors[hash % colors.length];
-  }
-  return _getAvatarColors().first;
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return const Color(0xFFF0F0F0);
+  final colors = _getAvatarColors();
+  final hash = _hashCode(trimmed);
+  return colors[hash % colors.length];
 }
 
 class ContactDetailPage extends StatefulWidget {
