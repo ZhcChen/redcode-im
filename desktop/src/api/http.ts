@@ -643,14 +643,10 @@ const checkApiNeedsToken = (url: string): boolean => {
   return true;
 };
 
-// 添加默认请求拦截器 - 添加时间戳、请求ID和 token
+// 添加默认请求拦截器 - 添加 token（移除可能被网关拦截的自定义头）
 httpClient.addRequestInterceptor((config) => {
-  const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-
   const headers: Record<string, string> = {
-    ...config.headers,
-    'X-Request-ID': requestId,
-    'X-Timestamp': Date.now().toString()
+    ...config.headers
   };
 
   // 检查是否需要添加 token（除了白名单接口）

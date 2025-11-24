@@ -208,10 +208,13 @@ impl HttpClientState {
                 }),
             );
 
-            // 拦截联系人列表接口请求 - 输出详细的请求信息
-            if options.path.contains("/friends") && !options.path.contains("/friends/requests") {
+            // 拦截关键接口请求 - 输出详细的请求信息（用于对比）
+            let should_log = options.path.contains("/friends") && !options.path.contains("/friends/requests")
+                || options.path.contains("/auth/login");
+
+            if should_log {
                 println!("\n========================================");
-                println!("📤 拦截到联系人列表接口请求:");
+                println!("📤 拦截到接口请求: {}", options.path);
                 println!("========================================");
                 println!("请求 URL: {}", url);
                 println!("请求方法: {}", method);
@@ -249,10 +252,13 @@ impl HttpClientState {
                         }),
                     );
 
-                    // 拦截联系人列表接口响应 - 输出到运行控制台
-                    if options.path.contains("/friends") && !options.path.contains("/friends/requests") {
+                    // 拦截关键接口响应 - 输出到运行控制台（用于对比）
+                    let should_log = options.path.contains("/friends") && !options.path.contains("/friends/requests")
+                        || options.path.contains("/auth/login");
+
+                    if should_log {
                         println!("\n========================================");
-                        println!("🔍 拦截到联系人列表接口响应:");
+                        println!("🔍 拦截到接口响应: {}", options.path);
                         println!("========================================");
                         println!("请求 URL: {}", url);
                         println!("请求方法: {}", method);
