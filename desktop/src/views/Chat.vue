@@ -2498,10 +2498,6 @@ const getMessagesViewport = (): HTMLElement | null => {
   const scrollContainer = chatMessagesRef.value as any
 
   if (scrollContainer?.$el) {
-    console.log('[ScrollDebug] scrollContainer.$el tagName:', scrollContainer.$el.tagName)
-    console.log('[ScrollDebug] scrollContainer.$el className:', scrollContainer.$el.className)
-    console.log('[ScrollDebug] scrollContainer.$el innerHTML (first 200 chars):', scrollContainer.$el.innerHTML?.substring(0, 200))
-
     // 尝试多种选择器
     const selectors = [
       '.os-viewport',
@@ -2515,15 +2511,12 @@ const getMessagesViewport = (): HTMLElement | null => {
     for (const selector of selectors) {
       const element = scrollContainer.$el.querySelector(selector) as HTMLElement
       if (element) {
-        console.log('[ScrollDebug] Found element with selector:', selector)
         return element
       }
     }
 
     // 如果都找不到，尝试直接返回 $el 本身
-    console.log('[ScrollDebug] No viewport found, trying $el itself')
     if (scrollContainer.$el.scrollHeight > 0) {
-      console.log('[ScrollDebug] Using $el as viewport')
       return scrollContainer.$el
     }
   }
@@ -2538,12 +2531,10 @@ const getMessagesViewport = (): HTMLElement | null => {
   for (const selector of globalSelectors) {
     const element = document.querySelector(selector) as HTMLElement
     if (element && element.scrollHeight > 0) {
-      console.log('[ScrollDebug] Found element with global selector:', selector)
       return element
     }
   }
 
-  console.log('[ScrollDebug] Failed to find any scrollable element')
   return null
 }
 const messageInput = ref<HTMLTextAreaElement | null>(null)
@@ -4126,72 +4117,41 @@ const scrollToBottom = (force = false, instant = true) => {
 
 // 专门用于首次加载消息时的滚动，会持续重试直到成功
 const scrollToBottomOnLoad = () => {
-  console.log('[ScrollDebug] scrollToBottomOnLoad called')
   let retryCount = 0
-  const maxRetries = 30 // 增加到 30 次
+  const maxRetries = 30
 
   const tryScroll = () => {
     retryCount++
 
-    // 方式1: 使用 ScrollContainer 组件暴露的方法
+    // 方式1: 使用 ScrollContainer 组件暴露的方法（推荐）
     if (chatMessagesRef.value) {
-      console.log('[ScrollDebug] Trying ScrollContainer.scrollToBottom method, attempt:', retryCount)
       const success = chatMessagesRef.value.scrollToBottom?.(true)
       if (success) {
-        console.log('[ScrollDebug] Successfully scrolled using ScrollContainer method')
         return
       }
     }
 
-    // 方式2: 使用原来的 getMessagesViewport 方法
+    // 方式2: 使用原来的 getMessagesViewport 方法（降级方案）
     const vp = getMessagesViewport()
-    console.log('[ScrollDebug] tryScroll attempt:', retryCount, 'viewport found:', !!vp)
-
     if (vp) {
-      const beforeScroll = {
-        scrollTop: vp.scrollTop,
-        scrollHeight: vp.scrollHeight,
-        clientHeight: vp.clientHeight
-      }
-
       // 尝试多种滚动方式
-      // 方式1: scrollTo
       vp.scrollTo({
         top: vp.scrollHeight,
         behavior: 'instant'
       })
-
-      // 方式2: 直接设置 scrollTop
       vp.scrollTop = vp.scrollHeight
 
-      // 添加短暂延迟后再检查
+      // 检查是否真的滚动到底部了
       setTimeout(() => {
-        const afterScroll = {
-          scrollTop: vp.scrollTop,
-          scrollHeight: vp.scrollHeight,
-          clientHeight: vp.clientHeight
-        }
-
-        console.log('[ScrollDebug] Before scroll:', beforeScroll)
-        console.log('[ScrollDebug] After scroll:', afterScroll)
-
-        // 检查是否真的滚动到底部了
         const isAtBottom = Math.abs(vp.scrollTop + vp.clientHeight - vp.scrollHeight) <= 20
-        console.log('[ScrollDebug] Is at bottom:', isAtBottom, 'diff:', Math.abs(vp.scrollTop + vp.clientHeight - vp.scrollHeight))
-
         if (!isAtBottom && retryCount < maxRetries) {
-          // 使用更短的延迟重试
           setTimeout(tryScroll, 50)
-        } else if (isAtBottom) {
-          console.log('[ScrollDebug] Successfully scrolled to bottom after', retryCount, 'attempts')
         }
       }, 20)
     } else {
       // 如果还找不到 viewport，继续重试
       if (retryCount < maxRetries) {
         setTimeout(tryScroll, 50)
-      } else {
-        console.error('[ScrollDebug] Failed to find viewport after', maxRetries, 'attempts')
       }
     }
   }
@@ -4396,9 +4356,7 @@ const selectChat = async (chat: ChatItem) => {
 
   // 选择聊天后滚动到底部
   // 等待 Vue 完成 DOM 渲染
-  console.log('[ScrollDebug] selectChat: before nextTick')
   await nextTick()
-  console.log('[ScrollDebug] selectChat: after nextTick, messages count:', messages.value.length)
 
   // 使用持续重试的滚动函数，确保真正滚动到底部
   scrollToBottomOnLoad()
