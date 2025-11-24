@@ -222,6 +222,20 @@ impl HttpClientState {
                             "elapsedMs": send_started.elapsed().as_millis()
                         }),
                     );
+
+                    // 拦截联系人列表接口响应 - 输出到运行控制台
+                    if options.path.contains("/friends") && !options.path.contains("/friends/requests") {
+                        println!("\n========================================");
+                        println!("🔍 拦截到联系人列表接口响应:");
+                        println!("========================================");
+                        println!("请求 URL: {}", url);
+                        println!("请求方法: {}", method);
+                        println!("响应状态: {}", if outcome.success { "成功" } else { "失败" });
+                        println!("响应消息: {}", outcome.message);
+                        println!("响应数据: {}", serde_json::to_string_pretty(&outcome.payload).unwrap_or_else(|_| "无法序列化".to_string()));
+                        println!("========================================\n");
+                    }
+
                     return Ok(outcome);
                 }
                 Err(err) => {
