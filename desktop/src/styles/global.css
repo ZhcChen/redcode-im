@@ -111,6 +111,14 @@ button {
   cursor: default;
 }
 
+/* 禁用所有按钮内的文字选中 */
+button {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 /* 消息列表：禁用除消息内容外的其他元素选中 */
 .chat-messages {
   -webkit-user-select: none;

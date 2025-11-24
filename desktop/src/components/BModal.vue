@@ -114,12 +114,21 @@ function handleClose() {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px 0;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
 }
 
 .b-modal-title {
   font-size: 18px;
   font-weight: 600;
   color: #111827;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .b-modal-close {
@@ -128,6 +137,7 @@ function handleClose() {
   font-size: 20px;
   color: #6b7280;
   padding: 4px;
+  cursor: pointer;
 
   &:hover {
     color: #111827;
