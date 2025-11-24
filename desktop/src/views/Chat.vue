@@ -9224,14 +9224,13 @@ const loadMessageList = async (groupId: string) => {
       min-height: 40px !important;
       // 移除过渡动画，让响应更直接
       transition: none !important;
-      cursor: grab;
+      // 不设置特殊光标样式，保持默认
 
       &:hover {
         width: 8px !important; // 悬停时宽度不变
       }
 
       &:active {
-        cursor: grabbing;
         width: 8px !important; // 激活时宽度不变
       }
     }
