@@ -14,9 +14,8 @@ type BackendUserStatus = 'active' | 'inactive' | 'banned'
 
 interface BackendUserInfo {
   id: string
-  username: string
+  username: string  // 后端的 username 实际上是手机号
   email: string
-  mobile?: string | null
   nickname?: string | null
   avatar_url?: string | null
   avatar_object_key?: string | null
@@ -48,7 +47,7 @@ const mapBackendUserToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   avatar: user.avatar_url || '',
   avatarObjectKey: user.avatar_object_key || null,
   avatarLocalPath: null,
-  mobile: user.mobile || user.username,
+  mobile: user.username,  // 后端的 username 就是手机号
   email: user.email || '',
   isLoggedIn: true,
   realName: user.nickname || user.username,
