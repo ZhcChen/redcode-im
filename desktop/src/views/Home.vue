@@ -29,8 +29,8 @@ let resizeUnlisten: (() => void) | null = null;
 // 全局窗口监听器管理
 let globalWindowListeners: (() => void)[] = [];
 
-// 默认主窗口尺寸
-const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 800 };
+// 默认主窗口尺寸（降低高度以适应 Windows 高 DPI 屏幕）
+const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 720 };
 
 // 设置主窗口尺寸
 async function setMainWindowSize() {

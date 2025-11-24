@@ -25,18 +25,46 @@ export async function setWindowSizeSafe(targetWidth: number, targetHeight: numbe
   const screenW = monitor?.size?.width ?? targetWidth * scaleFactor
   const screenH = monitor?.size?.height ?? targetHeight * scaleFactor
 
-  // 预留顶部任务栏/标题栏空间，避免贴边被遮挡（Windows 小屏常见）
-  const verticalMargin = 96
-  const horizontalMargin = 0
+  console.log(`[setWindowSizeSafe] Monitor info:`, {
+    scaleFactor,
+    screenW,
+    screenH,
+    targetWidth,
+    targetHeight
+  })
 
+  // 预留顶部任务栏/标题栏空间，避免贴边被遮挡（Windows 小屏常见）
+  // 在高 DPI 下，边距也需要缩放
+  const verticalMarginLogical = 96
+  const horizontalMarginLogical = 0
+  const verticalMarginPhysical = verticalMarginLogical * scaleFactor
+  const horizontalMarginPhysical = horizontalMarginLogical * scaleFactor
+
+  // 期望的物理尺寸
   const desiredWPhysical = targetWidth * scaleFactor
   const desiredHPhysical = targetHeight * scaleFactor
 
-  const maxWPhysical = Math.max(400 * scaleFactor, screenW - horizontalMargin)
-  const maxHPhysical = Math.max(300 * scaleFactor, screenH - verticalMargin)
+  // 计算最大允许的物理尺寸（考虑屏幕边距）
+  const maxWPhysical = Math.max(400 * scaleFactor, screenW - horizontalMarginPhysical)
+  const maxHPhysical = Math.max(300 * scaleFactor, screenH - verticalMarginPhysical)
 
-  const finalWLogical = Math.max(400, Math.min(desiredWPhysical, maxWPhysical) / scaleFactor)
-  const finalHLogical = Math.max(300, Math.min(desiredHPhysical, maxHPhysical) / scaleFactor)
+  // 计算最终的逻辑尺寸（先限制物理尺寸，然后转换为逻辑尺寸）
+  const finalWPhysical = Math.min(desiredWPhysical, maxWPhysical)
+  const finalHPhysical = Math.min(desiredHPhysical, maxHPhysical)
+
+  const finalWLogical = Math.max(400, finalWPhysical / scaleFactor)
+  const finalHLogical = Math.max(300, finalHPhysical / scaleFactor)
+
+  console.log(`[setWindowSizeSafe] Final calculated size:`, {
+    finalWLogical,
+    finalHLogical,
+    finalWPhysical,
+    finalHPhysical,
+    desiredWPhysical,
+    desiredHPhysical,
+    maxWPhysical,
+    maxHPhysical
+  })
 
   // 标记当前为程序设定尺寸，避免 onResized 将其视作用户操作
   suppressResizeFlag = true

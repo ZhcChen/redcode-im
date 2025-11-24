@@ -43,9 +43,9 @@ const store = useStore()
 
 // 窗口大小管理
 let windowStateInitialized = false
-const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 800 }
+const DEFAULT_MAIN_WINDOW_SIZE = { width: 1200, height: 720 }
 
-// 设置主窗口尺寸（固定为 1200x800）
+// 设置主窗口尺寸（固定为 1200x720）
 async function setMainWindowSize() {
   try {
     const currentWindow = getCurrentWebviewWindow()
