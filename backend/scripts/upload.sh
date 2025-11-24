@@ -2,8 +2,8 @@
 set -euo pipefail
 
 DEFAULT_BIN="target/x86_64-unknown-linux-musl/release/redcode-im-backend"
-TARGET_DIR="/home/ubuntu/backend"
-HOSTS=("xin-im-prod-0" "xin-im-prod-1")
+TARGET_DIR="/home/ubuntu"
+HOSTS=("xin-im-prod-0")
 
 BIN_PATH="${1:-$DEFAULT_BIN}"
 

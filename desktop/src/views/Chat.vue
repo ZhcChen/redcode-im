@@ -7730,54 +7730,52 @@ const loadMessageList = async (groupId: string) => {
 .chat-list {
   min-width: 240px; /* 降低最小宽度，给聊天窗口更多响应空间 */
   max-width: 70vw;
-  overflow-y: overlay; /* 滚动条悬浮在内容上，不占用空间 */
+  overflow-y: auto; /* 使用标准的 overflow-y，overlay 已弃用 */
   flex-shrink: 0;
-  scrollbar-gutter: auto; /* 不预留滚动条空间 */
+  scrollbar-gutter: stable; /* 预留滚动条空间，避免内容跳动 */
 
-  // 滚动条悬浮样式 - 无背景，红色滑块用于验证样式生效
+  // WebKit 浏览器滚动条样式（Chrome、Safari、Edge）
   &::-webkit-scrollbar {
-    width: 8px; /* 稍微加宽便于点击 */
-    background-color: transparent;
+    width: 8px;
+    height: 8px;
   }
 
   &::-webkit-scrollbar-track {
-    background-color: transparent;
+    background: rgba(0, 0, 0, 0.05); /* 轻微的背景色便于识别滚动区域 */
+    border-radius: 4px;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #ff4d4f !important;
-    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.2); /* 使用半透明黑色，在各种背景下都可见 */
+    border-radius: 4px;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    &:active {
+      background: rgba(0, 0, 0, 0.4);
+    }
   }
 
-  &::-webkit-scrollbar-thumb:hover {
-    background: #d9363e !important;
-  }
-
+  // Firefox 滚动条样式
   scrollbar-width: thin;
-  scrollbar-color: #ff4d4f transparent !important;
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
 }
 
-// 全局覆盖，确保收藏夹/聊天列表滚动条样式不被其他全局规则覆盖
-:global(.chat-page .chat-list) {
-  scrollbar-color: #ff4d4f transparent !important;
-}
+// 临时使用醒目的颜色验证滚动条样式是否生效
+// TODO: 验证后改回正常颜色
+.chat-list {
+  &::-webkit-scrollbar-thumb {
+    background: $primary-color !important; // 使用主题色，更醒目
 
-:global(.chat-page .chat-list::-webkit-scrollbar) {
-  width: 10px !important;
-  height: 10px;
-}
+    &:hover {
+      background: darken($primary-color, 10%) !important;
+    }
+  }
 
-:global(.chat-page .chat-list::-webkit-scrollbar-track) {
-  background: transparent !important;
-}
-
-:global(.chat-page .chat-list::-webkit-scrollbar-thumb) {
-  background: #ff4d4f !important;
-  border-radius: 6px;
-}
-
-:global(.chat-page .chat-list::-webkit-scrollbar-thumb:hover) {
-  background: #d9363e !important;
+  scrollbar-color: $primary-color rgba(0, 0, 0, 0.05) !important;
 }
 
 .resize-handle {

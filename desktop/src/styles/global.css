@@ -91,25 +91,4 @@ button {
   scrollbar-gutter: stable;
 }
 
-/* 聊天列表滚动条高亮（便于验证样式生效） */
-.chat-list {
-  scrollbar-color: #ff4d4f transparent;
-}
-
-.chat-list::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.chat-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.chat-list::-webkit-scrollbar-thumb {
-  background: #ff4d4f;
-  border-radius: 6px;
-}
-
-.chat-list::-webkit-scrollbar-thumb:hover {
-  background: #d9363e;
-}
+/* 聊天列表滚动条样式已移至 Chat.vue 组件内部定义 */
