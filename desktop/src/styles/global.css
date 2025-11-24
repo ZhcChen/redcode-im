@@ -98,7 +98,7 @@ button {
   scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
 }
 
-/* 禁用菜单和列表区域的文字选中 */
+/* 禁用菜单和列表区域的文字选中和选中光标 */
 .side-menu,
 .menu-popup,
 .popover-item,
@@ -108,4 +108,5 @@ button {
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+  cursor: default;
 }
