@@ -16,6 +16,7 @@ interface BackendUserInfo {
   id: string
   username: string
   email: string
+  mobile?: string | null
   nickname?: string | null
   avatar_url?: string | null
   avatar_object_key?: string | null
@@ -47,7 +48,7 @@ const mapBackendUserToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   avatar: user.avatar_url || '',
   avatarObjectKey: user.avatar_object_key || null,
   avatarLocalPath: null,
-  mobile: user.username,
+  mobile: user.mobile || user.username,
   email: user.email || '',
   isLoggedIn: true,
   realName: user.nickname || user.username,
