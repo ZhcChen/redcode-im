@@ -12,7 +12,7 @@
         </div>
 
         <!-- 联系人列表 -->
-        <div class="contact-list">
+        <ScrollContainer class="contact-list">
           <!-- 空状态提示 -->
           <div v-if="filteredContacts.length === 0" class="empty-state">
             <div class="empty-text">{{ searchKeyword ? '未找到匹配的联系人' : '暂无可添加的联系人' }}</div>
@@ -31,7 +31,7 @@
             </div>
             <BRadio :model-value="isSelected(contact.id)" />
           </div>
-        </div>
+        </ScrollContainer>
       </div>
 
       <!-- 右侧 -->
@@ -43,7 +43,7 @@
         </div>
 
         <!-- 已选择的联系人 -->
-        <div class="selected-members">
+        <ScrollContainer class="selected-members">
           <div
             v-for="contact in selectedContacts"
             :key="contact.id"
@@ -54,7 +54,7 @@
             <div class="member-name">{{ contact.nickname }}</div>
             <div class="remove-btn">×</div>
           </div>
-        </div>
+        </ScrollContainer>
 
         <!-- 操作按钮 -->
         <div class="actions">
@@ -74,6 +74,7 @@ import Mask from './Mask.vue'
 import SearchInput from './SearchInput.vue'
 import BRadio from './BRadio.vue'
 import Avatar from './Avatar.vue'
+import ScrollContainer from './ScrollContainer.vue'
 
 interface Contact {
   id: string
@@ -193,7 +194,6 @@ watch(() => props.visible, (newVisible) => {
 
   .contact-list {
     flex: 1;
-    overflow-y: auto;
     padding: 0 20px;
 
     .empty-state {
@@ -272,7 +272,6 @@ watch(() => props.visible, (newVisible) => {
   .selected-members {
     flex: 1;
     padding: 20px;
-    overflow-y: auto;
     display: flex;
     flex-wrap: wrap;
     gap: 20px; /* 修改间距为20px */

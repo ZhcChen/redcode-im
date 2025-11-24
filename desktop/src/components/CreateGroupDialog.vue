@@ -8,7 +8,7 @@
       </div>
 
       <!-- 内容区域 -->
-      <div class="dialog-content">
+      <ScrollContainer class="dialog-content">
         <!-- 群头像 -->
         <div class="avatar-section">
           <div class="avatar-wrapper" @click="handleAvatarClick">
@@ -64,7 +64,7 @@
           <div v-else-if="selectedMembers.length === 0" class="empty-state">
             点击右侧按钮，选择至少一位好友加入群聊
           </div>
-          <div v-else class="selected-members">
+          <ScrollContainer v-else class="selected-members" size="thin">
             <div
               v-for="member in selectedMembers"
               :key="member.id"
@@ -74,10 +74,10 @@
               <span class="member-name">{{ member.nickname }}</span>
               <div class="remove-btn" @click="removeMember(member.id)">×</div>
             </div>
-          </div>
+          </ScrollContainer>
           <div v-if="errors.members" class="error-text">{{ errors.members }}</div>
         </div>
-      </div>
+      </ScrollContainer>
 
       <!-- 底部操作按钮 -->
       <div class="dialog-footer">
@@ -114,6 +114,7 @@ import Mask from './Mask.vue'
 import BInput from './BInput.vue'
 import Avatar from './Avatar.vue'
 import AddGroupMemberDialog from './AddGroupMemberDialog.vue'
+import ScrollContainer from './ScrollContainer.vue'
 
 interface Contact {
   id: string
@@ -367,8 +368,6 @@ defineExpose({
 .dialog-content {
   flex: 1;
   padding: 24px;
-  overflow-y: auto;
-  overflow-x: hidden;
   min-height: 0;
 
   .avatar-section {
@@ -520,7 +519,6 @@ defineExpose({
       background: #f8f9fa;
       border-radius: 8px;
       max-height: 200px;
-      overflow-y: auto;
 
       .member-chip {
         display: flex;
