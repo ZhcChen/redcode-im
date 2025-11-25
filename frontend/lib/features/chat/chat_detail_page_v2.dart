@@ -35,6 +35,8 @@ import 'models/message_reader.dart';
 import 'group_settings_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/quoted_message_avatar.dart';
+import 'widgets/voice_message_widget.dart';
+import '../../core/services/voice_service.dart';
 
 class ChatDetailPageV2 extends StatefulWidget {
   const ChatDetailPageV2({
@@ -96,6 +98,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   bool _showEmojiPanel = false;
   bool _showMorePanel = false;
+  bool _showVoicePanel = false;
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
   bool _wasKeyboardVisible = false;
@@ -493,6 +496,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
                 if (_showMorePanel)
                   _MoreActionsPanel(onActionSelected: _handleMoreAction),
+                if (_showVoicePanel)
+                  VoiceRecordingPanel(
+                    onRecordingComplete: _handleVoiceRecordingComplete,
+                    onCancel: _cancelVoiceRecording,
+                  ),
               ],
             ),
           ),
@@ -884,8 +892,50 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _toggleVoice() {
-    // TODO: 实现语音功能
-    debugPrint('Toggle voice');
+    setState(() {
+      _showVoicePanel = !_showVoicePanel;
+      _showEmojiPanel = false;
+      _showMorePanel = false;
+    });
+
+    if (_showVoicePanel) {
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  Future<void> _handleVoiceRecordingComplete(VoiceRecording recording) async {
+    setState(() {
+      _showVoicePanel = false;
+    });
+
+    try {
+      // 读取语音文件
+      final voiceService = VoiceService();
+      final fileBytes = await voiceService.readVoiceFile(recording.path);
+      if (fileBytes == null) {
+        _showErrorSnack('语音文件读取失败');
+        return;
+      }
+
+      // 发送语音消息
+      await _chatProvider.sendVoiceMessage(
+        roomId: widget.roomId,
+        fileBytes: fileBytes,
+        duration: recording.duration,
+        fileName: 'voice_${recording.id}.m4a',
+      );
+
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('发送语音消息失败: $e');
+      _showErrorSnack('发送语音失败');
+    }
+  }
+
+  void _cancelVoiceRecording() {
+    setState(() {
+      _showVoicePanel = false;
+    });
   }
 
   void _toggleEmoji() {

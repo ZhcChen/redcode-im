@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart' as path_provider;
 import '../../../core/constants/app_config.dart';
 import '../../../core/services/message_service.dart'
     show MessageAttachmentDraft, MessageService, MessageStatus;
@@ -243,6 +245,38 @@ class ChatProvider with ChangeNotifier {
     } finally {
       _isSending = false;
       notifyListeners();
+    }
+  }
+
+  /// 发送语音消息
+  Future<void> sendVoiceMessage({
+    required String roomId,
+    required List<int> fileBytes,
+    required int duration,
+    required String fileName,
+  }) async {
+    if (_isSending) return;
+
+    // 创建临时文件
+    final tempDir = await path_provider.getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/$fileName');
+    await tempFile.writeAsBytes(fileBytes);
+
+    try {
+      final attachment = MessageAttachmentDraft(
+        type: MessagePartType.audio,
+        file: tempFile,
+        displayName: fileName,
+        mime: 'audio/mp4',
+        durationMs: duration,
+      );
+
+      await sendRichMessage(attachments: [attachment]);
+    } finally {
+      // 清理临时文件
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
     }
   }
 
