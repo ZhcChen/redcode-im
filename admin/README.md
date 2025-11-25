@@ -6,6 +6,11 @@
 
 这是一个使用 Vue 3 + TypeScript + Vite + Arco Design 构建的现代化管理后台应用。
 
+## 开发规范速查（MUST）
+- 完整规范见 `admin/docs/开发规范.md`（开始工作前先阅读）。
+- 组件内禁止直接 axios/fetch，所有 API 封装在 `admin/src/api/` 并补齐 TypeScript 类型。
+- 开发端口 8010/8011，Vite 代理与 axios `baseURL` 必须指向后端；异步流程需 loading 与统一错误处理（401/403 由拦截器处理）。
+
 ### 技术栈
 
 - **框架**: Vue 3.2

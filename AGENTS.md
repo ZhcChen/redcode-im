@@ -70,132 +70,13 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 
 ### 2.5 管理后台（admin）开发规范
 
-#### 2.5.1 API 封装规范（MUST）
-1. **禁止在组件中直接使用 fetch 或 axios**
-   - ❌ 错误示例：
-     ```javascript
-     await fetch('/api/admin/users', { method: 'POST', body: JSON.stringify(data) });
-     ```
-   - ✅ 正确示例：
-     ```javascript
-     // 在 admin/src/api/ 下创建函数
-     export function createUser(data) {
-       return axios.post('/api/admin/users', data);
-     }
+> 详细版见 `admin/docs/开发规范.md`（MUST 阅读并遵循）。
 
-     // 在组件中调用
-     await createUser(data);
-     ```
-
-2. **API 函数命名规范**
-   - 动作型：`createUser`, `updateUser`, `deleteUser`, `getUserList`
-   - 获取型：`getUserInfo`, `fetchUserPermissions`
-   - 功能型：`uploadFile`, `downloadReport`
-
-3. **API 文件组织**
-   ```
-   admin/src/api/
-   ├── settings.ts       # 系统设置相关 API
-   ├── user-profile.ts   # 用户信息相关 API
-   ├── user.ts           # 用户管理 API
-   └── ...
-   ```
-
-4. **类型定义要求**
-   ```typescript
-   // Request 类型
-   export interface CreateUserRequest {
-     username: string;
-     email: string;
-     password: string;
-   }
-
-   // Response 类型
-   export interface UserInfo {
-     id: string;
-     username: string;
-     email: string;
-     status: string;
-   }
-
-   // API 函数
-   export function createUser(data: CreateUserRequest) {
-     return axios.post<UserInfo>('/api/admin/users', data);
-   }
-   ```
-
-#### 2.5.2 前后端通信规范（MUST）
-1. **端口配置**
-   - 后端开发端口：`8010`
-   - 前端开发端口：`8011`
-   - 必须配置 Vite 代理或 axios baseURL 指向后端
-
-2. **代理配置（Vite）**
-   ```typescript
-   // admin/config/vite.config.dev.ts
-   server: {
-     port: 8011,
-     proxy: {
-       '/api': {
-         target: 'http://localhost:8010',
-         changeOrigin: true
-       },
-       '/auth': {
-         target: 'http://localhost:8010',
-         changeOrigin: true
-       }
-     }
-   }
-   ```
-
-3. **Axios 配置**
-   ```typescript
-   // admin/src/utils/request.ts
-   const service = axios.create({
-     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8010',
-     timeout: 10000
-   });
-   ```
-
-#### 2.5.3 组件开发规范
-1. **响应式数据管理**
-   - 使用 `<script setup>` + Composition API
-   - 类型使用 TypeScript
-   - 状态管理使用 Pinia
-
-2. **API 调用模式**
-   ```typescript
-   <script setup lang="ts">
-   import { ref } from 'vue';
-   import { createUser } from '@/api/user';
-   import { Message } from '@arco-design/web-vue';
-
-   const loading = ref(false);
-
-   const handleSubmit = async () => {
-     try {
-       loading.value = true;
-       await createUser(formData);
-       Message.success('创建成功');
-     } catch (error: any) {
-       Message.error(error?.response?.data?.message || '创建失败');
-     } finally {
-       loading.value = false;
-     }
-   };
-   </script>
-   ```
-
-#### 2.5.4 错误处理规范（MUST）
-1. **统一错误处理**
-   - 使用拦截器处理 401、403 等通用错误
-   - API 函数返回标准化错误信息
-   - 组件中只处理业务逻辑错误
-
-2. **Loading 状态管理**
-   - 所有异步操作必须有 loading 状态
-   - 防止重复提交
-   - 提供明确的用户反馈
+- **API 封装**：组件内禁止直接 axios/fetch，所有调用封装在 `admin/src/api/`，函数命名遵循 `create/update/delete/get/fetch/upload` 约定，按模块分文件并补齐 TS 类型。
+- **通信配置**：后端端口 `8010`、前端端口 `8011`；Vite 代理与 axios `baseURL` 必须指向后端（示例见文档）。
+- **组件模式**：使用 `<script setup>`+TypeScript+Pinia，异步调用带 loading 与错误提示。
+- **错误处理**：401/403 由拦截器统一处理，组件只处理业务错误；避免重复提交。
+- **自检清单**：上线前按文档“执行前自检清单”逐项确认。
 
 ### 2.6 沟通规范
 1. **语言要求**：对话必须使用简体中文，但保留领域专业词汇（如 Rust, Tauri, Widget 等）的英文原文。
@@ -237,11 +118,11 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
    - [ ] 无安全隐患
    - [ ] 文档已更新（如需要）
 
-2. **提交代码**：
-   ```bash
-   git add .
-   git commit -m "feat(module): 具体功能描述"
-   git push origin main
+2. **提交并推送代码**：
+  ```bash
+  git add .
+  git commit -m "feat(module): 具体功能描述"
+  git push origin main
    ```
 
 3. **更新文档**：
@@ -267,7 +148,7 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 3. 编写或运行测试用例验证问题
 4. 修复代码
 5. 验证修复效果
-6. 提交代码：`fix(module): 修复具体问题`
+6. 提交并推送代码：`git commit -m "fix(module): 修复具体问题" && git push`
 
 ### 4.2 新增功能
 1. 查阅文档了解现有架构
@@ -276,7 +157,7 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 4. 后端先行（API 接口）
 5. 前端对接
 6. 集成测试
-7. 提交代码：`feat(module): 新增具体功能`
+7. 提交并推送代码：`git commit -m "feat(module): 新增具体功能" && git push`
 
 ### 4.3 数据库变更
 1. **禁止直接修改已有 SQL 文件**
@@ -284,17 +165,17 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 3. 编写 UP 和 DOWN 脚本
 4. 在开发环境验证
 5. 更新数据模型代码
-6. 提交代码：`feat(database): 新增 xxx 表/字段`
+6. 提交并推送代码：`git commit -m "feat(database): 新增 xxx 表/字段" && git push`
 
 ### 4.4 文档更新
 1. 修改对应的 Markdown 文档
 2. 确保文档结构清晰、内容准确
 3. 更新文档索引（如需要）
-4. 提交代码：`docs(topic): 更新具体文档`
+4. 提交并推送代码：`git commit -m "docs(topic): 更新具体文档" && git push`
 
 ## 五、禁止事项（MUST NOT）
 
-1. ❌ **禁止**跳过测试直接提交代码
+1. ❌ **禁止**跳过测试直接提交/推送代码
 2. ❌ **禁止**修改已有的数据库迁移文件
 3. ❌ **禁止**使用 PostgreSQL 枚举类型
 4. ❌ **禁止**提交 `.env` 文件
