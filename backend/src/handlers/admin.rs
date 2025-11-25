@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use uuid::Uuid;
 
+use crate::auth::hash_password;
 use crate::database::models::{
     AdminUser, AdminUserStatus, CaptchaSettingRecord, Permission, Role, StorageProvider,
     StorageProviderType, UserStatus as DbUserStatus,
@@ -1479,16 +1480,93 @@ pub async fn get_user_detail(
 }
 
 /// 创建用户
-// TODO: 临时禁用，需要更新 argon2 API 到 0.6
 pub async fn create_user(
-    State(_state): State<AppState>,
-    Json(_req): Json<CreateUserRequest>,
+    State(state): State<AppState>,
+    Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserOperationResponse>, AppError> {
-    // 功能开发中
-    return Ok(Json(UserOperationResponse {
-        success: false,
-        message: "功能开发中".to_string(),
-    }));
+    // 验证用户名
+    if req.username.len() < 3 {
+        return Ok(Json(UserOperationResponse {
+            success: false,
+            message: "用户名长度至少3位".to_string(),
+        }));
+    }
+
+    // 验证密码
+    if req.password.len() < 6 {
+        return Ok(Json(UserOperationResponse {
+            success: false,
+            message: "密码长度至少6位".to_string(),
+        }));
+    }
+
+    // 验证邮箱格式
+    if !req.email.contains('@') {
+        return Ok(Json(UserOperationResponse {
+            success: false,
+            message: "邮箱格式不正确".to_string(),
+        }));
+    }
+
+    let pool = &state.database.pool;
+
+    // 检查用户名是否已存在
+    let existing_username: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE username = $1 AND deleted_at IS NULL")
+            .bind(&req.username)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
+
+    if existing_username > 0 {
+        return Ok(Json(UserOperationResponse {
+            success: false,
+            message: "用户名已存在".to_string(),
+        }));
+    }
+
+    // 检查邮箱是否已存在
+    let existing_email: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE email = $1 AND deleted_at IS NULL")
+            .bind(&req.email)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e))?;
+
+    if existing_email > 0 {
+        return Ok(Json(UserOperationResponse {
+            success: false,
+            message: "邮箱已被注册".to_string(),
+        }));
+    }
+
+    // 密码加密
+    let password_hash = hash_password(&req.password)
+        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+
+    // 创建用户
+    let user_id = Uuid::new_v4();
+    sqlx::query(
+        r#"
+        INSERT INTO users (id, username, email, password_hash, nickname, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
+        "#,
+    )
+    .bind(user_id)
+    .bind(&req.username)
+    .bind(&req.email)
+    .bind(&password_hash)
+    .bind(&req.nickname)
+    .execute(pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    info!("Admin created user: {} ({})", req.username, user_id);
+
+    Ok(Json(UserOperationResponse {
+        success: true,
+        message: format!("用户创建成功，ID: {}", user_id),
+    }))
 }
 
 /// 更新用户信息
@@ -1639,23 +1717,33 @@ pub async fn reset_user_password(
         }));
     }
 
-    // 密码加密 - TODO: 临时注释，需要更新 argon2 API
-    /*
-    use argon2::{
-        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-        Argon2,
-    };
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    let password_hash = argon2
-        .hash_password(req.new_password.as_bytes(), &salt)
-        .map_err(|_| AppError::ValidationError("密码加密失败".to_string()))?
-        .to_string();
-    */
-    return Ok(Json(UserOperationResponse {
-        success: false,
-        message: "功能开发中".to_string(),
-    }));
+    // 密码加密
+    let password_hash = hash_password(&req.new_password)
+        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+
+    // 更新密码
+    let result = sqlx::query(
+        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL",
+    )
+    .bind(&password_hash)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    if result.rows_affected() == 0 {
+        return Ok(Json(UserOperationResponse {
+            success: false,
+            message: "密码更新失败".to_string(),
+        }));
+    }
+
+    info!("Admin reset password for user: {}", user_id);
+
+    Ok(Json(UserOperationResponse {
+        success: true,
+        message: "密码重置成功".to_string(),
+    }))
 }
 
 /// 删除用户
@@ -3316,8 +3404,6 @@ pub async fn test_cos_create_bucket(
 }
 
 // ========== 管理员用户管理相关 ==========
-
-use crate::auth::hash_password;
 
 /// 管理员用户数据存储
 pub struct AdminUserStore {
