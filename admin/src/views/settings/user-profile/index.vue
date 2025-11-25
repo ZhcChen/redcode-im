@@ -7,7 +7,10 @@
         <a-card title="头像设置" size="small">
           <a-space :size="24" align="start">
             <div class="avatar-section">
-              <a-avatar :size="100" class="user-avatar">
+              <a-avatar
+                :size="100"
+                class="arco-avatar arco-avatar-circle user-avatar"
+              >
                 <img v-if="avatarPreview" :src="avatarPreview" alt="avatar" />
                 <icon-user v-else class="avatar-icon" />
               </a-avatar>

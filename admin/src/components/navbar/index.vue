@@ -131,7 +131,7 @@
           <a-avatar
             :size="32"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
-            class="user-avatar"
+            class="arco-avatar arco-avatar-circle user-avatar"
           >
             <img v-if="displayAvatarUrl" :src="displayAvatarUrl" alt="avatar" />
             <icon-user v-else class="nav-avatar-icon" />
