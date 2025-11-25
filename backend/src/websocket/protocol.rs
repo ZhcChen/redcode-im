@@ -128,6 +128,13 @@ pub enum ServerPush {
         reason: Option<String>,
         until: Option<String>,
     },
+    FriendProfileUpdated {
+        user_id: String,
+        username: Option<String>,
+        nickname: Option<String>,
+        avatar_url: Option<String>,
+        avatar_object_key: Option<String>,
+    },
 }
 
 impl ServerPush {
@@ -150,6 +157,7 @@ impl ServerPush {
             ServerPush::GroupOwnerTransferred { .. } => "group_owner_transferred",
             ServerPush::GroupSettingsUpdated { .. } => "group_settings_updated",
             ServerPush::GroupMemberChanged { .. } => "group_member_changed",
+            ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
         }
     }
 
@@ -280,6 +288,20 @@ impl ServerPush {
                 "operator_id": operator_id,
                 "reason": reason,
                 "until": until,
+            }),
+            ServerPush::FriendProfileUpdated {
+                user_id,
+                username,
+                nickname,
+                avatar_url,
+                avatar_object_key,
+            } => json!({
+                "type": "friend_profile_updated",
+                "user_id": user_id,
+                "username": username,
+                "nickname": nickname,
+                "avatar_url": avatar_url,
+                "avatar_object_key": avatar_object_key,
             }),
         }
     }
@@ -416,6 +438,19 @@ impl ServerPush {
                 operator_id: operator_id.map(|id| id.to_string()),
                 reason: reason.clone(),
                 until: until.clone(),
+            }),
+            ServerPush::FriendProfileUpdated {
+                user_id,
+                username,
+                nickname,
+                avatar_url,
+                avatar_object_key,
+            } => Payload::FriendProfileUpdated(ws::ServerFriendProfileUpdated {
+                user_id: user_id.clone(),
+                username: username.clone().unwrap_or_default(),
+                nickname: nickname.clone().unwrap_or_default(),
+                avatar_url: avatar_url.clone().unwrap_or_default(),
+                avatar_object_key: avatar_object_key.clone().unwrap_or_default(),
             }),
         };
 

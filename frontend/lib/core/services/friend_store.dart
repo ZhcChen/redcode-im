@@ -90,6 +90,7 @@ class FriendStore with ChangeNotifier {
     String? username,
     String? nickname,
     String? avatarUrl,
+    String? avatarObjectKey,
   }) {
     final existing = _byUserId[userId];
     if (existing == null) return;
@@ -100,6 +101,7 @@ class FriendStore with ChangeNotifier {
       email: u.email,
       nickname: nickname ?? u.nickname,
       avatarUrl: avatarUrl ?? u.avatarUrl,
+      avatarObjectKey: avatarObjectKey ?? u.avatarObjectKey,
       status: u.status,
     );
     _byUserId[userId] = FriendInfo(

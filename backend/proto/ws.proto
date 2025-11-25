@@ -44,6 +44,7 @@ message ServerEvent {
     ServerRoomUpdated room_updated = 15;
     ServerGroupSettingsUpdated group_settings_updated = 16;
     ServerGroupMemberChanged group_member_changed = 17;
+    ServerFriendProfileUpdated friend_profile_updated = 18;
   }
 }
 
@@ -202,6 +203,15 @@ message ServerGroupMemberChanged {
   optional string operator_id = 5;
   optional string reason = 6;
   optional string until = 7;
+}
+
+// 好友资料更新事件（用于通知好友资料变化，如头像、昵称等）
+message ServerFriendProfileUpdated {
+  string user_id = 1;
+  string username = 2;
+  string nickname = 3;
+  string avatar_url = 4;
+  string avatar_object_key = 5;
 }
 
 enum PubSubPriority {

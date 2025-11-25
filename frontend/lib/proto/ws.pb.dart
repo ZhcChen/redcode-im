@@ -361,6 +361,7 @@ enum ServerEvent_Payload {
   roomUpdated,
   groupSettingsUpdated,
   groupMemberChanged,
+  friendProfileUpdated,
   notSet
 }
 
@@ -383,6 +384,7 @@ class ServerEvent extends $pb.GeneratedMessage {
     ServerRoomUpdated? roomUpdated,
     ServerGroupSettingsUpdated? groupSettingsUpdated,
     ServerGroupMemberChanged? groupMemberChanged,
+    ServerFriendProfileUpdated? friendProfileUpdated,
   }) {
     final result = create();
     if (authed != null) result.authed = authed;
@@ -406,6 +408,8 @@ class ServerEvent extends $pb.GeneratedMessage {
       result.groupSettingsUpdated = groupSettingsUpdated;
     if (groupMemberChanged != null)
       result.groupMemberChanged = groupMemberChanged;
+    if (friendProfileUpdated != null)
+      result.friendProfileUpdated = friendProfileUpdated;
     return result;
   }
 
@@ -437,13 +441,14 @@ class ServerEvent extends $pb.GeneratedMessage {
     15: ServerEvent_Payload.roomUpdated,
     16: ServerEvent_Payload.groupSettingsUpdated,
     17: ServerEvent_Payload.groupMemberChanged,
+    18: ServerEvent_Payload.friendProfileUpdated,
     0: ServerEvent_Payload.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ServerEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
     ..aOM<ServerAuthed>(1, _omitFieldNames ? '' : 'authed',
         subBuilder: ServerAuthed.create)
     ..aOM<ServerJoined>(2, _omitFieldNames ? '' : 'joined',
@@ -482,6 +487,9 @@ class ServerEvent extends $pb.GeneratedMessage {
     ..aOM<ServerGroupMemberChanged>(
         17, _omitFieldNames ? '' : 'groupMemberChanged',
         subBuilder: ServerGroupMemberChanged.create)
+    ..aOM<ServerFriendProfileUpdated>(
+        18, _omitFieldNames ? '' : 'friendProfileUpdated',
+        subBuilder: ServerFriendProfileUpdated.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -731,6 +739,18 @@ class ServerEvent extends $pb.GeneratedMessage {
   void clearGroupMemberChanged() => $_clearField(17);
   @$pb.TagNumber(17)
   ServerGroupMemberChanged ensureGroupMemberChanged() => $_ensure(16);
+
+  @$pb.TagNumber(18)
+  ServerFriendProfileUpdated get friendProfileUpdated => $_getN(17);
+  @$pb.TagNumber(18)
+  set friendProfileUpdated(ServerFriendProfileUpdated value) =>
+      $_setField(18, value);
+  @$pb.TagNumber(18)
+  $core.bool hasFriendProfileUpdated() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearFriendProfileUpdated() => $_clearField(18);
+  @$pb.TagNumber(18)
+  ServerFriendProfileUpdated ensureFriendProfileUpdated() => $_ensure(17);
 }
 
 class ServerAuthed extends $pb.GeneratedMessage {
@@ -2720,6 +2740,110 @@ class ServerGroupMemberChanged extends $pb.GeneratedMessage {
   $core.bool hasUntil() => $_has(6);
   @$pb.TagNumber(7)
   void clearUntil() => $_clearField(7);
+}
+
+/// 好友资料更新事件（用于通知好友资料变化，如头像、昵称等）
+class ServerFriendProfileUpdated extends $pb.GeneratedMessage {
+  factory ServerFriendProfileUpdated({
+    $core.String? userId,
+    $core.String? username,
+    $core.String? nickname,
+    $core.String? avatarUrl,
+    $core.String? avatarObjectKey,
+  }) {
+    final result = create();
+    if (userId != null) result.userId = userId;
+    if (username != null) result.username = username;
+    if (nickname != null) result.nickname = nickname;
+    if (avatarUrl != null) result.avatarUrl = avatarUrl;
+    if (avatarObjectKey != null) result.avatarObjectKey = avatarObjectKey;
+    return result;
+  }
+
+  ServerFriendProfileUpdated._();
+
+  factory ServerFriendProfileUpdated.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerFriendProfileUpdated.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerFriendProfileUpdated',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'userId')
+    ..aOS(2, _omitFieldNames ? '' : 'username')
+    ..aOS(3, _omitFieldNames ? '' : 'nickname')
+    ..aOS(4, _omitFieldNames ? '' : 'avatarUrl')
+    ..aOS(5, _omitFieldNames ? '' : 'avatarObjectKey')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerFriendProfileUpdated clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerFriendProfileUpdated copyWith(
+          void Function(ServerFriendProfileUpdated) updates) =>
+      super.copyWith((message) => updates(message as ServerFriendProfileUpdated))
+          as ServerFriendProfileUpdated;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerFriendProfileUpdated create() => ServerFriendProfileUpdated._();
+  @$core.override
+  ServerFriendProfileUpdated createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerFriendProfileUpdated getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerFriendProfileUpdated>(create);
+  static ServerFriendProfileUpdated? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get userId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set userId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasUserId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUserId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get username => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set username($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUsername() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUsername() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get nickname => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set nickname($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasNickname() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearNickname() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get avatarUrl => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set avatarUrl($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAvatarUrl() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAvatarUrl() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get avatarObjectKey => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set avatarObjectKey($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasAvatarObjectKey() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAvatarObjectKey() => $_clearField(5);
 }
 
 class PubSubMessage extends $pb.GeneratedMessage {

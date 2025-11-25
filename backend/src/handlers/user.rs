@@ -1,4 +1,5 @@
 use crate::auth::{hash_password, verify_password};
+use crate::database::friend_store::FriendStore;
 use crate::database::models::{
     StorageProvider, StorageProviderType, UpdateUserRequest as DbUpdateUserRequest,
 };
@@ -11,6 +12,7 @@ use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
 use crate::storage;
 use crate::storage::DirectUploadSignature;
+use crate::websocket::ServerPush;
 use crate::AppState;
 use axum::{
     extract::{Extension, Path, Query, State},
@@ -19,7 +21,7 @@ use axum::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -206,6 +208,36 @@ pub async fn commit_avatar_upload(
     let download_url = storage_service
         .generate_download_url(key, req.expires_in_seconds)
         .await?;
+
+    // 通知所有好友：用户资料已更新
+    let friend_store = FriendStore::new(state.database.clone());
+    if let Ok(friendships) = friend_store.list_friendships(user_id).await {
+        let updated_user = user_store.find_by_id(&user_id).await?.ok_or_else(|| {
+            AppError::InternalError("用户信息加载失败".to_string())
+        })?;
+
+        let payload = ServerPush::FriendProfileUpdated {
+            user_id: user_id.to_string(),
+            username: Some(updated_user.username.clone()),
+            nickname: updated_user.nickname.clone(),
+            avatar_url: updated_user.avatar_url.clone(),
+            avatar_object_key: Some(key.to_string()),
+        };
+
+        for friendship in friendships {
+            let friend_id = friendship.friend_user_id.to_string();
+            state
+                .connection_manager
+                .send_to_user(&friend_id, payload.clone())
+                .await;
+        }
+
+        info!(
+            "用户 {} 头像更新，已通知 {} 个好友",
+            user_id,
+            friendships.len()
+        );
+    }
 
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,

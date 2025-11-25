@@ -556,6 +556,17 @@ class WebSocketService with ChangeNotifier {
           reason: payload.hasReason() ? payload.reason : null,
           until: payload.hasUntil() ? payload.until : null,
         );
+      case ws.ServerEvent_Payload.friendProfileUpdated:
+        final payload = event.friendProfileUpdated;
+        final uid = _nullIfEmpty(payload.userId);
+        if (uid == null) return null;
+        return _FriendProfileUpdatedEvent(
+          userId: uid,
+          username: _nullIfEmpty(payload.username),
+          nickname: _nullIfEmpty(payload.nickname),
+          avatarUrl: _nullIfEmpty(payload.avatarUrl),
+          avatarObjectKey: _nullIfEmpty(payload.avatarObjectKey),
+        );
       case ws.ServerEvent_Payload.notSet:
         return null;
     }
@@ -962,6 +973,7 @@ class WebSocketService with ChangeNotifier {
       username: event.username,
       nickname: event.nickname,
       avatarUrl: event.avatarUrl,
+      avatarObjectKey: event.avatarObjectKey,
     );
   }
 
@@ -1707,11 +1719,13 @@ class _FriendProfileUpdatedEvent extends _WsEvent {
     this.username,
     this.nickname,
     this.avatarUrl,
+    this.avatarObjectKey,
   });
   final String? userId;
   final String? username;
   final String? nickname;
   final String? avatarUrl;
+  final String? avatarObjectKey;
 }
 
 class _FriendsVersionEvent extends _WsEvent {
@@ -1786,3 +1800,4 @@ class _GroupMemberChangedEvent extends _WsEvent {
   final String? reason;
   final String? until;
 }
+
