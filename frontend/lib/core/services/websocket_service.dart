@@ -737,21 +737,6 @@ class WebSocketService with ChangeNotifier {
       _handleGroupOwnerTransferred(event);
     } else if (event is _GroupSettingsUpdatedEvent) {
       _handleGroupSettingsUpdated(event);
-    } else if (event is _RoomUpdatedEvent) {
-      unawaited(
-        _messageService.updateRoomAvatar(
-          roomId: event.roomId,
-          avatarObjectKey: event.avatarObjectKey ?? '',
-        ),
-      );
-
-      _messageService.ensureRoomPlaceholder(
-        roomId: event.roomId,
-        name: event.roomName,
-        roomType: event.roomType,
-        avatarUrl: event.avatarUrl,
-        description: event.description,
-      );
     }
   }
 
