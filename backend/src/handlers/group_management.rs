@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -20,7 +21,10 @@ use crate::database::{
 };
 use crate::error::AppError;
 use crate::models::Claims;
-use crate::redis::models::{CacheKeys, GroupSettingsUpdatePayload, PubSubPayload};
+use crate::redis::models::{
+    CacheKeys, GroupMemberChangeType, GroupMemberChangedPayload, GroupSettingsUpdatePayload,
+    PubSubPayload,
+};
 use crate::AppState;
 
 // ===== 群设置管理 API =====
@@ -686,6 +690,22 @@ pub async fn appoint_admin(
         )
         .await;
 
+    // 广播群成员角色变更
+    if let Err(e) = broadcast_group_member_changed(
+        &state,
+        room_id,
+        admin.admin_id,
+        GroupMemberChangeType::RoleChanged,
+        Some(admin.role.clone()),
+        Some(user_id),
+        None,
+        None,
+    )
+    .await
+    {
+        error!("广播群成员角色变更失败: {}", e);
+    }
+
     Ok(Json(AppointAdminResponse { admin }))
 }
 
@@ -724,6 +744,22 @@ pub async fn remove_admin(
             })),
         )
         .await;
+
+    // 广播群成员角色变更（降为普通成员）
+    if let Err(e) = broadcast_group_member_changed(
+        &state,
+        room_id,
+        admin_id,
+        GroupMemberChangeType::RoleChanged,
+        Some("member".to_string()),
+        Some(user_id),
+        None,
+        None,
+    )
+    .await
+    {
+        error!("广播群成员角色变更失败: {}", e);
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -786,6 +822,27 @@ pub async fn mute_user(
         )
         .await;
 
+    // 广播群成员被禁言
+    let mute_until = if mute.mute_duration_hours > 0 {
+        Some(mute.muted_at + chrono::Duration::hours(mute.mute_duration_hours as i64))
+    } else {
+        None
+    };
+    if let Err(e) = broadcast_group_member_changed(
+        &state,
+        room_id,
+        mute.user_id,
+        GroupMemberChangeType::Muted,
+        None,
+        Some(user_id),
+        mute.reason.clone(),
+        mute_until,
+    )
+    .await
+    {
+        error!("广播群成员禁言失败: {}", e);
+    }
+
     Ok(Json(MuteUserResponse { mute }))
 }
 
@@ -824,6 +881,22 @@ pub async fn unmute_user(
             })),
         )
         .await;
+
+    // 广播群成员解除禁言
+    if let Err(e) = broadcast_group_member_changed(
+        &state,
+        room_id,
+        muted_user_id,
+        GroupMemberChangeType::Unmuted,
+        None,
+        Some(user_id),
+        None,
+        None,
+    )
+    .await
+    {
+        error!("广播群成员解除禁言失败: {}", e);
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -935,6 +1008,46 @@ pub async fn broadcast_group_settings_update(
     info!(
         "群设置更新已广播到房间 {} ({} 个订阅者)",
         settings.room_id, subscriber_count
+    );
+
+    Ok(())
+}
+
+/// 广播群成员变更到房间内的所有连接
+pub async fn broadcast_group_member_changed(
+    state: &AppState,
+    room_id: Uuid,
+    member_id: Uuid,
+    change_type: GroupMemberChangeType,
+    new_role: Option<String>,
+    operator_id: Option<Uuid>,
+    reason: Option<String>,
+    until: Option<DateTime<Utc>>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let payload = GroupMemberChangedPayload {
+        room_id,
+        member_id,
+        change_type,
+        new_role,
+        operator_id,
+        reason,
+        until,
+    };
+
+    let channel = CacheKeys::pubsub_channel(&room_id);
+    let encoded = PubSubPayload::GroupMemberChanged { data: payload }.encode_protobuf();
+
+    let mut conn = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await?;
+
+    let subscriber_count: i64 = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await?;
+
+    info!(
+        "群成员变更已广播到房间 {} ({} 个订阅者)",
+        room_id, subscriber_count
     );
 
     Ok(())

@@ -43,6 +43,7 @@ message ServerEvent {
     ServerGroupOwnerTransferred group_owner_transferred = 14;
     ServerRoomUpdated room_updated = 15;
     ServerGroupSettingsUpdated group_settings_updated = 16;
+    ServerGroupMemberChanged group_member_changed = 17;
   }
 }
 
@@ -190,6 +191,19 @@ message ServerRoomUpdated {
   string description = 6;
 }
 
+// 群成员变更事件
+// change_type: "role_changed" | "muted" | "unmuted" | "kicked" | "joined" | "left"
+// new_role: "owner" | "admin" | "member" (仅 role_changed 时有效)
+message ServerGroupMemberChanged {
+  string room_id = 1;
+  string member_id = 2;
+  string change_type = 3;
+  optional string new_role = 4;
+  optional string operator_id = 5;
+  optional string reason = 6;
+  optional string until = 7;
+}
+
 enum PubSubPriority {
   PUBSUB_PRIORITY_UNKNOWN = 0;
   PUBSUB_PRIORITY_CRITICAL = 1;
@@ -256,6 +270,17 @@ message PubSubGroupSettingsUpdate {
   optional string global_mute_set_by = 5;
 }
 
+// 群成员变更事件（用于跨节点广播）
+message PubSubGroupMemberChanged {
+  string room_id = 1;
+  string member_id = 2;
+  string change_type = 3;
+  optional string new_role = 4;
+  optional string operator_id = 5;
+  optional string reason = 6;
+  optional string until = 7;
+}
+
 message PubSubEvent {
   oneof payload {
     PubSubMessage message = 1;
@@ -264,5 +289,6 @@ message PubSubEvent {
     PubSubPinUpdate pin_update = 4;
     PubSubRoomUpdate room_update = 5;
     PubSubGroupSettingsUpdate group_settings_update = 6;
+    PubSubGroupMemberChanged group_member_changed = 7;
   }
 }

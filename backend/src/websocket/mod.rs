@@ -777,6 +777,17 @@ pub async fn handle_socket(
                                     global_mute_set_by: data.global_mute_set_by.map(|id| id.to_string()),
                                 }
                             }
+                            crate::redis::models::PubSubPayload::GroupMemberChanged { data } => {
+                                ServerPush::GroupMemberChanged {
+                                    room_id: data.room_id,
+                                    member_id: data.member_id,
+                                    change_type: data.change_type.to_string(),
+                                    new_role: data.new_role.clone(),
+                                    operator_id: data.operator_id,
+                                    reason: data.reason.clone(),
+                                    until: data.until.map(|ts| ts.to_rfc3339()),
+                                }
+                            }
                         };
 
                         let frame = push.encode(format_for_pubsub);

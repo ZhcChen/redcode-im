@@ -46,6 +46,27 @@ class GroupSettingsUpdatedEvent {
   final String? globalMuteSetBy;
 }
 
+/// 群成员变更事件（公开）
+class GroupMemberChangedEvent {
+  const GroupMemberChangedEvent({
+    required this.roomId,
+    required this.memberId,
+    required this.changeType,
+    this.newRole,
+    this.operatorId,
+    this.reason,
+    this.until,
+  });
+
+  final String roomId;
+  final String memberId;
+  final String changeType; // role_changed, muted, unmuted, kicked, joined, left
+  final String? newRole;
+  final String? operatorId;
+  final String? reason;
+  final String? until;
+}
+
 /// WebSocket服务 - 管理WebSocket连接和消息
 class WebSocketService with ChangeNotifier {
   WebSocketService({TokenStorage? tokenStorage, MessageService? messageService})
@@ -88,6 +109,12 @@ class WebSocketService with ChangeNotifier {
       StreamController<GroupSettingsUpdatedEvent>.broadcast();
   Stream<GroupSettingsUpdatedEvent> get onGroupSettingsUpdated =>
       _groupSettingsUpdatedController.stream;
+
+  // 群成员变更事件流
+  final StreamController<GroupMemberChangedEvent> _groupMemberChangedController =
+      StreamController<GroupMemberChangedEvent>.broadcast();
+  Stream<GroupMemberChangedEvent> get onGroupMemberChanged =>
+      _groupMemberChangedController.stream;
 
   // 重连相关
   Timer? _reconnectTimer;
@@ -691,6 +718,21 @@ class WebSocketService with ChangeNotifier {
           globalMuteUntil: _nullIfEmpty(message['global_mute_until']?.toString()),
           globalMuteSetBy: _nullIfEmpty(message['global_mute_set_by']?.toString()),
         );
+      case 'group_member_changed':
+      case 'groupmemberchanged':
+        final roomId = message['room_id']?.toString() ?? '';
+        final memberId = message['member_id']?.toString() ?? '';
+        final changeType = message['change_type']?.toString() ?? '';
+        if (roomId.isEmpty || memberId.isEmpty || changeType.isEmpty) return null;
+        return _GroupMemberChangedEvent(
+          roomId: roomId,
+          memberId: memberId,
+          changeType: changeType,
+          newRole: _nullIfEmpty(message['new_role']?.toString()),
+          operatorId: _nullIfEmpty(message['operator_id']?.toString()),
+          reason: _nullIfEmpty(message['reason']?.toString()),
+          until: _nullIfEmpty(message['until']?.toString()),
+        );
       default:
         return null;
     }
@@ -737,6 +779,8 @@ class WebSocketService with ChangeNotifier {
       _handleGroupOwnerTransferred(event);
     } else if (event is _GroupSettingsUpdatedEvent) {
       _handleGroupSettingsUpdated(event);
+    } else if (event is _GroupMemberChangedEvent) {
+      _handleGroupMemberChanged(event);
     }
   }
 
@@ -1016,6 +1060,22 @@ class WebSocketService with ChangeNotifier {
     ));
   }
 
+  void _handleGroupMemberChanged(_GroupMemberChangedEvent event) {
+    debugPrint(
+      'Group member changed: ${event.roomId}, member=${event.memberId}, type=${event.changeType}',
+    );
+    // 发送到公开的事件流，让页面可以监听
+    _groupMemberChangedController.add(GroupMemberChangedEvent(
+      roomId: event.roomId,
+      memberId: event.memberId,
+      changeType: event.changeType,
+      newRole: event.newRole,
+      operatorId: event.operatorId,
+      reason: event.reason,
+      until: event.until,
+    ));
+  }
+
   /// 处理连接错误
   void _handleError(dynamic error) {
     debugPrint('WebSocket error: $error');
@@ -1114,6 +1174,7 @@ class WebSocketService with ChangeNotifier {
     disconnect();
     _roomManager.dispose();
     _groupSettingsUpdatedController.close();
+    _groupMemberChangedController.close();
     super.dispose();
   }
 }
@@ -1681,4 +1742,24 @@ class _GroupSettingsUpdatedEvent extends _WsEvent {
   final String? globalMuteReason;
   final String? globalMuteUntil;
   final String? globalMuteSetBy;
+}
+
+class _GroupMemberChangedEvent extends _WsEvent {
+  const _GroupMemberChangedEvent({
+    required this.roomId,
+    required this.memberId,
+    required this.changeType,
+    this.newRole,
+    this.operatorId,
+    this.reason,
+    this.until,
+  });
+
+  final String roomId;
+  final String memberId;
+  final String changeType;
+  final String? newRole;
+  final String? operatorId;
+  final String? reason;
+  final String? until;
 }

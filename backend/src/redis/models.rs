@@ -269,6 +269,63 @@ pub struct GroupSettingsUpdatePayload {
     pub global_mute_set_by: Option<Uuid>,
 }
 
+/// 群成员变更类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupMemberChangeType {
+    RoleChanged,
+    Muted,
+    Unmuted,
+    Kicked,
+    Joined,
+    Left,
+}
+
+impl std::fmt::Display for GroupMemberChangeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GroupMemberChangeType::RoleChanged => write!(f, "role_changed"),
+            GroupMemberChangeType::Muted => write!(f, "muted"),
+            GroupMemberChangeType::Unmuted => write!(f, "unmuted"),
+            GroupMemberChangeType::Kicked => write!(f, "kicked"),
+            GroupMemberChangeType::Joined => write!(f, "joined"),
+            GroupMemberChangeType::Left => write!(f, "left"),
+        }
+    }
+}
+
+impl std::str::FromStr for GroupMemberChangeType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "role_changed" => Ok(GroupMemberChangeType::RoleChanged),
+            "muted" => Ok(GroupMemberChangeType::Muted),
+            "unmuted" => Ok(GroupMemberChangeType::Unmuted),
+            "kicked" => Ok(GroupMemberChangeType::Kicked),
+            "joined" => Ok(GroupMemberChangeType::Joined),
+            "left" => Ok(GroupMemberChangeType::Left),
+            _ => Err(format!("unknown change type: {}", s)),
+        }
+    }
+}
+
+/// 群成员变更事件载荷
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupMemberChangedPayload {
+    pub room_id: Uuid,
+    pub member_id: Uuid,
+    pub change_type: GroupMemberChangeType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub until: Option<DateTime<Utc>>,
+}
+
 /// Pub/Sub 统一事件载荷
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event_type", rename_all = "snake_case")]
@@ -297,6 +354,10 @@ pub enum PubSubPayload {
         #[serde(flatten)]
         data: GroupSettingsUpdatePayload,
     },
+    GroupMemberChanged {
+        #[serde(flatten)]
+        data: GroupMemberChangedPayload,
+    },
 }
 
 /// 缓存键生成器
@@ -322,6 +383,9 @@ impl PubSubPayload {
             }
             PubSubPayload::GroupSettingsUpdate { data } => {
                 Payload::GroupSettingsUpdate(ws::PubSubGroupSettingsUpdate::from(data))
+            }
+            PubSubPayload::GroupMemberChanged { data } => {
+                Payload::GroupMemberChanged(ws::PubSubGroupMemberChanged::from(data))
             }
         };
 
@@ -368,6 +432,10 @@ impl TryFrom<ws::PubSubEvent> for PubSubPayload {
             Payload::GroupSettingsUpdate(update) => {
                 let data = GroupSettingsUpdatePayload::try_from(update)?;
                 Ok(PubSubPayload::GroupSettingsUpdate { data })
+            }
+            Payload::GroupMemberChanged(update) => {
+                let data = GroupMemberChangedPayload::try_from(update)?;
+                Ok(PubSubPayload::GroupMemberChanged { data })
             }
         }
     }
@@ -889,6 +957,48 @@ impl TryFrom<ws::PubSubGroupSettingsUpdate> for GroupSettingsUpdatePayload {
             global_mute_reason: value.global_mute_reason,
             global_mute_until,
             global_mute_set_by,
+        })
+    }
+}
+
+impl From<&GroupMemberChangedPayload> for ws::PubSubGroupMemberChanged {
+    fn from(value: &GroupMemberChangedPayload) -> Self {
+        ws::PubSubGroupMemberChanged {
+            room_id: value.room_id.to_string(),
+            member_id: value.member_id.to_string(),
+            change_type: value.change_type.to_string(),
+            new_role: value.new_role.clone(),
+            operator_id: value.operator_id.map(|id| id.to_string()),
+            reason: value.reason.clone(),
+            until: value.until.map(|ts| ts.to_rfc3339()),
+        }
+    }
+}
+
+impl TryFrom<ws::PubSubGroupMemberChanged> for GroupMemberChangedPayload {
+    type Error = String;
+
+    fn try_from(value: ws::PubSubGroupMemberChanged) -> Result<Self, Self::Error> {
+        let room_id = Uuid::parse_str(&value.room_id).map_err(|e| e.to_string())?;
+        let member_id = Uuid::parse_str(&value.member_id).map_err(|e| e.to_string())?;
+        let change_type: GroupMemberChangeType =
+            value.change_type.parse().map_err(|e: String| e)?;
+
+        let operator_id = value.operator_id.and_then(|s| Uuid::parse_str(&s).ok());
+
+        let until = value
+            .until
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&Utc));
+
+        Ok(GroupMemberChangedPayload {
+            room_id,
+            member_id,
+            change_type,
+            new_role: value.new_role,
+            operator_id,
+            reason: value.reason,
+            until,
         })
     }
 }

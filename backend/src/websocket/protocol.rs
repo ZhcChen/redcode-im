@@ -119,6 +119,15 @@ pub enum ServerPush {
         global_mute_until: Option<String>,
         global_mute_set_by: Option<String>,
     },
+    GroupMemberChanged {
+        room_id: Uuid,
+        member_id: Uuid,
+        change_type: String,
+        new_role: Option<String>,
+        operator_id: Option<Uuid>,
+        reason: Option<String>,
+        until: Option<String>,
+    },
 }
 
 impl ServerPush {
@@ -140,6 +149,7 @@ impl ServerPush {
             ServerPush::GroupDissolved { .. } => "group_dissolved",
             ServerPush::GroupOwnerTransferred { .. } => "group_owner_transferred",
             ServerPush::GroupSettingsUpdated { .. } => "group_settings_updated",
+            ServerPush::GroupMemberChanged { .. } => "group_member_changed",
         }
     }
 
@@ -252,6 +262,24 @@ impl ServerPush {
                 "global_mute_reason": global_mute_reason,
                 "global_mute_until": global_mute_until,
                 "global_mute_set_by": global_mute_set_by,
+            }),
+            ServerPush::GroupMemberChanged {
+                room_id,
+                member_id,
+                change_type,
+                new_role,
+                operator_id,
+                reason,
+                until,
+            } => json!({
+                "type": "group_member_changed",
+                "room_id": room_id,
+                "member_id": member_id,
+                "change_type": change_type,
+                "new_role": new_role,
+                "operator_id": operator_id,
+                "reason": reason,
+                "until": until,
             }),
         }
     }
@@ -371,6 +399,23 @@ impl ServerPush {
                 global_mute_reason: global_mute_reason.clone(),
                 global_mute_until: global_mute_until.clone(),
                 global_mute_set_by: global_mute_set_by.clone(),
+            }),
+            ServerPush::GroupMemberChanged {
+                room_id,
+                member_id,
+                change_type,
+                new_role,
+                operator_id,
+                reason,
+                until,
+            } => Payload::GroupMemberChanged(ws::ServerGroupMemberChanged {
+                room_id: room_id.to_string(),
+                member_id: member_id.to_string(),
+                change_type: change_type.clone(),
+                new_role: new_role.clone(),
+                operator_id: operator_id.map(|id| id.to_string()),
+                reason: reason.clone(),
+                until: until.clone(),
             }),
         };
 
