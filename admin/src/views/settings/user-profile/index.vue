@@ -221,8 +221,10 @@
 
   const fetchCurrentUser = async () => {
     try {
+      console.log('获取当前用户信息...');
       const response = await getCurrentUserInfo();
       const userInfo = response.data;
+      console.log('用户信息:', userInfo);
       currentUser.value = userInfo;
 
       profileForm.username = userInfo.username;
@@ -231,8 +233,10 @@
 
       if (userInfo.avatar_url) {
         avatarPreview.value = userInfo.avatar_url;
+        console.log('设置头像预览:', userInfo.avatar_url);
       }
     } catch (error: any) {
+      console.error('获取用户信息失败:', error);
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
@@ -248,17 +252,25 @@
       const formData = new FormData();
       formData.append('avatar', file);
 
+      console.log('开始上传头像...', file);
       const response = await uploadAvatar(formData);
-      if (response.data.success) {
-        Message.success('头像上传成功');
+      console.log('上传响应:', response.data);
+
+      if (response.data && response.data.success) {
+        Message.success(response.data.message || '头像上传成功');
         // 更新用户信息
         await fetchCurrentUser();
         // 同步更新 Pinia store
-        userStore.setInfo({ avatar: response.data.avatar_url });
+        if (response.data.avatar_url) {
+          userStore.setInfo({ avatar: response.data.avatar_url });
+          console.log('更新Pinia store avatar:', response.data.avatar_url);
+        }
       } else {
-        Message.error(response.data.message || '头像上传失败');
+        console.error('上传失败，响应:', response.data);
+        Message.error(response.data?.message || '头像上传失败');
       }
     } catch (error: any) {
+      console.error('上传异常:', error);
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||

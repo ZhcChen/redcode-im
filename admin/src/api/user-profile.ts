@@ -19,6 +19,12 @@ export interface ChangePasswordRequest {
   new_password: string;
 }
 
+export interface UploadAvatarResponse {
+  success: boolean;
+  message: string;
+  avatar_url?: string;
+}
+
 export function getCurrentUserInfo() {
   return axios.get<UserInfo>('/auth/admin/me');
 }
@@ -32,7 +38,7 @@ export function changeCurrentUserPassword(data: ChangePasswordRequest) {
 }
 
 export function uploadAvatar(formData: FormData) {
-  return axios.post('/auth/admin/me/avatar', formData, {
+  return axios.post<UploadAvatarResponse>('/auth/admin/me/avatar', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
