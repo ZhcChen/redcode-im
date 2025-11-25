@@ -133,7 +133,8 @@
             :style="{ marginRight: '8px', cursor: 'pointer' }"
             class="user-avatar"
           >
-            <icon-user class="nav-avatar-icon" />
+            <img v-if="userStore.avatar" :src="userStore.avatar" alt="avatar" />
+            <icon-user v-else class="nav-avatar-icon" />
           </a-avatar>
           <template #content>
             <a-doption>
@@ -162,7 +163,7 @@
 <script lang="ts" setup>
   import { computed, ref, inject } from 'vue';
   import { useDark, useToggle, useFullscreen } from '@vueuse/core';
-  import { useAppStore } from '@/store';
+  import { useAppStore, useUserStore } from '@/store';
   import { LOCALE_OPTIONS } from '@/locale';
   import useLocale from '@/hooks/locale';
   import useUser from '@/hooks/user';
@@ -170,6 +171,7 @@
   import MessageBox from '../message-box/index.vue';
 
   const appStore = useAppStore();
+  const userStore = useUserStore();
   const { logout } = useUser();
   const { changeLocale, currentLocale } = useLocale();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();

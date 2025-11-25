@@ -139,6 +139,7 @@
 <script lang="ts" setup>
   import { ref, reactive, onMounted } from 'vue';
   import { Message } from '@arco-design/web-vue';
+  import { useUserStore } from '@/store';
   import {
     getCurrentUserInfo,
     updateCurrentUserProfile,
@@ -147,6 +148,8 @@
     type UpdateUserProfileRequest,
     type ChangePasswordRequest,
   } from '@/api/user-profile';
+
+  const userStore = useUserStore();
 
   const avatarInputRef = ref<HTMLInputElement | null>(null);
   const profileFormRef = ref();
@@ -250,6 +253,8 @@
         Message.success('头像上传成功');
         // 更新用户信息
         await fetchCurrentUser();
+        // 同步更新 Pinia store
+        userStore.setInfo({ avatar: response.data.avatar_url });
       } else {
         Message.error(response.data.message || '头像上传失败');
       }
