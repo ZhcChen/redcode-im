@@ -46,11 +46,19 @@
             :key="member.userId"
             class="member-item"
           >
-            <Avatar
-              :src="member.avatarUrl || ''"
-              :text="member.nickname || member.username"
-              :size="48"
-            />
+            <div class="member-avatar-wrapper">
+              <Avatar
+                :src="member.avatarUrl || ''"
+                :text="member.nickname || member.username"
+                :size="48"
+              />
+              <!-- 群主标识 -->
+              <div v-if="member.role === 'owner'" class="owner-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                </svg>
+              </div>
+            </div>
             <div class="member-name">{{ member.nickname || member.username }}</div>
           </div>
         </div>
@@ -455,6 +463,33 @@ const handleLeaveGroup = () => {
     align-items: center;
     min-width: 0; // 允许 grid 子项收缩
     overflow: hidden;
+
+    .member-avatar-wrapper {
+      position: relative;
+      width: 48px;
+      height: 48px;
+    }
+
+    .owner-badge {
+      position: absolute;
+      right: -2px;
+      top: -2px;
+      width: 16px;
+      height: 16px;
+      background-color: #FFB800;
+      border-radius: 50%;
+      border: 1.5px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+
+      svg {
+        width: 10px;
+        height: 10px;
+        color: #ffffff;
+      }
+    }
 
     .member-name {
       font-size: 12px;
