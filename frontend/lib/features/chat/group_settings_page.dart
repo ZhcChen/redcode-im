@@ -18,6 +18,7 @@ import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/storage/avatar_cache.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/bottom_picker.dart';
 import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/tip_dialog.dart';
@@ -26,42 +27,6 @@ import '../contacts/contact_detail_page.dart';
 import '../contacts/models/friend_models.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
-
-// 字符串哈希函数（与桌面端保持一致）
-int _hashCode(String str) {
-  int hash = 0;
-  for (int i = 0; i < str.length; i++) {
-    int char = str.codeUnitAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.abs();
-}
-
-// 预设色调（与桌面端保持一致）
-List<Color> _getAvatarColors() {
-  return [
-    const Color(0xFF6366f1), // 靛蓝
-    const Color(0xFF8b5cf6), // 紫色
-    const Color(0xFFec4899), // 粉红
-    const Color(0xFFf43f5e), // 玫瑰
-    const Color(0xFFf59e0b), // 琥珀
-    const Color(0xFF10b981), // 翠绿
-    const Color(0xFF06b6d4), // 青色
-    const Color(0xFF3b82f6), // 蓝色
-    const Color(0xFF6366f1), // 靛蓝
-    const Color(0xFFa855f7), // 紫罗兰
-  ];
-}
-
-// 根据名称生成背景色
-Color _generateBackgroundColor(String text) {
-  final trimmed = text.trim();
-  if (trimmed.isEmpty) return const Color(0xFFF0F0F0);
-  final colors = _getAvatarColors();
-  final hash = _hashCode(trimmed);
-  return colors[hash % colors.length];
-}
 
 class _GroupAvatar extends StatefulWidget {
   const _GroupAvatar({super.key, required this.chat});
@@ -216,8 +181,8 @@ class _GroupAvatarState extends State<_GroupAvatar> {
 
   Widget _buildDefaultAvatar() {
     final name = widget.chat.name.trim();
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final backgroundColor = _generateBackgroundColor(name);
+    final initial = AvatarColorUtils.getInitial(name);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
 
     return Container(
       width: 36,
@@ -489,7 +454,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     final isOwner = role == 'owner';
 
     // 使用哈希背景色（与聊天列表一致）
-    final backgroundColor = _generateBackgroundColor(displayName);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(displayName);
 
     return GestureDetector(
       onTap: () => _navigateToContactDetail(context, member),

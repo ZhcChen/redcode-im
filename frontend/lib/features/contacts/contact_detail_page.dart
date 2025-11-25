@@ -4,46 +4,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
+import '../../core/utils/avatar_color_utils.dart';
 import '../auth/models/auth_user.dart';
 import '../chat/chat_detail_page_v2.dart';
 import '../chat/models/chat_model.dart';
 import 'models/friend_models.dart';
-
-// 字符串哈希函数（与桌面端保持一致）
-int _hashCode(String str) {
-  int hash = 0;
-  for (int i = 0; i < str.length; i++) {
-    int char = str.codeUnitAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.abs();
-}
-
-// 预设色调（与桌面端保持一致）
-List<Color> _getAvatarColors() {
-  return [
-    const Color(0xFF6366f1), // 靛蓝
-    const Color(0xFF8b5cf6), // 紫色
-    const Color(0xFFec4899), // 粉红
-    const Color(0xFFf43f5e), // 玫瑰
-    const Color(0xFFf59e0b), // 琥珀
-    const Color(0xFF10b981), // 翠绿
-    const Color(0xFF06b6d4), // 青色
-    const Color(0xFF3b82f6), // 蓝色
-    const Color(0xFF6366f1), // 靛蓝
-    const Color(0xFFa855f7), // 紫罗兰
-  ];
-}
-
-// 根据文本生成背景色（与桌面端保持一致）
-Color _generateBackgroundColor(String text) {
-  final trimmed = text.trim();
-  if (trimmed.isEmpty) return const Color(0xFFF0F0F0);
-  final colors = _getAvatarColors();
-  final hash = _hashCode(trimmed);
-  return colors[hash % colors.length];
-}
 
 class ContactDetailPage extends StatefulWidget {
   const ContactDetailPage({super.key, required this.friend});
@@ -245,8 +210,8 @@ class _ProfileHeader extends StatelessWidget {
 
   Widget _buildDefaultAvatar(String displayName) {
     final name = displayName.trim();
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final backgroundColor = _generateBackgroundColor(name);
+    final initial = AvatarColorUtils.getInitial(name);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
 
     return Container(
       width: 88,
