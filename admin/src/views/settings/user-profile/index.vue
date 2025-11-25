@@ -7,7 +7,7 @@
         <a-card title="头像设置" size="small">
           <a-space :size="24" align="start">
             <div class="avatar-section">
-              <a-avatar :size="100" class="user-avatar">
+              <a-avatar :size="100" shape="circle" class="user-avatar">
                 <img v-if="avatarPreview" :src="avatarPreview" alt="avatar" />
                 <icon-user v-else class="avatar-icon" />
               </a-avatar>
@@ -248,8 +248,14 @@
                 key: userInfo.avatarUrl,
               });
               const avatarUrl = downloadUrlResponse.data.url;
-              avatarPreview.value = avatarUrl;
-              userStore.setInfo({ avatar: avatarUrl });
+
+              if (avatarUrl) {
+                avatarPreview.value = avatarUrl;
+                userStore.setInfo({ avatar: avatarUrl });
+              } else {
+                avatarPreview.value = '';
+                userStore.setInfo({ avatar: undefined });
+              }
             }
           } catch (e) {
             console.error('获取头像下载URL失败:', e);
@@ -348,7 +354,7 @@
         Message.success('头像上传成功');
         // 更新本地状态使用临时URL
         await fetchCurrentUser();
-        userStore.setInfo({ avatar: avatarUrl });
+        userStore.setInfo({ avatar: avatarUrl || undefined });
       }
     } catch (error: any) {
       console.error('上传异常:', error);
@@ -486,7 +492,14 @@
   }
 
   .user-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    height: 100px;
+    overflow: hidden;
     background-color: var(--color-fill-2);
+    border-radius: 50%;
 
     :deep(img) {
       width: 100%;

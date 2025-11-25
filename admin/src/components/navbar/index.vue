@@ -130,6 +130,7 @@
         <a-dropdown trigger="click">
           <a-avatar
             :size="32"
+            shape="circle"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
             class="user-avatar"
           >
@@ -312,7 +313,14 @@
     }
 
     .user-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      overflow: hidden;
       background-color: var(--color-fill-2) !important;
+      border-radius: 50%;
 
       :deep(img) {
         width: 100%;
