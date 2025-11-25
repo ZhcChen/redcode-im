@@ -819,23 +819,22 @@ class WebSocketService with ChangeNotifier {
     _setStatus(ConnectionStatus.authenticated);
     debugPrint('WebSocket authenticated: $_connectionId');
 
-    // 优化：不再自动加入所有历史房间，改为按需加入
-    // 只保留当前正在查看的房间（如果有）
+    // 清空已订阅状态，准备重新加入
     _subscribedRooms.clear();
     _pendingJoinRooms.clear();
 
-    // 如果有正在查看的房间，重新加入
-    if (_desiredRooms.length == 1) {
-      // 用户正在聊天详情页
-      final currentRoom = _desiredRooms.first;
-      if (currentRoom.isNotEmpty) {
-        final joinEvent = ws.ClientEvent(
-          join: ws.ClientJoin(roomId: currentRoom),
-        );
-        _pendingJoinRooms.add(currentRoom);
-        _sendClientEvent(joinEvent);
-        debugPrint('Rejoining current room after auth: $currentRoom');
+    // 重新加入所有 desiredRooms 中的房间
+    if (_desiredRooms.isNotEmpty) {
+      for (final roomId in _desiredRooms) {
+        if (roomId.isNotEmpty) {
+          final joinEvent = ws.ClientEvent(
+            join: ws.ClientJoin(roomId: roomId),
+          );
+          _pendingJoinRooms.add(roomId);
+          _sendClientEvent(joinEvent);
+        }
       }
+      debugPrint('Rejoining ${_desiredRooms.length} rooms after auth');
     }
 
     // 认证成功后刷新：
