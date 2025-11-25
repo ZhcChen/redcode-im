@@ -256,7 +256,8 @@ export class UserApi {
       headers: finalHeaders,
       binaryBody: fileBuffer,
       injectToken: false,
-      forceStreaming: true
+      forceStreaming: true,
+      timeout: 60000 // 60秒超时，避免上传卡住
     });
     await emitClientDebug('avatarUploadRawResponse', {
       code: uploadResponse.code,
