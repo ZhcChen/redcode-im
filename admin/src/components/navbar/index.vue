@@ -137,7 +137,7 @@
           </a-avatar>
           <template #content>
             <a-doption>
-              <a-space @click="$router.push({ name: 'Setting' })">
+              <a-space @click="$router.push({ name: 'UserProfileSettings' })">
                 <icon-settings />
                 <span>
                   {{ $t('messageBox.userSettings') }}
