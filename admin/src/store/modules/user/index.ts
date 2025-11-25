@@ -12,7 +12,8 @@ import { UserState } from './types';
 import useAppStore from '../app';
 
 function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
-  return {
+  console.log('[UserStore] mapBackendUser，原始数据:', user);
+  const result = {
     name: user.nickname || user.username,
     avatar: user.avatar_url || undefined,
     email: user.email,
@@ -20,6 +21,8 @@ function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
     accountId: user.id,
     role: 'admin',
   };
+  console.log('[UserStore] mapBackendUser，映射后:', result);
+  return result;
 }
 
 const useUserStore = defineStore('user', {

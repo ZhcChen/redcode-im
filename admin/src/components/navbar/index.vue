@@ -183,6 +183,7 @@
 
   // 转换头像URL
   const convertAvatarUrl = async (avatar: string | undefined) => {
+    console.log('[Navbar] convertAvatarUrl 被调用，avatar:', avatar);
     if (!avatar) {
       displayAvatarUrl.value = '';
       return;
@@ -190,27 +191,36 @@
 
     // 如果是完整的URL（包含 http:// 或 https://），直接使用
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      console.log('[Navbar] 直接使用URL:', avatar);
       displayAvatarUrl.value = avatar;
       return;
     }
 
     // 如果是 key（以 admin/ 开头），获取临时下载URL
     if (avatar.startsWith('admin/')) {
+      console.log('[Navbar] 检测到key，开始获取临时URL，key:', avatar);
       try {
         const providerResponse = await getDefaultStorageProvider();
         const provider = providerResponse.data;
         if (provider) {
+          console.log('[Navbar] 获取到provider:', provider.id);
           const downloadUrlResponse = await getCosDownloadUrl({
             provider_id: provider.id,
             key: avatar,
           });
+          console.log('[Navbar] 临时URL响应:', downloadUrlResponse.data);
           displayAvatarUrl.value = downloadUrlResponse.data.url || '';
+          console.log(
+            '[Navbar] 设置 displayAvatarUrl:',
+            displayAvatarUrl.value
+          );
         }
       } catch (e) {
-        console.error('获取头像下载URL失败:', e);
+        console.error('[Navbar] 获取头像下载URL失败:', e);
         displayAvatarUrl.value = '';
       }
     } else {
+      console.log('[Navbar] 其他情况，直接使用:', avatar);
       displayAvatarUrl.value = avatar;
     }
   };
