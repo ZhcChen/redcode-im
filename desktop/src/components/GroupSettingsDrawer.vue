@@ -468,12 +468,12 @@ const handleLeaveGroup = () => {
     flex-direction: column;
     align-items: center;
     min-width: 0; // 允许 grid 子项收缩
-    overflow: hidden;
 
     .member-avatar-wrapper {
       position: relative;
       width: 48px;
       height: 48px;
+      flex-shrink: 0;
     }
 
     .owner-badge {
@@ -489,6 +489,7 @@ const handleLeaveGroup = () => {
       align-items: center;
       justify-content: center;
       box-sizing: border-box;
+      z-index: 1;
 
       svg {
         width: 10px;
