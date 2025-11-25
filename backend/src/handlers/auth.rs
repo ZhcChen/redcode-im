@@ -583,3 +583,220 @@ pub async fn get_current_admin_user(
     };
     Ok(Json(admin_user_info))
 }
+
+/// 更新当前管理员用户信息
+#[derive(Debug, Deserialize)]
+pub struct UpdateAdminUserRequest {
+    pub nickname: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UpdateAdminUserResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<admin::AdminUserInfo>,
+}
+
+pub async fn update_current_admin_user(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<UpdateAdminUserRequest>,
+) -> Result<Json<UpdateAdminUserResponse>, AppError> {
+    let admin_user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+
+    let store = admin::AdminUserStore::new(state.database.clone());
+
+    let updated_user = store
+        .update_admin_user(&admin_user_id, payload.nickname, None)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+
+    // 转换为 API 层响应
+    let admin_user_info = admin::AdminUserInfo {
+        id: updated_user.id.to_string(),
+        username: updated_user.username.clone(),
+        email: updated_user.email.clone(),
+        nickname: updated_user.nickname.clone(),
+        avatar_url: updated_user.avatar_url.clone(),
+        status: match updated_user.status {
+            AdminUserStatus::Active => "active".to_string(),
+            AdminUserStatus::Inactive => "inactive".to_string(),
+            AdminUserStatus::Banned => "banned".to_string(),
+            AdminUserStatus::Locked => "locked".to_string(),
+        },
+        last_login_at: updated_user.last_login_at.map(|dt| dt.to_rfc3339()),
+        created_at: updated_user.created_at.to_rfc3339(),
+        updated_at: updated_user.updated_at.to_rfc3339(),
+    };
+
+    Ok(Json(UpdateAdminUserResponse {
+        success: true,
+        message: "更新成功".to_string(),
+        data: Some(admin_user_info),
+    }))
+}
+
+/// 修改当前管理员用户密码
+#[derive(Debug, Deserialize)]
+pub struct ChangeAdminPasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChangeAdminPasswordResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+pub async fn change_current_admin_password(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<ChangeAdminPasswordRequest>,
+) -> Result<Json<ChangeAdminPasswordResponse>, AppError> {
+    let admin_user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+
+    let store = admin::AdminUserStore::new(state.database.clone());
+
+    // 查找当前用户
+    let db_admin_user = store
+        .find_by_id(&admin_user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+
+    // 验证当前密码
+    let is_valid = bcrypt::verify(&payload.current_password, &db_admin_user.password_hash)
+        .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
+
+    if !is_valid {
+        return Err(AppError::InvalidCredentials);
+    }
+
+    // 验证新密码强度
+    if payload.new_password.len() < 8 {
+        return Err(AppError::ValidationError(
+            "新密码长度至少为 8 个字符".to_string(),
+        ));
+    }
+
+    if !payload.new_password.chars().any(|c| c.is_ascii_alphabetic())
+        || !payload.new_password.chars().any(|c| c.is_ascii_digit())
+    {
+        return Err(AppError::ValidationError(
+            "新密码必须包含字母和数字".to_string(),
+        ));
+    }
+
+    // 加密新密码
+    let new_password_hash = hash_password(&payload.new_password)
+        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+
+    // 更新密码
+    let updated = store.update_password(&admin_user_id, &new_password_hash).await?;
+
+    if !updated {
+        return Err(AppError::InternalError("更新密码失败".to_string()));
+    }
+
+    Ok(Json(ChangeAdminPasswordResponse {
+        success: true,
+        message: "密码修改成功".to_string(),
+    }))
+}
+
+/// 上传当前管理员用户头像
+#[derive(Debug, Serialize)]
+pub struct UploadAdminAvatarResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+}
+
+pub async fn upload_current_admin_avatar(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Multipart(multipart): axum::extract::Multipart,
+) -> Result<Json<UploadAdminAvatarResponse>, AppError> {
+    let admin_user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+
+    // 从 multipart 中获取文件
+    let mut avatar_file = None;
+    let mut content_type = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        AppError::InternalError(format!("读取上传文件失败: {}", e))
+    })? {
+        if field.name() == Some("avatar") {
+            let data = field.bytes().await.map_err(|e| {
+                AppError::InternalError(format!("读取文件数据失败: {}", e))
+            })?;
+
+            // 验证文件大小 (5MB)
+            if data.len() > 5 * 1024 * 1024 {
+                return Err(AppError::ValidationError(
+                    "文件大小不能超过 5MB".to_string(),
+                ));
+            }
+
+            content_type = field.content_type().map(|s| s.to_string());
+            avatar_file = Some(data);
+            break;
+        }
+    }
+
+    if avatar_file.is_none() {
+        return Err(AppError::ValidationError("请选择要上传的头像文件".to_string()));
+    }
+
+    let file_data = avatar_file.unwrap();
+    let content_type = content_type.unwrap_or_else(|| "image/jpeg".to_string());
+
+    // 验证文件类型
+    if !content_type.starts_with("image/") {
+        return Err(AppError::ValidationError(
+            "只支持上传图片文件".to_string(),
+        ));
+    }
+
+    // 生成文件名
+    let file_ext = match content_type.as_str() {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        _ => "jpg",
+    };
+
+    let file_key = format!("admin/avatars/{}.{}", admin_user_id, file_ext);
+
+    // 上传到存储
+    let storage_provider = None; // 使用默认存储提供商
+    let result = storage::upload_file(
+        &state,
+        storage_provider,
+        &file_key,
+        &file_data,
+        &content_type,
+        None,
+    )
+    .await
+    .map_err(|e| AppError::InternalError(format!("上传文件失败: {}", e)))?;
+
+    // 更新用户头像URL
+    let store = admin::AdminUserStore::new(state.database.clone());
+    let updated_user = store
+        .update_admin_user(&admin_user_id, None, Some(result.url.clone()))
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+
+    Ok(Json(UploadAdminAvatarResponse {
+        success: true,
+        message: "头像上传成功".to_string(),
+        avatar_url: Some(result.url),
+    }))
+}

@@ -92,6 +92,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'user-profile',
+      name: 'UserProfileSettings',
+      component: () => import('@/views/settings/user-profile/index.vue'),
+      meta: {
+        locale: 'menu.settings.userProfile',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
   ],
 };
 

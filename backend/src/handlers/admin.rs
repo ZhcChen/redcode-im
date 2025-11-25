@@ -3546,6 +3546,56 @@ impl AdminUserStore {
 
         Ok((users, total))
     }
+
+    /// 更新管理员用户信息
+    pub async fn update_admin_user(
+        &self,
+        admin_user_id: &Uuid,
+        nickname: Option<String>,
+        avatar_url: Option<String>,
+    ) -> Result<Option<AdminUser>, AppError> {
+        sqlx::query!(
+            r#"UPDATE admin_users
+            SET nickname = COALESCE($2, nickname),
+                avatar_url = COALESCE($3, avatar_url),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND deleted_at IS NULL
+            RETURNING
+                id, username, email, password_hash, nickname, avatar_url,
+                status as "status: AdminUserStatus",
+                last_login_at, login_attempts, locked_until,
+                require_password_change, password_changed_at,
+                created_at, updated_at, deleted_at"#,
+            admin_user_id,
+            nickname,
+            avatar_url
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))
+    }
+
+    /// 更新管理员用户密码
+    pub async fn update_password(
+        &self,
+        admin_user_id: &Uuid,
+        new_password_hash: &str,
+    ) -> Result<bool, AppError> {
+        let result = sqlx::query!(
+            r#"UPDATE admin_users
+            SET password_hash = $2,
+                password_changed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND deleted_at IS NULL"#,
+            admin_user_id,
+            new_password_hash
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(result.rows_affected() > 0)
+    }
 }
 
 /// 管理员用户查询结果（包含总数）

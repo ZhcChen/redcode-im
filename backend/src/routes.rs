@@ -39,7 +39,17 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/admin/login", post(auth::admin_login))
         .route(
             "/auth/admin/me",
-            get(auth::get_current_admin_user).route_layer(middleware::from_fn(auth_middleware)),
+            get(auth::get_current_admin_user)
+                .patch(auth::update_current_admin_user)
+                .route_layer(middleware::from_fn(auth_middleware)),
+        )
+        .route(
+            "/auth/admin/me/password",
+            post(auth::change_current_admin_password).route_layer(middleware::from_fn(auth_middleware)),
+        )
+        .route(
+            "/auth/admin/me/avatar",
+            post(auth::upload_current_admin_avatar).route_layer(middleware::from_fn(auth_middleware)),
         )
         .route(
             "/settings/privacy-policy",
