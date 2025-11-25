@@ -2493,12 +2493,19 @@ class MessageService with ChangeNotifier {
     );
   }
 
-  /// 按置顶与时间排序
+  /// 按收藏、置顶与时间排序
   void _sortChats() {
     _chats.sort((a, b) {
+      // 收藏夹始终排在最前面
+      final aIsFavorite = a.type == ChatType.favorite;
+      final bIsFavorite = b.type == ChatType.favorite;
+      if (aIsFavorite && !bIsFavorite) return -1;
+      if (!aIsFavorite && bIsFavorite) return 1;
+      // 置顶的排在前面
       if (a.isPinned != b.isPinned) {
         return a.isPinned ? -1 : 1;
       }
+      // 按时间排序
       return b.lastMessageTime.compareTo(a.lastMessageTime);
     });
   }
