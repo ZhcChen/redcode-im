@@ -613,6 +613,7 @@ impl fmt::Display for NotificationSetting {
 /// 成员角色枚举
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
 #[repr(i16)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "int2")]
 pub enum MemberRole {
     Owner = 0,  // 房主

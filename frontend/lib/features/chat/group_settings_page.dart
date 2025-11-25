@@ -449,7 +449,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             if (index == 0) {
               return _buildActionMember(
                 context,
-                Icons.person_add,
+                true,
                 '添加',
                 () => debugPrint('Add member'),
               );
@@ -457,7 +457,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             if (index == 1) {
               return _buildActionMember(
                 context,
-                Icons.person_remove,
+                false,
                 '移除',
                 () => debugPrint('Remove member'),
               );
@@ -577,7 +577,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   Widget _buildActionMember(
     BuildContext context,
-    IconData icon,
+    bool isAdd,
     String label,
     VoidCallback onTap,
   ) {
@@ -589,11 +589,15 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           Container(
             width: 48,
             height: 48,
-            decoration: const BoxDecoration(
-              color: AppColors.surfaceMuted,
+            decoration: BoxDecoration(
+              color: Colors.white,
               shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFD9D9D9), width: 1),
             ),
-            child: Icon(icon, size: 24, color: AppColors.textSecondary),
+            child: CustomPaint(
+              size: const Size(24, 24),
+              painter: _ActionIconPainter(isAdd: isAdd),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1534,4 +1538,43 @@ class _SettingTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 自定义绘制 + 和 - 图标
+class _ActionIconPainter extends CustomPainter {
+  final bool isAdd;
+
+  _ActionIconPainter({required this.isAdd});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFCCCCCC)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final lineLength = size.width * 0.5;
+
+    // 画横线 (-)
+    canvas.drawLine(
+      Offset(centerX - lineLength / 2, centerY),
+      Offset(centerX + lineLength / 2, centerY),
+      paint,
+    );
+
+    // 如果是添加按钮，画竖线 (+)
+    if (isAdd) {
+      canvas.drawLine(
+        Offset(centerX, centerY - lineLength / 2),
+        Offset(centerX, centerY + lineLength / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -22,7 +22,7 @@
           <!-- 新增成员按钮 -->
           <div class="member-item add-member-btn" @click="handleAddMember">
             <div class="member-avatar add-avatar">
-              <svg class="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <svg class="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <line x1="12" y1="6" x2="12" y2="18" />
                 <line x1="6" y1="12" x2="18" y2="12" />
               </svg>
@@ -33,7 +33,7 @@
           <!-- 删除成员按钮 -->
           <div class="member-item remove-member-btn" @click="handleRemoveMember">
             <div class="member-avatar remove-avatar">
-              <svg class="icon-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <svg class="icon-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <line x1="6" y1="12" x2="18" y2="12" />
               </svg>
             </div>
@@ -380,6 +380,8 @@ const handleLeaveGroup = () => {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
+  user-select: none;
+  cursor: default;
 
   &--visible {
     opacity: 1;
@@ -525,9 +527,9 @@ const handleLeaveGroup = () => {
     }
 
     .icon-plus, .icon-minus {
-      width: 20px;
-      height: 20px;
-      stroke: #d9d9d9;
+      width: 38px;
+      height: 38px;
+      stroke: #CCCCCC;
     }
   }
 }
