@@ -79,7 +79,7 @@
           <div class="setting-item" @click="handleEditGroupNotice">
             <div class="setting-label">群公告</div>
             <div class="setting-value">
-              {{ groupNoticeText }}
+              <span class="setting-value__text">{{ groupNoticeText }}</span>
               <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
             </div>
           </div>
@@ -494,8 +494,8 @@ const handleLeaveGroup = () => {
 /* 设置选项 */
 .setting-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  column-gap: 12px;
   padding: 12px 0;
   transition: opacity 0.2s;
 
@@ -517,6 +517,8 @@ const handleLeaveGroup = () => {
     font-size: 14px;
     color: #2C2D3A;
     font-weight: 400;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .setting-value {
@@ -524,7 +526,19 @@ const handleLeaveGroup = () => {
     color: #666;
     display: flex;
     align-items: center;
-    gap: 6px; /* 元素间距离6px */
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+
+    .setting-value__text {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
 
     .setting-arrow {
       width: 24px;
