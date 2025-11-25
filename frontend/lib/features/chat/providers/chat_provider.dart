@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/constants/app_config.dart';
@@ -10,7 +9,6 @@ import '../../../core/services/websocket_service.dart';
 import '../models/message_model.dart';
 import '../models/chat_model.dart';
 import '../models/message_reader.dart';
-import 'package:async/async.dart';
 
 /// 聊天提供者 - 管理聊天状态
 class ChatProvider with ChangeNotifier {
@@ -421,52 +419,144 @@ class ChatProvider with ChangeNotifier {
       return;
     }
 
+    // 乐观更新
     _chats.removeAt(index);
     notifyListeners();
 
-    // TODO: 调用API删除
+    try {
+      final session = await _messageService.tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('Not logged in');
+      }
+
+      final response = await http.delete(
+        Uri.parse('${AppConfig.apiBaseUrl}/chats/${chat.roomId}'),
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete chat: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Failed to delete chat: $e');
+      // 失败时回滚
+      _chats.insert(index, chat);
+      notifyListeners();
+      rethrow;
+    }
   }
 
   /// 置顶聊天
   Future<void> pinChat(String chatId, bool isPinned) async {
     final index = _chats.indexWhere((chat) => chat.id == chatId);
-    if (index >= 0) {
-      final chat = _chats[index];
-      if (chat.type == ChatType.favorite) {
-        if (!chat.isPinned) {
-          _chats[index] = chat.copyWith(isPinned: true);
-          notifyListeners();
-        }
-        return;
+    if (index < 0) return;
+
+    final chat = _chats[index];
+    if (chat.type == ChatType.favorite) {
+      if (!chat.isPinned) {
+        _chats[index] = chat.copyWith(isPinned: true);
+        notifyListeners();
       }
-      _chats[index] = chat.copyWith(isPinned: isPinned);
-      _sortChats();
-      notifyListeners();
+      return;
     }
 
-    // TODO: 调用API更新
+    final oldPinned = chat.isPinned;
+    // 乐观更新
+    _chats[index] = chat.copyWith(isPinned: isPinned);
+    _sortChats();
+    notifyListeners();
+
+    try {
+      final session = await _messageService.tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('Not logged in');
+      }
+
+      final response = isPinned
+          ? await http.post(
+              Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/pin'),
+              headers: {
+                'Authorization': 'Bearer ${session.token}',
+              },
+            )
+          : await http.delete(
+              Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/pin'),
+              headers: {
+                'Authorization': 'Bearer ${session.token}',
+              },
+            );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update pin status: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Failed to update pin status: $e');
+      // 失败时回滚
+      final rollbackIndex = _chats.indexWhere((c) => c.id == chatId);
+      if (rollbackIndex >= 0) {
+        _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(isPinned: oldPinned);
+        _sortChats();
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
   /// 静音聊天
   Future<void> muteChat(String chatId, bool isMuted) async {
     final index = _chats.indexWhere((chat) => chat.id == chatId);
-    if (index >= 0) {
-      _chats[index] = _chats[index].copyWith(isMuted: isMuted);
-      notifyListeners();
-    }
+    if (index < 0) return;
 
-    // TODO: 调用API更新
+    final chat = _chats[index];
+    final oldMuted = chat.isMuted;
+
+    // 乐观更新
+    _chats[index] = chat.copyWith(isMuted: isMuted);
+    notifyListeners();
+
+    try {
+      final session = await _messageService.tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('Not logged in');
+      }
+
+      // notification_settings: 0=全部通知, 1=仅@提醒, 2=静音
+      final notificationSettings = isMuted ? 2 : 0;
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/notification-settings'),
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'notification_settings': notificationSettings}),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update mute status: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Failed to update mute status: $e');
+      // 失败时回滚
+      final rollbackIndex = _chats.indexWhere((c) => c.id == chatId);
+      if (rollbackIndex >= 0) {
+        _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(isMuted: oldMuted);
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
-  /// 清空聊天消息
+  /// 清空聊天消息（仅本地缓存）
+  /// 注意：后端暂无批量清空消息接口，此操作仅清除本地缓存
   Future<void> clearChatMessages(String roomId) async {
     if (roomId == _currentRoomId) {
       _messages = [];
       notifyListeners();
     }
     _messageService.clearRoomMessages(roomId);
-
-    // TODO: 调用API清空
   }
 
   ForwardInfo _buildForwardInfo(Message original) {
