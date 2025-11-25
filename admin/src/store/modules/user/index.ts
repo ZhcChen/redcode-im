@@ -13,9 +13,20 @@ import useAppStore from '../app';
 
 function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
   console.log('[UserStore] mapBackendUser，原始数据:', user);
+  console.log(
+    '[UserStore] avatarUrl值:',
+    user.avatarUrl,
+    '类型:',
+    typeof user.avatarUrl,
+    '布尔值:',
+    !!user.avatarUrl
+  );
   const result = {
     name: user.nickname || user.username,
-    avatar: user.avatar_url || undefined,
+    avatar:
+      user.avatarUrl && user.avatarUrl.trim() !== ''
+        ? user.avatarUrl
+        : undefined,
     email: user.email,
     introduction: undefined,
     accountId: user.id,

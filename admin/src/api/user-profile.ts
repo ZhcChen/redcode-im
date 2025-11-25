@@ -5,10 +5,11 @@ export interface UserInfo {
   username: string;
   email: string;
   nickname?: string | null;
-  avatar_url?: string | null;
+  avatarUrl?: string | null; // 注意：后端返回的是 avatarUrl（驼峰）
   status: string;
-  created_at: string;
-  updated_at: string;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UpdateUserProfileRequest {

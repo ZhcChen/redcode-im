@@ -237,9 +237,9 @@
       profileForm.email = userInfo.email;
       profileForm.nickname = userInfo.nickname || '';
 
-      if (userInfo.avatar_url) {
+      if (userInfo.avatarUrl) {
         // 检查是否是key（以 admin/ 开头）还是完整的URL
-        if (userInfo.avatar_url.startsWith('admin/')) {
+        if (userInfo.avatarUrl.startsWith('admin/')) {
           // 是key，需要获取临时下载URL
           try {
             const providerResponse = await getDefaultStorageProvider();
@@ -247,7 +247,7 @@
             if (provider) {
               const downloadUrlResponse = await getCosDownloadUrl({
                 provider_id: provider.id,
-                key: userInfo.avatar_url,
+                key: userInfo.avatarUrl,
               });
               const avatarUrl = downloadUrlResponse.data.url;
               avatarPreview.value = avatarUrl;
@@ -260,9 +260,9 @@
           }
         } else {
           // 直接是URL
-          avatarPreview.value = userInfo.avatar_url;
-          userStore.setInfo({ avatar: userInfo.avatar_url });
-          console.log('设置头像预览（直接URL）:', userInfo.avatar_url);
+          avatarPreview.value = userInfo.avatarUrl;
+          userStore.setInfo({ avatar: userInfo.avatarUrl });
+          console.log('设置头像预览（直接URL）:', userInfo.avatarUrl);
         }
       }
     } catch (error: any) {
