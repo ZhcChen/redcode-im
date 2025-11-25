@@ -68,7 +68,136 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 3. 上传功能需验证文件类型和大小限制
 4. 所有用户输入必须进行校验和转义
 
-### 2.5 沟通规范
+### 2.5 管理后台（admin）开发规范
+
+#### 2.5.1 API 封装规范（MUST）
+1. **禁止在组件中直接使用 fetch 或 axios**
+   - ❌ 错误示例：
+     ```javascript
+     await fetch('/api/admin/users', { method: 'POST', body: JSON.stringify(data) });
+     ```
+   - ✅ 正确示例：
+     ```javascript
+     // 在 admin/src/api/ 下创建函数
+     export function createUser(data) {
+       return axios.post('/api/admin/users', data);
+     }
+
+     // 在组件中调用
+     await createUser(data);
+     ```
+
+2. **API 函数命名规范**
+   - 动作型：`createUser`, `updateUser`, `deleteUser`, `getUserList`
+   - 获取型：`getUserInfo`, `fetchUserPermissions`
+   - 功能型：`uploadFile`, `downloadReport`
+
+3. **API 文件组织**
+   ```
+   admin/src/api/
+   ├── settings.ts       # 系统设置相关 API
+   ├── user-profile.ts   # 用户信息相关 API
+   ├── user.ts           # 用户管理 API
+   └── ...
+   ```
+
+4. **类型定义要求**
+   ```typescript
+   // Request 类型
+   export interface CreateUserRequest {
+     username: string;
+     email: string;
+     password: string;
+   }
+
+   // Response 类型
+   export interface UserInfo {
+     id: string;
+     username: string;
+     email: string;
+     status: string;
+   }
+
+   // API 函数
+   export function createUser(data: CreateUserRequest) {
+     return axios.post<UserInfo>('/api/admin/users', data);
+   }
+   ```
+
+#### 2.5.2 前后端通信规范（MUST）
+1. **端口配置**
+   - 后端开发端口：`8010`
+   - 前端开发端口：`8011`
+   - 必须配置 Vite 代理或 axios baseURL 指向后端
+
+2. **代理配置（Vite）**
+   ```typescript
+   // admin/config/vite.config.dev.ts
+   server: {
+     port: 8011,
+     proxy: {
+       '/api': {
+         target: 'http://localhost:8010',
+         changeOrigin: true
+       },
+       '/auth': {
+         target: 'http://localhost:8010',
+         changeOrigin: true
+       }
+     }
+   }
+   ```
+
+3. **Axios 配置**
+   ```typescript
+   // admin/src/utils/request.ts
+   const service = axios.create({
+     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8010',
+     timeout: 10000
+   });
+   ```
+
+#### 2.5.3 组件开发规范
+1. **响应式数据管理**
+   - 使用 `<script setup>` + Composition API
+   - 类型使用 TypeScript
+   - 状态管理使用 Pinia
+
+2. **API 调用模式**
+   ```typescript
+   <script setup lang="ts">
+   import { ref } from 'vue';
+   import { createUser } from '@/api/user';
+   import { Message } from '@arco-design/web-vue';
+
+   const loading = ref(false);
+
+   const handleSubmit = async () => {
+     try {
+       loading.value = true;
+       await createUser(formData);
+       Message.success('创建成功');
+     } catch (error: any) {
+       Message.error(error?.response?.data?.message || '创建失败');
+     } finally {
+       loading.value = false;
+     }
+   };
+   </script>
+   ```
+
+#### 2.5.4 错误处理规范（MUST）
+1. **统一错误处理**
+   - 使用拦截器处理 401、403 等通用错误
+   - API 函数返回标准化错误信息
+   - 组件中只处理业务逻辑错误
+
+2. **Loading 状态管理**
+   - 所有异步操作必须有 loading 状态
+   - 防止重复提交
+   - 提供明确的用户反馈
+
+### 2.6 沟通规范
 1. **语言要求**：对话必须使用简体中文，但保留领域专业词汇（如 Rust, Tauri, Widget 等）的英文原文。
 
 ## 三、工作流程（SHOULD）
