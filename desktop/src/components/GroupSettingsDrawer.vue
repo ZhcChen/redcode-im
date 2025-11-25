@@ -22,7 +22,10 @@
           <!-- 新增成员按钮 -->
           <div class="member-item add-member-btn" @click="handleAddMember">
             <div class="member-avatar add-avatar">
-              <span class="add-icon">+</span>
+              <svg class="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <line x1="12" y1="6" x2="12" y2="18" />
+                <line x1="6" y1="12" x2="18" y2="12" />
+              </svg>
             </div>
             <div class="member-name">添加</div>
           </div>
@@ -30,7 +33,9 @@
           <!-- 删除成员按钮 -->
           <div class="member-item remove-member-btn" @click="handleRemoveMember">
             <div class="member-avatar remove-avatar">
-              <span class="remove-icon">-</span>
+              <svg class="icon-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <line x1="6" y1="12" x2="18" y2="12" />
+              </svg>
             </div>
             <div class="member-name">删除</div>
           </div>
@@ -448,6 +453,7 @@ const handleLeaveGroup = () => {
     display: flex;
     flex-direction: column;
     align-items: center;
+    max-width: 100%;
 
     .member-name {
       font-size: 12px;
@@ -455,6 +461,10 @@ const handleLeaveGroup = () => {
       margin-top: 12px;
       text-align: center;
       line-height: 1;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 
@@ -466,17 +476,15 @@ const handleLeaveGroup = () => {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
-      font-weight: bold;
-      color: white;
+      background-color: #ffffff;
+      border: 1px solid #d9d9d9;
+      box-sizing: border-box;
     }
 
-    .add-avatar {
-      background-color: var(--primary-color, #4ECDC4);
-    }
-
-    .remove-avatar {
-      background-color: #ff4757;
+    .icon-plus, .icon-minus {
+      width: 20px;
+      height: 20px;
+      stroke: #d9d9d9;
     }
   }
 }
