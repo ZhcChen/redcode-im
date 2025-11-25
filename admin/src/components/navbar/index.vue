@@ -267,6 +267,12 @@
     .user-avatar {
       background-color: var(--color-fill-2) !important;
 
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
       .nav-avatar-icon {
         display: flex;
         align-items: center;

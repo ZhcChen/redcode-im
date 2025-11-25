@@ -47,5 +47,8 @@ export function uploadAvatar(formData: FormData) {
 }
 
 export function updateUserAvatar(avatarUrl: string) {
-  return axios.patch<UserInfo>('/auth/admin/me', { avatar_url: avatarUrl });
+  return axios.patch<{ success: boolean; message: string; data: UserInfo }>(
+    '/auth/admin/me',
+    { avatar_url: avatarUrl }
+  );
 }

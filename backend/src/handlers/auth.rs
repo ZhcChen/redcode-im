@@ -609,12 +609,21 @@ pub async fn update_current_admin_user(
     let admin_user_id = string_to_uuid(&claims.sub)
         .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
 
+    tracing::info!(
+        "更新管理员用户信息: id={}, nickname={:?}, avatar_url={:?}",
+        admin_user_id,
+        payload.nickname,
+        payload.avatar_url
+    );
+
     let store = admin::AdminUserStore::new(state.database.clone());
 
     let updated_user = store
         .update_admin_user(&admin_user_id, payload.nickname, payload.avatar_url)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+
+    tracing::info!("更新成功: avatar_url={:?}", updated_user.avatar_url);
 
     // 转换为 API 层响应
     let admin_user_info = admin::AdminUserInfo {

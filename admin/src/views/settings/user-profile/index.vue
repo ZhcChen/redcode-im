@@ -323,7 +323,7 @@
 
       // 6. 更新数据库中的avatar_url
       const updateResponse = await updateUserAvatar(avatarUrl);
-      if (updateResponse.data) {
+      if (updateResponse.data && updateResponse.data.success) {
         Message.success('头像上传成功');
         // 更新本地状态
         await fetchCurrentUser();
@@ -467,6 +467,12 @@
 
   .user-avatar {
     background-color: var(--color-fill-2);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
   }
 
   .avatar-icon {
