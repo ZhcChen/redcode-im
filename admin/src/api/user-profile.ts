@@ -13,6 +13,7 @@ export interface UserInfo {
 
 export interface UpdateUserProfileRequest {
   nickname?: string;
+  avatar_url?: string;
 }
 
 export interface ChangePasswordRequest {
@@ -43,4 +44,8 @@ export function uploadAvatar(formData: FormData) {
       'Content-Type': 'multipart/form-data',
     },
   });
+}
+
+export function updateUserAvatar(avatarUrl: string) {
+  return axios.patch<UserInfo>('/auth/admin/me', { avatar_url: avatarUrl });
 }

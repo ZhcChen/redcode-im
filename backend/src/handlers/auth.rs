@@ -590,6 +590,7 @@ pub async fn get_current_admin_user(
 #[derive(Debug, Deserialize)]
 pub struct UpdateAdminUserRequest {
     pub nickname: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -611,7 +612,7 @@ pub async fn update_current_admin_user(
     let store = admin::AdminUserStore::new(state.database.clone());
 
     let updated_user = store
-        .update_admin_user(&admin_user_id, payload.nickname, None)
+        .update_admin_user(&admin_user_id, payload.nickname, payload.avatar_url)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
 

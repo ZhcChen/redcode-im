@@ -145,9 +145,14 @@
     updateCurrentUserProfile,
     changeCurrentUserPassword,
     uploadAvatar,
+    updateUserAvatar,
     type UpdateUserProfileRequest,
     type ChangePasswordRequest,
   } from '@/api/user-profile';
+  import {
+    testCosUploadSignature,
+    getDefaultStorageProvider,
+  } from '@/api/settings';
 
   const userStore = useUserStore();
 
@@ -249,25 +254,81 @@
   const uploadAvatarFile = async (file: File) => {
     try {
       avatarUploading.value = true;
-      const formData = new FormData();
-      formData.append('avatar', file);
-
       console.log('开始上传头像...', file);
-      const response = await uploadAvatar(formData);
-      console.log('上传响应:', response.data);
 
-      if (response.data && response.data.success) {
-        Message.success(response.data.message || '头像上传成功');
-        // 更新用户信息
-        await fetchCurrentUser();
-        // 同步更新 Pinia store
-        if (response.data.avatar_url) {
-          userStore.setInfo({ avatar: response.data.avatar_url });
-          console.log('更新Pinia store avatar:', response.data.avatar_url);
+      // 1. 获取默认存储提供商
+      const providerResponse = await getDefaultStorageProvider();
+      const provider = providerResponse.data;
+      console.log('获取到默认提供商:', provider);
+
+      if (!provider) {
+        Message.error('未找到默认存储提供商，请先配置');
+        return;
+      }
+
+      if (!provider.is_active) {
+        Message.error('默认存储提供商未启用');
+        return;
+      }
+
+      // 2. 生成头像文件名
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileKey = `admin/avatars/${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2)}.${fileExt}`;
+
+      // 3. 请求COS上传签名
+      const signatureResponse = await testCosUploadSignature({
+        provider_id: provider.id,
+        key: fileKey,
+        content_type: file.type,
+      });
+      const { signature } = signatureResponse.data;
+      console.log('获取上传签名成功:', signature);
+
+      if (!signature) {
+        Message.error('获取上传签名失败');
+        return;
+      }
+
+      // 4. 前端直传COS
+      const headers = new Headers();
+      Object.entries(signature.headers || {}).forEach(([key, value]) => {
+        if (key.toLowerCase() !== 'host') {
+          headers.set(key, value);
         }
-      } else {
-        console.error('上传失败，响应:', response.data);
-        Message.error(response.data?.message || '头像上传失败');
+      });
+      if (file.type && !headers.has('Content-Type')) {
+        headers.set('Content-Type', file.type);
+      }
+
+      const uploadResponse = await fetch(signature.url, {
+        method: signature.method || 'PUT',
+        headers,
+        body: file,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('上传失败:', errorText);
+        Message.error(
+          `上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`
+        );
+        return;
+      }
+
+      // 5. 获取上传后的URL
+      const avatarUrl = signature.url.split('?')[0]; // 去掉签名参数
+      console.log('上传成功，avatar URL:', avatarUrl);
+
+      // 6. 更新数据库中的avatar_url
+      const updateResponse = await updateUserAvatar(avatarUrl);
+      if (updateResponse.data) {
+        Message.success('头像上传成功');
+        // 更新本地状态
+        await fetchCurrentUser();
+        userStore.setInfo({ avatar: avatarUrl });
+        console.log('头像更新成功');
       }
     } catch (error: any) {
       console.error('上传异常:', error);
