@@ -1,5 +1,20 @@
 <template>
+  <textarea
+    v-if="multiline"
+    v-model="localValue"
+    class="dialog-input dialog-input--textarea"
+    autocapitalize="none"
+    autocorrect="off"
+    autocomplete="off"
+    spellcheck="false"
+    :rows="rows"
+    v-bind="$attrs"
+    @input="handleInput"
+    @blur="handleBlur"
+    @focus="handleFocus"
+  />
   <input
+    v-else
     v-model="localValue"
     class="dialog-input"
     autocapitalize="none"
@@ -19,10 +34,16 @@ import { ref, watch } from 'vue'
 interface Props {
   /** 输入框的值 */
   modelValue?: string
+  /** 多行模式 */
+  multiline?: boolean
+  /** 多行时的行数 */
+  rows?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: ''
+  modelValue: '',
+  multiline: false,
+  rows: 3
 })
 
 const emits = defineEmits<{
@@ -45,7 +66,7 @@ watch(localValue, (newValue) => {
 
 // 处理输入事件
 const handleInput = (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement | HTMLTextAreaElement
   localValue.value = target.value
 }
 
@@ -63,7 +84,6 @@ const handleFocus = (event: Event) => {
 <style scoped lang="scss">
 .dialog-input {
   width: 100%;
-  height: 44px;
   background: #FFFFFF;
   border: 1px solid #00C2B31A;
   border-radius: 22px;
@@ -83,5 +103,13 @@ const handleFocus = (event: Event) => {
     border-color: rgba(0, 194, 179, 0.3);
     box-shadow: 0 0 0 2px rgba(0, 194, 179, 0.1);
   }
+}
+
+.dialog-input--textarea {
+  min-height: 96px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  line-height: 1.5;
+  resize: vertical;
 }
 </style>

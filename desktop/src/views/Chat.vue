@@ -618,8 +618,9 @@
           v-model="editingGroupNotice"
           placeholder="请输入群公告..."
           :disabled="isUpdatingGroupNotice"
+          :multiline="true"
+          :rows="4"
           maxlength="100"
-          @keyup.enter="handleConfirmEditGroupNotice"
         />
 
         <!-- 错误提示 -->
