@@ -131,7 +131,7 @@
           <a-avatar
             :size="32"
             :style="{ marginRight: '8px', cursor: 'pointer' }"
-            class="arco-avatar arco-avatar-circle user-avatar"
+            class="user-avatar"
           >
             <img v-if="displayAvatarUrl" :src="displayAvatarUrl" alt="avatar" />
             <icon-user v-else class="nav-avatar-icon" />
@@ -314,10 +314,11 @@
     .user-avatar {
       background-color: var(--color-fill-2) !important;
 
-      img {
+      :deep(img) {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        border-radius: 50%;
       }
 
       .nav-avatar-icon {
