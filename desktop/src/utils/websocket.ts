@@ -271,6 +271,22 @@ class WebSocketManager {
         break;
       }
 
+      case 'roomupdated':
+      case 'room_updated': {
+        const detail = ((payload as any)?.payload ?? payload) || {};
+        this.dispatchDomEvent('websocket-room-updated', {
+          room_id: detail.room_id ?? detail.roomId,
+          room_name: detail.room_name ?? detail.roomName,
+          room_type: detail.room_type ?? detail.roomType,
+          avatar_url: detail.avatar_url ?? detail.avatarUrl,
+          avatar_object_key: detail.avatar_object_key ?? detail.avatarObjectKey,
+          description: detail.description,
+        });
+        // 刷新会话列表以更新群名称
+        this.refreshChatList();
+        break;
+      }
+
       default:
         break;
     }

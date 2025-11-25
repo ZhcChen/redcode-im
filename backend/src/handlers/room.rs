@@ -615,6 +615,29 @@ pub async fn update_room(
         )
         .await?;
 
+    // 向房间成员广播更新事件
+    let room_update = RoomUpdatePayload {
+        room_id,
+        room_name: room.name.clone(),
+        room_type: room.room_type.to_string(),
+        avatar_url: room.avatar_url.clone(),
+        avatar_object_key: room.avatar_object_key.clone(),
+        description: room.description.clone(),
+    };
+
+    let payload = PubSubPayload::RoomUpdate { data: room_update };
+    let channel = CacheKeys::pubsub_channel(&room_id);
+
+    if let Ok(mut conn) = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await
+    {
+        let encoded = payload.encode_protobuf();
+        let _: Result<i64, _> = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await;
+    }
+
     Ok(Json(UpdateRoomResponse {
         success: true,
         message: "Room updated successfully".to_string(),
