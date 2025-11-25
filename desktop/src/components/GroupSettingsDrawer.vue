@@ -453,7 +453,8 @@ const handleLeaveGroup = () => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 100%;
+    min-width: 0; // 允许 grid 子项收缩
+    overflow: hidden;
 
     .member-name {
       font-size: 12px;
@@ -461,7 +462,7 @@ const handleLeaveGroup = () => {
       margin-top: 12px;
       text-align: center;
       line-height: 1;
-      max-width: 100%;
+      width: 100%;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
