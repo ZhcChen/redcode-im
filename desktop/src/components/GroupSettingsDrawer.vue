@@ -237,14 +237,20 @@ const emit = defineEmits<Emits>()
 // 群成员展开状态
 const isExpanded = ref(false)
 
-// 显示的成员（第一行只显示前两个，因为有新增删除按钮）
+// 显示的成员（群主排在最前面，第一行只显示前两个）
 const displayMembers = computed(() => {
   if (!props.groupMembers || props.groupMembers.length === 0) {
     return []
   }
 
+  // 排序：群主 > 管理员 > 普通成员
+  const sorted = [...props.groupMembers].sort((a, b) => {
+    const roleOrder = { owner: 0, admin: 1, member: 2 }
+    return (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2)
+  })
+
   // 展开时显示所有成员，收起时只显示前两个（第一行）
-  return isExpanded.value ? props.groupMembers : props.groupMembers.slice(0, 2)
+  return isExpanded.value ? sorted : sorted.slice(0, 2)
 })
 
 // 总成员数
