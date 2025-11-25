@@ -136,7 +136,8 @@ class _ChatListView extends StatelessWidget {
                                   : const EdgeInsets.symmetric(horizontal: 8),
                             ),
                             SlidableAction(
-                              onPressed: (_) => provider.deleteChat(chat.id),
+                              onPressed: (_) =>
+                                  _confirmDeleteChat(context, provider, chat),
                               foregroundColor: Colors.white,
                               backgroundColor: AppColors.danger,
                               label: '删除',
@@ -160,6 +161,46 @@ class _ChatListView extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static Future<void> _confirmDeleteChat(
+    BuildContext context,
+    ChatProvider provider,
+    Chat chat,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('删除会话'),
+          content: Text('确定要删除与「${chat.name}」的会话吗？\n聊天记录将被清空。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await provider.deleteChat(chat.id);
+      if (context.mounted) {
+        _showSnackBar(context, '会话已删除');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showSnackBar(context, '删除失败，请稍后重试');
+      }
+    }
   }
 
   void _handleMenuSelected(BuildContext context, _ChatMenuAction action) {
