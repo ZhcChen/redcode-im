@@ -7250,6 +7250,24 @@ const handleGroupOwnerTransferredEvent = (event: CustomEvent) => {
   }
 }
 
+// 处理群设置更新事件（WebSocket推送）
+const handleGroupSettingsUpdatedEvent = (event: CustomEvent) => {
+  const detail = event.detail || {}
+  const roomId = detail.room_id || detail.roomId
+  if (!roomId) return
+
+  // 只更新当前选中群聊的设置
+  if (selectedChat.value && selectedChat.value.groupId === roomId && groupSettings.value) {
+    groupSettings.value = {
+      ...groupSettings.value,
+      global_mute_enabled: detail.global_mute_enabled ?? groupSettings.value.global_mute_enabled,
+      global_mute_reason: detail.global_mute_reason ?? null,
+      global_mute_until: detail.global_mute_until ?? null,
+      global_mute_set_by: detail.global_mute_set_by ?? null,
+    }
+  }
+}
+
 onMounted(async () => {
   // 使用事件管理器添加监听器
   eventManager.addWindowListener('resize', handleWindowResize)
@@ -7262,6 +7280,7 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
   eventManager.addWindowListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   eventManager.addWindowListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
+  eventManager.addWindowListener('websocket-group-settings-updated', handleGroupSettingsUpdatedEvent as EventListener)
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)

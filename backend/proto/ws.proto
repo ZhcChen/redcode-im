@@ -42,6 +42,7 @@ message ServerEvent {
     ServerGroupDissolved group_dissolved = 13;
     ServerGroupOwnerTransferred group_owner_transferred = 14;
     ServerRoomUpdated room_updated = 15;
+    ServerGroupSettingsUpdated group_settings_updated = 16;
   }
 }
 
@@ -172,6 +173,14 @@ message ServerGroupOwnerTransferred {
   string new_owner_id = 3;
 }
 
+message ServerGroupSettingsUpdated {
+  string room_id = 1;
+  bool global_mute_enabled = 2;
+  optional string global_mute_reason = 3;
+  optional string global_mute_until = 4;
+  optional string global_mute_set_by = 5;
+}
+
 message ServerRoomUpdated {
   string room_id = 1;
   string room_name = 2;
@@ -239,6 +248,14 @@ message PubSubRoomUpdate {
   string description = 6;
 }
 
+message PubSubGroupSettingsUpdate {
+  string room_id = 1;
+  bool global_mute_enabled = 2;
+  optional string global_mute_reason = 3;
+  optional string global_mute_until = 4;
+  optional string global_mute_set_by = 5;
+}
+
 message PubSubEvent {
   oneof payload {
     PubSubMessage message = 1;
@@ -246,5 +263,6 @@ message PubSubEvent {
     PubSubMessageUpdate message_update = 3;
     PubSubPinUpdate pin_update = 4;
     PubSubRoomUpdate room_update = 5;
+    PubSubGroupSettingsUpdate group_settings_update = 6;
   }
 }

@@ -768,6 +768,15 @@ pub async fn handle_socket(
                                     },
                                 }
                             }
+                            crate::redis::models::PubSubPayload::GroupSettingsUpdate { data } => {
+                                ServerPush::GroupSettingsUpdated {
+                                    room_id: data.room_id,
+                                    global_mute_enabled: data.global_mute_enabled,
+                                    global_mute_reason: data.global_mute_reason.clone(),
+                                    global_mute_until: data.global_mute_until.map(|ts| ts.to_rfc3339()),
+                                    global_mute_set_by: data.global_mute_set_by.map(|id| id.to_string()),
+                                }
+                            }
                         };
 
                         let frame = push.encode(format_for_pubsub);

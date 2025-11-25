@@ -6,6 +6,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use tracing::{info, error};
+
 use crate::database::{
     group_management_store::GroupManagementStore,
     models::{
@@ -18,6 +20,7 @@ use crate::database::{
 };
 use crate::error::AppError;
 use crate::models::Claims;
+use crate::redis::models::{CacheKeys, GroupSettingsUpdatePayload, PubSubPayload};
 use crate::AppState;
 
 // ===== 群设置管理 API =====
@@ -142,6 +145,11 @@ pub async fn update_group_settings(
             Some(serde_json::to_value(&settings).unwrap_or_default()),
         )
         .await;
+
+    // 广播群设置更新到所有群成员
+    if let Err(e) = broadcast_group_settings_update(&state, &settings).await {
+        error!("广播群设置更新失败: {:?}", e);
+    }
 
     Ok(Json(GroupSettingsResponse { settings }))
 }
@@ -898,4 +906,36 @@ pub async fn get_group_detail(
         .ok_or_else(|| AppError::NotFound("Group not found".to_string()))?;
 
     Ok(Json(GroupDetailResponse { info }))
+}
+
+/// 广播群设置更新到房间内的所有连接
+pub async fn broadcast_group_settings_update(
+    state: &AppState,
+    settings: &GroupSettings,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let payload = GroupSettingsUpdatePayload {
+        room_id: settings.room_id,
+        global_mute_enabled: settings.global_mute_enabled,
+        global_mute_reason: settings.global_mute_reason.clone(),
+        global_mute_until: settings.global_mute_until,
+        global_mute_set_by: settings.global_mute_set_by,
+    };
+
+    let channel = CacheKeys::pubsub_channel(&settings.room_id);
+    let encoded = PubSubPayload::GroupSettingsUpdate { data: payload }.encode_protobuf();
+
+    let mut conn = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await?;
+
+    let subscriber_count: i64 = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await?;
+
+    info!(
+        "群设置更新已广播到房间 {} ({} 个订阅者)",
+        settings.room_id, subscriber_count
+    );
+
+    Ok(())
 }

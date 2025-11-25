@@ -196,6 +196,7 @@ impl PubSubManager {
             PubSubPayload::MessageUpdate { .. } => true,
             PubSubPayload::PinUpdate { .. } => true,
             PubSubPayload::RoomUpdate { .. } => true,
+            PubSubPayload::GroupSettingsUpdate { .. } => true,
         };
 
         if !should_forward {
@@ -237,6 +238,12 @@ impl PubSubManager {
                 info!(
                     "收到跨节点房间更新 [{}]: 房间={}, 新头像Key={:?}",
                     node_id, data.room_id, data.avatar_object_key
+                );
+            }
+            PubSubPayload::GroupSettingsUpdate { data } => {
+                info!(
+                    "收到跨节点群设置更新 [{}]: 房间={}, 全局禁言={}",
+                    node_id, data.room_id, data.global_mute_enabled
                 );
             }
         }

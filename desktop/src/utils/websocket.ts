@@ -258,6 +258,19 @@ class WebSocketManager {
         break;
       }
 
+      case 'groupsettingsupdated':
+      case 'group_settings_updated': {
+        const detail = ((payload as any)?.payload ?? payload) || {};
+        this.dispatchDomEvent('websocket-group-settings-updated', {
+          room_id: detail.room_id ?? detail.roomId,
+          global_mute_enabled: detail.global_mute_enabled ?? detail.globalMuteEnabled,
+          global_mute_reason: detail.global_mute_reason ?? detail.globalMuteReason,
+          global_mute_until: detail.global_mute_until ?? detail.globalMuteUntil,
+          global_mute_set_by: detail.global_mute_set_by ?? detail.globalMuteSetBy,
+        });
+        break;
+      }
+
       default:
         break;
     }

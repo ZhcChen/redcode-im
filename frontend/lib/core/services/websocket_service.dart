@@ -29,6 +29,23 @@ enum ConnectionStatus {
   error,
 }
 
+/// 群设置更新事件（公开）
+class GroupSettingsUpdatedEvent {
+  const GroupSettingsUpdatedEvent({
+    required this.roomId,
+    required this.globalMuteEnabled,
+    this.globalMuteReason,
+    this.globalMuteUntil,
+    this.globalMuteSetBy,
+  });
+
+  final String roomId;
+  final bool globalMuteEnabled;
+  final String? globalMuteReason;
+  final String? globalMuteUntil;
+  final String? globalMuteSetBy;
+}
+
 /// WebSocket服务 - 管理WebSocket连接和消息
 class WebSocketService with ChangeNotifier {
   WebSocketService({TokenStorage? tokenStorage, MessageService? messageService})
@@ -65,6 +82,12 @@ class WebSocketService with ChangeNotifier {
 
   int _pendingFriendRequestCount = 0;
   int get pendingFriendRequestCount => _pendingFriendRequestCount;
+
+  // 群设置更新事件流
+  final StreamController<GroupSettingsUpdatedEvent> _groupSettingsUpdatedController =
+      StreamController<GroupSettingsUpdatedEvent>.broadcast();
+  Stream<GroupSettingsUpdatedEvent> get onGroupSettingsUpdated =>
+      _groupSettingsUpdatedController.stream;
 
   // 重连相关
   Timer? _reconnectTimer;
@@ -653,6 +676,21 @@ class WebSocketService with ChangeNotifier {
           oldOwnerId: oldOwnerId,
           newOwnerId: newOwnerId,
         );
+      case 'group_settings_updated':
+      case 'groupsettingsupdated':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        final rawEnabled = message['global_mute_enabled'];
+        final enabled = rawEnabled is bool
+            ? rawEnabled
+            : rawEnabled?.toString().toLowerCase() == 'true';
+        return _GroupSettingsUpdatedEvent(
+          roomId: roomId,
+          globalMuteEnabled: enabled,
+          globalMuteReason: _nullIfEmpty(message['global_mute_reason']?.toString()),
+          globalMuteUntil: _nullIfEmpty(message['global_mute_until']?.toString()),
+          globalMuteSetBy: _nullIfEmpty(message['global_mute_set_by']?.toString()),
+        );
       default:
         return null;
     }
@@ -697,6 +735,8 @@ class WebSocketService with ChangeNotifier {
       _handleGroupDissolved(event);
     } else if (event is _GroupOwnerTransferredEvent) {
       _handleGroupOwnerTransferred(event);
+    } else if (event is _GroupSettingsUpdatedEvent) {
+      _handleGroupSettingsUpdated(event);
     } else if (event is _RoomUpdatedEvent) {
       unawaited(
         _messageService.updateRoomAvatar(
@@ -977,6 +1017,20 @@ class WebSocketService with ChangeNotifier {
     );
   }
 
+  void _handleGroupSettingsUpdated(_GroupSettingsUpdatedEvent event) {
+    debugPrint(
+      'Group settings updated: ${event.roomId}, mute=${event.globalMuteEnabled}',
+    );
+    // 发送到公开的事件流，让页面可以监听
+    _groupSettingsUpdatedController.add(GroupSettingsUpdatedEvent(
+      roomId: event.roomId,
+      globalMuteEnabled: event.globalMuteEnabled,
+      globalMuteReason: event.globalMuteReason,
+      globalMuteUntil: event.globalMuteUntil,
+      globalMuteSetBy: event.globalMuteSetBy,
+    ));
+  }
+
   /// 处理连接错误
   void _handleError(dynamic error) {
     debugPrint('WebSocket error: $error');
@@ -1074,6 +1128,7 @@ class WebSocketService with ChangeNotifier {
   void dispose() {
     disconnect();
     _roomManager.dispose();
+    _groupSettingsUpdatedController.close();
     super.dispose();
   }
 }
@@ -1592,4 +1647,20 @@ class _GroupOwnerTransferredEvent extends _WsEvent {
   final String roomId;
   final String newOwnerId;
   final String? oldOwnerId;
+}
+
+class _GroupSettingsUpdatedEvent extends _WsEvent {
+  const _GroupSettingsUpdatedEvent({
+    required this.roomId,
+    required this.globalMuteEnabled,
+    this.globalMuteReason,
+    this.globalMuteUntil,
+    this.globalMuteSetBy,
+  });
+
+  final String roomId;
+  final bool globalMuteEnabled;
+  final String? globalMuteReason;
+  final String? globalMuteUntil;
+  final String? globalMuteSetBy;
 }

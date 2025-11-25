@@ -256,6 +256,19 @@ pub struct PinUpdatePayload {
     pub is_pinned: bool,
 }
 
+/// 群设置更新事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupSettingsUpdatePayload {
+    pub room_id: Uuid,
+    pub global_mute_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_mute_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_mute_until: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_mute_set_by: Option<Uuid>,
+}
+
 /// Pub/Sub 统一事件载荷
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event_type", rename_all = "snake_case")]
@@ -280,6 +293,10 @@ pub enum PubSubPayload {
         #[serde(flatten)]
         data: RoomUpdatePayload,
     },
+    GroupSettingsUpdate {
+        #[serde(flatten)]
+        data: GroupSettingsUpdatePayload,
+    },
 }
 
 /// 缓存键生成器
@@ -302,6 +319,9 @@ impl PubSubPayload {
             }
             PubSubPayload::RoomUpdate { data } => {
                 Payload::RoomUpdate(ws::PubSubRoomUpdate::from(data))
+            }
+            PubSubPayload::GroupSettingsUpdate { data } => {
+                Payload::GroupSettingsUpdate(ws::PubSubGroupSettingsUpdate::from(data))
             }
         };
 
@@ -344,6 +364,10 @@ impl TryFrom<ws::PubSubEvent> for PubSubPayload {
             Payload::RoomUpdate(update) => {
                 let data = RoomUpdatePayload::try_from(update)?;
                 Ok(PubSubPayload::RoomUpdate { data })
+            }
+            Payload::GroupSettingsUpdate(update) => {
+                let data = GroupSettingsUpdatePayload::try_from(update)?;
+                Ok(PubSubPayload::GroupSettingsUpdate { data })
             }
         }
     }
@@ -829,5 +853,42 @@ impl CacheKeys {
     /// key: 文件路径, provider_id: 存储提供商ID, expires_in: 过期时间(秒)
     pub fn download_url_cache(key: &str, provider_id: &str, expires_in: u32) -> String {
         format!("cache:download_url:{}:{}:{}", key, provider_id, expires_in)
+    }
+}
+
+impl From<&GroupSettingsUpdatePayload> for ws::PubSubGroupSettingsUpdate {
+    fn from(value: &GroupSettingsUpdatePayload) -> Self {
+        ws::PubSubGroupSettingsUpdate {
+            room_id: value.room_id.to_string(),
+            global_mute_enabled: value.global_mute_enabled,
+            global_mute_reason: value.global_mute_reason.clone(),
+            global_mute_until: value.global_mute_until.map(|ts| ts.to_rfc3339()),
+            global_mute_set_by: value.global_mute_set_by.map(|id| id.to_string()),
+        }
+    }
+}
+
+impl TryFrom<ws::PubSubGroupSettingsUpdate> for GroupSettingsUpdatePayload {
+    type Error = String;
+
+    fn try_from(value: ws::PubSubGroupSettingsUpdate) -> Result<Self, Self::Error> {
+        let room_id = Uuid::parse_str(&value.room_id).map_err(|e| e.to_string())?;
+
+        let global_mute_until = value
+            .global_mute_until
+            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&Utc));
+
+        let global_mute_set_by = value
+            .global_mute_set_by
+            .and_then(|s| Uuid::parse_str(&s).ok());
+
+        Ok(GroupSettingsUpdatePayload {
+            room_id,
+            global_mute_enabled: value.global_mute_enabled,
+            global_mute_reason: value.global_mute_reason,
+            global_mute_until,
+            global_mute_set_by,
+        })
     }
 }

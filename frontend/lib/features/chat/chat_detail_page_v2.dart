@@ -24,6 +24,7 @@ import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
 import '../../core/services/room_service.dart';
+import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
@@ -105,6 +106,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   bool _isGlobalMuted = false;
   bool _isGroupOwnerOrAdmin = false;
   String? _currentUserId;
+  StreamSubscription<GroupSettingsUpdatedEvent>? _groupSettingsSubscription;
   @override
   void initState() {
     super.initState();
@@ -121,6 +123,21 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           _showMorePanel = false;
         });
       }
+    });
+
+    // 监听群设置更新事件（仅群聊）
+    if (widget.chatType == ChatType.group) {
+      _groupSettingsSubscription = WebSocketService.instance.onGroupSettingsUpdated
+          .where((event) => event.roomId == widget.roomId)
+          .listen(_handleGroupSettingsUpdated);
+    }
+  }
+
+  /// 处理群设置更新事件（WebSocket 推送）
+  void _handleGroupSettingsUpdated(GroupSettingsUpdatedEvent event) {
+    if (!mounted) return;
+    setState(() {
+      _isGlobalMuted = event.globalMuteEnabled;
     });
   }
 
@@ -228,6 +245,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   void dispose() {
     _clearMultiSelect();
     _keyboardUpdateTimer?.cancel();
+    _groupSettingsSubscription?.cancel();
     _scrollController.removeListener(_onScroll);
     _chatProvider.leaveChatRoom();
     if (_ownsProvider) {

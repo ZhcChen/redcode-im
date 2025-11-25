@@ -112,6 +112,13 @@ pub enum ServerPush {
         old_owner_id: String,
         new_owner_id: String,
     },
+    GroupSettingsUpdated {
+        room_id: Uuid,
+        global_mute_enabled: bool,
+        global_mute_reason: Option<String>,
+        global_mute_until: Option<String>,
+        global_mute_set_by: Option<String>,
+    },
 }
 
 impl ServerPush {
@@ -132,6 +139,7 @@ impl ServerPush {
             ServerPush::UserBanned { .. } => "user_banned",
             ServerPush::GroupDissolved { .. } => "group_dissolved",
             ServerPush::GroupOwnerTransferred { .. } => "group_owner_transferred",
+            ServerPush::GroupSettingsUpdated { .. } => "group_settings_updated",
         }
     }
 
@@ -230,6 +238,20 @@ impl ServerPush {
                 "room_id": room_id,
                 "old_owner_id": old_owner_id,
                 "new_owner_id": new_owner_id,
+            }),
+            ServerPush::GroupSettingsUpdated {
+                room_id,
+                global_mute_enabled,
+                global_mute_reason,
+                global_mute_until,
+                global_mute_set_by,
+            } => json!({
+                "type": "group_settings_updated",
+                "room_id": room_id,
+                "global_mute_enabled": global_mute_enabled,
+                "global_mute_reason": global_mute_reason,
+                "global_mute_until": global_mute_until,
+                "global_mute_set_by": global_mute_set_by,
             }),
         }
     }
@@ -336,6 +358,19 @@ impl ServerPush {
                 room_id: room_id.clone(),
                 old_owner_id: old_owner_id.clone(),
                 new_owner_id: new_owner_id.clone(),
+            }),
+            ServerPush::GroupSettingsUpdated {
+                room_id,
+                global_mute_enabled,
+                global_mute_reason,
+                global_mute_until,
+                global_mute_set_by,
+            } => Payload::GroupSettingsUpdated(ws::ServerGroupSettingsUpdated {
+                room_id: room_id.to_string(),
+                global_mute_enabled: *global_mute_enabled,
+                global_mute_reason: global_mute_reason.clone(),
+                global_mute_until: global_mute_until.clone(),
+                global_mute_set_by: global_mute_set_by.clone(),
             }),
         };
 
