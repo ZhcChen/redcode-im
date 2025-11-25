@@ -1261,6 +1261,12 @@ class WebSocketMessage {
         ? DateTime.tryParse(proto.timestamp) ?? DateTime.now()
         : DateTime.now();
 
+    // 解析消息 parts（附件等）
+    final parts = <WebSocketMessagePart>[];
+    for (final part in proto.parts) {
+      parts.add(WebSocketMessagePart.fromProto(part));
+    }
+
     return WebSocketMessage(
       id: generatedId,
       roomId: proto.roomId,
@@ -1274,7 +1280,7 @@ class WebSocketMessage {
       extra: null,
       quotedMessage: quotedMessage,
       forwardMessage: forwardMessage,
-      parts: const [],
+      parts: parts,
     );
   }
 
@@ -1369,6 +1375,20 @@ class WebSocketMessagePart {
       attachment: attachment,
     );
   }
+
+  factory WebSocketMessagePart.fromProto(ws.MessagePart proto) {
+    WebSocketMessageAttachment? attachment;
+    if (proto.hasAttachment() && proto.attachment.key.isNotEmpty) {
+      attachment = WebSocketMessageAttachment.fromProto(proto.attachment);
+    }
+
+    return WebSocketMessagePart(
+      position: proto.position,
+      partType: proto.partType.isNotEmpty ? proto.partType : 'text',
+      text: _asOptionalString(proto.text),
+      attachment: attachment,
+    );
+  }
 }
 
 class WebSocketMessageAttachment {
@@ -1409,6 +1429,19 @@ class WebSocketMessageAttachment {
       height: parseInt(json['height']),
       durationMs: parseInt(json['duration_ms']),
       thumbnailKey: json['thumbnail_key']?.toString(),
+    );
+  }
+
+  factory WebSocketMessageAttachment.fromProto(ws.MessageAttachment proto) {
+    return WebSocketMessageAttachment(
+      key: proto.key,
+      name: _asOptionalString(proto.name),
+      mime: _asOptionalString(proto.mime),
+      size: proto.size.toInt(),
+      width: proto.width > 0 ? proto.width : null,
+      height: proto.height > 0 ? proto.height : null,
+      durationMs: proto.durationMs > 0 ? proto.durationMs : null,
+      thumbnailKey: _asOptionalString(proto.thumbnailKey),
     );
   }
 }
