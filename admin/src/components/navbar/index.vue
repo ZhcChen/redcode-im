@@ -324,6 +324,16 @@
       border-radius: 50%;
       aspect-ratio: 1 / 1;
 
+      :deep(.arco-avatar-text) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        border-radius: 50%;
+      }
+
       :deep(img) {
         display: block;
         width: 100%;
