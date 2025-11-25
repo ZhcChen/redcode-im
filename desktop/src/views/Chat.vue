@@ -614,12 +614,12 @@
       :confirm-disabled="isUpdatingGroupNotice || !editingGroupNotice.trim()"
     >
       <div class="group-name-content">
-        <DialogInput
+        <textarea
           v-model="editingGroupNotice"
+          class="group-notice-textarea"
           placeholder="请输入群公告..."
           :disabled="isUpdatingGroupNotice"
-          :multiline="true"
-          :rows="4"
+          rows="4"
           maxlength="100"
         />
 
@@ -9116,6 +9116,31 @@ const loadMessageList = async (groupId: string) => {
 
     &::placeholder {
       font-size: 14px;
+    }
+  }
+
+  .group-notice-textarea {
+    width: 100%;
+    min-height: 112px;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+    background: #fff;
+    border: 1px solid #00C2B31A;
+    border-radius: 12px;
+    box-sizing: border-box;
+    resize: vertical;
+    outline: none;
+
+    &::placeholder {
+      color: #999;
+      font-size: 14px;
+    }
+
+    &:focus {
+      border-color: rgba(0, 194, 179, 0.3);
+      box-shadow: 0 0 0 2px rgba(0, 194, 179, 0.1);
     }
   }
 
