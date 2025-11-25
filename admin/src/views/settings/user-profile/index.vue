@@ -237,8 +237,42 @@
       profileForm.nickname = userInfo.nickname || '';
 
       if (userInfo.avatar_url) {
-        avatarPreview.value = userInfo.avatar_url;
-        console.log('设置头像预览:', userInfo.avatar_url);
+        // 检查是否是key（以 admin/ 开头）还是完整的URL
+        if (userInfo.avatar_url.startsWith('admin/')) {
+          // 是key，需要获取临时下载URL
+          try {
+            const providerResponse = await getDefaultStorageProvider();
+            const provider = providerResponse.data;
+            if (provider) {
+              const downloadUrlResponse = await fetch(
+                `/api/admin/storage-providers/test/download-url`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    provider_id: provider.id,
+                    key: userInfo.avatar_url,
+                  }),
+                }
+              );
+              const downloadUrlData = await downloadUrlResponse.json();
+              const avatarUrl = downloadUrlData.url;
+              avatarPreview.value = avatarUrl;
+              userStore.setInfo({ avatar: avatarUrl });
+              console.log('设置头像预览（从key转换）:', avatarUrl);
+            }
+          } catch (e) {
+            console.error('获取头像下载URL失败:', e);
+            avatarPreview.value = '';
+          }
+        } else {
+          // 直接是URL
+          avatarPreview.value = userInfo.avatar_url;
+          userStore.setInfo({ avatar: userInfo.avatar_url });
+          console.log('设置头像预览（直接URL）:', userInfo.avatar_url);
+        }
       }
     } catch (error: any) {
       console.error('获取用户信息失败:', error);
@@ -317,15 +351,29 @@
         return;
       }
 
-      // 5. 获取上传后的URL
-      const avatarUrl = signature.url.split('?')[0]; // 去掉签名参数
-      console.log('上传成功，avatar URL:', avatarUrl);
+      // 5. 获取临时下载URL（用于前端渲染）
+      const downloadUrlResponse = await fetch(
+        `/api/admin/storage-providers/test/download-url`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            provider_id: provider.id,
+            key: signature.key,
+          }),
+        }
+      );
+      const downloadUrlData = await downloadUrlResponse.json();
+      const avatarUrl = downloadUrlData.url;
+      console.log('获取临时下载URL:', avatarUrl);
 
-      // 6. 更新数据库中的avatar_url
-      const updateResponse = await updateUserAvatar(avatarUrl);
+      // 6. 保存 key 到数据库（不是 URL）
+      const updateResponse = await updateUserAvatar(signature.key);
       if (updateResponse.data && updateResponse.data.success) {
         Message.success('头像上传成功');
-        // 更新本地状态
+        // 更新本地状态使用临时URL
         await fetchCurrentUser();
         userStore.setInfo({ avatar: avatarUrl });
         console.log('头像更新成功');

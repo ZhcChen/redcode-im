@@ -133,7 +133,7 @@
             :style="{ marginRight: '8px', cursor: 'pointer' }"
             class="user-avatar"
           >
-            <img v-if="userStore.avatar" :src="userStore.avatar" alt="avatar" />
+            <img v-if="displayAvatarUrl" :src="displayAvatarUrl" alt="avatar" />
             <icon-user v-else class="nav-avatar-icon" />
           </a-avatar>
           <template #content>
@@ -161,13 +161,14 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed, ref, inject } from 'vue';
+  import { computed, ref, inject, onMounted, watch } from 'vue';
   import { useDark, useToggle, useFullscreen } from '@vueuse/core';
   import { useAppStore, useUserStore } from '@/store';
   import { LOCALE_OPTIONS } from '@/locale';
   import useLocale from '@/hooks/locale';
   import useUser from '@/hooks/user';
   import Menu from '@/components/menu/index.vue';
+  import { getDefaultStorageProvider } from '@/api/settings';
   import MessageBox from '../message-box/index.vue';
 
   const appStore = useAppStore();
@@ -176,6 +177,62 @@
   const { changeLocale, currentLocale } = useLocale();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const locales = [...LOCALE_OPTIONS];
+
+  // 转换后的头像URL
+  const displayAvatarUrl = ref<string>('');
+
+  // 转换头像URL
+  const convertAvatarUrl = async (avatar: string | undefined) => {
+    if (!avatar) {
+      displayAvatarUrl.value = '';
+      return;
+    }
+
+    // 如果是完整的URL（包含 http:// 或 https://），直接使用
+    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      displayAvatarUrl.value = avatar;
+      return;
+    }
+
+    // 如果是 key（以 admin/ 开头），获取临时下载URL
+    if (avatar.startsWith('admin/')) {
+      try {
+        const providerResponse = await getDefaultStorageProvider();
+        const provider = providerResponse.data;
+        if (provider) {
+          const downloadUrlResponse = await fetch(
+            `/api/admin/storage-providers/test/download-url`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                provider_id: provider.id,
+                key: avatar,
+              }),
+            }
+          );
+          const downloadUrlData = await downloadUrlResponse.json();
+          displayAvatarUrl.value = downloadUrlData.url || '';
+        }
+      } catch (e) {
+        console.error('获取头像下载URL失败:', e);
+        displayAvatarUrl.value = '';
+      }
+    } else {
+      displayAvatarUrl.value = avatar;
+    }
+  };
+
+  // 监听 avatar 变化
+  watch(
+    () => userStore.avatar,
+    (newAvatar) => {
+      convertAvatarUrl(newAvatar);
+    },
+    { immediate: true }
+  );
   const theme = computed(() => {
     return appStore.theme;
   });
