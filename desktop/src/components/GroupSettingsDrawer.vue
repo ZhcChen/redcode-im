@@ -71,7 +71,7 @@
           <div class="setting-item" @click="handleEditGroupAvatar">
             <div class="setting-label">群头像</div>
             <div class="setting-value">
-              <Avatar :src="groupInfo?.avatar" :text="groupInfo?.name" :size="32" />
+              <Avatar :src="groupInfo?.avatarLocalPath || groupInfo?.avatar" :text="groupInfo?.name" :size="32" />
               <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
             </div>
           </div>
@@ -174,6 +174,7 @@ interface GroupInfo {
   roomId: string
   name: string
   avatar?: string | null
+  avatarLocalPath?: string | null
   memberCount?: number
   groupType: number
   isTop?: boolean
