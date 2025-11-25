@@ -314,6 +314,7 @@
 
     .user-avatar {
       display: inline-flex;
+      flex-shrink: 0;
       align-items: center;
       justify-content: center;
       width: 32px;
@@ -321,8 +322,10 @@
       overflow: hidden;
       background-color: var(--color-fill-2) !important;
       border-radius: 50%;
+      aspect-ratio: 1 / 1;
 
       :deep(img) {
+        display: block;
         width: 100%;
         height: 100%;
         object-fit: cover;
