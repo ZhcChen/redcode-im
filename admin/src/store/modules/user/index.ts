@@ -12,16 +12,7 @@ import { UserState } from './types';
 import useAppStore from '../app';
 
 function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
-  console.log('[UserStore] mapBackendUser，原始数据:', user);
-  console.log(
-    '[UserStore] avatarUrl值:',
-    user.avatarUrl,
-    '类型:',
-    typeof user.avatarUrl,
-    '布尔值:',
-    !!user.avatarUrl
-  );
-  const result = {
+  return {
     name: user.nickname || user.username,
     avatar:
       user.avatarUrl && user.avatarUrl.trim() !== ''
@@ -32,8 +23,6 @@ function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
     accountId: user.id,
     role: 'admin',
   };
-  console.log('[UserStore] mapBackendUser，映射后:', result);
-  return result;
 }
 
 const useUserStore = defineStore('user', {

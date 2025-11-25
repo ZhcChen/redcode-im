@@ -227,10 +227,8 @@
 
   const fetchCurrentUser = async () => {
     try {
-      console.log('获取当前用户信息...');
       const response = await getCurrentUserInfo();
       const userInfo = response.data;
-      console.log('用户信息:', userInfo);
       currentUser.value = userInfo;
 
       profileForm.username = userInfo.username;
@@ -252,7 +250,6 @@
               const avatarUrl = downloadUrlResponse.data.url;
               avatarPreview.value = avatarUrl;
               userStore.setInfo({ avatar: avatarUrl });
-              console.log('设置头像预览（从key转换）:', avatarUrl);
             }
           } catch (e) {
             console.error('获取头像下载URL失败:', e);
@@ -262,7 +259,6 @@
           // 直接是URL
           avatarPreview.value = userInfo.avatarUrl;
           userStore.setInfo({ avatar: userInfo.avatarUrl });
-          console.log('设置头像预览（直接URL）:', userInfo.avatarUrl);
         }
       }
     } catch (error: any) {
@@ -279,12 +275,10 @@
   const uploadAvatarFile = async (file: File) => {
     try {
       avatarUploading.value = true;
-      console.log('开始上传头像...', file);
 
       // 1. 获取默认存储提供商
       const providerResponse = await getDefaultStorageProvider();
       const provider = providerResponse.data;
-      console.log('获取到默认提供商:', provider);
 
       if (!provider) {
         Message.error('未找到默认存储提供商，请先配置');
@@ -309,7 +303,6 @@
         content_type: file.type,
       });
       const { signature } = signatureResponse.data;
-      console.log('获取上传签名成功:', signature);
 
       if (!signature) {
         Message.error('获取上传签名失败');
@@ -348,7 +341,6 @@
         key: signature.key,
       });
       const avatarUrl = downloadUrlResponse.data.url;
-      console.log('获取临时下载URL:', avatarUrl);
 
       // 6. 保存 key 到数据库（不是 URL）
       const updateResponse = await updateUserAvatar(signature.key);
@@ -357,7 +349,6 @@
         // 更新本地状态使用临时URL
         await fetchCurrentUser();
         userStore.setInfo({ avatar: avatarUrl });
-        console.log('头像更新成功');
       }
     } catch (error: any) {
       console.error('上传异常:', error);
