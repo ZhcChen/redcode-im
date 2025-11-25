@@ -107,7 +107,7 @@
             </div>
           </div>
 
-          <div class="setting-item" @click="handleClearHistory">
+          <div class="setting-item" v-if="isGroupOwner" @click="handleClearHistory">
             <div class="setting-label">清除聊天记录</div>
             <div class="setting-value">
               <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
