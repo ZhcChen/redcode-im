@@ -542,9 +542,11 @@
             <textarea
               v-model="newMessage"
               @keydown="handleInputKeydown"
-              placeholder="输入消息..."
+              :placeholder="inputPlaceholder"
+              :disabled="isInputDisabled"
               rows="1"
               ref="messageInput"
+              :class="{ 'input-disabled': isInputDisabled }"
             ></textarea>
             <div class="input-right-actions">
               <img
@@ -2454,11 +2456,8 @@ const handleShowGroupSettings = async () => {
   }
 
   if (selectedChat.value.groupType === 1) {
-    if (isCurrentUserGroupOwner.value) {
-      await loadGroupSettings(selectedChat.value.groupId, { silent: true })
-    } else {
-      groupSettings.value = null
-    }
+    // 群设置抽屉中只有群主才能修改设置，但都需要加载（用于显示禁言状态）
+    await loadGroupSettings(selectedChat.value.groupId, { silent: true })
   } else {
     groupSettings.value = null
   }
@@ -2617,6 +2616,42 @@ const isCurrentUserGroupOwner = computed(() => {
     (member) => String(member.userId) === selfId && member.role === 'owner'
   )
   return !!ownerMember
+})
+
+// 当前用户是否是群管理员
+const isCurrentUserGroupAdmin = computed(() => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    return false
+  }
+  const selfId = currentUserId.value ? String(currentUserId.value) : null
+  if (!selfId) return false
+
+  const adminMember = groupMembers.value.find(
+    (member) => String(member.userId) === selfId && member.role === 'admin'
+  )
+  return !!adminMember
+})
+
+// 当前用户是否可以管理群（群主或管理员）
+const canManageGroup = computed(() => {
+  return isCurrentUserGroupOwner.value || isCurrentUserGroupAdmin.value
+})
+
+// 输入框是否被禁用（群禁言且非管理员）
+const isInputDisabled = computed(() => {
+  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
+    return false
+  }
+  // 如果开启了全体禁言，且当前用户不是群主/管理员，则禁用输入框
+  return groupSettings.value?.globalMuteEnabled && !canManageGroup.value
+})
+
+// 输入框 placeholder
+const inputPlaceholder = computed(() => {
+  if (isInputDisabled.value) {
+    return '已禁言'
+  }
+  return '输入消息...'
 })
 
 const transferableMembers = computed(() => {
@@ -2909,9 +2944,10 @@ const loadGroupDetailInfo = async (groupId: string) => {
 
 const loadGroupSettings = async (
   groupId: string,
-  options: { silent?: boolean } = {},
+  options: { silent?: boolean; requireOwner?: boolean } = {},
 ) => {
-  if (!groupId || !isCurrentUserGroupOwner.value) {
+  // 如果要求群主权限但当前用户不是群主，则不加载
+  if (!groupId || (options.requireOwner && !isCurrentUserGroupOwner.value)) {
     groupSettings.value = null
     groupSettingsLoading.value = false
     return
@@ -4376,6 +4412,8 @@ const selectChat = async (chat: ChatItem) => {
   // 如果是群聊，获取群组详细信息和成员列表
   if (chat.groupType === 1) {
     await loadGroupDetailInfo(chat.groupId)
+    // 加载群设置（用于判断禁言状态）
+    await loadGroupSettings(chat.groupId, { silent: true })
   }
 
   await loadMessages(chat.groupId)
@@ -8387,6 +8425,19 @@ const loadMessageList = async (groupId: string) => {
 
       &::placeholder {
         color: #8c8c8c;
+      }
+
+      &.input-disabled {
+        cursor: not-allowed;
+        background: #f5f5f5;
+        color: #bfbfbf;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin: -8px -12px;
+
+        &::placeholder {
+          color: #ff4d4f;
+        }
       }
     }
 

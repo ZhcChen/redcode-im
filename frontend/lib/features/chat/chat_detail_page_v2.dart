@@ -23,6 +23,8 @@ import '../../core/constants/app_config.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
+import '../../core/services/room_service.dart';
+import '../../core/storage/token_storage.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'providers/chat_provider.dart';
@@ -96,6 +98,13 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   bool _memberCountLoading = false;
   bool _memberCountLoadFailed = false;
   bool _wasKeyboardVisible = false;
+
+  // 禁言相关状态
+  final RoomService _roomService = RoomService();
+  final TokenStorage _tokenStorage = const TokenStorage();
+  bool _isGlobalMuted = false;
+  bool _isGroupOwnerOrAdmin = false;
+  String? _currentUserId;
   @override
   void initState() {
     super.initState();
@@ -147,7 +156,72 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     if (widget.chatType == ChatType.group) {
       await _loadMemberCount();
+      // 加载禁言状态
+      _loadMuteStatus();
     }
+  }
+
+  /// 加载群禁言状态
+  Future<void> _loadMuteStatus() async {
+    if (widget.chatType != ChatType.group) return;
+
+    try {
+      // 获取当前用户 ID
+      final session = await _tokenStorage.readSession();
+      if (!mounted) return;
+      _currentUserId = session?.user.id;
+
+      // 加载群设置
+      final settings = await _roomService.fetchGroupSettings(widget.roomId);
+      if (!mounted) return;
+
+      // 加载群成员列表以判断角色
+      final members = await _chatProvider.getRoomMembers(widget.roomId);
+      if (!mounted) return;
+
+      final isOwnerOrAdmin = _computeGroupRole(
+        members: members,
+        currentUserId: _currentUserId,
+      );
+
+      setState(() {
+        _isGlobalMuted = settings.globalMuteEnabled;
+        _isGroupOwnerOrAdmin = isOwnerOrAdmin;
+      });
+    } catch (e) {
+      debugPrint('[禁言状态] 加载失败: $e');
+    }
+  }
+
+  /// 计算当前用户是否是群主或管理员
+  bool _computeGroupRole({
+    required List<Map<String, dynamic>> members,
+    String? currentUserId,
+  }) {
+    if (currentUserId == null || currentUserId.isEmpty) return false;
+
+    for (final member in members) {
+      final roleValue = member['role'] ?? member['member_role'];
+      final role = roleValue is String
+          ? roleValue.toLowerCase()
+          : roleValue?.toString().toLowerCase();
+      final memberIdValue =
+          member['user_id'] ?? member['userId'] ?? member['id'];
+      final memberId =
+          memberIdValue is String ? memberIdValue : memberIdValue?.toString();
+
+      if (memberId == currentUserId &&
+          (role == 'owner' || role == 'admin')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// 输入框是否应该被禁用（群禁言且非管理员）
+  bool get _isInputDisabled {
+    if (widget.chatType != ChatType.group) return false;
+    return _isGlobalMuted && !_isGroupOwnerOrAdmin;
   }
 
   @override
@@ -782,6 +856,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 onToggleMore: _toggleMore,
                 showEmojiPanel: _showEmojiPanel,
                 showMorePanel: _showMorePanel,
+                isDisabled: _isInputDisabled,
               ),
             ),
           ],
@@ -3190,6 +3265,8 @@ class ChatInputWidget extends StatefulWidget {
     required this.onToggleMore,
     required this.showEmojiPanel,
     required this.showMorePanel,
+    this.isDisabled = false,
+    this.disabledHint,
   });
 
   final TextEditingController controller;
@@ -3200,6 +3277,8 @@ class ChatInputWidget extends StatefulWidget {
   final VoidCallback onToggleMore;
   final bool showEmojiPanel;
   final bool showMorePanel;
+  final bool isDisabled;
+  final String? disabledHint;
 
   @override
   State<ChatInputWidget> createState() => _ChatInputWidgetState();
@@ -3319,6 +3398,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
           child: TextField(
             controller: widget.controller,
             focusNode: widget.focusNode,
+            enabled: !widget.isDisabled,
             keyboardType: TextInputType.multiline,
             textInputAction: TextInputAction.newline,
             // 单行时使用垂直居中，多行时顶部对齐
@@ -3327,9 +3407,11 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                 : TextAlignVertical.top,
             minLines: 1,
             maxLines: maxVisibleLines,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: baseFontSize,
-              color: AppColors.textPrimary,
+              color: widget.isDisabled
+                  ? AppColors.textTertiary
+                  : AppColors.textPrimary,
             ),
             decoration: InputDecoration(
               contentPadding: const EdgeInsets.symmetric(
@@ -3337,7 +3419,9 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                 vertical: verticalPadding,
               ),
               filled: true,
-              fillColor: const Color(0xFFEFEFF0),
+              fillColor: widget.isDisabled
+                  ? const Color(0xFFF5F5F5)
+                  : const Color(0xFFEFEFF0),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -3346,12 +3430,22 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
               ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
               ),
-              hintText: '发送消息...',
-              hintStyle: const TextStyle(color: AppColors.textTertiary),
+              hintText: widget.isDisabled
+                  ? (widget.disabledHint ?? '已禁言')
+                  : '发送消息...',
+              hintStyle: TextStyle(
+                color: widget.isDisabled
+                    ? AppColors.danger
+                    : AppColors.textTertiary,
+              ),
             ),
           ),
         );
