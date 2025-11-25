@@ -269,6 +269,24 @@ const ServerEvent$json = {
       '9': 0,
       '10': 'roomUpdated'
     },
+    {
+      '1': 'group_settings_updated',
+      '3': 16,
+      '4': 1,
+      '5': 11,
+      '6': '.ws.ServerGroupSettingsUpdated',
+      '9': 0,
+      '10': 'groupSettingsUpdated'
+    },
+    {
+      '1': 'group_member_changed',
+      '3': 17,
+      '4': 1,
+      '5': 11,
+      '6': '.ws.ServerGroupMemberChanged',
+      '9': 0,
+      '10': 'groupMemberChanged'
+    },
   ],
   '8': [
     {'1': 'payload'},
@@ -292,7 +310,10 @@ final $typed_data.Uint8List serverEventDescriptor = $convert.base64Decode(
     'KAsyGC53cy5TZXJ2ZXJHcm91cERpc3NvbHZlZEgAUg5ncm91cERpc3NvbHZlZBJZChdncm91cF'
     '9vd25lcl90cmFuc2ZlcnJlZBgOIAEoCzIfLndzLlNlcnZlckdyb3VwT3duZXJUcmFuc2ZlcnJl'
     'ZEgAUhVncm91cE93bmVyVHJhbnNmZXJyZWQSOgoMcm9vbV91cGRhdGVkGA8gASgLMhUud3MuU2'
-    'VydmVyUm9vbVVwZGF0ZWRIAFILcm9vbVVwZGF0ZWRCCQoHcGF5bG9hZA==');
+    'VydmVyUm9vbVVwZGF0ZWRIAFILcm9vbVVwZGF0ZWQSVgoWZ3JvdXBfc2V0dGluZ3NfdXBkYXRl'
+    'ZBgQIAEoCzIeLndzLlNlcnZlckdyb3VwU2V0dGluZ3NVcGRhdGVkSABSFGdyb3VwU2V0dGluZ3'
+    'NVcGRhdGVkElAKFGdyb3VwX21lbWJlcl9jaGFuZ2VkGBEgASgLMhwud3MuU2VydmVyR3JvdXBN'
+    'ZW1iZXJDaGFuZ2VkSABSEmdyb3VwTWVtYmVyQ2hhbmdlZEIJCgdwYXlsb2Fk');
 
 @$core.Deprecated('Use serverAuthedDescriptor instead')
 const ServerAuthed$json = {
@@ -639,6 +660,62 @@ final $typed_data.Uint8List serverGroupOwnerTransferredDescriptor =
         'AKDG9sZF9vd25lcl9pZBgCIAEoCVIKb2xkT3duZXJJZBIgCgxuZXdfb3duZXJfaWQYAyABKAlS'
         'Cm5ld093bmVySWQ=');
 
+@$core.Deprecated('Use serverGroupSettingsUpdatedDescriptor instead')
+const ServerGroupSettingsUpdated$json = {
+  '1': 'ServerGroupSettingsUpdated',
+  '2': [
+    {'1': 'room_id', '3': 1, '4': 1, '5': 9, '10': 'roomId'},
+    {
+      '1': 'global_mute_enabled',
+      '3': 2,
+      '4': 1,
+      '5': 8,
+      '10': 'globalMuteEnabled'
+    },
+    {
+      '1': 'global_mute_reason',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'globalMuteReason',
+      '17': true
+    },
+    {
+      '1': 'global_mute_until',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '9': 1,
+      '10': 'globalMuteUntil',
+      '17': true
+    },
+    {
+      '1': 'global_mute_set_by',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '9': 2,
+      '10': 'globalMuteSetBy',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_global_mute_reason'},
+    {'1': '_global_mute_until'},
+    {'1': '_global_mute_set_by'},
+  ],
+};
+
+/// Descriptor for `ServerGroupSettingsUpdated`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List serverGroupSettingsUpdatedDescriptor = $convert.base64Decode(
+    'ChpTZXJ2ZXJHcm91cFNldHRpbmdzVXBkYXRlZBIXCgdyb29tX2lkGAEgASgJUgZyb29tSWQSLg'
+    'oTZ2xvYmFsX211dGVfZW5hYmxlZBgCIAEoCFIRZ2xvYmFsTXV0ZUVuYWJsZWQSMQoSZ2xvYmFs'
+    'X211dGVfcmVhc29uGAMgASgJSABSEGdsb2JhbE11dGVSZWFzb26IAQESLwoRZ2xvYmFsX211dG'
+    'VfdW50aWwYBCABKAlIAVIPZ2xvYmFsTXV0ZVVudGlsiAEBEjAKEmdsb2JhbF9tdXRlX3NldF9i'
+    'eRgFIAEoCUgCUg9nbG9iYWxNdXRlU2V0QnmIAQFCFQoTX2dsb2JhbF9tdXRlX3JlYXNvbkIUCh'
+    'JfZ2xvYmFsX211dGVfdW50aWxCFQoTX2dsb2JhbF9tdXRlX3NldF9ieQ==');
+
 @$core.Deprecated('Use serverRoomUpdatedDescriptor instead')
 const ServerRoomUpdated$json = {
   '1': 'ServerRoomUpdated',
@@ -658,6 +735,51 @@ final $typed_data.Uint8List serverRoomUpdatedDescriptor = $convert.base64Decode(
     '1lGAIgASgJUghyb29tTmFtZRIbCglyb29tX3R5cGUYAyABKAlSCHJvb21UeXBlEh0KCmF2YXRh'
     'cl91cmwYBCABKAlSCWF2YXRhclVybBIqChFhdmF0YXJfb2JqZWN0X2tleRgFIAEoCVIPYXZhdG'
     'FyT2JqZWN0S2V5EiAKC2Rlc2NyaXB0aW9uGAYgASgJUgtkZXNjcmlwdGlvbg==');
+
+@$core.Deprecated('Use serverGroupMemberChangedDescriptor instead')
+const ServerGroupMemberChanged$json = {
+  '1': 'ServerGroupMemberChanged',
+  '2': [
+    {'1': 'room_id', '3': 1, '4': 1, '5': 9, '10': 'roomId'},
+    {'1': 'member_id', '3': 2, '4': 1, '5': 9, '10': 'memberId'},
+    {'1': 'change_type', '3': 3, '4': 1, '5': 9, '10': 'changeType'},
+    {
+      '1': 'new_role',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'newRole',
+      '17': true
+    },
+    {
+      '1': 'operator_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '9': 1,
+      '10': 'operatorId',
+      '17': true
+    },
+    {'1': 'reason', '3': 6, '4': 1, '5': 9, '9': 2, '10': 'reason', '17': true},
+    {'1': 'until', '3': 7, '4': 1, '5': 9, '9': 3, '10': 'until', '17': true},
+  ],
+  '8': [
+    {'1': '_new_role'},
+    {'1': '_operator_id'},
+    {'1': '_reason'},
+    {'1': '_until'},
+  ],
+};
+
+/// Descriptor for `ServerGroupMemberChanged`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List serverGroupMemberChangedDescriptor = $convert.base64Decode(
+    'ChhTZXJ2ZXJHcm91cE1lbWJlckNoYW5nZWQSFwoHcm9vbV9pZBgBIAEoCVIGcm9vbUlkEhsKCW'
+    '1lbWJlcl9pZBgCIAEoCVIIbWVtYmVySWQSHwoLY2hhbmdlX3R5cGUYAyABKAlSCmNoYW5nZVR5'
+    'cGUSHgoIbmV3X3JvbGUYBCABKAlIAFIHbmV3Um9sZYgBARIkCgtvcGVyYXRvcl9pZBgFIAEoCU'
+    'gBUgpvcGVyYXRvcklkiAEBEhsKBnJlYXNvbhgGIAEoCUgCUgZyZWFzb26IAQESGQoFdW50aWwY'
+    'ByABKAlIA1IFdW50aWyIAQFCCwoJX25ld19yb2xlQg4KDF9vcGVyYXRvcl9pZEIJCgdfcmVhc2'
+    '9uQggKBl91bnRpbA==');
 
 @$core.Deprecated('Use pubSubMessageDescriptor instead')
 const PubSubMessage$json = {
@@ -802,6 +924,107 @@ final $typed_data.Uint8List pubSubRoomUpdateDescriptor = $convert.base64Decode(
     'X3VybBgEIAEoCVIJYXZhdGFyVXJsEioKEWF2YXRhcl9vYmplY3Rfa2V5GAUgASgJUg9hdmF0YX'
     'JPYmplY3RLZXkSIAoLZGVzY3JpcHRpb24YBiABKAlSC2Rlc2NyaXB0aW9u');
 
+@$core.Deprecated('Use pubSubGroupSettingsUpdateDescriptor instead')
+const PubSubGroupSettingsUpdate$json = {
+  '1': 'PubSubGroupSettingsUpdate',
+  '2': [
+    {'1': 'room_id', '3': 1, '4': 1, '5': 9, '10': 'roomId'},
+    {
+      '1': 'global_mute_enabled',
+      '3': 2,
+      '4': 1,
+      '5': 8,
+      '10': 'globalMuteEnabled'
+    },
+    {
+      '1': 'global_mute_reason',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'globalMuteReason',
+      '17': true
+    },
+    {
+      '1': 'global_mute_until',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '9': 1,
+      '10': 'globalMuteUntil',
+      '17': true
+    },
+    {
+      '1': 'global_mute_set_by',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '9': 2,
+      '10': 'globalMuteSetBy',
+      '17': true
+    },
+  ],
+  '8': [
+    {'1': '_global_mute_reason'},
+    {'1': '_global_mute_until'},
+    {'1': '_global_mute_set_by'},
+  ],
+};
+
+/// Descriptor for `PubSubGroupSettingsUpdate`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List pubSubGroupSettingsUpdateDescriptor = $convert.base64Decode(
+    'ChlQdWJTdWJHcm91cFNldHRpbmdzVXBkYXRlEhcKB3Jvb21faWQYASABKAlSBnJvb21JZBIuCh'
+    'NnbG9iYWxfbXV0ZV9lbmFibGVkGAIgASgIUhFnbG9iYWxNdXRlRW5hYmxlZBIxChJnbG9iYWxf'
+    'bXV0ZV9yZWFzb24YAyABKAlIAFIQZ2xvYmFsTXV0ZVJlYXNvbogBARIvChFnbG9iYWxfbXV0ZV'
+    '91bnRpbBgEIAEoCUgBUg9nbG9iYWxNdXRlVW50aWyIAQESMAoSZ2xvYmFsX211dGVfc2V0X2J5'
+    'GAUgASgJSAJSD2dsb2JhbE11dGVTZXRCeYgBAUIVChNfZ2xvYmFsX211dGVfcmVhc29uQhQKEl'
+    '9nbG9iYWxfbXV0ZV91bnRpbEIVChNfZ2xvYmFsX211dGVfc2V0X2J5');
+
+@$core.Deprecated('Use pubSubGroupMemberChangedDescriptor instead')
+const PubSubGroupMemberChanged$json = {
+  '1': 'PubSubGroupMemberChanged',
+  '2': [
+    {'1': 'room_id', '3': 1, '4': 1, '5': 9, '10': 'roomId'},
+    {'1': 'member_id', '3': 2, '4': 1, '5': 9, '10': 'memberId'},
+    {'1': 'change_type', '3': 3, '4': 1, '5': 9, '10': 'changeType'},
+    {
+      '1': 'new_role',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '9': 0,
+      '10': 'newRole',
+      '17': true
+    },
+    {
+      '1': 'operator_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '9': 1,
+      '10': 'operatorId',
+      '17': true
+    },
+    {'1': 'reason', '3': 6, '4': 1, '5': 9, '9': 2, '10': 'reason', '17': true},
+    {'1': 'until', '3': 7, '4': 1, '5': 9, '9': 3, '10': 'until', '17': true},
+  ],
+  '8': [
+    {'1': '_new_role'},
+    {'1': '_operator_id'},
+    {'1': '_reason'},
+    {'1': '_until'},
+  ],
+};
+
+/// Descriptor for `PubSubGroupMemberChanged`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List pubSubGroupMemberChangedDescriptor = $convert.base64Decode(
+    'ChhQdWJTdWJHcm91cE1lbWJlckNoYW5nZWQSFwoHcm9vbV9pZBgBIAEoCVIGcm9vbUlkEhsKCW'
+    '1lbWJlcl9pZBgCIAEoCVIIbWVtYmVySWQSHwoLY2hhbmdlX3R5cGUYAyABKAlSCmNoYW5nZVR5'
+    'cGUSHgoIbmV3X3JvbGUYBCABKAlIAFIHbmV3Um9sZYgBARIkCgtvcGVyYXRvcl9pZBgFIAEoCU'
+    'gBUgpvcGVyYXRvcklkiAEBEhsKBnJlYXNvbhgGIAEoCUgCUgZyZWFzb26IAQESGQoFdW50aWwY'
+    'ByABKAlIA1IFdW50aWyIAQFCCwoJX25ld19yb2xlQg4KDF9vcGVyYXRvcl9pZEIJCgdfcmVhc2'
+    '9uQggKBl91bnRpbA==');
+
 @$core.Deprecated('Use pubSubEventDescriptor instead')
 const PubSubEvent$json = {
   '1': 'PubSubEvent',
@@ -851,6 +1074,24 @@ const PubSubEvent$json = {
       '9': 0,
       '10': 'roomUpdate'
     },
+    {
+      '1': 'group_settings_update',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.ws.PubSubGroupSettingsUpdate',
+      '9': 0,
+      '10': 'groupSettingsUpdate'
+    },
+    {
+      '1': 'group_member_changed',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.ws.PubSubGroupMemberChanged',
+      '9': 0,
+      '10': 'groupMemberChanged'
+    },
   ],
   '8': [
     {'1': 'payload'},
@@ -864,4 +1105,7 @@ final $typed_data.Uint8List pubSubEventDescriptor = $convert.base64Decode(
     'YWRSZWNlaXB0EkAKDm1lc3NhZ2VfdXBkYXRlGAMgASgLMhcud3MuUHViU3ViTWVzc2FnZVVwZG'
     'F0ZUgAUg1tZXNzYWdlVXBkYXRlEjQKCnBpbl91cGRhdGUYBCABKAsyEy53cy5QdWJTdWJQaW5V'
     'cGRhdGVIAFIJcGluVXBkYXRlEjcKC3Jvb21fdXBkYXRlGAUgASgLMhQud3MuUHViU3ViUm9vbV'
-    'VwZGF0ZUgAUgpyb29tVXBkYXRlQgkKB3BheWxvYWQ=');
+    'VwZGF0ZUgAUgpyb29tVXBkYXRlElMKFWdyb3VwX3NldHRpbmdzX3VwZGF0ZRgGIAEoCzIdLndz'
+    'LlB1YlN1Ykdyb3VwU2V0dGluZ3NVcGRhdGVIAFITZ3JvdXBTZXR0aW5nc1VwZGF0ZRJQChRncm'
+    '91cF9tZW1iZXJfY2hhbmdlZBgHIAEoCzIcLndzLlB1YlN1Ykdyb3VwTWVtYmVyQ2hhbmdlZEgA'
+    'UhJncm91cE1lbWJlckNoYW5nZWRCCQoHcGF5bG9hZA==');

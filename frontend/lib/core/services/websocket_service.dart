@@ -532,6 +532,30 @@ class WebSocketService with ChangeNotifier {
           oldOwnerId: _nullIfEmpty(payload.oldOwnerId),
           newOwnerId: payload.newOwnerId,
         );
+      case ws.ServerEvent_Payload.groupSettingsUpdated:
+        final payload = event.groupSettingsUpdated;
+        if (payload.roomId.isEmpty) return null;
+        return _GroupSettingsUpdatedEvent(
+          roomId: payload.roomId,
+          globalMuteEnabled: payload.globalMuteEnabled,
+          globalMuteReason: payload.hasGlobalMuteReason() ? payload.globalMuteReason : null,
+          globalMuteUntil: payload.hasGlobalMuteUntil() ? payload.globalMuteUntil : null,
+          globalMuteSetBy: payload.hasGlobalMuteSetBy() ? payload.globalMuteSetBy : null,
+        );
+      case ws.ServerEvent_Payload.groupMemberChanged:
+        final payload = event.groupMemberChanged;
+        if (payload.roomId.isEmpty || payload.memberId.isEmpty || payload.changeType.isEmpty) {
+          return null;
+        }
+        return _GroupMemberChangedEvent(
+          roomId: payload.roomId,
+          memberId: payload.memberId,
+          changeType: payload.changeType,
+          newRole: payload.hasNewRole() ? payload.newRole : null,
+          operatorId: payload.hasOperatorId() ? payload.operatorId : null,
+          reason: payload.hasReason() ? payload.reason : null,
+          until: payload.hasUntil() ? payload.until : null,
+        );
       case ws.ServerEvent_Payload.notSet:
         return null;
     }

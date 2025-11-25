@@ -359,6 +359,8 @@ enum ServerEvent_Payload {
   groupDissolved,
   groupOwnerTransferred,
   roomUpdated,
+  groupSettingsUpdated,
+  groupMemberChanged,
   notSet
 }
 
@@ -379,6 +381,8 @@ class ServerEvent extends $pb.GeneratedMessage {
     ServerGroupDissolved? groupDissolved,
     ServerGroupOwnerTransferred? groupOwnerTransferred,
     ServerRoomUpdated? roomUpdated,
+    ServerGroupSettingsUpdated? groupSettingsUpdated,
+    ServerGroupMemberChanged? groupMemberChanged,
   }) {
     final result = create();
     if (authed != null) result.authed = authed;
@@ -398,6 +402,10 @@ class ServerEvent extends $pb.GeneratedMessage {
     if (groupOwnerTransferred != null)
       result.groupOwnerTransferred = groupOwnerTransferred;
     if (roomUpdated != null) result.roomUpdated = roomUpdated;
+    if (groupSettingsUpdated != null)
+      result.groupSettingsUpdated = groupSettingsUpdated;
+    if (groupMemberChanged != null)
+      result.groupMemberChanged = groupMemberChanged;
     return result;
   }
 
@@ -427,13 +435,15 @@ class ServerEvent extends $pb.GeneratedMessage {
     13: ServerEvent_Payload.groupDissolved,
     14: ServerEvent_Payload.groupOwnerTransferred,
     15: ServerEvent_Payload.roomUpdated,
+    16: ServerEvent_Payload.groupSettingsUpdated,
+    17: ServerEvent_Payload.groupMemberChanged,
     0: ServerEvent_Payload.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ServerEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
     ..aOM<ServerAuthed>(1, _omitFieldNames ? '' : 'authed',
         subBuilder: ServerAuthed.create)
     ..aOM<ServerJoined>(2, _omitFieldNames ? '' : 'joined',
@@ -466,6 +476,12 @@ class ServerEvent extends $pb.GeneratedMessage {
         subBuilder: ServerGroupOwnerTransferred.create)
     ..aOM<ServerRoomUpdated>(15, _omitFieldNames ? '' : 'roomUpdated',
         subBuilder: ServerRoomUpdated.create)
+    ..aOM<ServerGroupSettingsUpdated>(
+        16, _omitFieldNames ? '' : 'groupSettingsUpdated',
+        subBuilder: ServerGroupSettingsUpdated.create)
+    ..aOM<ServerGroupMemberChanged>(
+        17, _omitFieldNames ? '' : 'groupMemberChanged',
+        subBuilder: ServerGroupMemberChanged.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -502,6 +518,8 @@ class ServerEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(13)
   @$pb.TagNumber(14)
   @$pb.TagNumber(15)
+  @$pb.TagNumber(16)
+  @$pb.TagNumber(17)
   ServerEvent_Payload whichPayload() =>
       _ServerEvent_PayloadByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
@@ -519,6 +537,8 @@ class ServerEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(13)
   @$pb.TagNumber(14)
   @$pb.TagNumber(15)
+  @$pb.TagNumber(16)
+  @$pb.TagNumber(17)
   void clearPayload() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -687,6 +707,30 @@ class ServerEvent extends $pb.GeneratedMessage {
   void clearRoomUpdated() => $_clearField(15);
   @$pb.TagNumber(15)
   ServerRoomUpdated ensureRoomUpdated() => $_ensure(14);
+
+  @$pb.TagNumber(16)
+  ServerGroupSettingsUpdated get groupSettingsUpdated => $_getN(15);
+  @$pb.TagNumber(16)
+  set groupSettingsUpdated(ServerGroupSettingsUpdated value) =>
+      $_setField(16, value);
+  @$pb.TagNumber(16)
+  $core.bool hasGroupSettingsUpdated() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearGroupSettingsUpdated() => $_clearField(16);
+  @$pb.TagNumber(16)
+  ServerGroupSettingsUpdated ensureGroupSettingsUpdated() => $_ensure(15);
+
+  @$pb.TagNumber(17)
+  ServerGroupMemberChanged get groupMemberChanged => $_getN(16);
+  @$pb.TagNumber(17)
+  set groupMemberChanged(ServerGroupMemberChanged value) =>
+      $_setField(17, value);
+  @$pb.TagNumber(17)
+  $core.bool hasGroupMemberChanged() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearGroupMemberChanged() => $_clearField(17);
+  @$pb.TagNumber(17)
+  ServerGroupMemberChanged ensureGroupMemberChanged() => $_ensure(16);
 }
 
 class ServerAuthed extends $pb.GeneratedMessage {
@@ -2330,6 +2374,110 @@ class ServerGroupOwnerTransferred extends $pb.GeneratedMessage {
   void clearNewOwnerId() => $_clearField(3);
 }
 
+class ServerGroupSettingsUpdated extends $pb.GeneratedMessage {
+  factory ServerGroupSettingsUpdated({
+    $core.String? roomId,
+    $core.bool? globalMuteEnabled,
+    $core.String? globalMuteReason,
+    $core.String? globalMuteUntil,
+    $core.String? globalMuteSetBy,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (globalMuteEnabled != null) result.globalMuteEnabled = globalMuteEnabled;
+    if (globalMuteReason != null) result.globalMuteReason = globalMuteReason;
+    if (globalMuteUntil != null) result.globalMuteUntil = globalMuteUntil;
+    if (globalMuteSetBy != null) result.globalMuteSetBy = globalMuteSetBy;
+    return result;
+  }
+
+  ServerGroupSettingsUpdated._();
+
+  factory ServerGroupSettingsUpdated.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerGroupSettingsUpdated.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerGroupSettingsUpdated',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOB(2, _omitFieldNames ? '' : 'globalMuteEnabled')
+    ..aOS(3, _omitFieldNames ? '' : 'globalMuteReason')
+    ..aOS(4, _omitFieldNames ? '' : 'globalMuteUntil')
+    ..aOS(5, _omitFieldNames ? '' : 'globalMuteSetBy')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerGroupSettingsUpdated clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerGroupSettingsUpdated copyWith(
+          void Function(ServerGroupSettingsUpdated) updates) =>
+      super.copyWith(
+              (message) => updates(message as ServerGroupSettingsUpdated))
+          as ServerGroupSettingsUpdated;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupSettingsUpdated create() => ServerGroupSettingsUpdated._();
+  @$core.override
+  ServerGroupSettingsUpdated createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupSettingsUpdated getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerGroupSettingsUpdated>(create);
+  static ServerGroupSettingsUpdated? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get globalMuteEnabled => $_getBF(1);
+  @$pb.TagNumber(2)
+  set globalMuteEnabled($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGlobalMuteEnabled() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGlobalMuteEnabled() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get globalMuteReason => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set globalMuteReason($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasGlobalMuteReason() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearGlobalMuteReason() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get globalMuteUntil => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set globalMuteUntil($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasGlobalMuteUntil() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearGlobalMuteUntil() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get globalMuteSetBy => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set globalMuteSetBy($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasGlobalMuteSetBy() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearGlobalMuteSetBy() => $_clearField(5);
+}
+
 class ServerRoomUpdated extends $pb.GeneratedMessage {
   factory ServerRoomUpdated({
     $core.String? roomId,
@@ -2442,6 +2590,136 @@ class ServerRoomUpdated extends $pb.GeneratedMessage {
   $core.bool hasDescription() => $_has(5);
   @$pb.TagNumber(6)
   void clearDescription() => $_clearField(6);
+}
+
+/// 群成员变更事件
+/// change_type: "role_changed" | "muted" | "unmuted" | "kicked" | "joined" | "left"
+/// new_role: "owner" | "admin" | "member" (仅 role_changed 时有效)
+class ServerGroupMemberChanged extends $pb.GeneratedMessage {
+  factory ServerGroupMemberChanged({
+    $core.String? roomId,
+    $core.String? memberId,
+    $core.String? changeType,
+    $core.String? newRole,
+    $core.String? operatorId,
+    $core.String? reason,
+    $core.String? until,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (memberId != null) result.memberId = memberId;
+    if (changeType != null) result.changeType = changeType;
+    if (newRole != null) result.newRole = newRole;
+    if (operatorId != null) result.operatorId = operatorId;
+    if (reason != null) result.reason = reason;
+    if (until != null) result.until = until;
+    return result;
+  }
+
+  ServerGroupMemberChanged._();
+
+  factory ServerGroupMemberChanged.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerGroupMemberChanged.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerGroupMemberChanged',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'memberId')
+    ..aOS(3, _omitFieldNames ? '' : 'changeType')
+    ..aOS(4, _omitFieldNames ? '' : 'newRole')
+    ..aOS(5, _omitFieldNames ? '' : 'operatorId')
+    ..aOS(6, _omitFieldNames ? '' : 'reason')
+    ..aOS(7, _omitFieldNames ? '' : 'until')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerGroupMemberChanged clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerGroupMemberChanged copyWith(
+          void Function(ServerGroupMemberChanged) updates) =>
+      super.copyWith((message) => updates(message as ServerGroupMemberChanged))
+          as ServerGroupMemberChanged;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupMemberChanged create() => ServerGroupMemberChanged._();
+  @$core.override
+  ServerGroupMemberChanged createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerGroupMemberChanged getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerGroupMemberChanged>(create);
+  static ServerGroupMemberChanged? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get memberId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set memberId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMemberId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMemberId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get changeType => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set changeType($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasChangeType() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearChangeType() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get newRole => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set newRole($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasNewRole() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearNewRole() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get operatorId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set operatorId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOperatorId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOperatorId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get reason => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set reason($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasReason() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearReason() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get until => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set until($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasUntil() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearUntil() => $_clearField(7);
 }
 
 class PubSubMessage extends $pb.GeneratedMessage {
@@ -3070,12 +3348,245 @@ class PubSubRoomUpdate extends $pb.GeneratedMessage {
   void clearDescription() => $_clearField(6);
 }
 
+class PubSubGroupSettingsUpdate extends $pb.GeneratedMessage {
+  factory PubSubGroupSettingsUpdate({
+    $core.String? roomId,
+    $core.bool? globalMuteEnabled,
+    $core.String? globalMuteReason,
+    $core.String? globalMuteUntil,
+    $core.String? globalMuteSetBy,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (globalMuteEnabled != null) result.globalMuteEnabled = globalMuteEnabled;
+    if (globalMuteReason != null) result.globalMuteReason = globalMuteReason;
+    if (globalMuteUntil != null) result.globalMuteUntil = globalMuteUntil;
+    if (globalMuteSetBy != null) result.globalMuteSetBy = globalMuteSetBy;
+    return result;
+  }
+
+  PubSubGroupSettingsUpdate._();
+
+  factory PubSubGroupSettingsUpdate.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PubSubGroupSettingsUpdate.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PubSubGroupSettingsUpdate',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOB(2, _omitFieldNames ? '' : 'globalMuteEnabled')
+    ..aOS(3, _omitFieldNames ? '' : 'globalMuteReason')
+    ..aOS(4, _omitFieldNames ? '' : 'globalMuteUntil')
+    ..aOS(5, _omitFieldNames ? '' : 'globalMuteSetBy')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubGroupSettingsUpdate clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubGroupSettingsUpdate copyWith(
+          void Function(PubSubGroupSettingsUpdate) updates) =>
+      super.copyWith((message) => updates(message as PubSubGroupSettingsUpdate))
+          as PubSubGroupSettingsUpdate;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PubSubGroupSettingsUpdate create() => PubSubGroupSettingsUpdate._();
+  @$core.override
+  PubSubGroupSettingsUpdate createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PubSubGroupSettingsUpdate getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PubSubGroupSettingsUpdate>(create);
+  static PubSubGroupSettingsUpdate? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get globalMuteEnabled => $_getBF(1);
+  @$pb.TagNumber(2)
+  set globalMuteEnabled($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGlobalMuteEnabled() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGlobalMuteEnabled() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get globalMuteReason => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set globalMuteReason($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasGlobalMuteReason() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearGlobalMuteReason() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get globalMuteUntil => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set globalMuteUntil($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasGlobalMuteUntil() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearGlobalMuteUntil() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get globalMuteSetBy => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set globalMuteSetBy($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasGlobalMuteSetBy() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearGlobalMuteSetBy() => $_clearField(5);
+}
+
+/// 群成员变更事件（用于跨节点广播）
+class PubSubGroupMemberChanged extends $pb.GeneratedMessage {
+  factory PubSubGroupMemberChanged({
+    $core.String? roomId,
+    $core.String? memberId,
+    $core.String? changeType,
+    $core.String? newRole,
+    $core.String? operatorId,
+    $core.String? reason,
+    $core.String? until,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (memberId != null) result.memberId = memberId;
+    if (changeType != null) result.changeType = changeType;
+    if (newRole != null) result.newRole = newRole;
+    if (operatorId != null) result.operatorId = operatorId;
+    if (reason != null) result.reason = reason;
+    if (until != null) result.until = until;
+    return result;
+  }
+
+  PubSubGroupMemberChanged._();
+
+  factory PubSubGroupMemberChanged.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PubSubGroupMemberChanged.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PubSubGroupMemberChanged',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'memberId')
+    ..aOS(3, _omitFieldNames ? '' : 'changeType')
+    ..aOS(4, _omitFieldNames ? '' : 'newRole')
+    ..aOS(5, _omitFieldNames ? '' : 'operatorId')
+    ..aOS(6, _omitFieldNames ? '' : 'reason')
+    ..aOS(7, _omitFieldNames ? '' : 'until')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubGroupMemberChanged clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubGroupMemberChanged copyWith(
+          void Function(PubSubGroupMemberChanged) updates) =>
+      super.copyWith((message) => updates(message as PubSubGroupMemberChanged))
+          as PubSubGroupMemberChanged;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PubSubGroupMemberChanged create() => PubSubGroupMemberChanged._();
+  @$core.override
+  PubSubGroupMemberChanged createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PubSubGroupMemberChanged getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PubSubGroupMemberChanged>(create);
+  static PubSubGroupMemberChanged? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get memberId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set memberId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMemberId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMemberId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get changeType => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set changeType($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasChangeType() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearChangeType() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get newRole => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set newRole($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasNewRole() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearNewRole() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get operatorId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set operatorId($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOperatorId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOperatorId() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get reason => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set reason($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasReason() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearReason() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get until => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set until($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasUntil() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearUntil() => $_clearField(7);
+}
+
 enum PubSubEvent_Payload {
   message,
   readReceipt,
   messageUpdate,
   pinUpdate,
   roomUpdate,
+  groupSettingsUpdate,
+  groupMemberChanged,
   notSet
 }
 
@@ -3086,6 +3597,8 @@ class PubSubEvent extends $pb.GeneratedMessage {
     PubSubMessageUpdate? messageUpdate,
     PubSubPinUpdate? pinUpdate,
     PubSubRoomUpdate? roomUpdate,
+    PubSubGroupSettingsUpdate? groupSettingsUpdate,
+    PubSubGroupMemberChanged? groupMemberChanged,
   }) {
     final result = create();
     if (message != null) result.message = message;
@@ -3093,6 +3606,10 @@ class PubSubEvent extends $pb.GeneratedMessage {
     if (messageUpdate != null) result.messageUpdate = messageUpdate;
     if (pinUpdate != null) result.pinUpdate = pinUpdate;
     if (roomUpdate != null) result.roomUpdate = roomUpdate;
+    if (groupSettingsUpdate != null)
+      result.groupSettingsUpdate = groupSettingsUpdate;
+    if (groupMemberChanged != null)
+      result.groupMemberChanged = groupMemberChanged;
     return result;
   }
 
@@ -3112,13 +3629,15 @@ class PubSubEvent extends $pb.GeneratedMessage {
     3: PubSubEvent_Payload.messageUpdate,
     4: PubSubEvent_Payload.pinUpdate,
     5: PubSubEvent_Payload.roomUpdate,
+    6: PubSubEvent_Payload.groupSettingsUpdate,
+    7: PubSubEvent_Payload.groupMemberChanged,
     0: PubSubEvent_Payload.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PubSubEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7])
     ..aOM<PubSubMessage>(1, _omitFieldNames ? '' : 'message',
         subBuilder: PubSubMessage.create)
     ..aOM<PubSubReadReceipt>(2, _omitFieldNames ? '' : 'readReceipt',
@@ -3129,6 +3648,12 @@ class PubSubEvent extends $pb.GeneratedMessage {
         subBuilder: PubSubPinUpdate.create)
     ..aOM<PubSubRoomUpdate>(5, _omitFieldNames ? '' : 'roomUpdate',
         subBuilder: PubSubRoomUpdate.create)
+    ..aOM<PubSubGroupSettingsUpdate>(
+        6, _omitFieldNames ? '' : 'groupSettingsUpdate',
+        subBuilder: PubSubGroupSettingsUpdate.create)
+    ..aOM<PubSubGroupMemberChanged>(
+        7, _omitFieldNames ? '' : 'groupMemberChanged',
+        subBuilder: PubSubGroupMemberChanged.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3155,6 +3680,8 @@ class PubSubEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   @$pb.TagNumber(4)
   @$pb.TagNumber(5)
+  @$pb.TagNumber(6)
+  @$pb.TagNumber(7)
   PubSubEvent_Payload whichPayload() =>
       _PubSubEvent_PayloadByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
@@ -3162,6 +3689,8 @@ class PubSubEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   @$pb.TagNumber(4)
   @$pb.TagNumber(5)
+  @$pb.TagNumber(6)
+  @$pb.TagNumber(7)
   void clearPayload() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -3218,6 +3747,30 @@ class PubSubEvent extends $pb.GeneratedMessage {
   void clearRoomUpdate() => $_clearField(5);
   @$pb.TagNumber(5)
   PubSubRoomUpdate ensureRoomUpdate() => $_ensure(4);
+
+  @$pb.TagNumber(6)
+  PubSubGroupSettingsUpdate get groupSettingsUpdate => $_getN(5);
+  @$pb.TagNumber(6)
+  set groupSettingsUpdate(PubSubGroupSettingsUpdate value) =>
+      $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasGroupSettingsUpdate() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearGroupSettingsUpdate() => $_clearField(6);
+  @$pb.TagNumber(6)
+  PubSubGroupSettingsUpdate ensureGroupSettingsUpdate() => $_ensure(5);
+
+  @$pb.TagNumber(7)
+  PubSubGroupMemberChanged get groupMemberChanged => $_getN(6);
+  @$pb.TagNumber(7)
+  set groupMemberChanged(PubSubGroupMemberChanged value) =>
+      $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasGroupMemberChanged() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearGroupMemberChanged() => $_clearField(7);
+  @$pb.TagNumber(7)
+  PubSubGroupMemberChanged ensureGroupMemberChanged() => $_ensure(6);
 }
 
 const $core.bool _omitFieldNames =
