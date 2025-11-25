@@ -3554,7 +3554,8 @@ impl AdminUserStore {
         nickname: Option<String>,
         avatar_url: Option<String>,
     ) -> Result<Option<AdminUser>, AppError> {
-        sqlx::query!(
+        sqlx::query_as!(
+            AdminUser,
             r#"UPDATE admin_users
             SET nickname = COALESCE($2, nickname),
                 avatar_url = COALESCE($3, avatar_url),

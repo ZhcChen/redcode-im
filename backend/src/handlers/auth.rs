@@ -4,11 +4,13 @@ use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::handlers::admin;
+use crate::handlers::user;
 use crate::models::convert::{
     api_create_user_to_db, api_login_to_db, db_user_to_api_user_info, string_to_uuid,
 };
 use crate::models::UserStatus;
 use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, UserInfo};
+use crate::storage;
 use crate::AppState;
 use axum::{
     extract::{Extension, State},
@@ -16,7 +18,7 @@ use axum::{
 };
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use redis::AsyncCommands;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 pub async fn register(
@@ -719,7 +721,7 @@ pub struct UploadAdminAvatarResponse {
 pub async fn upload_current_admin_avatar(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Multipart(multipart): axum::extract::Multipart,
+    mut multipart: axum::extract::Multipart,
 ) -> Result<Json<UploadAdminAvatarResponse>, AppError> {
     let admin_user_id = string_to_uuid(&claims.sub)
         .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
@@ -732,6 +734,9 @@ pub async fn upload_current_admin_avatar(
         AppError::InternalError(format!("读取上传文件失败: {}", e))
     })? {
         if field.name() == Some("avatar") {
+            // 先获取 content_type，再读取数据
+            content_type = field.content_type().map(|s| s.to_string());
+
             let data = field.bytes().await.map_err(|e| {
                 AppError::InternalError(format!("读取文件数据失败: {}", e))
             })?;
@@ -743,7 +748,6 @@ pub async fn upload_current_admin_avatar(
                 ));
             }
 
-            content_type = field.content_type().map(|s| s.to_string());
             avatar_file = Some(data);
             break;
         }
@@ -774,29 +778,29 @@ pub async fn upload_current_admin_avatar(
 
     let file_key = format!("admin/avatars/{}.{}", admin_user_id, file_ext);
 
+    // 获取默认存储提供商
+    let provider = user::load_default_storage_provider(&state).await?;
+
+    // 创建存储服务实例
+    let storage_service = storage::create_storage_service(&provider)
+        .map_err(|e| AppError::InternalError(format!("创建存储服务失败: {}", e)))?;
+
     // 上传到存储
-    let storage_provider = None; // 使用默认存储提供商
-    let result = storage::upload_file(
-        &state,
-        storage_provider,
-        &file_key,
-        &file_data,
-        &content_type,
-        None,
-    )
-    .await
-    .map_err(|e| AppError::InternalError(format!("上传文件失败: {}", e)))?;
+    let file_url = storage_service
+        .upload_file(&file_key, file_data, Some(&content_type))
+        .await
+        .map_err(|e| AppError::InternalError(format!("上传文件失败: {}", e)))?;
 
     // 更新用户头像URL
     let store = admin::AdminUserStore::new(state.database.clone());
     let updated_user = store
-        .update_admin_user(&admin_user_id, None, Some(result.url.clone()))
+        .update_admin_user(&admin_user_id, None, Some(file_url.clone()))
         .await?
         .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
 
     Ok(Json(UploadAdminAvatarResponse {
         success: true,
         message: "头像上传成功".to_string(),
-        avatar_url: Some(result.url),
+        avatar_url: Some(file_url),
     }))
 }
