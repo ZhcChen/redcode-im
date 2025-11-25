@@ -12,6 +12,9 @@ class AvatarCache {
   static const _userPrefsKeyPrefix = 'user_avatar_cache_';
   static const _roomPrefsKeyPrefix = 'room_avatar_cache_';
 
+  /// 缓存 TTL (7 天)
+  static const Duration cacheTtl = Duration(days: 7);
+
   Future<Directory> _ensureUserCacheDir() async {
     final baseDir = await getApplicationDocumentsDirectory();
     final cacheDir = Directory(p.join(baseDir.path, 'user_avatar_cache'));
@@ -55,12 +58,18 @@ class AvatarCache {
   }
 
   /// 解析用户头像本地缓存路径
+  /// 会验证 objectKey 是否匹配且缓存未过期
   Future<String?> resolveUserLocalPath({
     required String userId,
     required String objectKey,
   }) async {
     final record = await _readUserRecord(userId);
     if (record == null || record.key != objectKey) {
+      return null;
+    }
+    // 检查 TTL
+    if (record.isExpired(cacheTtl)) {
+      await clearUser(userId);
       return null;
     }
     final file = File(record.path);
@@ -72,12 +81,18 @@ class AvatarCache {
   }
 
   /// 解析房间头像本地缓存路径
+  /// 会验证 objectKey 是否匹配且缓存未过期
   Future<String?> resolveRoomLocalPath({
     required String roomId,
     required String objectKey,
   }) async {
     final record = await _readRoomRecord(roomId);
     if (record == null || record.key != objectKey) {
+      return null;
+    }
+    // 检查 TTL
+    if (record.isExpired(cacheTtl)) {
+      await clearRoom(roomId);
       return null;
     }
     final file = File(record.path);
@@ -89,10 +104,15 @@ class AvatarCache {
   }
 
   /// 解析任何已存在的用户头像本地缓存路径
-  /// 不检查objectKey，只要有缓存就返回
+  /// 不检查objectKey，只要有缓存且未过期就返回
   Future<String?> resolveAnyLocalPath(String userId) async {
     final record = await _readUserRecord(userId);
     if (record == null) {
+      return null;
+    }
+    // 检查 TTL
+    if (record.isExpired(cacheTtl)) {
+      await clearUser(userId);
       return null;
     }
     final file = File(record.path);
@@ -123,7 +143,11 @@ class AvatarCache {
     await source.copy(targetPath);
     await _writeUserRecord(
       userId,
-      _AvatarCacheRecord(key: objectKey, path: targetPath),
+      _AvatarCacheRecord(
+        key: objectKey,
+        path: targetPath,
+        cachedAt: DateTime.now(),
+      ),
     );
     return targetPath;
   }
@@ -148,7 +172,11 @@ class AvatarCache {
     await source.copy(targetPath);
     await _writeRoomRecord(
       roomId,
-      _AvatarCacheRecord(key: objectKey, path: targetPath),
+      _AvatarCacheRecord(
+        key: objectKey,
+        path: targetPath,
+        cachedAt: DateTime.now(),
+      ),
     );
     return targetPath;
   }
@@ -166,8 +194,13 @@ class AvatarCache {
       if (data is Map<String, dynamic>) {
         final key = data['key'] as String?;
         final path = data['path'] as String?;
+        final cachedAtStr = data['cachedAt'] as String?;
         if (key != null && path != null) {
-          return _AvatarCacheRecord(key: key, path: path);
+          // 向后兼容：如果没有 cachedAt，使用当前时间（视为刚缓存）
+          final cachedAt = cachedAtStr != null
+              ? DateTime.tryParse(cachedAtStr) ?? DateTime.now()
+              : DateTime.now();
+          return _AvatarCacheRecord(key: key, path: path, cachedAt: cachedAt);
         }
       }
     } catch (_) {}
@@ -185,8 +218,13 @@ class AvatarCache {
       if (data is Map<String, dynamic>) {
         final key = data['key'] as String?;
         final path = data['path'] as String?;
+        final cachedAtStr = data['cachedAt'] as String?;
         if (key != null && path != null) {
-          return _AvatarCacheRecord(key: key, path: path);
+          // 向后兼容：如果没有 cachedAt，使用当前时间（视为刚缓存）
+          final cachedAt = cachedAtStr != null
+              ? DateTime.tryParse(cachedAtStr) ?? DateTime.now()
+              : DateTime.now();
+          return _AvatarCacheRecord(key: key, path: path, cachedAt: cachedAt);
         }
       }
     } catch (_) {}
@@ -203,7 +241,11 @@ class AvatarCache {
       await prefs.remove(storageKey);
       return;
     }
-    final raw = jsonEncode({'key': record.key, 'path': record.path});
+    final raw = jsonEncode({
+      'key': record.key,
+      'path': record.path,
+      'cachedAt': record.cachedAt.toIso8601String(),
+    });
     await prefs.setString(storageKey, raw);
   }
 
@@ -217,7 +259,11 @@ class AvatarCache {
       await prefs.remove(storageKey);
       return;
     }
-    final raw = jsonEncode({'key': record.key, 'path': record.path});
+    final raw = jsonEncode({
+      'key': record.key,
+      'path': record.path,
+      'cachedAt': record.cachedAt.toIso8601String(),
+    });
     await prefs.setString(storageKey, raw);
   }
 
@@ -256,8 +302,18 @@ class AvatarCache {
 }
 
 class _AvatarCacheRecord {
-  const _AvatarCacheRecord({required this.key, required this.path});
+  const _AvatarCacheRecord({
+    required this.key,
+    required this.path,
+    required this.cachedAt,
+  });
 
   final String key;
   final String path;
+  final DateTime cachedAt;
+
+  /// 检查缓存是否过期
+  bool isExpired(Duration ttl) {
+    return DateTime.now().difference(cachedAt) > ttl;
+  }
 }

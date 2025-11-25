@@ -105,7 +105,7 @@ class ContactsPageState extends State<ContactsPage> {
               (friend.user.localAvatarPath == null ||
                   friend.user.localAvatarPath!.isEmpty)) {
             try {
-              final cachedPath = await AvatarCache.instance.resolveLocalPath(
+              final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
                 userId: friend.user.id,
                 objectKey: friend.user.avatarObjectKey!,
               );
@@ -180,7 +180,7 @@ class ContactsPageState extends State<ContactsPage> {
               (friend.user.localAvatarPath == null ||
                   friend.user.localAvatarPath!.isEmpty)) {
             try {
-              final cachedPath = await AvatarCache.instance.resolveLocalPath(
+              final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
                 userId: friend.user.id,
                 objectKey: friend.user.avatarObjectKey!,
               );
@@ -748,7 +748,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
       Future.microtask(() async {
         if (!mounted) return;
         try {
-          final cachedPath = await AvatarCache.instance.resolveLocalPath(
+          final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
             userId: widget.entry.id,
             objectKey: widget.entry.avatarObjectKey!,
           );
@@ -797,7 +797,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
 
     // 先快速检查缓存，如果找到了就不显示加载指示器
     try {
-      final cachedPath = await AvatarCache.instance.resolveLocalPath(
+      final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
         userId: widget.entry.id,
         objectKey: widget.entry.avatarObjectKey!,
       );

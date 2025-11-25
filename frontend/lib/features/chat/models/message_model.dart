@@ -90,6 +90,7 @@ class QuotedMessage {
     required this.senderUsername,
     required this.senderName,
     this.senderAvatar,
+    this.senderAvatarObjectKey,
     this.content,
     required this.type,
     this.createdAt,
@@ -102,6 +103,7 @@ class QuotedMessage {
   final String senderUsername;
   final String senderName;
   final String? senderAvatar;
+  final String? senderAvatarObjectKey;
   final String? content;
   final MessageType type;
   final DateTime? createdAt;
@@ -115,6 +117,7 @@ class QuotedMessage {
       senderUsername: json['senderUsername'] as String? ?? '',
       senderName: json['senderName'] as String? ?? '',
       senderAvatar: json['senderAvatar'] as String?,
+      senderAvatarObjectKey: json['senderAvatarObjectKey'] as String?,
       content: json['content'] as String?,
       type: Message._parseMessageType(json['type'] as String?),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
@@ -130,6 +133,7 @@ class QuotedMessage {
       senderUsername: message.senderUsername,
       senderName: message.displaySenderName,
       senderAvatar: message.senderAvatar,
+      senderAvatarObjectKey: message.senderAvatarObjectKey,
       content: message.type == MessageType.text ? message.content : null,
       type: message.type,
       createdAt: message.timestamp,
@@ -145,6 +149,7 @@ class QuotedMessage {
       'senderUsername': senderUsername,
       'senderName': senderName,
       'senderAvatar': senderAvatar,
+      'senderAvatarObjectKey': senderAvatarObjectKey,
       'content': content,
       'type': type.name,
       'createdAt': createdAt?.toIso8601String(),
@@ -394,6 +399,7 @@ class Message {
   final String senderUsername;
   final String senderName;
   final String? senderAvatar;
+  final String? senderAvatarObjectKey;
   final String content;
   final MessageType type;
   final MessageStatus status;
@@ -413,6 +419,7 @@ class Message {
     required this.senderUsername,
     required this.senderName,
     this.senderAvatar,
+    this.senderAvatarObjectKey,
     required this.content,
     required this.type,
     required this.status,
@@ -433,7 +440,8 @@ class Message {
     String? senderId,
     String? senderUsername,
     String? senderName,
-    String? senderAvatar,
+    Object? senderAvatar = _unset,
+    Object? senderAvatarObjectKey = _unset,
     String? content,
     MessageType? type,
     MessageStatus? status,
@@ -452,7 +460,12 @@ class Message {
       senderId: senderId ?? this.senderId,
       senderUsername: senderUsername ?? this.senderUsername,
       senderName: senderName ?? this.senderName,
-      senderAvatar: senderAvatar ?? this.senderAvatar,
+      senderAvatar: identical(senderAvatar, _unset)
+          ? this.senderAvatar
+          : senderAvatar as String?,
+      senderAvatarObjectKey: identical(senderAvatarObjectKey, _unset)
+          ? this.senderAvatarObjectKey
+          : senderAvatarObjectKey as String?,
       content: content ?? this.content,
       type: type ?? this.type,
       status: status ?? this.status,
@@ -549,6 +562,7 @@ class Message {
       'senderUsername': senderUsername,
       'senderName': senderName,
       'senderAvatar': senderAvatar,
+      'senderAvatarObjectKey': senderAvatarObjectKey,
       'content': content,
       'type': type.name,
       'status': status.name,
@@ -600,6 +614,7 @@ class Message {
       senderUsername: json['senderUsername'] as String? ?? '',
       senderName: json['senderName'] as String? ?? '',
       senderAvatar: json['senderAvatar'] as String?,
+      senderAvatarObjectKey: json['senderAvatarObjectKey'] as String?,
       content: json['content'] as String? ?? '',
       type: _parseMessageType(typeString),
       status: _parseMessageStatus(statusString),

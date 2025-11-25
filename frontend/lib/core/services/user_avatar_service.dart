@@ -14,6 +14,12 @@ class UserAvatarService {
 
   final TokenStorage _tokenStorage;
 
+  /// 最大重试次数
+  static const int _maxRetries = 3;
+
+  /// 重试延迟基数（毫秒）
+  static const int _retryDelayMs = 500;
+
   Future<Map<String, String>> _authHeaders() async {
     final session = await _tokenStorage.readSession();
     if (session == null) {
@@ -60,16 +66,25 @@ class UserAvatarService {
 
   /// 查找用户的本地缓存头像路径
   /// 只查找缓存，不进行网络请求
+  /// 如果提供了 objectKey，会验证缓存的 objectKey 是否匹配
   Future<String?> resolveAvatarLocalPath({
     required String userId,
+    String? objectKey,
   }) async {
-    // 尝试从缓存中获取任何已存在的头像
-    final cachedPath = await AvatarCache.instance.resolveAnyLocalPath(userId);
-    return cachedPath;
+    if (objectKey != null && objectKey.isNotEmpty) {
+      // 有 objectKey 时，验证缓存是否匹配
+      return await AvatarCache.instance.resolveUserLocalPath(
+        userId: userId,
+        objectKey: objectKey,
+      );
+    }
+    // 没有 objectKey 时，返回任何已缓存的头像
+    return await AvatarCache.instance.resolveAnyLocalPath(userId);
   }
 
   /// 加载并缓存用户头像
   /// 返回本地缓存路径，如果加载失败返回null
+  /// 支持自动重试机制
   Future<String?> loadAndCacheAvatar({
     required String userId,
     required String? avatarObjectKey,
@@ -95,9 +110,26 @@ class UserAvatarService {
       return null;
     }
 
+    // 使用重试机制下载头像
+    return await _downloadWithRetry(
+      downloadUrl: downloadUrl,
+      userId: userId,
+      avatarObjectKey: avatarObjectKey,
+    );
+  }
+
+  /// 带重试机制的下载方法
+  Future<String?> _downloadWithRetry({
+    required String downloadUrl,
+    required String userId,
+    required String avatarObjectKey,
+    int attempt = 0,
+  }) async {
     try {
       // 下载头像
-      final response = await http.get(Uri.parse(downloadUrl));
+      final response = await http
+          .get(Uri.parse(downloadUrl))
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         // 保存到临时文件
@@ -120,10 +152,42 @@ class UserAvatarService {
 
         return cachedPath;
       }
-    } catch (e, stackTrace) {
-      // 下载失败，返回null
+
+      // 非 200 响应，根据状态码决定是否重试
+      if (_shouldRetry(response.statusCode) && attempt < _maxRetries - 1) {
+        await _delay(attempt);
+        return await _downloadWithRetry(
+          downloadUrl: downloadUrl,
+          userId: userId,
+          avatarObjectKey: avatarObjectKey,
+          attempt: attempt + 1,
+        );
+      }
+    } catch (e) {
+      // 网络错误或超时，尝试重试
+      if (attempt < _maxRetries - 1) {
+        await _delay(attempt);
+        return await _downloadWithRetry(
+          downloadUrl: downloadUrl,
+          userId: userId,
+          avatarObjectKey: avatarObjectKey,
+          attempt: attempt + 1,
+        );
+      }
     }
 
     return null;
+  }
+
+  /// 判断是否应该重试
+  bool _shouldRetry(int statusCode) {
+    // 5xx 服务器错误或 429 限流时重试
+    return statusCode >= 500 || statusCode == 429;
+  }
+
+  /// 指数退避延迟
+  Future<void> _delay(int attempt) async {
+    final delayMs = _retryDelayMs * (1 << attempt); // 500, 1000, 2000...
+    await Future.delayed(Duration(milliseconds: delayMs));
   }
 }

@@ -64,62 +64,53 @@ class _MessageAvatarState extends State<MessageAvatar> {
       });
 
       try {
-        // 尝试直接根据用户ID查找缓存的头像
-        // 先检查是否有缓存
-        final cachedPath = await _userAvatarService.resolveAvatarLocalPath(
-          userId: widget.message.senderId,
-        );
+        // 优先使用 message 中的 objectKey
+        final objectKey = widget.message.senderAvatarObjectKey;
 
-        if (cachedPath != null) {
-          // 如果有缓存，直接使用
+        if (objectKey != null && objectKey.isNotEmpty) {
+          // 先检查缓存（使用 objectKey 验证）
+          final cachedPath = await _userAvatarService.resolveAvatarLocalPath(
+            userId: widget.message.senderId,
+            objectKey: objectKey,
+          );
+
+          if (cachedPath != null) {
+            if (mounted) {
+              setState(() {
+                _localAvatarPath = cachedPath;
+                _isLoading = false;
+              });
+            }
+            return;
+          }
+
+          // 缓存未命中或已失效，下载新头像
+          final downloadedPath = await _userAvatarService.loadAndCacheAvatar(
+            userId: widget.message.senderId,
+            avatarObjectKey: objectKey,
+          );
+
           if (mounted) {
             setState(() {
-              _localAvatarPath = cachedPath;
+              _localAvatarPath = downloadedPath;
               _isLoading = false;
             });
           }
         } else {
-          // 如果没有缓存，尝试从URL中提取object key
-          // URL格式可能是: https://xxx/avatar/object-key 或 https://xxx/users/xxx/avatar
-          final uri = Uri.parse(avatarUrl);
-          final pathSegments = uri.pathSegments;
-          String? objectKey;
+          // 没有 objectKey，尝试仅根据 userId 查找缓存
+          final cachedPath = await _userAvatarService.resolveAvatarLocalPath(
+            userId: widget.message.senderId,
+          );
 
-          // 尝试从URL路径中提取object key
-          // 通常是最后一个路径段，或者倒数第二个（如果最后是 'avatar'）
-          if (pathSegments.isNotEmpty) {
-            if (pathSegments.last == 'avatar' && pathSegments.length > 1) {
-              objectKey = pathSegments[pathSegments.length - 2];
-            } else {
-              objectKey = pathSegments.last;
-            }
-
-            // 移除可能的查询参数
-            if (objectKey != null && objectKey.contains('?')) {
-              objectKey = objectKey.split('?').first;
-            }
-          }
-
-          if (objectKey != null && objectKey.isNotEmpty) {
-            // 尝试从缓存加载
-            final downloadedPath = await _userAvatarService.loadAndCacheAvatar(
-              userId: widget.message.senderId,
-              avatarObjectKey: objectKey,
-            );
-
-            if (mounted) {
-              setState(() {
-                _localAvatarPath = downloadedPath;
-                _isLoading = false;
-              });
-            }
-          } else {
-            // 无法提取objectKey，静默失败，使用网络URL
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-              });
-            }
+          if (cachedPath != null && mounted) {
+            setState(() {
+              _localAvatarPath = cachedPath;
+              _isLoading = false;
+            });
+          } else if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
           }
         }
       } catch (e) {
