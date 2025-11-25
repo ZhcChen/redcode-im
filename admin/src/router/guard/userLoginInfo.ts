@@ -9,22 +9,19 @@ export default function setupUserLoginInfoGuard(router: Router) {
     NProgress.start();
     const userStore = useUserStore();
     if (isLogin()) {
-      if (userStore.role) {
+      try {
+        // 总是获取最新的用户信息，确保头像等数据是最新的
+        await userStore.info();
         next();
-      } else {
-        try {
-          await userStore.info();
-          next();
-        } catch (error) {
-          await userStore.logout();
-          next({
-            name: 'login',
-            query: {
-              redirect: to.name,
-              ...to.query,
-            } as LocationQueryRaw,
-          });
-        }
+      } catch (error) {
+        await userStore.logout();
+        next({
+          name: 'login',
+          query: {
+            redirect: to.name,
+            ...to.query,
+          } as LocationQueryRaw,
+        });
       }
     } else {
       if (to.name === 'login') {
