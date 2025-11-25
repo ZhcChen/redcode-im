@@ -168,7 +168,7 @@
   import useLocale from '@/hooks/locale';
   import useUser from '@/hooks/user';
   import Menu from '@/components/menu/index.vue';
-  import { getDefaultStorageProvider } from '@/api/settings';
+  import { getDefaultStorageProvider, getCosDownloadUrl } from '@/api/settings';
   import MessageBox from '../message-box/index.vue';
 
   const appStore = useAppStore();
@@ -200,21 +200,11 @@
         const providerResponse = await getDefaultStorageProvider();
         const provider = providerResponse.data;
         if (provider) {
-          const downloadUrlResponse = await fetch(
-            `/api/admin/storage-providers/test/download-url`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                provider_id: provider.id,
-                key: avatar,
-              }),
-            }
-          );
-          const downloadUrlData = await downloadUrlResponse.json();
-          displayAvatarUrl.value = downloadUrlData.url || '';
+          const downloadUrlResponse = await getCosDownloadUrl({
+            provider_id: provider.id,
+            key: avatar,
+          });
+          displayAvatarUrl.value = downloadUrlResponse.data.url || '';
         }
       } catch (e) {
         console.error('获取头像下载URL失败:', e);

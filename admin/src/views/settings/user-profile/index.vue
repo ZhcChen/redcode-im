@@ -152,6 +152,7 @@
   import {
     testCosUploadSignature,
     getDefaultStorageProvider,
+    getCosDownloadUrl,
   } from '@/api/settings';
 
   const userStore = useUserStore();
@@ -244,21 +245,11 @@
             const providerResponse = await getDefaultStorageProvider();
             const provider = providerResponse.data;
             if (provider) {
-              const downloadUrlResponse = await fetch(
-                `/api/admin/storage-providers/test/download-url`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    provider_id: provider.id,
-                    key: userInfo.avatar_url,
-                  }),
-                }
-              );
-              const downloadUrlData = await downloadUrlResponse.json();
-              const avatarUrl = downloadUrlData.url;
+              const downloadUrlResponse = await getCosDownloadUrl({
+                provider_id: provider.id,
+                key: userInfo.avatar_url,
+              });
+              const avatarUrl = downloadUrlResponse.data.url;
               avatarPreview.value = avatarUrl;
               userStore.setInfo({ avatar: avatarUrl });
               console.log('设置头像预览（从key转换）:', avatarUrl);
@@ -352,21 +343,11 @@
       }
 
       // 5. 获取临时下载URL（用于前端渲染）
-      const downloadUrlResponse = await fetch(
-        `/api/admin/storage-providers/test/download-url`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            provider_id: provider.id,
-            key: signature.key,
-          }),
-        }
-      );
-      const downloadUrlData = await downloadUrlResponse.json();
-      const avatarUrl = downloadUrlData.url;
+      const downloadUrlResponse = await getCosDownloadUrl({
+        provider_id: provider.id,
+        key: signature.key,
+      });
+      const avatarUrl = downloadUrlResponse.data.url;
       console.log('获取临时下载URL:', avatarUrl);
 
       // 6. 保存 key 到数据库（不是 URL）

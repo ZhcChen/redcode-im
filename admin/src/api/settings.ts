@@ -327,3 +327,24 @@ export function getAppName() {
 export function updateAppName(payload: UpdateAppNamePayload) {
   return axios.put<AppNameResponse>('/api/admin/settings/app-name', payload);
 }
+
+// ========== COS 存储相关 API ==========
+
+export interface GetCosDownloadUrlRequest {
+  provider_id: string;
+  key: string;
+  expires_in_seconds?: number;
+}
+
+export interface GetCosDownloadUrlResponse {
+  success: boolean;
+  url: string | null;
+  message: string;
+}
+
+export function getCosDownloadUrl(payload: GetCosDownloadUrlRequest) {
+  return axios.post<GetCosDownloadUrlResponse>(
+    '/api/admin/storage-providers/test/download-url',
+    payload
+  );
+}
