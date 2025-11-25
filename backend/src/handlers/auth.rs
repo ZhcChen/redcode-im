@@ -14,6 +14,7 @@ use crate::storage;
 use crate::AppState;
 use axum::{
     extract::{Extension, State},
+    http::HeaderMap,
     response::Json,
 };
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
@@ -456,6 +457,7 @@ pub async fn get_current_user(
 /// 管理员登录
 pub async fn admin_login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AppError> {
     // 基础验证
@@ -493,8 +495,25 @@ pub async fn admin_login(
     }
 
     // 记录登录历史
-    let client_ip = None; // TODO: 从请求中获取客户端IP
-    let user_agent = None; // TODO: 从请求中获取User-Agent
+    // 从 X-Forwarded-For 或 X-Real-IP header 中获取客户端 IP（处理代理场景）
+    let client_ip: Option<std::net::IpAddr> = headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim())
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.trim().parse().ok())
+        });
+
+    // 从 User-Agent header 中获取用户代理信息
+    let user_agent: Option<String> = headers
+        .get("User-Agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
 
     if let Err(e) = store
         .record_login_history(
