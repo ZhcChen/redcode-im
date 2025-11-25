@@ -224,7 +224,7 @@ pub async fn commit_avatar_upload(
             avatar_object_key: Some(key.to_string()),
         };
 
-        for friendship in friendships {
+        for friendship in &friendships {
             let friend_id = friendship.friend_user_id.to_string();
             state
                 .connection_manager
