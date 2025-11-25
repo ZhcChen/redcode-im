@@ -6011,13 +6011,13 @@ const updateGroupAvatar = async (file: File) => {
   if (!selectedChat.value) return
 
   try {
+    // 显示加载状态
+    store.dispatch('showGlobalLoading', '正在上传群头像...')
 
     // 使用 GroupApi.uploadGroupAvatar 上传到 COS
     const uploadResult = await GroupApi.uploadGroupAvatar(selectedChat.value.groupId, file)
 
     if (uploadResult.success && uploadResult.data) {
-      toast.success('群头像修改成功')
-
       // 获取临时下载URL用于显示
       const downloadUrlResult = await GroupApi.getRoomAvatarDownloadUrl({
         roomId: selectedChat.value.groupId,
@@ -6029,16 +6029,20 @@ const updateGroupAvatar = async (file: File) => {
 
         // 更新本地数据
         if (selectedChat.value) {
-          // 1. 更新当前选中的聊天项
+          // 1. 更新当前选中的聊天项（同时更新 avatar 和 avatarLocalPath）
           selectedChat.value.avatar = downloadUrl
+          selectedChat.value.avatarLocalPath = downloadUrl
 
-          // 2. 同步更新store中的聊天列表
-          const updatedChat = { ...selectedChat.value, avatar: downloadUrl }
+          // 2. 同步更新store中的聊天列表（包括 avatarLocalPath 以同步聊天列表和聊天头部显示）
+          const updatedChat = { ...selectedChat.value, avatar: downloadUrl, avatarLocalPath: downloadUrl }
           store.dispatch('updateChatItem', updatedChat)
 
           // 3. 发送群头像修改的系统消息（使用downloadUrl）
           await sendGroupAvatarUpdateSystemMessage(selectedChat.value.groupId, downloadUrl)
         }
+
+        // 所有操作完成后显示成功提示
+        toast.success('群头像修改成功')
       } else {
         throw new Error(downloadUrlResult.message || '获取群头像临时下载URL失败')
       }
@@ -6049,6 +6053,9 @@ const updateGroupAvatar = async (file: File) => {
     // 优先使用 API 返回的错误消息
     const errorMessage = error?.response?.message || error?.message || '网络错误';
     toast.error('群头像修改失败: ' + errorMessage)
+  } finally {
+    // 隐藏加载状态
+    store.dispatch('hideGlobalLoading')
   }
 }
 
