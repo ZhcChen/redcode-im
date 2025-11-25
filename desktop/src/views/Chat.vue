@@ -9091,11 +9091,28 @@ const loadMessageList = async (groupId: string) => {
 .group-name-content {
   padding: 16px 8px;
 
-  :deep(.dialog-input) {
+  /* 单行输入样式 */
+  :deep(input.dialog-input) {
     width: 100%;
+    height: 44px;
     border-radius: 22px;
     padding: 0 20px;
     font-size: 14px;
+
+    &::placeholder {
+      font-size: 14px;
+    }
+  }
+
+  /* 多行输入样式 */
+  :deep(textarea.dialog-input--textarea) {
+    width: 100%;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 88px;
+    resize: vertical;
 
     &::placeholder {
       font-size: 14px;

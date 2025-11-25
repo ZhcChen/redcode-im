@@ -106,7 +106,7 @@ const handleFocus = (event: Event) => {
 }
 
 .dialog-input--textarea {
-  min-height: 96px;
+  min-height: 88px;
   padding: 12px 16px;
   border-radius: 12px;
   line-height: 1.5;
