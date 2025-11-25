@@ -90,8 +90,8 @@
           </a-form>
         </a-card>
 
-        <!-- 修改密码 -->
-        <a-card title="修改密码" size="small">
+        <!-- 重置密码 -->
+        <a-card title="重置密码" size="small">
           <a-form
             ref="passwordFormRef"
             :model="passwordForm"
@@ -99,14 +99,6 @@
             layout="vertical"
             @submit="handleChangePassword"
           >
-            <a-form-item label="当前密码" field="current_password">
-              <a-input-password
-                v-model="passwordForm.current_password"
-                placeholder="请输入当前密码"
-                allow-clear
-              />
-            </a-form-item>
-
             <a-form-item label="新密码" field="new_password">
               <a-input-password
                 v-model="passwordForm.new_password"
@@ -134,7 +126,7 @@
                 html-type="submit"
                 :loading="passwordLoading"
               >
-                修改密码
+                重置密码
               </a-button>
             </a-form-item>
           </a-form>
@@ -175,7 +167,6 @@
   });
 
   const passwordForm = reactive({
-    current_password: '',
     new_password: '',
     confirm_password: '',
   });
@@ -194,12 +185,6 @@
   };
 
   const passwordRules = {
-    current_password: [
-      {
-        required: true,
-        message: '请输入当前密码',
-      },
-    ],
     new_password: [
       {
         required: true,
@@ -362,15 +347,13 @@
       passwordLoading.value = true;
 
       const payload: ChangePasswordRequest = {
-        current_password: passwordForm.current_password,
         new_password: passwordForm.new_password,
       };
 
       const response = await changeCurrentUserPassword(payload);
       if (response.data) {
-        Message.success('密码修改成功');
+        Message.success('密码重置成功');
         // 清空表单
-        passwordForm.current_password = '';
         passwordForm.new_password = '';
         passwordForm.confirm_password = '';
         passwordFormRef.value?.clearValidate();
@@ -380,7 +363,7 @@
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '密码修改失败';
+        '密码重置失败';
       Message.error(errorMsg);
     } finally {
       passwordLoading.value = false;

@@ -640,10 +640,9 @@ pub async fn update_current_admin_user(
     }))
 }
 
-/// 修改当前管理员用户密码
+/// 重置当前管理员用户密码
 #[derive(Debug, Deserialize)]
 pub struct ChangeAdminPasswordRequest {
-    pub current_password: String,
     pub new_password: String,
 }
 
@@ -662,20 +661,6 @@ pub async fn change_current_admin_password(
         .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
 
     let store = admin::AdminUserStore::new(state.database.clone());
-
-    // 查找当前用户
-    let db_admin_user = store
-        .find_by_id(&admin_user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
-
-    // 验证当前密码
-    let is_valid = bcrypt::verify(&payload.current_password, &db_admin_user.password_hash)
-        .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
-
-    if !is_valid {
-        return Err(AppError::InvalidCredentials);
-    }
 
     // 验证新密码强度
     if payload.new_password.len() < 8 {
@@ -705,7 +690,7 @@ pub async fn change_current_admin_password(
 
     Ok(Json(ChangeAdminPasswordResponse {
         success: true,
-        message: "密码修改成功".to_string(),
+        message: "密码重置成功".to_string(),
     }))
 }
 
