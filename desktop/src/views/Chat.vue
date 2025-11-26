@@ -203,7 +203,7 @@
                 </template>
 
                 <!-- 音频消息 -->
-                <template v-else-if="hasAudioPart(message)">
+                <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
                   <VoiceMessage
                     :voice-url="getCachedAudioUrl(message)"
                     :duration="getAudioDuration(message)"
@@ -367,6 +367,15 @@
               <!-- 文本消息 -->
               <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
                 {{ getTextContent(message) }}
+              </template>
+
+              <!-- 音频消息 -->
+              <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
+                <VoiceMessage
+                  :voice-url="getCachedAudioUrl(message)"
+                  :duration="getAudioDuration(message)"
+                  :is-mine="message.isSelf"
+                />
               </template>
 
               <!-- 图片消息 -->
