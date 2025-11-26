@@ -19,12 +19,13 @@
       </svg>
     </div>
 
-    <!-- 波形动画 -->
+    <!-- 波形进度条 -->
     <div class="waveform">
       <div
         v-for="(height, index) in waveHeights"
         :key="index"
         class="wave-bar"
+        :class="{ played: isBarPlayed(index) }"
         :style="{ height: getBarHeight(height) + 'px' }"
       ></div>
     </div>
@@ -140,9 +141,11 @@ const isRecording = ref(false)
 const recordingStartTime = ref(0)
 const recordingDuration = ref(0)
 const previewRecording = ref<VoiceRecording | null>(null)
+const playProgress = ref(0) // 播放进度 0.0 - 1.0
 
-// 波形基础高度 [0.4, 0.7, 0.5, 0.8, 0.6, 0.4]
-const baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.4]
+// 波形基础高度（12条波形）
+const baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5]
+const barCount = baseHeights.length
 
 // 实例
 const voicePlayer = new VoicePlayer()
@@ -153,11 +156,17 @@ let recordingTimer: number | null = null
 voicePlayer.onEnded(() => {
   console.log('[VoiceMessage] 播放结束回调触发')
   isPlaying.value = false
+  playProgress.value = 0
   if (animationFrame.value) {
     cancelAnimationFrame(animationFrame.value)
     animationFrame.value = null
   }
   waveAnimationValue.value = 0.5
+})
+
+// 设置播放进度回调
+voicePlayer.onProgress((progress: number) => {
+  playProgress.value = progress
 })
 
 // 计算属性
@@ -188,6 +197,12 @@ const getBarHeight = (baseHeight: number): number => {
     return maxHeight * baseHeight * (0.5 + waveAnimationValue.value * 0.5)
   }
   return maxHeight * baseHeight * 0.5
+}
+
+// 判断某个波形条是否已播放
+const isBarPlayed = (index: number): boolean => {
+  const barProgress = (index + 1) / barCount
+  return barProgress <= playProgress.value
 }
 
 // 波形动画
@@ -367,7 +382,11 @@ $danger-color: #F6695E;
     }
 
     .waveform .wave-bar {
-      background: rgba(255, 255, 255, 0.6);
+      background: rgba(255, 255, 255, 0.3);
+
+      &.played {
+        background: #fff;
+      }
     }
 
     .duration {
@@ -417,14 +436,18 @@ $danger-color: #F6695E;
   align-items: center;
   justify-content: space-evenly;
   height: 20px;
-  gap: 3px;
+  gap: 2px;
 }
 
 .wave-bar {
-  width: 3px;
-  background: rgba(44, 45, 58, 0.4);
-  border-radius: 1.5px;
-  transition: height 0.1s ease;
+  width: 2px;
+  background: rgba(44, 45, 58, 0.3);
+  border-radius: 1px;
+  transition: height 0.1s ease, background 0.1s ease;
+
+  &.played {
+    background: $primary-color;
+  }
 }
 
 .duration {

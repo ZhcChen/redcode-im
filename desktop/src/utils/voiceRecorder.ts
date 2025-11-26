@@ -152,12 +152,47 @@ export class VoicePlayer {
   private audio: HTMLAudioElement | null = null;
   private currentUrl: string | null = null;
   private onEndedCallback: (() => void) | null = null;
+  private onProgressCallback: ((progress: number) => void) | null = null;
+  private progressInterval: number | null = null;
 
   /**
    * 设置播放结束回调
    */
   public onEnded(callback: () => void): void {
     this.onEndedCallback = callback;
+  }
+
+  /**
+   * 设置播放进度回调
+   * @param callback 回调函数，参数为进度值 0.0 - 1.0
+   */
+  public onProgress(callback: (progress: number) => void): void {
+    this.onProgressCallback = callback;
+  }
+
+  /**
+   * 启动进度监听
+   */
+  private startProgressTracking(): void {
+    this.stopProgressTracking();
+    this.progressInterval = window.setInterval(() => {
+      if (this.audio && this.audio.duration > 0) {
+        const progress = this.audio.currentTime / this.audio.duration;
+        if (this.onProgressCallback) {
+          this.onProgressCallback(Math.min(1, Math.max(0, progress)));
+        }
+      }
+    }, 50); // 50ms 更新一次，足够流畅
+  }
+
+  /**
+   * 停止进度监听
+   */
+  private stopProgressTracking(): void {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
   }
 
   /**
@@ -234,10 +269,15 @@ export class VoicePlayer {
 
       this.audio.onplay = () => {
         console.log('[VoicePlayer] 开始播放');
+        this.startProgressTracking();
       };
 
       this.audio.onended = () => {
         console.log('[VoicePlayer] 播放结束');
+        this.stopProgressTracking();
+        if (this.onProgressCallback) {
+          this.onProgressCallback(0); // 重置进度
+        }
         if (this.onEndedCallback) {
           this.onEndedCallback();
         }
@@ -246,10 +286,14 @@ export class VoicePlayer {
 
       this.audio.onerror = (error) => {
         console.error('[VoicePlayer] 播放错误:', error);
+        this.stopProgressTracking();
         reject(new Error('语音播放失败'));
       };
 
-      this.audio.play().catch(reject);
+      this.audio.play().catch((err) => {
+        this.stopProgressTracking();
+        reject(err);
+      });
     });
   }
 
@@ -257,9 +301,13 @@ export class VoicePlayer {
    * 停止播放
    */
   public stop(): void {
+    this.stopProgressTracking();
     if (this.audio && !this.audio.paused) {
       this.audio.pause();
       this.audio.currentTime = 0;
+    }
+    if (this.onProgressCallback) {
+      this.onProgressCallback(0);
     }
   }
 
@@ -267,6 +315,7 @@ export class VoicePlayer {
    * 暂停播放
    */
   public pause(): void {
+    this.stopProgressTracking();
     if (this.audio && !this.audio.paused) {
       this.audio.pause();
     }
@@ -277,6 +326,8 @@ export class VoicePlayer {
    */
   public resume(): void {
     if (this.audio && this.audio.paused) {
+      this.audio.play();
+      this.startProgressTracking();
     }
   }
 
@@ -335,8 +386,11 @@ export class VoicePlayer {
    * 销毁播放器
    */
   public destroy(): void {
+    this.stopProgressTracking();
     this.stop();
     this.cleanup();
+    this.onEndedCallback = null;
+    this.onProgressCallback = null;
   }
 }
 
