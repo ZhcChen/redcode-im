@@ -66,11 +66,11 @@
           </div>
           <ScrollContainer v-else class="selected-members" size="thin">
             <div
-              v-for="member in selectedMembers"
-              :key="member.id"
-              class="member-chip"
-            >
-              <Avatar :src="member.avatar" :text="member.nickname" :size="32" />
+            v-for="member in selectedMembers"
+            :key="member.id"
+            class="member-chip"
+          >
+              <Avatar :src="member.avatar" :text="member.nickname" :color-seed="member.id" :size="32" />
               <span class="member-name">{{ member.nickname }}</span>
               <div class="remove-btn" @click="removeMember(member.id)">×</div>
             </div>

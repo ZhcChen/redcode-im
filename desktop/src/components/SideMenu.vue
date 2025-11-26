@@ -5,6 +5,7 @@
         :src="userAvatarLocalPath" 
         :text="userDisplayName"
         :alt="userDisplayName + '的头像'" 
+        :color-seed="userAvatarColorSeed"
         :size="48" 
       />
     </div>
@@ -126,6 +127,7 @@ let isLoggingOut = false // 添加标志位，标记是否正在退出登录
 
 // 获取当前用户信息
 const currentUser = computed(() => store.getters.currentUser)
+const userAvatarColorSeed = computed(() => currentUser.value?.id || '')
 
 // 用户显示名称（优先使用昵称，如果没有则使用用户名）
 const userDisplayName = computed(() => {

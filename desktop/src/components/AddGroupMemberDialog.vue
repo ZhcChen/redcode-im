@@ -26,7 +26,7 @@
             @click="toggleContact(contact)"
           >
             <div class="contact-info">
-              <Avatar :src="contact.avatar" :text="contact.nickname" :size="40" />
+              <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
               <div class="name">{{ contact.nickname }}</div>
             </div>
             <BRadio :model-value="isSelected(contact.id)" />
@@ -50,7 +50,7 @@
             class="selected-member"
             @click="removeContact(contact.id)"
           >
-            <Avatar :src="contact.avatar" :text="contact.nickname" :size="40" />
+            <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
             <div class="member-name">{{ contact.nickname }}</div>
             <div class="remove-btn">×</div>
           </div>

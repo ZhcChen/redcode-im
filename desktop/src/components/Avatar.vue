@@ -56,6 +56,8 @@ interface Props {
   textColor?: string
   /** 默认头像图片地址，当没有src和text时显示 */
   defaultSrc?: string
+  /** 背景色计算用的种子，默认使用 text */
+  colorSeed?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -116,6 +118,8 @@ const generateBackgroundColor = (text: string): string => {
   return colors[hash % colors.length]
 }
 
+const seedText = computed(() => props.colorSeed || props.text || '')
+
 // 计算背景颜色
 const computedBackgroundColor = computed(() => {
   // 如果指定了背景色，使用指定的
@@ -124,8 +128,8 @@ const computedBackgroundColor = computed(() => {
   }
   
   // 如果有文字，基于文字生成颜色
-  if (props.text) {
-    return generateBackgroundColor(props.text)
+  if (seedText.value) {
+    return generateBackgroundColor(seedText.value)
   }
   
   // 默认颜色

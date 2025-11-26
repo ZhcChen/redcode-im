@@ -8,6 +8,7 @@
           <Avatar 
             :src="userAvatarLocalPath" 
             :text="userDisplayName"
+            :color-seed="currentUser.id"
             :alt="userDisplayName + '的头像'" 
             :size="100" 
           />

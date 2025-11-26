@@ -50,6 +50,7 @@
               <Avatar
                 :src="member.avatarUrl || ''"
                 :text="member.nickname || member.username"
+                :color-seed="member.userId"
                 :size="48"
               />
               <!-- 群主标识 -->
@@ -84,7 +85,12 @@
           <div class="setting-item" @click="handleEditGroupAvatar">
             <div class="setting-label">群头像</div>
             <div class="setting-value">
-              <Avatar :src="groupInfo?.avatarLocalPath || groupInfo?.avatar" :text="groupInfo?.name" :size="32" />
+              <Avatar
+                :src="groupInfo?.avatarLocalPath || groupInfo?.avatar"
+                :text="groupInfo?.name"
+                :color-seed="groupInfo?.roomId || groupInfo?.id"
+                :size="32"
+              />
               <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
             </div>
           </div>

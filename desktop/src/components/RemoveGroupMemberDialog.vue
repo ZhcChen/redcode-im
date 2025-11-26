@@ -48,6 +48,7 @@
           <Avatar
             :src="member.avatarUrl || ''"
             :text="member.nickname || member.username"
+            :color-seed="member.userId"
             :size="40"
           />
           <div class="member-info">

@@ -73,7 +73,12 @@
               class="friend-request-item"
               @click="selectFriendRequest(request)"
             >
-              <Avatar :src="request.avatar" :text="request.name" :size="48" />
+              <Avatar
+                :src="request.avatar"
+                :text="request.name"
+                :color-seed="request.fromUserId || request.id"
+                :size="48"
+              />
               <div class="request-info">
                 <div class="request-name-status">
                   <div class="request-name">{{ request.name }}</div>
@@ -138,7 +143,12 @@
                    :key="contact.id"
                    :class="{ 'selected': selectedContact && selectedContact.id === contact.id }"
                    @click="selectContact(contact)">
-                <Avatar :src="contact.avatar" :text="contact.name" :size="48" />
+                <Avatar
+                  :src="contact.avatar"
+                  :text="contact.name"
+                  :color-seed="contact.id"
+                  :size="48"
+                />
                 <div class="contact-info">
                   <div class="contact-name-time">
                     <div class="contact-name">{{ contact.name }}</div>
@@ -162,7 +172,12 @@
           <div class="friend-profile-content">
             <!-- 头像 -->
             <div class="friend-avatar-section">
-              <Avatar :src="selectedFriendRequest.avatar" :text="selectedFriendRequest.name" :size="100" />
+              <Avatar
+                :src="selectedFriendRequest.avatar"
+                :text="selectedFriendRequest.name"
+                :color-seed="selectedFriendRequest.fromUserId || selectedFriendRequest.id"
+                :size="100"
+              />
             </div>
             
             <!-- 用户名 -->
@@ -212,7 +227,12 @@
           <div class="contact-profile-content">
             <!-- 头像 -->
             <div class="contact-avatar-section">
-              <Avatar :src="selectedContact.avatar" :text="selectedContact.name" :size="100" />
+              <Avatar
+                :src="selectedContact.avatar"
+                :text="selectedContact.name"
+                :color-seed="selectedContact.id"
+                :size="100"
+              />
             </div>
             
             <!-- 用户名 -->
@@ -275,6 +295,7 @@
               <Avatar 
                 :src="user.avatar" 
                 :text="user.realName || user.userName" 
+                :color-seed="user.id"
                 :size="40" 
               />
               <div class="user-info">
@@ -308,7 +329,12 @@
         </div>
         <div class="modal-body">
           <div class="profile-section">
-            <Avatar :src="selectedContact.avatar" :text="selectedContact.name" :size="80" />
+            <Avatar
+              :src="selectedContact.avatar"
+              :text="selectedContact.name"
+              :color-seed="selectedContact.id"
+              :size="80"
+            />
             <h4>{{ selectedContact.name }}</h4>
             <p class="contact-phone">{{ selectedContact.phone }}</p>
             <p class="contact-email">{{ selectedContact.email }}</p>

@@ -7,6 +7,7 @@
     :circle="circle"
     :background-color="backgroundColor"
     :text-color="textColor"
+    :color-seed="resolvedColorSeed"
   />
 </template>
 
@@ -31,6 +32,8 @@ interface Props {
   backgroundColor?: string
   /** 文字颜色 */
   textColor?: string
+  /** 背景色种子，默认使用 displayName */
+  colorSeed?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -38,6 +41,8 @@ const props = withDefaults(defineProps<Props>(), {
   circle: true,
   alt: '头像'
 })
+
+const resolvedColorSeed = computed(() => props.colorSeed || props.displayName || '')
 
 /**
  * 计算最终显示的头像 URL
@@ -60,4 +65,3 @@ const computedAvatarSrc = computed(() => {
   return undefined
 })
 </script>
-

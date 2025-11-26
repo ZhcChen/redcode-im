@@ -35,6 +35,7 @@
         <Avatar
           :src="selectedChat.avatarLocalPath"
           :text="selectedChat.name"
+          :color-seed="selectedChat.groupId || selectedChat.id || selectedChat.roomId"
           :size="42"
           :background-color="selectedChat.groupType === 2 ? 'var(--primary-color)' : undefined"
         />
@@ -88,6 +89,7 @@
             <Avatar
               :src="chat.avatarLocalPath"
               :text="chat.name"
+              :color-seed="chat.groupId || chat.id || chat.roomId"
               :size="48"
               :background-color="chat.groupType === 2 ? 'var(--primary-color)' : undefined"
             />
@@ -167,7 +169,13 @@
             >
               ✓
             </div>
-            <Avatar v-if="!message.isSelf" :src="message.senderAvatarLocalPath" :text="message.senderName" :size="40" />
+            <Avatar
+              v-if="!message.isSelf"
+              :src="message.senderAvatarLocalPath"
+              :text="message.senderName"
+              :color-seed="message.senderId"
+              :size="40"
+            />
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
               <div class="message-content">
@@ -180,6 +188,7 @@
                           || getSenderAvatarById(message.quotedMessage.senderId)
                           || undefined"
                         :text="getQuotedInitial(message.quotedMessage)"
+                        :color-seed="message.quotedMessage?.senderId || message.quotedMessage?.senderUsername || message.quotedMessage?.senderName"
                         :size="24"
                       />
                       <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
@@ -346,6 +355,7 @@
                         || getSenderAvatarById(message.quotedMessage.senderId)
                         || undefined"
                       :text="getQuotedInitial(message.quotedMessage)"
+                      :color-seed="message.quotedMessage?.senderId || message.quotedMessage?.senderUsername || message.quotedMessage?.senderName"
                       :size="24"
                     />
                     <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
@@ -745,12 +755,13 @@
           class="transfer-owner-item"
           :class="{ 'transfer-owner-item--selected': member.userId === selectedTransferOwnerId }"
           @click="selectedTransferOwnerId = member.userId"
-        >
-          <Avatar
-            :src="member.avatarUrl || ''"
-            :text="member.nickname || member.username"
-            :size="40"
-          />
+          >
+            <Avatar
+              :src="member.avatarUrl || ''"
+              :text="member.nickname || member.username"
+              :color-seed="member.userId"
+              :size="40"
+            />
           <div class="transfer-owner-item__info">
             <div class="transfer-owner-item__name">{{ member.nickname || member.username }}</div>
             <div class="transfer-owner-item__username">@{{ member.username }}</div>
