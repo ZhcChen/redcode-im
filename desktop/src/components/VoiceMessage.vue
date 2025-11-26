@@ -219,14 +219,25 @@ const togglePlay = async () => {
       }
     } else {
       isLoading.value = true
-      await voicePlayer.play(props.voiceUrl)
-      isPlaying.value = true
-      animateWave()
+      // 注意：play() 返回的 Promise 在播放结束时才 resolve
+      // 我们不需要 await 完整播放过程，只需要开始播放即可
+      voicePlayer.play(props.voiceUrl).catch((err: any) => {
+        console.error('播放失败:', err)
+        isPlaying.value = false
+        isLoading.value = false
+      })
+      // 短暂延迟后检查是否开始播放，然后更新状态
+      setTimeout(() => {
+        if (voicePlayer.isPlaying()) {
+          isLoading.value = false
+          isPlaying.value = true
+          animateWave()
+        }
+      }, 100)
     }
   } catch (err: any) {
     console.error('播放失败:', err)
     isPlaying.value = false
-  } finally {
     isLoading.value = false
   }
 }
