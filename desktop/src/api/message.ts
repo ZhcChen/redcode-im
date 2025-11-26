@@ -733,7 +733,7 @@ export class MessageApi {
   }
 
   static async getAttachmentDownloadUrl(params: {
-    groupId: string;
+    roomId: string;
     key: string;
     expiresInSeconds?: number;
   }): Promise<ApiResponse<AttachmentDownloadResult>> {
@@ -746,7 +746,7 @@ export class MessageApi {
     }
 
     const response = await get<Record<string, unknown>>(
-      `/rooms/${params.groupId}/messages/attachments/download`,
+      `/rooms/${params.roomId}/messages/attachments/download`,
       query,
     );
 
