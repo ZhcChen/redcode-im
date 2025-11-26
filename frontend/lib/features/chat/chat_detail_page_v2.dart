@@ -176,8 +176,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     if (widget.chatType == ChatType.group) {
       await _loadMemberCount();
-      // 加载禁言状态
-      _loadMuteStatus();
+      // 加载禁言状态（不使用 await，避免阻塞页面初始化）
+      unawaited(_loadMuteStatus());
     }
   }
 
