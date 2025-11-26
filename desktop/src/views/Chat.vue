@@ -7260,10 +7260,10 @@ const handleGroupSettingsUpdatedEvent = (event: CustomEvent) => {
   if (selectedChat.value && selectedChat.value.groupId === roomId && groupSettings.value) {
     groupSettings.value = {
       ...groupSettings.value,
-      global_mute_enabled: detail.global_mute_enabled ?? groupSettings.value.global_mute_enabled,
-      global_mute_reason: detail.global_mute_reason ?? null,
-      global_mute_until: detail.global_mute_until ?? null,
-      global_mute_set_by: detail.global_mute_set_by ?? null,
+      globalMuteEnabled: detail.global_mute_enabled ?? groupSettings.value.globalMuteEnabled,
+      globalMuteReason: detail.global_mute_reason ?? null,
+      globalMuteUntil: detail.global_mute_until ?? null,
+      globalMuteSetBy: detail.global_mute_set_by ?? null,
     }
   }
 }
