@@ -32,6 +32,17 @@ use crate::AppState;
 #[derive(Serialize)]
 pub struct GroupSettingsResponse {
     pub settings: GroupSettings,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub my_mute: Option<MyMuteInfo>,
+}
+
+/// 当前用户的个人禁言信息
+#[derive(Debug, Clone, Serialize)]
+pub struct MyMuteInfo {
+    pub is_muted: bool,
+    pub reason: Option<String>,
+    pub muted_at: Option<DateTime<Utc>>,
+    pub mute_until: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,8 +54,12 @@ pub struct UpdateGlobalMuteRequest {
 
 pub async fn get_group_settings(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<GroupSettingsResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
     let store = GroupManagementStore::new(state.database.pool());
 
     let settings = store
@@ -52,7 +67,24 @@ pub async fn get_group_settings(
         .await?
         .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?;
 
-    Ok(Json(GroupSettingsResponse { settings }))
+    // 查询当前用户的个人禁言状态
+    let my_mute = if let Some(mute) = store.find_active_mute(room_id, user_id).await? {
+        let mute_until = if mute.mute_duration_hours > 0 {
+            Some(mute.muted_at + chrono::Duration::hours(mute.mute_duration_hours as i64))
+        } else {
+            None
+        };
+        Some(MyMuteInfo {
+            is_muted: true,
+            reason: mute.reason,
+            muted_at: Some(mute.muted_at),
+            mute_until,
+        })
+    } else {
+        None
+    };
+
+    Ok(Json(GroupSettingsResponse { settings, my_mute }))
 }
 
 pub async fn update_global_mute(
@@ -115,7 +147,8 @@ pub async fn update_global_mute(
         )
         .await;
 
-    Ok(Json(GroupSettingsResponse { settings }))
+    // 管理员不会被禁言，所以 my_mute 为 None
+    Ok(Json(GroupSettingsResponse { settings, my_mute: None }))
 }
 
 pub async fn update_group_settings(
@@ -155,7 +188,8 @@ pub async fn update_group_settings(
         error!("广播群设置更新失败: {:?}", e);
     }
 
-    Ok(Json(GroupSettingsResponse { settings }))
+    // 管理员不会被禁言，所以 my_mute 为 None
+    Ok(Json(GroupSettingsResponse { settings, my_mute: None }))
 }
 
 // ===== 群公告管理 API =====
