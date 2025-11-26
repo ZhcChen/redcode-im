@@ -1052,7 +1052,7 @@ const getCachedAudioUrl = (message: DomainMessage): string => {
 const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
   const messageId = message.id;
   console.log('[loadAudioUrl] 开始加载音频 URL, messageId:', messageId);
-  if (audioUrlCache[messageId]) {
+  if (Object.prototype.hasOwnProperty.call(audioUrlCache, messageId)) {
     console.log('[loadAudioUrl] 已有缓存，跳过:', audioUrlCache[messageId]);
     return; // 已缓存
   }
@@ -1060,12 +1060,12 @@ const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
   try {
     const url = await getAudioUrl(message);
     console.log('[loadAudioUrl] 获取到的 URL:', url);
-    if (url) {
-      audioUrlCache[messageId] = url;
-      console.log('[loadAudioUrl] 已缓存到 audioUrlCache');
-    }
+    // 无论成功与否都写入缓存（空串也标记为已尝试），避免重复请求刷屏
+    audioUrlCache[messageId] = url || '';
+    console.log('[loadAudioUrl] 已缓存到 audioUrlCache');
   } catch (error) {
     console.error('[loadAudioUrl] 加载音频 URL 失败:', error);
+    audioUrlCache[messageId] = '';
   }
 };
 
@@ -1086,7 +1086,7 @@ const releaseBlobUrl = (url: string | null) => {
 };
 
 const attachmentUrlCache = new Map<string, { localPath: string; expiresAt: number; downloadUrl?: string | null }>();
-const pendingAttachmentDownloads = new Map<string, Promise<{ localPath: string; downloadUrl: string | null } | null>>();
+const pendingAttachmentDownloads = new Map<string, Promise<string>>();
 const ATTACHMENT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 分钟
 const ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS = 600;
 
@@ -1354,6 +1354,8 @@ const getAudioDuration = (message: DomainMessage): number => {
 };
 
 // 下载并缓存附件
+const NOT_FOUND_TOKEN = '__NOT_FOUND__';
+
 const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId: string): Promise<string> => {
   // 检查缓存
   const cacheKey = `attachment_${attachment.key}`;
@@ -1361,6 +1363,10 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
   console.log('[downloadAndCacheAttachment] 检查缓存:', { cacheKey, cached: cached?.data });
 
   if (cached?.data) {
+    if (cached.data === NOT_FOUND_TOKEN) {
+      console.log('[downloadAndCacheAttachment] 之前已确认 NOT_FOUND，直接返回空');
+      return '';
+    }
     // 检查缓存的 URL 是否是旧的 file:// 格式，如果是则需要转换
     const cachedUrl = cached.data;
     if (cachedUrl.startsWith('file://')) {
@@ -1387,7 +1393,14 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
     return convertedUrl;
   }
 
-  try {
+  // 若有正在进行的同 key 下载，复用 promise，避免并发重复请求
+  const pendingExisting = pendingAttachmentDownloads.get(cacheKey);
+  if (pendingExisting) {
+    return pendingExisting;
+  }
+
+  const downloadPromise = (async () => {
+    try {
     console.log('[downloadAndCacheAttachment] 缓存未命中，开始下载:', { roomId, key: attachment.key });
     // 调用 API 获取临时的 signed 下载链接
     const response = await MessageApi.getAttachmentDownloadUrl({
@@ -1422,10 +1435,21 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
     await saveCache(cacheKey, localUrl);
 
     return localUrl;
-  } catch (error) {
-    console.error('[downloadAndCacheAttachment] 下载附件失败:', error);
-    throw error;
-  }
+    } catch (error: any) {
+      console.error('[downloadAndCacheAttachment] 下载附件失败:', error);
+      // 如果是 NoSuchKey 之类的 404，记录 NOT_FOUND，避免重复请求
+      const msg = error?.message || '';
+      if (typeof msg === 'string' && msg.includes('NoSuchKey')) {
+        await saveCache(cacheKey, NOT_FOUND_TOKEN);
+      }
+      throw error;
+    } finally {
+      pendingAttachmentDownloads.delete(cacheKey);
+    }
+  })();
+
+  pendingAttachmentDownloads.set(cacheKey, downloadPromise);
+  return downloadPromise;
 };
 
 const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
