@@ -965,6 +965,37 @@ const messageStatusToUiStatus: Record<MessageStatus, number> = {
 
 const blobUrlRegistry = new Set<string>();
 
+// 将本地文件路径转换为可在 WebView 中加载的 URL（同步版本）
+// 对于 blob: URL 直接返回，对于本地路径使用 Tauri asset 协议
+const convertLocalPathToUrlSync = (localPath: string): string => {
+  if (!localPath) return '';
+  // blob: URL 可以直接使用
+  if (localPath.startsWith('blob:')) return localPath;
+  // http/https URL 直接使用
+  if (localPath.startsWith('http://') || localPath.startsWith('https://')) return localPath;
+  // asset: 协议 URL 直接使用（已经转换过）
+  if (localPath.startsWith('asset:') || localPath.startsWith('http://asset.localhost')) return localPath;
+  // 本地文件路径需要转换为 asset 协议
+  try {
+    // 使用全局 Tauri API（需要在 tauri.conf.json 中设置 withGlobalTauri: true）
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.core?.convertFileSrc) {
+      return tauri.core.convertFileSrc(localPath);
+    }
+    // 如果全局 API 不可用，返回原路径（会导致加载失败，但这种情况不应该发生）
+    console.warn('Tauri global API not available for convertFileSrc');
+    return localPath;
+  } catch (error) {
+    console.error('Failed to convert local path to URL:', error);
+    return localPath;
+  }
+};
+
+// 将本地文件路径转换为可在 WebView 中加载的 URL（异步版本，兼容旧代码）
+const convertLocalPathToUrl = async (localPath: string): Promise<string> => {
+  return convertLocalPathToUrlSync(localPath);
+};
+
 // 音频 URL 缓存
 const audioUrlCache = reactive<Record<string, string>>({});
 
@@ -1230,20 +1261,20 @@ const getAudioUrl = async (message: DomainMessage): Promise<string> => {
 
   const attachment = audioPart.attachment;
 
-  // 如果已有本地路径且文件存在，直接返回
+  // 如果已有本地路径且文件存在，转换为可用的 URL
   if (attachment.localPath) {
-    return attachment.localPath;
+    return await convertLocalPathToUrl(attachment.localPath);
   }
 
   try {
-    // 从选中的聊天中获取 groupId
-    const groupId = selectedChat.value?.groupId;
-    if (!groupId) {
-      throw new Error('No groupId available');
+    // 从选中的聊天中获取 roomId
+    const roomId = selectedChat.value?.id;
+    if (!roomId) {
+      throw new Error('No roomId available');
     }
 
-    // 下载并缓存
-    const cachedUrl = await downloadAndCacheAttachment(attachment, groupId);
+    // 下载并缓存（返回的已经是转换后的 URL）
+    const cachedUrl = await downloadAndCacheAttachment(attachment, roomId);
     return cachedUrl;
   } catch (error) {
     console.error('Failed to load audio:', error);
@@ -1259,7 +1290,7 @@ const getAudioDuration = (message: DomainMessage): number => {
 };
 
 // 下载并缓存附件
-const downloadAndCacheAttachment = async (attachment: MessageAttachment, groupId: string): Promise<string> => {
+const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId: string): Promise<string> => {
   // 检查缓存
   const cacheKey = `attachment_${attachment.key}`;
   const cached = await loadCache<string>(cacheKey);
@@ -1270,7 +1301,7 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, groupId
   try {
     // 调用 API 获取临时的 signed 下载链接
     const response = await MessageApi.getAttachmentDownloadUrl({
-      groupId,
+      roomId,
       key: attachment.key,
       expiresInSeconds: 3600, // 1小时过期
     });
@@ -1288,8 +1319,9 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, groupId
       throw new Error(downloadResult.message || 'Download failed');
     }
 
-    // 创建文件 URL
-    const localUrl = `file://${downloadResult.path}`;
+    // 使用 Tauri 的 convertFileSrc 将本地路径转换为 asset 协议 URL
+    const { convertFileSrc } = await import('@tauri-apps/api/core');
+    const localUrl = convertFileSrc(downloadResult.path);
 
     // 缓存到本地存储
     await saveCache(cacheKey, localUrl);
@@ -3568,7 +3600,7 @@ const parseImageSrc = (message: Message): string => {
       const attachment = imagePart.attachment
 
       if (attachment.localPath) {
-        return attachment.localPath
+        return convertLocalPathToUrlSync(attachment.localPath)
       }
 
       if (attachment.key) {
@@ -3594,7 +3626,7 @@ const parseImageSrc = (message: Message): string => {
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
     if (content.localUrl) {
-      return content.localUrl
+      return convertLocalPathToUrlSync(content.localUrl)
     }
     if (content.key) {
       const attachmentPart: MessagePart | undefined = message.parts?.find((part) => part.type === MessagePartType.IMAGE)
@@ -3856,7 +3888,8 @@ const parseVideoScreenShotSrc = (message: Message): string => {
               }
             }
           }
-          return thumbnailCached.localPath
+          // 转换为 asset 协议 URL 以便在 WebView 中显示
+          return convertLocalPathToUrlSync(thumbnailCached.localPath)
         }
         
         // 如果缓存中没有，异步预加载缩略图（类似图片的预加载逻辑）
@@ -3906,7 +3939,7 @@ const parseVideoSrc = (message: Message): string => {
   if (Array.isArray(message.parts)) {
     const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
     if (videoPart?.attachment?.localPath) {
-      return videoPart.attachment.localPath
+      return convertLocalPathToUrlSync(videoPart.attachment.localPath)
     }
     if (videoPart?.attachment?.key) {
       const url = resolveAttachmentUrl(videoPart.attachment.key)
@@ -5384,7 +5417,7 @@ const handleVideoPlay = async (message: Message) => {
           const updatedVideoPart = updatedMessage.parts?.find((part) => part.type === MessagePartType.VIDEO)
           
           if (updatedVideoPart?.attachment?.localPath) {
-            videoSrc = updatedVideoPart.attachment.localPath
+            videoSrc = convertLocalPathToUrlSync(updatedVideoPart.attachment.localPath)
             console.log('视频下载成功，使用本地路径:', videoSrc)
           } else {
             // 如果下载失败，尝试使用原始 URL
@@ -5398,8 +5431,8 @@ const handleVideoPlay = async (message: Message) => {
             }
           }
         } else if (videoPart.attachment.localPath) {
-          // 已有本地路径，直接使用
-          videoSrc = videoPart.attachment.localPath
+          // 已有本地路径，转换为 asset 协议 URL
+          videoSrc = convertLocalPathToUrlSync(videoPart.attachment.localPath)
           console.log('使用已有本地路径:', videoSrc)
         } else {
           // 尝试使用 parseVideoSrc 获取 URL
