@@ -27,7 +27,10 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   final VoiceService _voiceService = VoiceService();
   bool _isPlaying = false;
   bool _isLoading = false;
+  double _progress = 0.0; // 播放进度 0.0 - 1.0
+  String? _currentPlayingUrl; // 当前正在播放的 URL
   StreamSubscription<PlayerState>? _playerStateSubscription;
+  StreamSubscription<Duration?>? _positionSubscription;
 
   @override
   void initState() {
@@ -35,16 +38,39 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
     _playerStateSubscription =
         _voiceService.playerStateStream.listen((state) {
       if (mounted) {
+        // 检查是否是当前音频在播放
+        final isCurrentPlaying = _currentPlayingUrl == widget.audioUrl;
+
         setState(() {
-          _isPlaying = state.playing;
-          _isLoading = state.processingState == ProcessingState.loading ||
-              state.processingState == ProcessingState.buffering;
+          if (isCurrentPlaying) {
+            _isPlaying = state.playing;
+            _isLoading = state.processingState == ProcessingState.loading ||
+                state.processingState == ProcessingState.buffering;
+          } else if (!state.playing) {
+            // 其他音频停止播放时，重置本组件状态
+            _isPlaying = false;
+            _isLoading = false;
+          }
         });
 
         // 播放完成后重置状态
-        if (state.processingState == ProcessingState.completed) {
+        if (state.processingState == ProcessingState.completed && isCurrentPlaying) {
           setState(() {
             _isPlaying = false;
+            _progress = 0.0;
+            _currentPlayingUrl = null;
+          });
+        }
+      }
+    });
+
+    // 监听播放进度
+    _positionSubscription = _voiceService.positionStream.listen((position) {
+      if (mounted && _isPlaying && position != null) {
+        final totalDuration = widget.duration;
+        if (totalDuration > 0) {
+          setState(() {
+            _progress = (position.inMilliseconds / totalDuration).clamp(0.0, 1.0);
           });
         }
       }
@@ -54,16 +80,27 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   @override
   void dispose() {
     _playerStateSubscription?.cancel();
+    _positionSubscription?.cancel();
     super.dispose();
   }
 
   Future<void> _togglePlay() async {
     if (_isPlaying) {
       await _voiceService.stop();
+      setState(() {
+        _currentPlayingUrl = null;
+      });
     } else {
       try {
+        setState(() {
+          _currentPlayingUrl = widget.audioUrl;
+          _progress = 0.0;
+        });
         await _voiceService.play(widget.audioUrl);
       } catch (e) {
+        setState(() {
+          _currentPlayingUrl = null;
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('播放失败')),
@@ -127,11 +164,15 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
                     size: 24,
                   ),
             const SizedBox(width: 8),
-            // 波形动画
+            // 波形进度条
             Expanded(
-              child: _VoiceWaveform(
+              child: _VoiceWaveformProgress(
                 isPlaying: _isPlaying,
-                color: textColor.withValues(alpha: 0.6),
+                progress: _progress,
+                playedColor: widget.isMine
+                    ? Colors.white
+                    : AppColors.primary,
+                unplayedColor: textColor.withValues(alpha: 0.3),
               ),
             ),
             const SizedBox(width: 8),
@@ -150,23 +191,31 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   }
 }
 
-/// 简单的波形动画
-class _VoiceWaveform extends StatefulWidget {
-  const _VoiceWaveform({
+/// 带进度条的波形组件
+class _VoiceWaveformProgress extends StatefulWidget {
+  const _VoiceWaveformProgress({
     required this.isPlaying,
-    required this.color,
+    required this.progress,
+    required this.playedColor,
+    required this.unplayedColor,
   });
 
   final bool isPlaying;
-  final Color color;
+  final double progress; // 0.0 - 1.0
+  final Color playedColor;
+  final Color unplayedColor;
 
   @override
-  State<_VoiceWaveform> createState() => _VoiceWaveformState();
+  State<_VoiceWaveformProgress> createState() => _VoiceWaveformProgressState();
 }
 
-class _VoiceWaveformState extends State<_VoiceWaveform>
+class _VoiceWaveformProgressState extends State<_VoiceWaveformProgress>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+
+  // 波形条的基础高度比例
+  static const List<double> _baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5];
+  static const int _barCount = 12;
 
   @override
   void initState() {
@@ -181,7 +230,7 @@ class _VoiceWaveformState extends State<_VoiceWaveform>
   }
 
   @override
-  void didUpdateWidget(_VoiceWaveform oldWidget) {
+  void didUpdateWidget(_VoiceWaveformProgress oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isPlaying && !oldWidget.isPlaying) {
       _controller.repeat(reverse: true);
@@ -204,17 +253,23 @@ class _VoiceWaveformState extends State<_VoiceWaveform>
       builder: (context, child) {
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(6, (index) {
-            final baseHeight = [0.4, 0.7, 0.5, 0.8, 0.6, 0.4][index];
+          children: List.generate(_barCount, (index) {
+            final baseHeight = _baseHeights[index];
+            // 播放时有动画效果
             final animatedHeight = widget.isPlaying
                 ? baseHeight * (0.5 + _controller.value * 0.5)
                 : baseHeight * 0.5;
+
+            // 根据进度确定颜色
+            final barProgress = (index + 1) / _barCount;
+            final isPlayed = barProgress <= widget.progress;
+
             return Container(
-              width: 3,
+              width: 2,
               height: 16 * animatedHeight,
               decoration: BoxDecoration(
-                color: widget.color,
-                borderRadius: BorderRadius.circular(1.5),
+                color: isPlayed ? widget.playedColor : widget.unplayedColor,
+                borderRadius: BorderRadius.circular(1),
               ),
             );
           }),
