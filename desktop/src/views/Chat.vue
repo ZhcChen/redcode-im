@@ -2882,8 +2882,7 @@ const executeRetry = async (tempId: string) => {
     }
   } catch (error: any) {
     console.log(`Retry failed for message ${tempId}:`, error.message)
-    messages.value[messageIndex].status = 5
-    // 继续调度下一次重试
+    // 保持 sending 状态，继续调度下一次重试
     scheduleRetry(tempId)
   }
 }
@@ -4850,10 +4849,7 @@ const sendMessage = async () => {
       }
     }
   } catch (error: any) {
-    const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
-    if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 5
-    }
+    // 保持 sending 状态，不设置为 failed
     // 发送失败时，从 recentSentMessages 中删除临时消息ID
     recentSentMessages.value.delete(tempId)
 
@@ -4942,10 +4938,7 @@ const resendMessage = async (message: Message) => {
       sortMessagesByTimestamp()
     }
   } catch (error: any) {
-    if (messageIndex !== -1) {
-      messages.value[messageIndex].status = 5
-    }
-
+    // 保持 sending 状态，继续自动重试
     // 手动重发失败后，添加到待重试队列并继续自动重试
     if (!pendingRetryMessages.value.has(message.id)) {
       pendingRetryMessages.value.set(message.id, {
@@ -5144,11 +5137,18 @@ const sendEmojiMessage = async (emoji: string) => {
       scrollToBottom(false, true)
     } catch (error: any) {
       console.error('发送表情消息失败:', error)
-      const tempMessageIndex = messages.value.findIndex(msg => msg.id === tempId)
-      if (tempMessageIndex !== -1) {
-        messages.value[tempMessageIndex].status = 5
-      }
-      toast.error('发送失败，请重试')
+      // 保持 sending 状态，添加到待重试队列
+      const user = store.getters.currentUser
+      pendingRetryMessages.value.set(tempId, {
+        tempId,
+        roomId: groupId,
+        content: emoji,
+        timestamp,
+        senderName: user?.nickname || user?.username || '我',
+        senderAvatar: user?.avatar,
+      })
+      savePendingMessagesToStorage()
+      scheduleRetry(tempId)
     }
   }
 }
@@ -5584,13 +5584,14 @@ const uploadAndSendFile = async (file: File) => {
     if (tempId) {
       const messageIndex = messages.value.findIndex((msg) => msg.id === tempId)
       if (messageIndex !== -1) {
-        messages.value[messageIndex].status = 5
+        // 保持 sending 状态，但清除进度显示
         updateAttachmentProgress(tempId, attachmentKey, null)
       }
       // 上传失败时，从 recentSentMessages 中删除临时消息ID
       recentSentMessages.value.delete(tempId)
     }
-    toast.error('文件发送失败: ' + (error.message || '网络错误'))
+    // 文件上传失败提示用户重新选择文件
+    toast.error('文件发送失败，请重新选择文件发送: ' + (error.message || '网络错误'))
   }
 }
 
@@ -8024,9 +8025,17 @@ const closeVoiceRecorder = () => {
 const handleVoiceSend = async (recording: any) => {
   if (!selectedChat.value) return
 
+  console.log('[handleVoiceSend] 开始发送语音消息:', {
+    roomId: selectedChat.value.id,
+    recordingId: recording.id,
+    blobSize: recording.blob?.size,
+    duration: recording.duration
+  })
+
   try {
 
     // 1. 获取语音上传签名
+    console.log('[handleVoiceSend] 1. 获取上传签名...')
     const signatureResponse = await MessageApi.generateMessageAttachmentSignature({
       roomId: selectedChat.value.id,
       partType: 4, // AUDIO_CONTENT_TYPE
@@ -8035,14 +8044,22 @@ const handleVoiceSend = async (recording: any) => {
       fileSize: recording.blob.size,
     })
 
+    console.log('[handleVoiceSend] 签名响应:', {
+      success: signatureResponse.success,
+      message: signatureResponse.message,
+      hasData: !!signatureResponse.data,
+      key: signatureResponse.data?.key
+    })
+
     if (!signatureResponse.success || !signatureResponse.data) {
       throw new Error(signatureResponse.message || '获取上传签名失败')
     }
 
     // 2. 直接上传到COS
+    console.log('[handleVoiceSend] 2. 开始上传到 COS...')
     const { key, signature } = signatureResponse.data
     const headersObj: Record<string, string> = {}
-    
+
     // 将 Headers 转换为普通对象
     if (signature.headers) {
       Object.entries(signature.headers).forEach(([key, value]) => {
@@ -8054,7 +8071,15 @@ const handleVoiceSend = async (recording: any) => {
       headersObj['Content-Length'] = String(recording.blob.size)
     }
 
+    console.log('[handleVoiceSend] 上传参数:', {
+      url: signature.url,
+      method: signature.method,
+      headers: headersObj
+    })
+
     const voiceBuffer = new Uint8Array(await recording.blob.arrayBuffer())
+    console.log('[handleVoiceSend] voiceBuffer 大小:', voiceBuffer.length)
+
     const uploadResponse = await rustHttp.requestRaw({
       path: signature.url,
       method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
@@ -8064,11 +8089,18 @@ const handleVoiceSend = async (recording: any) => {
       forceStreaming: true
     })
 
+    console.log('[handleVoiceSend] 上传响应:', {
+      success: uploadResponse.success,
+      message: uploadResponse.message,
+      statusCode: uploadResponse.statusCode
+    })
+
     if (!uploadResponse.success) {
       throw new Error(uploadResponse.message || '文件上传失败')
     }
 
     // 3. 创建语音消息
+    console.log('[handleVoiceSend] 3. 创建语音消息...')
     const messageResponse = await MessageApi.sendMessage({
       groupId: selectedChat.value.id,
       content: '', // 语音消息通常不包含文字内容
@@ -8081,7 +8113,14 @@ const handleVoiceSend = async (recording: any) => {
       }],
     })
 
+    console.log('[handleVoiceSend] 消息响应:', {
+      success: messageResponse.success,
+      message: messageResponse.message,
+      hasData: !!messageResponse.data
+    })
+
     if (messageResponse.success && messageResponse.data) {
+      console.log('[handleVoiceSend] 语音消息发送成功')
       toast.success('语音消息发送成功')
       // 关闭录音弹窗
       closeVoiceRecorder()
@@ -8089,6 +8128,7 @@ const handleVoiceSend = async (recording: any) => {
       throw new Error(messageResponse.message || '发送消息失败')
     }
   } catch (error: any) {
+    console.error('[handleVoiceSend] 发送失败:', error)
     // 优先使用 API 返回的错误消息
     const errorMessage = error?.response?.message || error?.message || '网络错误';
     toast.error('发送失败: ' + errorMessage)
