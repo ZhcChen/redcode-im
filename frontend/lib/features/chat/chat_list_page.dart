@@ -858,7 +858,14 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   Widget _buildDefaultAvatar() {
     final name = widget.chat.name.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    // 背景色使用稳定种子，优先 roomId/好友ID，保证与消息列表一致
+    final seed = widget.chat.type == ChatType.single
+        ? (widget.chat.extra?['friend_user_id'] as String? ??
+            widget.chat.extra?['friendUserId'] as String? ??
+            widget.chat.roomId)
+        : widget.chat.roomId;
+    final backgroundColor =
+        AvatarColorUtils.generateBackgroundColor(seed ?? name);
 
     return Container(
       width: 48,

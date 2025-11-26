@@ -166,13 +166,14 @@ class _QuotedMessageAvatarState extends State<QuotedMessageAvatar> {
   Widget _buildDefaultAvatar() {
     final name = widget.quotedMessage.displaySenderName.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    // 背景色使用稳定种子(优先 senderId)，保证与聊天列表一致
+    final seed = widget.quotedMessage.senderId?.toString();
+    final backgroundColor =
+        AvatarColorUtils.generateBackgroundColor(seed ?? name);
 
     return CircleAvatar(
       radius: widget.radius,
-      backgroundColor: widget.isSelf
-          ? AppColors.primary.withValues(alpha: 0.85)
-          : backgroundColor,
+      backgroundColor: backgroundColor,
       child: Text(
         initial,
         style: TextStyle(
