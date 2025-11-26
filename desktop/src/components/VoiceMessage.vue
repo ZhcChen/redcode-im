@@ -175,7 +175,8 @@ voicePlayer.onProgress((progress: number) => {
 const isSupported = computed(() => VoiceRecorder.isSupported())
 
 const formattedDuration = computed(() => {
-  const seconds = Math.floor(effectiveDuration.value / 1000)
+  const secondsRaw = effectiveDuration.value / 1000
+  const seconds = Number.isFinite(secondsRaw) ? Math.max(0, Math.floor(secondsRaw)) : 0
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
