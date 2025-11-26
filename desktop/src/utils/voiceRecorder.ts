@@ -151,6 +151,14 @@ export class VoiceRecorder {
 export class VoicePlayer {
   private audio: HTMLAudioElement | null = null;
   private currentUrl: string | null = null;
+  private onEndedCallback: (() => void) | null = null;
+
+  /**
+   * 设置播放结束回调
+   */
+  public onEnded(callback: () => void): void {
+    this.onEndedCallback = callback;
+  }
 
   /**
    * 将本地路径转换为可播放的 URL
@@ -225,15 +233,19 @@ export class VoicePlayer {
       }
 
       this.audio.onplay = () => {
+        console.log('[VoicePlayer] 开始播放');
       };
 
       this.audio.onended = () => {
-        this.cleanup();
+        console.log('[VoicePlayer] 播放结束');
+        if (this.onEndedCallback) {
+          this.onEndedCallback();
+        }
         resolve();
       };
 
       this.audio.onerror = (error) => {
-        this.cleanup();
+        console.error('[VoicePlayer] 播放错误:', error);
         reject(new Error('语音播放失败'));
       };
 

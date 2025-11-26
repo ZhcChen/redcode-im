@@ -149,6 +149,17 @@ const voicePlayer = new VoicePlayer()
 const voiceRecorder = new VoiceRecorder()
 let recordingTimer: number | null = null
 
+// 设置播放结束回调
+voicePlayer.onEnded(() => {
+  console.log('[VoiceMessage] 播放结束回调触发')
+  isPlaying.value = false
+  if (animationFrame.value) {
+    cancelAnimationFrame(animationFrame.value)
+    animationFrame.value = null
+  }
+  waveAnimationValue.value = 0.5
+})
+
 // 计算属性
 const isSupported = computed(() => VoiceRecorder.isSupported())
 
