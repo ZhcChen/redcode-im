@@ -725,6 +725,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           final hasPinnedBanner =
               pinnedMessage != null && messages.contains(pinnedMessage);
 
+          // 清理不再存在的消息对应的 GlobalKey，避免 "Multiple widgets used the same GlobalKey" 错误
+          final currentMessageIds = messages.map((m) => m.id).toSet();
+          _messageItemKeys.removeWhere((id, _) => !currentMessageIds.contains(id));
+
           // 使用 Opacity 替代 AnimatedOpacity，避免键盘动画期间的额外性能开销
           // 只有在初始加载时才需要动画，后续直接使用静态 Opacity
           final messageListWidget = ListView.builder(

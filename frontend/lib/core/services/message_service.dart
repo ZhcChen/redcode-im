@@ -1218,7 +1218,9 @@ class MessageService with ChangeNotifier {
     final messages = _messagesByRoom[roomId];
     if (messages == null) return;
     try {
-      await _messageStorage.saveMessages(roomId, messages);
+      // 创建列表副本，避免在异步操作期间列表被修改导致并发修改异常
+      final snapshot = List<Message>.from(messages);
+      await _messageStorage.saveMessages(roomId, snapshot);
     } catch (e) {
       debugPrint('Failed to persist messages for $roomId: $e');
     }
