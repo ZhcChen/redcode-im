@@ -271,6 +271,21 @@ class WebSocketManager {
         break;
       }
 
+      case 'groupmemberchanged':
+      case 'group_member_changed': {
+        const detail = ((payload as any)?.payload ?? payload) || {};
+        this.dispatchDomEvent('websocket-group-member-changed', {
+          room_id: detail.room_id ?? detail.roomId,
+          member_id: detail.member_id ?? detail.memberId,
+          change_type: detail.change_type ?? detail.changeType,
+          new_role: detail.new_role ?? detail.newRole,
+          operator_id: detail.operator_id ?? detail.operatorId,
+          reason: detail.reason,
+          until: detail.until,
+        });
+        break;
+      }
+
       case 'roomupdated':
       case 'room_updated': {
         const detail = ((payload as any)?.payload ?? payload) || {};

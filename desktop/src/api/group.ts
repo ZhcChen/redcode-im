@@ -55,6 +55,13 @@ interface BackendRoomInfo {
   extra?: Record<string, unknown> | null;
 }
 
+interface BackendMyMuteInfo {
+  is_muted: boolean;
+  reason?: string | null;
+  muted_at?: string | null;
+  mute_until?: string | null;
+}
+
 interface BackendGroupSettings {
   room_id: string;
   global_mute_enabled: boolean;
@@ -63,6 +70,14 @@ interface BackendGroupSettings {
   join_approval_required?: boolean;
   member_can_invite?: boolean;
   max_members?: number;
+  my_mute?: BackendMyMuteInfo | null;
+}
+
+export interface MyMuteInfo {
+  isMuted: boolean;
+  reason?: string | null;
+  mutedAt?: string | null;
+  muteUntil?: string | null;
 }
 
 export interface GroupSettings {
@@ -73,6 +88,7 @@ export interface GroupSettings {
   joinApprovalRequired?: boolean;
   memberCanInvite?: boolean;
   maxMembers?: number;
+  myMute?: MyMuteInfo | null;
 }
 
 interface BackendRoomMember {
@@ -249,6 +265,12 @@ const mapGroupSettings = (settings: BackendGroupSettings): GroupSettings => ({
   joinApprovalRequired: settings.join_approval_required,
   memberCanInvite: settings.member_can_invite,
   maxMembers: settings.max_members ?? undefined,
+  myMute: settings.my_mute ? {
+    isMuted: Boolean(settings.my_mute.is_muted),
+    reason: settings.my_mute.reason ?? null,
+    mutedAt: settings.my_mute.muted_at ?? null,
+    muteUntil: settings.my_mute.mute_until ?? null,
+  } : null,
 });
 
 const mapRoomMemberRole = (role: string): RoomMemberRole => {

@@ -2439,6 +2439,7 @@ const groupMembers = ref<RoomMember[]>([])
 
 const groupSettings = ref<GroupSettings | null>(null)
 const groupSettingsLoading = ref<boolean>(false)
+const isPersonalMuted = ref<boolean>(false) // 个人禁言状态
 const updatingGlobalMute = ref<boolean>(false)
 const showTransferOwnerDialog = ref<boolean>(false)
 const selectedTransferOwnerId = ref<string | null>(null)
@@ -2637,11 +2638,13 @@ const canManageGroup = computed(() => {
   return isCurrentUserGroupOwner.value || isCurrentUserGroupAdmin.value
 })
 
-// 输入框是否被禁用（群禁言且非管理员）
+// 输入框是否被禁用（全体禁言且非管理员，或个人被禁言）
 const isInputDisabled = computed(() => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
     return false
   }
+  // 个人被禁言时直接禁用
+  if (isPersonalMuted.value) return true
   // 如果开启了全体禁言，且当前用户不是群主/管理员，则禁用输入框
   return groupSettings.value?.globalMuteEnabled && !canManageGroup.value
 })
@@ -2958,14 +2961,18 @@ const loadGroupSettings = async (
     const response = await GroupApi.getGroupSettings({ roomId: groupId })
     if (response.success && response.data) {
       groupSettings.value = response.data
+      // 设置个人禁言状态
+      isPersonalMuted.value = response.data.myMute?.isMuted ?? false
     } else {
       groupSettings.value = null
+      isPersonalMuted.value = false
       if (!options.silent) {
         toast.error(response.message || '加载群设置失败')
       }
     }
   } catch (error: any) {
     groupSettings.value = null
+    isPersonalMuted.value = false
     if (!options.silent) {
       toast.error(error?.message || '加载群设置失败')
     }
@@ -7268,6 +7275,29 @@ const handleGroupSettingsUpdatedEvent = (event: CustomEvent) => {
   }
 }
 
+// 处理群成员变更事件（WebSocket推送，用于个人禁言/解禁）
+const handleGroupMemberChangedEvent = (event: CustomEvent) => {
+  const detail = event.detail || {}
+  const roomId = detail.room_id || detail.roomId
+  const memberId = detail.member_id || detail.memberId
+  const changeType = detail.change_type || detail.changeType
+
+  if (!roomId || !memberId || !changeType) return
+
+  // 只处理当前选中群聊的事件
+  if (!selectedChat.value || selectedChat.value.groupId !== roomId) return
+
+  // 只处理当前用户的禁言/解禁事件
+  const selfId = currentUserId.value ? String(currentUserId.value) : null
+  if (!selfId || String(memberId) !== selfId) return
+
+  if (changeType === 'muted') {
+    isPersonalMuted.value = true
+  } else if (changeType === 'unmuted') {
+    isPersonalMuted.value = false
+  }
+}
+
 onMounted(async () => {
   // 使用事件管理器添加监听器
   eventManager.addWindowListener('resize', handleWindowResize)
@@ -7281,6 +7311,7 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   eventManager.addWindowListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
   eventManager.addWindowListener('websocket-group-settings-updated', handleGroupSettingsUpdatedEvent as EventListener)
+  eventManager.addWindowListener('websocket-group-member-changed', handleGroupMemberChangedEvent as EventListener)
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
