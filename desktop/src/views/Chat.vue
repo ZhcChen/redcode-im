@@ -198,7 +198,7 @@
                   <VoiceMessage
                     :voice-url="getCachedAudioUrl(message)"
                     :duration="getAudioDuration(message)"
-                    @voice-send="(recording) => handleVoiceSend(recording)"
+                    :is-mine="message.isSelf"
                   />
                 </template>
 
