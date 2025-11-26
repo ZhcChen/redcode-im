@@ -226,7 +226,9 @@ class ChatProvider with ChangeNotifier {
     List<MessageAttachmentDraft> attachments = const [],
     Message? quotedMessage,
   }) async {
-    if (_currentRoomId == null || _isSending) return;
+    if (_currentRoomId == null || _isSending) {
+      return;
+    }
 
     final trimmed = text?.trim();
     if ((trimmed == null || trimmed.isEmpty) && attachments.isEmpty) {
@@ -258,7 +260,9 @@ class ChatProvider with ChangeNotifier {
     required int duration,
     required String fileName,
   }) async {
-    if (_isSending) return;
+    if (_isSending) {
+      return;
+    }
 
     // 创建临时文件
     final tempDir = await path_provider.getTemporaryDirectory();
@@ -275,6 +279,9 @@ class ChatProvider with ChangeNotifier {
       );
 
       await sendRichMessage(attachments: [attachment]);
+    } catch (e) {
+      debugPrint('Failed to send voice message: $e');
+      rethrow;
     } finally {
       // 清理临时文件
       if (await tempFile.exists()) {

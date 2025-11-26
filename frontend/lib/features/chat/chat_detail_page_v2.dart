@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -13,7 +14,6 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:provider/provider.dart';
 
@@ -2241,12 +2241,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
           fallbackLabel: '视频',
         );
       case MessagePartType.audio:
-        return _AttachmentFileTile(
+        return _AudioMessageTile(
           message: _message,
           part: part,
           isSelf: _isSelf,
-          icon: Icons.audiotrack,
-          fallbackLabel: '语音',
         );
       case MessagePartType.file:
         return _AttachmentFileTile(
@@ -4743,6 +4741,216 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
   }
 }
 
+/// 语音消息专用组件
+class _AudioMessageTile extends StatefulWidget {
+  const _AudioMessageTile({
+    required this.message,
+    required this.part,
+    required this.isSelf,
+  });
+
+  final Message message;
+  final MessagePart part;
+  final bool isSelf;
+
+  @override
+  State<_AudioMessageTile> createState() => _AudioMessageTileState();
+}
+
+class _AudioMessageTileState extends State<_AudioMessageTile> {
+  String? _localPath;
+  bool _loading = false;
+  bool _isPlaying = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void initState() {
+    super.initState();
+    _localPath = widget.part.attachment?.localPath;
+    _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _AudioMessageTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldAttachment = oldWidget.part.attachment;
+    final newAttachment = widget.part.attachment;
+    if (oldAttachment?.key != newAttachment?.key ||
+        oldAttachment?.localPath != newAttachment?.localPath) {
+      _localPath = newAttachment?.localPath;
+      _loading = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleTap() async {
+    final attachment = widget.part.attachment;
+    if (attachment == null) return;
+    if (_loading || attachment.uploadProgress != null) return;
+
+    // 如果有本地文件，直接播放
+    if (_localPath != null && _localPath!.isNotEmpty) {
+      final file = File(_localPath!);
+      if (await file.exists()) {
+        await _togglePlay();
+        return;
+      }
+    }
+
+    // 否则先下载
+    setState(() {
+      _loading = true;
+    });
+
+    try {
+      final path = await MessageService.instance.ensureAttachmentCached(
+        roomId: widget.message.roomId,
+        message: widget.message,
+        part: widget.part,
+      );
+      if (!mounted) return;
+      _localPath = path;
+      if (path != null && path.isNotEmpty) {
+        await _togglePlay();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text('下载语音失败：$error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _togglePlay() async {
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+      setState(() {
+        _isPlaying = false;
+      });
+    } else {
+      if (_localPath != null) {
+        await _audioPlayer.play(DeviceFileSource(_localPath!));
+        setState(() {
+          _isPlaying = true;
+        });
+      }
+    }
+  }
+
+  String _formatDuration(int? durationMs) {
+    if (durationMs == null || durationMs <= 0) return '0:00';
+    final seconds = (durationMs / 1000).round();
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final attachment = widget.part.attachment;
+    final durationText = _formatDuration(attachment?.durationMs);
+    final hasLocalFile = _localPath != null && _localPath!.isNotEmpty;
+
+    return GestureDetector(
+      onTap: _handleTap,
+      child: Container(
+        width: 180,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: widget.isSelf
+              ? Colors.white.withValues(alpha: 0.24)
+              : Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 播放/暂停/下载按钮
+            if (_loading)
+              const SizedBox(
+                width: 32,
+                height: 32,
+                child: Padding(
+                  padding: EdgeInsets.all(6),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (attachment?.uploadProgress != null)
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: CircularProgressIndicator(
+                    value: attachment!.uploadProgress,
+                    strokeWidth: 2,
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: widget.isSelf
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  hasLocalFile
+                      ? (_isPlaying ? Icons.pause : Icons.play_arrow)
+                      : Icons.arrow_circle_down,
+                  size: 18,
+                  color: widget.isSelf ? Colors.white : AppColors.primary,
+                ),
+              ),
+            const SizedBox(width: 10),
+            // 波形占位符
+            Expanded(
+              child: Container(
+                height: 24,
+                decoration: BoxDecoration(
+                  color: widget.isSelf
+                      ? Colors.white.withValues(alpha: 0.2)
+                      : Colors.black.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // 时长
+            Text(
+              durationText,
+              style: TextStyle(
+                fontSize: 12,
+                color: widget.isSelf ? Colors.white70 : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AttachmentFileTile extends StatefulWidget {
   const _AttachmentFileTile({
     required this.message,
@@ -4775,8 +4983,12 @@ class _AttachmentFileTileState extends State<_AttachmentFileTile> {
   @override
   void didUpdateWidget(covariant _AttachmentFileTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.part.attachment?.key != widget.part.attachment?.key) {
-      _localPath = widget.part.attachment?.localPath;
+    // 当附件 key 或 localPath 变化时更新状态
+    final oldAttachment = oldWidget.part.attachment;
+    final newAttachment = widget.part.attachment;
+    if (oldAttachment?.key != newAttachment?.key ||
+        oldAttachment?.localPath != newAttachment?.localPath) {
+      _localPath = newAttachment?.localPath;
       _loading = false;
     }
   }
@@ -4828,6 +5040,8 @@ class _AttachmentFileTileState extends State<_AttachmentFileTile> {
     final attachment = widget.part.attachment;
     final name = attachment?.name ?? widget.fallbackLabel;
     final sizeText = _formatFileSize(attachment?.size);
+    // 检查本地文件是否存在
+    final hasLocalFile = _localPath != null && _localPath!.isNotEmpty;
 
     return GestureDetector(
       onTap: _handleTap,
@@ -4836,8 +5050,8 @@ class _AttachmentFileTileState extends State<_AttachmentFileTile> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: widget.isSelf
-              ? Colors.white.withOpacity(0.24)
-              : Colors.black.withOpacity(0.05),
+              ? Colors.white.withValues(alpha: 0.24)
+              : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -4848,8 +5062,8 @@ class _AttachmentFileTileState extends State<_AttachmentFileTile> {
               height: 40,
               decoration: BoxDecoration(
                 color: widget.isSelf
-                    ? Colors.white.withOpacity(0.3)
-                    : Colors.black.withOpacity(0.08),
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : Colors.black.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -4894,9 +5108,20 @@ class _AttachmentFileTileState extends State<_AttachmentFileTile> {
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
+            else if (attachment?.uploadProgress != null)
+              // 上传中显示进度
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  value: attachment!.uploadProgress,
+                  strokeWidth: 2,
+                ),
+              )
             else
               Icon(
-                Icons.arrow_circle_down,
+                // 有本地文件显示打开/播放图标，否则显示下载图标
+                hasLocalFile ? Icons.open_in_new : Icons.arrow_circle_down,
                 size: 22,
                 color: widget.isSelf ? Colors.white : AppColors.primary,
               ),

@@ -1904,6 +1904,10 @@ class MessageService with ChangeNotifier {
     final total = plan.size.toDouble().clamp(1, double.infinity);
     double uploaded = 0;
 
+    // 重要：必须先调用 send()（不 await），然后再写入数据到 sink
+    // 否则当 sink 缓冲区满时会导致死锁
+    final responseFuture = request.send();
+
     await for (final chunk in plan.file.openRead()) {
       request.sink.add(chunk);
       uploaded += chunk.length;
@@ -1917,7 +1921,8 @@ class MessageService with ChangeNotifier {
     }
     await request.sink.close();
 
-    final response = await request.send();
+    // 现在等待响应
+    final response = await responseFuture;
     final responseBody = await response.stream.bytesToString();
 
     if (!_isSuccessStatus(response.statusCode)) {
