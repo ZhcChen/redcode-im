@@ -111,11 +111,68 @@ class MessageService with ChangeNotifier {
     try {
       final cached = await _messageStorage.loadMessages(roomId);
       _messagesByRoom[roomId] = List<Message>.from(cached);
+
+      // 恢复发送中或失败的消息到重试队列
+      _restorePendingMessages(roomId, cached);
+
       notifyListeners();
       return cached;
     } catch (e) {
       debugPrint('Failed to load cached messages: $e');
       return const [];
+    }
+  }
+
+  /// 恢复发送中或失败的消息到重试队列
+  void _restorePendingMessages(String roomId, List<Message> messages) {
+    for (final message in messages) {
+      // 只恢复自己发送的、状态为发送中或失败的消息
+      if (!message.isSelf) continue;
+      if (message.status != MessageStatus.sending &&
+          message.status != MessageStatus.failed) {
+        continue;
+      }
+
+      // 如果已经在待发送队列中，跳过
+      if (_pendingMessages.containsKey(message.id)) continue;
+
+      debugPrint('Restoring pending message: ${message.id}');
+
+      // 添加到待发送队列
+      _pendingMessages[message.id] = message;
+
+      // 构建 payload
+      final parts = <Map<String, dynamic>>[];
+      for (final part in message.parts) {
+        if (part.type == MessagePartType.text && part.text != null) {
+          parts.add({'type': 'text', 'text': part.text});
+        } else if (part.attachment != null) {
+          parts.add({
+            'type': part.type.name,
+            'key': part.attachment!.key,
+            if (part.attachment!.name != null) 'name': part.attachment!.name,
+            if (part.attachment!.mime != null) 'mime': part.attachment!.mime,
+            if (part.attachment!.size != null) 'size': part.attachment!.size,
+            if (part.attachment!.width != null) 'width': part.attachment!.width,
+            if (part.attachment!.height != null)
+              'height': part.attachment!.height,
+            if (part.attachment!.durationMs != null)
+              'duration_ms': part.attachment!.durationMs,
+            if (part.attachment!.thumbnailKey != null)
+              'thumbnail_key': part.attachment!.thumbnailKey,
+          });
+        }
+      }
+
+      _pendingPayloads[message.id] = _PendingMessagePayload(
+        roomId: roomId,
+        content: message.content,
+        parts: parts,
+        quotedMessageId: message.quotedMessage?.id,
+      );
+
+      // 启动重试
+      _scheduleRetry(message.id);
     }
   }
 

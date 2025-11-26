@@ -2725,9 +2725,91 @@ interface PendingRetryMessage {
   content: string
   replyToMessageId?: string
   timestamp: number
+  // 用于恢复 UI 显示的额外信息
+  senderName?: string
+  senderAvatar?: string
 }
 const pendingRetryMessages = ref<Map<string, PendingRetryMessage>>(new Map())
 const retryTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+// localStorage key for pending messages
+const PENDING_MESSAGES_STORAGE_KEY = 'redcode_pending_messages'
+
+// 保存待重试消息到 localStorage
+const savePendingMessagesToStorage = () => {
+  try {
+    const data = Array.from(pendingRetryMessages.value.entries())
+    localStorage.setItem(PENDING_MESSAGES_STORAGE_KEY, JSON.stringify(data))
+  } catch (e) {
+    console.error('Failed to save pending messages to storage:', e)
+  }
+}
+
+// 从 localStorage 恢复待重试消息
+const restorePendingMessagesFromStorage = () => {
+  try {
+    const raw = localStorage.getItem(PENDING_MESSAGES_STORAGE_KEY)
+    if (!raw) return
+
+    const data = JSON.parse(raw) as [string, PendingRetryMessage][]
+    for (const [key, value] of data) {
+      if (!pendingRetryMessages.value.has(key)) {
+        pendingRetryMessages.value.set(key, value)
+      }
+    }
+  } catch (e) {
+    console.error('Failed to restore pending messages from storage:', e)
+  }
+}
+
+// 从 localStorage 移除指定消息
+const removePendingMessageFromStorage = (tempId: string) => {
+  pendingRetryMessages.value.delete(tempId)
+  savePendingMessagesToStorage()
+}
+
+// 恢复待重试消息到 UI 并启动重试（在选中聊天时调用）
+const restorePendingMessagesToUI = (roomId: string) => {
+  // 先从 storage 恢复到内存
+  restorePendingMessagesFromStorage()
+
+  // 遍历待重试消息，将属于当前房间的消息添加到 UI
+  for (const [tempId, pendingMsg] of pendingRetryMessages.value.entries()) {
+    if (pendingMsg.roomId !== roomId) continue
+
+    // 检查消息是否已存在于 UI 中
+    const existingIndex = messages.value.findIndex(msg => msg.id === tempId)
+    if (existingIndex !== -1) {
+      // 消息已存在，确保状态正确并启动重试
+      if (messages.value[existingIndex].status !== 2) {
+        scheduleRetry(tempId)
+      }
+      continue
+    }
+
+    // 添加消息到 UI
+    const user = store.getters.currentUser
+    const tempMessage: Message = {
+      id: tempId,
+      content: pendingMsg.content,
+      isSelf: true,
+      time: formatTime(getTimeStr(pendingMsg.timestamp)),
+      senderId: currentUserId.value || '',
+      senderName: pendingMsg.senderName || user?.nickname || user?.username || '我',
+      senderAvatar: pendingMsg.senderAvatar || user?.avatar,
+      messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
+      status: 1, // 发送中状态
+      createTime: getTimeStr(pendingMsg.timestamp),
+      timestamp: pendingMsg.timestamp,
+    }
+
+    messages.value.push(tempMessage)
+    sortMessagesByTimestamp()
+
+    // 启动重试
+    scheduleRetry(tempId)
+  }
+}
 
 // 调度消息重试 - 持续重试直到成功，间隔 3 秒
 const scheduleRetry = (tempId: string) => {
@@ -2788,7 +2870,8 @@ const executeRetry = async (tempId: string) => {
         ...uiMessage,
         status: 2
       }
-      pendingRetryMessages.value.delete(tempId)
+      // 发送成功后从持久化存储中移除
+      removePendingMessageFromStorage(tempId)
       recentSentMessages.value.add(apiMessage.id)
       setTimeout(() => {
         recentSentMessages.value.delete(apiMessage.id)
@@ -3208,6 +3291,9 @@ const loadMessages = async (groupId: string) => {
 
       messages.value = mergedMessages
       await persistMessagesCache(groupId, mergedMessages)
+
+      // 恢复待重试的消息到 UI 并启动重试
+      restorePendingMessagesToUI(groupId)
 
       // 优先级预加载媒体资源：最新消息优先
       const preloadMediaResources = async () => {
@@ -4772,13 +4858,18 @@ const sendMessage = async () => {
     recentSentMessages.value.delete(tempId)
 
     // 添加到待重试队列并启动自动重试
+    const user = store.getters.currentUser
     pendingRetryMessages.value.set(tempId, {
       tempId,
       roomId: groupId,
       content,
       replyToMessageId: replyingMessage.value?.id,
       timestamp,
+      senderName: user?.nickname || user?.username || '我',
+      senderAvatar: user?.avatar,
     })
+    // 保存到本地存储
+    savePendingMessagesToStorage()
     scheduleRetry(tempId)
 
     // 只在首次失败时提示
@@ -4839,8 +4930,8 @@ const resendMessage = async (message: Message) => {
         }
       }
 
-      // 发送成功后从待重试队列中移除
-      pendingRetryMessages.value.delete(message.id)
+      // 发送成功后从持久化存储中移除
+      removePendingMessageFromStorage(message.id)
 
       recentSentMessages.value.add(apiMessage.id)
       setTimeout(() => {
@@ -4862,8 +4953,12 @@ const resendMessage = async (message: Message) => {
         roomId,
         content: messageContent,
         timestamp: message.timestamp || Date.now(),
+        senderName: message.senderName,
+        senderAvatar: message.senderAvatar,
       })
     }
+    // 保存到本地存储
+    savePendingMessagesToStorage()
     scheduleRetry(message.id)
 
     console.log('手动重发失败，将继续自动重试:', error.message || '网络错误')
