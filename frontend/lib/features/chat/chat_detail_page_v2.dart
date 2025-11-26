@@ -4763,7 +4763,6 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
   bool _loading = false;
   bool _isPlaying = false;
   double _playProgress = 0.0; // 播放进度 0-1
-  double _displayProgress = 0.0; // 用于动画显示的进度值
   final AudioPlayer _audioPlayer = AudioPlayer();
   StreamSubscription? _progressSubscription;
   late final AnimationController _animationController;
@@ -4779,9 +4778,11 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
       vsync: this,
       duration: const Duration(milliseconds: 150), // 150ms 平滑过渡
     );
+
+    // 创建动画对象，初始值为 0
     _progressAnimation = Tween<double>(
       begin: 0.0,
-      end: 0.0,
+      end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeOut,
@@ -4793,17 +4794,9 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
         setState(() {
           _isPlaying = false;
           _playProgress = 0.0;
-          _displayProgress = 0.0;
         });
-        _progressAnimation = Tween<double>(
-          begin: _progressAnimation.value,
-          end: 0.0,
-        ).animate(CurvedAnimation(
-          parent: _animationController,
-          curve: Curves.easeOut,
-        ));
-        _animationController.reset();
-        _animationController.forward();
+        // 动画回退到 0
+        _animationController.animateTo(0.0, duration: const Duration(milliseconds: 200));
       }
     });
 
@@ -4817,23 +4810,15 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
           setState(() {
             _playProgress = newProgress;
           });
-          _updateProgressAnimation(newProgress);
+          // 直接让控制器从当前值动画到新进度
+          _animationController.animateTo(
+            newProgress,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+          );
         }
       }
     });
-  }
-
-  /// 更新进度动画，实现平滑过渡
-  void _updateProgressAnimation(double newProgress) {
-    _progressAnimation = Tween<double>(
-      begin: _progressAnimation.value,
-      end: newProgress,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
-    _animationController.reset();
-    _animationController.forward();
   }
 
   @override
@@ -4995,40 +4980,23 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
                       : Colors.black.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Stack(
-                  children: [
-                    // 背景波形（静态）
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _WaveformPainter(
-                          progress: 1.0,
-                          color: widget.isSelf
-                              ? Colors.white.withValues(alpha: 0.3)
-                              : Colors.black.withValues(alpha: 0.1),
-                        ),
+                child: AnimatedBuilder(
+                  animation: _progressAnimation,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: _WaveformPainter(
+                        progress: _progressAnimation.value,
+                        color: widget.isSelf
+                            ? Colors.white
+                            : AppColors.primary,
+                        backgroundColor: widget.isSelf
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : Colors.black.withValues(alpha: 0.1),
+                        isPlaying: _isPlaying,
+                        animation: _progressAnimation,
                       ),
-                    ),
-                    // 播放进度
-                    Positioned.fill(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: AnimatedBuilder(
-                          animation: _progressAnimation,
-                          builder: (context, child) {
-                            return CustomPaint(
-                              painter: _WaveformPainter(
-                                progress: _progressAnimation.value,
-                                color: widget.isSelf
-                                    ? Colors.white
-                                    : AppColors.primary,
-                                animation: _progressAnimation,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -5363,20 +5331,20 @@ class _ActionItem extends StatelessWidget {
 class _WaveformPainter extends CustomPainter {
   final double progress; // 0-1
   final Color color;
+  final Color backgroundColor; // 背景波形颜色
+  final bool isPlaying; // 是否正在播放
   final Animation<double>? animation; // 用于平滑过渡
 
   _WaveformPainter({
     required this.progress,
     required this.color,
+    required this.backgroundColor,
+    this.isPlaying = false,
     this.animation,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
     final barCount = 20; // 波形条数量
     final barWidth = size.width / barCount * 0.6;
     final barSpacing = size.width / barCount * 0.4;
@@ -5384,43 +5352,85 @@ class _WaveformPainter extends CustomPainter {
     // 使用动画值实现平滑过渡
     final animatedProgress = animation?.value ?? progress;
 
-    // 使用更自然的波形模式：多个频率叠加的正弦波
-    // 类似真实的音频波形，但更平滑
+    // 先绘制背景波形（全部显示）
+    _drawWaveformBars(
+      canvas,
+      size,
+      barCount,
+      barWidth,
+      barSpacing,
+      backgroundColor,
+      fullWidth: true,
+    );
+
+    // 再绘制播放进度波形（只显示进度部分）
+    _drawWaveformBars(
+      canvas,
+      size,
+      barCount,
+      barWidth,
+      barSpacing,
+      color,
+      progress: animatedProgress,
+    );
+
+    // 如果正在播放，添加闪烁效果
+    if (isPlaying && animatedProgress < 1.0) {
+      _drawPlayingIndicator(canvas, size, barCount, barWidth, barSpacing);
+    }
+  }
+
+  void _drawWaveformBars(
+    Canvas canvas,
+    Size size,
+    int barCount,
+    double barWidth,
+    double barSpacing,
+    Color color, {
+    double progress = 1.0,
+    bool fullWidth = false,
+  }) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
     for (var i = 0; i < barCount; i++) {
       final x = i * (barWidth + barSpacing);
 
-      // 只绘制进度内的部分，添加淡入效果
-      final progressX = size.width * animatedProgress;
-      if (x > progressX + barWidth) break;
+      // 计算波形高度
+      final height = _calculateBarHeight(i, barCount, size);
 
-      // 多频率叠加生成更自然的波形
-      // 基础波形（低频）
-      final baseWave = (math.sin(i * 0.6) * 0.25 + 0.25);
-      // 谐波（增加变化）
-      final harmonic = (math.sin(i * 1.2 + 0.5) * 0.15 + 0.15);
-      // 随机扰动（模拟音频的随机性）
-      final noise = (math.sin(i * 2.3 + 1.7) * 0.08 + 0.08);
-      // 组合波形
-      final combined = baseWave + harmonic + noise;
+      // 绘制背景波形时全部显示，绘制进度波形时只显示进度部分
+      final shouldDraw = fullWidth || (x + barWidth <= size.width * progress);
 
-      // 归一化到 0.2-0.85 范围
-      final normalizedHeight = combined.clamp(0.2, 0.85);
-      final barHeight = size.height * normalizedHeight;
-      final barY = (size.height - barHeight) / 2;
+      if (shouldDraw) {
+        // 计算进度边缘的淡入效果
+        if (!fullWidth && progress < 1.0) {
+          final progressX = size.width * progress;
+          if (x < progressX && x + barWidth > progressX) {
+            // 部分可见的条（进度边缘）
+            final edgePosition = (progressX - x) / barWidth;
+            final edgePaint = Paint()
+              ..color = color.withOpacity(edgePosition.clamp(0.0, 1.0))
+              ..style = PaintingStyle.fill;
+            canvas.drawRRect(
+              RRect.fromRectAndCorners(
+                Rect.fromLTWH(x, (size.height - height) / 2, barWidth * edgePosition, height),
+                topLeft: const Radius.circular(2),
+                topRight: const Radius.circular(2),
+                bottomLeft: const Radius.circular(2),
+                bottomRight: const Radius.circular(2),
+              ),
+              edgePaint,
+            );
+            continue;
+          }
+        }
 
-      // 计算透明度实现平滑的淡入效果
-      double alpha = 1.0;
-      if (x + barWidth > progressX) {
-        // 在进度边缘的条进行淡入
-        final edgePosition = (progressX - x) / barWidth;
-        alpha = edgePosition.clamp(0.0, 1.0);
-      }
-
-      // 绘制进度内已播放的部分
-      if (x < progressX) {
+        // 正常绘制
         canvas.drawRRect(
           RRect.fromRectAndCorners(
-            Rect.fromLTWH(x, barY, barWidth, barHeight),
+            Rect.fromLTWH(x, (size.height - height) / 2, barWidth, height),
             topLeft: const Radius.circular(2),
             topRight: const Radius.circular(2),
             bottomLeft: const Radius.circular(2),
@@ -5428,22 +5438,63 @@ class _WaveformPainter extends CustomPainter {
           ),
           paint,
         );
-      } else if (alpha > 0) {
-        // 绘制进度边缘的淡入部分
-        final edgePaint = Paint()
-          ..color = color.withOpacity(alpha)
-          ..style = PaintingStyle.fill;
-        canvas.drawRRect(
-          RRect.fromRectAndCorners(
-            Rect.fromLTWH(x, barY, barWidth, barHeight),
-            topLeft: const Radius.circular(2),
-            topRight: const Radius.circular(2),
-            bottomLeft: const Radius.circular(2),
-            bottomRight: const Radius.circular(2),
-          ),
-          edgePaint,
-        );
       }
+    }
+  }
+
+  /// 计算第 i 个波形条的高度
+  double _calculateBarHeight(int index, int total, Size size) {
+    // 多频率叠加生成更自然的波形
+    // 基础波形（低频）
+    final baseWave = (math.sin(index * 0.6) * 0.25 + 0.25);
+    // 谐波（增加变化）
+    final harmonic = (math.sin(index * 1.2 + 0.5) * 0.15 + 0.15);
+    // 随机扰动（模拟音频的随机性）
+    final noise = (math.sin(index * 2.3 + 1.7) * 0.08 + 0.08);
+    // 组合波形
+    final combined = baseWave + harmonic + noise;
+
+    // 归一化到 0.2-0.9 范围
+    final normalizedHeight = combined.clamp(0.2, 0.9);
+    return size.height * normalizedHeight;
+  }
+
+  /// 绘制播放指示器（闪烁效果）
+  void _drawPlayingIndicator(
+    Canvas canvas,
+    Size size,
+    int barCount,
+    double barWidth,
+    double barSpacing,
+  ) {
+    // 使用脉冲动画效果
+    final time = DateTime.now().millisecondsSinceEpoch / 1000.0;
+    final pulse = (math.sin(time * 4) * 0.3 + 0.7).clamp(0.4, 1.0);
+
+    // 在当前播放位置绘制高亮指示器
+    final currentX = size.width * (animation?.value ?? 0);
+
+    if (currentX < size.width) {
+      final indicatorPaint = Paint()
+        ..color = color.withOpacity(0.6 * pulse)
+        ..style = PaintingStyle.fill;
+
+      // 绘制一个小的指示器
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(
+            currentX - 2,
+            size.height * 0.1,
+            4,
+            size.height * 0.8,
+          ),
+          topLeft: const Radius.circular(2),
+          topRight: const Radius.circular(2),
+          bottomLeft: const Radius.circular(2),
+          bottomRight: const Radius.circular(2),
+        ),
+        indicatorPaint,
+      );
     }
   }
 
@@ -5451,6 +5502,8 @@ class _WaveformPainter extends CustomPainter {
   bool shouldRepaint(covariant _WaveformPainter oldDelegate) {
     return oldDelegate.progress != progress ||
            oldDelegate.color != color ||
+           oldDelegate.backgroundColor != backgroundColor ||
+           oldDelegate.isPlaying != isPlaying ||
            oldDelegate.animation?.value != animation?.value;
   }
 }
