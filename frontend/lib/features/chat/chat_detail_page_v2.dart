@@ -94,7 +94,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   Message? _quotedMessage;
   bool _multiSelectMode = false;
   final Set<String> _selectedMessageIds = <String>{};
-  final Map<String, GlobalKey> _messageItemKeys = {};
+  // 使用 GlobalObjectKey 替代 GlobalKey，避免 ListView 复用时的冲突问题
+  // GlobalObjectKey 基于对象引用（消息 ID 字符串）创建，确保唯一性
 
   bool _showEmojiPanel = false;
   bool _showMorePanel = false;
@@ -416,8 +417,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     if (attempt >= 8) {
       final lastId = _lastMessageId;
       if (lastId != null) {
-        final key = _messageItemKeys[lastId];
-        final targetContext = key?.currentContext;
+        // 使用 GlobalObjectKey 获取最后一条消息的 context
+        final key = GlobalObjectKey('msg_$lastId');
+        final targetContext = key.currentContext;
         if (targetContext != null) {
           Scrollable.ensureVisible(
             targetContext,
@@ -725,10 +727,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           final hasPinnedBanner =
               pinnedMessage != null && messages.contains(pinnedMessage);
 
-          // 清理不再存在的消息对应的 GlobalKey，避免 "Multiple widgets used the same GlobalKey" 错误
-          final currentMessageIds = messages.map((m) => m.id).toSet();
-          _messageItemKeys.removeWhere((id, _) => !currentMessageIds.contains(id));
-
           // 使用 Opacity 替代 AnimatedOpacity，避免键盘动画期间的额外性能开销
           // 只有在初始加载时才需要动画，后续直接使用静态 Opacity
           final messageListWidget = ListView.builder(
@@ -746,6 +744,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 // ignore: unnecessary_non_null_assertion
                 final pinned = pinnedMessage!;
                 return RepaintBoundary(
+                  key: ValueKey('pinned_banner_${pinned.id}'),
                   child: _PinnedMessageBanner(
                     message: pinned,
                     onTap: () => _scrollToMessage(pinned.id),
@@ -759,10 +758,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               final previousMessage = effectiveIndex > 0
                   ? messages[effectiveIndex - 1]
                   : null;
-              final itemKey = _messageItemKeys.putIfAbsent(
-                message.id,
-                () => GlobalKey(),
-              );
               final isSelected = _selectedMessageIds.contains(message.id);
 
               final showTimestamp = message.shouldShowTimestamp(
@@ -773,9 +768,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 message,
               );
 
-              // 使用 RepaintBoundary 包裹每个消息项，避免不必要的重绘
+              // 使用 GlobalObjectKey 确保每个消息有唯一的 key
+              // GlobalObjectKey 基于消息 ID 创建，避免 ListView 复用时的 GlobalKey 冲突
               return RepaintBoundary(
-                key: itemKey,
+                key: GlobalObjectKey('msg_${message.id}'),
                 child: Column(
                   children: [
                     if (showTimestamp && dayLabel.isNotEmpty) ...[
@@ -1108,8 +1104,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _scrollToMessage(String messageId) {
-    final key = _messageItemKeys[messageId];
-    final targetContext = key?.currentContext;
+    // 使用 GlobalObjectKey 获取消息 widget 的 context
+    final key = GlobalObjectKey('msg_$messageId');
+    final targetContext = key.currentContext;
     if (targetContext == null) {
       _handleQuotedMessageNotFound();
       return;

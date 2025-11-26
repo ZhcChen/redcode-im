@@ -48,6 +48,7 @@ class ChatProvider with ChangeNotifier {
   // 已读同步状态
   String? _lastReadMessageId;
   bool _isMarkingRead = false;
+  bool _isDisposed = false;
 
   // 聊天列表
   List<Chat> _chats = [];
@@ -154,9 +155,11 @@ class ChatProvider with ChangeNotifier {
 
   /// 离开聊天室
   Future<void> leaveChatRoom() async {
-    if (_currentRoomId == null) return;
+    if (_currentRoomId == null || _isDisposed) return;
 
     await _syncReadState();
+
+    if (_isDisposed) return;
 
     _currentRoomId = null;
     _currentChat = null;
@@ -781,6 +784,7 @@ class ChatProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _messageService.removeListener(_onMessageServiceChanged);
     _webSocketService.removeListener(_onWebSocketStatusChanged);
     super.dispose();
