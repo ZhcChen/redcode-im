@@ -143,6 +143,7 @@ const recordingDuration = ref(0)
 const previewRecording = ref<VoiceRecording | null>(null)
 const playProgress = ref(0) // 播放进度 0.0 - 1.0
 const effectiveDuration = ref(props.duration) // 毫秒，优先用元数据兜底
+const playableUrl = ref(props.voiceUrl || '')
 
 // 波形基础高度（12条波形）
 const baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5]
@@ -223,7 +224,14 @@ const animateWave = () => {
 
 // 播放方法
 const togglePlay = async () => {
-  if (!props.voiceUrl || isLoading.value) return
+  if (!playableUrl.value || isLoading.value) {
+    console.warn('[VoiceMessage] 无可播放的语音 URL，取消播放', {
+      rawUrl: props.voiceUrl,
+      playableUrl: playableUrl.value,
+      duration: effectiveDuration.value
+    })
+    return
+  }
 
   try {
     if (isPlaying.value) {
@@ -237,7 +245,7 @@ const togglePlay = async () => {
       isLoading.value = true
       // 注意：play() 返回的 Promise 在播放结束时才 resolve
       // 我们不需要 await 完整播放过程，只需要开始播放即可
-      voicePlayer.play(props.voiceUrl).catch((err: any) => {
+      voicePlayer.play(playableUrl.value).catch((err: any) => {
         console.error('播放失败:', err)
         isPlaying.value = false
         isLoading.value = false
@@ -334,8 +342,10 @@ watch(isPlaying, (playing) => {
 // 当传入的 voiceUrl 变化时，尝试预加载元数据并更新时长
 watch(() => props.voiceUrl, async (url) => {
   if (!url) return
+  playableUrl.value = url
   try {
     const playable = VoicePlayer.toPlayableUrl(url)
+    playableUrl.value = playable
     const audio = new Audio()
     audio.preload = 'metadata'
     audio.src = playable
@@ -346,9 +356,10 @@ watch(() => props.voiceUrl, async (url) => {
           effectiveDuration.value = durationMs
         }
       }
+      console.log('[VoiceMessage] 预加载元数据', { url: playable, duration: audio.duration })
     }
     audio.onerror = () => {
-      // 静默失败，保持原有时长
+      console.warn('[VoiceMessage] 元数据加载失败', { url: playable })
     }
     audio.load()
   } catch (error) {

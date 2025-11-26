@@ -255,6 +255,10 @@ export class VoicePlayer {
         return;
       }
 
+      this.audio.onloadedmetadata = () => {
+        console.log('[VoicePlayer] 元数据加载完成', { src: playableUrl, duration: this.audio?.duration });
+      };
+
       this.audio.onplay = () => {
         console.log('[VoicePlayer] 开始播放');
         this.startProgressTracking();
