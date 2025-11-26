@@ -43,6 +43,42 @@ class CreatedRoom {
   }
 }
 
+/// 当前用户的个人禁言信息
+class MyMuteInfo {
+  MyMuteInfo({
+    required this.isMuted,
+    this.reason,
+    this.mutedAt,
+    this.muteUntil,
+  });
+
+  final bool isMuted;
+  final String? reason;
+  final DateTime? mutedAt;
+  final DateTime? muteUntil;
+
+  factory MyMuteInfo.fromJson(Map<String, dynamic> json) {
+    DateTime? mutedAt;
+    final mutedAtStr = json['muted_at'];
+    if (mutedAtStr is String && mutedAtStr.isNotEmpty) {
+      mutedAt = DateTime.tryParse(mutedAtStr);
+    }
+
+    DateTime? muteUntil;
+    final muteUntilStr = json['mute_until'];
+    if (muteUntilStr is String && muteUntilStr.isNotEmpty) {
+      muteUntil = DateTime.tryParse(muteUntilStr);
+    }
+
+    return MyMuteInfo(
+      isMuted: json['is_muted'] as bool? ?? false,
+      reason: json['reason'] as String?,
+      mutedAt: mutedAt,
+      muteUntil: muteUntil,
+    );
+  }
+}
+
 class GroupSettingsInfo {
   GroupSettingsInfo({
     required this.roomId,
@@ -52,6 +88,7 @@ class GroupSettingsInfo {
     this.joinApprovalRequired,
     this.memberCanInvite,
     this.maxMembers,
+    this.myMute,
   });
 
   final String roomId;
@@ -61,12 +98,19 @@ class GroupSettingsInfo {
   final bool? joinApprovalRequired;
   final bool? memberCanInvite;
   final int? maxMembers;
+  final MyMuteInfo? myMute;
 
   factory GroupSettingsInfo.fromJson(Map<String, dynamic> json) {
     DateTime? muteUntil;
     final until = json['global_mute_until'];
     if (until is String && until.isNotEmpty) {
       muteUntil = DateTime.tryParse(until);
+    }
+
+    MyMuteInfo? myMute;
+    final myMuteJson = json['my_mute'];
+    if (myMuteJson is Map<String, dynamic>) {
+      myMute = MyMuteInfo.fromJson(myMuteJson);
     }
 
     return GroupSettingsInfo(
@@ -77,6 +121,7 @@ class GroupSettingsInfo {
       joinApprovalRequired: json['join_approval_required'] as bool?,
       memberCanInvite: json['member_can_invite'] as bool?,
       maxMembers: json['max_members'] as int?,
+      myMute: myMute,
     );
   }
 }

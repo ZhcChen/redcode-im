@@ -107,9 +107,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   final RoomService _roomService = RoomService();
   final TokenStorage _tokenStorage = const TokenStorage();
   bool _isGlobalMuted = false;
+  bool _isPersonalMuted = false; // 个人禁言状态
   bool _isGroupOwnerOrAdmin = false;
   String? _currentUserId;
   StreamSubscription<GroupSettingsUpdatedEvent>? _groupSettingsSubscription;
+  StreamSubscription<GroupMemberChangedEvent>? _groupMemberSubscription;
   @override
   void initState() {
     super.initState();
@@ -133,6 +135,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       _groupSettingsSubscription = WebSocketService.instance.onGroupSettingsUpdated
           .where((event) => event.roomId == widget.roomId)
           .listen(_handleGroupSettingsUpdated);
+      // 监听群成员变更事件（用于个人禁言/解禁）
+      _groupMemberSubscription = WebSocketService.instance.onGroupMemberChanged
+          .where((event) => event.roomId == widget.roomId)
+          .listen(_handleGroupMemberChanged);
     }
   }
 
@@ -142,6 +148,23 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     setState(() {
       _isGlobalMuted = event.globalMuteEnabled;
     });
+  }
+
+  /// 处理群成员变更事件（WebSocket 推送）
+  void _handleGroupMemberChanged(GroupMemberChangedEvent event) {
+    if (!mounted) return;
+    // 只处理当前用户的禁言/解禁事件
+    if (event.memberId != _currentUserId) return;
+
+    if (event.changeType == 'muted') {
+      setState(() {
+        _isPersonalMuted = true;
+      });
+    } else if (event.changeType == 'unmuted') {
+      setState(() {
+        _isPersonalMuted = false;
+      });
+    }
   }
 
   Future<void> _initChat() async {
@@ -204,8 +227,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         currentUserId: _currentUserId,
       );
 
+      // 检查个人禁言状态
+      final isPersonalMuted = settings.myMute?.isMuted ?? false;
+
       setState(() {
         _isGlobalMuted = settings.globalMuteEnabled;
+        _isPersonalMuted = isPersonalMuted;
         _isGroupOwnerOrAdmin = isOwnerOrAdmin;
       });
     } catch (e) {
@@ -238,9 +265,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     return false;
   }
 
-  /// 输入框是否应该被禁用（群禁言且非管理员）
+  /// 输入框是否应该被禁用（全体禁言且非管理员，或个人被禁言）
   bool get _isInputDisabled {
     if (widget.chatType != ChatType.group) return false;
+    // 个人被禁言时直接禁用
+    if (_isPersonalMuted) return true;
+    // 全体禁言时，管理员不受影响
     return _isGlobalMuted && !_isGroupOwnerOrAdmin;
   }
 
@@ -249,6 +279,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _clearMultiSelect();
     _keyboardUpdateTimer?.cancel();
     _groupSettingsSubscription?.cancel();
+    _groupMemberSubscription?.cancel();
     _scrollController.removeListener(_onScroll);
     _chatProvider.leaveChatRoom();
     if (_ownsProvider) {
