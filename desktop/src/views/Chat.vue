@@ -8486,7 +8486,7 @@ const loadMessageList = async (groupId: string) => {
         margin: -8px -12px;
 
         &::placeholder {
-          color: #ff4d4f;
+          color: #8c8c8c;
         }
       }
     }

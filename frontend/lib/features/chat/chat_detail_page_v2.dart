@@ -3541,9 +3541,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                   ? (widget.disabledHint ?? '已禁言')
                   : '发送消息...',
               hintStyle: TextStyle(
-                color: widget.isDisabled
-                    ? AppColors.danger
-                    : AppColors.textTertiary,
+                color: AppColors.textTertiary,
               ),
             ),
           ),
