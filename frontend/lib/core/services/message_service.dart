@@ -140,11 +140,14 @@ class MessageService with ChangeNotifier {
       // 添加到待发送队列
       _pendingMessages[message.id] = message;
 
-      // 构建 payload
+      // 构建 payload，从 parts 中提取实际文本内容
       final parts = <Map<String, dynamic>>[];
+      String? actualTextContent;
       for (final part in message.parts) {
         if (part.type == MessagePartType.text && part.text != null) {
           parts.add({'type': 'text', 'text': part.text});
+          // 提取实际文本内容
+          actualTextContent = part.text;
         } else if (part.attachment != null) {
           parts.add({
             'type': part.type.name,
@@ -163,9 +166,10 @@ class MessageService with ChangeNotifier {
         }
       }
 
+      // 使用从 parts 提取的实际文本内容，而不是占位符（如 [语音]、[图片] 等）
       _pendingPayloads[message.id] = _PendingMessagePayload(
         roomId: roomId,
-        content: message.content,
+        content: actualTextContent,
         parts: parts,
         quotedMessageId: message.quotedMessage?.id,
       );
@@ -433,17 +437,6 @@ class MessageService with ChangeNotifier {
       return;
     }
 
-    // [DEBUG] 开始发送消息
-    debugPrint('[sendRichMessage] 开始发送消息: roomId=$roomId, '
-        'hasText=${trimmedText?.isNotEmpty ?? false}, '
-        'attachmentCount=${attachments.length}');
-    for (var i = 0; i < attachments.length; i++) {
-      final a = attachments[i];
-      debugPrint('[sendRichMessage] 附件[$i]: type=${a.type.name}, '
-          'mime=${a.mime}, file=${a.file.path}, '
-          'existingKey=${a.existingKey}');
-    }
-
     _validateDraft(trimmedText, attachments);
 
     final totalSize = await _calculateAttachmentSize(attachments);
@@ -464,7 +457,6 @@ class MessageService with ChangeNotifier {
 
     try {
       if (attachments.isNotEmpty) {
-        debugPrint('[sendRichMessage] 准备附件上传计划...');
         plans.addAll(
           await _prepareAttachmentUploads(
             roomId: roomId,
@@ -473,12 +465,6 @@ class MessageService with ChangeNotifier {
             token: session.token,
           ),
         );
-        debugPrint('[sendRichMessage] 附件上传计划准备完成: ${plans.length} 个');
-        for (var i = 0; i < plans.length; i++) {
-          final p = plans[i];
-          debugPrint('[sendRichMessage] 上传计划[$i]: key=${p.key}, '
-              'size=${p.size}, contentType=${p.contentType}');
-        }
       }
 
       final pendingMessage = _buildPendingMessage(
@@ -511,21 +497,16 @@ class MessageService with ChangeNotifier {
         quotedMessageId: quotedMessage?.id,
       );
 
-      for (var i = 0; i < plans.length; i++) {
-        final plan = plans[i];
-        debugPrint('[sendRichMessage] 开始上传附件[$i]: key=${plan.key}');
+      for (final plan in plans) {
         await _executeAttachmentUpload(plan);
-        debugPrint('[sendRichMessage] 附件[$i]上传完成: key=${plan.key}');
       }
 
-      debugPrint('[sendRichMessage] 调用发送消息 API...');
       final response = await _sendMessageAPI(
         roomId,
         content: trimmedText,
         parts: partsPayload,
         quotedMessageId: quotedMessage?.id,
       );
-      debugPrint('[sendRichMessage] 发送消息 API 返回: id=${response.id}');
 
       final updated = _messageFromResponse(
         response,
@@ -543,9 +524,8 @@ class MessageService with ChangeNotifier {
       _pendingPayloads.remove(tempId);
       _updateChatLastMessage(roomId, updated);
       unawaited(_hydrateAttachmentLocalPaths(updated));
-      debugPrint('[sendRichMessage] 消息发送成功: ${updated.id}');
     } catch (error, stackTrace) {
-      debugPrint('[sendRichMessage] 发送消息失败: $error');
+      debugPrint('Failed to send message: $error');
       if (kDebugMode) {
         debugPrint(stackTrace.toString());
       }
@@ -574,9 +554,10 @@ class MessageService with ChangeNotifier {
       }
 
       final payload = _pendingPayloads[messageId];
+      // 使用 payload 中的内容，不回退到 message.content（可能是占位符如 [语音]）
       final response = await _sendMessageAPI(
         payload?.roomId ?? message.roomId,
-        content: payload?.content ?? message.content,
+        content: payload?.content,
         parts: payload?.parts ?? const <Map<String, dynamic>>[],
         quotedMessageId: payload?.quotedMessageId ?? message.quotedMessage?.id,
       );
@@ -1912,10 +1893,6 @@ class MessageService with ChangeNotifier {
   }
 
   Future<void> _executeAttachmentUpload(_AttachmentUploadPlan plan) async {
-    debugPrint('[_executeAttachmentUpload] 开始上传: key=${plan.key}, '
-        'url=${plan.signature.url}, method=${plan.signature.method}, '
-        'contentType=${plan.contentType}, size=${plan.size}');
-
     final request = http.StreamedRequest(
       plan.signature.method,
       Uri.parse(plan.signature.url),
@@ -1925,7 +1902,6 @@ class MessageService with ChangeNotifier {
     final total = plan.size.toDouble().clamp(1, double.infinity);
     double uploaded = 0;
 
-    debugPrint('[_executeAttachmentUpload] 开始读取文件并上传...');
     await for (final chunk in plan.file.openRead()) {
       request.sink.add(chunk);
       uploaded += chunk.length;
@@ -1937,15 +1913,10 @@ class MessageService with ChangeNotifier {
         progress: progress.toDouble(),
       );
     }
-    debugPrint('[_executeAttachmentUpload] 文件读取完成，关闭 sink...');
     await request.sink.close();
 
-    debugPrint('[_executeAttachmentUpload] 等待服务器响应...');
     final response = await request.send();
     final responseBody = await response.stream.bytesToString();
-    debugPrint('[_executeAttachmentUpload] 服务器响应: '
-        'statusCode=${response.statusCode}, '
-        'body=${responseBody.length > 200 ? responseBody.substring(0, 200) : responseBody}');
 
     if (!_isSuccessStatus(response.statusCode)) {
       final message = responseBody.isNotEmpty
@@ -1954,7 +1925,6 @@ class MessageService with ChangeNotifier {
       throw Exception('上传附件失败: $message');
     }
 
-    debugPrint('[_executeAttachmentUpload] 上传成功，保存到本地缓存...');
     await _updateAttachmentUploadProgress(
       roomId: plan.roomId,
       messageId: plan.messageId,
@@ -1966,7 +1936,6 @@ class MessageService with ChangeNotifier {
       objectKey: plan.key,
       source: plan.file,
     );
-    debugPrint('[_executeAttachmentUpload] 本地缓存保存完成: $savedPath');
 
     await _updateAttachmentLocalPath(
       roomId: plan.roomId,
@@ -2326,9 +2295,10 @@ class MessageService with ChangeNotifier {
       }
 
       final payload = _pendingPayloads[messageId];
+      // 使用 payload 中的内容，不回退到 message.content（可能是占位符如 [语音]）
       final response = await _sendMessageAPI(
         payload?.roomId ?? message.roomId,
-        content: payload?.content ?? message.content,
+        content: payload?.content,
         parts: payload?.parts ?? const <Map<String, dynamic>>[],
         quotedMessageId: payload?.quotedMessageId ?? message.quotedMessage?.id,
       );

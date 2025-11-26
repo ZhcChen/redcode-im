@@ -2109,40 +2109,18 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildPrimaryContent(BuildContext context) {
-    debugPrint('========== _buildPrimaryContent 开始 ==========');
-    debugPrint('消息ID: ${_message.id}');
-    debugPrint('消息类型: ${_message.type}');
-    debugPrint('消息内容: "${_message.content}"');
-    debugPrint('消息parts数量: ${_message.parts.length}');
-
     if (_message.isDeleted) {
-      debugPrint('消息已删除');
       return _buildDeletedContent(context);
     }
 
     final parts = [..._message.parts]
       ..sort((a, b) => a.position.compareTo(b.position));
 
-    debugPrint('排序后的parts数量: ${parts.length}');
-    for (var i = 0; i < parts.length; i++) {
-      final part = parts[i];
-      debugPrint(
-        '  part[$i]: type=${part.type}, position=${part.position}, text="${part.text}", attachment=${part.attachment != null}',
-      );
-      if (part.attachment != null) {
-        debugPrint(
-          '    attachment: key=${part.attachment!.key}, name=${part.attachment!.name}',
-        );
-      }
-    }
-
     if (parts.isNotEmpty) {
-      debugPrint('使用parts渲染消息');
       final widgets = <Widget>[];
       for (final part in parts) {
         final widget = _buildPartWidget(context, part);
         if (widget == null) {
-          debugPrint('  part ${part.type} 返回null，跳过');
           continue;
         }
         if (widgets.isNotEmpty) {
@@ -2152,8 +2130,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
       }
 
       if (widgets.isNotEmpty) {
-        debugPrint('使用parts渲染，共${widgets.length}个widget');
-        debugPrint('========== _buildPrimaryContent 结束（使用parts）==========');
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: _isSelf
@@ -2164,20 +2140,13 @@ class _MessageBubbleState extends State<_MessageBubble> {
       }
     }
 
-    debugPrint('使用legacy content渲染');
-    debugPrint('========== _buildPrimaryContent 结束（使用legacy）==========');
     return _buildLegacyContent(context);
   }
 
   Widget _buildLegacyContent(BuildContext context) {
-    debugPrint('========== _buildLegacyContent 开始 ==========');
-    debugPrint('消息类型: ${_message.type}');
-    debugPrint('消息内容: "${_message.content}"');
-
     Widget content;
     switch (_message.type) {
       case MessageType.text:
-        debugPrint('处理文本消息');
         content = _buildTextWithEmojis(_message.content, isSelf: _isSelf);
         break;
       case MessageType.image:
@@ -2249,20 +2218,12 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget? _buildPartWidget(BuildContext context, MessagePart part) {
-    debugPrint('========== _buildPartWidget 开始 ==========');
-    debugPrint('part类型: ${part.type}');
-    debugPrint('part文本: "${part.text}"');
-    debugPrint('part attachment: ${part.attachment != null}');
-
     switch (part.type) {
       case MessagePartType.text:
         final text = part.text?.trim();
-        debugPrint('处理文本part，文本: "$text"');
         if (text == null || text.isEmpty) {
-          debugPrint('文本为空，返回null');
           return null;
         }
-        debugPrint('调用_buildTextWithEmojis处理文本part');
         return _buildTextWithEmojis(text, isSelf: _isSelf);
       case MessagePartType.image:
         return _AttachmentImageView(
@@ -2298,11 +2259,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildTextWithEmojis(String text, {required bool isSelf}) {
-    debugPrint('========== _buildTextWithEmojis 开始 ==========');
-    debugPrint('输入文本: "$text"');
-    debugPrint('文本长度: ${text.length}');
-    debugPrint('isSelf: $isSelf');
-
     // 识别文本中的表情URL（http://或https://开头的URL）
     // 更精确的正则：匹配完整的URL，包括可能的查询参数和片段
     final emojiUrlPattern = RegExp(
@@ -2311,15 +2267,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
     );
     final matches = emojiUrlPattern.allMatches(text);
 
-    debugPrint('正则匹配结果: ${matches.length} 个匹配');
-    for (final match in matches) {
-      debugPrint('  匹配[${match.start}-${match.end}]: "${match.group(0)}"');
-    }
-
     if (matches.isEmpty) {
       // 没有表情URL，直接显示文本
-      debugPrint('没有找到URL，直接显示文本');
-      debugPrint('========== _buildTextWithEmojis 结束（无URL）==========');
       return Text(
         text,
         style: TextStyle(
@@ -2329,8 +2278,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
       );
     }
 
-    debugPrint('找到 ${matches.length} 个URL，开始构建混合内容');
-
     // 有表情URL，需要混合显示文本和图片
     final spans = <InlineSpan>[];
     int lastEnd = 0;
@@ -2339,7 +2286,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
       // 添加匹配前的文本
       if (match.start > lastEnd) {
         final beforeText = text.substring(lastEnd, match.start);
-        debugPrint('添加文本片段: "$beforeText"');
         spans.add(
           TextSpan(
             text: beforeText,
@@ -2353,7 +2299,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
 
       // 添加表情图片
       final emojiUrl = match.group(0)!;
-      debugPrint('添加表情图片组件，URL: "$emojiUrl"');
       spans.add(
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
@@ -2367,7 +2312,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
     // 添加剩余的文本
     if (lastEnd < text.length) {
       final afterText = text.substring(lastEnd);
-      debugPrint('添加剩余文本: "$afterText"');
       spans.add(
         TextSpan(
           text: afterText,
@@ -2379,8 +2323,6 @@ class _MessageBubbleState extends State<_MessageBubble> {
       );
     }
 
-    debugPrint('总共构建了 ${spans.length} 个span');
-    debugPrint('========== _buildTextWithEmojis 结束 ==========');
     return Text.rich(TextSpan(children: spans));
   }
 
@@ -4199,17 +4141,11 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     // 收集所有独立的单个表情包（packType === 0）中的表情项
     // 排除套件（packType === 1）
     final allItems = <EmojiItem>[];
-    debugPrint('_buildCustomEmojiGrid: _userPacks 数量 = ${_userPacks.length}');
     for (final pack in _userPacks) {
-      debugPrint(
-        '  检查表情包: id=${pack.id}, name=${pack.name}, packType=${pack.packType}, items数量=${pack.items.length}',
-      );
       if (pack.packType == 0) {
-        debugPrint('    添加 ${pack.items.length} 个表情项');
         allItems.addAll(pack.items);
       }
     }
-    debugPrint('_buildCustomEmojiGrid: 总共收集到 ${allItems.length} 个表情项');
 
     if (allItems.isEmpty) {
       return const Center(
