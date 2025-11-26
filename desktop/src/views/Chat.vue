@@ -208,6 +208,7 @@
                     :voice-url="getCachedAudioUrl(message)"
                     :duration="getAudioDuration(message)"
                     :is-mine="message.isSelf"
+                    :message-id="message.id"
                   />
                 </template>
 
@@ -1045,7 +1046,32 @@ const audioUrlCache = reactive<Record<string, string>>({});
 // 获取缓存的音频 URL
 const getCachedAudioUrl = (message: DomainMessage): string => {
   const messageId = message.id;
-  return audioUrlCache[messageId] || '';
+  let url = audioUrlCache[messageId] || '';
+
+  if (!url) {
+    // 尝试从附件本地路径/下载链接兜底
+    const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
+    const attach = audioPart?.attachment;
+    if (attach?.localPath) {
+      url = convertLocalPathToUrlSync(attach.localPath);
+      audioUrlCache[messageId] = url;
+      console.warn('[VoiceUrl] 使用 attachment.localPath 兜底', { messageId, localPath: attach.localPath, url });
+    } else if (attach?.downloadUrl) {
+      url = attach.downloadUrl;
+      audioUrlCache[messageId] = url;
+      console.warn('[VoiceUrl] 使用 attachment.downloadUrl 兜底', { messageId, downloadUrl: attach.downloadUrl });
+    } else {
+      console.warn('[VoiceUrl] 仍为空', {
+        messageId,
+        contentType: message.contentType,
+        hasParts: Array.isArray(message.parts),
+        hasAudioPart: hasAudioPart(message),
+        attachmentKeys: audioPart?.attachment?.key,
+      });
+    }
+  }
+
+  return url;
 };
 
 // 异步加载音频 URL 并缓存

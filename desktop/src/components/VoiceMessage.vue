@@ -116,6 +116,7 @@ interface Props {
   isMine?: boolean
   autoplay?: boolean
   showRecorder?: boolean
+  messageId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -124,6 +125,7 @@ const props = withDefaults(defineProps<Props>(), {
   isMine: false,
   autoplay: false,
   showRecorder: false,
+  messageId: ''
 })
 
 // Emits
@@ -227,6 +229,7 @@ const animateWave = () => {
 const togglePlay = async () => {
   if (!playableUrl.value || isLoading.value) {
     console.warn('[VoiceMessage] 无可播放的语音 URL，取消播放', {
+      messageId: props.messageId,
       rawUrl: props.voiceUrl,
       playableUrl: playableUrl.value,
       duration: effectiveDuration.value
