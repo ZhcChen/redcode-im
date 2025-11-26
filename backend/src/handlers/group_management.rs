@@ -147,6 +147,11 @@ pub async fn update_global_mute(
         )
         .await;
 
+    // 广播群设置更新到所有群成员
+    if let Err(e) = broadcast_group_settings_update(&state, &settings).await {
+        error!("广播群禁言设置更新失败: {:?}", e);
+    }
+
     // 管理员不会被禁言，所以 my_mute 为 None
     Ok(Json(GroupSettingsResponse { settings, my_mute: None }))
 }
