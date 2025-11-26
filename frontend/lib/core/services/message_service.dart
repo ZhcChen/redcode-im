@@ -474,8 +474,11 @@ class MessageService with ChangeNotifier {
     }
   }
 
-  /// 重发失败的消息
+  /// 重发失败的消息（手动触发）
   Future<void> resendMessage(String messageId) async {
+    // 取消自动重试定时器
+    _cancelRetry(messageId);
+
     final message = _pendingMessages[messageId];
     if (message == null) {
       debugPrint('Message not found in pending queue: $messageId');
@@ -510,6 +513,8 @@ class MessageService with ChangeNotifier {
     } catch (e) {
       debugPrint('Failed to resend message: $e');
       _updateMessageStatus(messageId, MessageStatus.failed);
+      // 手动重发失败后，继续自动重试
+      _scheduleRetry(messageId);
     }
   }
 
@@ -2175,16 +2180,89 @@ class MessageService with ChangeNotifier {
     return downloadUrl;
   }
 
-  /// 安排消息重试
-  void _scheduleRetry(String messageId, [int attempt = 1]) {
-    if (attempt > 3) {
-      debugPrint('Max retry attempts reached for message: $messageId');
+  // 用于管理重试定时器，防止重复调度
+  final Map<String, Timer?> _retryTimers = {};
+
+  /// 安排消息重试 - 持续重试直到成功，间隔 3 秒
+  void _scheduleRetry(String messageId) {
+    // 如果已有定时器在运行，不重复调度
+    if (_retryTimers[messageId]?.isActive == true) {
       return;
     }
 
-    Future.delayed(Duration(seconds: 2 * attempt), () {
-      resendMessage(messageId);
+    // 检查消息是否仍在待发送队列中
+    if (!_pendingMessages.containsKey(messageId)) {
+      debugPrint('Message $messageId not in pending queue, skip retry');
+      _retryTimers.remove(messageId);
+      return;
+    }
+
+    _retryTimers[messageId] = Timer(const Duration(seconds: 3), () {
+      _retryTimers.remove(messageId);
+      _executeRetry(messageId);
     });
+  }
+
+  /// 执行重试发送
+  Future<void> _executeRetry(String messageId) async {
+    // 再次检查消息是否仍在待发送队列中
+    if (!_pendingMessages.containsKey(messageId)) {
+      debugPrint('Message $messageId already sent or removed, skip retry');
+      return;
+    }
+
+    final message = _pendingMessages[messageId];
+    if (message == null) {
+      return;
+    }
+
+    // 检查消息状态，只重试失败或发送中的消息
+    final currentStatus = message.status;
+    if (currentStatus != MessageStatus.failed &&
+        currentStatus != MessageStatus.sending) {
+      debugPrint('Message $messageId status is $currentStatus, skip retry');
+      return;
+    }
+
+    debugPrint('Retrying message: $messageId');
+    _updateMessageStatus(messageId, MessageStatus.sending);
+
+    try {
+      final session = await _tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final payload = _pendingPayloads[messageId];
+      final response = await _sendMessageAPI(
+        payload?.roomId ?? message.roomId,
+        content: payload?.content ?? message.content,
+        parts: payload?.parts ?? const <Map<String, dynamic>>[],
+        quotedMessageId: payload?.quotedMessageId ?? message.quotedMessage?.id,
+      );
+
+      final updated = _messageFromResponse(
+        response,
+        session.user.id,
+        overrideStatus: MessageStatus.sent,
+      );
+      _replaceMessage(messageId, updated);
+      _pendingMessages.remove(messageId);
+      _pendingPayloads.remove(messageId);
+      debugPrint('Message $messageId sent successfully after retry');
+      unawaited(_hydrateAttachmentLocalPaths(updated));
+    } catch (e) {
+      debugPrint('Retry failed for message $messageId: $e');
+      _updateMessageStatus(messageId, MessageStatus.failed);
+      // 继续调度下一次重试
+      _scheduleRetry(messageId);
+    }
+  }
+
+  /// 取消消息重试
+  void _cancelRetry(String messageId) {
+    _retryTimers[messageId]?.cancel();
+    _retryTimers.remove(messageId);
   }
 
   /// 标记消息已读
@@ -2314,6 +2392,12 @@ class MessageService with ChangeNotifier {
 
   /// 清除所有数据
   Future<void> clearAll() async {
+    // 取消所有重试定时器
+    for (final timer in _retryTimers.values) {
+      timer?.cancel();
+    }
+    _retryTimers.clear();
+
     _messagesByRoom.clear();
     _pendingMessages.clear();
     _pendingPayloads.clear();

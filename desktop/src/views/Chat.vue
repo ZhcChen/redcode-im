@@ -2718,6 +2718,111 @@ const isInitialized = ref<boolean>(false)
 // 新增：跟踪最近发送的消息，用于避免重复
 const recentSentMessages = ref<Set<string>>(new Set())
 
+// 待重试消息存储
+interface PendingRetryMessage {
+  tempId: string
+  roomId: string
+  content: string
+  replyToMessageId?: string
+  timestamp: number
+}
+const pendingRetryMessages = ref<Map<string, PendingRetryMessage>>(new Map())
+const retryTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+// 调度消息重试 - 持续重试直到成功，间隔 3 秒
+const scheduleRetry = (tempId: string) => {
+  // 如果已有定时器在运行，不重复调度
+  if (retryTimers.value.has(tempId)) {
+    return
+  }
+
+  // 检查消息是否仍在待重试队列中
+  if (!pendingRetryMessages.value.has(tempId)) {
+    console.log(`Message ${tempId} not in pending retry queue, skip`)
+    return
+  }
+
+  const timer = setTimeout(() => {
+    retryTimers.value.delete(tempId)
+    executeRetry(tempId)
+  }, 3000)
+  retryTimers.value.set(tempId, timer)
+}
+
+// 执行重试发送
+const executeRetry = async (tempId: string) => {
+  const pendingMessage = pendingRetryMessages.value.get(tempId)
+  if (!pendingMessage) {
+    console.log(`Message ${tempId} already sent or removed, skip retry`)
+    return
+  }
+
+  // 检查消息是否仍在消息列表中
+  const messageIndex = messages.value.findIndex(msg => msg.id === tempId)
+  if (messageIndex === -1) {
+    pendingRetryMessages.value.delete(tempId)
+    return
+  }
+
+  // 检查消息状态，只重试失败或发送中的消息
+  const currentStatus = messages.value[messageIndex].status
+  if (currentStatus !== 5 && currentStatus !== 1) {
+    console.log(`Message ${tempId} status is ${currentStatus}, skip retry`)
+    pendingRetryMessages.value.delete(tempId)
+    return
+  }
+
+  console.log(`Retrying message: ${tempId}`)
+  messages.value[messageIndex].status = 1
+
+  try {
+    const apiMessage = await webSocketManager.sendMessage({
+      roomId: pendingMessage.roomId,
+      content: pendingMessage.content,
+      replyToMessageId: pendingMessage.replyToMessageId,
+    }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
+
+    if (apiMessage) {
+      const uiMessage = mapDomainMessageToUi(apiMessage)
+      messages.value[messageIndex] = {
+        ...uiMessage,
+        status: 2
+      }
+      pendingRetryMessages.value.delete(tempId)
+      recentSentMessages.value.add(apiMessage.id)
+      setTimeout(() => {
+        recentSentMessages.value.delete(apiMessage.id)
+      }, 10000)
+      // 发送成功后重新排序消息列表，确保位置正确
+      sortMessagesByTimestamp()
+      console.log(`Message ${tempId} sent successfully after retry`)
+    }
+  } catch (error: any) {
+    console.log(`Retry failed for message ${tempId}:`, error.message)
+    messages.value[messageIndex].status = 5
+    // 继续调度下一次重试
+    scheduleRetry(tempId)
+  }
+}
+
+// 取消消息重试
+const cancelRetry = (tempId: string) => {
+  const timer = retryTimers.value.get(tempId)
+  if (timer) {
+    clearTimeout(timer)
+    retryTimers.value.delete(tempId)
+  }
+}
+
+// 按时间戳排序消息列表
+const sortMessagesByTimestamp = () => {
+  messages.value.sort((a, b) => {
+    const timestampA = a.timestamp || 0
+    const timestampB = b.timestamp || 0
+    return timestampA - timestampB
+  })
+}
+
 // 最小和最大宽度限制
 const minWidth = 300
 const maxWidthVw = 70
@@ -4634,6 +4739,8 @@ const sendMessage = async () => {
         setTimeout(() => {
           recentSentMessages.value.delete(apiMessage.id)
         }, 10000)
+        // 发送成功后重新排序消息列表，确保位置正确
+        sortMessagesByTimestamp()
         return // 消息已更新，直接返回，避免后续重复处理
       } else {
         // 临时消息不存在，检查真实消息是否已经在列表中（WebSocket可能已经替换了）
@@ -4663,18 +4770,32 @@ const sendMessage = async () => {
     }
     // 发送失败时，从 recentSentMessages 中删除临时消息ID
     recentSentMessages.value.delete(tempId)
-    toast.error('消息发送失败: ' + (error.message || '网络错误'))
+
+    // 添加到待重试队列并启动自动重试
+    pendingRetryMessages.value.set(tempId, {
+      tempId,
+      roomId: groupId,
+      content,
+      replyToMessageId: replyingMessage.value?.id,
+      timestamp,
+    })
+    scheduleRetry(tempId)
+
+    // 只在首次失败时提示
+    console.log('消息发送失败，将自动重试:', error.message || '网络错误')
   } finally {
     clearReplyingMessage()
   }
 }
 
-// 重发消息功能
+// 重发消息功能（手动触发）
 const resendMessage = async (message: Message) => {
   if (!selectedChat.value) {
     return
   }
 
+  // 取消自动重试定时器
+  cancelRetry(message.id)
 
   const messageIndex = messages.value.findIndex(msg => msg.id === message.id)
   if (messageIndex !== -1) {
@@ -4701,9 +4822,11 @@ const resendMessage = async (message: Message) => {
     return
   }
 
+  const roomId = selectedChat.value.groupId
+
   try {
     const apiMessage = await webSocketManager.sendMessage({
-      roomId: selectedChat.value.groupId,
+      roomId,
       content: messageContent,
     }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
@@ -4716,16 +4839,34 @@ const resendMessage = async (message: Message) => {
         }
       }
 
+      // 发送成功后从待重试队列中移除
+      pendingRetryMessages.value.delete(message.id)
+
       recentSentMessages.value.add(apiMessage.id)
       setTimeout(() => {
         recentSentMessages.value.delete(apiMessage.id)
       }, 10000)
+
+      // 发送成功后重新排序消息列表，确保位置正确
+      sortMessagesByTimestamp()
     }
   } catch (error: any) {
     if (messageIndex !== -1) {
       messages.value[messageIndex].status = 5
     }
-    toast.error('消息重发失败: ' + (error.message || '网络错误'))
+
+    // 手动重发失败后，添加到待重试队列并继续自动重试
+    if (!pendingRetryMessages.value.has(message.id)) {
+      pendingRetryMessages.value.set(message.id, {
+        tempId: message.id,
+        roomId,
+        content: messageContent,
+        timestamp: message.timestamp || Date.now(),
+      })
+    }
+    scheduleRetry(message.id)
+
+    console.log('手动重发失败，将继续自动重试:', error.message || '网络错误')
   }
 }
 
