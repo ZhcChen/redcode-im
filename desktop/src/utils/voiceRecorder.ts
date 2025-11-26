@@ -153,6 +153,56 @@ export class VoicePlayer {
   private currentUrl: string | null = null;
 
   /**
+   * 将本地路径转换为可播放的 URL
+   */
+  private convertToPlayableUrl(url: string): string {
+    console.log('[VoicePlayer] 输入 URL:', url);
+
+    if (!url) return '';
+
+    // blob: URL 可以直接使用
+    if (url.startsWith('blob:')) {
+      console.log('[VoicePlayer] blob URL，直接使用');
+      return url;
+    }
+
+    // http/https URL 直接使用
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      console.log('[VoicePlayer] http(s) URL，直接使用');
+      return url;
+    }
+
+    // asset: 协议 URL 直接使用
+    if (url.startsWith('asset:') || url.startsWith('http://asset.localhost')) {
+      console.log('[VoicePlayer] asset URL，直接使用');
+      return url;
+    }
+
+    // file:// URL 需要转换
+    let localPath = url;
+    if (url.startsWith('file://')) {
+      console.log('[VoicePlayer] file:// URL，提取路径');
+      localPath = decodeURIComponent(url.replace('file://', ''));
+    }
+
+    // 尝试使用 Tauri 的 convertFileSrc
+    try {
+      const tauri = (window as any).__TAURI__;
+      console.log('[VoicePlayer] Tauri API 可用:', !!tauri?.core?.convertFileSrc);
+      if (tauri?.core?.convertFileSrc) {
+        const result = tauri.core.convertFileSrc(localPath);
+        console.log('[VoicePlayer] 转换结果:', result);
+        return result;
+      }
+    } catch (error) {
+      console.error('[VoicePlayer] 转换失败:', error);
+    }
+
+    console.warn('[VoicePlayer] 无法转换，返回原 URL');
+    return url;
+  }
+
+  /**
    * 播放语音
    */
   public async play(url: string): Promise<void> {
@@ -161,8 +211,12 @@ export class VoicePlayer {
       this.audio.remove();
     }
 
-    this.audio = new Audio(url);
-    this.currentUrl = url;
+    // 转换 URL 为可播放格式
+    const playableUrl = this.convertToPlayableUrl(url);
+    console.log('[VoicePlayer] 播放 URL:', playableUrl);
+
+    this.audio = new Audio(playableUrl);
+    this.currentUrl = playableUrl;
 
     return new Promise((resolve, reject) => {
       if (!this.audio) {

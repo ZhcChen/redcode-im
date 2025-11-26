@@ -968,25 +968,48 @@ const blobUrlRegistry = new Set<string>();
 // 将本地文件路径转换为可在 WebView 中加载的 URL（同步版本）
 // 对于 blob: URL 直接返回，对于本地路径使用 Tauri asset 协议
 const convertLocalPathToUrlSync = (localPath: string): string => {
-  if (!localPath) return '';
+  console.log('[convertLocalPathToUrlSync] 输入:', localPath);
+  if (!localPath) {
+    console.log('[convertLocalPathToUrlSync] 空路径，返回空字符串');
+    return '';
+  }
   // blob: URL 可以直接使用
-  if (localPath.startsWith('blob:')) return localPath;
+  if (localPath.startsWith('blob:')) {
+    console.log('[convertLocalPathToUrlSync] blob URL，直接返回');
+    return localPath;
+  }
   // http/https URL 直接使用
-  if (localPath.startsWith('http://') || localPath.startsWith('https://')) return localPath;
+  if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
+    console.log('[convertLocalPathToUrlSync] http(s) URL，直接返回');
+    return localPath;
+  }
   // asset: 协议 URL 直接使用（已经转换过）
-  if (localPath.startsWith('asset:') || localPath.startsWith('http://asset.localhost')) return localPath;
+  if (localPath.startsWith('asset:') || localPath.startsWith('http://asset.localhost')) {
+    console.log('[convertLocalPathToUrlSync] asset URL，直接返回');
+    return localPath;
+  }
+  // file:// URL 需要提取路径并转换
+  if (localPath.startsWith('file://')) {
+    console.log('[convertLocalPathToUrlSync] file:// URL，提取路径并转换');
+    const extractedPath = decodeURIComponent(localPath.replace('file://', ''));
+    console.log('[convertLocalPathToUrlSync] 提取的路径:', extractedPath);
+    localPath = extractedPath;
+  }
   // 本地文件路径需要转换为 asset 协议
   try {
     // 使用全局 Tauri API（需要在 tauri.conf.json 中设置 withGlobalTauri: true）
     const tauri = (window as any).__TAURI__;
+    console.log('[convertLocalPathToUrlSync] Tauri API 可用:', !!tauri?.core?.convertFileSrc);
     if (tauri?.core?.convertFileSrc) {
-      return tauri.core.convertFileSrc(localPath);
+      const result = tauri.core.convertFileSrc(localPath);
+      console.log('[convertLocalPathToUrlSync] 转换结果:', result);
+      return result;
     }
     // 如果全局 API 不可用，返回原路径（会导致加载失败，但这种情况不应该发生）
-    console.warn('Tauri global API not available for convertFileSrc');
+    console.warn('[convertLocalPathToUrlSync] Tauri global API not available for convertFileSrc');
     return localPath;
   } catch (error) {
-    console.error('Failed to convert local path to URL:', error);
+    console.error('[convertLocalPathToUrlSync] 转换失败:', error);
     return localPath;
   }
 };
@@ -1008,15 +1031,21 @@ const getCachedAudioUrl = (message: DomainMessage): string => {
 // 异步加载音频 URL 并缓存
 const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
   const messageId = message.id;
-  if (audioUrlCache[messageId]) return; // 已缓存
+  console.log('[loadAudioUrl] 开始加载音频 URL, messageId:', messageId);
+  if (audioUrlCache[messageId]) {
+    console.log('[loadAudioUrl] 已有缓存，跳过:', audioUrlCache[messageId]);
+    return; // 已缓存
+  }
 
   try {
     const url = await getAudioUrl(message);
+    console.log('[loadAudioUrl] 获取到的 URL:', url);
     if (url) {
       audioUrlCache[messageId] = url;
+      console.log('[loadAudioUrl] 已缓存到 audioUrlCache');
     }
   } catch (error) {
-    console.error('Failed to load audio URL:', error);
+    console.error('[loadAudioUrl] 加载音频 URL 失败:', error);
   }
 };
 
@@ -1256,29 +1285,44 @@ const hasAudioPart = (message: DomainMessage): boolean => {
 
 // 获取音频 URL（先检查本地缓存，否则下载并缓存）
 const getAudioUrl = async (message: DomainMessage): Promise<string> => {
+  console.log('[getAudioUrl] 开始获取音频 URL, messageId:', message.id);
   const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
-  if (!audioPart?.attachment) return '';
+  if (!audioPart?.attachment) {
+    console.log('[getAudioUrl] 没有找到音频 part 或 attachment');
+    return '';
+  }
 
   const attachment = audioPart.attachment;
+  console.log('[getAudioUrl] 音频 attachment:', {
+    key: attachment.key,
+    localPath: attachment.localPath,
+    downloadUrl: attachment.downloadUrl,
+  });
 
   // 如果已有本地路径且文件存在，转换为可用的 URL
   if (attachment.localPath) {
-    return await convertLocalPathToUrl(attachment.localPath);
+    console.log('[getAudioUrl] 有本地路径，开始转换:', attachment.localPath);
+    const convertedUrl = await convertLocalPathToUrl(attachment.localPath);
+    console.log('[getAudioUrl] 转换后的 URL:', convertedUrl);
+    return convertedUrl;
   }
 
   try {
     // 从选中的聊天中获取 roomId
     const roomId = selectedChat.value?.id;
+    console.log('[getAudioUrl] 使用 roomId:', roomId);
     if (!roomId) {
       throw new Error('No roomId available');
     }
 
     // 下载并缓存（返回的已经是转换后的 URL）
     const cachedUrl = await downloadAndCacheAttachment(attachment, roomId);
+    console.log('[getAudioUrl] 下载并缓存完成，URL:', cachedUrl);
     return cachedUrl;
   } catch (error) {
-    console.error('Failed to load audio:', error);
+    console.error('[getAudioUrl] 加载音频失败:', error);
     // 如果下载失败，尝试使用 downloadUrl
+    console.log('[getAudioUrl] 尝试使用 downloadUrl:', attachment.downloadUrl);
     return attachment.downloadUrl || '';
   }
 };
@@ -1294,17 +1338,45 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
   // 检查缓存
   const cacheKey = `attachment_${attachment.key}`;
   const cached = await loadCache<string>(cacheKey);
+  console.log('[downloadAndCacheAttachment] 检查缓存:', { cacheKey, cached: cached?.data });
+
   if (cached?.data) {
-    return cached.data;
+    // 检查缓存的 URL 是否是旧的 file:// 格式，如果是则需要转换
+    const cachedUrl = cached.data;
+    if (cachedUrl.startsWith('file://')) {
+      console.log('[downloadAndCacheAttachment] 缓存的是旧的 file:// URL，需要转换:', cachedUrl);
+      // 提取本地路径并转换
+      const localPath = decodeURIComponent(cachedUrl.replace('file://', ''));
+      const convertedUrl = convertLocalPathToUrlSync(localPath);
+      console.log('[downloadAndCacheAttachment] 转换后的 URL:', convertedUrl);
+      // 更新缓存
+      await saveCache(cacheKey, convertedUrl);
+      return convertedUrl;
+    }
+    // 如果已经是 asset 协议或其他有效格式，直接返回
+    if (cachedUrl.startsWith('asset:') || cachedUrl.startsWith('http://asset.localhost') || cachedUrl.startsWith('blob:')) {
+      console.log('[downloadAndCacheAttachment] 使用缓存的 URL:', cachedUrl);
+      return cachedUrl;
+    }
+    // 其他情况（可能是本地路径），尝试转换
+    console.log('[downloadAndCacheAttachment] 缓存的 URL 格式未知，尝试转换:', cachedUrl);
+    const convertedUrl = convertLocalPathToUrlSync(cachedUrl);
+    if (convertedUrl !== cachedUrl) {
+      await saveCache(cacheKey, convertedUrl);
+    }
+    return convertedUrl;
   }
 
   try {
+    console.log('[downloadAndCacheAttachment] 缓存未命中，开始下载:', { roomId, key: attachment.key });
     // 调用 API 获取临时的 signed 下载链接
     const response = await MessageApi.getAttachmentDownloadUrl({
       roomId,
       key: attachment.key,
       expiresInSeconds: 3600, // 1小时过期
     });
+
+    console.log('[downloadAndCacheAttachment] 获取下载 URL 响应:', { success: response.success, downloadUrl: response.data?.downloadUrl });
 
     if (!response.success || !response.data?.downloadUrl) {
       throw new Error(response.message || 'Failed to get download URL');
@@ -1313,7 +1385,9 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
     const signedUrl = response.data.downloadUrl;
 
     // 使用 rustHttp 下载文件（避免跨域）
+    console.log('[downloadAndCacheAttachment] 开始下载文件:', signedUrl);
     const downloadResult = await rustHttp.download(signedUrl, `attachment_${attachment.key}`);
+    console.log('[downloadAndCacheAttachment] 下载结果:', downloadResult);
 
     if (!downloadResult.success || !downloadResult.path) {
       throw new Error(downloadResult.message || 'Download failed');
@@ -1322,13 +1396,14 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
     // 使用 Tauri 的 convertFileSrc 将本地路径转换为 asset 协议 URL
     const { convertFileSrc } = await import('@tauri-apps/api/core');
     const localUrl = convertFileSrc(downloadResult.path);
+    console.log('[downloadAndCacheAttachment] 转换后的本地 URL:', { originalPath: downloadResult.path, localUrl });
 
     // 缓存到本地存储
     await saveCache(cacheKey, localUrl);
 
     return localUrl;
   } catch (error) {
-    console.error('Failed to download attachment:', error);
+    console.error('[downloadAndCacheAttachment] 下载附件失败:', error);
     throw error;
   }
 };
