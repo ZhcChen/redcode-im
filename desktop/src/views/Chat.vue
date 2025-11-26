@@ -1053,7 +1053,7 @@ const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
   const messageId = message.id;
   console.log('[loadAudioUrl] 开始加载音频 URL, messageId:', messageId);
   if (Object.prototype.hasOwnProperty.call(audioUrlCache, messageId)) {
-    console.log('[loadAudioUrl] 已有缓存，跳过:', audioUrlCache[messageId]);
+    console.log('[loadAudioUrl] 已有缓存，跳过:', { messageId, cached: audioUrlCache[messageId] });
     return; // 已缓存
   }
 
@@ -1062,9 +1062,9 @@ const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
     console.log('[loadAudioUrl] 获取到的 URL:', url);
     // 无论成功与否都写入缓存（空串也标记为已尝试），避免重复请求刷屏
     audioUrlCache[messageId] = url || '';
-    console.log('[loadAudioUrl] 已缓存到 audioUrlCache');
+    console.log('[loadAudioUrl] 已缓存到 audioUrlCache', { messageId, cached: audioUrlCache[messageId] });
   } catch (error) {
-    console.error('[loadAudioUrl] 加载音频 URL 失败:', error);
+    console.error('[loadAudioUrl] 加载音频 URL 失败:', { messageId, error });
     audioUrlCache[messageId] = '';
   }
 };
@@ -1364,7 +1364,7 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
 
   if (cached?.data) {
     if (cached.data === NOT_FOUND_TOKEN) {
-      console.log('[downloadAndCacheAttachment] 之前已确认 NOT_FOUND，直接返回空');
+      console.warn('[downloadAndCacheAttachment] 命中 NOT_FOUND 缓存，跳过下载', { cacheKey, key: attachment.key });
       return '';
     }
     // 检查缓存的 URL 是否是旧的 file:// 格式，如果是则需要转换
@@ -1396,6 +1396,7 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
   // 若有正在进行的同 key 下载，复用 promise，避免并发重复请求
   const pendingExisting = pendingAttachmentDownloads.get(cacheKey);
   if (pendingExisting) {
+    console.log('[downloadAndCacheAttachment] 复用进行中的下载 promise', { cacheKey, key: attachment.key });
     return pendingExisting;
   }
 
@@ -1420,7 +1421,7 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
     // 使用 rustHttp 下载文件（避免跨域）
     console.log('[downloadAndCacheAttachment] 开始下载文件:', signedUrl);
     const downloadResult = await rustHttp.download(signedUrl, `attachment_${attachment.key}`);
-    console.log('[downloadAndCacheAttachment] 下载结果:', downloadResult);
+    console.log('[downloadAndCacheAttachment] 下载结果:', { key: attachment.key, success: downloadResult?.success, path: downloadResult?.path, message: downloadResult?.message });
 
     if (!downloadResult.success || !downloadResult.path) {
       throw new Error(downloadResult.message || 'Download failed');
@@ -1436,10 +1437,11 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
 
     return localUrl;
     } catch (error: any) {
-      console.error('[downloadAndCacheAttachment] 下载附件失败:', error);
+      console.error('[downloadAndCacheAttachment] 下载附件失败:', { key: attachment.key, roomId, cacheKey, error });
       // 如果是 NoSuchKey 之类的 404，记录 NOT_FOUND，避免重复请求
       const msg = error?.message || '';
       if (typeof msg === 'string' && msg.includes('NoSuchKey')) {
+        console.warn('[downloadAndCacheAttachment] 标记 NOT_FOUND', { cacheKey, key: attachment.key });
         await saveCache(cacheKey, NOT_FOUND_TOKEN);
       }
       throw error;
