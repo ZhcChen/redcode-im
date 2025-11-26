@@ -620,7 +620,10 @@ impl StorageService for TencentCosService {
 
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
-        let path = build_uri_pathname(key);
+        // 修复：使用 encode_object_key 而非 build_uri_pathname，确保与上传路径一致
+        // 上传时使用: https://{host}/{encoded_key}
+        // 下载时也应该使用相同的路径格式
+        let path = encode_object_key(key);
 
         let headers_map = BTreeMap::new();
         let host = self.resolve_object_host();
