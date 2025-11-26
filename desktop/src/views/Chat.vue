@@ -193,6 +193,15 @@
                   {{ getTextContent(message) }}
                 </template>
 
+                <!-- 音频消息 -->
+                <template v-else-if="hasAudioPart(message)">
+                  <VoiceMessage
+                    :voice-url="getCachedAudioUrl(message)"
+                    :duration="getAudioDuration(message)"
+                    @voice-send="(recording) => handleVoiceSend(recording)"
+                  />
+                </template>
+
                 <!-- 图片消息 -->
                 <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
                   <div class="media-message image-message">
@@ -956,6 +965,30 @@ const messageStatusToUiStatus: Record<MessageStatus, number> = {
 
 const blobUrlRegistry = new Set<string>();
 
+// 音频 URL 缓存
+const audioUrlCache = reactive<Record<string, string>>({});
+
+// 获取缓存的音频 URL
+const getCachedAudioUrl = (message: DomainMessage): string => {
+  const messageId = message.id;
+  return audioUrlCache[messageId] || '';
+};
+
+// 异步加载音频 URL 并缓存
+const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
+  const messageId = message.id;
+  if (audioUrlCache[messageId]) return; // 已缓存
+
+  try {
+    const url = await getAudioUrl(message);
+    if (url) {
+      audioUrlCache[messageId] = url;
+    }
+  } catch (error) {
+    console.error('Failed to load audio URL:', error);
+  }
+};
+
 const registerBlobUrl = (url: string | null) => {
   if (typeof url === 'string' && url.startsWith('blob:')) {
     blobUrlRegistry.add(url);
@@ -1185,6 +1218,89 @@ const buildAttachmentSummary = (type: MessagePartPayloadInput['type'], name: str
   }
 };
 
+// 检查消息是否包含音频 part
+const hasAudioPart = (message: DomainMessage): boolean => {
+  return message.parts?.some(part => part.type === MessagePartType.AUDIO) || false;
+};
+
+// 获取音频 URL（先检查本地缓存，否则下载并缓存）
+const getAudioUrl = async (message: DomainMessage): Promise<string> => {
+  const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
+  if (!audioPart?.attachment) return '';
+
+  const attachment = audioPart.attachment;
+
+  // 如果已有本地路径且文件存在，直接返回
+  if (attachment.localPath) {
+    return attachment.localPath;
+  }
+
+  try {
+    // 从选中的聊天中获取 groupId
+    const groupId = selectedChat.value?.groupId;
+    if (!groupId) {
+      throw new Error('No groupId available');
+    }
+
+    // 下载并缓存
+    const cachedUrl = await downloadAndCacheAttachment(attachment, groupId);
+    return cachedUrl;
+  } catch (error) {
+    console.error('Failed to load audio:', error);
+    // 如果下载失败，尝试使用 downloadUrl
+    return attachment.downloadUrl || '';
+  }
+};
+
+// 获取音频时长
+const getAudioDuration = (message: DomainMessage): number => {
+  const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
+  return audioPart?.attachment?.durationMs || 0;
+};
+
+// 下载并缓存附件
+const downloadAndCacheAttachment = async (attachment: MessageAttachment, groupId: string): Promise<string> => {
+  // 检查缓存
+  const cacheKey = `attachment_${attachment.key}`;
+  const cached = await loadCache<string>(cacheKey);
+  if (cached?.data) {
+    return cached.data;
+  }
+
+  try {
+    // 调用 API 获取临时的 signed 下载链接
+    const response = await MessageApi.getAttachmentDownloadUrl({
+      groupId,
+      key: attachment.key,
+      expiresInSeconds: 3600, // 1小时过期
+    });
+
+    if (!response.success || !response.data?.downloadUrl) {
+      throw new Error(response.message || 'Failed to get download URL');
+    }
+
+    const signedUrl = response.data.downloadUrl;
+
+    // 使用 rustHttp 下载文件（避免跨域）
+    const downloadResult = await rustHttp.download(signedUrl, `attachment_${attachment.key}`);
+
+    if (!downloadResult.success || !downloadResult.path) {
+      throw new Error(downloadResult.message || 'Download failed');
+    }
+
+    // 创建文件 URL
+    const localUrl = `file://${downloadResult.path}`;
+
+    // 缓存到本地存储
+    await saveCache(cacheKey, localUrl);
+
+    return localUrl;
+  } catch (error) {
+    console.error('Failed to download attachment:', error);
+    throw error;
+  }
+};
+
 const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1222,7 +1338,7 @@ const getVideoMetadata = (file: File): Promise<{ width: number; height: number; 
   });
 };
 
-const getAudioDuration = (file: File): Promise<number> => {
+const getAudioFileDuration = (file: File): Promise<number> => {
   return new Promise((resolve, reject) => {
     const audio = document.createElement('audio');
     audio.preload = 'metadata';
@@ -1293,7 +1409,7 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
 
   if (mime.startsWith('audio/')) {
     try {
-      const durationMs = await getAudioDuration(file);
+      const durationMs = await getAudioFileDuration(file);
       return {
         partType: 'audio',
         durationMs,
@@ -4467,6 +4583,13 @@ watch(messages, (newMessages, oldMessages) => {
     // 使用无动画模式滚动
     scrollToBottom(false, true)
   }
+
+  // 加载音频消息的 URL
+  newMessages.forEach(message => {
+    if (hasAudioPart(message)) {
+      loadAudioUrl(message)
+    }
+  })
 
   nextTick(() => {
     attachMessagesScrollListener()
