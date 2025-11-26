@@ -156,6 +156,31 @@ export class VoicePlayer {
   private progressInterval: number | null = null;
 
   /**
+   * 将任意 URL 转换为可播放的 URL（供外部预加载时长使用）
+   */
+  public static toPlayableUrl(rawUrl: string): string {
+    if (!rawUrl) return '';
+    if (rawUrl.startsWith('blob:')) return rawUrl;
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) return rawUrl;
+    if (rawUrl.startsWith('asset:') || rawUrl.startsWith('http://asset.localhost')) return rawUrl;
+
+    let localPath = rawUrl;
+    if (rawUrl.startsWith('file://')) {
+      localPath = decodeURIComponent(rawUrl.replace('file://', ''));
+    }
+
+    try {
+      const tauri = (window as any).__TAURI__;
+      if (tauri?.core?.convertFileSrc) {
+        return tauri.core.convertFileSrc(localPath);
+      }
+    } catch (_err) {
+      // ignore
+    }
+    return rawUrl;
+  }
+
+  /**
    * 设置播放结束回调
    */
   public onEnded(callback: () => void): void {
@@ -203,46 +228,9 @@ export class VoicePlayer {
 
     if (!url) return '';
 
-    // blob: URL 可以直接使用
-    if (url.startsWith('blob:')) {
-      console.log('[VoicePlayer] blob URL，直接使用');
-      return url;
-    }
-
-    // http/https URL 直接使用
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      console.log('[VoicePlayer] http(s) URL，直接使用');
-      return url;
-    }
-
-    // asset: 协议 URL 直接使用
-    if (url.startsWith('asset:') || url.startsWith('http://asset.localhost')) {
-      console.log('[VoicePlayer] asset URL，直接使用');
-      return url;
-    }
-
-    // file:// URL 需要转换
-    let localPath = url;
-    if (url.startsWith('file://')) {
-      console.log('[VoicePlayer] file:// URL，提取路径');
-      localPath = decodeURIComponent(url.replace('file://', ''));
-    }
-
-    // 尝试使用 Tauri 的 convertFileSrc
-    try {
-      const tauri = (window as any).__TAURI__;
-      console.log('[VoicePlayer] Tauri API 可用:', !!tauri?.core?.convertFileSrc);
-      if (tauri?.core?.convertFileSrc) {
-        const result = tauri.core.convertFileSrc(localPath);
-        console.log('[VoicePlayer] 转换结果:', result);
-        return result;
-      }
-    } catch (error) {
-      console.error('[VoicePlayer] 转换失败:', error);
-    }
-
-    console.warn('[VoicePlayer] 无法转换，返回原 URL');
-    return url;
+    const playable = VoicePlayer.toPlayableUrl(url);
+    console.log('[VoicePlayer] 转换结果:', playable);
+    return playable;
   }
 
   /**

@@ -142,6 +142,7 @@ const recordingStartTime = ref(0)
 const recordingDuration = ref(0)
 const previewRecording = ref<VoiceRecording | null>(null)
 const playProgress = ref(0) // 播放进度 0.0 - 1.0
+const effectiveDuration = ref(props.duration) // 毫秒，优先用元数据兜底
 
 // 波形基础高度（12条波形）
 const baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5]
@@ -173,7 +174,7 @@ voicePlayer.onProgress((progress: number) => {
 const isSupported = computed(() => VoiceRecorder.isSupported())
 
 const formattedDuration = computed(() => {
-  const seconds = Math.floor(props.duration / 1000)
+  const seconds = Math.floor(effectiveDuration.value / 1000)
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
@@ -185,7 +186,7 @@ const recordingDurationFormatted = computed(() => {
 
 // 根据时长计算宽度（最小100，最大200）
 const containerWidth = computed(() => {
-  const width = 100 + (props.duration / 1000) * 3
+  const width = 100 + (effectiveDuration.value / 1000) * 3
   return Math.max(100, Math.min(200, width))
 })
 
@@ -327,6 +328,38 @@ watch(isPlaying, (playing) => {
     cancelAnimationFrame(animationFrame.value)
     animationFrame.value = null
     waveAnimationValue.value = 0.5
+  }
+})
+
+// 当传入的 voiceUrl 变化时，尝试预加载元数据并更新时长
+watch(() => props.voiceUrl, async (url) => {
+  if (!url) return
+  try {
+    const playable = VoicePlayer.toPlayableUrl(url)
+    const audio = new Audio()
+    audio.preload = 'metadata'
+    audio.src = playable
+    audio.onloadedmetadata = () => {
+      if (!isNaN(audio.duration) && audio.duration > 0) {
+        const durationMs = Math.round(audio.duration * 1000)
+        if (durationMs > 0) {
+          effectiveDuration.value = durationMs
+        }
+      }
+    }
+    audio.onerror = () => {
+      // 静默失败，保持原有时长
+    }
+    audio.load()
+  } catch (error) {
+    // 静默
+  }
+}, { immediate: true })
+
+// 当外部 props.duration 变化时，同步到有效时长
+watch(() => props.duration, (newVal) => {
+  if (newVal && newVal > 0) {
+    effectiveDuration.value = newVal
   }
 })
 
