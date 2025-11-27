@@ -1119,6 +1119,8 @@ pub async fn generate_message_attachment_signature(
         .generate_direct_upload_signature(&key, req.content_type.as_deref())
         .await?;
 
+    debug!("前端获取直传参数 key: {}", key);
+
     Ok(Json(MessageAttachmentSignatureResponse {
         success: true,
         message: "生成消息附件直传签名成功".to_string(),

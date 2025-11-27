@@ -2826,11 +2826,14 @@ pub async fn test_cos_upload_signature(
         .generate_direct_upload_signature(&req.key, req.content_type.as_deref())
         .await
     {
-        Ok(signature) => Ok(Json(TestCosUploadSignatureResponse {
-            success: true,
-            signature: Some(signature),
-            message: "生成直传签名成功".to_string(),
-        })),
+        Ok(signature) => {
+            debug!("前端获取直传参数 key: {}", req.key);
+            Ok(Json(TestCosUploadSignatureResponse {
+                success: true,
+                signature: Some(signature),
+                message: "生成直传签名成功".to_string(),
+            }))
+        },
         Err(e) => Ok(Json(TestCosUploadSignatureResponse {
             success: false,
             signature: None,

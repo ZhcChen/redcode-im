@@ -730,6 +730,8 @@ pub async fn generate_room_avatar_direct_upload(
         .generate_direct_upload_signature(&key, Some(&req.content_type))
         .await?;
 
+    debug!("前端获取直传参数 key: {}", key);
+
     Ok(Json(RoomAvatarDirectUploadResponse {
         success: true,
         message: "生成群头像直传签名成功".to_string(),

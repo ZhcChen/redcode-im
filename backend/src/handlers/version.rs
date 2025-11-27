@@ -92,6 +92,8 @@ pub async fn generate_version_upload_signature(
         .generate_direct_upload_signature(&key, None)
         .await?;
 
+    debug!("前端获取直传参数 key: {}", key);
+
     Ok(Json(VersionUploadSignatureResponse {
         success: true,
         message: "生成安装包直传签名成功".to_string(),
