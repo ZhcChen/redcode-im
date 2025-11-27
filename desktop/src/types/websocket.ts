@@ -81,3 +81,31 @@ export interface WebSocketState {
   heartbeatTimer: number | null;
   reconnectTimer: number | null;
 }
+
+// Tauri 事件负载类型（与 Rust 端 TauriEventPayload 对应）
+export type TauriEventPayload =
+  | { type: 'Authed'; payload: { user_id: string; conn_id: string } }
+  | { type: 'Joined'; payload: { room_id: string } }
+  | { type: 'Left'; payload: { room_id: string } }
+  | { type: 'Message'; payload: any }
+  | { type: 'MessageRead'; payload: any }
+  | { type: 'MessageUpdate'; payload: any }
+  | { type: 'PinUpdate'; payload: any }
+  | { type: 'FriendRequestUpdate'; payload: { pending_count: number } }
+  | { type: 'RoomCreated'; payload: any }
+  | { type: 'RoomUpdated'; payload: any }
+  | { type: 'UserBanned'; payload: { user_id: string; reason: string } }
+  | { type: 'GroupDissolved'; payload: { room_id: string } }
+  | { type: 'GroupOwnerTransferred'; payload: { room_id: string; old_owner_id: string; new_owner_id: string } }
+  | { type: 'Error'; payload: { message: string } }
+  | { type: 'Pong'; payload: null };
+
+// 带用户标识的事件包装（与 Rust 端 UserEventWrapper 对应）
+export interface UserEventWrapper {
+  /** 事件所属的用户ID */
+  user_id: string;
+  /** 事件类型 */
+  type: string;
+  /** 事件负载 */
+  payload?: any;
+}

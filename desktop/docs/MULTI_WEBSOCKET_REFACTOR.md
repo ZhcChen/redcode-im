@@ -85,20 +85,25 @@
 
 ---
 
-### 第二阶段：TypeScript API 层改造
+### 第二阶段：TypeScript API 层改造 ✅ 已完成
 
-#### 2.1 更新 WebSocketApi（api/websocket.ts）
-- [ ] `connect()` 方法保持不变（user_id 已在 params 中）
-- [ ] `disconnect(userId?: string)` 新增可选参数
-- [ ] `getStatus(userId?: string)` 新增可选参数
-- [ ] 新增 `disconnectAll()` 方法
-- [ ] 新增 `getAllStatus()` 方法
-- [ ] `joinRoom(roomId, userId?)` 新增可选参数
-- [ ] `leaveRoom(roomId, userId?)` 新增可选参数
+#### 2.1 更新 WebSocketApi（api/websocket.ts）✅ 已完成
+- [x] `connect()` 方法保持不变（user_id 已在 params 中）
+- [x] `disconnect(userId?: string)` 新增可选参数
+- [x] `getStatus(userId?: string)` 新增可选参数
+- [x] 新增 `disconnectAll()` 方法
+- [x] 新增 `getAllStatus()` 方法
+- [x] 新增 `setCurrentUser(userId)` 方法
+- [x] 新增 `getCurrentUser()` 方法
+- [x] 新增 `getConnectedCount()` 方法
+- [x] `joinRoom(roomId, userId?)` 新增可选参数
+- [x] `leaveRoom(roomId, userId?)` 新增可选参数
+- [x] `joinRooms(roomIds, userId?)` 新增可选参数
+- [x] `getSubscribedRooms(userId?)` 新增可选参数
 
-#### 2.2 更新类型定义（types/websocket.ts）
-- [ ] 检查是否需要新增类型定义
-- [ ] 确保 `TauriEventPayload` 类型与 Rust 端一致
+#### 2.2 更新类型定义（types/websocket.ts）✅ 已完成
+- [x] 新增 `TauriEventPayload` 联合类型定义
+- [x] 新增 `UserEventWrapper` 接口定义
 
 ---
 
