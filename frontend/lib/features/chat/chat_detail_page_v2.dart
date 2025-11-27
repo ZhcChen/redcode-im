@@ -134,7 +134,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     // 监听群设置更新事件（仅群聊）
     if (widget.chatType == ChatType.group) {
-      _groupSettingsSubscription = WebSocketService.instance.onGroupSettingsUpdated
+      _groupSettingsSubscription = WebSocketService
+          .instance
+          .onGroupSettingsUpdated
           .where((event) => event.roomId == widget.roomId)
           .listen(_handleGroupSettingsUpdated);
       // 监听群成员变更事件（用于个人禁言/解禁）
@@ -256,11 +258,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           : roleValue?.toString().toLowerCase();
       final memberIdValue =
           member['user_id'] ?? member['userId'] ?? member['id'];
-      final memberId =
-          memberIdValue is String ? memberIdValue : memberIdValue?.toString();
+      final memberId = memberIdValue is String
+          ? memberIdValue
+          : memberIdValue?.toString();
 
-      if (memberId == currentUserId &&
-          (role == 'owner' || role == 'admin')) {
+      if (memberId == currentUserId && (role == 'owner' || role == 'admin')) {
         return true;
       }
     }
@@ -521,8 +523,21 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 _buildHeader(context),
                 if (_multiSelectMode) _buildMultiSelectBar(Theme.of(context)),
                 Expanded(
-                  child: RepaintBoundary(
-                    child: _buildMessageList(listBottomPadding),
+                  child: Stack(
+                    children: [
+                      RepaintBoundary(
+                        child: _buildMessageList(listBottomPadding),
+                      ),
+                      // 回到底部按钮
+                      if (!_isAtBottom)
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: _ScrollToBottomButton(
+                            onTap: () => _scrollToBottom(animated: true),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 RepaintBoundary(child: _buildInputArea()),
@@ -1175,14 +1190,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     debugPrint('[跳转] 估算位置: $targetOffset, 最大: $maxOffset, 实际: $clampedOffset');
 
     // 使用动画滚动到估算位置
-    _scrollController.animateTo(
-      clampedOffset,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-    ).then((_) {
-      if (!mounted) return;
-      _finishScrollToMessage(messageId, 0);
-    });
+    _scrollController
+        .animateTo(
+          clampedOffset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+          if (!mounted) return;
+          _finishScrollToMessage(messageId, 0);
+        });
   }
 
   void _finishScrollToMessage(String messageId, int attempt) {
@@ -1246,16 +1263,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         _scrollToMessageAtIndex(messageId, targetIndex);
       } else {
         debugPrint('[跳转] 奇怪：found=true 但索引找不到');
-        messenger?.showSnackBar(
-          const SnackBar(content: Text('消息定位失败')),
-        );
+        messenger?.showSnackBar(const SnackBar(content: Text('消息定位失败')));
       }
     } else {
       // 未找到消息
       debugPrint('[跳转] 消息未找到');
-      messenger?.showSnackBar(
-        const SnackBar(content: Text('未能找到该消息，可能已被删除')),
-      );
+      messenger?.showSnackBar(const SnackBar(content: Text('未能找到该消息，可能已被删除')));
     }
   }
 
@@ -2048,6 +2061,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     }
   }
 
+  // 距离底部超过此阈值时显示"回到底部"按钮（与桌面端一致）
+  static const double _scrollBottomThreshold = 160.0;
+
   bool _isListNearBottom() {
     if (!_scrollController.hasClients) return true;
     final position = _scrollController.position;
@@ -2055,7 +2071,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     final max = position.maxScrollExtent;
     if (max <= 0) return true;
     final offsetFromBottom = max - position.pixels;
-    return offsetFromBottom <= 32;
+    return offsetFromBottom <= _scrollBottomThreshold;
   }
 
   bool _hasScrollableContent() {
@@ -3867,9 +3883,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
               hintText: widget.isDisabled
                   ? (widget.disabledHint ?? '已禁言')
                   : '发送消息...',
-              hintStyle: TextStyle(
-                color: AppColors.textTertiary,
-              ),
+              hintStyle: TextStyle(color: AppColors.textTertiary),
             ),
           ),
         );
@@ -5166,13 +5180,9 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
     );
 
     // 创建动画对象，初始值为 0
-    _progressAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
 
     // 监听播放完成
     _audioPlayer.onPlayerComplete.listen((_) {
@@ -5182,12 +5192,17 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
           _playProgress = 0.0;
         });
         // 动画回退到 0
-        _animationController.animateTo(0.0, duration: const Duration(milliseconds: 200));
+        _animationController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 200),
+        );
       }
     });
 
     // 监听播放进度
-    _progressSubscription = _audioPlayer.onPositionChanged.listen((position) async {
+    _progressSubscription = _audioPlayer.onPositionChanged.listen((
+      position,
+    ) async {
       final duration = await _audioPlayer.getDuration();
       if (duration != null && duration.inMilliseconds > 0 && mounted) {
         final newProgress = position.inMilliseconds / duration.inMilliseconds;
@@ -5259,9 +5274,9 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('下载语音失败：$error')),
-      );
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text('下载语音失败：$error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -5372,9 +5387,7 @@ class _AudioMessageTileState extends State<_AudioMessageTile>
                     return CustomPaint(
                       painter: _WaveformPainter(
                         progress: _progressAnimation.value,
-                        color: widget.isSelf
-                            ? Colors.white
-                            : AppColors.primary,
+                        color: widget.isSelf ? Colors.white : AppColors.primary,
                         backgroundColor: widget.isSelf
                             ? Colors.white.withValues(alpha: 0.3)
                             : Colors.black.withValues(alpha: 0.1),
@@ -5801,7 +5814,12 @@ class _WaveformPainter extends CustomPainter {
               ..style = PaintingStyle.fill;
             canvas.drawRRect(
               RRect.fromRectAndCorners(
-                Rect.fromLTWH(x, (size.height - height) / 2, barWidth * edgePosition, height),
+                Rect.fromLTWH(
+                  x,
+                  (size.height - height) / 2,
+                  barWidth * edgePosition,
+                  height,
+                ),
                 topLeft: const Radius.circular(2),
                 topRight: const Radius.circular(2),
                 bottomLeft: const Radius.circular(2),
@@ -5868,12 +5886,7 @@ class _WaveformPainter extends CustomPainter {
       // 绘制一个小的指示器
       canvas.drawRRect(
         RRect.fromRectAndCorners(
-          Rect.fromLTWH(
-            currentX - 2,
-            size.height * 0.1,
-            4,
-            size.height * 0.8,
-          ),
+          Rect.fromLTWH(currentX - 2, size.height * 0.1, 4, size.height * 0.8),
           topLeft: const Radius.circular(2),
           topRight: const Radius.circular(2),
           bottomLeft: const Radius.circular(2),
@@ -5887,9 +5900,40 @@ class _WaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _WaveformPainter oldDelegate) {
     return oldDelegate.progress != progress ||
-           oldDelegate.color != color ||
-           oldDelegate.backgroundColor != backgroundColor ||
-           oldDelegate.isPlaying != isPlaying ||
-           oldDelegate.animation?.value != animation?.value;
+        oldDelegate.color != color ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.isPlaying != isPlaying ||
+        oldDelegate.animation?.value != animation?.value;
+  }
+}
+
+/// 回到底部浮动按钮
+class _ScrollToBottomButton extends StatelessWidget {
+  const _ScrollToBottomButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(shape: BoxShape.circle),
+          child: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 28,
+            color: Color(0xFF1F1F1F),
+          ),
+        ),
+      ),
+    );
   }
 }
