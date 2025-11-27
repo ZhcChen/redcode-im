@@ -52,14 +52,35 @@ interface TauriEventPayload {
 }
 
 /**
+ * 带用户标识的事件包装（与 Rust 端 UserEventWrapper 对应）
+ */
+interface UserEventWrapper {
+  user_id: string;
+  type: string;
+  payload?: any;
+}
+
+/**
+ * 单个账号的连接信息
+ */
+interface ConnectionInfo {
+  authToken: string;
+  userId: string;
+  desiredRooms: Set<string>;
+  status: ConnectionStatus;
+}
+
+/**
  * WebSocket 管理器 - 通过 Rust 层处理
+ * 支持多账号同时连接
  */
 class WebSocketManager {
   private static instance: WebSocketManager;
 
-  private lastAuthToken: string | null = null;
-  private lastUserId: string | null = null;
-  private desiredRooms: Set<string> = new Set();
+  /** 多账号连接管理 Map<userId, ConnectionInfo> */
+  private connections: Map<string, ConnectionInfo> = new Map();
+  /** 当前活跃账号 ID */
+  private currentUserId: string | null = null;
   private eventUnlisteners: UnlistenFn[] = [];
   private lastChatListRefreshAt = 0;
   private lastContactRefreshAt = 0;
@@ -72,37 +93,62 @@ class WebSocketManager {
   }
 
   /**
-   * 初始化 WebSocket 连接
+   * 初始化 WebSocket 连接（支持多账号）
+   * @param params 连接参数
+   * @param setAsCurrent 是否设置为当前活跃账号（默认 true）
    */
-  public async initWebSocketSafely(params: WebSocketParams): Promise<void> {
+  public async initWebSocketSafely(params: WebSocketParams, setAsCurrent = true): Promise<void> {
     if (!params?.userId || !params?.token) {
       return;
     }
 
-    // 检查是否需要重新连接
-    const currentStatus = await WebSocketApi.getStatus();
-    if (
-      currentStatus === 'authenticated' &&
-      this.lastUserId === params.userId &&
-      this.lastAuthToken === params.token
-    ) {
-      return;
+    const userId = params.userId;
+
+    // 检查该账号是否已有连接
+    const existingConnection = this.connections.get(userId);
+    if (existingConnection) {
+      // 检查连接状态
+      const currentStatus = await WebSocketApi.getStatus(userId);
+      if (
+        currentStatus === 'authenticated' &&
+        existingConnection.authToken === params.token
+      ) {
+        // 已有有效连接，只需切换当前用户
+        if (setAsCurrent) {
+          this.currentUserId = userId;
+          await WebSocketApi.setCurrentUser(userId);
+        }
+        return;
+      }
+      // token 变了或连接断开，需要重新连接
     }
 
-    // 保存认证信息
-    this.lastAuthToken = params.token;
-    this.lastUserId = params.userId;
+    // 设置事件监听器（只需设置一次）
+    if (this.eventUnlisteners.length === 0) {
+      await this.setupEventListeners();
+    }
 
-    // 清空房间订阅
-    this.desiredRooms.clear();
-
-    // 设置事件监听器
-    await this.setupEventListeners();
+    // 创建或更新连接信息
+    const connectionInfo: ConnectionInfo = {
+      authToken: params.token,
+      userId: userId,
+      desiredRooms: existingConnection?.desiredRooms ?? new Set(),
+      status: 'connecting',
+    };
+    this.connections.set(userId, connectionInfo);
 
     // 连接 WebSocket
     try {
       await WebSocketApi.connect(params, apiConfig.WS_URL);
+      connectionInfo.status = 'authenticated';
+
+      // 设置当前活跃账号
+      if (setAsCurrent) {
+        this.currentUserId = userId;
+        await WebSocketApi.setCurrentUser(userId);
+      }
     } catch (error) {
+      connectionInfo.status = 'disconnected';
       toast.error('消息服务连接失败');
       throw error;
     }
@@ -120,9 +166,16 @@ class WebSocketManager {
     this.eventUnlisteners.forEach((unlisten) => unlisten());
     this.eventUnlisteners = [];
 
-    // 监听 WebSocket 事件
-    const websocketUnlisten = await listen<TauriEventPayload>('websocket-event', (event) => {
-      this.handleTauriEvent(event.payload);
+    // 监听 WebSocket 事件（现在事件带有 user_id）
+    const websocketUnlisten = await listen<UserEventWrapper>('websocket-event', (event) => {
+      const wrapper = event.payload;
+      // 解析事件：新格式带 user_id，旧格式需要兼容
+      const userId = wrapper.user_id;
+      const eventPayload: TauriEventPayload = {
+        type: wrapper.type,
+        payload: wrapper.payload,
+      };
+      this.handleTauriEvent(eventPayload, userId);
     });
     this.eventUnlisteners.push(websocketUnlisten);
 
@@ -138,15 +191,28 @@ class WebSocketManager {
 
   /**
    * 处理 Rust 层发送的 Tauri 事件
+   * @param payload 事件负载
+   * @param eventUserId 事件所属的用户ID（多账号支持）
    */
-  private handleTauriEvent(payload: TauriEventPayload): void {
+  private handleTauriEvent(payload: TauriEventPayload, eventUserId?: string): void {
     const eventType = payload.type?.toLowerCase();
+    // 判断事件是否来自当前活跃账号
+    const isCurrentUser = !eventUserId || eventUserId === this.currentUserId;
 
     switch (eventType) {
       case 'authed': {
         const data = payload.payload as { user_id: string; conn_id: string };
-        store.commit('SET_NETWORK_STATE', true);
-        this.onAuthenticated();
+        // 更新连接状态
+        const userId = eventUserId || data.user_id;
+        const connection = this.connections.get(userId);
+        if (connection) {
+          connection.status = 'authenticated';
+        }
+        // 只有当前账号才更新全局网络状态
+        if (isCurrentUser) {
+          store.commit('SET_NETWORK_STATE', true);
+        }
+        this.onAuthenticated(userId);
         break;
       }
 
@@ -163,53 +229,61 @@ class WebSocketManager {
       case 'message': {
         const message = payload.payload;
         if (message) {
-          this.emitChatMessage(message);
+          // 消息事件携带 userId，用于多账号消息分发
+          this.emitChatMessage(message, eventUserId);
         }
         break;
       }
 
       case 'messageread': {
-        this.emitMessageRead(payload.payload);
+        this.emitMessageRead(payload.payload, eventUserId);
         break;
       }
 
       case 'messageupdate': {
-        this.emitMessageUpdate(payload.payload);
+        this.emitMessageUpdate(payload.payload, eventUserId);
         break;
       }
 
       case 'pinupdate': {
-        this.emitPinUpdate(payload.payload);
+        this.emitPinUpdate(payload.payload, eventUserId);
         break;
       }
 
       case 'friendrequestupdate': {
         const data = payload.payload as { pending_count: number };
         if (typeof data.pending_count === 'number') {
-          // 更新全局状态
-          store.commit('SET_PENDING_FRIEND_REQUESTS', data.pending_count);
-          
-          // 同步到当前账号
-          const currentAccountId = (store.state as any).accounts?.currentAccountId;
-          if (currentAccountId) {
+          // 根据 eventUserId 更新对应账号的好友请求数
+          const targetAccountId = eventUserId || this.currentUserId;
+          if (targetAccountId) {
             store.commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
-              accountId: currentAccountId,
+              accountId: targetAccountId,
               count: data.pending_count
             }, { root: true });
+          }
+          // 只有当前账号才更新全局状态
+          if (isCurrentUser) {
+            store.commit('SET_PENDING_FRIEND_REQUESTS', data.pending_count);
           }
         }
         break;
       }
 
       case 'roomcreated': {
-        this.dispatchDomEvent('websocket-room-created', payload.payload);
-        this.refreshChatList();
+        // 只有当前账号才刷新聊天列表
+        if (isCurrentUser) {
+          this.dispatchDomEvent('websocket-room-created', payload.payload);
+          this.refreshChatList();
+        }
         break;
       }
 
       case 'error': {
         const data = payload.payload as { message: string };
-        toast.error(data.message || '消息服务错误');
+        // 只显示当前账号的错误
+        if (isCurrentUser) {
+          toast.error(data.message || '消息服务错误');
+        }
         break;
       }
 
@@ -220,20 +294,18 @@ class WebSocketManager {
 
       case 'userbanned':
       case 'user_banned': {
-        // payload 结构形如 { type: 'UserBanned', payload: { user_id, reason } }
         const detail = ((payload as any)?.payload ?? payload) || {};
-        const userId = detail.user_id ?? detail.userId;
+        const userId = eventUserId || (detail.user_id ?? detail.userId);
         const reason = detail.reason ?? '管理员封禁';
 
         console.log('收到用户封禁事件:', {
           userId,
           reason,
-          lastUserId: this.lastUserId,
+          currentUserId: this.currentUserId,
         });
 
-        if (userId && userId === this.lastUserId) {
-          // 当前用户被封禁，清除token并跳转到登录页面
-          this.handleUserBanned(reason);
+        if (userId) {
+          this.handleUserBanned(reason, userId);
         }
         break;
       }
@@ -241,7 +313,8 @@ class WebSocketManager {
       case 'group_dissolved': {
         const detail = ((payload as any)?.payload ?? payload) || {};
         const roomId = detail.room_id ?? detail.roomId;
-        if (roomId) {
+        // 只有当前账号才处理群解散
+        if (roomId && isCurrentUser) {
           this.handleGroupDissolved(roomId);
         }
         break;
@@ -252,7 +325,8 @@ class WebSocketManager {
         const roomId = detail.room_id ?? detail.roomId;
         const newOwnerId = detail.new_owner_id ?? detail.newOwnerId;
         const oldOwnerId = detail.old_owner_id ?? detail.oldOwnerId;
-        if (roomId && newOwnerId) {
+        // 只有当前账号才处理群主转让
+        if (roomId && newOwnerId && isCurrentUser) {
           this.handleGroupOwnerTransferred(roomId, newOwnerId, oldOwnerId);
         }
         break;
@@ -260,45 +334,53 @@ class WebSocketManager {
 
       case 'groupsettingsupdated':
       case 'group_settings_updated': {
-        const detail = ((payload as any)?.payload ?? payload) || {};
-        this.dispatchDomEvent('websocket-group-settings-updated', {
-          room_id: detail.room_id ?? detail.roomId,
-          global_mute_enabled: detail.global_mute_enabled ?? detail.globalMuteEnabled,
-          global_mute_reason: detail.global_mute_reason ?? detail.globalMuteReason,
-          global_mute_until: detail.global_mute_until ?? detail.globalMuteUntil,
-          global_mute_set_by: detail.global_mute_set_by ?? detail.globalMuteSetBy,
-        });
+        // 只有当前账号才处理
+        if (isCurrentUser) {
+          const detail = ((payload as any)?.payload ?? payload) || {};
+          this.dispatchDomEvent('websocket-group-settings-updated', {
+            room_id: detail.room_id ?? detail.roomId,
+            global_mute_enabled: detail.global_mute_enabled ?? detail.globalMuteEnabled,
+            global_mute_reason: detail.global_mute_reason ?? detail.globalMuteReason,
+            global_mute_until: detail.global_mute_until ?? detail.globalMuteUntil,
+            global_mute_set_by: detail.global_mute_set_by ?? detail.globalMuteSetBy,
+          });
+        }
         break;
       }
 
       case 'groupmemberchanged':
       case 'group_member_changed': {
-        const detail = ((payload as any)?.payload ?? payload) || {};
-        this.dispatchDomEvent('websocket-group-member-changed', {
-          room_id: detail.room_id ?? detail.roomId,
-          member_id: detail.member_id ?? detail.memberId,
-          change_type: detail.change_type ?? detail.changeType,
-          new_role: detail.new_role ?? detail.newRole,
-          operator_id: detail.operator_id ?? detail.operatorId,
-          reason: detail.reason,
-          until: detail.until,
-        });
+        // 只有当前账号才处理
+        if (isCurrentUser) {
+          const detail = ((payload as any)?.payload ?? payload) || {};
+          this.dispatchDomEvent('websocket-group-member-changed', {
+            room_id: detail.room_id ?? detail.roomId,
+            member_id: detail.member_id ?? detail.memberId,
+            change_type: detail.change_type ?? detail.changeType,
+            new_role: detail.new_role ?? detail.newRole,
+            operator_id: detail.operator_id ?? detail.operatorId,
+            reason: detail.reason,
+            until: detail.until,
+          });
+        }
         break;
       }
 
       case 'roomupdated':
       case 'room_updated': {
-        const detail = ((payload as any)?.payload ?? payload) || {};
-        this.dispatchDomEvent('websocket-room-updated', {
-          room_id: detail.room_id ?? detail.roomId,
-          room_name: detail.room_name ?? detail.roomName,
-          room_type: detail.room_type ?? detail.roomType,
-          avatar_url: detail.avatar_url ?? detail.avatarUrl,
-          avatar_object_key: detail.avatar_object_key ?? detail.avatarObjectKey,
-          description: detail.description,
-        });
-        // 刷新会话列表以更新群名称
-        this.refreshChatList();
+        // 只有当前账号才处理
+        if (isCurrentUser) {
+          const detail = ((payload as any)?.payload ?? payload) || {};
+          this.dispatchDomEvent('websocket-room-updated', {
+            room_id: detail.room_id ?? detail.roomId,
+            room_name: detail.room_name ?? detail.roomName,
+            room_type: detail.room_type ?? detail.roomType,
+            avatar_url: detail.avatar_url ?? detail.avatarUrl,
+            avatar_object_key: detail.avatar_object_key ?? detail.avatarObjectKey,
+            description: detail.description,
+          });
+          this.refreshChatList();
+        }
         break;
       }
 
@@ -309,54 +391,56 @@ class WebSocketManager {
 
   /**
    * 处理用户封禁事件
+   * @param reason 封禁原因
+   * @param bannedUserId 被封禁的用户ID
    */
-  private handleUserBanned(reason: string): void {
-    console.warn('用户被封禁:', reason);
-    
+  private handleUserBanned(reason: string, bannedUserId?: string): void {
+    const userId = bannedUserId || this.currentUserId;
+    console.warn('用户被封禁:', userId, reason);
+
     // 显示封禁提示
     toast.error(`账户已被封禁：${reason}`);
-    
+
     // 获取当前账号信息
     const currentAccountId = (store.state as any).accounts?.currentAccountId;
     const allAccounts = (store.state as any).accounts?.accounts || [];
-    
-    if (!this.lastUserId || !currentAccountId) {
+
+    if (!userId) {
       return;
     }
-    
+
     // 查找被封禁的账号信息
-    const bannedAccount = allAccounts.find((acc: any) => 
-      acc.userInfo.id === this.lastUserId || acc.id === this.lastUserId
+    const bannedAccount = allAccounts.find((acc: any) =>
+      acc.userInfo.id === userId || acc.id === userId
     );
-    
+
     if (!bannedAccount) {
       return;
     }
-    
-    // 清除认证信息
-    this.lastAuthToken = null;
-    this.lastUserId = null;
-    
-    // 断开WebSocket连接
-    void WebSocketApi.disconnect();
-    
+
+    // 断开该账号的 WebSocket 连接
+    this.connections.delete(userId);
+    void WebSocketApi.disconnect(userId);
+
     // 检查是否为多账号模式
     if (allAccounts.length > 1) {
       // 多账号模式：移除被封禁的账号
       console.log('多账号模式，移除被封禁账号:', bannedAccount.id);
       void store.dispatch('accounts/removeAccount', bannedAccount.id);
-      
+
       // 如果被封禁的是当前账号，切换到其他账号
       if (bannedAccount.id === currentAccountId) {
         const remainingAccounts = allAccounts.filter((acc: any) => acc.id !== bannedAccount.id);
         if (remainingAccounts.length > 0) {
           // 切换到第一个可用账号
+          this.currentUserId = remainingAccounts[0].userInfo?.id || remainingAccounts[0].id;
           void store.dispatch('accounts/switchAccount', remainingAccounts[0].id);
         }
       }
     } else {
       // 单账号模式：直接登出并跳转登录页
       console.log('单账号模式，跳转登录页');
+      this.currentUserId = null;
       void store.dispatch('logout');
       window.location.href = '/login';
     }
@@ -365,7 +449,11 @@ class WebSocketManager {
   private handleGroupDissolved(roomId: string): void {
     if (!roomId) return;
     void store.dispatch('removeChatItem', roomId);
-    this.desiredRooms.delete(roomId);
+    // 从当前账号的房间订阅中移除
+    const currentConnection = this.currentUserId ? this.connections.get(this.currentUserId) : null;
+    if (currentConnection) {
+      currentConnection.desiredRooms.delete(roomId);
+    }
     this.leaveRoom(roomId);
     const currentGroupId = (store.state as any).currentChatGroupId;
     if (currentGroupId && currentGroupId === roomId) {
@@ -395,9 +483,9 @@ class WebSocketManager {
       void store.dispatch('updateChatItem', updatedChat);
     }
 
-    if (newOwnerId === this.lastUserId) {
+    if (newOwnerId === this.currentUserId) {
       toast.success('你已成为新的群主');
-    } else if (oldOwnerId && oldOwnerId === this.lastUserId) {
+    } else if (oldOwnerId && oldOwnerId === this.currentUserId) {
       toast.info('群主已转让给其他成员');
     }
 
@@ -410,13 +498,17 @@ class WebSocketManager {
 
   /**
    * 认证成功后的处理
+   * @param userId 认证成功的用户ID
    */
-  private onAuthenticated(): void {
-    // 刷新数据
-    this.refreshAfterAuthenticated();
+  private onAuthenticated(userId?: string): void {
+    // 只有当前账号才刷新数据
+    const isCurrentUser = !userId || userId === this.currentUserId;
+    if (isCurrentUser) {
+      this.refreshAfterAuthenticated();
+    }
 
     // 订阅待加入的房间
-    this.flushPendingRooms();
+    this.flushPendingRooms(userId);
   }
 
   /**
@@ -457,14 +549,19 @@ class WebSocketManager {
 
   /**
    * 订阅待加入的房间
+   * @param userId 指定用户ID，默认为当前用户
    */
-  private flushPendingRooms(): void {
-    if (this.desiredRooms.size === 0) {
+  private flushPendingRooms(userId?: string): void {
+    const targetUserId = userId || this.currentUserId;
+    if (!targetUserId) return;
+
+    const connection = this.connections.get(targetUserId);
+    if (!connection || connection.desiredRooms.size === 0) {
       return;
     }
 
-    const roomIds = Array.from(this.desiredRooms);
-    WebSocketApi.joinRooms(roomIds).catch((error) => {
+    const roomIds = Array.from(connection.desiredRooms);
+    WebSocketApi.joinRooms(roomIds, targetUserId).catch((error) => {
     });
   }
 
@@ -481,26 +578,31 @@ class WebSocketManager {
 
   /**
    * 发送聊天消息事件
+   * @param rawMessage 原始消息
+   * @param eventUserId 事件所属用户ID（多账号支持）
    */
-  private emitChatMessage(rawMessage: any): void {
+  private emitChatMessage(rawMessage: any, eventUserId?: string): void {
     let normalized: Message | null = null;
+    const userId = eventUserId || this.currentUserId;
     try {
       // 使用现有的消息转换函数
-      normalized = transformBackendMessage(rawMessage, this.lastUserId ?? undefined);
+      normalized = transformBackendMessage(rawMessage, userId ?? undefined);
     } catch (error) {
     }
 
+    // 事件携带 userId，用于多账号消息分发和未读数更新
     this.dispatchDomEvent('websocket-chat-message', {
       message: normalized ?? rawMessage,
       raw: rawMessage,
+      userId: eventUserId, // 携带用户ID，供上层处理
     });
   }
 
   /**
    * 发送消息已读事件
    */
-  private emitMessageRead(raw: any): void {
-    const detail = { ...raw };
+  private emitMessageRead(raw: any, eventUserId?: string): void {
+    const detail = { ...raw, userId: eventUserId };
     delete (detail as Record<string, unknown>).type;
     this.dispatchDomEvent('websocket-message-read', detail);
   }
@@ -508,12 +610,13 @@ class WebSocketManager {
   /**
    * 发送消息更新事件
    */
-  private emitMessageUpdate(raw: any): void {
-    const detail: any = { ...raw };
+  private emitMessageUpdate(raw: any, eventUserId?: string): void {
+    const userId = eventUserId || this.currentUserId;
+    const detail: any = { ...raw, userId: eventUserId };
     delete detail.type;
     if (detail.message) {
       try {
-        detail.message = transformBackendMessage(detail.message, this.lastUserId ?? undefined);
+        detail.message = transformBackendMessage(detail.message, userId ?? undefined);
       } catch (error) {
       }
     }
@@ -523,12 +626,13 @@ class WebSocketManager {
   /**
    * 发送置顶更新事件
    */
-  private emitPinUpdate(raw: any): void {
-    const detail: any = { ...raw };
+  private emitPinUpdate(raw: any, eventUserId?: string): void {
+    const userId = eventUserId || this.currentUserId;
+    const detail: any = { ...raw, userId: eventUserId };
     delete detail.type;
     if (detail.message) {
       try {
-        detail.message = transformBackendMessage(detail.message, this.lastUserId ?? undefined);
+        detail.message = transformBackendMessage(detail.message, userId ?? undefined);
       } catch (error) {
       }
     }
@@ -537,8 +641,17 @@ class WebSocketManager {
 
   /**
    * 确保房间已订阅
+   * @param roomIds 房间ID列表
+   * @param pruneMissing 是否清理多余的订阅
+   * @param userId 指定用户ID，默认为当前用户
    */
-  public ensureRoomsSubscribed(roomIds: Iterable<string>, pruneMissing = false): void {
+  public ensureRoomsSubscribed(roomIds: Iterable<string>, pruneMissing = false, userId?: string): void {
+    const targetUserId = userId || this.currentUserId;
+    if (!targetUserId) return;
+
+    const connection = this.connections.get(targetUserId);
+    if (!connection) return;
+
     const normalized = new Set(
       Array.from(roomIds)
         .map((roomId) => roomId.trim())
@@ -546,21 +659,21 @@ class WebSocketManager {
     );
 
     // 添加到期望订阅列表
-    normalized.forEach((roomId) => this.desiredRooms.add(roomId));
+    normalized.forEach((roomId) => connection.desiredRooms.add(roomId));
 
     // 立即加入房间
     if (normalized.size > 0) {
-      WebSocketApi.joinRooms(Array.from(normalized)).catch((error) => {
+      WebSocketApi.joinRooms(Array.from(normalized), targetUserId).catch((error) => {
       });
     }
 
     // 清理不需要的房间订阅
     if (pruneMissing) {
-      WebSocketApi.getSubscribedRooms()
+      WebSocketApi.getSubscribedRooms(targetUserId)
         .then((subscribedRooms) => {
           subscribedRooms.forEach((roomId) => {
             if (!normalized.has(roomId)) {
-              this.leaveRoom(roomId);
+              this.leaveRoom(roomId, targetUserId);
             }
           });
         })
@@ -571,21 +684,37 @@ class WebSocketManager {
 
   /**
    * 加入房间
+   * @param roomId 房间ID
+   * @param userId 指定用户ID，默认为当前用户
    */
-  public joinRoom(roomId: string): void {
+  public joinRoom(roomId: string, userId?: string): void {
     if (!roomId) return;
-    this.desiredRooms.add(roomId);
-    WebSocketApi.joinRoom(roomId).catch((error) => {
+    const targetUserId = userId || this.currentUserId;
+    if (!targetUserId) return;
+
+    const connection = this.connections.get(targetUserId);
+    if (connection) {
+      connection.desiredRooms.add(roomId);
+    }
+    WebSocketApi.joinRoom(roomId, targetUserId).catch((error) => {
     });
   }
 
   /**
    * 离开房间
+   * @param roomId 房间ID
+   * @param userId 指定用户ID，默认为当前用户
    */
-  public leaveRoom(roomId: string): void {
+  public leaveRoom(roomId: string, userId?: string): void {
     if (!roomId) return;
-    this.desiredRooms.delete(roomId);
-    WebSocketApi.leaveRoom(roomId).catch((error) => {
+    const targetUserId = userId || this.currentUserId;
+    if (!targetUserId) return;
+
+    const connection = this.connections.get(targetUserId);
+    if (connection) {
+      connection.desiredRooms.delete(roomId);
+    }
+    WebSocketApi.leaveRoom(roomId, targetUserId).catch((error) => {
     });
   }
 
@@ -650,7 +779,7 @@ class WebSocketManager {
       content,
       parts,
       replyToMessageId,
-      currentUserId: this.lastUserId ?? undefined,
+      currentUserId: this.currentUserId ?? undefined,
     });
 
     if (response.success && response.data) {
@@ -660,30 +789,115 @@ class WebSocketManager {
   }
 
   /**
-   * 关闭 WebSocket 连接
+   * 关闭指定账号的 WebSocket 连接
+   * @param userId 用户ID，如果不指定则关闭当前账号的连接
    */
-  public async closeWebSocket(): Promise<void> {
+  public async closeWebSocket(userId?: string): Promise<void> {
+    const targetUserId = userId || this.currentUserId;
+
+    if (targetUserId) {
+      // 断开指定账号的连接
+      this.connections.delete(targetUserId);
+      await WebSocketApi.disconnect(targetUserId);
+
+      // 如果关闭的是当前账号，更新网络状态
+      if (targetUserId === this.currentUserId) {
+        store.commit('SET_NETWORK_STATE', false);
+      }
+    } else {
+      // 如果没有指定且没有当前用户，断开所有连接
+      await this.closeAllWebSockets();
+    }
+  }
+
+  /**
+   * 关闭所有 WebSocket 连接
+   */
+  public async closeAllWebSockets(): Promise<void> {
     // 清理事件监听器
     this.eventUnlisteners.forEach((unlisten) => unlisten());
     this.eventUnlisteners = [];
 
-    // 断开 WebSocket
-    await WebSocketApi.disconnect();
+    // 断开所有 WebSocket 连接
+    await WebSocketApi.disconnectAll();
 
     // 清空状态
-    this.desiredRooms.clear();
-    this.lastAuthToken = null;
-    this.lastUserId = null;
+    this.connections.clear();
+    this.currentUserId = null;
 
     store.commit('SET_NETWORK_STATE', false);
   }
 
   /**
-   * 获取连接状态
+   * 获取指定账号的连接状态
+   * @param userId 用户ID，默认为当前用户
    */
-  public async getConnectionState(): Promise<boolean> {
-    const status = await WebSocketApi.getStatus();
+  public async getConnectionState(userId?: string): Promise<boolean> {
+    const targetUserId = userId || this.currentUserId;
+    if (!targetUserId) return false;
+
+    const status = await WebSocketApi.getStatus(targetUserId);
     return status === 'authenticated';
+  }
+
+  /**
+   * 获取所有连接状态
+   */
+  public async getAllConnectionStates(): Promise<Record<string, ConnectionStatus>> {
+    return await WebSocketApi.getAllStatus();
+  }
+
+  /**
+   * 获取已连接的账号数量
+   */
+  public async getConnectedCount(): Promise<number> {
+    return await WebSocketApi.getConnectedCount();
+  }
+
+  /**
+   * 设置当前活跃账号
+   * @param userId 用户ID
+   */
+  public async setCurrentUser(userId: string): Promise<void> {
+    if (!userId) return;
+
+    this.currentUserId = userId;
+    await WebSocketApi.setCurrentUser(userId);
+
+    // 更新网络状态
+    const connection = this.connections.get(userId);
+    if (connection) {
+      store.commit('SET_NETWORK_STATE', connection.status === 'authenticated');
+    }
+  }
+
+  /**
+   * 获取当前活跃账号ID
+   */
+  public getCurrentUserId(): string | null {
+    return this.currentUserId;
+  }
+
+  /**
+   * 检查指定账号是否已连接
+   * @param userId 用户ID
+   */
+  public isUserConnected(userId: string): boolean {
+    const connection = this.connections.get(userId);
+    return connection?.status === 'authenticated';
+  }
+
+  /**
+   * 获取所有已连接的用户ID列表
+   */
+  public getConnectedUserIds(): string[] {
+    const userIds: string[] = [];
+    this.connections.forEach((connection, userId) => {
+      if (connection.status === 'authenticated') {
+        userIds.push(userId);
+      }
+    });
+    return userIds;
   }
 }
 

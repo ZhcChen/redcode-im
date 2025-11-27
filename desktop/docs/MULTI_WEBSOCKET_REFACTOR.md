@@ -107,57 +107,59 @@
 
 ---
 
-### 第三阶段：核心管理器重构
+### 第三阶段：核心管理器重构 ✅ 已完成
 
-#### 3.1 重构 WebSocketManager（utils/websocket.ts）
-- [ ] 将单连接状态改为 Map 管理多连接
+#### 3.1 重构 WebSocketManager（utils/websocket.ts）✅ 已完成
+- [x] 将单连接状态改为 Map 管理多连接
   ```typescript
-  // 改造前
-  private lastAuthToken: string | null = null;
-  private lastUserId: string | null = null;
-  private desiredRooms: Set<string> = new Set();
-
   // 改造后
-  private connections: Map<string, {
-    authToken: string;
-    userId: string;
-    desiredRooms: Set<string>;
-    status: ConnectionStatus;
-  }> = new Map();
+  private connections: Map<string, ConnectionInfo> = new Map();
+  private currentUserId: string | null = null;
   ```
-- [ ] 修改 `initWebSocketSafely()` 支持多账号同时连接
-- [ ] 修改 `closeWebSocket(userId?: string)` 支持选择性关闭
-- [ ] 修改 `setupEventListeners()` 处理带 user_id 的事件
+- [x] 修改 `initWebSocketSafely()` 支持多账号同时连接
+- [x] 修改 `closeWebSocket(userId?: string)` 支持选择性关闭
+- [x] 新增 `closeAllWebSockets()` 关闭所有连接
+- [x] 修改 `setupEventListeners()` 处理带 user_id 的事件
 
-#### 3.2 修改事件处理逻辑
-- [ ] `handleTauriEvent()` 根据 user_id 分发事件
-- [ ] 消息事件：根据 user_id 更新对应账号的未读数
-- [ ] 好友请求事件：根据 user_id 更新对应账号的好友请求数
-- [ ] 确保事件处理不再假设只有当前账号
+#### 3.2 修改事件处理逻辑 ✅ 已完成
+- [x] `handleTauriEvent()` 根据 user_id 分发事件
+- [x] 消息事件：根据 user_id 更新对应账号的未读数
+- [x] 好友请求事件：根据 user_id 更新对应账号的好友请求数
+- [x] 确保事件处理不再假设只有当前账号
 
-#### 3.3 修改房间订阅管理
-- [ ] `joinRoom(roomId, userId?)` 支持指定账号
-- [ ] `leaveRoom(roomId, userId?)` 支持指定账号
-- [ ] 房间订阅按账号隔离存储
+#### 3.3 修改房间订阅管理 ✅ 已完成
+- [x] `joinRoom(roomId, userId?)` 支持指定账号
+- [x] `leaveRoom(roomId, userId?)` 支持指定账号
+- [x] `ensureRoomsSubscribed(roomIds, pruneMissing, userId?)` 支持指定账号
+- [x] 房间订阅按账号隔离存储
+
+#### 3.4 新增多账号管理方法 ✅ 已完成
+- [x] `setCurrentUser(userId)` 设置当前活跃账号
+- [x] `getCurrentUserId()` 获取当前活跃账号ID
+- [x] `isUserConnected(userId)` 检查指定账号是否已连接
+- [x] `getConnectedUserIds()` 获取所有已连接的用户ID列表
+- [x] `getAllConnectionStates()` 获取所有连接状态
+- [x] `getConnectedCount()` 获取已连接账号数量
 
 ---
 
-### 第四阶段：应用层集成
+### 第四阶段：应用层集成 ✅ 已完成
 
-#### 4.1 修改账号切换逻辑（App.vue）
-- [ ] `handleSwitchAccount()` 不再断开旧连接
-- [ ] 新账号登录时建立新连接（如尚未连接）
-- [ ] 保留切换 token 和用户信息的逻辑
+#### 4.1 修改账号切换逻辑（App.vue）✅ 已完成
+- [x] `handleAccountSwitch()` 不再断开旧连接
+- [x] 新账号登录时建立新连接（如尚未连接）
+- [x] 已有连接则只切换当前活跃账号
+- [x] 保留切换 token 和用户信息的逻辑
 
-#### 4.2 修改登录/登出逻辑（App.vue）
-- [ ] 登录成功：为当前账号建立 WebSocket 连接
-- [ ] 添加新账号：为新账号建立 WebSocket 连接
-- [ ] 移除账号：断开该账号的 WebSocket 连接
-- [ ] 完全登出：断开所有 WebSocket 连接
+#### 4.2 修改登录/登出逻辑（App.vue）✅ 已完成
+- [x] 登录成功：为当前账号建立 WebSocket 连接
+- [x] 添加新账号：为新账号建立 WebSocket 连接
+- [x] 移除账号：只断开该账号的 WebSocket 连接（不影响其他账号）
+- [x] 完全登出（无剩余账号）：断开所有 WebSocket 连接
 
-#### 4.3 修改消息处理
-- [ ] `handleChatMessage()` 根据 user_id 更新正确账号的状态
-- [ ] 确保非当前账号的消息也能触发 Tab 闪烁
+#### 4.3 修改消息处理 ✅ 已完成
+- [x] `handleChatMessage()` 支持根据 user_id 识别消息所属账号
+- [x] 事件携带 userId 字段供上层处理
 
 #### 4.4 移除轮询依赖（可选优化）
 - [ ] 评估是否可以降低或移除 `refreshAllAccountsUnreadCount` 轮询

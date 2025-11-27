@@ -380,6 +380,7 @@ function getAccountRouteState(accountId: string) {
 }
 
 // 账号切换处理（多实例页面架构：只切换显示/隐藏，不销毁组件）
+// 多 WebSocket 架构：不断开旧连接，只切换当前活跃账号
 async function handleAccountSwitch(accountId: string) {
   try {
     // 1. 保存当前账号的路由状态（在切换前保存）
@@ -429,8 +430,14 @@ async function handleAccountSwitch(accountId: string) {
         store.commit('SET_CURRENT_CHAT_GROUP_ID', null);
       }
 
-      // 7. 重新初始化 WebSocket 连接
-      await initWebSocketConnection();
+      // 7. 切换 WebSocket 当前活跃账号（多连接架构：不断开旧连接）
+      // 如果该账号尚未连接，则建立新连接；已连接则只切换当前用户
+      const params = {
+        userId: account.userInfo.id,
+        token: account.token,
+        chatGroupId: "00000000"
+      };
+      await webSocketManager.initWebSocketSafely(params, true);
 
       // 8. 刷新数据（联系人、聊天列表等）
       store.dispatch('loadChatList', { forceRefresh: true });
@@ -455,6 +462,7 @@ async function handleAddAccount() {
 }
 
 // 移除账号处理
+// 多 WebSocket 架构：只断开该账号的连接，不影响其他账号
 async function handleRemoveAccount(accountId: string, skipConfirm = false) {
 
   const account = store.getters['accounts/getAccountById'](accountId);
@@ -472,12 +480,13 @@ async function handleRemoveAccount(accountId: string, skipConfirm = false) {
 
   const isCurrentAccount = currentAccountId.value === accountId;
 
-  if (isCurrentAccount) {
-    try {
-      await webSocketManager.closeWebSocket();
-    } catch (error) {
-    }
+  // 断开该账号的 WebSocket 连接（多连接架构：只断开该账号，不影响其他账号）
+  try {
+    await webSocketManager.closeWebSocket(account.userInfo.id);
+  } catch (error) {
+  }
 
+  if (isCurrentAccount) {
     try {
       const { syncRustBackendToken } = await import('./api/http');
       await syncRustBackendToken(null);
@@ -495,7 +504,9 @@ async function handleRemoveAccount(accountId: string, skipConfirm = false) {
   const remainingAccounts: AccountInfo[] = store.getters['accounts/allAccounts'];
 
   if (remainingAccounts.length === 0) {
+    // 没有剩余账号时，关闭所有连接并清理状态
     try {
+      await webSocketManager.closeAllWebSockets();
       const { syncRustBackendToken } = await import('./api/http');
       await syncRustBackendToken(null);
     } catch (error) {
@@ -552,9 +563,9 @@ async function initWebSocketConnection() {
   }
 }
 
-// 关闭 WebSocket 连接
+// 关闭所有 WebSocket 连接（应用退出时调用）
 function closeWebSocketConnection() {
-  webSocketManager.closeWebSocket();
+  webSocketManager.closeAllWebSockets();
 }
 
 // 监听 WebSocket 状态变化
@@ -645,14 +656,18 @@ function removeWebSocketEventListeners() {
 }
 
 // 消息处理函数
+// 多账号架构：detail 中包含 userId 字段标识消息所属账号
 function handleChatMessage(detail: any) {
   const payload = detail?.message ?? detail
-  // 这里可以更新聊天界面，播放提示音等
+  const eventUserId = detail?.userId // 消息所属的账号ID
+
+  // 触发跨账号未读数刷新
   triggerCrossAccountUnreadRefresh('ws-chat-message')
 
   // 播放新消息通知（仅当不是自己发送的消息时）
-  const currentUserId = user.value?.id
-  if (payload?.sender_id && payload.sender_id !== currentUserId) {
+  // 多账号场景：使用事件中的 userId 或当前账号 userId
+  const targetUserId = eventUserId || user.value?.id
+  if (payload?.sender_id && payload.sender_id !== targetUserId) {
     NotificationApi.showNewMessageNotification()
   }
 }
