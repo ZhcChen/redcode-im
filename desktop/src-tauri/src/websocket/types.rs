@@ -168,7 +168,84 @@ impl TauriEventPayload {
                 room_id: left.room_id,
             }),
             ws::server_event::Payload::Message(msg) => {
-                // 转换为 JSON - 只序列化基本类型
+                // 转换 parts
+                let parts: Vec<serde_json::Value> = msg
+                    .parts
+                    .iter()
+                    .map(|part| {
+                        let attachment = part.attachment.as_ref().map(|att| {
+                            serde_json::json!({
+                                "key": att.key,
+                                "name": att.name,
+                                "mime": att.mime,
+                                "size": att.size,
+                                "width": att.width,
+                                "height": att.height,
+                                "duration_ms": att.duration_ms,
+                                "thumbnail_key": att.thumbnail_key,
+                            })
+                        });
+                        serde_json::json!({
+                            "position": part.position,
+                            "part_type": part.part_type,
+                            "text": part.text,
+                            "attachment": attachment,
+                        })
+                    })
+                    .collect();
+
+                // 转换 quoted_message
+                let quoted_message = msg.quoted_message.as_ref().map(|quoted| {
+                    let quoted_parts: Vec<serde_json::Value> = quoted
+                        .parts
+                        .iter()
+                        .map(|part| {
+                            let attachment = part.attachment.as_ref().map(|att| {
+                                serde_json::json!({
+                                    "key": att.key,
+                                    "name": att.name,
+                                    "mime": att.mime,
+                                    "size": att.size,
+                                    "width": att.width,
+                                    "height": att.height,
+                                    "duration_ms": att.duration_ms,
+                                    "thumbnail_key": att.thumbnail_key,
+                                })
+                            });
+                            serde_json::json!({
+                                "position": part.position,
+                                "part_type": part.part_type,
+                                "text": part.text,
+                                "attachment": attachment,
+                            })
+                        })
+                        .collect();
+                    serde_json::json!({
+                        "id": quoted.id,
+                        "room_id": quoted.room_id,
+                        "sender_id": quoted.sender_id,
+                        "sender_username": quoted.sender_username,
+                        "sender_nickname": quoted.sender_nickname,
+                        "sender_avatar_url": quoted.sender_avatar_url,
+                        "content": quoted.content,
+                        "message_type": quoted.message_type,
+                        "created_at": quoted.created_at,
+                        "is_deleted": quoted.is_deleted,
+                        "parts": quoted_parts,
+                    })
+                });
+
+                // 转换 forward_message
+                let forward_message = msg.forward_message.as_ref().map(|forward| {
+                    serde_json::json!({
+                        "message_id": forward.message_id,
+                        "room_id": forward.room_id,
+                        "sender_id": forward.sender_id,
+                        "sender_username": forward.sender_username,
+                        "sender_nickname": forward.sender_nickname,
+                    })
+                });
+
                 let json = serde_json::json!({
                     "id": msg.id,
                     "message_id": msg.message_id,
@@ -180,8 +257,9 @@ impl TauriEventPayload {
                     "content": msg.content,
                     "message_type": msg.message_type,
                     "timestamp": msg.timestamp,
-                    // quoted_message 和 forward_message 是 Proto 类型,暂不序列化
-                    // 前端会通过 HTTP API 获取完整消息详情
+                    "quoted_message": quoted_message,
+                    "forward_message": forward_message,
+                    "parts": parts,
                 });
                 Some(Self::Message(json))
             }
