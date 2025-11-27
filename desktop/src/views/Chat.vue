@@ -1042,6 +1042,9 @@ const convertLocalPathToUrl = async (localPath: string): Promise<string> => {
 
 // 音频 URL 缓存
 const audioUrlCache = reactive<Record<string, string>>({});
+const audioUrlPending = new Set<string>();
+const audioUrlLastAttempt = new Map<string, number>();
+const AUDIO_URL_RETRY_INTERVAL_MS = 5_000;
 
 // 获取缓存的音频 URL
 const getCachedAudioUrl = (message: DomainMessage): string => {
@@ -1061,6 +1064,12 @@ const getCachedAudioUrl = (message: DomainMessage): string => {
       audioUrlCache[messageId] = url;
       console.warn('[VoiceUrl] 使用 attachment.downloadUrl 兜底', { messageId, downloadUrl: attach.downloadUrl });
     } else {
+      const now = Date.now();
+      const lastAttempt = audioUrlLastAttempt.get(messageId) || 0;
+      if (!audioUrlPending.has(messageId) && now - lastAttempt > AUDIO_URL_RETRY_INTERVAL_MS) {
+        audioUrlLastAttempt.set(messageId, now);
+        loadAudioUrl(message); // 异步触发重新拉取，避免长时间停留在空状态
+      }
       console.warn('[VoiceUrl] 仍为空', {
         messageId,
         contentType: message.contentType,
@@ -1078,21 +1087,34 @@ const getCachedAudioUrl = (message: DomainMessage): string => {
 const loadAudioUrl = async (message: DomainMessage): Promise<void> => {
   const messageId = message.id;
   console.log('[loadAudioUrl] 开始加载音频 URL, messageId:', messageId);
-  if (Object.prototype.hasOwnProperty.call(audioUrlCache, messageId)) {
-    console.log('[loadAudioUrl] 已有缓存，跳过:', { messageId, cached: audioUrlCache[messageId] });
-    return; // 已缓存
+  if (audioUrlPending.has(messageId)) {
+    console.log('[loadAudioUrl] 已有进行中的加载，跳过:', { messageId });
+    return;
+  }
+  audioUrlLastAttempt.set(messageId, Date.now());
+  // 如果已经有可用 URL，则无需重复加载
+  if (audioUrlCache[messageId]) {
+    console.log('[loadAudioUrl] 已有可用缓存，跳过:', { messageId, cached: audioUrlCache[messageId] });
+    return;
   }
 
   try {
+    audioUrlPending.add(messageId);
     const url = await getAudioUrl(message);
     console.log('[loadAudioUrl] 获取到的 URL:', url);
-    // 无论成功与否都写入缓存（空串也标记为已尝试），避免重复请求刷屏
-    audioUrlCache[messageId] = url || '';
-    console.log('[loadAudioUrl] 已缓存到 audioUrlCache', { messageId, cached: audioUrlCache[messageId] });
+    if (url) {
+      audioUrlCache[messageId] = url;
+      console.log('[loadAudioUrl] 已缓存到 audioUrlCache', { messageId, cached: audioUrlCache[messageId] });
+    } else {
+      // 下载失败时不写入空串，保持可重试
+      delete audioUrlCache[messageId];
+      console.warn('[loadAudioUrl] 未拿到 URL，稍后可重试', { messageId });
+    }
   } catch (error) {
     console.error('[loadAudioUrl] 加载音频 URL 失败:', { messageId, error });
-    audioUrlCache[messageId] = '';
+    delete audioUrlCache[messageId];
   }
+  audioUrlPending.delete(messageId);
 };
 
 const registerBlobUrl = (url: string | null) => {
@@ -1112,7 +1134,8 @@ const releaseBlobUrl = (url: string | null) => {
 };
 
 const attachmentUrlCache = new Map<string, { localPath: string; expiresAt: number; downloadUrl?: string | null }>();
-const pendingAttachmentDownloads = new Map<string, Promise<string>>();
+// 统一复用同一份 Map，内部 promise 结果类型不固定，这里放宽类型约束以兼容图片/文件/语音的不同返回值
+const pendingAttachmentDownloads = new Map<string, Promise<any>>();
 const ATTACHMENT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 分钟
 const ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS = 600;
 
@@ -1355,7 +1378,7 @@ const getAudioUrl = async (message: DomainMessage): Promise<string> => {
 
   try {
     // 从选中的聊天中获取 roomId
-    const roomId = selectedChat.value?.id;
+    const roomId = message.roomId || selectedChat.value?.id || selectedChat.value?.groupId;
     console.log('[getAudioUrl] 使用 roomId:', roomId);
     if (!roomId) {
       throw new Error('No roomId available');
@@ -1381,49 +1404,57 @@ const getAudioDuration = (message: DomainMessage): number => {
 
 // 下载并缓存附件
 const NOT_FOUND_TOKEN = '__NOT_FOUND__';
+const NOT_FOUND_TTL_MS = 5 * 60 * 1000; // 5 分钟后允许重试
 
 const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId: string): Promise<string> => {
   // 检查缓存
   const cacheKey = `attachment_${attachment.key}`;
   const cached = await loadCache<string>(cacheKey);
-  console.log('[downloadAndCacheAttachment] 检查缓存:', { cacheKey, cached: cached?.data });
+  console.log('[downloadAndCacheAttachment] 检查缓存:', { cacheKey, cached: cached?.data, updatedAt: cached?.updatedAt });
 
   if (cached?.data) {
     if (cached.data === NOT_FOUND_TOKEN) {
-      console.warn('[downloadAndCacheAttachment] 命中 NOT_FOUND 缓存，跳过下载', { cacheKey, key: attachment.key });
-      return '';
-    }
-    // 检查缓存的 URL 是否是旧的 file:// 格式，如果是则需要转换
-    const cachedUrl = cached.data;
-    if (cachedUrl.startsWith('file://')) {
-      console.log('[downloadAndCacheAttachment] 缓存的是旧的 file:// URL，需要转换:', cachedUrl);
-      // 提取本地路径并转换
-      const localPath = decodeURIComponent(cachedUrl.replace('file://', ''));
-      const convertedUrl = convertLocalPathToUrlSync(localPath);
-      console.log('[downloadAndCacheAttachment] 转换后的 URL:', convertedUrl);
-      // 更新缓存
-      await saveCache(cacheKey, convertedUrl);
+      const age = Date.now() - (cached.updatedAt || 0);
+      if (age < NOT_FOUND_TTL_MS) {
+        console.warn('[downloadAndCacheAttachment] 命中 NOT_FOUND 缓存，跳过下载', { cacheKey, key: attachment.key, ageMs: age });
+        return '';
+      }
+      console.log('[downloadAndCacheAttachment] NOT_FOUND 缓存已过期，尝试重新下载', { cacheKey, key: attachment.key, ageMs: age });
+      // 继续向下执行，重新下载
+    } else {
+      // 检查缓存的 URL 是否是旧的 file:// 格式，如果是则需要转换
+      const cachedUrl = cached.data;
+      if (cachedUrl.startsWith('file://')) {
+        console.log('[downloadAndCacheAttachment] 缓存的是旧的 file:// URL，需要转换:', cachedUrl);
+        // 提取本地路径并转换
+        const localPath = decodeURIComponent(cachedUrl.replace('file://', ''));
+        const convertedUrl = convertLocalPathToUrlSync(localPath);
+        console.log('[downloadAndCacheAttachment] 转换后的 URL:', convertedUrl);
+        // 更新缓存
+        await saveCache(cacheKey, convertedUrl);
+        attachment.localPath = localPath;
+        return convertedUrl;
+      }
+      // 如果已经是 asset 协议或其他有效格式，直接返回
+      if (cachedUrl.startsWith('asset:') || cachedUrl.startsWith('http://asset.localhost') || cachedUrl.startsWith('blob:')) {
+        console.log('[downloadAndCacheAttachment] 使用缓存的 URL:', cachedUrl);
+        return cachedUrl;
+      }
+      // 其他情况（可能是本地路径），尝试转换
+      console.log('[downloadAndCacheAttachment] 缓存的 URL 格式未知，尝试转换:', cachedUrl);
+      const convertedUrl = convertLocalPathToUrlSync(cachedUrl);
+      if (convertedUrl !== cachedUrl) {
+        await saveCache(cacheKey, convertedUrl);
+      }
       return convertedUrl;
     }
-    // 如果已经是 asset 协议或其他有效格式，直接返回
-    if (cachedUrl.startsWith('asset:') || cachedUrl.startsWith('http://asset.localhost') || cachedUrl.startsWith('blob:')) {
-      console.log('[downloadAndCacheAttachment] 使用缓存的 URL:', cachedUrl);
-      return cachedUrl;
-    }
-    // 其他情况（可能是本地路径），尝试转换
-    console.log('[downloadAndCacheAttachment] 缓存的 URL 格式未知，尝试转换:', cachedUrl);
-    const convertedUrl = convertLocalPathToUrlSync(cachedUrl);
-    if (convertedUrl !== cachedUrl) {
-      await saveCache(cacheKey, convertedUrl);
-    }
-    return convertedUrl;
   }
 
   // 若有正在进行的同 key 下载，复用 promise，避免并发重复请求
   const pendingExisting = pendingAttachmentDownloads.get(cacheKey);
   if (pendingExisting) {
     console.log('[downloadAndCacheAttachment] 复用进行中的下载 promise', { cacheKey, key: attachment.key });
-    return pendingExisting;
+    return pendingExisting as Promise<string>;
   }
 
   const downloadPromise = (async () => {
@@ -1457,6 +1488,7 @@ const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId:
     const { convertFileSrc } = await import('@tauri-apps/api/core');
     const localUrl = convertFileSrc(downloadResult.path);
     console.log('[downloadAndCacheAttachment] 转换后的本地 URL:', { originalPath: downloadResult.path, localUrl });
+    attachment.localPath = downloadResult.path;
 
     // 缓存到本地存储
     await saveCache(cacheKey, localUrl);
