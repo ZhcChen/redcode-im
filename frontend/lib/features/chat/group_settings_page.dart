@@ -182,7 +182,9 @@ class _GroupAvatarState extends State<_GroupAvatar> {
   Widget _buildDefaultAvatar() {
     final name = widget.chat.name.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    // 使用稳定种子（roomId）计算背景色，与 Desktop 端保持一致
+    final seed = widget.chat.roomId;
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
 
     return Container(
       width: 36,
@@ -453,8 +455,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         : roleValue?.toString();
     final isOwner = role == 'owner';
 
-    // 使用哈希背景色（与聊天列表一致）
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(displayName);
+    // 使用哈希背景色（与聊天列表一致），用 userId 作为稳定种子
+    final userId = member['user_id'] as String? ?? member['userId'] as String?;
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(userId ?? displayName);
 
     return GestureDetector(
       onTap: () => _navigateToContactDetail(context, member),

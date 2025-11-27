@@ -904,7 +904,9 @@ class _ContactAvatarState extends State<_ContactAvatar> {
   Widget _buildDefaultAvatar(double size) {
     final name = widget.entry.name.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    // 使用稳定种子（用户ID）计算背景色，与 Desktop 端保持一致
+    final seed = widget.entry.id;
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
 
     return Container(
       width: size,

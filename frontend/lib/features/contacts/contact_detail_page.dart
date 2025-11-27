@@ -151,9 +151,9 @@ class _ProfileHeader extends StatelessWidget {
                       height: 88,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) =>
-                          _buildDefaultAvatar(displayName),
+                          _buildDefaultAvatar(displayName, userId: user.id),
                     )
-                  : _buildDefaultAvatar(displayName),
+                  : _buildDefaultAvatar(displayName, userId: user.id),
             ),
           ),
           const SizedBox(height: 16),
@@ -208,10 +208,12 @@ class _ProfileHeader extends StatelessWidget {
     }
   }
 
-  Widget _buildDefaultAvatar(String displayName) {
+  Widget _buildDefaultAvatar(String displayName, {String? userId}) {
     final name = displayName.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    // 使用稳定种子（用户ID）计算背景色，与 Desktop 端保持一致
+    final seed = userId ?? name;
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
 
     return Container(
       width: 88,
