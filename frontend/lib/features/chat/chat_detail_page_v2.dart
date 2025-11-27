@@ -1108,7 +1108,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   void _scrollToMessage(String messageId) {
     debugPrint('[跳转] _scrollToMessage 被调用，目标消息ID: $messageId');
 
-    // 先检查消息是否在当前列表中
+    // 立即触发高亮（不等滚动完成）
+    _highlightMessage(messageId);
+
+    // 检查消息是否在当前列表中
     final messages = _chatProvider.messages;
     final targetIndex = messages.indexWhere((m) => m.id == messageId);
     debugPrint('[跳转] 消息在列表中的索引: $targetIndex (总数: ${messages.length})');
@@ -1149,7 +1152,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         curve: Curves.easeInOut,
         alignment: 0.3,
       );
-      _highlightMessage(messageId);
       return;
     }
 
@@ -1185,8 +1187,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   void _finishScrollToMessage(String messageId, int attempt) {
     if (attempt >= 5) {
-      debugPrint('[跳转] 达到最大重试次数，使用高亮标记');
-      _highlightMessage(messageId);
+      debugPrint('[跳转] 达到最大重试次数');
       return;
     }
 
@@ -1201,7 +1202,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         curve: Curves.easeOut,
         alignment: 0.3,
       );
-      _highlightMessage(messageId);
     } else {
       // 可能还没渲染，继续等待
       debugPrint('[跳转] 等待渲染，attempt=$attempt');
@@ -2157,7 +2157,7 @@ class _MessageBubbleState extends State<_MessageBubble>
     return _isSelf ? _buildSelfBubble(context) : _buildPeerBubble(context);
   }
 
-  /// 构建高亮背景层
+  /// 构建高亮背景层（占满屏幕宽度）
   Widget _buildHighlightOverlay({required Widget child}) {
     if (!widget.isHighlighted && !_highlightController.isAnimating) {
       return child;
@@ -2174,12 +2174,22 @@ class _MessageBubbleState extends State<_MessageBubble>
           0.5 * _highlightAnimation.value,
         );
 
-        return Container(
-          decoration: BoxDecoration(
-            color: highlightColor,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: child,
+        // 使用 Stack + OverflowBox 实现全宽背景
+        // 消息列表有 16px 的左右 padding，需要扩展背景来覆盖
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // 背景层：向左右各扩展 16px 以覆盖整个屏幕宽度
+            Positioned(
+              left: -16,
+              right: -16,
+              top: 0,
+              bottom: 0,
+              child: Container(color: highlightColor),
+            ),
+            // 内容层
+            child,
+          ],
         );
       },
     );
