@@ -7621,6 +7621,17 @@ const handleWebSocketMessage = (event: CustomEvent) => {
       selectedChat.value.lastMessage = updatedChat.lastMessage
       selectedChat.value.time = updatedChat.time
       selectedChat.value.lastMessageId = updatedChat.lastMessageId ?? null
+
+      // 当收到他人发送的新消息时，标记为已读（通知服务器）
+      if (!messageData.isSelf && messageData.id) {
+        // 异步调用，不阻塞消息显示
+        MessageApi.markMessagesAsRead({
+          groupId: messageGroupId,
+          messageIds: [messageData.id]
+        }).catch(error => {
+          console.error('标记新消息已读失败:', error)
+        })
+      }
     }
 
   }
