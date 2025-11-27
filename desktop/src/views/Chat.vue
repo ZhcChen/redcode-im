@@ -204,9 +204,10 @@
                       <div v-if="getQuotedMediaType(message.quotedMessage) !== 'image'" class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
                       <img
                         v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
-                        :src="getQuotedImageSrc(message.quotedMessage)!"
+                        :src="getQuotedImageSrc(message.quotedMessage)"
                         class="quoted-image"
                         alt="引用图片"
+                        @load="scrollToBottomAfterImageLoad"
                       />
                     </div>
                   </div>
@@ -380,9 +381,10 @@
                     <div v-if="getQuotedMediaType(message.quotedMessage) !== 'image'" class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
                     <img
                       v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
-                      :src="getQuotedImageSrc(message.quotedMessage)!"
+                      :src="getQuotedImageSrc(message.quotedMessage)"
                       class="quoted-image"
                       alt="引用图片"
+                      @load="scrollToBottomAfterImageLoad"
                     />
                   </div>
                 </div>
@@ -4369,23 +4371,56 @@ const getQuotedMediaType = (quoted: QuotedMessage): 'image' | 'video' | 'audio' 
   }
 }
 
-// 获取引用消息的图片缩略图
-const getQuotedImageSrc = (quoted: QuotedMessage): string | null => {
-  if (!Array.isArray(quoted.parts) || quoted.parts.length === 0) return null
+// 获取引用消息的图片URL（使用与原图片消息相同的逻辑）
+const getQuotedImageSrc = (quoted: QuotedMessage): string => {
+  if (!Array.isArray(quoted.parts) || quoted.parts.length === 0) return ''
   const imagePart = quoted.parts.find((part) => part.type === MessagePartType.IMAGE)
-  if (!imagePart?.attachment) return null
+  if (!imagePart?.attachment) return ''
+
+  const attachment = imagePart.attachment
+  console.log('[getQuotedImageSrc] 引用消息ID:', quoted.id, '附件信息:', {
+    key: attachment.key,
+    localPath: attachment.localPath,
+    downloadUrl: attachment.downloadUrl,
+  })
 
   // 优先使用本地路径
-  if (imagePart.attachment.localPath) {
-    return `atom://${imagePart.attachment.localPath}`
+  if (attachment.localPath) {
+    console.log('[getQuotedImageSrc] 使用 localPath:', attachment.localPath)
+    return convertLocalPathToUrlSync(attachment.localPath)
   }
 
-  // 其次使用下载URL
-  if (imagePart.attachment.downloadUrl) {
-    return imagePart.attachment.downloadUrl
+  // 如果有 key 但没有 localPath，触发下载
+  if (attachment.key) {
+    console.log('[getQuotedImageSrc] 有 key 但无 localPath，触发下载')
+    // 创建一个临时 Message 对象来触发下载
+    const tempMessage: Message = {
+      id: quoted.id || `quoted-${Date.now()}`,
+      roomId: selectedChat.value?.groupId || '',
+      senderId: quoted.senderId || '',
+      content: '',
+      timestamp: Date.now(),
+      parts: quoted.parts,
+      isSelf: false,
+      status: 2,
+    }
+    void ensureAttachmentLocalPath(tempMessage, imagePart)
+
+    // 下载过程中先使用 downloadUrl
+    if (attachment.downloadUrl) {
+      console.log('[getQuotedImageSrc] 使用 downloadUrl:', attachment.downloadUrl)
+      return attachment.downloadUrl
+    }
+    console.log('[getQuotedImageSrc] 返回空字符串（加载中）')
+    return ''
   }
 
-  return null
+  // 使用下载URL
+  if (attachment.downloadUrl) {
+    return attachment.downloadUrl
+  }
+
+  return ''
 }
 
 const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
