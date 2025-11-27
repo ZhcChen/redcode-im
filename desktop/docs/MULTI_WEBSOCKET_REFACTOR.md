@@ -167,16 +167,16 @@
 
 ---
 
-### 第五阶段：状态管理改造
+### 第五阶段：状态管理改造 ✅ 已完成
 
-#### 5.1 修改 accounts store（store/modules/accounts.ts）
-- [ ] 确保 `UPDATE_UNREAD_COUNT` 可以按 accountId 更新
-- [ ] 确保 `UPDATE_FRIEND_REQUEST_COUNT` 可以按 accountId 更新
-- [ ] 可能需要新增 action 处理 WebSocket 事件
+#### 5.1 修改 accounts store（store/modules/accounts.ts）✅ 已完成
+- [x] `UPDATE_UNREAD_COUNT` 已支持按 accountId 更新
+- [x] `UPDATE_FRIEND_REQUEST_COUNT` 已支持按 accountId 更新
+- [x] WebSocket 事件处理已在第三阶段实现按 user_id 分发
 
-#### 5.2 修改全局 store（store/index.ts）
-- [ ] 检查全局状态是否需要改动
-- [ ] 确保 `pendingFriendRequests` 与多账号兼容
+#### 5.2 修改全局 store（store/index.ts）✅ 已完成
+- [x] 全局 `pendingFriendRequests` 用于当前账号显示
+- [x] WebSocket 事件同时更新全局状态（当前账号）和账号状态（指定账号）
 
 ---
 
