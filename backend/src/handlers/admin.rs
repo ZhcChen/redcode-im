@@ -23,7 +23,7 @@ use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
 use ipnetwork::IpNetwork;
 use sqlx::{FromRow, Postgres, QueryBuilder, Row};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]

@@ -7,6 +7,7 @@ use axum::{
 use chrono;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::database::{
