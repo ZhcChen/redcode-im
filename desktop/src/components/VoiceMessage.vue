@@ -34,7 +34,10 @@
         :style="{ height: getBarHeight(height) + 'px' }"
       ></div>
     </div>
-    <div v-else class="no-url-text">加载失败</div>
+    <div v-else class="no-url-text">
+      <span v-if="isLoading">加载中...</span>
+      <span v-else>文件缺失</span>
+    </div>
 
     <!-- 时长 -->
     <div class="duration">{{ formattedDuration }}</div>
