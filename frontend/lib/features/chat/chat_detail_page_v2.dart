@@ -1172,11 +1172,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     debugPrint('[跳转] 估算位置: $targetOffset, 最大: $maxOffset, 实际: $clampedOffset');
 
-    // 先跳转到估算位置
-    _scrollController.jumpTo(clampedOffset);
-
-    // 等待渲染后再精确定位
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 使用动画滚动到估算位置
+    _scrollController.animateTo(
+      clampedOffset,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    ).then((_) {
       if (!mounted) return;
       _finishScrollToMessage(messageId, 0);
     });
@@ -2101,54 +2102,129 @@ class _MessageBubble extends StatefulWidget {
   State<_MessageBubble> createState() => _MessageBubbleState();
 }
 
-class _MessageBubbleState extends State<_MessageBubble> {
+class _MessageBubbleState extends State<_MessageBubble>
+    with SingleTickerProviderStateMixin {
   Message get _message => widget.message;
   bool get _isSelf => _message.isSelf;
   Offset? _lastTapPosition;
+
+  // 高亮动画控制器
+  late final AnimationController _highlightController;
+  late final Animation<double> _highlightAnimation;
+  bool _wasHighlighted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 创建高亮渐隐动画控制器（5秒渐隐，与桌面版一致）
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5000),
+    );
+    _highlightAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _highlightController, curve: Curves.easeOut),
+    );
+
+    // 如果初始状态就是高亮，启动动画
+    if (widget.isHighlighted) {
+      _wasHighlighted = true;
+      _highlightController.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MessageBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 检测高亮状态变化
+    if (widget.isHighlighted && !_wasHighlighted) {
+      _wasHighlighted = true;
+      _highlightController.reset();
+      _highlightController.forward();
+    } else if (!widget.isHighlighted && _wasHighlighted) {
+      _wasHighlighted = false;
+      _highlightController.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _highlightController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return _isSelf ? _buildSelfBubble(context) : _buildPeerBubble(context);
   }
 
+  /// 构建高亮背景层
+  Widget _buildHighlightOverlay({required Widget child}) {
+    if (!widget.isHighlighted && !_highlightController.isAnimating) {
+      return child;
+    }
+
+    return AnimatedBuilder(
+      animation: _highlightAnimation,
+      builder: (context, _) {
+        // 桌面版颜色: rgba(78, 205, 196, 0.5)
+        final highlightColor = Color.fromRGBO(
+          78,
+          205,
+          196,
+          0.5 * _highlightAnimation.value,
+        );
+
+        return Container(
+          decoration: BoxDecoration(
+            color: highlightColor,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+
   Widget _buildSelfBubble(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final maxWidth = screenWidth * 0.8;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: GestureDetector(
-        onTapDown: (details) => _lastTapPosition = details.globalPosition,
-        onTap: () {
-          if (widget.multiSelectMode) {
-            widget.onToggleSelection?.call();
-          } else {
-            widget.onBubbleTap?.call(
-              _lastTapPosition ?? Offset.zero,
-              _message,
-              _isSelf,
-            );
-          }
-        },
-        onLongPress: widget.onStartSelection,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (widget.multiSelectMode)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _SelectionIndicator(isSelected: widget.isSelected),
+    return _buildHighlightOverlay(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: GestureDetector(
+          onTapDown: (details) => _lastTapPosition = details.globalPosition,
+          onTap: () {
+            if (widget.multiSelectMode) {
+              widget.onToggleSelection?.call();
+            } else {
+              widget.onBubbleTap?.call(
+                _lastTapPosition ?? Offset.zero,
+                _message,
+                _isSelf,
+              );
+            }
+          },
+          onLongPress: widget.onStartSelection,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (widget.multiSelectMode)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _SelectionIndicator(isSelected: widget.isSelected),
+                ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: _buildBubbleContainer(
+                  context,
+                  child: _buildMessageContent(context),
+                  isSelf: true,
+                  isSelected: widget.isSelected,
+                ),
               ),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: _buildBubbleContainer(
-                context,
-                child: _buildMessageContent(context),
-                isSelf: true,
-                isSelected: widget.isSelected,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2157,57 +2233,59 @@ class _MessageBubbleState extends State<_MessageBubble> {
   Widget _buildPeerBubble(BuildContext context) {
     final theme = Theme.of(context);
     final displayName = _message.displaySenderName;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: GestureDetector(
-        onTapDown: (details) => _lastTapPosition = details.globalPosition,
-        onTap: () {
-          if (widget.multiSelectMode) {
-            widget.onToggleSelection?.call();
-          } else {
-            widget.onBubbleTap?.call(
-              _lastTapPosition ?? Offset.zero,
-              _message,
-              _isSelf,
-            );
-          }
-        },
-        onLongPress: widget.onStartSelection,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.multiSelectMode)
-              Padding(
-                padding: const EdgeInsets.only(right: 8, top: 4),
-                child: _SelectionIndicator(isSelected: widget.isSelected),
-              ),
-            _buildAvatar(false),
-            const SizedBox(width: _MessageBubble._avatarSpacing),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                      height: 1.05,
+    return _buildHighlightOverlay(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: GestureDetector(
+          onTapDown: (details) => _lastTapPosition = details.globalPosition,
+          onTap: () {
+            if (widget.multiSelectMode) {
+              widget.onToggleSelection?.call();
+            } else {
+              widget.onBubbleTap?.call(
+                _lastTapPosition ?? Offset.zero,
+                _message,
+                _isSelf,
+              );
+            }
+          },
+          onLongPress: widget.onStartSelection,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.multiSelectMode)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8, top: 4),
+                  child: _SelectionIndicator(isSelected: widget.isSelected),
+                ),
+              _buildAvatar(false),
+              const SizedBox(width: _MessageBubble._avatarSpacing),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                        height: 1.05,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildBubbleContainer(
-                    context,
-                    child: _buildMessageContent(context),
-                    isSelf: false,
-                    isSelected: widget.isSelected,
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    _buildBubbleContainer(
+                      context,
+                      child: _buildMessageContent(context),
+                      isSelf: false,
+                      isSelected: widget.isSelected,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2494,34 +2572,18 @@ class _MessageBubbleState extends State<_MessageBubble> {
     required bool isSelf,
     bool isSelected = false,
   }) {
-    final isHighlighted = widget.isHighlighted;
+    final bubbleColor = isSelf ? AppColors.primary : Colors.white;
 
-    // 高亮时的背景色增强
-    Color bubbleColor;
-    if (isHighlighted) {
-      bubbleColor = isSelf
-          ? AppColors.primary.withValues(alpha: 0.85)
-          : const Color(0xFFFFF9C4); // 淡黄色高亮
-    } else {
-      bubbleColor = isSelf ? AppColors.primary : Colors.white;
-    }
-
-    // 高亮时的边框
+    // 选中时的边框
     Border? border;
     if (isSelected) {
       border = Border.all(
         color: AppColors.primary.withValues(alpha: 0.5),
         width: 1,
       );
-    } else if (isHighlighted) {
-      border = Border.all(
-        color: const Color(0xFFFFD54F), // 金色边框
-        width: 2,
-      );
     }
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: bubbleColor,
@@ -2534,10 +2596,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
         ),
         boxShadow: [
           BoxShadow(
-            color: isHighlighted
-                ? const Color(0xFFFFD54F).withValues(alpha: 0.3)
-                : Colors.black.withValues(alpha: 0.05),
-            blurRadius: isHighlighted ? 8 : 4,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
