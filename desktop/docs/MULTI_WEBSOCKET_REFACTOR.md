@@ -56,30 +56,32 @@
 
 ### 第一阶段：Rust 后端改造
 
-#### 1.1 重构 WebSocketManager（commands.rs）
-- [ ] 将 `client: Option<WebSocketClient>` 改为 `clients: HashMap<String, Arc<WebSocketClient>>`
-- [ ] 新增 `current_user_id: Option<String>` 字段
-- [ ] 修改 `ws_connect` 命令：按 user_id 管理连接，不覆盖已有连接
-- [ ] 修改 `ws_disconnect` 命令：新增 `user_id` 参数，支持断开特定账号
-- [ ] 修改 `ws_get_status` 命令：新增 `user_id` 参数
-- [ ] 修改 `ws_join_room` / `ws_leave_room`：使用当前账号或指定账号
-- [ ] 新增 `ws_disconnect_all` 命令：断开所有连接
-- [ ] 新增 `ws_get_all_status` 命令：获取所有连接状态
+#### 1.1 重构 WebSocketManager（commands.rs）✅ 已完成
+- [x] 将 `client: Option<WebSocketClient>` 改为 `clients: HashMap<String, WebSocketClient>`
+- [x] 新增 `current_user_id: Option<String>` 字段
+- [x] 修改 `ws_connect` 命令：按 user_id 管理连接，不覆盖已有连接
+- [x] 修改 `ws_disconnect` 命令：新增 `user_id` 参数，支持断开特定账号
+- [x] 修改 `ws_get_status` 命令：新增 `user_id` 参数
+- [x] 修改 `ws_join_room` / `ws_leave_room`：使用当前账号或指定账号
+- [x] 新增 `ws_disconnect_all` 命令：断开所有连接
+- [x] 新增 `ws_get_all_status` 命令：获取所有连接状态
+- [x] 新增 `ws_set_current_user` 命令：设置当前活跃账号
+- [x] 新增 `ws_get_connected_count` 命令：获取连接数量
+- [x] 新增 `ws_get_current_user` 命令：获取当前活跃账号
 
-#### 1.2 增强事件负载（types.rs）
-- [ ] 所有事件变体添加 `user_id` 字段（或包装层）
-- [ ] 修改 `TauriEventPayload::Message` 包含 `user_id`
-- [ ] 修改 `TauriEventPayload::FriendRequestUpdate` 包含 `user_id`
-- [ ] 修改其他事件变体（Joined, Left, MessageRead 等）
+#### 1.2 增强事件负载（types.rs）✅ 已完成
+- [x] 新增 `UserEventWrapper` 包装结构，包含 `user_id` 和 `event` 字段
+- [x] 所有事件通过 `UserEventWrapper` 发送，自动携带 user_id
 
-#### 1.3 WebSocketClient 小改（client.rs）
-- [ ] 添加 `user_id: String` 字段便于日志
-- [ ] 修改 `handle_binary_message` 在 emit 事件时包含 user_id
-- [ ] 更新日志输出包含 user_id
+#### 1.3 WebSocketClient 小改（client.rs）✅ 已完成
+- [x] 添加 `user_id: String` 字段
+- [x] 修改 `new()` 方法接收 user_id 参数
+- [x] 修改 `handle_binary_message` 使用 `UserEventWrapper` 发送事件
+- [x] 更新日志输出包含 user_id
 
-#### 1.4 编译验证
-- [ ] 运行 `cargo build` 确保无编译错误
-- [ ] 运行 `cargo clippy` 检查代码质量
+#### 1.4 编译验证 ✅ 已完成
+- [x] 运行 `cargo build` 确保无编译错误
+- [x] 无警告
 
 ---
 

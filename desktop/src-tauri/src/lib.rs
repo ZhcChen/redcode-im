@@ -308,14 +308,19 @@ pub fn run() {
             check_file_exists,
             create_dir,
             open_file_directory,
-            // WebSocket 相关命令
+            // WebSocket 相关命令（多账号版本）
             ws_connect,
             ws_disconnect,
+            ws_disconnect_all,
+            ws_set_current_user,
             ws_join_room,
             ws_leave_room,
             ws_join_rooms,
             ws_get_status,
+            ws_get_all_status,
             ws_get_subscribed_rooms,
+            ws_get_connected_count,
+            ws_get_current_user,
             // 通知相关命令
             play_notification_sound,
             request_attention

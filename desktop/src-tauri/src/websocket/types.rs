@@ -117,6 +117,16 @@ impl ServerEventDecoder {
     }
 }
 
+/// 带用户标识的事件包装（用于多账号场景）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserEventWrapper {
+    /// 事件所属的用户ID
+    pub user_id: String,
+    /// 事件负载
+    #[serde(flatten)]
+    pub event: TauriEventPayload,
+}
+
 /// Tauri 事件负载（序列化为 JSON 发送给前端）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]

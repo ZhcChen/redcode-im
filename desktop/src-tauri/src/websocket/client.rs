@@ -9,7 +9,10 @@ use tokio::sync::{mpsc, RwLock};
 use tokio::time::interval;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use super::types::*;
+use super::types::{
+    ClientEventEncoder, ConnectionStatus, Result, ServerEventDecoder, TauriEventPayload,
+    UserEventWrapper, WebSocketError, WebSocketParams,
+};
 
 /// WebSocket 客户端状态
 struct ClientState {
@@ -44,6 +47,8 @@ impl Default for ClientState {
 pub struct WebSocketClient {
     /// WebSocket URL
     ws_url: String,
+    /// 用户ID（用于多账号标识）
+    user_id: String,
     /// 客户端状态
     state: Arc<RwLock<ClientState>>,
     /// Tauri 应用句柄
@@ -56,13 +61,20 @@ const PING_INTERVAL_SECS: u64 = 30;
 
 impl WebSocketClient {
     /// 创建新的 WebSocket 客户端
-    pub fn new(ws_url: String, app_handle: tauri::AppHandle) -> Self {
+    pub fn new(ws_url: String, user_id: String, app_handle: tauri::AppHandle) -> Self {
         Self {
             ws_url,
+            user_id,
             state: Arc::new(RwLock::new(ClientState::default())),
             app_handle,
             tx: None,
         }
+    }
+
+    /// 获取用户ID
+    #[allow(dead_code)]
+    pub fn get_user_id(&self) -> &str {
+        &self.user_id
     }
 
     /// 连接到 WebSocket 服务器
@@ -121,26 +133,28 @@ impl WebSocketClient {
         // 克隆引用用于任务
         let state_clone = Arc::clone(&self.state);
         let app_handle_clone = self.app_handle.clone();
+        let _user_id_clone = self.user_id.clone();
 
         // 启动消息接收任务
         let state_for_read = Arc::clone(&self.state);
         let app_for_read = self.app_handle.clone();
+        let user_id_for_read = self.user_id.clone();
         tokio::spawn(async move {
             while let Some(msg) = read.next().await {
                 match msg {
                     Ok(Message::Binary(data)) => {
                         if let Err(e) =
-                            Self::handle_binary_message(data, &state_for_read, &app_for_read).await
+                            Self::handle_binary_message(data, &user_id_for_read, &state_for_read, &app_for_read).await
                         {
                             logger::log_message(format!("[WebSocket] 处理二进制消息失败: {:?}", e));
                         }
                     }
                     Ok(Message::Close(_)) => {
-                        logger::log_message("WebSocket 连接关闭");
+                        logger::log_message(format!("[WebSocket][{}] 连接关闭", user_id_for_read));
                         break;
                     }
                     Err(e) => {
-                        logger::log_message(format!("[WebSocket] 读取错误: {:?}", e));
+                        logger::log_message(format!("[WebSocket][{}] 读取错误: {:?}", user_id_for_read, e));
                         break;
                     }
                     _ => {}
@@ -189,6 +203,7 @@ impl WebSocketClient {
     /// 处理二进制消息
     async fn handle_binary_message(
         data: Vec<u8>,
+        user_id: &str,
         state: &Arc<RwLock<ClientState>>,
         app_handle: &tauri::AppHandle,
     ) -> Result<()> {
@@ -196,10 +211,10 @@ impl WebSocketClient {
 
         if let Some(payload) = TauriEventPayload::from_server_event(event) {
             match &payload {
-                TauriEventPayload::Authed { user_id, conn_id } => {
+                TauriEventPayload::Authed { user_id: auth_user_id, conn_id } => {
                     logger::log_message(format!(
-                        "认证成功: user_id={}, conn_id={}",
-                        user_id, conn_id
+                        "[{}] 认证成功: user_id={}, conn_id={}",
+                        user_id, auth_user_id, conn_id
                     ));
                     let mut state_guard = state.write().await;
                     state_guard.status = ConnectionStatus::Authenticated;
@@ -207,24 +222,30 @@ impl WebSocketClient {
                     drop(state_guard);
                 }
                 TauriEventPayload::Joined { room_id } => {
-                    logger::log_message(format!("已加入房间: {}", room_id));
+                    logger::log_message(format!("[{}] 已加入房间: {}", user_id, room_id));
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.push(room_id.clone());
                     state_guard.pending_rooms.retain(|r| r != room_id);
                 }
                 TauriEventPayload::Left { room_id } => {
-                    logger::log_message(format!("已离开房间: {}", room_id));
+                    logger::log_message(format!("[{}] 已离开房间: {}", user_id, room_id));
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.retain(|r| r != room_id);
                 }
-                TauriEventPayload::UserBanned { user_id, reason } => {
-                    logger::log_message(format!("用户被封禁: user_id={}, reason={}", user_id, reason));
+                TauriEventPayload::UserBanned { user_id: banned_user_id, reason } => {
+                    logger::log_message(format!("[{}] 用户被封禁: user_id={}, reason={}", user_id, banned_user_id, reason));
                 }
                 _ => {}
             }
 
+            // 使用 UserEventWrapper 包装事件，携带 user_id
+            let wrapped_event = UserEventWrapper {
+                user_id: user_id.to_string(),
+                event: payload,
+            };
+
             // 发送事件到前端
-            let _ = app_handle.emit("websocket-event", &payload);
+            let _ = app_handle.emit("websocket-event", &wrapped_event);
         }
 
         Ok(())
