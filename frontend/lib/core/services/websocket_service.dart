@@ -1539,6 +1539,7 @@ class WebSocketQuotedMessage {
     required this.messageType,
     this.createdAt,
     required this.isDeleted,
+    this.parts = const [],
   });
 
   final String id;
@@ -1551,6 +1552,7 @@ class WebSocketQuotedMessage {
   final String messageType;
   final DateTime? createdAt;
   final bool isDeleted;
+  final List<WebSocketMessagePart> parts;
 
   factory WebSocketQuotedMessage.fromJson(Map<String, dynamic> json) {
     bool parseDeleted(dynamic value) {
@@ -1561,6 +1563,23 @@ class WebSocketQuotedMessage {
         return lowered == 'true' || lowered == '1';
       }
       return false;
+    }
+
+    // 解析 parts
+    final parts = <WebSocketMessagePart>[];
+    final rawParts = json['parts'];
+    if (rawParts is List) {
+      for (final item in rawParts) {
+        if (item is Map<String, dynamic>) {
+          parts.add(WebSocketMessagePart.fromJson(item));
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          parts.add(WebSocketMessagePart.fromJson(normalized));
+        }
+      }
     }
 
     return WebSocketQuotedMessage(
@@ -1576,10 +1595,17 @@ class WebSocketQuotedMessage {
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
       isDeleted: parseDeleted(json['is_deleted']),
+      parts: parts,
     );
   }
 
   factory WebSocketQuotedMessage.fromProto(ws.QuotedMessage proto) {
+    // 解析 parts
+    final parts = <WebSocketMessagePart>[];
+    for (final part in proto.parts) {
+      parts.add(WebSocketMessagePart.fromProto(part));
+    }
+
     return WebSocketQuotedMessage(
       id: proto.id,
       roomId: proto.roomId,
@@ -1593,6 +1619,7 @@ class WebSocketQuotedMessage {
           ? DateTime.tryParse(proto.createdAt)
           : null,
       isDeleted: proto.isDeleted,
+      parts: parts,
     );
   }
 }

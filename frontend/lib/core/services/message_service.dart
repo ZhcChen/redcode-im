@@ -3087,6 +3087,11 @@ class MessageService with ChangeNotifier {
         ? response.senderNickname!
         : response.senderUsername;
 
+    // 转换 parts
+    final parts = response.parts
+        .map(_messagePartFromResponse)
+        .toList(growable: false);
+
     return QuotedMessage(
       id: response.id,
       roomId: response.roomId,
@@ -3098,6 +3103,7 @@ class MessageService with ChangeNotifier {
       type: _mapMessageType(response.messageType),
       createdAt: response.createdAt,
       isDeleted: response.isDeleted,
+      parts: parts,
     );
   }
 
@@ -3108,6 +3114,11 @@ class MessageService with ChangeNotifier {
     final displayName = quoted.senderNickname?.isNotEmpty == true
         ? quoted.senderNickname!
         : username;
+
+    // 转换 parts
+    final parts = quoted.parts
+        .map(_messagePartFromWebSocket)
+        .toList(growable: false);
 
     return QuotedMessage(
       id: quoted.id,
@@ -3120,6 +3131,7 @@ class MessageService with ChangeNotifier {
       type: _mapMessageType(quoted.messageType),
       createdAt: quoted.createdAt,
       isDeleted: quoted.isDeleted,
+      parts: parts,
     );
   }
 
@@ -3643,6 +3655,7 @@ class QuotedMessageResponse {
     required this.messageType,
     this.createdAt,
     required this.isDeleted,
+    this.parts = const [],
   });
 
   final String id;
@@ -3655,6 +3668,7 @@ class QuotedMessageResponse {
   final String messageType;
   final DateTime? createdAt;
   final bool isDeleted;
+  final List<MessagePartResponse> parts;
 
   factory QuotedMessageResponse.fromJson(Map<String, dynamic> json) {
     bool parseDeleted(dynamic value) {
@@ -3665,6 +3679,23 @@ class QuotedMessageResponse {
         return lowered == 'true' || lowered == '1';
       }
       return false;
+    }
+
+    // 解析 parts
+    final partsRaw = json['parts'];
+    final parts = <MessagePartResponse>[];
+    if (partsRaw is List) {
+      for (final item in partsRaw) {
+        if (item is Map<String, dynamic>) {
+          parts.add(MessagePartResponse.fromJson(item));
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          parts.add(MessagePartResponse.fromJson(normalized));
+        }
+      }
     }
 
     return QuotedMessageResponse(
@@ -3680,6 +3711,7 @@ class QuotedMessageResponse {
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
       isDeleted: parseDeleted(json['is_deleted']),
+      parts: parts,
     );
   }
 }
