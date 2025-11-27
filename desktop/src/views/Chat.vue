@@ -201,7 +201,7 @@
                       <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
                     </div>
                     <div class="quoted-content">
-                      <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                      <div v-if="getQuotedMediaType(message.quotedMessage) !== 'image'" class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
                       <img
                         v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
                         :src="getQuotedImageSrc(message.quotedMessage)!"
@@ -377,7 +377,7 @@
                     <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
                   </div>
                   <div class="quoted-content">
-                    <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                    <div v-if="getQuotedMediaType(message.quotedMessage) !== 'image'" class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
                     <img
                       v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
                       :src="getQuotedImageSrc(message.quotedMessage)!"
@@ -10197,9 +10197,9 @@ const loadMessageList = async (groupId: string) => {
   }
 
   .quoted-image {
-    width: 48px;
-    height: 48px;
-    border-radius: 6px;
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 8px;
     object-fit: cover;
     flex-shrink: 0;
   }
