@@ -110,6 +110,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   bool _isGlobalMuted = false;
   bool _isPersonalMuted = false; // 个人禁言状态
   bool _isGroupOwnerOrAdmin = false;
+  String? _highlightedMessageId; // 用于跳转高亮效果
   String? _currentUserId;
   StreamSubscription<GroupSettingsUpdatedEvent>? _groupSettingsSubscription;
   StreamSubscription<GroupMemberChangedEvent>? _groupMemberSubscription;
@@ -797,6 +798,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       onToggleSelection: () => _toggleMessageSelection(message),
                       isSelected: isSelected,
                       multiSelectMode: _multiSelectMode,
+                      isHighlighted: _highlightedMessageId == message.id,
                     ),
                   ],
                 ),
@@ -1104,30 +1106,84 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _scrollToMessage(String messageId) {
-    // 使用 GlobalObjectKey 获取消息 widget 的 context
+    // 尝试直接滚动到消息
+    if (_tryScrollToMessage(messageId)) {
+      return;
+    }
+
+    // 如果找不到，尝试加载更多历史消息
+    _loadAndScrollToMessage(messageId);
+  }
+
+  bool _tryScrollToMessage(String messageId) {
     final key = GlobalObjectKey('msg_$messageId');
     final targetContext = key.currentContext;
     if (targetContext == null) {
-      _handleQuotedMessageNotFound();
-      return;
+      return false;
     }
 
     Scrollable.ensureVisible(
       targetContext,
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeInOut,
-      alignment: 0.1,
+      alignment: 0.3, // 滚动到视口 30% 位置，更居中
     );
+
+    // 添加高亮效果
+    _highlightMessage(messageId);
+    return true;
   }
 
-  void _handleQuotedMessageNotFound() {
-    if (!_chatProvider.isLoading) {
-      unawaited(_chatProvider.loadMoreMessages(limit: 50));
-    }
+  Future<void> _loadAndScrollToMessage(String messageId) async {
+    // 显示加载提示
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.showSnackBar(
-      const SnackBar(content: Text('暂未找到被引用的消息，已尝试加载更多历史记录')),
+      const SnackBar(
+        content: Text('正在加载消息...'),
+        duration: Duration(milliseconds: 800),
+      ),
     );
+
+    // 尝试加载包含目标消息的历史记录
+    final found = await _chatProvider.loadMessagesUntilFound(messageId);
+
+    if (!mounted) return;
+
+    if (found) {
+      // 等待 widget 重建
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
+
+      // 再次尝试滚动
+      if (_tryScrollToMessage(messageId)) {
+        return;
+      }
+
+      // 如果还是找不到，再等待一下（列表可能还在更新）
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (!mounted) return;
+      _tryScrollToMessage(messageId);
+    } else {
+      // 未找到消息
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('未能找到该消息，可能已被删除')),
+      );
+    }
+  }
+
+  void _highlightMessage(String messageId) {
+    setState(() {
+      _highlightedMessageId = messageId;
+    });
+
+    // 高亮效果持续 1.5 秒后自动消失
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted && _highlightedMessageId == messageId) {
+        setState(() {
+          _highlightedMessageId = null;
+        });
+      }
+    });
   }
 
   void _showErrorSnack(String message) {
@@ -1935,6 +1991,7 @@ class _MessageBubble extends StatefulWidget {
     this.onToggleSelection,
     this.isSelected = false,
     this.multiSelectMode = false,
+    this.isHighlighted = false,
   });
 
   final Message message;
@@ -1948,6 +2005,7 @@ class _MessageBubble extends StatefulWidget {
   final VoidCallback? onToggleSelection;
   final bool isSelected;
   final bool multiSelectMode;
+  final bool isHighlighted;
 
   static const double _avatarRadius = 12;
   static const double _avatarSpacing = 8;
@@ -2349,16 +2407,38 @@ class _MessageBubbleState extends State<_MessageBubble> {
     required bool isSelf,
     bool isSelected = false,
   }) {
-    return Container(
+    final isHighlighted = widget.isHighlighted;
+
+    // 高亮时的背景色增强
+    Color bubbleColor;
+    if (isHighlighted) {
+      bubbleColor = isSelf
+          ? AppColors.primary.withValues(alpha: 0.85)
+          : const Color(0xFFFFF9C4); // 淡黄色高亮
+    } else {
+      bubbleColor = isSelf ? AppColors.primary : Colors.white;
+    }
+
+    // 高亮时的边框
+    Border? border;
+    if (isSelected) {
+      border = Border.all(
+        color: AppColors.primary.withValues(alpha: 0.5),
+        width: 1,
+      );
+    } else if (isHighlighted) {
+      border = Border.all(
+        color: const Color(0xFFFFD54F), // 金色边框
+        width: 2,
+      );
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isSelf ? AppColors.primary : Colors.white,
-        border: isSelected
-            ? Border.all(
-                color: AppColors.primary.withValues(alpha: 0.5),
-                width: 1,
-              )
-            : null,
+        color: bubbleColor,
+        border: border,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(isSelf ? 16 : 0),
           topRight: const Radius.circular(16),
@@ -2367,8 +2447,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
+            color: isHighlighted
+                ? const Color(0xFFFFD54F).withValues(alpha: 0.3)
+                : Colors.black.withValues(alpha: 0.05),
+            blurRadius: isHighlighted ? 8 : 4,
             offset: const Offset(0, 2),
           ),
         ],

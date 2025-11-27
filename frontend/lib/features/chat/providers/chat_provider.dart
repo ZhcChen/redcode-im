@@ -216,6 +216,73 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  /// 加载消息直到找到目标消息
+  /// 返回 true 表示找到了目标消息，false 表示已加载所有历史但未找到
+  Future<bool> loadMessagesUntilFound(
+    String targetMessageId, {
+    int maxAttempts = 5,
+    int limitPerRequest = 50,
+  }) async {
+    if (_currentRoomId == null) return false;
+
+    // 先检查消息是否已经在列表中
+    if (_messages.any((m) => m.id == targetMessageId)) {
+      return true;
+    }
+
+    if (_isLoading || _messages.isEmpty) {
+      // 等待初始加载完成后再检查
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_messages.any((m) => m.id == targetMessageId)) {
+        return true;
+      }
+    }
+
+    // 尝试加载更多历史消息
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      if (_messages.isEmpty) break;
+
+      final beforeId = _messages.first.id;
+      final previousCount = _messages.length;
+
+      _isLoading = true;
+      notifyListeners();
+
+      try {
+        final fetched = await _messageService.loadMessages(
+          _currentRoomId!,
+          limit: limitPerRequest,
+          beforeId: beforeId,
+        );
+
+        _messages = _messageService.getMessages(_currentRoomId!);
+
+        // 检查是否找到了目标消息
+        if (_messages.any((m) => m.id == targetMessageId)) {
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
+
+        // 如果没有加载到新消息，说明已到达历史起点
+        if (fetched.isEmpty || _messages.length == previousCount) {
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      } catch (e) {
+        debugPrint('Failed to load messages until found: $e');
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
   /// 发送文本消息
   Future<void> sendTextMessage(String content, {Message? quotedMessage}) async {
     await sendRichMessage(text: content, quotedMessage: quotedMessage);
