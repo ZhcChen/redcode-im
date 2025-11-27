@@ -2899,7 +2899,7 @@ class _QuotedMessagePreviewState extends State<_QuotedMessagePreview> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           // 如果是图片类型，显示图片；否则显示文本
           if (isImage)
             _buildImageContent()
