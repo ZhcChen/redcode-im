@@ -1051,6 +1051,18 @@ const getCachedAudioUrl = (message: DomainMessage): string => {
   const messageId = message.id;
   let url = audioUrlCache[messageId] || '';
 
+  // 如果缓存的是空字符串，清理缓存并触发重新加载
+  if (url === '') {
+    delete audioUrlCache[messageId];
+    const now = Date.now();
+    const lastAttempt = audioUrlLastAttempt.get(messageId) || 0;
+    if (!audioUrlPending.has(messageId) && now - lastAttempt > AUDIO_URL_RETRY_INTERVAL_MS) {
+      audioUrlLastAttempt.set(messageId, now);
+      loadAudioUrl(message); // 异步触发重新拉取，避免长时间停留在空状态
+    }
+    return '';
+  }
+
   if (!url) {
     // 尝试从附件本地路径/下载链接兜底
     const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
@@ -1404,7 +1416,7 @@ const getAudioDuration = (message: DomainMessage): number => {
 
 // 下载并缓存附件
 const NOT_FOUND_TOKEN = '__NOT_FOUND__';
-const NOT_FOUND_TTL_MS = 5 * 60 * 1000; // 5 分钟后允许重试
+const NOT_FOUND_TTL_MS = 30 * 1000; // 30秒后允许重试
 
 const downloadAndCacheAttachment = async (attachment: MessageAttachment, roomId: string): Promise<string> => {
   // 检查缓存

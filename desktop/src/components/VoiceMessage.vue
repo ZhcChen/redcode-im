@@ -3,13 +3,18 @@
   <div
     v-if="!showRecorder"
     class="voice-message"
-    :class="{ 'is-mine': isMine }"
+    :class="{ 'is-mine': isMine, 'no-url': !playableUrl }"
     :style="{ width: containerWidth + 'px' }"
-    @click="togglePlay"
+    @click="handleClick"
   >
     <!-- 播放/暂停按钮 -->
     <div class="play-button">
       <div v-if="isLoading" class="loading-spinner"></div>
+      <div v-else-if="!playableUrl" class="retry-button" @click.stop="retryLoad" title="点击重试">
+        <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,4C7.58,4 4,6.58 4,11C4,13.57 4.87,15.96 6.08,17.86L7.14,16.8C6.21,15.19 5.6,13.21 5.6,11.2C5.6,7.79 8.26,5.2 12,5.2C13.58,5.2 15.08,5.55 16.43,6.16L14.89,7.7C13.95,7.28 12.99,7.06 12,7.06C9.2,7.06 7,8.79 7,11.2C7,13.21 7.95,15.53 8.99,17.17C9.79,18.42 10.86,19.5 12,20.47V22H18V18.5C18,14.92 15.39,12 12,12V8.27L15.14,11.41C16.62,9.85 17.54,7.8 17.54,5.67C17.54,4.69 17.34,3.74 17,2.9L18.35,1.55C19.05,3.18 19.4,4.98 19.4,6.8C19.4,9.8 18.6,12.6 17.2,14.9L15.3,13C16.4,11.3 17.1,9.2 17.1,7C17.1,6.3 17.04,5.63 16.93,5H21L18.5,7.5L21,10V10.5L19,8.5L17,10.5V9.5L19,7.5V7C19,4.58 17.17,2.6 14.9,2.05C13.9,1.84 12.9,2.08 12,2.63V2V4Z"/>
+        </svg>
+      </div>
       <svg v-else-if="isPlaying" class="icon" viewBox="0 0 24 24" fill="currentColor">
         <rect x="6" y="5" width="4" height="14" rx="1" />
         <rect x="14" y="5" width="4" height="14" rx="1" />
@@ -20,7 +25,7 @@
     </div>
 
     <!-- 波形进度条 -->
-    <div class="waveform">
+    <div v-if="playableUrl" class="waveform">
       <div
         v-for="(height, index) in waveHeights"
         :key="index"
@@ -29,6 +34,7 @@
         :style="{ height: getBarHeight(height) + 'px' }"
       ></div>
     </div>
+    <div v-else class="no-url-text">加载失败</div>
 
     <!-- 时长 -->
     <div class="duration">{{ formattedDuration }}</div>
@@ -144,7 +150,7 @@ const recordingStartTime = ref(0)
 const recordingDuration = ref(0)
 const previewRecording = ref<VoiceRecording | null>(null)
 const playProgress = ref(0) // 播放进度 0.0 - 1.0
-const effectiveDuration = ref(props.duration) // 毫秒，优先用元数据兜底
+const effectiveDuration = ref(props.duration || 0) // 毫秒，优先用元数据兜底
 const playableUrl = ref(props.voiceUrl || '')
 
 // 波形基础高度（12条波形）
@@ -223,6 +229,55 @@ const animateWave = () => {
   }
 
   animationFrame.value = requestAnimationFrame(animateWave)
+}
+
+// 统一的点击处理方法
+const handleClick = () => {
+  if (playableUrl.value) {
+    togglePlay()
+  } else {
+    retryLoad()
+  }
+}
+
+// 重试加载方法
+const retryLoad = () => {
+  if (isLoading.value) return
+  console.log('[VoiceMessage] 手动重试加载语音', { messageId: props.messageId, rawUrl: props.voiceUrl })
+  isLoading.value = true
+  // 重新加载元数据
+  watch(() => props.voiceUrl, async (url) => {
+    if (!url) {
+      isLoading.value = false
+      return
+    }
+    playableUrl.value = url
+    try {
+      const playable = VoicePlayer.toPlayableUrl(url)
+      playableUrl.value = playable
+      const audio = new Audio()
+      audio.preload = 'metadata'
+      audio.src = playable
+      audio.onloadedmetadata = () => {
+        if (!isNaN(audio.duration) && audio.duration > 0) {
+          const durationMs = Math.round(audio.duration * 1000)
+          if (durationMs > 0) {
+            effectiveDuration.value = durationMs
+          }
+        }
+        console.log('[VoiceMessage] 预加载元数据', { url: playable, duration: audio.duration })
+        isLoading.value = false
+      }
+      audio.onerror = () => {
+        console.warn('[VoiceMessage] 元数据加载失败', { url: playable })
+        isLoading.value = false
+      }
+      audio.load()
+    } catch (error) {
+      console.error('[VoiceMessage] 加载失败', error)
+      isLoading.value = false
+    }
+  }, { immediate: true })()
 }
 
 // 播放方法
@@ -420,6 +475,28 @@ $danger-color: #F6695E;
 
   &:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &.no-url {
+    cursor: pointer;
+
+    .retry-button {
+      color: #9CA0B4;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        color: $primary-color;
+        transform: scale(1.1);
+      }
+    }
+
+    .no-url-text {
+      flex: 1;
+      font-size: 12px;
+      color: #9CA0B4;
+      text-align: center;
+    }
   }
 
   &.is-mine {
