@@ -2511,7 +2511,7 @@ class _SelectionIndicator extends StatelessWidget {
   }
 }
 
-class _QuotedMessagePreview extends StatelessWidget {
+class _QuotedMessagePreview extends StatefulWidget {
   const _QuotedMessagePreview({
     required this.quoted,
     required this.isSelf,
@@ -2523,15 +2523,111 @@ class _QuotedMessagePreview extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_QuotedMessagePreview> createState() => _QuotedMessagePreviewState();
+}
+
+class _QuotedMessagePreviewState extends State<_QuotedMessagePreview> {
+  String? _imageLocalPath;
+  bool _imageLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuotedMessagePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quoted.id != widget.quoted.id ||
+        oldWidget.quoted.imageAttachment?.key !=
+            widget.quoted.imageAttachment?.key) {
+      _imageLocalPath = null;
+      _imageLoading = false;
+      _loadImageIfNeeded();
+    }
+  }
+
+  Future<void> _loadImageIfNeeded() async {
+    final attachment = widget.quoted.imageAttachment;
+    if (attachment == null) return;
+
+    // 优先使用已有的本地路径
+    if (attachment.localPath != null && attachment.localPath!.isNotEmpty) {
+      final file = File(attachment.localPath!);
+      if (await file.exists()) {
+        if (mounted) {
+          setState(() {
+            _imageLocalPath = attachment.localPath;
+          });
+        }
+        return;
+      }
+    }
+
+    // 需要下载
+    if (attachment.key.isEmpty) return;
+
+    setState(() {
+      _imageLoading = true;
+    });
+
+    try {
+      // 对于引用消息，构造临时的 Message 和 MessagePart 来调用缓存服务
+      final tempPart = MessagePart(
+        position: 0,
+        type: MessagePartType.image,
+        attachment: attachment,
+      );
+      final tempMessage = Message(
+        id: widget.quoted.id,
+        roomId: widget.quoted.roomId,
+        senderId: widget.quoted.senderId,
+        senderUsername: widget.quoted.senderUsername,
+        senderName: widget.quoted.senderName,
+        senderAvatar: widget.quoted.senderAvatar,
+        senderAvatarObjectKey: widget.quoted.senderAvatarObjectKey,
+        content: widget.quoted.content ?? '',
+        type: widget.quoted.type,
+        status: MessageStatus.sent,
+        timestamp: widget.quoted.createdAt ?? DateTime.now(),
+        isSelf: false,
+        parts: [tempPart],
+      );
+
+      final path = await MessageService.instance.ensureAttachmentCached(
+        roomId: widget.quoted.roomId,
+        message: tempMessage,
+        part: tempPart,
+      );
+      if (!mounted) return;
+      setState(() {
+        _imageLocalPath = path;
+        _imageLoading = false;
+      });
+    } catch (e) {
+      debugPrint('加载引用图片失败: $e');
+      if (mounted) {
+        setState(() {
+          _imageLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     const background = Color(0xFFEAFFFD);
-    final borderColor = isSelf
+    final borderColor = widget.isSelf
         ? Colors.white.withValues(alpha: 0.24)
         : AppColors.divider;
-    final titleColor = isSelf
+    final titleColor = widget.isSelf
         ? Colors.white.withValues(alpha: 0.85)
         : AppColors.textSecondary;
-    final bodyColor = isSelf ? Colors.white : AppColors.textPrimary;
+    final bodyColor = widget.isSelf ? Colors.white : AppColors.textPrimary;
+
+    // 判断是否是图片类型
+    final isImage = widget.quoted.type == MessageType.image;
 
     final content = Container(
       width: double.infinity,
@@ -2552,7 +2648,7 @@ class _QuotedMessagePreview extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  quoted.displaySenderName,
+                  widget.quoted.displaySenderName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -2565,20 +2661,24 @@ class _QuotedMessagePreview extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            quoted.previewText,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 13, height: 1.2, color: bodyColor),
-          ),
+          // 如果是图片类型，显示图片；否则显示文本
+          if (isImage)
+            _buildImageContent()
+          else
+            Text(
+              widget.quoted.previewText,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, height: 1.2, color: bodyColor),
+            ),
         ],
       ),
     );
 
-    if (onTap == null) return content;
+    if (widget.onTap == null) return content;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
       child: content,
     );
@@ -2586,9 +2686,56 @@ class _QuotedMessagePreview extends StatelessWidget {
 
   Widget _buildAvatar() {
     return QuotedMessageAvatar(
-      quotedMessage: quoted,
+      quotedMessage: widget.quoted,
       radius: 12, // size=24, radius=12
-      isSelf: isSelf,
+      isSelf: widget.isSelf,
+    );
+  }
+
+  Widget _buildImageContent() {
+    if (_imageLoading) {
+      return Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_imageLocalPath != null && _imageLocalPath!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(_imageLocalPath!),
+          width: 80,
+          height: 80,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
+        ),
+      );
+    }
+
+    return _buildImagePlaceholder();
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Icon(Icons.image, color: Colors.grey, size: 32),
     );
   }
 }

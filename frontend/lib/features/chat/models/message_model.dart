@@ -95,6 +95,7 @@ class QuotedMessage {
     required this.type,
     this.createdAt,
     required this.isDeleted,
+    this.parts = const [],
   });
 
   final String id;
@@ -108,8 +109,27 @@ class QuotedMessage {
   final MessageType type;
   final DateTime? createdAt;
   final bool isDeleted;
+  final List<MessagePart> parts;
 
   factory QuotedMessage.fromCacheJson(Map<String, dynamic> json) {
+    // 解析 parts
+    final partsRaw = json['parts'];
+    List<MessagePart> parts = [];
+    if (partsRaw is List) {
+      parts = partsRaw.map((p) {
+        if (p is Map<String, dynamic>) {
+          return MessagePart.fromCacheJson(p);
+        } else if (p is Map) {
+          final normalized = <String, dynamic>{};
+          p.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          return MessagePart.fromCacheJson(normalized);
+        }
+        return MessagePart(position: 0, type: MessagePartType.text);
+      }).toList();
+    }
+
     return QuotedMessage(
       id: json['id'] as String? ?? '',
       roomId: json['roomId'] as String? ?? '',
@@ -122,6 +142,7 @@ class QuotedMessage {
       type: Message._parseMessageType(json['type'] as String?),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
       isDeleted: json['isDeleted'] as bool? ?? false,
+      parts: parts,
     );
   }
 
@@ -138,6 +159,7 @@ class QuotedMessage {
       type: message.type,
       createdAt: message.timestamp,
       isDeleted: false,
+      parts: message.parts,
     );
   }
 
@@ -154,6 +176,7 @@ class QuotedMessage {
       'type': type.name,
       'createdAt': createdAt?.toIso8601String(),
       'isDeleted': isDeleted,
+      if (parts.isNotEmpty) 'parts': parts.map((p) => p.toCacheJson()).toList(),
     };
   }
 
@@ -193,6 +216,17 @@ class QuotedMessage {
       case MessageType.text:
         return '[消息]';
     }
+  }
+
+  /// 获取图片附件（如果有）
+  MessageAttachment? get imageAttachment {
+    if (type != MessageType.image) return null;
+    for (final part in parts) {
+      if (part.type == MessagePartType.image && part.attachment != null) {
+        return part.attachment;
+      }
+    }
+    return null;
   }
 }
 
