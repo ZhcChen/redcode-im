@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use tracing::{info, error};
+use tracing::{error, info};
 
 use crate::database::{
     group_management_store::GroupManagementStore,
@@ -153,7 +153,10 @@ pub async fn update_global_mute(
     }
 
     // 管理员不会被禁言，所以 my_mute 为 None
-    Ok(Json(GroupSettingsResponse { settings, my_mute: None }))
+    Ok(Json(GroupSettingsResponse {
+        settings,
+        my_mute: None,
+    }))
 }
 
 pub async fn update_group_settings(
@@ -194,7 +197,10 @@ pub async fn update_group_settings(
     }
 
     // 管理员不会被禁言，所以 my_mute 为 None
-    Ok(Json(GroupSettingsResponse { settings, my_mute: None }))
+    Ok(Json(GroupSettingsResponse {
+        settings,
+        my_mute: None,
+    }))
 }
 
 // ===== 群公告管理 API =====

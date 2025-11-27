@@ -214,9 +214,10 @@ pub async fn commit_avatar_upload(
     // 通知所有好友：用户资料已更新
     let friend_store = FriendStore::new(state.database.clone());
     if let Ok(friendships) = friend_store.list_friendships(user_id).await {
-        let updated_user = user_store.find_by_id(&user_id).await?.ok_or_else(|| {
-            AppError::InternalError("用户信息加载失败".to_string())
-        })?;
+        let updated_user = user_store
+            .find_by_id(&user_id)
+            .await?
+            .ok_or_else(|| AppError::InternalError("用户信息加载失败".to_string()))?;
 
         let payload = ServerPush::FriendProfileUpdated {
             user_id: user_id.to_string(),

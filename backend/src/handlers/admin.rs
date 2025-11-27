@@ -2833,7 +2833,7 @@ pub async fn test_cos_upload_signature(
                 signature: Some(signature),
                 message: "生成直传签名成功".to_string(),
             }))
-        },
+        }
         Err(e) => Ok(Json(TestCosUploadSignatureResponse {
             success: false,
             signature: None,

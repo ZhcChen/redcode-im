@@ -45,11 +45,13 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/auth/admin/me/password",
-            post(auth::change_current_admin_password).route_layer(middleware::from_fn(auth_middleware)),
+            post(auth::change_current_admin_password)
+                .route_layer(middleware::from_fn(auth_middleware)),
         )
         .route(
             "/auth/admin/me/avatar",
-            post(auth::upload_current_admin_avatar).route_layer(middleware::from_fn(auth_middleware)),
+            post(auth::upload_current_admin_avatar)
+                .route_layer(middleware::from_fn(auth_middleware)),
         )
         .route(
             "/settings/privacy-policy",

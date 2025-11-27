@@ -698,7 +698,10 @@ pub async fn change_current_admin_password(
         ));
     }
 
-    if !payload.new_password.chars().any(|c| c.is_ascii_alphabetic())
+    if !payload
+        .new_password
+        .chars()
+        .any(|c| c.is_ascii_alphabetic())
         || !payload.new_password.chars().any(|c| c.is_ascii_digit())
     {
         return Err(AppError::ValidationError(
@@ -711,7 +714,9 @@ pub async fn change_current_admin_password(
         .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
 
     // 更新密码
-    let updated = store.update_password(&admin_user_id, &new_password_hash).await?;
+    let updated = store
+        .update_password(&admin_user_id, &new_password_hash)
+        .await?;
 
     if !updated {
         return Err(AppError::InternalError("更新密码失败".to_string()));
@@ -744,16 +749,19 @@ pub async fn upload_current_admin_avatar(
     let mut avatar_file = None;
     let mut content_type = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        AppError::InternalError(format!("读取上传文件失败: {}", e))
-    })? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::InternalError(format!("读取上传文件失败: {}", e)))?
+    {
         if field.name() == Some("avatar") {
             // 先获取 content_type，再读取数据
             content_type = field.content_type().map(|s| s.to_string());
 
-            let data = field.bytes().await.map_err(|e| {
-                AppError::InternalError(format!("读取文件数据失败: {}", e))
-            })?;
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::InternalError(format!("读取文件数据失败: {}", e)))?;
 
             // 验证文件大小 (5MB)
             if data.len() > 5 * 1024 * 1024 {
@@ -768,7 +776,9 @@ pub async fn upload_current_admin_avatar(
     }
 
     if avatar_file.is_none() {
-        return Err(AppError::ValidationError("请选择要上传的头像文件".to_string()));
+        return Err(AppError::ValidationError(
+            "请选择要上传的头像文件".to_string(),
+        ));
     }
 
     let file_data = avatar_file.unwrap();
@@ -776,9 +786,7 @@ pub async fn upload_current_admin_avatar(
 
     // 验证文件类型
     if !content_type.starts_with("image/") {
-        return Err(AppError::ValidationError(
-            "只支持上传图片文件".to_string(),
-        ));
+        return Err(AppError::ValidationError("只支持上传图片文件".to_string()));
     }
 
     // 生成文件名

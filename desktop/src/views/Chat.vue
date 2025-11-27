@@ -212,7 +212,7 @@
                 <!-- 音频消息 -->
                 <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
                   <VoiceMessage
-                    :voice-url="getCachedAudioUrl(message)"
+                    :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
                     :duration="getAudioDuration(message)"
                     :is-mine="message.isSelf"
                     :message-id="message.id"
@@ -380,7 +380,7 @@
               <!-- 音频消息 -->
               <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
                 <VoiceMessage
-                  :voice-url="getCachedAudioUrl(message)"
+                  :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
                   :duration="getAudioDuration(message)"
                   :is-mine="message.isSelf"
                 />
@@ -1074,53 +1074,49 @@ const refreshAllAudioUrls = async () => {
   console.log('[refreshAllAudioUrls] 刷新完成')
 }
 
-// 获取缓存的音频 URL
+// 确保音频 URL 加载已启动（用于模板中触发副作用，总是返回空字符串）
+// 通过在模板中使用 audioUrlCache[message.id] || ensureAudioUrlLoading(message)
+// 可以让 Vue 正确追踪 audioUrlCache 的响应式依赖
+const ensureAudioUrlLoading = (message: DomainMessage): string => {
+  const messageId = message.id;
+
+  // 尝试从附件本地路径/下载链接同步获取
+  const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
+  const attach = audioPart?.attachment;
+  if (attach?.localPath) {
+    const url = convertLocalPathToUrlSync(attach.localPath);
+    if (url) {
+      audioUrlCache[messageId] = url;
+      console.log('[ensureAudioUrlLoading] 使用 attachment.localPath 兜底', { messageId, localPath: attach.localPath, url });
+      return url;
+    }
+  }
+  if (attach?.downloadUrl) {
+    audioUrlCache[messageId] = attach.downloadUrl;
+    console.log('[ensureAudioUrlLoading] 使用 attachment.downloadUrl 兜底', { messageId, downloadUrl: attach.downloadUrl });
+    return attach.downloadUrl;
+  }
+
+  // 触发异步加载（如果尚未开始）
+  const now = Date.now();
+  const lastAttempt = audioUrlLastAttempt.get(messageId) || 0;
+  if (!audioUrlPending.has(messageId) && now - lastAttempt > AUDIO_URL_RETRY_INTERVAL_MS) {
+    audioUrlLastAttempt.set(messageId, now);
+    console.log('[ensureAudioUrlLoading] 触发异步加载', { messageId });
+    loadAudioUrl(message);
+  }
+
+  return '';
+};
+
+// 获取缓存的音频 URL（保留用于兼容，但不再推荐在模板中使用）
 const getCachedAudioUrl = (message: DomainMessage): string => {
   const messageId = message.id;
-  let url = audioUrlCache[messageId] || '';
-
-  // 如果缓存的是空字符串，清理缓存并触发重新加载
-  if (url === '') {
-    delete audioUrlCache[messageId];
-    const now = Date.now();
-    const lastAttempt = audioUrlLastAttempt.get(messageId) || 0;
-    if (!audioUrlPending.has(messageId) && now - lastAttempt > AUDIO_URL_RETRY_INTERVAL_MS) {
-      audioUrlLastAttempt.set(messageId, now);
-      loadAudioUrl(message); // 异步触发重新拉取，避免长时间停留在空状态
-    }
-    return '';
+  const cached = audioUrlCache[messageId];
+  if (cached) {
+    return cached;
   }
-
-  if (!url) {
-    // 尝试从附件本地路径/下载链接兜底
-    const audioPart = message.parts?.find(part => part.type === MessagePartType.AUDIO);
-    const attach = audioPart?.attachment;
-    if (attach?.localPath) {
-      url = convertLocalPathToUrlSync(attach.localPath);
-      audioUrlCache[messageId] = url;
-      console.warn('[VoiceUrl] 使用 attachment.localPath 兜底', { messageId, localPath: attach.localPath, url });
-    } else if (attach?.downloadUrl) {
-      url = attach.downloadUrl;
-      audioUrlCache[messageId] = url;
-      console.warn('[VoiceUrl] 使用 attachment.downloadUrl 兜底', { messageId, downloadUrl: attach.downloadUrl });
-    } else {
-      const now = Date.now();
-      const lastAttempt = audioUrlLastAttempt.get(messageId) || 0;
-      if (!audioUrlPending.has(messageId) && now - lastAttempt > AUDIO_URL_RETRY_INTERVAL_MS) {
-        audioUrlLastAttempt.set(messageId, now);
-        loadAudioUrl(message); // 异步触发重新拉取，避免长时间停留在空状态
-      }
-      console.warn('[VoiceUrl] 仍为空', {
-        messageId,
-        contentType: message.contentType,
-        hasParts: Array.isArray(message.parts),
-        hasAudioPart: hasAudioPart(message),
-        attachmentKeys: audioPart?.attachment?.key,
-      });
-    }
-  }
-
-  return url;
+  return ensureAudioUrlLoading(message);
 };
 
 // 异步加载音频 URL 并缓存
