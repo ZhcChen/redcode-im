@@ -171,6 +171,17 @@ class WebSocketManager {
       const wrapper = event.payload;
       // 解析事件：新格式带 user_id，旧格式需要兼容
       const userId = wrapper.user_id;
+
+      // 调试日志：检查事件解析
+      if (wrapper.type?.toLowerCase() === 'message') {
+        console.log('[WebSocket setupEventListeners] 收到消息事件:', {
+          wrapper_user_id: wrapper.user_id,
+          wrapper_type: wrapper.type,
+          payload_sender_id: wrapper.payload?.sender_id,
+          raw_wrapper: JSON.stringify(wrapper).substring(0, 500),
+        });
+      }
+
       const eventPayload: TauriEventPayload = {
         type: wrapper.type,
         payload: wrapper.payload,
@@ -584,10 +595,21 @@ class WebSocketManager {
   private emitChatMessage(rawMessage: any, eventUserId?: string): void {
     let normalized: Message | null = null;
     const userId = eventUserId || this.currentUserId;
+
+    // 调试日志：检查 isSelf 判断
+    console.log('[WebSocket emitChatMessage] 调试信息:', {
+      eventUserId,
+      currentUserId: this.currentUserId,
+      resolvedUserId: userId,
+      sender_id: rawMessage?.sender_id,
+      isSelf: userId ? String(userId) === String(rawMessage?.sender_id) : false,
+    });
+
     try {
       // 使用现有的消息转换函数
       normalized = transformBackendMessage(rawMessage, userId ?? undefined);
     } catch (error) {
+      console.error('[WebSocket emitChatMessage] transformBackendMessage 错误:', error);
     }
 
     // 事件携带 userId，用于多账号消息分发和未读数更新

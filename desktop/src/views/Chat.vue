@@ -7550,77 +7550,83 @@ const handleWebSocketMessage = (event: CustomEvent) => {
       }
     } else {
       let matchedLocalMessageId: string | null = null
-      if (messageData.isSelf) {
-        // 如果 recentSentMessages 中已经有真实消息 ID，说明 API 已经返回了
-        // 即使消息不存在（可能是时序问题），也应该直接返回，避免重复添加
-        if (recentSentMessages.value.has(uiMessage.id)) {
-          // 再次检查消息是否存在（可能是时序问题导致第一次检查时不存在）
-          const existingIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
-          if (existingIndex !== -1) {
-            // 消息存在，更新状态
-            messages.value[existingIndex] = {
-              ...messages.value[existingIndex],
-              ...uiMessage,
-              status: 2
+
+      // 重要：不管 isSelf 判断结果如何，都尝试检查 recentSentMessages
+      // 这样可以处理 isSelf 判断错误的边界情况（如多账号场景下的 userId 不匹配）
+
+      // 首先检查真实消息 ID 是否已在 recentSentMessages 中（说明 API 已返回或 WebSocket 已处理）
+      if (recentSentMessages.value.has(uiMessage.id)) {
+        // 再次检查消息是否存在（可能是时序问题导致第一次检查时不存在）
+        const existingIndex = messages.value.findIndex(msg => msg.id === uiMessage.id)
+        if (existingIndex !== -1) {
+          // 消息存在，更新状态
+          messages.value[existingIndex] = {
+            ...messages.value[existingIndex],
+            ...uiMessage,
+            status: 2
+          }
+        } else {
+          console.log('[handleWebSocketMessage] 真实消息ID在recentSentMessages中但消息不存在，可能是时序问题')
+        }
+        // 无论消息是否存在，都直接返回，避免重复添加
+        return
+      }
+
+      // 检查重发消息匹配
+      const resendMatchId = Array.from(recentSentMessages.value).find((sentId: string) =>
+        sentId.startsWith('resend_') && messageData.content
+      )
+      if (resendMatchId) {
+        recentSentMessages.value.delete(resendMatchId)
+        return
+      }
+
+      // 尝试匹配临时消息（不管 isSelf 是什么值）
+      // 这样即使 isSelf 判断错误，也能正确处理自己发送的消息
+      for (const sentId of Array.from(recentSentMessages.value)) {
+        // 只匹配临时消息ID（时间戳格式），跳过真实消息ID
+        // 临时消息ID是纯数字字符串，真实消息ID通常包含字母或特殊字符
+        if (!/^\d+$/.test(sentId)) {
+          continue
+        }
+
+        const localMessage = messages.value.find(msg => msg.id === sentId)
+
+        // 优先通过 parts 匹配（对于附件消息）
+        let isMatch = false
+        if (localMessage) {
+          // 如果两个消息都有 parts，通过 attachment.key 匹配
+          const localAttachment = localMessage.parts?.find(p => p.attachment?.key)?.attachment
+          const wsAttachment = uiMessage.parts?.find(p => p.attachment?.key)?.attachment
+
+          if (localAttachment?.key && wsAttachment?.key) {
+            isMatch = localAttachment.key === wsAttachment.key
+          } else if (localAttachment?.key && !wsAttachment) {
+            // WebSocket 消息没有 parts，但有 content 字符串
+            // 尝试从 WebSocket content 中提取文件名，与临时消息的 attachment.key 匹配
+            if (typeof uiMessage.content === 'string' && uiMessage.content.includes(']')) {
+              // 提取文件名： "[图片] filename.jpg [图片]" -> "filename.jpg"
+              const fileNameMatch = uiMessage.content.match(/\]\s*(.+?)\s*\[/)
+              const wsFileName = fileNameMatch ? fileNameMatch[1].trim() : null
+              const localFileName = localAttachment.name || localAttachment.key.split('/').pop()
+
+              if (wsFileName && localFileName) {
+                isMatch = wsFileName === localFileName || localFileName.includes(wsFileName) || wsFileName.includes(localFileName)
+              }
+            }
+
+            // 如果文件名匹配失败，回退到 content 匹配
+            if (!isMatch) {
+              isMatch = isContentMatch(localMessage.content, uiMessage.content)
             }
           } else {
+            // 没有 parts 或 attachment，回退到 content 匹配
+            isMatch = isContentMatch(localMessage.content, uiMessage.content)
           }
-          // 无论消息是否存在，都直接返回，避免重复添加
-          return
-        } else {
-          const resendMatchId = Array.from(recentSentMessages.value).find((sentId: string) =>
-            sentId.startsWith('resend_') && messageData.content
-          )
-          if (resendMatchId) {
-            recentSentMessages.value.delete(resendMatchId)
-            return
-          }
-          for (const sentId of Array.from(recentSentMessages.value)) {
-            // 只匹配临时消息ID（时间戳格式），跳过真实消息ID
-            // 临时消息ID是纯数字字符串，真实消息ID通常包含字母或特殊字符
-            if (!/^\d+$/.test(sentId)) {
-              continue
-            }
 
-            const localMessage = messages.value.find(msg => msg.id === sentId)
-
-            // 优先通过 parts 匹配（对于附件消息）
-            let isMatch = false
-            if (localMessage) {
-              // 如果两个消息都有 parts，通过 attachment.key 匹配
-              const localAttachment = localMessage.parts?.find(p => p.attachment?.key)?.attachment
-              const wsAttachment = uiMessage.parts?.find(p => p.attachment?.key)?.attachment
-
-              if (localAttachment?.key && wsAttachment?.key) {
-                isMatch = localAttachment.key === wsAttachment.key
-              } else if (localAttachment?.key && !wsAttachment) {
-                // WebSocket 消息没有 parts，但有 content 字符串
-                // 尝试从 WebSocket content 中提取文件名，与临时消息的 attachment.key 匹配
-                if (typeof uiMessage.content === 'string' && uiMessage.content.includes(']')) {
-                  // 提取文件名： "[图片] filename.jpg [图片]" -> "filename.jpg"
-                  const fileNameMatch = uiMessage.content.match(/\]\s*(.+?)\s*\[/)
-                  const wsFileName = fileNameMatch ? fileNameMatch[1].trim() : null
-                  const localFileName = localAttachment.name || localAttachment.key.split('/').pop()
-
-                  if (wsFileName && localFileName) {
-                    isMatch = wsFileName === localFileName || localFileName.includes(wsFileName) || wsFileName.includes(localFileName)
-                  }
-                }
-
-                // 如果文件名匹配失败，回退到 content 匹配
-                if (!isMatch) {
-                  isMatch = isContentMatch(localMessage.content, uiMessage.content)
-                }
-              } else {
-                // 没有 parts 或 attachment，回退到 content 匹配
-                isMatch = isContentMatch(localMessage.content, uiMessage.content)
-              }
-
-              if (isMatch) {
-                matchedLocalMessageId = sentId as string
-                break
-              }
-            }
+          if (isMatch) {
+            matchedLocalMessageId = sentId as string
+            break
           }
         }
       }
@@ -7658,15 +7664,56 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         }
       } else {
         // 如果没有匹配到临时消息，检查是否应该添加
-        // 对于自己发送的消息，如果已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
-        if (messageData.isSelf && recentSentMessages.value.has(uiMessage.id)) {
-          // 消息已经在 recentSentMessages 中，说明 API 已返回，不应该重复添加
+        // 注意：由于多账号架构下 isSelf 可能判断错误，需要额外检查 senderId
+
+        // 获取当前用户 ID 进行双重检查
+        const storeCurrentUserId = store.getters.currentUser?.id
+        const isSenderCurrentUser = storeCurrentUserId &&
+          String(uiMessage.senderId) === String(storeCurrentUserId)
+
+        // 使用 isSelf 或 senderId 判断是否是自己发送的消息
+        const isOwnMessage = messageData.isSelf || isSenderCurrentUser
+
+        // 如果已经在 recentSentMessages 中，说明 API 已返回或 WebSocket 已处理过
+        if (recentSentMessages.value.has(uiMessage.id)) {
+          console.log('[handleWebSocketMessage] 消息ID已在recentSentMessages中，跳过添加')
           return
         }
-        
+
+        // 如果是自己发送的消息，还需要检查 recentSentMessages 中是否有匹配的临时消息
+        // 如果有，说明可能是内容匹配失败，但确实是自己发送的消息
+        if (isOwnMessage && recentSentMessages.value.size > 0) {
+          // 检查是否有任何临时消息仍在等待处理
+          const hasPendingTempMessage = Array.from(recentSentMessages.value).some(sentId => /^\d+$/.test(sentId))
+          if (hasPendingTempMessage) {
+            console.log('[handleWebSocketMessage] 自己发送的消息但匹配失败，可能是内容差异，检查并更新临时消息')
+            // 找到最近的临时消息并更新（时间戳最接近的）
+            const tempIds = Array.from(recentSentMessages.value).filter(sentId => /^\d+$/.test(sentId))
+            for (const tempId of tempIds) {
+              const tempMessageIndex = messages.value.findIndex(msg => msg.id === tempId)
+              if (tempMessageIndex !== -1) {
+                // 找到临时消息，用 WebSocket 消息替换
+                const mergedMessage = mergeMessagePreservingLocalData(
+                  messages.value[tempMessageIndex],
+                  { ...uiMessage, status: 2 },
+                )
+                mergedMessage.id = uiMessage.id
+                messages.value[tempMessageIndex] = mergedMessage
+                recentSentMessages.value.delete(tempId)
+                recentSentMessages.value.add(uiMessage.id)
+                setTimeout(() => {
+                  recentSentMessages.value.delete(uiMessage.id)
+                }, 10000)
+                console.log('[handleWebSocketMessage] 成功替换临时消息:', tempId, '->', uiMessage.id)
+                return
+              }
+            }
+          }
+        }
+
         messages.value.push(uiMessage)
         // 如果是自己发送的消息，应该添加到 recentSentMessages，防止 API 返回时重复添加
-        if (messageData.isSelf) {
+        if (isOwnMessage) {
           recentSentMessages.value.add(uiMessage.id)
           setTimeout(() => {
             recentSentMessages.value.delete(uiMessage.id)
