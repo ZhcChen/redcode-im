@@ -223,27 +223,44 @@ class ChatProvider with ChangeNotifier {
     int maxAttempts = 5,
     int limitPerRequest = 50,
   }) async {
-    if (_currentRoomId == null) return false;
+    debugPrint('[loadMessagesUntilFound] 开始查找消息: $targetMessageId');
+    debugPrint('[loadMessagesUntilFound] 当前房间ID: $_currentRoomId');
+
+    if (_currentRoomId == null) {
+      debugPrint('[loadMessagesUntilFound] 房间ID为空，返回false');
+      return false;
+    }
 
     // 先检查消息是否已经在列表中
     if (_messages.any((m) => m.id == targetMessageId)) {
+      debugPrint('[loadMessagesUntilFound] 消息已在列表中');
       return true;
     }
 
+    debugPrint('[loadMessagesUntilFound] 消息不在当前列表中，当前消息数: ${_messages.length}');
+
     if (_isLoading || _messages.isEmpty) {
+      debugPrint('[loadMessagesUntilFound] 正在加载或列表为空，等待100ms');
       // 等待初始加载完成后再检查
       await Future.delayed(const Duration(milliseconds: 100));
       if (_messages.any((m) => m.id == targetMessageId)) {
+        debugPrint('[loadMessagesUntilFound] 等待后消息已在列表中');
         return true;
       }
     }
 
     // 尝试加载更多历史消息
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
-      if (_messages.isEmpty) break;
+      debugPrint('[loadMessagesUntilFound] 第 ${attempt + 1} 次尝试加载更多消息');
+
+      if (_messages.isEmpty) {
+        debugPrint('[loadMessagesUntilFound] 消息列表为空，停止');
+        break;
+      }
 
       final beforeId = _messages.first.id;
       final previousCount = _messages.length;
+      debugPrint('[loadMessagesUntilFound] beforeId: $beforeId, 当前消息数: $previousCount');
 
       _isLoading = true;
       notifyListeners();
@@ -255,10 +272,14 @@ class ChatProvider with ChangeNotifier {
           beforeId: beforeId,
         );
 
+        debugPrint('[loadMessagesUntilFound] 加载完成，获取到 ${fetched.length} 条消息');
+
         _messages = _messageService.getMessages(_currentRoomId!);
+        debugPrint('[loadMessagesUntilFound] 更新后消息数: ${_messages.length}');
 
         // 检查是否找到了目标消息
         if (_messages.any((m) => m.id == targetMessageId)) {
+          debugPrint('[loadMessagesUntilFound] 找到目标消息！');
           _isLoading = false;
           notifyListeners();
           return true;
@@ -266,18 +287,20 @@ class ChatProvider with ChangeNotifier {
 
         // 如果没有加载到新消息，说明已到达历史起点
         if (fetched.isEmpty || _messages.length == previousCount) {
+          debugPrint('[loadMessagesUntilFound] 没有更多消息了，已到达历史起点');
           _isLoading = false;
           notifyListeners();
           return false;
         }
       } catch (e) {
-        debugPrint('Failed to load messages until found: $e');
+        debugPrint('[loadMessagesUntilFound] 加载失败: $e');
         _isLoading = false;
         notifyListeners();
         return false;
       }
     }
 
+    debugPrint('[loadMessagesUntilFound] 达到最大尝试次数，仍未找到');
     _isLoading = false;
     notifyListeners();
     return false;

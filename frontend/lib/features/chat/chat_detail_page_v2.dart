@@ -1106,65 +1106,152 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _scrollToMessage(String messageId) {
-    // 尝试直接滚动到消息
-    if (_tryScrollToMessage(messageId)) {
+    debugPrint('[跳转] _scrollToMessage 被调用，目标消息ID: $messageId');
+
+    // 先检查消息是否在当前列表中
+    final messages = _chatProvider.messages;
+    final targetIndex = messages.indexWhere((m) => m.id == messageId);
+    debugPrint('[跳转] 消息在列表中的索引: $targetIndex (总数: ${messages.length})');
+
+    if (targetIndex >= 0) {
+      // 消息已在列表中，直接滚动
+      _scrollToMessageAtIndex(messageId, targetIndex);
+    } else {
+      // 消息不在列表中，需要加载更多历史
+      debugPrint('[跳转] 消息不在当前列表中，尝试加载历史');
+      if (messages.isNotEmpty) {
+        debugPrint('[跳转] 第一条消息ID: ${messages.first.id}');
+        debugPrint('[跳转] 最后一条消息ID: ${messages.last.id}');
+      }
+      _loadAndScrollToMessage(messageId);
+    }
+  }
+
+  void _scrollToMessageAtIndex(String messageId, int targetIndex) {
+    debugPrint('[跳转] _scrollToMessageAtIndex: index=$targetIndex');
+
+    // 计算是否有置顶消息 banner（会占用一个位置）
+    final pinnedMessage = _chatProvider.pinnedMessage;
+    final messages = _chatProvider.messages;
+    final hasPinnedBanner =
+        pinnedMessage != null && messages.contains(pinnedMessage);
+    final effectiveIndex = hasPinnedBanner ? targetIndex + 1 : targetIndex;
+
+    // 先尝试使用 GlobalObjectKey（如果消息已渲染）
+    final key = GlobalObjectKey('msg_$messageId');
+    final targetContext = key.currentContext;
+
+    if (targetContext != null) {
+      debugPrint('[跳转] 消息已渲染，使用 ensureVisible');
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+        alignment: 0.3,
+      );
+      _highlightMessage(messageId);
       return;
     }
 
-    // 如果找不到，尝试加载更多历史消息
-    _loadAndScrollToMessage(messageId);
-  }
+    // 消息未渲染（不在可视区域），需要先滚动到大概位置
+    debugPrint('[跳转] 消息未渲染，使用估算位置滚动');
 
-  bool _tryScrollToMessage(String messageId) {
-    final key = GlobalObjectKey('msg_$messageId');
-    final targetContext = key.currentContext;
-    if (targetContext == null) {
-      return false;
+    if (!_scrollController.hasClients) {
+      debugPrint('[跳转] ScrollController 没有 clients');
+      return;
     }
 
-    Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeInOut,
-      alignment: 0.3, // 滚动到视口 30% 位置，更居中
-    );
+    // 估算每条消息的平均高度（包含间距）
+    // 根据实际布局，消息气泡高度约 60-120，时间戳约 30，间距 16
+    const estimatedItemHeight = 100.0;
 
-    // 添加高亮效果
-    _highlightMessage(messageId);
-    return true;
+    // 计算目标位置
+    final targetOffset = effectiveIndex * estimatedItemHeight;
+    final maxOffset = _scrollController.position.maxScrollExtent;
+    final clampedOffset = targetOffset.clamp(0.0, maxOffset);
+
+    debugPrint('[跳转] 估算位置: $targetOffset, 最大: $maxOffset, 实际: $clampedOffset');
+
+    // 先跳转到估算位置
+    _scrollController.jumpTo(clampedOffset);
+
+    // 等待渲染后再精确定位
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _finishScrollToMessage(messageId, 0);
+    });
+  }
+
+  void _finishScrollToMessage(String messageId, int attempt) {
+    if (attempt >= 5) {
+      debugPrint('[跳转] 达到最大重试次数，使用高亮标记');
+      _highlightMessage(messageId);
+      return;
+    }
+
+    final key = GlobalObjectKey('msg_$messageId');
+    final targetContext = key.currentContext;
+
+    if (targetContext != null) {
+      debugPrint('[跳转] 精确定位，attempt=$attempt');
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: 0.3,
+      );
+      _highlightMessage(messageId);
+    } else {
+      // 可能还没渲染，继续等待
+      debugPrint('[跳转] 等待渲染，attempt=$attempt');
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          _finishScrollToMessage(messageId, attempt + 1);
+        }
+      });
+    }
   }
 
   Future<void> _loadAndScrollToMessage(String messageId) async {
+    debugPrint('[跳转] _loadAndScrollToMessage 开始，目标消息ID: $messageId');
+
     // 显示加载提示
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.showSnackBar(
       const SnackBar(
         content: Text('正在加载消息...'),
-        duration: Duration(milliseconds: 800),
+        duration: Duration(milliseconds: 1500),
       ),
     );
 
     // 尝试加载包含目标消息的历史记录
+    debugPrint('[跳转] 调用 loadMessagesUntilFound...');
     final found = await _chatProvider.loadMessagesUntilFound(messageId);
+    debugPrint('[跳转] loadMessagesUntilFound 返回: $found');
 
     if (!mounted) return;
 
     if (found) {
       // 等待 widget 重建
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 50));
       if (!mounted) return;
 
-      // 再次尝试滚动
-      if (_tryScrollToMessage(messageId)) {
-        return;
+      // 找到消息的索引并滚动
+      final messages = _chatProvider.messages;
+      final targetIndex = messages.indexWhere((m) => m.id == messageId);
+      debugPrint('[跳转] 消息找到，索引: $targetIndex');
+
+      if (targetIndex >= 0) {
+        _scrollToMessageAtIndex(messageId, targetIndex);
+      } else {
+        debugPrint('[跳转] 奇怪：found=true 但索引找不到');
+        messenger?.showSnackBar(
+          const SnackBar(content: Text('消息定位失败')),
+        );
       }
-
-      // 如果还是找不到，再等待一下（列表可能还在更新）
-      await Future.delayed(const Duration(milliseconds: 200));
-      if (!mounted) return;
-      _tryScrollToMessage(messageId);
     } else {
       // 未找到消息
+      debugPrint('[跳转] 消息未找到');
       messenger?.showSnackBar(
         const SnackBar(content: Text('未能找到该消息，可能已被删除')),
       );
