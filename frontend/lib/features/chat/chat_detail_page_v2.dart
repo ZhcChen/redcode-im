@@ -2861,11 +2861,9 @@ class _QuotedMessagePreviewState extends State<_QuotedMessagePreview> {
         ? Colors.white.withValues(alpha: 0.24)
         : AppColors.divider;
     // 用户名颜色：#9A9BB1
-    final titleColor = widget.isSelf
-        ? Colors.white.withValues(alpha: 0.85)
-        : const Color(0xFF9A9BB1);
+    const titleColor = Color(0xFF9A9BB1);
     // 消息文字颜色：#2C2D3A
-    final bodyColor = widget.isSelf ? Colors.white : const Color(0xFF2C2D3A);
+    const bodyColor = Color(0xFF2C2D3A);
 
     // 判断是否是图片类型
     final isImage = widget.quoted.type == MessageType.image;
