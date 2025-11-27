@@ -1264,8 +1264,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       _highlightedMessageId = messageId;
     });
 
-    // 高亮效果持续 1.5 秒后自动消失
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    // 高亮效果持续 5 秒后自动消失（与动画时长一致）
+    Future.delayed(const Duration(milliseconds: 5000), () {
       if (mounted && _highlightedMessageId == messageId) {
         setState(() {
           _highlightedMessageId = null;
