@@ -5,7 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::database::{
@@ -1119,7 +1119,7 @@ pub async fn generate_message_attachment_signature(
         .generate_direct_upload_signature(&key, req.content_type.as_deref())
         .await?;
 
-    debug!("前端获取直传参数 key: {}", key);
+    info!("前端获取直传参数 key: {}", key);
 
     Ok(Json(MessageAttachmentSignatureResponse {
         success: true,

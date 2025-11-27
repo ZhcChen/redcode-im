@@ -21,7 +21,7 @@ use axum::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -136,7 +136,7 @@ pub async fn generate_avatar_direct_upload(
         .generate_direct_upload_signature(&key, req.content_type.as_deref())
         .await?;
 
-    debug!("前端获取直传参数 key: {}", key);
+    info!("前端获取直传参数 key: {}", key);
 
     Ok(Json(AvatarDirectUploadResponse {
         success: true,

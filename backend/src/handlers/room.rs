@@ -7,7 +7,7 @@ use axum::{
 use chrono;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::database::{
@@ -731,7 +731,7 @@ pub async fn generate_room_avatar_direct_upload(
         .generate_direct_upload_signature(&key, Some(&req.content_type))
         .await?;
 
-    debug!("前端获取直传参数 key: {}", key);
+    info!("前端获取直传参数 key: {}", key);
 
     Ok(Json(RoomAvatarDirectUploadResponse {
         success: true,

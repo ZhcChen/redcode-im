@@ -23,7 +23,7 @@ use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
 use ipnetwork::IpNetwork;
 use sqlx::{FromRow, Postgres, QueryBuilder, Row};
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
@@ -2827,7 +2827,7 @@ pub async fn test_cos_upload_signature(
         .await
     {
         Ok(signature) => {
-            debug!("前端获取直传参数 key: {}", req.key);
+            info!("前端获取直传参数 key: {}", req.key);
             Ok(Json(TestCosUploadSignatureResponse {
                 success: true,
                 signature: Some(signature),

@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
-use tracing::debug;
+use tracing::info;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -93,7 +93,7 @@ pub async fn generate_version_upload_signature(
         .generate_direct_upload_signature(&key, None)
         .await?;
 
-    debug!("前端获取直传参数 key: {}", key);
+    info!("前端获取直传参数 key: {}", key);
 
     Ok(Json(VersionUploadSignatureResponse {
         success: true,
