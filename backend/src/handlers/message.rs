@@ -1189,6 +1189,8 @@ pub async fn generate_message_attachment_download_url(
             url
         };
 
+    info!("生成消息附件下载 URL: key={}, url={}", key, download_url);
+
     Ok(Json(MessageAttachmentDownloadResponse {
         success: true,
         message: "生成附件下载链接成功".to_string(),
