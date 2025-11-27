@@ -1896,10 +1896,13 @@ const downloadAttachmentToLocalUrl = async (
 };
 
 const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localPath: string | null, extra: { downloadUrl?: string | null } = {}) => {
+  console.log('[setAttachmentLocalPath] 开始更新消息:', messageId, 'attachmentKey:', attachmentKey, 'localPath:', localPath)
   const index = messages.value.findIndex((msg: Message) => msg.id === messageId);
   if (index === -1) {
+    console.log('[setAttachmentLocalPath] 未找到消息:', messageId)
     return;
   }
+  console.log('[setAttachmentLocalPath] 找到消息，索引:', index)
 
   const message = messages.value[index];
   if (!Array.isArray(message.parts)) {
@@ -1934,6 +1937,7 @@ const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localP
   });
 
   if (!changed) {
+    console.log('[setAttachmentLocalPath] 没有变化，跳过更新')
     return;
   }
 
@@ -1948,24 +1952,30 @@ const setAttachmentLocalPath = (messageId: string, attachmentKey: string, localP
     };
   }
 
+  console.log('[setAttachmentLocalPath] 更新 messages.value[' + index + ']')
   messages.value[index] = {
     ...message,
     parts: updatedParts,
     content: updatedContent,
     status: message.status === 1 ? 2 : message.status,
   };
+  console.log('[setAttachmentLocalPath] 更新完成，新的 localPath:', messages.value[index].parts?.find(p => p.attachment?.key === attachmentKey)?.attachment?.localPath)
 };
 
 const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) => {
+  console.log('[ensureAttachmentLocalPath] 开始处理消息:', message.id)
   const attachment = part.attachment;
   if (!attachment) {
+    console.log('[ensureAttachmentLocalPath] 没有附件信息')
     return;
   }
 
   const { key } = attachment;
   if (!key) {
+    console.log('[ensureAttachmentLocalPath] 没有 key')
     return;
   }
+  console.log('[ensureAttachmentLocalPath] 附件 key:', key)
 
   // 如果已有localPath，先检查文件是否真的存在
   if (attachment.localPath) {
@@ -2013,20 +2023,24 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
 
   let pending = pendingAttachmentDownloads.get(key);
   if (!pending) {
+    console.log('[ensureAttachmentLocalPath] 创建新的下载任务')
     pending = (async () => {
       try {
+        console.log('[ensureAttachmentLocalPath] 调用 API 获取下载链接, roomId:', roomId, 'key:', key)
         const response = await MessageApi.getAttachmentDownloadUrl({
-          groupId: roomId,
+          roomId: roomId,
           key,
           expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
         });
 
         const payload = response.data;
+        console.log('[ensureAttachmentLocalPath] API 响应:', { success: response.success, hasPayload: !!payload, downloadUrl: payload?.downloadUrl })
         if (!response.success || !payload || !payload.downloadUrl) {
           throw new Error(payload?.message || response.message || '获取附件下载链接失败');
         }
 
         // 下载文件，支持进度回调
+        console.log('[ensureAttachmentLocalPath] 开始下载文件:', payload.downloadUrl)
         const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(
           payload.downloadUrl,
           attachment.mime ?? null,
@@ -2034,6 +2048,7 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
             updateFileDownloadProgress(message.id, key, progress);
           } : undefined
         );
+        console.log('[ensureAttachmentLocalPath] 下载完成, localPath:', localPath, 'fromBlob:', fromBlob)
         if (fromBlob) {
           registerBlobUrl(localPath);
         }
@@ -2042,14 +2057,15 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
           expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
           downloadUrl: payload.downloadUrl,
         });
-        
+
         // 清除下载进度
         if (part.type === MessagePartType.FILE) {
           updateFileDownloadProgress(message.id, key, null);
         }
-        
+
         return { localPath, downloadUrl: payload.downloadUrl };
       } catch (error: any) {
+        console.error('[ensureAttachmentLocalPath] 下载失败:', error)
         // 清除下载进度
         if (part.type === MessagePartType.FILE) {
           updateFileDownloadProgress(message.id, key, null);
@@ -2060,10 +2076,13 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
       }
     })();
     pendingAttachmentDownloads.set(key, pending);
+  } else {
+    console.log('[ensureAttachmentLocalPath] 使用已有的下载任务')
   }
 
   const result = await pending;
   pendingAttachmentDownloads.delete(key);
+  console.log('[ensureAttachmentLocalPath] 下载任务完成, result:', result)
 
   if (result) {
     attachmentUrlCache.set(key, {
@@ -2071,6 +2090,7 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
       expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
       downloadUrl: result.downloadUrl,
     });
+    console.log('[ensureAttachmentLocalPath] 调用 setAttachmentLocalPath 更新消息')
     setAttachmentLocalPath(message.id, key, result.localPath, { downloadUrl: result.downloadUrl });
   }
 };
@@ -2471,7 +2491,7 @@ const handleFileDownload = async (message: Message) => {
 
       console.log('获取文件下载 URL，key:', attachment.key);
       const response = await MessageApi.getAttachmentDownloadUrl({
-        groupId: roomId,
+        roomId: roomId,
         key: attachment.key,
         expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
       });
@@ -3813,16 +3833,25 @@ const parseImageSrc = (message: Message): string => {
     const imagePart = message.parts.find((part) => part.type === MessagePartType.IMAGE)
     if (imagePart?.attachment) {
       const attachment = imagePart.attachment
+      console.log('[parseImageSrc] 消息ID:', message.id, '附件信息:', {
+        key: attachment.key,
+        localPath: attachment.localPath,
+        downloadUrl: attachment.downloadUrl,
+      })
 
       if (attachment.localPath) {
+        console.log('[parseImageSrc] 使用 localPath:', attachment.localPath)
         return convertLocalPathToUrlSync(attachment.localPath)
       }
 
       if (attachment.key) {
+        console.log('[parseImageSrc] 有 key 但无 localPath，触发下载')
         void ensureAttachmentLocalPath(message, imagePart)
         if (attachment.downloadUrl) {
+          console.log('[parseImageSrc] 使用 downloadUrl:', attachment.downloadUrl)
           return attachment.downloadUrl
         }
+        console.log('[parseImageSrc] 返回空字符串（加载中）')
         return ''
       }
 
@@ -3935,7 +3964,7 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
       pending = (async () => {
         try {
           const response = await MessageApi.getAttachmentDownloadUrl({
-            groupId: roomId,
+            roomId: roomId,
             key: thumbnailKey,
             expiresInSeconds: ATTACHMENT_DOWNLOAD_EXPIRES_SECONDS,
           })
@@ -8917,7 +8946,7 @@ const loadMessageList = async (groupId: string) => {
 
       // 媒体消息特殊处理 - 自己的消息
       .media-message {
-        margin: -4px; /* 抵消padding，让媒体内容贴边 */
+        margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
         border-radius: 8px;
         overflow: hidden;
 
@@ -9006,7 +9035,7 @@ const loadMessageList = async (groupId: string) => {
 
     // 媒体消息特殊处理 - 他人消息
     .media-message {
-      margin: -4px; /* 抵消padding，让媒体内容贴边 */
+      margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
       border-radius: 8px;
       overflow: hidden;
 
@@ -9722,6 +9751,7 @@ const loadMessageList = async (groupId: string) => {
   border-radius: 8px;
   transition: opacity 0.2s;
   display: block;
+  cursor: default;
 
   &:hover {
     opacity: 0.8;

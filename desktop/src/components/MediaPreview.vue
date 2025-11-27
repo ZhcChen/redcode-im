@@ -2,25 +2,37 @@
   <Teleport to="body">
     <div v-if="visible" class="media-preview-overlay" @click="handleOverlayClick">
     <div class="media-preview-container">
-      <!-- 关闭按钮 -->
-      <button class="close-button" @click="close">
-        <span class="close-icon">×</span>
-      </button>
+      <!-- 工具栏按钮 -->
+      <div class="toolbar-buttons">
+        <!-- 逆时针旋转按钮 -->
+        <button v-if="mediaType === 'image'" class="toolbar-button" @click="rotateCounterClockwise" title="逆时针旋转">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/>
+          </svg>
+        </button>
+        <!-- 顺时针旋转按钮 -->
+        <button v-if="mediaType === 'image'" class="toolbar-button" @click="rotateClockwise" title="顺时针旋转">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+          </svg>
+        </button>
+        <!-- 关闭按钮 -->
+        <button class="toolbar-button close-button" @click="close" title="关闭">
+          <span class="close-icon">×</span>
+        </button>
+      </div>
 
       <!-- 图片预览 -->
-      <div v-if="mediaType === 'image'" class="image-preview">
+      <div v-if="mediaType === 'image'" class="image-preview" @wheel.prevent="handleImageWheel">
         <img
           :src="mediaSrc"
-          :alt="mediaName || '图片预览'"
+          alt="图片预览"
           class="preview-image"
+          :style="imageTransformStyle"
           @load="handleImageLoad"
           @error="handleImageError"
           @contextmenu.stop
         />
-        <div v-if="mediaName" class="media-info">
-          <div class="media-name">{{ mediaName }}</div>
-          <div v-if="mediaSize" class="media-size">{{ formatFileSize(mediaSize) }}</div>
-        </div>
       </div>
 
       <!-- 视频预览 -->
@@ -134,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, type CSSProperties } from 'vue'
 
 interface Props {
   visible: boolean
@@ -150,6 +162,41 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(true)
+
+// 图片预览相关状态
+const imageScale = ref(1)
+const imageRotation = ref(0)
+const MIN_SCALE = 0.1
+const MAX_SCALE = 5
+
+// 图片变换样式
+const imageTransformStyle = computed(() => ({
+  transform: `scale(${imageScale.value}) rotate(${imageRotation.value}deg)`,
+  transition: 'transform 0.2s ease'
+}))
+
+// 鼠标滚轮缩放
+const handleImageWheel = (event: WheelEvent) => {
+  const delta = event.deltaY > 0 ? -0.1 : 0.1
+  const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, imageScale.value + delta))
+  imageScale.value = newScale
+}
+
+// 顺时针旋转
+const rotateClockwise = () => {
+  imageRotation.value = (imageRotation.value + 90) % 360
+}
+
+// 逆时针旋转
+const rotateCounterClockwise = () => {
+  imageRotation.value = (imageRotation.value - 90 + 360) % 360
+}
+
+// 重置图片变换
+const resetImageTransform = () => {
+  imageScale.value = 1
+  imageRotation.value = 0
+}
 
 // 视频播放器相关状态
 const videoElement = ref<HTMLVideoElement | null>(null)
@@ -428,7 +475,9 @@ watch(() => props.visible, (newVisible) => {
     duration.value = 0
     playProgress.value = 0
     bufferProgress.value = 0
-    
+    // 重置图片变换
+    resetImageTransform()
+
     // 如果视频元素存在，重新加载视频
     if (videoElement.value && props.mediaSrc) {
       console.log('预览打开，重新加载视频:', props.mediaSrc)
@@ -440,6 +489,8 @@ watch(() => props.visible, (newVisible) => {
       videoElement.value.pause()
       isPlaying.value = false
     }
+    // 关闭时重置图片变换
+    resetImageTransform()
   }
 })
 
@@ -523,10 +574,16 @@ watch(() => props.visible, (newVisible) => {
   align-items: center;
 }
 
-.close-button {
+.toolbar-buttons {
   position: absolute;
   top: -50px;
   right: 0;
+  display: flex;
+  gap: 8px;
+  z-index: 10001;
+}
+
+.toolbar-button {
   width: 40px;
   height: 40px;
   background-color: rgba(255, 255, 255, 0.2);
@@ -536,17 +593,23 @@ watch(() => props.visible, (newVisible) => {
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s;
-  z-index: 10001;
+  cursor: pointer;
+  color: white;
 
   &:hover {
     background-color: rgba(255, 255, 255, 0.3);
   }
 
-  .close-icon {
-    color: white;
-    font-size: 24px;
-    font-weight: bold;
-    line-height: 1;
+  &.close-button {
+    .close-icon {
+      font-size: 24px;
+      font-weight: bold;
+      line-height: 1;
+    }
+  }
+
+  svg {
+    stroke: white;
   }
 }
 
