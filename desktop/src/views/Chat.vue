@@ -8954,7 +8954,7 @@ const loadMessageList = async (groupId: string) => {
 .scroll-to-bottom-btn {
   position: absolute;
   right: 24px;
-  bottom: 110px;
+  bottom: 160px;
   width: 44px;
   height: 44px;
   border-radius: 50%;
