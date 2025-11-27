@@ -31,8 +31,38 @@
           :style="imageTransformStyle"
           @load="handleImageLoad"
           @error="handleImageError"
-          @contextmenu.stop
+          @contextmenu.prevent="showContextMenu"
         />
+      </div>
+
+      <!-- 自定义右键菜单 -->
+      <div
+        v-if="contextMenuVisible"
+        class="context-menu"
+        :style="contextMenuStyle"
+        @click.stop
+      >
+        <div class="context-menu-item" @click="handleForward">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+          <span>转发</span>
+        </div>
+        <div class="context-menu-item" @click="handleCopyImage">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <span>复制图片</span>
+        </div>
+        <div class="context-menu-item" @click="handleSaveAs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>另存为</span>
+        </div>
       </div>
 
       <!-- 视频预览 -->
@@ -159,6 +189,11 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
+  forward: []
+  copySuccess: [message: string]
+  copyError: [message: string]
+  saveSuccess: [message: string]
+  saveError: [message: string]
 }>()
 
 const loading = ref(true)
@@ -196,6 +231,90 @@ const rotateCounterClockwise = () => {
 const resetImageTransform = () => {
   imageScale.value = 1
   imageRotation.value = 0
+}
+
+// 右键菜单相关状态
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+
+const contextMenuStyle = computed(() => ({
+  left: `${contextMenuX.value}px`,
+  top: `${contextMenuY.value}px`
+}))
+
+// 显示右键菜单
+const showContextMenu = (event: MouseEvent) => {
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuVisible.value = true
+}
+
+// 隐藏右键菜单
+const hideContextMenu = () => {
+  contextMenuVisible.value = false
+}
+
+// 转发功能
+const handleForward = () => {
+  hideContextMenu()
+  emit('forward')
+}
+
+// 复制图片功能
+const handleCopyImage = async () => {
+  hideContextMenu()
+  try {
+    // 获取图片数据
+    const response = await fetch(props.mediaSrc)
+    const blob = await response.blob()
+
+    // 使用 Clipboard API 复制图片
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        [blob.type]: blob
+      })
+    ])
+
+    emit('copySuccess', '图片已复制到剪贴板')
+  } catch (error) {
+    console.error('复制图片失败:', error)
+    emit('copyError', '复制图片失败')
+  }
+}
+
+// 另存为功能
+const handleSaveAs = async () => {
+  hideContextMenu()
+  try {
+    // 获取图片数据
+    const response = await fetch(props.mediaSrc)
+    const blob = await response.blob()
+
+    // 创建下载链接
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+
+    // 从 mediaSrc 或 mediaName 获取文件名
+    let filename = props.mediaName || 'image'
+    if (!filename.includes('.')) {
+      // 根据 blob 类型添加扩展名
+      const ext = blob.type.split('/')[1] || 'png'
+      filename = `${filename}.${ext}`
+    }
+
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    emit('saveSuccess', '图片已保存')
+  } catch (error) {
+    console.error('保存图片失败:', error)
+    emit('saveError', '保存图片失败')
+  }
 }
 
 // 视频播放器相关状态
@@ -238,6 +357,11 @@ const close = () => {
 
 // 点击遮罩层关闭
 const handleOverlayClick = (event: MouseEvent) => {
+  // 先隐藏右键菜单
+  if (contextMenuVisible.value) {
+    hideContextMenu()
+    return
+  }
   if (event.target === event.currentTarget) {
     close()
   }
@@ -477,6 +601,8 @@ watch(() => props.visible, (newVisible) => {
     bufferProgress.value = 0
     // 重置图片变换
     resetImageTransform()
+    // 重置右键菜单
+    hideContextMenu()
 
     // 如果视频元素存在，重新加载视频
     if (videoElement.value && props.mediaSrc) {
@@ -491,6 +617,8 @@ watch(() => props.visible, (newVisible) => {
     }
     // 关闭时重置图片变换
     resetImageTransform()
+    // 关闭时隐藏右键菜单
+    hideContextMenu()
   }
 })
 
@@ -610,6 +738,58 @@ watch(() => props.visible, (newVisible) => {
 
   svg {
     stroke: white;
+  }
+}
+
+.context-menu {
+  position: fixed;
+  background: rgba(40, 40, 40, 0.95);
+  border-radius: 8px;
+  padding: 6px 0;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100002;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: contextMenuFadeIn 0.15s ease-out;
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    &:active {
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    svg {
+      stroke: rgba(255, 255, 255, 0.8);
+      flex-shrink: 0;
+    }
+
+    span {
+      white-space: nowrap;
+    }
+  }
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
