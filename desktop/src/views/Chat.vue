@@ -200,7 +200,15 @@
                       />
                       <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
                     </div>
-                    <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                    <div class="quoted-content">
+                      <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                      <img
+                        v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
+                        :src="getQuotedImageSrc(message.quotedMessage)!"
+                        class="quoted-image"
+                        alt="引用图片"
+                      />
+                    </div>
                   </div>
                 </template>
 
@@ -368,7 +376,15 @@
                     />
                     <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
                   </div>
-                  <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                  <div class="quoted-content">
+                    <div class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
+                    <img
+                      v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
+                      :src="getQuotedImageSrc(message.quotedMessage)!"
+                      class="quoted-image"
+                      alt="引用图片"
+                    />
+                  </div>
                 </div>
               </template>
 
@@ -4333,6 +4349,43 @@ const getQuotedText = (quoted: QuotedMessage): string => {
 
   if (quoted.content) return quoted.content
   return '[引用消息]'
+}
+
+// 获取引用消息的媒体类型
+const getQuotedMediaType = (quoted: QuotedMessage): 'image' | 'video' | 'audio' | 'file' | null => {
+  if (!Array.isArray(quoted.parts) || quoted.parts.length === 0) return null
+  const first = quoted.parts[0]
+  switch (first.type) {
+    case MessagePartType.IMAGE:
+      return 'image'
+    case MessagePartType.VIDEO:
+      return 'video'
+    case MessagePartType.AUDIO:
+      return 'audio'
+    case MessagePartType.FILE:
+      return 'file'
+    default:
+      return null
+  }
+}
+
+// 获取引用消息的图片缩略图
+const getQuotedImageSrc = (quoted: QuotedMessage): string | null => {
+  if (!Array.isArray(quoted.parts) || quoted.parts.length === 0) return null
+  const imagePart = quoted.parts.find((part) => part.type === MessagePartType.IMAGE)
+  if (!imagePart?.attachment) return null
+
+  // 优先使用本地路径
+  if (imagePart.attachment.localPath) {
+    return `atom://${imagePart.attachment.localPath}`
+  }
+
+  // 其次使用下载URL
+  if (imagePart.attachment.downloadUrl) {
+    return imagePart.attachment.downloadUrl
+  }
+
+  return null
 }
 
 const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
@@ -10135,6 +10188,20 @@ const loadMessageList = async (groupId: string) => {
     color: #2c2d3a;
     line-height: 1.4;
     word-break: break-word;
+  }
+
+  .quoted-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .quoted-image {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 }
 
