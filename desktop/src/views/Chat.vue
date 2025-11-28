@@ -7499,15 +7499,35 @@ const isContentMatch = (content1: any, content2: any): boolean => {
 
 // WebSocket消息监听
 const handleWebSocketMessage = (event: CustomEvent) => {
-  const detail = event.detail as { message?: DomainMessage; raw?: any }
+  const detail = event.detail as { message?: DomainMessage; raw?: any; userId?: string }
   if (!detail?.message) {
     return
   }
 
   const messageData = detail.message
-  
+  const eventUserId = detail.userId // 消息所属的账号 ID（多账号支持）
+
+  // 多账号支持：检查消息是否属于当前活跃账号
+  const currentAccount = store.getters['accounts/currentAccount']
+  const currentAccountUserId = currentAccount?.userInfo?.id
+  const isCurrentAccountMessage = !eventUserId || eventUserId === currentAccountUserId
+
+  // 如果消息不属于当前账号，只更新对应账号的未读数，不更新当前的 chatList
+  if (!isCurrentAccountMessage) {
+    // 更新非当前账号的未读数（用于 Tab 闪烁提示）
+    if (eventUserId && !messageData.isSelf) {
+      const targetAccount = store.state.accounts.accounts.find(
+        (acc: any) => acc.userInfo?.id === eventUserId
+      )
+      if (targetAccount) {
+        store.commit('accounts/INCREMENT_UNREAD_COUNT', targetAccount.id)
+      }
+    }
+    return // 不更新当前账号的 chatList
+  }
+
   const uiMessage = mapDomainMessageToUi(messageData)
-  
+
   // 确保消息有 roomId
   if (!uiMessage.roomId && messageData.roomId) {
     uiMessage.roomId = messageData.roomId
