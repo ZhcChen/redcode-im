@@ -667,7 +667,8 @@ function handleChatMessage(detail: any) {
   // 播放新消息通知（仅当不是自己发送的消息时）
   // 多账号场景：使用事件中的 userId 或当前账号 userId
   const targetUserId = eventUserId || user.value?.id
-  if (payload?.sender_id && payload.sender_id !== targetUserId) {
+  const senderId = payload?.sender_id || payload?.senderId
+  if (senderId && senderId !== targetUserId) {
     NotificationApi.showNewMessageNotification()
   }
 }
