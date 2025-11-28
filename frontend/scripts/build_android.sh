@@ -14,6 +14,10 @@
 
 set -e
 
+# 切换到 frontend 根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -63,7 +67,7 @@ build_apk() {
 
     # 更新应用名称
     echo -e "${YELLOW}🏷️ 更新应用名称...${NC}"
-    ./update_app_name.sh
+    ./scripts/update_app_name.sh
 
     # 清理之前的构建
     echo -e "${YELLOW}🧹 清理之前的构建文件...${NC}"
@@ -100,7 +104,7 @@ build_aab() {
 
     # 更新应用名称
     echo -e "${YELLOW}🏷️ 更新应用名称...${NC}"
-    ./update_app_name.sh
+    ./scripts/update_app_name.sh
 
     # 清理之前的构建
     echo -e "${YELLOW}🧹 清理之前的构建文件...${NC}"

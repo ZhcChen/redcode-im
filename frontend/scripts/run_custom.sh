@@ -35,9 +35,9 @@ echo -e "  ./run_custom.sh http://192.168.1.100:8010"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010 iPhone"
 echo ""
 
-# 确保在正确的目录
+# 切换到 frontend 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR/.."
 
 # 获取依赖
 echo -e "${GREEN}1. 获取依赖...${NC}"
