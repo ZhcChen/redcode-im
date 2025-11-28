@@ -1,40 +1,57 @@
 //! 通知相关命令
 
-use std::{path::PathBuf, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 use tauri::{AppHandle, Manager, Window};
 
-fn bundled_sound_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path().resource_dir().ok().and_then(|p| {
-        let path = p.join("notification_chime.wav");
-        if path.exists() {
-            Some(path)
-        } else {
-            None
+// 内置提示音二进制（放置于 resources/notification_chime.wav）
+const CHIME_BYTES: &[u8] = include_bytes!("../../resources/notification_chime.wav");
+
+/// 确保提示音落地到可访问路径（缓存目录），并返回路径
+fn ensure_chime_file(app: &AppHandle) -> Option<PathBuf> {
+    let cache_dir = app.path().app_cache_dir().ok()?;
+    let target = cache_dir.join("notification_chime.wav");
+
+    // 若已存在且大小匹配，直接用
+    if let Ok(meta) = fs::metadata(&target) {
+        if meta.len() == CHIME_BYTES.len() as u64 {
+            return Some(target);
         }
-    })
+    }
+
+    // 重写文件
+    if let Some(parent) = target.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if fs::write(&target, CHIME_BYTES).is_ok() {
+        return Some(target);
+    }
+    None
 }
 
 /// 播放系统提示音
 #[tauri::command]
-pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
-    // 尝试平台原生提示音；全部失败则返回 Err 交由前端兜底
-
+pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let mut candidates: Vec<(String, &str)> = Vec::new();
-        if let Some(path) = bundled_sound_path(&_app) {
-            candidates.push((path.to_string_lossy().into_owned(), "afplay"));
-        }
-        candidates.extend_from_slice(&[
-            ("/System/Library/Sounds/Ping.aiff".to_string(), "afplay"),
-            ("/System/Library/Sounds/Funk.aiff".to_string(), "afplay"),
-        ]);
-        for (path, bin) in candidates {
-            if Command::new(bin).arg(path).status().is_ok() {
+        if let Some(path) = ensure_chime_file(&app) {
+            if Command::new("afplay")
+                .arg(path.to_string_lossy().into_owned())
+                .status()
+                .is_ok()
+            {
                 return Ok(());
             }
         }
-        // 兜底使用 AppleScript beep
+        // 退回系统自带音效
+        for path in [
+            "/System/Library/Sounds/Ping.aiff",
+            "/System/Library/Sounds/Funk.aiff",
+        ] {
+            if Command::new("afplay").arg(path).status().is_ok() {
+                return Ok(());
+            }
+        }
+        // 最后兜底 beep
         if Command::new("osascript")
             .args(["-e", "beep 1"])
             .status()
@@ -47,17 +64,15 @@ pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // 优先使用打包的提示音，其次系统声，失败则退回 Beep
         let mut script_parts: Vec<String> = Vec::new();
-        if let Some(path) = bundled_sound_path(&_app) {
-            let p = path.to_string_lossy().replace("'", "''");
+        if let Some(path) = ensure_chime_file(&app) {
+            let p = path.to_string_lossy().replace('\'', "''");
             script_parts.push(format!("(New-Object Media.SoundPlayer '{}').PlaySync()", p));
         }
         script_parts.push(
             "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Notify Calendar.wav').PlaySync()"
                 .to_string(),
         );
-
         let joined = script_parts.join("; ");
         let play_wav = Command::new("powershell")
             .args(["-c", joined.as_str()])
@@ -76,25 +91,23 @@ pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        // 按常见程序尝试：优先打包音频 -> 系统音
-        let mut attempts: Vec<(&str, Vec<&str>)> = Vec::new();
-        if let Some(path) = bundled_sound_path(&_app) {
+        // 优先播放内置音频
+        if let Some(path) = ensure_chime_file(&app) {
             let p = path.to_string_lossy().to_string();
-            attempts.push(("paplay", vec![p.as_str()]));
-            attempts.push(("aplay", vec![p.as_str()]));
-        }
-        attempts.extend_from_slice(&[
-            ("canberra-gtk-play", vec!["-i", "message-new-instant"]),
-            (
-                "paplay",
-                vec!["/usr/share/sounds/freedesktop/stereo/message.oga"],
-            ),
-            ("aplay", vec!["/usr/share/sounds/alsa/Front_Center.wav"]),
-        ]);
-        for (bin, args) in attempts {
-            let status = Command::new(bin).args(args).status();
-            if status.is_ok() && status.unwrap().success() {
-                return Ok(());
+            for (bin, args) in [
+                ("paplay", vec![p.as_str()]),
+                ("aplay", vec![p.as_str()]),
+                ("canberra-gtk-play", vec!["-i", "message-new-instant"]),
+                (
+                    "paplay",
+                    vec!["/usr/share/sounds/freedesktop/stereo/message.oga"],
+                ),
+                ("aplay", vec!["/usr/share/sounds/alsa/Front_Center.wav"]),
+            ] {
+                let status = Command::new(bin).args(args).status();
+                if status.is_ok() && status.unwrap().success() {
+                    return Ok(());
+                }
             }
         }
         return Err("linux: failed to play system sound".into());
@@ -123,9 +136,6 @@ pub async fn request_attention(window: Window) -> Result<(), String> {
                 end tell
                 "#;
                 let _ = Command::new("osascript").arg("-e").arg(script).spawn();
-
-                // 或者使用 tauri 的原生方法（如果支持的话）
-                // 注意：Tauri 2.x 可能还没有直接支持这个功能
             }
 
             #[cfg(target_os = "windows")]
