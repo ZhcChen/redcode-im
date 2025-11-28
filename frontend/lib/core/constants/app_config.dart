@@ -4,11 +4,11 @@ class AppConfig {
   // 允许通过 --dart-define 覆盖默认地址，便于真机与模拟器区分
   static const apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.31.80:8010',
+    defaultValue: 'http://10.137.203.83:8010',
   );
   static const wsUrl = String.fromEnvironment(
     'WS_URL',
-    defaultValue: 'ws://192.168.31.80:8010/ws',
+    defaultValue: 'ws://10.137.203.83:8010/ws',
   );
 
   static const useMockData = false;

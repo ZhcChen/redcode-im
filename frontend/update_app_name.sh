@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # API配置
-API_BASE_URL="${API_BASE_URL:-http://192.168.31.80:8010}"
+API_BASE_URL="${API_BASE_URL:-http://10.137.203.83:8010}"
 APP_NAME_ENDPOINT="${API_BASE_URL}/settings/app-name"
 
 echo -e "${BLUE}🔄 获取应用名称...${NC}"
