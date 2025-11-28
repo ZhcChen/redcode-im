@@ -1,45 +1,81 @@
 //! 通知相关命令
 
+use std::process::Command;
 use tauri::{AppHandle, Manager, Window};
 
 /// 播放系统提示音
 #[tauri::command]
 pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
-    // 使用系统默认的通知声音
-    // 在不同平台上播放默认的通知声音
+    // 尝试平台原生提示音；全部失败则返回 Err 交由前端兜底
+
     #[cfg(target_os = "macos")]
     {
-        use std::process::Command;
-        // 在 macOS 上使用 afplay 播放系统提示音
-        let _ = Command::new("afplay")
-            .arg("/System/Library/Sounds/Ping.aiff")
-            .spawn();
+        let candidates = [
+            ("/System/Library/Sounds/Ping.aiff", "afplay"),
+            ("/System/Library/Sounds/Funk.aiff", "afplay"),
+        ];
+        for (path, bin) in candidates {
+            if Command::new(bin).arg(path).status().is_ok() {
+                return Ok(());
+            }
+        }
+        // 兜底使用 AppleScript beep
+        if Command::new("osascript")
+            .args(["-e", "beep 1"])
+            .status()
+            .is_ok()
+        {
+            return Ok(());
+        }
+        return Err("macOS: failed to play system sound".into());
     }
 
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
-        // 在 Windows 上使用 PowerShell 播放系统声音
-        let _ = Command::new("powershell")
-            .args(&["-c", "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\notify.wav').PlaySync()"])
-            .spawn();
+        // 优先使用系统声文件，失败则退回 Beep
+        let play_wav = Command::new("powershell")
+            .args([
+                "-c",
+                "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Notify Calendar.wav').PlaySync()",
+            ])
+            .status();
+        if play_wav.is_ok() && play_wav.unwrap().success() {
+            return Ok(());
+        }
+        let beep = Command::new("powershell")
+            .args(["-c", "[console]::beep(1000,200)"])
+            .status();
+        if beep.is_ok() && beep.unwrap().success() {
+            return Ok(());
+        }
+        return Err("windows: failed to play system sound".into());
     }
 
     #[cfg(target_os = "linux")]
     {
-        use std::process::Command;
-        // 在 Linux 上使用 paplay 或 aplay
-        let _ = Command::new("paplay")
-            .arg("/usr/share/sounds/freedesktop/stereo/message.oga")
-            .spawn()
-            .or_else(|_| {
-                Command::new("aplay")
-                    .arg("/usr/share/sounds/alsa/Front_Center.wav")
-                    .spawn()
-            });
+        // 按常见程序尝试：canberra-gtk-play -> paplay -> aplay
+        let attempts = [
+            (
+                "canberra-gtk-play",
+                &["-i", "message-new-instant"] as &[&str],
+            ),
+            (
+                "paplay",
+                &["/usr/share/sounds/freedesktop/stereo/message.oga"],
+            ),
+            ("aplay", &["/usr/share/sounds/alsa/Front_Center.wav"]),
+        ];
+        for (bin, args) in attempts {
+            let status = Command::new(bin).args(args).status();
+            if status.is_ok() && status.unwrap().success() {
+                return Ok(());
+            }
+        }
+        return Err("linux: failed to play system sound".into());
     }
 
-    Ok(())
+    #[allow(unreachable_code)]
+    Err("unsupported platform".into())
 }
 
 /// 请求用户注意（任务栏闪烁/跳动）
@@ -48,7 +84,8 @@ pub async fn request_attention(window: Window) -> Result<(), String> {
     // 获取主窗口
     if let Some(main_window) = window.app_handle().get_webview_window("main") {
         // 检查窗口是否最小化或未获得焦点
-        if main_window.is_minimized().unwrap_or(false) || !main_window.is_focused().unwrap_or(true) {
+        if main_window.is_minimized().unwrap_or(false) || !main_window.is_focused().unwrap_or(true)
+        {
             #[cfg(target_os = "macos")]
             {
                 // 在 macOS 上，让 Dock 图标跳动
@@ -59,10 +96,7 @@ pub async fn request_attention(window: Window) -> Result<(), String> {
                     set frontmost of process "Chatly" to true
                 end tell
                 "#;
-                let _ = Command::new("osascript")
-                    .arg("-e")
-                    .arg(script)
-                    .spawn();
+                let _ = Command::new("osascript").arg("-e").arg(script).spawn();
 
                 // 或者使用 tauri 的原生方法（如果支持的话）
                 // 注意：Tauri 2.x 可能还没有直接支持这个功能
@@ -114,9 +148,7 @@ pub async fn request_attention(window: Window) -> Result<(), String> {
                 // 在 Linux 上，尝试使用 wmctrl 或其他工具
                 use std::process::Command;
                 // 让窗口获得焦点
-                let _ = Command::new("wmctrl")
-                    .args(&["-a", "Chatly"])
-                    .spawn();
+                let _ = Command::new("wmctrl").args(&["-a", "Chatly"]).spawn();
             }
         }
     }
