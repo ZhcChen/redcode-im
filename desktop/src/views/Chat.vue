@@ -68,6 +68,7 @@
       <ScrollContainer
         class="chat-list"
         :style="{ width: chatListWidth + 'px' }"
+        ref="chatListScrollRef"
       >
         <!-- 只有在初始加载且没有缓存数据时才显示loading -->
         <div v-if="loading && chatList.length === 0" class="loading-container">
@@ -85,6 +86,7 @@
           class="chat-item"
           v-for="chat in chatList"
           :key="chat.id"
+          :data-group-id="chat.groupId"
           @click="selectChat(chat)"
           @contextmenu.prevent="handleChatContextMenu(chat, $event)"
           :class="{
@@ -2903,6 +2905,8 @@ const showVoiceRecorder = ref<boolean>(false)
 
 // 聊天消息容器引用 (ScrollContainer 组件)
 const chatMessagesRef = ref<InstanceType<typeof ScrollContainer> | null>(null)
+// 聊天列表容器引用（用于滚动定位）
+const chatListScrollRef = ref<InstanceType<typeof ScrollContainer> | null>(null)
 
 // 获取消息列表的滚动视口元素
 const getMessagesViewport = (): HTMLElement | null => {
@@ -2994,6 +2998,19 @@ const messages = ref<Message[]>([])
 const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref<boolean>(false)
 const currentUserId = computed(() => store.getters.currentUser.id)
+
+// 将指定 groupId 的会话滚动到列表顶部（仅滚动，不改变选中状态）
+const scrollChatListToGroup = async (groupId: string): Promise<boolean> => {
+  await nextTick()
+  const viewport = chatListScrollRef.value?.getViewport?.()
+  if (!viewport) return false
+
+  const target = viewport.querySelector(`[data-group-id="${groupId}"]`) as HTMLElement | null
+  if (!target) return false
+
+  viewport.scrollTo({ top: target.offsetTop, behavior: 'smooth' })
+  return true
+}
 
 const isCurrentUserGroupOwner = computed(() => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
@@ -5081,6 +5098,20 @@ watch(
     const chatToSelect = chats.find((chat) => chat.groupId === newGroupId)
     if (chatToSelect) {
       await selectChat(chatToSelect)
+    }
+  },
+  { immediate: true }
+)
+
+// 监听滚动请求：将目标未读会话滚动到列表顶部，但不自动选中
+watch(
+  () => [store.state.chatListScrollRequest, chatList.value] as [{ groupId: string | null; timestamp: number } | null, ChatItem[]],
+  async ([request]) => {
+    if (!request?.groupId) return
+
+    const scrolled = await scrollChatListToGroup(request.groupId)
+    if (scrolled) {
+      store.commit('SET_CHAT_SCROLL_REQUEST', null)
     }
   },
   { immediate: true }

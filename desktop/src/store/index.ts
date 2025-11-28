@@ -168,6 +168,8 @@ export interface State {
     websocket: WebSocket | null
     networkState: boolean
     currentChatGroupId: string | null
+    // 聊天列表滚动请求（用于 UI 定位，不改变当前选中会话）
+    chatListScrollRequest: { groupId: string | null; align?: 'top' | 'center' | 'bottom'; timestamp: number } | null
     // 新的朋友申请数量
     pendingFriendRequests: number
     // 全局加载蒙版状态
@@ -250,6 +252,7 @@ export const store = createStore<State>({
         websocket: null,
         networkState: false,
         currentChatGroupId: null,
+        chatListScrollRequest: null,
         pendingFriendRequests: 0,
         globalLoading: {
             visible: false,
@@ -422,6 +425,18 @@ export const store = createStore<State>({
 
         SET_CURRENT_CHAT_GROUP_ID(state: State, groupId: string | null) {
             state.currentChatGroupId = groupId
+        },
+
+        // 记录一次性聊天列表滚动请求（携带时间戳以便重复触发）
+        SET_CHAT_SCROLL_REQUEST(state: State, payload: { groupId: string | null; align?: 'top' | 'center' | 'bottom'; timestamp?: number } | null) {
+            if (payload === null) {
+                state.chatListScrollRequest = null
+            } else {
+                state.chatListScrollRequest = {
+                    ...payload,
+                    timestamp: payload.timestamp ?? Date.now()
+                }
+            }
         },
 
         // 设置待处理的好友申请数量
@@ -1823,6 +1838,7 @@ export const store = createStore<State>({
         websocket: (state: State) => state.websocket,
         networkState: (state: State) => state.networkState,
         currentChatGroupId: (state: State) => state.currentChatGroupId,
+        chatListScrollRequest: (state: State) => state.chatListScrollRequest,
         pendingFriendRequests: (state: State) => state.pendingFriendRequests,
         globalLoading: (state: State) => state.globalLoading,
         appVersion: (state: State) => state.version,

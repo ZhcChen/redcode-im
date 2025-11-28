@@ -211,7 +211,7 @@ const handleMenuClick = (item: MenuItem) => {
   }
 }
 
-// 处理菜单项双击（聊天菜单双击跳转到未读会话）
+// 处理菜单项双击（聊天菜单双击滚动到未读会话，不直接打开会话）
 const handleMenuDblClick = (item: MenuItem) => {
   // 只有聊天菜单支持双击跳转
   if (item.name !== 'Chat') {
@@ -233,11 +233,16 @@ const handleMenuDblClick = (item: MenuItem) => {
     return
   }
 
-  // 跳转到未读数最多的会话
+  // 目标未读会话（未读数最多）
   const targetChat = unreadChats[0]
-  store.commit('SET_CURRENT_CHAT_GROUP_ID', targetChat.groupId)
 
-  // 确保在聊天页面
+  // 派发滚动请求，让聊天页把该会话滚动到列表顶部
+  store.commit('SET_CHAT_SCROLL_REQUEST', {
+    groupId: targetChat.groupId,
+    align: 'top'
+  })
+
+  // 仅确保停留在聊天页，但不主动打开该会话
   if (props.accountId) {
     store.dispatch('accounts/saveAccountRouteState', {
       accountId: props.accountId,
