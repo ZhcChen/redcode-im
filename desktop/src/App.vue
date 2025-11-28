@@ -572,6 +572,7 @@ async function initAllAccountWebSockets() {
   const currentAccountId = store.state.accounts?.currentAccountId;
   const currentUserId = store.getters['accounts/getAccountById']?.(currentAccountId)?.userInfo?.id;
 
+  // 1. 为所有账号建立 WebSocket 连接
   const tasks = accounts.map(async (acc: any) => {
     if (!acc?.token || !acc?.userInfo?.id) return;
     const params = {
@@ -588,25 +589,33 @@ async function initAllAccountWebSockets() {
 
   await Promise.allSettled(tasks);
 
-  // 为非当前账号预热事件通道：依次设为当前用户再切回，确保后台连接可推送
+  // 2. 为所有账号加载聊天列表并订阅房间（关键修复：非当前账号也需要订阅房间才能收到消息）
   for (const acc of accounts) {
-    if (!acc?.userInfo?.id) continue;
+    if (!acc?.token || !acc?.userInfo?.id) continue;
     try {
-      await WebSocketApi.setCurrentUser(acc.userInfo.id);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // 加载该账号的聊天列表
+      const loadResult = await invoke<{ chats: any[] }>('account_load_data', { token: acc.token });
+      const chats = loadResult?.chats || [];
+
+      // 提取所有房间 ID
+      const roomIds = chats
+        .map((chat: any) => chat.chat_group_id || chat.chatGroupId || chat.room_id || chat.roomId)
+        .filter((id: string | undefined) => id && typeof id === 'string');
+
+      if (roomIds.length > 0) {
+        // 为该账号订阅所有房间
+        webSocketManager.ensureRoomsSubscribed(roomIds, false, acc.userInfo.id);
+        console.log(`[App] 账号 ${acc.userInfo.nickname} 订阅了 ${roomIds.length} 个房间`);
+      }
     } catch (error) {
-      console.warn('[App] warmup setCurrentUser failed', acc.id, error);
+      console.warn('[App] 加载账号聊天列表失败', acc.id, error);
     }
   }
 
-  // 切回当前账号，保持前端状态一致
+  // 3. 确保当前账号的 WebSocket 设为活跃状态
   if (currentAccountId && currentUserId) {
     try {
-      await webSocketManager.initWebSocketSafely({
-        userId: currentUserId,
-        token: store.getters['accounts/getAccountById'](currentAccountId)?.token,
-        chatGroupId: '00000000'
-      }, true);
+      await WebSocketApi.setCurrentUser(currentUserId);
     } catch (error) {
       console.warn('[App] restore current account ws failed', error);
     }
