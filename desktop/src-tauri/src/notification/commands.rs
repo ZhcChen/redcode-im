@@ -1,7 +1,18 @@
 //! 通知相关命令
 
-use std::process::Command;
+use std::{path::PathBuf, process::Command};
 use tauri::{AppHandle, Manager, Window};
+
+fn bundled_sound_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().resource_dir().ok().and_then(|p| {
+        let path = p.join("notification_chime.wav");
+        if path.exists() {
+            Some(path)
+        } else {
+            None
+        }
+    })
+}
 
 /// 播放系统提示音
 #[tauri::command]
@@ -10,10 +21,14 @@ pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        let candidates = [
-            ("/System/Library/Sounds/Ping.aiff", "afplay"),
-            ("/System/Library/Sounds/Funk.aiff", "afplay"),
-        ];
+        let mut candidates: Vec<(String, &str)> = Vec::new();
+        if let Some(path) = bundled_sound_path(&_app) {
+            candidates.push((path.to_string_lossy().into_owned(), "afplay"));
+        }
+        candidates.extend_from_slice(&[
+            ("/System/Library/Sounds/Ping.aiff".to_string(), "afplay"),
+            ("/System/Library/Sounds/Funk.aiff".to_string(), "afplay"),
+        ]);
         for (path, bin) in candidates {
             if Command::new(bin).arg(path).status().is_ok() {
                 return Ok(());
@@ -32,12 +47,20 @@ pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // 优先使用系统声文件，失败则退回 Beep
+        // 优先使用打包的提示音，其次系统声，失败则退回 Beep
+        let mut script_parts: Vec<String> = Vec::new();
+        if let Some(path) = bundled_sound_path(&_app) {
+            let p = path.to_string_lossy().replace("'", "''");
+            script_parts.push(format!("(New-Object Media.SoundPlayer '{}').PlaySync()", p));
+        }
+        script_parts.push(
+            "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Notify Calendar.wav').PlaySync()"
+                .to_string(),
+        );
+
+        let joined = script_parts.join("; ");
         let play_wav = Command::new("powershell")
-            .args([
-                "-c",
-                "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Notify Calendar.wav').PlaySync()",
-            ])
+            .args(["-c", joined.as_str()])
             .status();
         if play_wav.is_ok() && play_wav.unwrap().success() {
             return Ok(());
@@ -53,18 +76,21 @@ pub async fn play_notification_sound(_app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        // 按常见程序尝试：canberra-gtk-play -> paplay -> aplay
-        let attempts = [
-            (
-                "canberra-gtk-play",
-                &["-i", "message-new-instant"] as &[&str],
-            ),
+        // 按常见程序尝试：优先打包音频 -> 系统音
+        let mut attempts: Vec<(&str, Vec<&str>)> = Vec::new();
+        if let Some(path) = bundled_sound_path(&_app) {
+            let p = path.to_string_lossy().to_string();
+            attempts.push(("paplay", vec![p.as_str()]));
+            attempts.push(("aplay", vec![p.as_str()]));
+        }
+        attempts.extend_from_slice(&[
+            ("canberra-gtk-play", vec!["-i", "message-new-instant"]),
             (
                 "paplay",
-                &["/usr/share/sounds/freedesktop/stereo/message.oga"],
+                vec!["/usr/share/sounds/freedesktop/stereo/message.oga"],
             ),
-            ("aplay", &["/usr/share/sounds/alsa/Front_Center.wav"]),
-        ];
+            ("aplay", vec!["/usr/share/sounds/alsa/Front_Center.wav"]),
+        ]);
         for (bin, args) in attempts {
             let status = Command::new(bin).args(args).status();
             if status.is_ok() && status.unwrap().success() {
