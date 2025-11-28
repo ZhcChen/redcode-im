@@ -435,8 +435,9 @@ onUnmounted(() => {
     padding: 0 5px;
     font-size: 11px;
     font-weight: 500;
-    line-height: 16px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: #fff;
     background-color: $primary-color;
     border: 2px solid $side-menu-bg;
