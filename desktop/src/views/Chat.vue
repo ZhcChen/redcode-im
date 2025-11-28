@@ -5058,15 +5058,32 @@ watch(
   () => store.state.accounts?.currentAccountId,
   async (newAccountId: any, oldAccountId: any) => {
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
-      
+
       // 保存旧账号的状态
       saveCurrentAccountState(oldAccountId)
-      
+
       // 恢复新账号的状态
       await restoreAccountState(newAccountId)
-      
+
     }
   }
+)
+
+// 监听 currentChatGroupId 与聊天列表，自动切换到指定会话（兼容菜单双击跳转）
+watch(
+  () => [store.state.currentChatGroupId, chatList.value] as [string | null, ChatItem[]],
+  async ([newGroupId, chats]) => {
+    if (!newGroupId) return
+
+    // 已经选中目标会话则跳过
+    if (selectedChat.value?.groupId === newGroupId) return
+
+    const chatToSelect = chats.find((chat) => chat.groupId === newGroupId)
+    if (chatToSelect) {
+      await selectChat(chatToSelect)
+    }
+  },
+  { immediate: true }
 )
 
 const selectChat = async (chat: ChatItem) => {
