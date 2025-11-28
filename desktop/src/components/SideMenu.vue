@@ -431,10 +431,11 @@ onUnmounted(() => {
     padding: 0 4px;
     font-size: 10px;
     font-weight: 500;
-    line-height: 16px;
+    line-height: 14px;
     text-align: center;
     color: #fff;
-    background-color: #F54A45;
+    background-color: $primary-color;
+    border: 1px solid #fff;
     border-radius: 8px;
     box-sizing: border-box;
 
