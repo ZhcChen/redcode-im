@@ -563,6 +563,30 @@ async function initWebSocketConnection() {
   }
 }
 
+// 为所有已登录账号建立 WebSocket 连接（多账号场景重启后立即生效）
+async function initAllAccountWebSockets() {
+  const accounts = store.state.accounts?.accounts || [];
+  if (!accounts.length) return;
+
+  const currentAccountId = store.state.accounts?.currentAccountId;
+
+  const tasks = accounts.map(async (acc: any) => {
+    if (!acc?.token || !acc?.userInfo?.id) return;
+    const params = {
+      userId: acc.userInfo.id,
+      token: acc.token,
+      chatGroupId: '00000000'
+    };
+    try {
+      await webSocketManager.initWebSocketSafely(params, acc.id === currentAccountId);
+    } catch (error) {
+      console.warn('[App] initAllAccountWebSockets failed', acc.id, error);
+    }
+  });
+
+  await Promise.allSettled(tasks);
+}
+
 // 关闭所有 WebSocket 连接（应用退出时调用）
 function closeWebSocketConnection() {
   webSocketManager.closeAllWebSockets();
@@ -1061,6 +1085,9 @@ onMounted(async () => {
         if (savedPageState?.pageState?.currentChatGroupId) {
           store.commit('SET_CURRENT_CHAT_GROUP_ID', savedPageState.pageState.currentChatGroupId);
         }
+
+        // 为所有账号建立 WebSocket 连接（当前账号置为活跃）
+        await initAllAccountWebSockets();
       }
     } catch (error) {
     }
