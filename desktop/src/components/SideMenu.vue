@@ -428,26 +428,26 @@ onUnmounted(() => {
 
   .menu-badge {
     position: absolute;
-    top: -6px;
-    right: -10px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    font-size: 10px;
+    top: -8px;
+    right: -12px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
     font-weight: 500;
-    line-height: 14px;
+    line-height: 18px;
     text-align: center;
     color: #fff;
     background-color: $primary-color;
     border: 1px solid $side-menu-bg;
-    border-radius: 8px;
+    border-radius: 10px;
     box-sizing: border-box;
     transition: border-color 0.2s ease;
 
     &.is-large {
-      right: -14px;
-      min-width: 24px;
-      padding: 0 4px;
+      right: -16px;
+      min-width: 28px;
+      padding: 0 5px;
     }
   }
 
