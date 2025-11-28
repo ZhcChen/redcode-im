@@ -1,268 +1,178 @@
 # Flutter 脚本说明
 
-本目录包含 Flutter 项目的各种运行和构建脚本。
+本目录包含 Flutter 项目的运行和构建脚本。
 
-## 快速开始（推荐方式）
+## 快速开始
 
 ```bash
-# 开发环境运行（默认使用 .env.development）
+# 开发环境运行
 ./scripts/run.sh
 
-# 生产环境构建
-./scripts/build.sh --env .env.production apk
-```
-
-## 目录结构
-
-```
-scripts/
-├── README.md                    # 本说明文档
-├── common.sh                    # 通用函数库（被其他脚本引用）
-├── run.sh                       # 统一运行脚本（读取 .env）
-├── build.sh                     # 统一构建脚本（读取 .env）
-├── run_dev.sh                   # 开发环境运行脚本（传统方式）
-├── run_prod.sh                  # 生产环境运行脚本（传统方式）
-├── run_custom.sh                # 自定义 API 地址运行脚本
-├── run_flutter.sh               # 基础运行脚本
-├── build_android.sh             # Android 打包脚本（传统方式）
-├── build_ipa.sh                 # iOS IPA 打包脚本（传统方式）
-├── build_android_hot_patch.sh   # Android 热更新补丁脚本
-├── build_ios_hot_patch.sh       # iOS 热更新补丁脚本
-├── update_app_name.sh           # 更新应用名称脚本
-└── test_api.sh                  # API 测试脚本
-```
-
-## .env 配置文件
-
-项目提供两个环境配置文件：
-
-| 文件 | 说明 |
-|------|------|
-| `.env.development` | 开发环境配置（默认） |
-| `.env.production` | 生产环境配置 |
-
-### 配置项
-
-```bash
-# 环境类型
-ENV=development
-
-# API 地址
-API_BASE_URL=http://10.137.203.83:8010
-WS_URL=ws://10.137.203.83:8010/ws
-
-# 调试配置
-ENABLE_DEBUG_LOG=true
-ENABLE_PERFORMANCE_MONITOR=false
-
-# Mock 数据
-USE_MOCK_DATA=false
-```
-
-### 本地覆盖配置
-
-如需本地覆盖（不提交到 git），可创建：
-
-```bash
-.env.local              # 覆盖默认配置
-.env.development.local  # 覆盖开发环境配置
-.env.production.local   # 覆盖生产环境配置
-```
-
-使用 `--env` 参数指定配置文件：
-
-```bash
-./scripts/run.sh --env .env.production
-./scripts/build.sh --env .env.production apk
-```
-
-## 环境配置
-
-项目支持三种环境配置：
-
-| 环境 | 参数值 | API 地址 | 调试日志 |
-|------|--------|----------|----------|
-| 开发环境 | `development` / `dev` | http://10.137.203.83:8010 | 开启 |
-| 测试环境 | `staging` / `stage` | https://staging-api.chatlyme.com | 开启 |
-| 生产环境 | `production` / `prod` | https://api.chatlyme.com | 关闭 |
-
-## 新版脚本（推荐）
-
-### run.sh - 统一运行脚本
-
-```bash
-# 开发环境运行（默认 .env.development）
-./scripts/run.sh
-
-# 生产环境运行
-./scripts/run.sh --env .env.production
-
-# 指定设备运行
-./scripts/run.sh iPhone
-
-# 组合使用
-./scripts/run.sh --env .env.production "iPhone 16 Pro"
-```
-
-### build.sh - 统一构建脚本
-
-```bash
-# 开发环境构建（显示菜单选择）
-./scripts/build.sh
-
-# 直接指定构建类型
-./scripts/build.sh apk    # 构建 APK
-./scripts/build.sh aab    # 构建 AAB
-./scripts/build.sh ipa    # 构建 IPA
-./scripts/build.sh all    # 构建所有
-
-# 生产环境构建
+# 生产环境构建 APK
 ./scripts/build.sh --env .env.production apk
 ```
 
 ---
 
-## 传统脚本
+## 环境配置
 
-以下是传统的分离式脚本，仍然可用：
+项目使用 `.env` 文件管理环境变量，位于 `frontend/` 根目录：
 
-### 开发环境运行
+| 文件 | 用途 | 是否提交到 Git |
+|------|------|----------------|
+| `.env.development` | 开发环境配置 | ✅ 是 |
+| `.env.production` | 生产环境配置 | ✅ 是 |
+| `.env.*.local` | 本地覆盖配置 | ❌ 否 |
 
-```bash
-# 从 frontend 目录执行
-./scripts/run_dev.sh
-
-# 指定设备运行
-./scripts/run_dev.sh "iPhone 16 Pro"
-```
-
-### 生产环境运行
+### 配置项说明
 
 ```bash
-./scripts/run_prod.sh
+# 环境标识
+ENV=development              # development / staging / production
 
-# 指定设备运行
-./scripts/run_prod.sh "iPhone 16 Pro"
+# 服务器地址
+API_BASE_URL=http://10.137.203.83:8010
+WS_URL=ws://10.137.203.83:8010/ws
+
+# 功能开关
+ENABLE_DEBUG_LOG=true        # 调试日志
+ENABLE_PERFORMANCE_MONITOR=false  # 性能监控
+USE_MOCK_DATA=false          # Mock 数据
 ```
 
-### 自定义 API 地址运行
+### 本地覆盖
+
+如需在本地修改配置（不影响团队其他成员），创建对应的 `.local` 文件：
 
 ```bash
-# 使用默认开发地址
-./scripts/run_custom.sh
-
-# 指定自定义 API 地址
-./scripts/run_custom.sh http://192.168.1.100:8010
-
-# 指定 API 地址和设备
-./scripts/run_custom.sh http://192.168.1.100:8010 "iPhone 16 Pro"
+# 创建本地开发配置（不会提交到 Git）
+cp .env.development .env.development.local
+vim .env.development.local
 ```
 
-## 打包脚本
+---
 
-### Android 打包
+## 运行脚本
+
+### run.sh（推荐）
+
+统一运行脚本，自动读取 `.env` 配置文件。
 
 ```bash
-# 生产环境打包（默认）
-./scripts/build_android.sh
+# 基本用法（默认使用 .env.development）
+./scripts/run.sh
 
-# 开发环境打包
-./scripts/build_android.sh dev
+# 指定环境配置
+./scripts/run.sh --env .env.production
 
-# 测试环境打包
-./scripts/build_android.sh staging
+# 指定运行设备
+./scripts/run.sh "iPhone 16 Pro"
+./scripts/run.sh emulator-5554
 
-# 生产环境打包
-./scripts/build_android.sh prod
+# 组合使用
+./scripts/run.sh --env .env.production "iPhone 16 Pro"
 ```
 
-运行后会显示菜单选择：
-1. 构建 APK（用于直接安装）
-2. 构建 AAB（用于 Google Play 发布）
-3. 构建 APK 和 AAB
+**参数说明：**
 
-### iOS IPA 打包
+| 参数 | 说明 |
+|------|------|
+| `--env, -e <file>` | 指定配置文件，默认 `.env.development` |
+| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看 |
+| `--help, -h` | 显示帮助信息 |
+
+---
+
+## 构建脚本
+
+### build.sh（推荐）
+
+统一构建脚本，支持 APK、AAB、IPA 打包。
 
 ```bash
-# 生产环境打包（默认）
-./scripts/build_ipa.sh
+# 交互式选择（显示菜单）
+./scripts/build.sh
 
-# 开发环境打包
-./scripts/build_ipa.sh dev
+# 直接指定构建类型
+./scripts/build.sh apk      # Android APK（直接安装）
+./scripts/build.sh aab      # Android AAB（Google Play）
+./scripts/build.sh ipa      # iOS IPA
+./scripts/build.sh all      # 全部构建
 
-# 测试环境打包
-./scripts/build_ipa.sh staging
+# 生产环境构建
+./scripts/build.sh --env .env.production apk
+./scripts/build.sh --env .env.production ipa
 ```
 
-输出的 IPA 文件位于 `build/ios/ipa/runner.ipa`，可上传至超级签名平台。
+**参数说明：**
+
+| 参数 | 说明 |
+|------|------|
+| `--env, -e <file>` | 指定配置文件，默认 `.env.development` |
+| `apk` | 构建 Android APK |
+| `aab` | 构建 Android App Bundle |
+| `ipa` | 构建 iOS IPA（需 macOS） |
+| `all` | 构建所有类型 |
+| `--help, -h` | 显示帮助信息 |
+
+**构建产物位置：**
+
+| 类型 | 路径 |
+|------|------|
+| APK | `build/app/outputs/flutter-apk/app-release.apk` |
+| AAB | `build/app/outputs/bundle/release/app-release.aab` |
+| IPA | `build/ios/ipa/runner.ipa` |
+
+---
+
+## 脚本目录
+
+```
+scripts/
+├── run.sh                   # 统一运行脚本（推荐）
+├── build.sh                 # 统一构建脚本（推荐）
+├── common.sh                # 通用函数库
+│
+├── run_dev.sh               # 开发环境运行（传统）
+├── run_prod.sh              # 生产环境运行（传统）
+├── run_custom.sh            # 自定义 API 运行（传统）
+├── run_flutter.sh           # 基础运行脚本
+│
+├── build_android.sh         # Android 打包（传统）
+├── build_ipa.sh             # iOS 打包（传统）
+├── build_android_hot_patch.sh  # Android 热更新
+├── build_ios_hot_patch.sh   # iOS 热更新
+│
+├── update_app_name.sh       # 更新应用名称
+└── test_api.sh              # API 连通性测试
+```
+
+---
 
 ## 直接使用 Flutter 命令
 
-如果不使用脚本，可以直接使用 Flutter 命令并传入环境参数：
+如果不使用脚本，可以直接传入 `--dart-define` 参数：
 
 ```bash
-# 开发环境
-flutter run --dart-define=ENV=development --dart-define=ENABLE_DEBUG_LOG=true
-
-# 生产环境
-flutter run --dart-define=ENV=production
-
-# 自定义 API 地址
+# 运行
 flutter run \
     --dart-define=ENV=development \
-    --dart-define=API_BASE_URL=http://192.168.1.100:8010 \
-    --dart-define=WS_URL=ws://192.168.1.100:8010/ws
+    --dart-define=API_BASE_URL=http://10.137.203.83:8010 \
+    --dart-define=WS_URL=ws://10.137.203.83:8010/ws \
+    --dart-define=ENABLE_DEBUG_LOG=true
 
-# 打包时指定环境
-flutter build apk --release --dart-define=ENV=production
-flutter build ios --release --no-codesign --dart-define=ENV=production
+# 构建
+flutter build apk --release \
+    --dart-define=ENV=production \
+    --dart-define=API_BASE_URL=https://api.chatlyme.com \
+    --dart-define=WS_URL=wss://api.chatlyme.com/ws
 ```
 
-## 可用的 dart-define 参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `ENV` | 环境类型 | `development` |
-| `API_BASE_URL` | API 基础地址（覆盖默认值） | 根据环境自动设置 |
-| `WS_URL` | WebSocket 地址（覆盖默认值） | 根据环境自动设置 |
-| `ENABLE_DEBUG_LOG` | 是否启用调试日志 | 开发/测试环境 `true` |
-| `ENABLE_PERFORMANCE_MONITOR` | 是否启用性能监控 | 开发环境 `true` |
-| `USE_MOCK_DATA` | 是否使用 Mock 数据 | `false` |
-
-## 其他脚本
-
-### 更新应用名称
-
-从后端 API 获取应用名称并更新配置文件：
-
-```bash
-./scripts/update_app_name.sh
-```
-
-### 热更新补丁
-
-构建热更新补丁包：
-
-```bash
-# Android 热更新补丁
-./scripts/build_android_hot_patch.sh
-
-# iOS 热更新补丁
-./scripts/build_ios_hot_patch.sh
-```
-
-### API 测试
-
-测试 API 连通性：
-
-```bash
-./scripts/test_api.sh
-```
+---
 
 ## 注意事项
 
-1. 所有脚本都会自动切换到 `frontend` 根目录执行，可以从任意位置调用
-2. 首次运行前确保已安装 Flutter SDK
-3. iOS 打包需要在 macOS 系统上执行
-4. 打包脚本会自动执行 `flutter clean` 和 `flutter pub get`
-5. 生产环境打包时会自动禁用调试日志
+1. 所有脚本可从任意目录执行，会自动切换到 `frontend/` 目录
+2. 构建脚本会自动执行 `flutter clean` 和 `flutter pub get`
+3. iOS 相关脚本需要在 macOS 系统上执行
+4. 首次运行前确保已安装 Flutter SDK
