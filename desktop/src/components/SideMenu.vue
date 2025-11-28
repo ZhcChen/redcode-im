@@ -17,11 +17,27 @@
         :class="{ active: isMenuItemActive(item.path) }"
         @click="handleMenuClick(item)"
       >
-        <img
-          :src="isMenuItemActive(item.path) ? item.iconSelected : item.icon"
-          :alt="item.label"
-          class="menu-icon"
-        />
+        <div class="menu-icon-wrapper">
+          <img
+            :src="isMenuItemActive(item.path) ? item.iconSelected : item.icon"
+            :alt="item.label"
+            class="menu-icon"
+          />
+          <!-- 聊天未读角标 -->
+          <span
+            v-if="item.name === 'Chat' && totalUnreadCount > 0"
+            :class="['menu-badge', { 'is-large': totalUnreadCount > 99 }]"
+          >
+            {{ totalUnreadCount > 99 ? '99+' : totalUnreadCount }}
+          </span>
+          <!-- 联系人好友请求角标 -->
+          <span
+            v-if="item.name === 'Contact' && pendingFriendRequests > 0"
+            :class="['menu-badge', { 'is-large': pendingFriendRequests > 99 }]"
+          >
+            {{ pendingFriendRequests > 99 ? '99+' : pendingFriendRequests }}
+          </span>
+        </div>
         <span class="menu-label">{{ item.label }}</span>
       </div>
     </div>
@@ -139,6 +155,12 @@ const userAvatarLocalPath = computed(() => {
   const localPath = currentUser.value.avatarLocalPath
   return localPath && localPath.trim() ? localPath : undefined
 })
+
+// 未读消息总数（用于聊天菜单角标）
+const totalUnreadCount = computed(() => store.getters.totalUnreadCount || 0)
+
+// 待处理好友请求数（用于联系人菜单角标）
+const pendingFriendRequests = computed(() => store.getters.pendingFriendRequests || 0)
 
 const menuItems = ref<MenuItem[]>([
   {
@@ -376,25 +398,53 @@ onUnmounted(() => {
   padding: 16px 20px;
   transition: all 0.2s ease;
   color: $text-secondary;
-  
+
   &:hover {
     background-color: $side-menu-hover;
   }
-  
+
   &.active {
     color: $primary-color;
-    
+
     .menu-label {
       color: $primary-color;
     }
   }
-  
+
+  .menu-icon-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 11px;
+  }
+
   .menu-icon {
     width: 24px;
     height: 24px;
-    margin-bottom: 11px;
   }
-  
+
+  .menu-badge {
+    position: absolute;
+    top: -6px;
+    right: -10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 16px;
+    text-align: center;
+    color: #fff;
+    background-color: #F54A45;
+    border-radius: 8px;
+    box-sizing: border-box;
+
+    &.is-large {
+      right: -14px;
+      min-width: 24px;
+      padding: 0 4px;
+    }
+  }
+
   .menu-label {
     font-size: 12px;
     font-weight: 500;
