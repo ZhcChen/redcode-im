@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
+import '../../core/utils/avatar_color_utils.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
@@ -114,6 +115,51 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   String? _currentUserId;
   StreamSubscription<GroupSettingsUpdatedEvent>? _groupSettingsSubscription;
   StreamSubscription<GroupMemberChangedEvent>? _groupMemberSubscription;
+
+  String? _peerIdFromExtra(Map<String, dynamic>? extra) {
+    if (extra == null) return null;
+    final candidates = <String?>[
+      extra['friend_user_id'] as String?,
+      extra['friendUserId'] as String?,
+      extra['friend_id'] as String?,
+      extra['friendId'] as String?,
+      extra['target_user_id'] as String?,
+      extra['targetUserId'] as String?,
+      extra['peer_user_id'] as String?,
+      extra['peerUserId'] as String?,
+      extra['user_id'] as String?,
+      extra['userId'] as String?,
+    ];
+    for (final c in candidates) {
+      if (c != null && c.trim().isNotEmpty) return c.trim();
+    }
+    return null;
+  }
+
+  String _chatColorSeed() {
+    Chat? chat = _chatProvider.currentChat;
+    chat ??= _chatProvider.chats.firstWhere(
+      (c) => c.roomId == widget.roomId,
+      orElse: () => Chat(
+        id: widget.roomId,
+        roomId: widget.roomId,
+        name: widget.chatName,
+        avatar: widget.chatAvatar,
+        avatarObjectKey: null,
+        localAvatarPath: null,
+        type: widget.chatType,
+        lastMessage: '',
+        lastMessageTime: DateTime.now(),
+      ),
+    );
+
+    if (chat.type == ChatType.single) {
+      final peerId = _peerIdFromExtra(chat.extra);
+      if (peerId != null) return peerId;
+    }
+    return chat.roomId;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -3456,10 +3502,14 @@ class _ForwardTargetTile extends StatelessWidget {
       );
     }
 
-    final initial = chat.name.isNotEmpty ? chat.name[0] : '?';
+    final seed = _chatColorSeed();
+    final initial = chat.name.isNotEmpty
+        ? AvatarColorUtils.getInitial(chat.name)
+        : '?';
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
     return CircleAvatar(
       radius: size / 2,
-      backgroundColor: AppColors.surfaceMuted,
+      backgroundColor: backgroundColor,
       child: Text(
         initial,
         style: const TextStyle(
@@ -3666,14 +3716,17 @@ class _ReadReceiptsSheetState extends State<_ReadReceiptsSheet> {
     }
 
     final initial = reader.displayName.isNotEmpty
-        ? reader.displayName.substring(0, 1)
+        ? AvatarColorUtils.getInitial(reader.displayName)
         : '?';
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(
+      reader.userId,
+    );
     return CircleAvatar(
-      backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+      backgroundColor: backgroundColor,
       child: Text(
         initial,
         style: const TextStyle(
-          color: AppColors.primary,
+          color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
       ),

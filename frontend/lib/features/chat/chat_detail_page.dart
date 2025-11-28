@@ -107,6 +107,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               _ConversationAvatar(
                 avatar: widget.conversation.avatar,
                 name: widget.conversation.name,
+                colorSeed: widget.conversation.id,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -420,10 +421,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 }
 
 class _ConversationAvatar extends StatelessWidget {
-  const _ConversationAvatar({this.avatar, required this.name});
+  const _ConversationAvatar({
+    this.avatar,
+    required this.name,
+    required this.colorSeed,
+  });
 
   final String? avatar;
   final String name;
+  final String colorSeed;
 
   @override
   Widget build(BuildContext context) {
@@ -475,7 +481,9 @@ class _ConversationAvatar extends StatelessWidget {
     const size = 44.0;
     final name = this.name.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(
+      colorSeed.isNotEmpty ? colorSeed : name,
+    );
 
     return Container(
       width: size,
