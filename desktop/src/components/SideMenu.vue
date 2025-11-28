@@ -16,6 +16,7 @@
         class="menu-item"
         :class="{ active: isMenuItemActive(item.path) }"
         @click="handleMenuClick(item)"
+        @dblclick="handleMenuDblClick(item)"
       >
         <div class="menu-icon-wrapper">
           <img
@@ -207,6 +208,48 @@ const handleMenuClick = (item: MenuItem) => {
   } else {
     // 否则使用全局路由
     router.push(item.path)
+  }
+}
+
+// 处理菜单项双击（聊天菜单双击跳转到未读会话）
+const handleMenuDblClick = (item: MenuItem) => {
+  // 只有聊天菜单支持双击跳转
+  if (item.name !== 'Chat') {
+    return
+  }
+
+  // 获取聊天列表
+  const chatList = store.getters.chatList || []
+  if (chatList.length === 0) {
+    return
+  }
+
+  // 按未读数排序，找到第一个有未读消息的会话
+  const unreadChats = chatList
+    .filter((chat: any) => chat.unreadCount > 0)
+    .sort((a: any, b: any) => b.unreadCount - a.unreadCount)
+
+  if (unreadChats.length === 0) {
+    return
+  }
+
+  // 跳转到未读数最多的会话
+  const targetChat = unreadChats[0]
+  store.commit('SET_CURRENT_CHAT_GROUP_ID', targetChat.groupId)
+
+  // 确保在聊天页面
+  if (props.accountId) {
+    store.dispatch('accounts/saveAccountRouteState', {
+      accountId: props.accountId,
+      routeState: {
+        path: '/home/chat',
+        name: 'Chat',
+        params: {},
+        query: {}
+      }
+    })
+  } else if (route.path !== '/home/chat') {
+    router.push('/home/chat')
   }
 }
 
