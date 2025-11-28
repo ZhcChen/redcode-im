@@ -35,7 +35,7 @@
         <Avatar
           :src="selectedChat.avatarLocalPath"
           :text="selectedChat.name"
-          :color-seed="selectedChat.groupId || selectedChat.id || selectedChat.roomId"
+          :color-seed="selectedChat ? getChatColorSeed(selectedChat) : undefined"
           :size="42"
           :background-color="selectedChat.groupType === 2 ? 'var(--primary-color)' : undefined"
         />
@@ -98,7 +98,7 @@
             <Avatar
               :src="chat.avatarLocalPath"
               :text="chat.name"
-              :color-seed="chat.groupId || chat.id || chat.roomId"
+              :color-seed="getChatColorSeed(chat)"
               :size="48"
               :background-color="chat.groupType === 2 ? 'var(--primary-color)' : undefined"
             />
@@ -2998,6 +2998,37 @@ const messages = ref<Message[]>([])
 const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref<boolean>(false)
 const currentUserId = computed(() => store.getters.currentUser.id)
+
+// 获取单聊的对端用户 ID（用于颜色种子保持一致）
+const getPrivateChatPeerId = (chat: ChatItem): string | null => {
+  if (chat.groupType !== 0) return null
+  const extra = (chat.extra || {}) as Record<string, any>
+  const candidates = [
+    extra.friend_id,
+    extra.friendId,
+    extra.friend_user_id,
+    extra.friendUserId,
+    extra.target_user_id,
+    extra.targetUserId,
+    extra.peer_user_id,
+    extra.peerUserId,
+    extra.user_id,
+    extra.userId
+  ]
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return null
+}
+
+// 统一头像颜色种子：单聊优先对端用户ID，群聊使用群ID
+const getChatColorSeed = (chat: ChatItem): string => {
+  const peerId = getPrivateChatPeerId(chat)
+  if (peerId) return peerId
+  return chat.groupId || chat.id || chat.roomId || chat.name || 'chat'
+}
 
 // 将指定 groupId 的会话滚动到列表顶部（仅滚动，不改变选中状态）
 const scrollChatListToGroup = async (groupId: string): Promise<boolean> => {
