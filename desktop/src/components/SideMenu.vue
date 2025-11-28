@@ -401,6 +401,10 @@ onUnmounted(() => {
 
   &:hover {
     background-color: $side-menu-hover;
+
+    .menu-badge {
+      border-color: $side-menu-hover;
+    }
   }
 
   &.active {
@@ -435,9 +439,10 @@ onUnmounted(() => {
     text-align: center;
     color: #fff;
     background-color: $primary-color;
-    border: 1px solid #fff;
+    border: 1px solid $side-menu-bg;
     border-radius: 8px;
     box-sizing: border-box;
+    transition: border-color 0.2s ease;
 
     &.is-large {
       right: -14px;
