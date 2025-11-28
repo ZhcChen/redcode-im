@@ -3,29 +3,35 @@
 use std::{fs, path::PathBuf, process::Command};
 use tauri::{AppHandle, Manager, Window};
 
-// 内置提示音二进制（放置于 resources/notification_chime.wav）
-const CHIME_BYTES: &[u8] = include_bytes!("../../resources/notification_chime.wav");
+// 内置提示音资源（mp3 主音色，wav 兼容声）
+const CHIME_MP3: &[u8] = include_bytes!("../../resources/notification_chime.mp3");
+const CHIME_WAV: &[u8] = include_bytes!("../../resources/notification_chime.wav");
 
-/// 确保提示音落地到可访问路径（缓存目录），并返回路径
-fn ensure_chime_file(app: &AppHandle) -> Option<PathBuf> {
-    let cache_dir = app.path().app_cache_dir().ok()?;
-    let target = cache_dir.join("notification_chime.wav");
-
-    // 若已存在且大小匹配，直接用
-    if let Ok(meta) = fs::metadata(&target) {
-        if meta.len() == CHIME_BYTES.len() as u64 {
-            return Some(target);
+fn write_if_needed(target: &PathBuf, bytes: &[u8]) -> Option<PathBuf> {
+    if let Ok(meta) = fs::metadata(target) {
+        if meta.len() == bytes.len() as u64 {
+            return Some(target.clone());
         }
     }
-
-    // 重写文件
     if let Some(parent) = target.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    if fs::write(&target, CHIME_BYTES).is_ok() {
-        return Some(target);
+    if fs::write(target, bytes).is_ok() {
+        return Some(target.clone());
     }
     None
+}
+
+fn ensure_mp3_file(app: &AppHandle) -> Option<PathBuf> {
+    let cache = app.path().app_cache_dir().ok()?;
+    let target = cache.join("notification_chime.mp3");
+    write_if_needed(&target, CHIME_MP3)
+}
+
+fn ensure_wav_file(app: &AppHandle) -> Option<PathBuf> {
+    let cache = app.path().app_cache_dir().ok()?;
+    let target = cache.join("notification_chime.wav");
+    write_if_needed(&target, CHIME_WAV)
 }
 
 /// 播放系统提示音
@@ -33,7 +39,8 @@ fn ensure_chime_file(app: &AppHandle) -> Option<PathBuf> {
 pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        if let Some(path) = ensure_chime_file(&app) {
+        // 优先播放内置 mp3，其次 wav，再退系统音
+        if let Some(path) = ensure_mp3_file(&app) {
             if Command::new("afplay")
                 .arg(path.to_string_lossy().into_owned())
                 .status()
@@ -42,7 +49,15 @@ pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
                 return Ok(());
             }
         }
-        // 退回系统自带音效
+        if let Some(path) = ensure_wav_file(&app) {
+            if Command::new("afplay")
+                .arg(path.to_string_lossy().into_owned())
+                .status()
+                .is_ok()
+            {
+                return Ok(());
+            }
+        }
         for path in [
             "/System/Library/Sounds/Ping.aiff",
             "/System/Library/Sounds/Funk.aiff",
@@ -51,7 +66,6 @@ pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
                 return Ok(());
             }
         }
-        // 最后兜底 beep
         if Command::new("osascript")
             .args(["-e", "beep 1"])
             .status()
@@ -64,22 +78,39 @@ pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let mut script_parts: Vec<String> = Vec::new();
-        if let Some(path) = ensure_chime_file(&app) {
+        // 尝试 mp3（MediaPlayer），再尝试 wav（SoundPlayer），再 Beep
+        if let Some(path) = ensure_mp3_file(&app) {
             let p = path.to_string_lossy().replace('\'', "''");
-            script_parts.push(format!("(New-Object Media.SoundPlayer '{}').PlaySync()", p));
+            let script = format!(
+                r#"
+Add-Type -AssemblyName presentationcore;
+$player = New-Object System.Windows.Media.MediaPlayer;
+$player.Open([Uri] "file:///{mp3}");
+$player.Volume = 1.0;
+$player.Play();
+Start-Sleep -Milliseconds 700;
+"#,
+                mp3 = p
+            );
+            let status = Command::new("powershell")
+                .args(["-c", script.as_str()])
+                .status();
+            if status.is_ok() && status.unwrap().success() {
+                return Ok(());
+            }
         }
-        script_parts.push(
-            "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Notify Calendar.wav').PlaySync()"
-                .to_string(),
-        );
-        let joined = script_parts.join("; ");
-        let play_wav = Command::new("powershell")
-            .args(["-c", joined.as_str()])
-            .status();
-        if play_wav.is_ok() && play_wav.unwrap().success() {
-            return Ok(());
+
+        if let Some(path) = ensure_wav_file(&app) {
+            let p = path.to_string_lossy().replace('\'', "''");
+            let script = format!("(New-Object Media.SoundPlayer '{}').PlaySync()", p);
+            let status = Command::new("powershell")
+                .args(["-c", script.as_str()])
+                .status();
+            if status.is_ok() && status.unwrap().success() {
+                return Ok(());
+            }
         }
+
         let beep = Command::new("powershell")
             .args(["-c", "[console]::beep(1000,200)"])
             .status();
@@ -91,18 +122,13 @@ pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
-        // 优先播放内置音频
-        if let Some(path) = ensure_chime_file(&app) {
+        // 尝试 mp3 -> wav -> 常规
+        if let Some(path) = ensure_mp3_file(&app) {
             let p = path.to_string_lossy().to_string();
             for (bin, args) in [
                 ("paplay", vec![p.as_str()]),
                 ("aplay", vec![p.as_str()]),
                 ("canberra-gtk-play", vec!["-i", "message-new-instant"]),
-                (
-                    "paplay",
-                    vec!["/usr/share/sounds/freedesktop/stereo/message.oga"],
-                ),
-                ("aplay", vec!["/usr/share/sounds/alsa/Front_Center.wav"]),
             ] {
                 let status = Command::new(bin).args(args).status();
                 if status.is_ok() && status.unwrap().success() {
@@ -110,6 +136,21 @@ pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
                 }
             }
         }
+
+        if let Some(path) = ensure_wav_file(&app) {
+            let p = path.to_string_lossy().to_string();
+            for (bin, args) in [
+                ("paplay", vec![p.as_str()]),
+                ("aplay", vec![p.as_str()]),
+                ("canberra-gtk-play", vec!["-i", "message-new-instant"]),
+            ] {
+                let status = Command::new(bin).args(args).status();
+                if status.is_ok() && status.unwrap().success() {
+                    return Ok(());
+                }
+            }
+        }
+
         return Err("linux: failed to play system sound".into());
     }
 
@@ -120,16 +161,11 @@ pub async fn play_notification_sound(app: AppHandle) -> Result<(), String> {
 /// 请求用户注意（任务栏闪烁/跳动）
 #[tauri::command]
 pub async fn request_attention(window: Window) -> Result<(), String> {
-    // 获取主窗口
     if let Some(main_window) = window.app_handle().get_webview_window("main") {
-        // 检查窗口是否最小化或未获得焦点
         if main_window.is_minimized().unwrap_or(false) || !main_window.is_focused().unwrap_or(true)
         {
             #[cfg(target_os = "macos")]
             {
-                // 在 macOS 上，让 Dock 图标跳动
-                use std::process::Command;
-                // 使用 AppleScript 让应用请求注意
                 let script = r#"
                 tell application "System Events"
                     set frontmost of process "Chatly" to true
@@ -140,9 +176,6 @@ pub async fn request_attention(window: Window) -> Result<(), String> {
 
             #[cfg(target_os = "windows")]
             {
-                // 在 Windows 上，闪烁任务栏
-                use std::process::Command;
-                // 使用 PowerShell 闪烁任务栏
                 let script = r#"
                 Add-Type -TypeDefinition @"
                 using System;
@@ -181,9 +214,6 @@ pub async fn request_attention(window: Window) -> Result<(), String> {
 
             #[cfg(target_os = "linux")]
             {
-                // 在 Linux 上，尝试使用 wmctrl 或其他工具
-                use std::process::Command;
-                // 让窗口获得焦点
                 let _ = Command::new("wmctrl").args(&["-a", "Chatly"]).spawn();
             }
         }
