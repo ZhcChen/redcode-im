@@ -435,11 +435,11 @@ onUnmounted(() => {
     padding: 0 5px;
     font-size: 11px;
     font-weight: 500;
-    line-height: 18px;
+    line-height: 16px;
     text-align: center;
     color: #fff;
     background-color: $primary-color;
-    border: 1px solid $side-menu-bg;
+    border: 2px solid $side-menu-bg;
     border-radius: 10px;
     box-sizing: border-box;
     transition: border-color 0.2s ease;
