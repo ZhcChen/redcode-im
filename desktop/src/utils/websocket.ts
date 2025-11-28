@@ -42,6 +42,7 @@ import { MessageApi, transformBackendMessage } from '@/api/message';
 import type { MessagePartPayloadInput } from '@/api/message';
 import type { Message } from '@/types/models';
 import type { ConnectionStatus } from '@/api/websocket';
+import { NotificationApi } from '@/api/notification';
 
 /**
  * Tauri 事件负载类型
@@ -84,6 +85,8 @@ class WebSocketManager {
   private eventUnlisteners: UnlistenFn[] = [];
   private lastChatListRefreshAt = 0;
   private lastContactRefreshAt = 0;
+  // 好友申请计数缓存，用于检测新增请求触发提醒
+  private friendRequestCounts: Map<string, number> = new Map();
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
@@ -266,15 +269,24 @@ class WebSocketManager {
         if (typeof data.pending_count === 'number') {
           // 根据 eventUserId 更新对应账号的好友请求数
           const targetAccountId = eventUserId || this.currentUserId;
+          const previousCount = targetAccountId
+            ? this.friendRequestCounts.get(targetAccountId) ?? 0
+            : 0;
           if (targetAccountId) {
             store.commit('accounts/UPDATE_FRIEND_REQUEST_COUNT', {
               accountId: targetAccountId,
               count: data.pending_count
             }, { root: true });
+            this.friendRequestCounts.set(targetAccountId, data.pending_count);
           }
           // 只有当前账号才更新全局状态
           if (isCurrentUser) {
             store.commit('SET_PENDING_FRIEND_REQUESTS', data.pending_count);
+
+            // 有新增好友请求时触发通知（声音 + 任务栏提醒）
+            if (data.pending_count > previousCount) {
+              NotificationApi.showNewMessageNotification();
+            }
           }
         }
         break;
