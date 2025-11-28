@@ -4,20 +4,12 @@
 
 ## 快速开始（推荐方式）
 
-使用 `.env` 文件管理环境配置：
-
 ```bash
-# 1. 复制配置模板
-cp .env.example .env
-
-# 2. 编辑配置
-vim .env
-
-# 3. 运行应用
+# 开发环境运行（默认使用 .env.development）
 ./scripts/run.sh
 
-# 4. 构建应用
-./scripts/build.sh apk
+# 生产环境构建
+./scripts/build.sh --env .env.production apk
 ```
 
 ## 目录结构
@@ -42,10 +34,17 @@ scripts/
 
 ## .env 配置文件
 
-项目根目录的 `.env` 文件用于配置环境变量：
+项目提供两个环境配置文件：
+
+| 文件 | 说明 |
+|------|------|
+| `.env.development` | 开发环境配置（默认） |
+| `.env.production` | 生产环境配置 |
+
+### 配置项
 
 ```bash
-# 环境类型: development / staging / production
+# 环境类型
 ENV=development
 
 # API 地址
@@ -60,22 +59,21 @@ ENABLE_PERFORMANCE_MONITOR=false
 USE_MOCK_DATA=false
 ```
 
-### 多环境配置
+### 本地覆盖配置
 
-可以创建多个 `.env` 文件用于不同环境：
+如需本地覆盖（不提交到 git），可创建：
 
 ```bash
-.env           # 默认配置（开发环境）
-.env.local     # 本地开发配置（不提交到 git）
-.env.prod      # 生产环境配置
-.env.staging   # 测试环境配置
+.env.local              # 覆盖默认配置
+.env.development.local  # 覆盖开发环境配置
+.env.production.local   # 覆盖生产环境配置
 ```
 
 使用 `--env` 参数指定配置文件：
 
 ```bash
-./scripts/run.sh --env .env.prod
-./scripts/build.sh --env .env.staging apk
+./scripts/run.sh --env .env.production
+./scripts/build.sh --env .env.production apk
 ```
 
 ## 环境配置
@@ -93,23 +91,23 @@ USE_MOCK_DATA=false
 ### run.sh - 统一运行脚本
 
 ```bash
-# 使用 .env 配置运行
+# 开发环境运行（默认 .env.development）
 ./scripts/run.sh
 
-# 使用指定配置文件
-./scripts/run.sh --env .env.prod
+# 生产环境运行
+./scripts/run.sh --env .env.production
 
 # 指定设备运行
 ./scripts/run.sh iPhone
 
 # 组合使用
-./scripts/run.sh --env .env.local "iPhone 16 Pro"
+./scripts/run.sh --env .env.production "iPhone 16 Pro"
 ```
 
 ### build.sh - 统一构建脚本
 
 ```bash
-# 使用 .env 配置构建（显示菜单选择）
+# 开发环境构建（显示菜单选择）
 ./scripts/build.sh
 
 # 直接指定构建类型
@@ -118,8 +116,8 @@ USE_MOCK_DATA=false
 ./scripts/build.sh ipa    # 构建 IPA
 ./scripts/build.sh all    # 构建所有
 
-# 使用指定配置文件
-./scripts/build.sh --env .env.prod apk
+# 生产环境构建
+./scripts/build.sh --env .env.production apk
 ```
 
 ---

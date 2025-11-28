@@ -1,8 +1,6 @@
-# Environment files
-.env
+# Environment files (本地覆盖配置)
 .env.local
 .env.*.local
-!.env.example
 
 # Miscellaneous
 *.class

@@ -25,7 +25,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # 默认值
-ENV_FILE=".env"
+ENV_FILE=".env.development"
 DEVICE_ID=""
 
 # 解析参数
@@ -39,12 +39,12 @@ while [[ $# -gt 0 ]]; do
             echo "使用方式: ./scripts/run.sh [选项] [设备ID]"
             echo ""
             echo "选项:"
-            echo "  --env, -e FILE    指定配置文件 (默认: .env)"
+            echo "  --env, -e FILE    指定配置文件 (默认: .env.development)"
             echo "  --help, -h        显示帮助信息"
             echo ""
             echo "示例:"
-            echo "  ./scripts/run.sh                      # 使用 .env 运行"
-            echo "  ./scripts/run.sh --env .env.local     # 使用 .env.local 运行"
+            echo "  ./scripts/run.sh                            # 使用 .env.development 运行"
+            echo "  ./scripts/run.sh --env .env.production     # 使用 .env.production 运行"
             echo "  ./scripts/run.sh iPhone               # 在 iPhone 上运行"
             exit 0
             ;;

@@ -28,7 +28,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # 默认值
-ENV_FILE=".env"
+ENV_FILE=".env.development"
 BUILD_TYPE=""
 
 # 解析参数
@@ -48,12 +48,12 @@ while [[ $# -gt 0 ]]; do
             echo "  all     构建所有类型"
             echo ""
             echo "选项:"
-            echo "  --env, -e FILE    指定配置文件 (默认: .env)"
+            echo "  --env, -e FILE    指定配置文件 (默认: .env.development)"
             echo "  --help, -h        显示帮助信息"
             echo ""
             echo "示例:"
-            echo "  ./scripts/build.sh apk                    # 构建 APK"
-            echo "  ./scripts/build.sh --env .env.prod ipa    # 使用生产配置构建 IPA"
+            echo "  ./scripts/build.sh apk                          # 构建 APK"
+            echo "  ./scripts/build.sh --env .env.production ipa    # 使用生产配置构建 IPA"
             exit 0
             ;;
         apk|aab|ipa|all)

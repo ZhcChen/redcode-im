@@ -11,10 +11,10 @@ load_env_as_dart_defines() {
 
     # 如果没有指定文件，尝试默认位置
     if [ -z "$env_file" ]; then
-        if [ -f ".env" ]; then
-            env_file=".env"
-        elif [ -f ".env.local" ]; then
-            env_file=".env.local"
+        if [ -f ".env.development" ]; then
+            env_file=".env.development"
+        elif [ -f ".env.production" ]; then
+            env_file=".env.production"
         fi
     fi
 
