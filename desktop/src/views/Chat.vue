@@ -3012,6 +3012,27 @@ const scrollChatListToGroup = async (groupId: string): Promise<boolean> => {
   return true
 }
 
+// 确保当前选中的会话在可视区域内（若不在则平滑滚动对齐顶部）
+const ensureSelectedChatVisible = async (groupId: string): Promise<void> => {
+  await nextTick()
+  const viewport = chatListScrollRef.value?.getViewport?.()
+  if (!viewport) return
+
+  const item = viewport.querySelector(`[data-group-id="${groupId}"]`) as HTMLElement | null
+  if (!item) return
+
+  const vpRect = viewport.getBoundingClientRect()
+  const itemRect = item.getBoundingClientRect()
+
+  const isAbove = itemRect.top < vpRect.top
+  const isBelow = itemRect.bottom > vpRect.bottom
+
+  if (isAbove || isBelow) {
+    const targetTop = Math.max(item.offsetTop - 8, 0)
+    viewport.scrollTo({ top: targetTop, behavior: 'smooth' })
+  }
+}
+
 const isCurrentUserGroupOwner = computed(() => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
     return false
@@ -5121,6 +5142,9 @@ const selectChat = async (chat: ChatItem) => {
   selectedChat.value = chat
   showScrollToBottom.value = false
   store.commit('SET_CURRENT_CHAT_GROUP_ID', chat.groupId)
+
+  // 确保列表中选中项可见
+  ensureSelectedChatVisible(chat.groupId).catch(() => {})
   
   // 更新账号页面状态中的 currentChatGroupId
   // 在多账号模式下，确保路由状态是 /home/chat
