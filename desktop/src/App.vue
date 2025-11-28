@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { webSocketManager } from './utils/websocket'
 import { rustHttp } from './api/rust-http'
+import { WebSocketApi } from './api/websocket'
 import { toast } from './utils/toast'
 import { eventManager } from './utils/eventManager'
 import { memoryMonitor } from './utils/memoryMonitor'
@@ -569,6 +570,7 @@ async function initAllAccountWebSockets() {
   if (!accounts.length) return;
 
   const currentAccountId = store.state.accounts?.currentAccountId;
+  const currentUserId = store.getters['accounts/getAccountById']?.(currentAccountId)?.userInfo?.id;
 
   const tasks = accounts.map(async (acc: any) => {
     if (!acc?.token || !acc?.userInfo?.id) return;
@@ -585,6 +587,30 @@ async function initAllAccountWebSockets() {
   });
 
   await Promise.allSettled(tasks);
+
+  // 为非当前账号预热事件通道：依次设为当前用户再切回，确保后台连接可推送
+  for (const acc of accounts) {
+    if (!acc?.userInfo?.id) continue;
+    try {
+      await WebSocketApi.setCurrentUser(acc.userInfo.id);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } catch (error) {
+      console.warn('[App] warmup setCurrentUser failed', acc.id, error);
+    }
+  }
+
+  // 切回当前账号，保持前端状态一致
+  if (currentAccountId && currentUserId) {
+    try {
+      await webSocketManager.initWebSocketSafely({
+        userId: currentUserId,
+        token: store.getters['accounts/getAccountById'](currentAccountId)?.token,
+        chatGroupId: '00000000'
+      }, true);
+    } catch (error) {
+      console.warn('[App] restore current account ws failed', error);
+    }
+  }
 }
 
 // 关闭所有 WebSocket 连接（应用退出时调用）
