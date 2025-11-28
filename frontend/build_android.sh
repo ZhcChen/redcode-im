@@ -2,6 +2,15 @@
 
 # Flutter Android APK/AAB 构建脚本
 # 用于生成发布版本的 Android 安装包
+#
+# 使用方式:
+#   ./build_android.sh [环境]
+#   环境参数: dev/development, staging, prod/production (默认: production)
+#
+# 示例:
+#   ./build_android.sh           # 生产环境
+#   ./build_android.sh dev       # 开发环境
+#   ./build_android.sh staging   # 测试环境
 
 set -e
 
@@ -11,6 +20,31 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# 环境参数
+ENV_ARG="${1:-production}"
+
+# 标准化环境名称
+case "$ENV_ARG" in
+    dev|development)
+        ENV="development"
+        ENV_NAME="开发环境"
+        ;;
+    staging|stage|test)
+        ENV="staging"
+        ENV_NAME="测试环境"
+        ;;
+    prod|production|*)
+        ENV="production"
+        ENV_NAME="生产环境"
+        ;;
+esac
+
+# dart-define 参数
+DART_DEFINES="--dart-define=ENV=$ENV"
+
+echo -e "${BLUE}🌍 构建环境: $ENV_NAME ($ENV)${NC}"
+echo ""
 
 # 显示菜单
 show_menu() {
@@ -38,11 +72,11 @@ build_apk() {
     # 获取依赖
     echo -e "${YELLOW}📦 获取 Flutter 依赖...${NC}"
     flutter pub get
-    
+
     # 构建 APK
-    echo -e "${YELLOW}🔨 构建 APK (release 模式)...${NC}"
-    flutter build apk --release
-    
+    echo -e "${YELLOW}🔨 构建 APK (release 模式) - $ENV_NAME...${NC}"
+    flutter build apk --release $DART_DEFINES
+
     # 验证 APK 文件
     APK_FILE="build/app/outputs/flutter-apk/app-release.apk"
     if [ -f "$APK_FILE" ]; then
@@ -77,9 +111,9 @@ build_aab() {
     flutter pub get
     
     # 构建 AAB
-    echo -e "${YELLOW}🔨 构建 AAB (release 模式)...${NC}"
-    flutter build appbundle --release
-    
+    echo -e "${YELLOW}🔨 构建 AAB (release 模式) - $ENV_NAME...${NC}"
+    flutter build appbundle --release $DART_DEFINES
+
     # 验证 AAB 文件
     AAB_FILE="build/app/outputs/bundle/release/app-release.aab"
     if [ -f "$AAB_FILE" ]; then
@@ -109,13 +143,13 @@ build_both() {
     flutter pub get
     
     # 构建 APK
-    echo -e "${YELLOW}🔨 构建 APK (release 模式)...${NC}"
-    flutter build apk --release
-    
+    echo -e "${YELLOW}🔨 构建 APK (release 模式) - $ENV_NAME...${NC}"
+    flutter build apk --release $DART_DEFINES
+
     # 构建 AAB
-    echo -e "${YELLOW}🔨 构建 AAB (release 模式)...${NC}"
-    flutter build appbundle --release
-    
+    echo -e "${YELLOW}🔨 构建 AAB (release 模式) - $ENV_NAME...${NC}"
+    flutter build appbundle --release $DART_DEFINES
+
     # 验证文件
     APK_FILE="build/app/outputs/flutter-apk/app-release.apk"
     AAB_FILE="build/app/outputs/bundle/release/app-release.aab"

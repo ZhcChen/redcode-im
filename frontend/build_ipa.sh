@@ -2,6 +2,15 @@
 
 # Flutter iOS IPA 构建脚本
 # 用于生成无签名的 IPA 文件，供超级签名服务使用
+#
+# 使用方式:
+#   ./build_ipa.sh [环境]
+#   环境参数: dev/development, staging, prod/production (默认: production)
+#
+# 示例:
+#   ./build_ipa.sh           # 生产环境
+#   ./build_ipa.sh dev       # 开发环境
+#   ./build_ipa.sh staging   # 测试环境
 
 set -e
 
@@ -9,8 +18,33 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 环境参数
+ENV_ARG="${1:-production}"
+
+# 标准化环境名称
+case "$ENV_ARG" in
+    dev|development)
+        ENV="development"
+        ENV_NAME="开发环境"
+        ;;
+    staging|stage|test)
+        ENV="staging"
+        ENV_NAME="测试环境"
+        ;;
+    prod|production|*)
+        ENV="production"
+        ENV_NAME="生产环境"
+        ;;
+esac
+
+# dart-define 参数
+DART_DEFINES="--dart-define=ENV=$ENV"
+
+echo -e "${BLUE}🌍 构建环境: $ENV_NAME ($ENV)${NC}"
+echo ""
 echo -e "${GREEN}🚀 开始构建 iOS IPA 文件...${NC}"
 
 # 设置环境变量
@@ -30,8 +64,8 @@ echo -e "${YELLOW}📱 安装 CocoaPods 依赖...${NC}"
 cd ios && pod install && cd ..
 
 # 构建 iOS 应用（无签名）
-echo -e "${YELLOW}🔨 构建 iOS 应用（无签名）...${NC}"
-flutter build ios --release --no-codesign
+echo -e "${YELLOW}🔨 构建 iOS 应用（无签名）- $ENV_NAME...${NC}"
+flutter build ios --release --no-codesign $DART_DEFINES
 
 # 创建 IPA 目录结构
 echo -e "${YELLOW}📁 创建 IPA 目录结构...${NC}"

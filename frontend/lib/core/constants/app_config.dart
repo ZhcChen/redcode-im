@@ -1,18 +1,21 @@
+import '../config/environment.dart';
+
 class AppConfig {
   const AppConfig._();
 
-  // 允许通过 --dart-define 覆盖默认地址，便于真机与模拟器区分
-  static const apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.137.203.83:8010',
-  );
-  static const wsUrl = String.fromEnvironment(
-    'WS_URL',
-    defaultValue: 'ws://10.137.203.83:8010/ws',
-  );
+  /// API 基础地址（从环境配置获取）
+  static String get apiBaseUrl => EnvironmentConfig.apiBaseUrl;
 
-  static const useMockData = false;
+  /// WebSocket 地址（从环境配置获取）
+  static String get wsUrl => EnvironmentConfig.wsUrl;
+
+  /// 是否使用 Mock 数据
+  static bool get useMockData => EnvironmentConfig.useMockData;
+
+  /// Mock 延迟时间
   static const mockLatency = Duration(milliseconds: 450);
+
+  /// API 超时时间
   static const apiTimeout = Duration(seconds: 30);
 
   // 以下上传政策后续可由后端接口下发
