@@ -1,20 +1,28 @@
 # RedCode IM Desktop 测试指南
 
-> 本目录包含桌面端的所有测试相关文件，包括 E2E 测试用例、测试文档和测试工具配置。
+> 本目录包含桌面端的测试文档和测试清单。E2E 测试代码位于 `desktop/tests/e2e/`。
 
 ## 目录结构
 
 ```
-tests/
-├── README.md                 # 本文件 - 测试索引和使用说明
-├── e2e/                      # Playwright E2E 测试用例
-│   ├── websocket/            # WebSocket 相关测试
-│   └── ...
-├── docs/                     # 功能测试文档
-│   ├── websocket-multi-account.md  # 多账号 WebSocket 测试清单
-│   └── ...
-└── playwright.config.ts      # Playwright 配置文件
+desktop/
+├── docs/tests/                   # 测试文档（本目录）
+│   ├── README.md                 # 本文件 - 测试索引和使用说明
+│   └── 多账号WebSocket测试.md    # 多账号 WebSocket 功能测试清单
+│
+└── tests/                        # 测试代码目录
+    ├── e2e/                      # Playwright E2E 测试用例
+    │   └── websocket/            # WebSocket 相关测试
+    └── playwright.config.ts      # Playwright 配置文件
 ```
+
+---
+
+## 测试文档索引
+
+| 文档 | 说明 | 优先级 |
+|------|------|--------|
+| [多账号WebSocket测试](./多账号WebSocket测试.md) | 多账号 WebSocket 连接功能测试清单 | P0 |
 
 ---
 
@@ -50,19 +58,6 @@ bunx playwright test --ui
 # 生成测试报告
 bunx playwright show-report
 ```
-
----
-
-## 功能测试文档索引
-
-| 功能模块 | 测试文档 | 状态 | 优先级 |
-|---------|---------|------|--------|
-| **多账号 WebSocket** | [websocket-multi-account.md](./docs/websocket-multi-account.md) | 待测试 | P0 |
-| 登录/登出 | 待创建 | - | P0 |
-| 消息收发 | 待创建 | - | P0 |
-| 好友管理 | 待创建 | - | P1 |
-| 群聊功能 | 待创建 | - | P1 |
-| 文件上传 | 待创建 | - | P2 |
 
 ---
 
@@ -105,7 +100,7 @@ bunx playwright show-report
 ### 编写测试用例
 
 ```typescript
-// tests/e2e/example.spec.ts
+// desktop/tests/e2e/example.spec.ts
 import { test, expect } from '@playwright/test';
 
 test.describe('登录功能', () => {
@@ -126,28 +121,6 @@ test.describe('登录功能', () => {
 });
 ```
 
-### 测试 WebSocket 事件
-
-```typescript
-// 监听 WebSocket 消息
-test('WebSocket 消息接收', async ({ page }) => {
-  // 监听 WebSocket 连接
-  const wsPromise = page.waitForEvent('websocket');
-
-  await page.goto('http://localhost:5173/home/chat');
-
-  const ws = await wsPromise;
-
-  // 监听 WebSocket 消息
-  ws.on('framereceived', frame => {
-    console.log('收到消息:', frame.payload);
-  });
-
-  // 等待特定消息
-  await expect(page.locator('.message-item')).toBeVisible();
-});
-```
-
 ---
 
 ## 测试环境要求
@@ -160,7 +133,7 @@ test('WebSocket 消息接收', async ({ page }) => {
 
 ### 环境变量
 
-可在 `tests/.env.test` 中配置测试环境变量：
+可在 `desktop/tests/.env.test` 中配置测试环境变量：
 
 ```bash
 # 测试账号 A
@@ -230,39 +203,7 @@ bunx playwright show-report
 
 ### 4. 截图和录屏
 
-测试失败时自动保存到 `tests/test-results/` 目录。
-
----
-
-## CI/CD 集成
-
-### GitHub Actions 示例
-
-```yaml
-# .github/workflows/e2e.yml
-name: E2E Tests
-
-on: [push, pull_request]
-
-jobs:
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
-
-      - name: Install dependencies
-        run: cd desktop && bun install
-
-      - name: Install Playwright
-        run: cd desktop && bunx playwright install --with-deps chromium
-
-      - name: Start dev server
-        run: cd desktop && bun run dev &
-
-      - name: Run E2E tests
-        run: cd desktop && bunx playwright test
-```
+测试失败时自动保存到 `desktop/tests/test-results/` 目录。
 
 ---
 
@@ -281,14 +222,14 @@ bun run dev
 
 ### Q: 多账号测试如何切换账号？
 
-参考 [多账号 WebSocket 测试文档](./docs/websocket-multi-account.md) 中的详细步骤。
+参考 [多账号WebSocket测试](./多账号WebSocket测试.md) 中的详细步骤。
 
 ---
 
 ## 贡献指南
 
-1. 新增测试用例请放在对应的 `e2e/` 子目录
-2. 新增功能测试文档请放在 `docs/` 目录
+1. 新增测试文档请放在本目录（`docs/tests/`）
+2. 新增测试代码请放在 `desktop/tests/e2e/` 目录
 3. 更新本 README 的索引表格
 4. 遵循项目的 Commit 规范
 
