@@ -20,7 +20,10 @@ fn main() {
     }
 
     let installer_path = args[1].clone();
-    log_message(format!("[updater] 启动更新器，安装程序路径: {}", installer_path));
+    log_message(format!(
+        "[updater] 启动更新器，安装程序路径: {}",
+        installer_path
+    ));
     log_message(format!("[updater] 工作目录: {:?}", std::env::current_dir()));
     log_message(format!("[updater] 命令行参数: {:?}", args));
 
@@ -33,7 +36,10 @@ fn execute_installer(installer_path: &str) {
     std::thread::sleep(std::time::Duration::from_millis(500));
 
     log_message(format!("[updater] 开始执行安装程序: {}", installer_path));
-    log_message(format!("[updater] 安装程序存在: {}", std::path::Path::new(installer_path).exists()));
+    log_message(format!(
+        "[updater] 安装程序存在: {}",
+        std::path::Path::new(installer_path).exists()
+    ));
 
     // 根据平台执行安装程序
     #[cfg(target_os = "windows")]
@@ -62,7 +68,10 @@ fn execute_installer(installer_path: &str) {
         if result.is_err() {
             log_message(format!("[updater] 直接执行失败: {:?}", result.err()));
             log_message("[updater] 尝试使用管理员权限执行".to_string());
-            let admin_command = format!("Start-Process -FilePath \"{}\" -Verb RunAs -Wait", installer_path.replace("\"", "`\""));
+            let admin_command = format!(
+                "Start-Process -FilePath \"{}\" -Verb RunAs -Wait",
+                installer_path.replace("\"", "`\"")
+            );
             log_message(format!("[updater] 管理员权限命令: {}", admin_command));
 
             result = Command::new("powershell")
@@ -80,7 +89,10 @@ fn execute_installer(installer_path: &str) {
 
         match result {
             Ok(child) => {
-                log_message(format!("[updater] PowerShell进程已启动，PID: {}", child.id()));
+                log_message(format!(
+                    "[updater] PowerShell进程已启动，PID: {}",
+                    child.id()
+                ));
                 log_message(format!("[updater] 安装程序执行成功，等待完成"));
                 // 等待2秒让安装程序完全启动
                 std::thread::sleep(std::time::Duration::from_millis(2000));
@@ -95,7 +107,10 @@ fn execute_installer(installer_path: &str) {
                 log_message(format!("[updater] 架构信息: {:?}", std::env::consts::ARCH));
 
                 // 检查文件是否存在
-                log_message(format!("[updater] 文件存在检查: {}", std::path::Path::new(installer_path).exists()));
+                log_message(format!(
+                    "[updater] 文件存在检查: {}",
+                    std::path::Path::new(installer_path).exists()
+                ));
 
                 // 检查文件权限
                 if let Ok(metadata) = std::path::Path::new(installer_path).metadata() {
@@ -112,9 +127,7 @@ fn execute_installer(installer_path: &str) {
     #[cfg(target_os = "macos")]
     {
         // macOS: 直接执行安装程序
-        let result = Command::new("open")
-            .arg(installer_path)
-            .spawn();
+        let result = Command::new("open").arg(installer_path).spawn();
 
         match result {
             Ok(_) => {
@@ -132,8 +145,7 @@ fn execute_installer(installer_path: &str) {
     #[cfg(target_os = "linux")]
     {
         // Linux: 直接执行安装程序
-        let result = Command::new(installer_path)
-            .spawn();
+        let result = Command::new(installer_path).spawn();
 
         match result {
             Ok(_) => {

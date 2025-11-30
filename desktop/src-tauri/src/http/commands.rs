@@ -1,13 +1,13 @@
 use super::client::HttpClientState;
 use super::error::HttpError;
 use super::types::{ApiResponse, BatchRequestPayload, HttpClientStats, HttpRequestOptions};
+use crate::logger;
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::Method;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager, State};
-use crate::logger;
 
 fn serialize_value(value: Value) -> Result<String, String> {
     serde_json::to_string(&value).map_err(|err| err.to_string())
@@ -296,19 +296,22 @@ pub async fn http_download(
     save_path: String,
     download_id: Option<String>,
 ) -> Result<String, String> {
-    logger::log_message(&format!("[http_download] 开始下载: url={}, save_path={}, download_id={:?}", url, save_path, download_id));
-    
+    logger::log_message(&format!(
+        "[http_download] 开始下载: url={}, save_path={}, download_id={:?}",
+        url, save_path, download_id
+    ));
+
     let resolved = match resolve_path(&app, &save_path) {
         Ok(p) => {
             logger::log_message(&format!("[http_download] 路径解析成功: {:?}", p));
             p
-        },
+        }
         Err(err) => {
             logger::log_message(&format!("[http_download] 路径解析失败: {}", err));
             return serialize_error(err);
-        },
+        }
     };
-    
+
     // 如果有 download_id，使用进度回调
     if let Some(id) = download_id {
         let id_clone = id.clone();
@@ -322,19 +325,28 @@ pub async fn http_download(
                 }),
             );
         });
-        
+
         let id_finished = id.clone();
         let id_error = id.clone();
         let app_finished = app.clone();
         let app_error = app.clone();
-        
-        match state.download_file_with_progress(url.clone(), resolved.clone(), Some(progress_callback)).await {
+
+        match state
+            .download_file_with_progress(url.clone(), resolved.clone(), Some(progress_callback))
+            .await
+        {
             Ok(outcome) => {
-                logger::log_message(&format!("[http_download] 下载完成: success={}, message={}", outcome.success, outcome.message));
-                
+                logger::log_message(&format!(
+                    "[http_download] 下载完成: success={}, message={}",
+                    outcome.success, outcome.message
+                ));
+
                 // 如果下载失败（比如 HTTP 状态码不是 2xx），发送错误事件
                 if !outcome.success {
-                    logger::log_message(&format!("[http_download] 下载失败（HTTP 错误）: {}", outcome.message));
+                    logger::log_message(&format!(
+                        "[http_download] 下载失败（HTTP 错误）: {}",
+                        outcome.message
+                    ));
                     let _ = app_error.emit(
                         "file-download-progress",
                         serde_json::json!({
@@ -375,16 +387,22 @@ pub async fn http_download(
         logger::log_message(&format!("[http_download] 使用普通下载（无进度回调）"));
         match state.download_file(url.clone(), resolved.clone()).await {
             Ok(outcome) => {
-                logger::log_message(&format!("[http_download] 下载完成: success={}, message={}", outcome.success, outcome.message));
+                logger::log_message(&format!(
+                    "[http_download] 下载完成: success={}, message={}",
+                    outcome.success, outcome.message
+                ));
                 if !outcome.success {
-                    logger::log_message(&format!("[http_download] 下载失败（HTTP 错误）: {}", outcome.message));
+                    logger::log_message(&format!(
+                        "[http_download] 下载失败（HTTP 错误）: {}",
+                        outcome.message
+                    ));
                 }
                 serialize_value(outcome.payload)
-            },
+            }
             Err(err) => {
                 logger::log_message(&format!("[http_download] 下载失败（异常）: {}", err));
                 serialize_error(err)
-            },
+            }
         }
     }
 }

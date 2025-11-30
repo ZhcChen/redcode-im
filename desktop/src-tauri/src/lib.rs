@@ -65,9 +65,13 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
     let is_maximized = window.is_maximized().map_err(|e| e.to_string())?;
 
     // 记录当前状态
-    logger::log_message(format!("[RUST_RESIZE] 当前物理尺寸: {}x{}", current_size.width, current_size.height));
+    logger::log_message(format!(
+        "[RUST_RESIZE] 当前物理尺寸: {}x{}",
+        current_size.width, current_size.height
+    ));
     logger::log_message(format!("[RUST_RESIZE] DPI 缩放因子: {}", scale_factor));
-    logger::log_message(format!("[RUST_RESIZE] 当前逻辑尺寸: {}x{}",
+    logger::log_message(format!(
+        "[RUST_RESIZE] 当前逻辑尺寸: {}x{}",
         (current_size.width as f64 / scale_factor) as i32,
         (current_size.height as f64 / scale_factor) as i32
     ));
@@ -88,7 +92,10 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
     }
 
     // 设置窗口尺寸
-    logger::log_message(format!("[RUST_RESIZE] 执行 set_size({}, {})", width, height));
+    logger::log_message(format!(
+        "[RUST_RESIZE] 执行 set_size({}, {})",
+        width, height
+    ));
     window
         .set_size(LogicalSize::new(width, height))
         .map_err(|e| {
@@ -110,8 +117,12 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
     let after_size = window.inner_size().map_err(|e| e.to_string())?;
     let after_scale = window.scale_factor().map_err(|e| e.to_string())?;
 
-    logger::log_message(format!("[RUST_RESIZE] 调整后物理尺寸: {}x{}", after_size.width, after_size.height));
-    logger::log_message(format!("[RUST_RESIZE] 调整后逻辑尺寸: {}x{}",
+    logger::log_message(format!(
+        "[RUST_RESIZE] 调整后物理尺寸: {}x{}",
+        after_size.width, after_size.height
+    ));
+    logger::log_message(format!(
+        "[RUST_RESIZE] 调整后逻辑尺寸: {}x{}",
         (after_size.width as f64 / after_scale) as i32,
         (after_size.height as f64 / after_scale) as i32
     ));
@@ -119,10 +130,17 @@ async fn set_window_size_and_center(window: Window, width: f64, height: f64) -> 
     // 验证是否成功
     let actual_logical_width = (after_size.width as f64 / after_scale) as i32;
     let actual_logical_height = (after_size.height as f64 / after_scale) as i32;
-    let success = (actual_logical_width as f64 - width).abs() < 5.0 &&
-                  (actual_logical_height as f64 - height).abs() < 5.0;
+    let success = (actual_logical_width as f64 - width).abs() < 5.0
+        && (actual_logical_height as f64 - height).abs() < 5.0;
 
-    logger::log_message(format!("[RUST_RESIZE] 设置结果: {}", if success { "成功" } else { "尺寸偏差较大" }));
+    logger::log_message(format!(
+        "[RUST_RESIZE] 设置结果: {}",
+        if success {
+            "成功"
+        } else {
+            "尺寸偏差较大"
+        }
+    ));
     logger::log_message("[RUST_RESIZE] ========== 设置完成 ==========");
 
     Ok(())
@@ -188,9 +206,9 @@ async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
 // 自定义命令：生成视频首帧缩略图
 #[tauri::command]
 async fn generate_video_thumbnail(
-  video_path: String,
-  output_path: String,
-  time_sec: f64,
+    video_path: String,
+    output_path: String,
+    time_sec: f64,
 ) -> Result<String, String> {
     use std::process::Command;
 
@@ -203,11 +221,16 @@ async fn generate_video_thumbnail(
     // 使用 ffmpeg 生成缩略图
     let output = Command::new("ffmpeg")
         .args(&[
-            "-i", &video_path,
-            "-ss", &time_sec.to_string(),
-            "-vframes", "1",
-            "-vf", "scale=320:-1",
-            "-q:v", "2",
+            "-i",
+            &video_path,
+            "-ss",
+            &time_sec.to_string(),
+            "-vframes",
+            "1",
+            "-vf",
+            "scale=320:-1",
+            "-q:v",
+            "2",
             "-y", // 覆盖输出文件
             &output_path,
         ])
@@ -241,7 +264,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app.get_webview_window("main").expect("no main window").set_focus();
+            let _ = app
+                .get_webview_window("main")
+                .expect("no main window")
+                .set_focus();
         }))
         // 注册状态
         .manage(http_client_state)

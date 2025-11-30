@@ -156,7 +156,11 @@ pub enum TauriEventPayload {
     /// 群被解散
     GroupDissolved { room_id: String },
     /// 群主变更
-    GroupOwnerTransferred { room_id: String, old_owner_id: String, new_owner_id: String },
+    GroupOwnerTransferred {
+        room_id: String,
+        old_owner_id: String,
+        new_owner_id: String,
+    },
     /// 错误
     Error { message: String },
     /// Pong

@@ -143,8 +143,13 @@ impl WebSocketClient {
             while let Some(msg) = read.next().await {
                 match msg {
                     Ok(Message::Binary(data)) => {
-                        if let Err(e) =
-                            Self::handle_binary_message(data, &user_id_for_read, &state_for_read, &app_for_read).await
+                        if let Err(e) = Self::handle_binary_message(
+                            data,
+                            &user_id_for_read,
+                            &state_for_read,
+                            &app_for_read,
+                        )
+                        .await
                         {
                             logger::log_message(format!("[WebSocket] 处理二进制消息失败: {:?}", e));
                         }
@@ -154,7 +159,10 @@ impl WebSocketClient {
                         break;
                     }
                     Err(e) => {
-                        logger::log_message(format!("[WebSocket][{}] 读取错误: {:?}", user_id_for_read, e));
+                        logger::log_message(format!(
+                            "[WebSocket][{}] 读取错误: {:?}",
+                            user_id_for_read, e
+                        ));
                         break;
                     }
                     _ => {}
@@ -211,7 +219,10 @@ impl WebSocketClient {
 
         if let Some(payload) = TauriEventPayload::from_server_event(event) {
             match &payload {
-                TauriEventPayload::Authed { user_id: auth_user_id, conn_id } => {
+                TauriEventPayload::Authed {
+                    user_id: auth_user_id,
+                    conn_id,
+                } => {
                     logger::log_message(format!(
                         "[{}] 认证成功: user_id={}, conn_id={}",
                         user_id, auth_user_id, conn_id
@@ -232,8 +243,14 @@ impl WebSocketClient {
                     let mut state_guard = state.write().await;
                     state_guard.subscribed_rooms.retain(|r| r != room_id);
                 }
-                TauriEventPayload::UserBanned { user_id: banned_user_id, reason } => {
-                    logger::log_message(format!("[{}] 用户被封禁: user_id={}, reason={}", user_id, banned_user_id, reason));
+                TauriEventPayload::UserBanned {
+                    user_id: banned_user_id,
+                    reason,
+                } => {
+                    logger::log_message(format!(
+                        "[{}] 用户被封禁: user_id={}, reason={}",
+                        user_id, banned_user_id, reason
+                    ));
                 }
                 _ => {}
             }

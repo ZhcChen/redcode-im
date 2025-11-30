@@ -46,10 +46,7 @@ pub async fn ws_connect(
     if let Some(existing_client) = clients.get(&user_id) {
         let status = existing_client.get_status().await;
         if status == ConnectionStatus::Authenticated {
-            logger::log_message(format!(
-                "[多账号WS] 账号 {} 已连接，跳过",
-                user_id
-            ));
+            logger::log_message(format!("[多账号WS] 账号 {} 已连接，跳过", user_id));
             // 更新当前活跃账号
             *manager.current_user_id.write().await = Some(user_id);
             return Ok(());

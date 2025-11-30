@@ -1,9 +1,9 @@
 use super::{AccountInput, AccountManager, AccountOutput};
+use crate::http::client::HttpClientState;
+use crate::http::commands::http_request;
 use redcode_im_backend::database::account_store::AccountSettings;
 use serde::Serialize;
 use tauri::State;
-use crate::http::client::HttpClientState;
-use crate::http::commands::http_request;
 
 /// 账号数据加载结果
 #[derive(Debug, Serialize)]
@@ -11,7 +11,6 @@ pub struct AccountLoadResult {
     pub chats: serde_json::Value,
     pub friend_requests: serde_json::Value,
 }
-
 
 /// 初始化账号管理器
 #[tauri::command]
@@ -138,8 +137,7 @@ async fn http_load_chats(
     .await
     .map_err(|e| format!("加载聊天列表失败: {}", e))?;
 
-    serde_json::from_str(&result)
-        .map_err(|e| format!("解析聊天列表失败: {}", e))
+    serde_json::from_str(&result).map_err(|e| format!("解析聊天列表失败: {}", e))
 }
 
 /// 通过 HTTP 加载好友请求
@@ -169,6 +167,5 @@ async fn http_load_friend_requests(
     .await
     .map_err(|e| format!("加载好友请求失败: {}", e))?;
 
-    serde_json::from_str(&result)
-        .map_err(|e| format!("解析好友请求失败: {}", e))
+    serde_json::from_str(&result).map_err(|e| format!("解析好友请求失败: {}", e))
 }

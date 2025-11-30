@@ -1,15 +1,11 @@
 use crate::logger::log_message;
 use futures_util::StreamExt;
 use serde::Serialize;
-use std::{
-    path::Path,
-    path::PathBuf,
-    process::Command,
-};
 #[cfg(unix)]
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::prelude::PermissionsExt;
+use std::{path::Path, path::PathBuf, process::Command};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::{
     fs,
@@ -231,7 +227,10 @@ pub async fn install_update(
 
         // 检查文件大小是否合理（至少1MB）
         if installer_size < 1024 * 1024 {
-            log_message(format!("[updater] 警告：安装包文件过小: {} bytes", installer_size));
+            log_message(format!(
+                "[updater] 警告：安装包文件过小: {} bytes",
+                installer_size
+            ));
         }
 
         // 获取更新器路径 (根据平台选择正确的文件名)
@@ -243,14 +242,28 @@ pub async fn install_update(
 
         // 先尝试从当前可执行文件目录查找
         let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let current_dir = current_exe.parent().ok_or("Cannot get executable directory")?;
+        let current_dir = current_exe
+            .parent()
+            .ok_or("Cannot get executable directory")?;
         let mut updater_exe_path = current_dir.join(updater_name);
 
         // 记录详细的路径信息用于调试
-        log_message(format!("[updater] 当前可执行文件: {}", current_exe.display()));
-        log_message(format!("[updater] 可执行文件目录: {}", current_dir.display()));
-        log_message(format!("[updater] 期望的updater路径: {}", updater_exe_path.display()));
-        log_message(format!("[updater] updater文件存在: {}", updater_exe_path.exists()));
+        log_message(format!(
+            "[updater] 当前可执行文件: {}",
+            current_exe.display()
+        ));
+        log_message(format!(
+            "[updater] 可执行文件目录: {}",
+            current_dir.display()
+        ));
+        log_message(format!(
+            "[updater] 期望的updater路径: {}",
+            updater_exe_path.display()
+        ));
+        log_message(format!(
+            "[updater] updater文件存在: {}",
+            updater_exe_path.exists()
+        ));
 
         if !updater_exe_path.exists() {
             // 如果在当前目录找不到，尝试其他可能的位置
@@ -258,12 +271,14 @@ pub async fn install_update(
                 // 尝试resources目录（开发环境）
                 current_dir.join("resources").join(updater_name),
                 // 尝试上级目录的resources
-                current_dir.parent()
+                current_dir
+                    .parent()
                     .unwrap_or(current_dir)
                     .join("resources")
                     .join(updater_name),
                 // 尝试target目录（构建环境）
-                current_dir.parent()
+                current_dir
+                    .parent()
                     .unwrap_or(current_dir)
                     .join("target")
                     .join("release")
@@ -272,7 +287,11 @@ pub async fn install_update(
 
             let mut found_path = None;
             for path in &possible_paths {
-                log_message(format!("[updater] 检查替代路径: {} (存在: {})", path.display(), path.exists()));
+                log_message(format!(
+                    "[updater] 检查替代路径: {} (存在: {})",
+                    path.display(),
+                    path.exists()
+                ));
                 if path.exists() {
                     found_path = Some(path.clone());
                     break;
@@ -283,12 +302,20 @@ pub async fn install_update(
                 log_message(format!("[updater] 使用替代路径: {}", path.display()));
                 updater_exe_path = path;
             } else {
-                return Err(format!("Updater executable not found in any expected location. Searched paths: {:?}",
-                    possible_paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>()));
+                return Err(format!(
+                    "Updater executable not found in any expected location. Searched paths: {:?}",
+                    possible_paths
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                ));
             }
         }
 
-        log_message(format!("[updater] 最终使用的updater路径: {}", updater_exe_path.display()));
+        log_message(format!(
+            "[updater] 最终使用的updater路径: {}",
+            updater_exe_path.display()
+        ));
         log_message(format!("[updater] 传递安装程序路径: {}", installer_path));
 
         // 启动更新器GUI程序，传递安装程序路径作为参数
