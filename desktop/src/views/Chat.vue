@@ -108,7 +108,7 @@
           <div class="chat-info">
             <div class="chat-name-time">
               <div class="chat-name">
-                {{ chat.name }}
+                {{ getChatDisplayName(chat) }}
                 <span v-if="chat.isTop" class="top-indicator">📌</span>
               </div>
               <div class="chat-time">{{ chat.time }}</div>
@@ -3028,6 +3028,24 @@ const getChatColorSeed = (chat: ChatItem): string => {
   const peerId = getPrivateChatPeerId(chat)
   if (peerId) return peerId
   return chat.groupId || chat.id || chat.roomId || chat.name || 'chat'
+}
+
+// 获取聊天项的显示名称：单聊优先备注 > 昵称 > 原始名称；群聊/收藏夹直接用 name
+const getChatDisplayName = (chat: ChatItem): string => {
+  // 群聊和收藏夹直接返回 name
+  if (chat.groupType !== 0) {
+    return chat.name || '未命名会话'
+  }
+  // 单聊：优先备注 > 昵称(friendName) > 原始名称
+  const remark = chat.remark?.trim()
+  if (remark) {
+    return remark
+  }
+  const friendName = chat.friendName?.trim()
+  if (friendName) {
+    return friendName
+  }
+  return chat.name || '未命名会话'
 }
 
 // 将指定 groupId 的会话滚动到列表顶部（仅滚动，不改变选中状态）
