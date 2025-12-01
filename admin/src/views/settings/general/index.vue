@@ -69,6 +69,110 @@
           </a-form>
         </a-tab-pane>
 
+        <a-tab-pane key="user-account-limit" title="用户账号限制">
+          <a-form
+            :model="accountLimitForm"
+            label-align="left"
+            :label-col-props="{ span: 6 }"
+            :wrapper-col-props="{ span: 18 }"
+            class="settings-form"
+            @submit="handleAccountLimitSubmit"
+          >
+            <a-form-item field="enable_phone_validation" label="启用手机号校验">
+              <a-switch v-model="accountLimitForm.enable_phone_validation" />
+              <template #help>
+                启用后，注册用户账号（用户名）必须符合手机号格式
+              </template>
+            </a-form-item>
+
+            <a-form-item field="enable_email_validation" label="启用邮箱校验">
+              <a-switch v-model="accountLimitForm.enable_email_validation" />
+              <template #help>
+                启用后，注册用户账号（用户名）必须符合邮箱格式
+              </template>
+            </a-form-item>
+
+            <a-form-item field="enable_length_validation" label="启用长度校验">
+              <a-switch v-model="accountLimitForm.enable_length_validation" />
+              <template #help>
+                启用后，注册用户账号（用户名）必须符合长度限制
+              </template>
+            </a-form-item>
+
+            <a-form-item
+              v-if="accountLimitForm.enable_length_validation"
+              field="min_length"
+              label="最小长度"
+              :rules="[
+                { required: true, message: '请输入最小长度' },
+                { type: 'number', min: 3, max: 50, message: '长度范围：3-50' },
+              ]"
+            >
+              <a-input-number
+                v-model="accountLimitForm.min_length"
+                :min="3"
+                :max="50"
+                placeholder="最小长度"
+                style="width: 200px"
+              />
+            </a-form-item>
+
+            <a-form-item
+              v-if="accountLimitForm.enable_length_validation"
+              field="max_length"
+              label="最大长度"
+              :rules="[
+                { required: true, message: '请输入最大长度' },
+                { type: 'number', min: 3, max: 50, message: '长度范围：3-50' },
+              ]"
+            >
+              <a-input-number
+                v-model="accountLimitForm.max_length"
+                :min="3"
+                :max="50"
+                placeholder="最大长度"
+                style="width: 200px"
+              />
+            </a-form-item>
+
+            <a-form-item
+              field="enable_alphanumeric_validation"
+              label="启用字母数字混合校验"
+            >
+              <a-switch
+                v-model="accountLimitForm.enable_alphanumeric_validation"
+              />
+              <template #help>
+                启用后，注册用户账号（用户名）必须同时包含字母和数字
+              </template>
+            </a-form-item>
+
+            <a-alert
+              v-if="!isAnyValidationEnabled"
+              type="warning"
+              :
+              closable="false"
+              style="margin-bottom: 20px"
+            >
+              至少需要启用一种校验规则
+            </a-alert>
+
+            <a-form-item>
+              <a-space>
+                <a-button
+                  type="primary"
+                  html-type="submit"
+                  :loading="loading"
+                  :disabled="!isAnyValidationEnabled"
+                >
+                  保存设置
+                </a-button>
+                <a-button @click="handleAccountLimitReset"> 重置 </a-button>
+              </a-space>
+            </a-form-item>
+          </a-form>
+        </a-tab-pane>
+
         <a-tab-pane key="api-test" title="API测试">
           <ApiTest />
         </a-tab-pane>
@@ -78,7 +182,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { reactive, onMounted } from 'vue';
+  import { reactive, onMounted, computed } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
   import {
@@ -86,6 +190,8 @@
     updateAppName,
     getIpGeolocationEnabled,
     setIpGeolocationEnabled,
+    getUserAccountLimit,
+    updateUserAccountLimit,
   } from '@/api/settings';
   import ApiTest from '../api-test/index.vue';
 
@@ -97,6 +203,24 @@
 
   const ipGeoForm = reactive({
     enabled: false,
+  });
+
+  const accountLimitForm = reactive({
+    enable_phone_validation: false,
+    enable_email_validation: false,
+    enable_length_validation: false,
+    min_length: 3,
+    max_length: 20,
+    enable_alphanumeric_validation: false,
+  });
+
+  const isAnyValidationEnabled = computed(() => {
+    return (
+      accountLimitForm.enable_phone_validation ||
+      accountLimitForm.enable_email_validation ||
+      accountLimitForm.enable_length_validation ||
+      accountLimitForm.enable_alphanumeric_validation
+    );
   });
 
   const fetchAppName = async () => {
@@ -118,6 +242,17 @@
       }
     } catch (error) {
       Message.error('获取IP地理位置解析开关状态失败');
+    }
+  };
+
+  const fetchAccountLimit = async () => {
+    try {
+      const { data } = await getUserAccountLimit();
+      if (data) {
+        Object.assign(accountLimitForm, data);
+      }
+    } catch (error) {
+      Message.error('获取用户账号限制设置失败');
     }
   };
 
@@ -164,9 +299,40 @@
     fetchIpGeolocation();
   };
 
+  const handleAccountLimitSubmit = async () => {
+    if (!isAnyValidationEnabled.value) {
+      Message.warning('至少需要启用一种校验规则');
+      return;
+    }
+
+    if (
+      accountLimitForm.enable_length_validation &&
+      accountLimitForm.min_length > accountLimitForm.max_length
+    ) {
+      Message.warning('最小长度不能大于最大长度');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateUserAccountLimit({ ...accountLimitForm });
+      Message.success('用户账号限制设置保存成功');
+      await fetchAccountLimit();
+    } catch (error: any) {
+      Message.error(error?.response?.data?.message || '保存失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAccountLimitReset = () => {
+    fetchAccountLimit();
+  };
+
   onMounted(() => {
     fetchAppName();
     fetchIpGeolocation();
+    fetchAccountLimit();
   });
 </script>
 
