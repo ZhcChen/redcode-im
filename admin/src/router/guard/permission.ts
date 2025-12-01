@@ -13,17 +13,6 @@ export default function setupPermissionGuard(router: Router) {
     const Permission = usePermission();
     const permissionsAllow = Permission.accessRouter(to);
 
-    // 检查是否是开发模式专用页面
-    const isDevModeOnly = to.meta?.devModeOnly as boolean;
-    if (isDevModeOnly) {
-      const { mode } = to.query;
-      if (mode !== 'dev') {
-        // 重定向到设置页面而不是 404，避免在菜单中显示
-        next({ name: 'Settings' });
-        return;
-      }
-    }
-
     if (appStore.menuFromServer) {
       // 针对来自服务端的菜单配置进行处理
       // Handle routing configuration from the server
