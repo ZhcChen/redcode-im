@@ -102,6 +102,17 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'data-cleanup',
+      name: 'DataCleanup',
+      component: () => import('@/views/settings/data-cleanup/index.vue'),
+      meta: {
+        locale: 'menu.settings.dataCleanup',
+        requiresAuth: true,
+        roles: ['admin'],
+        devModeOnly: true,
+      },
+    },
   ],
 };
 

@@ -263,6 +263,11 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/test-geolocation-api",
             post(admin::test_geolocation_api),
         )
+        // 数据清理API（仅限开发环境）
+        .route(
+            "/admin/data/cleanup/all",
+            post(admin::cleanup_all_app_data),
+        )
         // 聊天记录管理API
         .route(
             "/api/admin/chat-history",

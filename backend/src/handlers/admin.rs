@@ -4298,3 +4298,107 @@ pub async fn test_geolocation_api(
         }
     }
 }
+
+/// 数据清理响应
+#[derive(Debug, Serialize)]
+pub struct DataCleanupResponse {
+    pub success: bool,
+    pub message: String,
+    pub cleaned_tables: Vec<String>,
+    pub error: Option<String>,
+}
+
+/// 清理所有 App 用户相关数据（仅限开发环境）
+pub async fn cleanup_all_app_data(
+    State(state): State<AppState>,
+) -> Result<Json<DataCleanupResponse>, AppError> {
+    info!("开始清理所有App用户相关数据");
+
+    let pool = &state.database.pool;
+
+    // 获取需要清理的表列表（按依赖关系排序，避免外键约束错误）
+    let tables_to_cleanup = vec![
+        "message_parts",
+        "message_reads",
+        "group_operation_logs",
+        "group_mutes",
+        "group_admins",
+        "group_invitations",
+        "join_requests",
+        "group_rules",
+        "group_announcements",
+        "group_settings",
+        "user_room_pins",
+        "room_pins",
+        "messages",
+        "room_members",
+        "user_friend_remarks",
+        "friend_requests",
+        "friendships",
+        "user_roles",
+        "user_login_history",
+        "feedbacks",
+        "rooms",
+        "users",
+    ];
+
+    let mut cleaned_tables = Vec::new();
+    let mut last_error = None;
+
+    // 开始事务
+    let mut tx = pool.begin().await.map_err(AppError::DatabaseError)?;
+
+    // 按顺序清理每个表
+    for table_name in &tables_to_cleanup {
+        info!("正在清理表: {}", table_name);
+
+        // 检查表是否存在
+        let table_exists: Option<i64> = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*) as count
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = $1
+            "#,
+            table_name
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::DatabaseError)?;
+
+        if table_exists.is_none() || table_exists.unwrap() == 0 {
+            info!("表 {} 不存在，跳过", table_name);
+            continue;
+        }
+
+        // 构建并执行删除SQL
+        let delete_sql = format!("DELETE FROM {}", table_name);
+        match sqlx::query(&delete_sql)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::DatabaseError)
+        {
+            Ok(_) => {
+                info!("表 {} 清理成功", table_name);
+                cleaned_tables.push(table_name.to_string());
+            }
+            Err(e) => {
+                error!("清理表 {} 失败: {}", table_name, e);
+                last_error = Some(format!("清理表 {} 失败: {}", table_name, e));
+                // 继续清理其他表，不中断
+            }
+        }
+    }
+
+    // 提交事务
+    tx.commit().await.map_err(AppError::DatabaseError)?;
+
+    info!("数据清理完成，成功清理 {} 个表", cleaned_tables.len());
+
+    Ok(Json(DataCleanupResponse {
+        success: true,
+        message: format!("成功清理 {} 个表的数据", cleaned_tables.len()),
+        cleaned_tables,
+        error: last_error,
+    }))
+}
