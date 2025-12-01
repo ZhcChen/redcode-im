@@ -12,6 +12,9 @@ export default mergeConfig(
         strict: true,
       },
     },
+    define: {
+      __VITE_ENABLE_DATA_CLEANUP__: 'false',
+    },
     plugins: [
       eslint({
         cache: false,

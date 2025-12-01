@@ -1,6 +1,12 @@
 import { DEFAULT_LAYOUT } from '../base';
 import type { AppRouteRecordRaw } from '../types';
 
+// 在构建时确定的常量，避免环境变量缓存问题
+const isDataCleanupEnabled =
+  typeof __VITE_ENABLE_DATA_CLEANUP__ !== 'undefined'
+    ? __VITE_ENABLE_DATA_CLEANUP__ === 'true'
+    : false;
+
 const SETTINGS: AppRouteRecordRaw = {
   path: '/settings',
   name: 'Settings',
@@ -102,17 +108,20 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
-    {
-      path: 'data-cleanup',
-      name: 'DataCleanup',
-      component: () => import('@/views/settings/data-cleanup/index.vue'),
-      meta: {
-        locale: 'menu.settings.dataCleanup',
-        requiresAuth: true,
-        roles: ['admin'],
-        devModeOnly: true,
-      },
-    },
+    ...(isDataCleanupEnabled
+      ? [
+          {
+            path: 'data-cleanup',
+            name: 'DataCleanup',
+            component: () => import('@/views/settings/data-cleanup/index.vue'),
+            meta: {
+              locale: 'menu.settings.dataCleanup',
+              requiresAuth: true,
+              roles: ['admin'],
+            },
+          },
+        ]
+      : []),
   ],
 };
 
