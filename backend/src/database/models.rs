@@ -745,6 +745,20 @@ pub struct GeneralSettingRecord {
     pub updated_by: Option<Uuid>,
 }
 
+/// 用户账号限制设置记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserAccountLimitRecord {
+    pub id: i32,
+    pub enable_phone_validation: bool,
+    pub enable_email_validation: bool,
+    pub enable_length_validation: bool,
+    pub min_length: i32,
+    pub max_length: i32,
+    pub enable_alphanumeric_validation: bool,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FriendRequest {
     pub id: Uuid,

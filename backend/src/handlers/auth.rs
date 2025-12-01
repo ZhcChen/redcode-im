@@ -26,28 +26,71 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<UserInfo>, AppError> {
-    // 基础验证
-    if payload.username.len() < 3 {
-        return Err(AppError::ValidationError(
-            "用户名长度至少为 3 个字符".to_string(),
-        ));
-    }
+    // 获取用户账号限制设置
+    let settings_store = SettingsStore::new(state.database.clone());
+    let account_limit = settings_store.get_user_account_limit_setting().await?;
 
+    // 基础验证：密码长度
     if payload.password.len() < 6 {
         return Err(AppError::ValidationError(
             "密码长度至少为 6 个字符".to_string(),
         ));
     }
 
-    // 邮箱自动生成：手机号 + @example.com
+    // 根据设置校验用户名格式
+    let username = &payload.username;
+
+    // 手机号格式校验
+    if account_limit.enable_phone_validation {
+        let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
+        if !phone_regex.is_match(username) {
+            return Err(AppError::ValidationError(
+                "用户名必须符合手机号格式（以1开头的11位数字）".to_string(),
+            ));
+        }
+    }
+
+    // 邮箱格式校验
+    if account_limit.enable_email_validation {
+        let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+        if !email_regex.is_match(username) {
+            return Err(AppError::ValidationError(
+                "用户名必须符合邮箱格式".to_string(),
+            ));
+        }
+    }
+
+    // 长度校验
+    if account_limit.enable_length_validation {
+        let len = username.len() as i32;
+        if len < account_limit.min_length || len > account_limit.max_length {
+            return Err(AppError::ValidationError(format!(
+                "用户名长度必须在 {} 到 {} 个字符之间",
+                account_limit.min_length, account_limit.max_length
+            )));
+        }
+    }
+
+    // 字母数字混合校验
+    if account_limit.enable_alphanumeric_validation {
+        let has_letter = username.chars().any(|c| c.is_ascii_alphabetic());
+        let has_digit = username.chars().any(|c| c.is_ascii_digit());
+        if !has_letter || !has_digit {
+            return Err(AppError::ValidationError(
+                "用户名必须同时包含字母和数字".to_string(),
+            ));
+        }
+    }
+
+    // 邮箱自动生成：用户名 + @example.com
     let email = format!("{}@example.com", payload.username);
 
     let store = UserStore::new(state.database.clone());
 
-    // 唯一性检查：用户名（手机号）必须唯一
+    // 唯一性检查：用户名必须唯一
     if store.username_exists(&payload.username).await? {
         return Err(AppError::AlreadyExists(format!(
-            "手机号 {} 已被使用",
+            "用户名 {} 已被使用",
             payload.username
         )));
     }
@@ -55,7 +98,7 @@ pub async fn register(
     // 检查邮箱是否已存在（虽然自动生成，但需要检查）
     if store.email_exists(&email).await? {
         return Err(AppError::AlreadyExists(format!(
-            "该手机号对应的邮箱已被使用",
+            "该用户名对应的邮箱已被使用",
         )));
     }
 

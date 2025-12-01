@@ -106,6 +106,16 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'user-account-limit',
+      name: 'UserAccountLimitSettings',
+      component: () => import('@/views/settings/user-account-limit/index.vue'),
+      meta: {
+        locale: 'menu.settings.userAccountLimit',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
     ...(isDataCleanupEnabled
       ? [
           {

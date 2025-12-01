@@ -155,6 +155,10 @@ pub fn create_routes() -> Router<AppState> {
             put(settings::update_app_name),
         )
         .route(
+            "/api/admin/settings/user-account-limit",
+            get(settings::get_user_account_limit).put(settings::update_user_account_limit),
+        )
+        .route(
             "/api/admin/storage-providers",
             get(admin::list_storage_providers).post(admin::create_storage_provider),
         )

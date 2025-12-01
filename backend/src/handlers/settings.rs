@@ -189,3 +189,96 @@ pub async fn get_captcha_setting_public(
         require_captcha_for_login: require_captcha,
     }))
 }
+
+// ===== 用户账号限制设置 API =====
+
+#[derive(Serialize)]
+pub struct UserAccountLimitResponse {
+    pub enable_phone_validation: bool,
+    pub enable_email_validation: bool,
+    pub enable_length_validation: bool,
+    pub min_length: i32,
+    pub max_length: i32,
+    pub enable_alphanumeric_validation: bool,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateUserAccountLimitRequest {
+    pub enable_phone_validation: bool,
+    pub enable_email_validation: bool,
+    pub enable_length_validation: bool,
+    pub min_length: i32,
+    pub max_length: i32,
+    pub enable_alphanumeric_validation: bool,
+}
+
+/// 获取用户账号限制设置（管理员 API）
+pub async fn get_user_account_limit(
+    State(state): State<AppState>,
+) -> Result<Json<UserAccountLimitResponse>, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    let setting = store.get_user_account_limit_setting().await?;
+    Ok(Json(UserAccountLimitResponse {
+        enable_phone_validation: setting.enable_phone_validation,
+        enable_email_validation: setting.enable_email_validation,
+        enable_length_validation: setting.enable_length_validation,
+        min_length: setting.min_length,
+        max_length: setting.max_length,
+        enable_alphanumeric_validation: setting.enable_alphanumeric_validation,
+    }))
+}
+
+/// 更新用户账号限制设置（需要管理员权限）
+pub async fn update_user_account_limit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<UpdateUserAccountLimitRequest>,
+) -> Result<Json<UserAccountLimitResponse>, AppError> {
+    // 验证至少启用一种校验规则
+    if !payload.enable_phone_validation
+        && !payload.enable_email_validation
+        && !payload.enable_length_validation
+        && !payload.enable_alphanumeric_validation
+    {
+        return Err(AppError::ValidationError(
+            "至少需要启用一种校验规则".to_string(),
+        ));
+    }
+
+    // 验证长度范围
+    if payload.enable_length_validation {
+        if payload.min_length < 3 || payload.max_length > 50 {
+            return Err(AppError::ValidationError(
+                "长度限制范围必须在 3-50 之间".to_string(),
+            ));
+        }
+        if payload.min_length > payload.max_length {
+            return Err(AppError::ValidationError(
+                "最小长度不能大于最大长度".to_string(),
+            ));
+        }
+    }
+
+    let editor_id = string_to_uuid(&claims.sub)?;
+    let store = SettingsStore::new(state.database.clone());
+    let updated_setting = store
+        .update_user_account_limit_setting(
+            payload.enable_phone_validation,
+            payload.enable_email_validation,
+            payload.enable_length_validation,
+            payload.min_length,
+            payload.max_length,
+            payload.enable_alphanumeric_validation,
+            Some(editor_id),
+        )
+        .await?;
+
+    Ok(Json(UserAccountLimitResponse {
+        enable_phone_validation: updated_setting.enable_phone_validation,
+        enable_email_validation: updated_setting.enable_email_validation,
+        enable_length_validation: updated_setting.enable_length_validation,
+        min_length: updated_setting.min_length,
+        max_length: updated_setting.max_length,
+        enable_alphanumeric_validation: updated_setting.enable_alphanumeric_validation,
+    }))
+}

@@ -328,6 +328,39 @@ export function updateAppName(payload: UpdateAppNamePayload) {
   return axios.put<AppNameResponse>('/api/admin/settings/app-name', payload);
 }
 
+// ========== 用户账号限制设置 API ==========
+
+export interface UserAccountLimitResponse {
+  enable_phone_validation: boolean;
+  enable_email_validation: boolean;
+  enable_length_validation: boolean;
+  min_length: number;
+  max_length: number;
+  enable_alphanumeric_validation: boolean;
+}
+
+export interface UpdateUserAccountLimitPayload {
+  enable_phone_validation: boolean;
+  enable_email_validation: boolean;
+  enable_length_validation: boolean;
+  min_length: number;
+  max_length: number;
+  enable_alphanumeric_validation: boolean;
+}
+
+export function getUserAccountLimit() {
+  return axios.get<UserAccountLimitResponse>(
+    '/api/admin/settings/user-account-limit'
+  );
+}
+
+export function updateUserAccountLimit(payload: UpdateUserAccountLimitPayload) {
+  return axios.put<UserAccountLimitResponse>(
+    '/api/admin/settings/user-account-limit',
+    payload
+  );
+}
+
 // ========== IP地理位置解析开关 API ==========
 
 export interface IpGeolocationStatusResponse {
