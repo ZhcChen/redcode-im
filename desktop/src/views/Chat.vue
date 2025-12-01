@@ -3455,7 +3455,11 @@ const loadChatList = async (forceRefresh = false) => {
       .map((chat: ChatItem) => chat.groupId)
       .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0)
 
-    webSocketManager.ensureRoomsSubscribed(roomIds, false)
+    // 多账号支持：使用当前组件对应的账号 userId 订阅房间
+    const targetUserId = props.accountId
+      ? store.getters['accounts/getAccountById'](props.accountId)?.userInfo?.id
+      : undefined
+    webSocketManager.ensureRoomsSubscribed(roomIds, false, targetUserId)
 
     isInitialized.value = true
   } catch (error: any) {

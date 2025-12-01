@@ -293,6 +293,12 @@ class WebSocketManager {
       }
 
       case 'roomcreated': {
+        const roomData = payload.payload as { room_id: string };
+        // 修复：非当前账号也需要订阅新创建的房间
+        if (eventUserId && roomData?.room_id) {
+          this.ensureRoomsSubscribed([roomData.room_id], false, eventUserId);
+        }
+
         // 只有当前账号才刷新聊天列表
         if (isCurrentUser) {
           this.dispatchDomEvent('websocket-room-created', payload.payload);
@@ -584,8 +590,7 @@ class WebSocketManager {
     }
 
     const roomIds = Array.from(connection.desiredRooms);
-    WebSocketApi.joinRooms(roomIds, targetUserId).catch((error) => {
-    });
+    WebSocketApi.joinRooms(roomIds, targetUserId).catch(() => {});
   }
 
   /**

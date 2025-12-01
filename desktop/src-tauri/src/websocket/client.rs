@@ -139,6 +139,7 @@ impl WebSocketClient {
         let state_for_read = Arc::clone(&self.state);
         let app_for_read = self.app_handle.clone();
         let user_id_for_read = self.user_id.clone();
+        let tx_for_read = self.tx.clone();
         tokio::spawn(async move {
             while let Some(msg) = read.next().await {
                 match msg {
@@ -148,6 +149,7 @@ impl WebSocketClient {
                             &user_id_for_read,
                             &state_for_read,
                             &app_for_read,
+                            tx_for_read.as_ref(),
                         )
                         .await
                         {
@@ -214,6 +216,7 @@ impl WebSocketClient {
         user_id: &str,
         state: &Arc<RwLock<ClientState>>,
         app_handle: &tauri::AppHandle,
+        tx: Option<&mpsc::UnboundedSender<Vec<u8>>>,
     ) -> Result<()> {
         let event = ServerEventDecoder::decode(&data)?;
 
@@ -230,7 +233,25 @@ impl WebSocketClient {
                     let mut state_guard = state.write().await;
                     state_guard.status = ConnectionStatus::Authenticated;
 
+                    // 处理待订阅的房间
+                    let pending = std::mem::take(&mut state_guard.pending_rooms);
                     drop(state_guard);
+
+                    if !pending.is_empty() {
+                        logger::log_message(format!(
+                            "[{}] 处理 {} 个待订阅房间: {:?}",
+                            user_id,
+                            pending.len(),
+                            pending
+                        ));
+                        if let Some(tx) = tx {
+                            for room_id in pending {
+                                if let Ok(join_data) = ClientEventEncoder::encode_join(room_id) {
+                                    let _ = tx.send(join_data);
+                                }
+                            }
+                        }
+                    }
                 }
                 TauriEventPayload::Joined { room_id } => {
                     logger::log_message(format!("[{}] 已加入房间: {}", user_id, room_id));
