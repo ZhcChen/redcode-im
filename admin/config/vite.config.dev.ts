@@ -13,7 +13,9 @@ export default mergeConfig(
       },
     },
     define: {
-      __VITE_ENABLE_DATA_CLEANUP__: 'false',
+      __VITE_ENABLE_DATA_CLEANUP__: JSON.stringify(
+        process.env.VITE_ENABLE_DATA_CLEANUP || 'true'
+      ),
     },
     plugins: [
       eslint({
