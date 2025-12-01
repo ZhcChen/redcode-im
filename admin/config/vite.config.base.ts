@@ -35,6 +35,9 @@ export default defineConfig({
   },
   define: {
     'process.env': {},
+    '__VITE_ENABLE_DATA_CLEANUP__': JSON.stringify(
+      process.env.VITE_ENABLE_DATA_CLEANUP || 'false'
+    ),
   },
   css: {
     preprocessorOptions: {

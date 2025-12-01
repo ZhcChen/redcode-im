@@ -2,6 +2,12 @@ import { appRoutes, appExternalRoutes } from '../routes';
 
 const mixinRoutes = [...appRoutes, ...appExternalRoutes];
 
+// 在构建时确定的常量，避免环境变量缓存问题
+const isDataCleanupEnabled =
+  typeof __VITE_ENABLE_DATA_CLEANUP__ !== 'undefined'
+    ? __VITE_ENABLE_DATA_CLEANUP__ === 'true'
+    : false;
+
 const appClientMenus = mixinRoutes
   .map((el) => {
     const { name, path, meta, redirect, children } = el;
@@ -18,7 +24,7 @@ const appClientMenus = mixinRoutes
     const isDevModeOnly = menu.meta?.devModeOnly as boolean;
     if (isDevModeOnly) {
       // 检查是否启用了数据清理功能
-      return import.meta.env.VITE_ENABLE_DATA_CLEANUP === 'true';
+      return isDataCleanupEnabled;
     }
     return true;
   });
