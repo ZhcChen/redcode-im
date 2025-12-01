@@ -4353,7 +4353,7 @@ pub async fn cleanup_all_app_data(
         info!("正在清理表: {}", table_name);
 
         // 检查表是否存在
-        let table_exists: Option<i64> = sqlx::query_scalar!(
+        let table_exists: Option<Option<i64>> = sqlx::query_scalar!(
             r#"
             SELECT COUNT(*) as count
             FROM information_schema.tables
@@ -4366,7 +4366,7 @@ pub async fn cleanup_all_app_data(
         .await
         .map_err(AppError::DatabaseError)?;
 
-        if table_exists.is_none() || table_exists.unwrap() == 0 {
+        if table_exists.flatten() != Some(1) {
             info!("表 {} 不存在，跳过", table_name);
             continue;
         }
