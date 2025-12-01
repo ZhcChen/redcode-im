@@ -3485,6 +3485,31 @@ class _ForwardTargetTile extends StatelessWidget {
     );
   }
 
+  /// 生成聊天的颜色种子
+  String _chatColorSeed() {
+    if (chat.type == ChatType.single) {
+      // 单聊使用对端ID作为种子
+      final peerId = _peerIdFromExtra(chat.extra);
+      if (peerId != null) return peerId;
+    }
+    return chat.roomId;
+  }
+
+  /// 从 extra 字段中提取对端ID
+  String? _peerIdFromExtra(Map<String, dynamic>? extra) {
+    if (extra == null) return null;
+    final candidates = [
+      extra['peer_id'] as String?,
+      extra['peerId'] as String?,
+      extra['user_id'] as String?,
+      extra['userId'] as String?,
+    ];
+    for (final c in candidates) {
+      if (c != null && c.trim().isNotEmpty) return c.trim();
+    }
+    return null;
+  }
+
   Widget _buildAvatar() {
     const double size = 40;
     if (chat.avatar != null && chat.avatar!.isNotEmpty) {
