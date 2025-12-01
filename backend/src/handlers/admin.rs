@@ -12,12 +12,14 @@ use crate::database::models::{
     AdminUser, AdminUserStatus, CaptchaSettingRecord, Permission, Role, StorageProvider,
     StorageProviderType, UserStatus as DbUserStatus,
 };
+use crate::models::Claims;
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
+use crate::services::geolocation;
 use crate::storage;
 use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -4316,10 +4318,13 @@ pub async fn cleanup_all_app_data(
 
     let pool = &state.database.pool;
 
-    // 获取需要清理的表列表（按依赖关系排序，避免外键约束错误）
+    // 获取需要清理的表列表（仅限用户业务数据，不清理系统配置/管理数据）
+    // 注意：必须先清理有外键引用的表，再清理被引用的表
     let tables_to_cleanup = vec![
+        // 消息相关表的子表
         "message_parts",
         "message_reads",
+        // 群组管理相关表
         "group_operation_logs",
         "group_mutes",
         "group_admins",
@@ -4328,10 +4333,13 @@ pub async fn cleanup_all_app_data(
         "group_rules",
         "group_announcements",
         "group_settings",
+        // 房间成员关系（room_members 在 messages 之前清理，因 last_read_message_id 外键）
+        "room_members",
         "user_room_pins",
         "room_pins",
+        // 消息表（清除自引用字段后删除）
         "messages",
-        "room_members",
+        // 用户关系相关表
         "user_friend_remarks",
         "friend_requests",
         "friendships",
@@ -4342,8 +4350,20 @@ pub async fn cleanup_all_app_data(
         "users",
     ];
 
+    // ⚠️  以下表被故意排除在清理列表之外（系统配置/管理数据）：
+    // 1. storage_providers - 文件上传提供商配置（保留系统存储配置）
+    // 2. emoji_packs, emoji_pack_items, user_emoji_packs - 表情包相关（系统资源）
+    // 3. ipinfo_tokens, user_geolocations - IP地理位置Token管理（系统服务配置）
+    // 4. privacy_policies, user_agreements - 隐私协议和用户协议（法律文档）
+    // 5. captcha_settings - 验证码设置（系统安全配置）
+    // 6. general_settings - 通用设置（系统全局配置）
+    // 7. admin_users, admin_login_history, admin_operation_logs - 管理员相关（管理后台数据）
+    // 8. app_versions - 应用版本管理（系统版本数据）
+    // 9. permissions, roles, role_permissions - 权限管理（系统权限配置）
+
     let mut cleaned_tables = Vec::new();
     let mut last_error = None;
+    let mut has_error = false;
 
     // 开始事务
     let mut tx = pool.begin().await.map_err(AppError::DatabaseError)?;
@@ -4371,6 +4391,22 @@ pub async fn cleanup_all_app_data(
             continue;
         }
 
+        // 特殊处理 messages 表：先清除自引用外键字段
+        if table_name == &"messages" {
+            info!("正在清除 messages 表的自引用字段...");
+            if let Err(e) = sqlx::query("UPDATE messages SET quoted_message_id = NULL, forward_from_message_id = NULL")
+                .execute(&mut *tx)
+                .await
+                .map_err(AppError::DatabaseError)
+            {
+                error!("清除 messages 表自引用字段失败: {}", e);
+                last_error = Some(format!("清除 messages 表自引用字段失败: {:?}", e));
+                has_error = true;
+                break;
+            }
+            info!("messages 表自引用字段清除成功");
+        }
+
         // 构建并执行删除SQL
         let delete_sql = format!("DELETE FROM {}", table_name);
         match sqlx::query(&delete_sql)
@@ -4383,22 +4419,95 @@ pub async fn cleanup_all_app_data(
                 cleaned_tables.push(table_name.to_string());
             }
             Err(e) => {
-                error!("清理表 {} 失败: {}", table_name, e);
-                last_error = Some(format!("清理表 {} 失败: {}", table_name, e));
-                // 继续清理其他表，不中断
+                error!("清理表 {} 失败: {:?}", table_name, e);
+                last_error = Some(format!("清理表 {} 失败: {:?}", table_name, e));
+                // 如果出现错误，中断清理并回滚
+                has_error = true;
+                break;
             }
         }
     }
 
-    // 提交事务
-    tx.commit().await.map_err(AppError::DatabaseError)?;
+    // 根据是否有错误决定提交或回滚
+    if has_error {
+        info!("数据清理过程中发生错误，执行回滚...");
+        tx.rollback().await.map_err(AppError::DatabaseError)?;
+        info!("事务已回滚");
 
-    info!("数据清理完成，成功清理 {} 个表", cleaned_tables.len());
+        // 返回错误响应
+        return Ok(Json(DataCleanupResponse {
+            success: false,
+            message: format!("数据清理失败，已清理 {} 个表", cleaned_tables.len()),
+            cleaned_tables,
+            error: last_error,
+        }));
+    } else {
+        info!("所有表清理成功，提交事务...");
+        tx.commit().await.map_err(AppError::DatabaseError)?;
+        info!("数据清理完成，成功清理 {} 个表", cleaned_tables.len());
+    }
 
     Ok(Json(DataCleanupResponse {
         success: true,
         message: format!("成功清理 {} 个表的数据", cleaned_tables.len()),
         cleaned_tables,
         error: last_error,
+    }))
+}
+
+// ========== IP地理位置解析开关管理 API ==========
+
+/// 获取IP地理位置解析功能开关状态（需要管理员权限）
+pub async fn get_ip_geolocation_enabled(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+) -> Result<Json<IpGeolocationStatusResponse>, AppError> {
+    let enabled = geolocation::is_ip_geolocation_enabled(&state.database).await;
+
+    info!("查询IP地理位置解析功能开关状态: {}", if enabled { "开启" } else { "关闭" });
+
+    Ok(Json(IpGeolocationStatusResponse {
+        enabled,
+        description: "控制是否启用用户IP地理位置解析功能，用于管理员数据统计".to_string(),
+    }))
+}
+
+/// 设置IP地理位置解析功能开关
+#[derive(Debug, Deserialize)]
+pub struct SetIpGeolocationEnabledRequest {
+    pub enabled: bool,
+}
+
+/// 设置IP地理位置解析功能开关响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IpGeolocationStatusResponse {
+    pub enabled: bool,
+    pub description: String,
+}
+
+/// 设置IP地理位置解析功能开关（需要管理员权限）
+pub async fn set_ip_geolocation_enabled(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<SetIpGeolocationEnabledRequest>,
+) -> Result<Json<IpGeolocationStatusResponse>, AppError> {
+    let admin_user_id = crate::models::convert::string_to_uuid(&claims.sub)?;
+
+    geolocation::set_ip_geolocation_enabled(&state.database, req.enabled, Some(admin_user_id))
+        .await
+        .map_err(|e| {
+            error!("设置IP地理位置解析开关失败: {}", e);
+            AppError::InternalError(format!("设置失败: {}", e))
+        })?;
+
+    info!(
+        "IP地理位置解析功能开关已设置为: {}",
+        if req.enabled { "开启" } else { "关闭" }
+    );
+
+    Ok(Json(IpGeolocationStatusResponse {
+        enabled: req.enabled,
+        description: "控制是否启用用户IP地理位置解析功能，用于管理员数据统计".to_string(),
     }))
 }

@@ -328,6 +328,32 @@ export function updateAppName(payload: UpdateAppNamePayload) {
   return axios.put<AppNameResponse>('/api/admin/settings/app-name', payload);
 }
 
+// ========== IP地理位置解析开关 API ==========
+
+export interface IpGeolocationStatusResponse {
+  enabled: boolean;
+  description: string;
+}
+
+export interface SetIpGeolocationEnabledPayload {
+  enabled: boolean;
+}
+
+export function getIpGeolocationEnabled() {
+  return axios.get<IpGeolocationStatusResponse>(
+    '/api/admin/ip-geolocation/enabled'
+  );
+}
+
+export function setIpGeolocationEnabled(
+  payload: SetIpGeolocationEnabledPayload
+) {
+  return axios.patch<IpGeolocationStatusResponse>(
+    '/api/admin/ip-geolocation/enabled',
+    payload
+  );
+}
+
 // ========== COS 存储相关 API ==========
 
 export interface GetCosDownloadUrlRequest {

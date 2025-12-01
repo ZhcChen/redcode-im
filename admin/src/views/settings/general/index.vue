@@ -42,6 +42,33 @@
           </a-form>
         </a-tab-pane>
 
+        <a-tab-pane key="ip-geolocation" title="IP地理位置解析">
+          <a-form
+            :model="ipGeoForm"
+            label-align="left"
+            :label-col-props="{ span: 6 }"
+            :wrapper-col-props="{ span: 18 }"
+            class="settings-form"
+            @submit="handleIpGeoSubmit"
+          >
+            <a-form-item field="enabled" label="功能开关">
+              <a-switch v-model="ipGeoForm.enabled" />
+              <template #help>
+                控制是否启用用户IP地址地理位置解析功能，用于管理员数据统计。关闭后不会记录用户的地理位置信息。
+              </template>
+            </a-form-item>
+
+            <a-form-item>
+              <a-space>
+                <a-button type="primary" html-type="submit" :loading="loading">
+                  保存设置
+                </a-button>
+                <a-button @click="handleIpGeoReset"> 重置 </a-button>
+              </a-space>
+            </a-form-item>
+          </a-form>
+        </a-tab-pane>
+
         <a-tab-pane key="api-test" title="API测试">
           <ApiTest />
         </a-tab-pane>
@@ -54,13 +81,22 @@
   import { reactive, onMounted } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
-  import { getAppName, updateAppName } from '@/api/settings';
+  import {
+    getAppName,
+    updateAppName,
+    getIpGeolocationEnabled,
+    setIpGeolocationEnabled,
+  } from '@/api/settings';
   import ApiTest from '../api-test/index.vue';
 
   const { loading, setLoading } = useLoading(false);
 
   const appNameForm = reactive({
     app_name: '',
+  });
+
+  const ipGeoForm = reactive({
+    enabled: false,
   });
 
   const fetchAppName = async () => {
@@ -71,6 +107,17 @@
       }
     } catch (error) {
       Message.error('获取应用名称失败');
+    }
+  };
+
+  const fetchIpGeolocation = async () => {
+    try {
+      const { data } = await getIpGeolocationEnabled();
+      if (data) {
+        ipGeoForm.enabled = data.enabled;
+      }
+    } catch (error) {
+      Message.error('获取IP地理位置解析开关状态失败');
     }
   };
 
@@ -98,8 +145,28 @@
     fetchAppName();
   };
 
+  const handleIpGeoSubmit = async () => {
+    try {
+      setLoading(true);
+      await setIpGeolocationEnabled({
+        enabled: ipGeoForm.enabled,
+      });
+      Message.success('IP地理位置解析开关保存成功');
+      await fetchIpGeolocation();
+    } catch (error: any) {
+      Message.error(error?.response?.data?.message || '保存失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleIpGeoReset = () => {
+    fetchIpGeolocation();
+  };
+
   onMounted(() => {
     fetchAppName();
+    fetchIpGeolocation();
   });
 </script>
 

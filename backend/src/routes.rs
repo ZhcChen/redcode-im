@@ -268,6 +268,12 @@ pub fn create_routes() -> Router<AppState> {
             "/admin/data/cleanup/all",
             post(admin::cleanup_all_app_data),
         )
+        // IP地理位置解析开关管理API
+        .route(
+            "/api/admin/ip-geolocation/enabled",
+            get(admin::get_ip_geolocation_enabled)
+                .patch(admin::set_ip_geolocation_enabled),
+        )
         // 聊天记录管理API
         .route(
             "/api/admin/chat-history",

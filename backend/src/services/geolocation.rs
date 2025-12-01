@@ -6,6 +6,72 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use crate::error::AppError;
+use crate::database::Database;
+
+/// 检查IP地理位置解析功能是否启用
+/// 通过数据库 general_settings 表中的 ip_geolocation_enabled 配置控制
+/// 如果配置不存在或值为 "0"，则表示关闭
+pub async fn is_ip_geolocation_enabled(database: &Database) -> bool {
+    match sqlx::query!(
+        r#"SELECT value FROM general_settings WHERE key = 'ip_geolocation_enabled'"#,
+    )
+    .fetch_optional(&database.pool)
+    .await
+    {
+        Ok(Some(record)) => {
+            // 值存在，检查是否为 "0"
+            let enabled = record.value != "0";
+            debug!(
+                "IP地理位置解析开关状态: {} ({})",
+                if enabled { "开启" } else { "关闭" },
+                record.value
+            );
+            enabled
+        }
+        Ok(None) => {
+            // key不存在，默认关闭
+            debug!("IP地理位置解析开关未设置，默认关闭");
+            false
+        }
+        Err(e) => {
+            warn!("读取IP地理位置解析开关失败: {}", e);
+            false
+        }
+    }
+}
+
+/// 设置IP地理位置解析功能开关
+pub async fn set_ip_geolocation_enabled(
+    database: &Database,
+    enabled: bool,
+    updated_by: Option<uuid::Uuid>,
+) -> Result<(), AppError> {
+    let value = if enabled { "1" } else { "0" };
+
+    sqlx::query!(
+        r#"
+        INSERT INTO general_settings (key, value, description, updated_at, updated_by)
+        VALUES ('ip_geolocation_enabled', $1, '是否启用IP地址地理位置解析功能（0=关闭，1=开启）', NOW(), $2)
+        ON CONFLICT (key) DO UPDATE SET
+            value = EXCLUDED.value,
+            updated_at = NOW(),
+            updated_by = EXCLUDED.updated_by
+        "#,
+        value,
+        updated_by
+    )
+    .execute(&database.pool)
+    .await
+    .map_err(|e| AppError::DatabaseError(e))?;
+
+    info!(
+        "设置IP地理位置解析功能开关: {} -> {}",
+        value,
+        if enabled { "开启" } else { "关闭" }
+    );
+
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpInfoResponse {

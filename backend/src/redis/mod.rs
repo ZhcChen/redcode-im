@@ -6,6 +6,12 @@ pub mod cache;
 pub mod models;
 pub mod session;
 
+/// Redis 键名前缀
+pub const CONFIG_PREFIX: &str = "redcode:config:";
+
+/// IP解析功能开关键名
+pub const IP_GEOLOCATION_ENABLED_KEY: &str = "ip_geolocation_enabled";
+
 /// Redis 连接管理器
 ///
 /// 多实例架构:
@@ -90,5 +96,10 @@ impl RedisManager {
     /// 获取会话管理器
     pub fn get_session_manager(&self, node_id: String) -> session::SessionManager {
         session::SessionManager::new(self.session_client.clone(), node_id)
+    }
+
+    /// 获取配置Redis客户端（使用Session Redis作为配置存储）
+    pub fn get_config_client(&self) -> &Client {
+        &self.session_client
     }
 }

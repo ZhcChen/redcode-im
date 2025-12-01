@@ -223,7 +223,7 @@ impl ConnectionManager {
                 let client_ip = client_ip.clone();
                 let redis_manager = state.redis.clone();
                 let node_id = state.node_id.clone();
-                // let database = state.database.clone();
+                let database = state.database.clone();
                 // let connection_id = conn_id.to_string();
                 tokio::spawn(async move {
                     let user_uuid = match uuid::Uuid::parse_str(&user_id) {
@@ -251,7 +251,10 @@ impl ConnectionManager {
                             false // 服务未启用，不处理地理位置
                         };
 
-                    if ip_changed {
+                    // 检查IP地理位置解析功能是否启用
+                    let geolocation_enabled = geolocation::is_ip_geolocation_enabled(&database).await;
+
+                    if ip_changed && geolocation_enabled {
                         // 异步查询和更新地理位置
                         let user_uuid_clone = user_uuid;
                         let client_ip_clone = client_ip.to_string();
@@ -471,7 +474,10 @@ async fn handle_client_event(
                             false
                         };
 
-                    if should_update_geolocation {
+                    // 检查IP地理位置解析功能是否启用
+                    let geolocation_enabled = geolocation::is_ip_geolocation_enabled(&state_clone.database).await;
+
+                    if should_update_geolocation && geolocation_enabled {
                         // 需要初始化地理位置
                         let user_uuid_clone = user_uuid;
                         let client_ip_clone_2 = client_ip_clone.clone();

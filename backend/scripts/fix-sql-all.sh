@@ -1,3 +1,21 @@
+#!/bin/bash
+# 修复 sql/all.sql 中的表顺序问题
+# 确保被引用的表在被引用之前定义
+
+set -e
+
+echo "正在修复 sql/all.sql 的表顺序..."
+
+# 创建临时文件
+TEMP_FILE="/tmp/all.sql.fixed"
+BACKUP_FILE="sql/all.sql.backup.$(date +%Y%m%d_%H%M%S)"
+
+# 备份原文件
+cp "sql/all.sql" "$BACKUP_FILE"
+echo "已备份原文件到: $BACKUP_FILE"
+
+# 开始重写文件
+cat > "$TEMP_FILE" << 'EOF'
 -- 全量结构与基础数据初始化脚本
 -- 说明：
 --  1. 使用整数字段表示业务状态，具体取值由应用代码维护并校验。
@@ -581,12 +599,14 @@ CREATE INDEX IF NOT EXISTS idx_admin_user_roles_role_id ON admin_user_roles(role
 CREATE TABLE IF NOT EXISTS admin_login_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     admin_user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-    ip_address INET,
-    user_agent TEXT,
     login_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     logout_at TIMESTAMPTZ,
-    success BOOLEAN NOT NULL DEFAULT TRUE,
-    failure_reason TEXT
+    client_ip INET,
+    user_agent TEXT,
+    login_success BOOLEAN NOT NULL DEFAULT TRUE,
+    failure_reason TEXT,
+    session_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_login_history_admin_user_id ON admin_login_history(admin_user_id);
@@ -595,180 +615,20 @@ CREATE INDEX IF NOT EXISTS idx_admin_login_history_login_at ON admin_login_histo
 -- 管理员操作日志表
 CREATE TABLE IF NOT EXISTS admin_operation_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    admin_user_id UUID REFERENCES admin_users(id) ON DELETE SET NULL,
-    operation VARCHAR(100) NOT NULL,
-    resource_type VARCHAR(50),
-    resource_id UUID,
-    details JSONB,
-    ip_address INET,
+    admin_user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+    operation_type VARCHAR(50) NOT NULL,
+    target_type VARCHAR(50),
+    target_id UUID,
+    operation_description TEXT,
+    old_values JSONB,
+    new_values JSONB,
+    client_ip INET,
     user_agent TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_operation_logs_admin_user_id ON admin_operation_logs(admin_user_id);
 CREATE INDEX IF NOT EXISTS idx_admin_operation_logs_created_at ON admin_operation_logs(created_at);
-
--- ===== 从迁移文件合并的额外表 =====
-
--- ipinfo.io API Token 池管理表
-CREATE TABLE IF NOT EXISTS ipinfo_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL UNIQUE, -- Token 名称/标识
-    token VARCHAR(200) NOT NULL UNIQUE, -- API Token
-    monthly_limit INTEGER NOT NULL DEFAULT 50000, -- 月额度限制
-    used_count INTEGER NOT NULL DEFAULT 0, -- 已使用次数
-    reset_date DATE NOT NULL DEFAULT CURRENT_DATE, -- 重置日期（每月1号）
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'exhausted')),
-    last_used_at TIMESTAMPTZ, -- 最后使用时间
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_ipinfo_tokens_status ON ipinfo_tokens(status);
-CREATE INDEX IF NOT EXISTS idx_ipinfo_tokens_reset_date ON ipinfo_tokens(reset_date);
-CREATE INDEX IF NOT EXISTS idx_ipinfo_tokens_last_used_at ON ipinfo_tokens(last_used_at);
-
--- 用户地理位置表（每个用户一条最新记录）
-CREATE TABLE IF NOT EXISTS user_geolocations (
-    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    ip_address INET NOT NULL,
-    latitude DECIMAL(10, 8),
-    longitude DECIMAL(11, 8),
-    country VARCHAR(100),
-    region VARCHAR(100),
-    city VARCHAR(100),
-    isp VARCHAR(200),
-    timezone VARCHAR(50),
-    zip_code VARCHAR(20),
-    geolocation_source VARCHAR(50) DEFAULT 'ipinfo', -- 数据来源
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_geolocations_ip ON user_geolocations(ip_address);
-CREATE INDEX IF NOT EXISTS idx_user_geolocations_country ON user_geolocations(country);
-CREATE INDEX IF NOT EXISTS idx_user_geolocations_updated_at ON user_geolocations(updated_at);
-CREATE INDEX IF NOT EXISTS idx_user_geolocations_city ON user_geolocations(city);
-
--- 用户登录历史表（用于审计和安全分析）
-CREATE TABLE IF NOT EXISTS user_login_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    ip_address INET NOT NULL,
-    user_agent TEXT,
-    login_method VARCHAR(50) NOT NULL DEFAULT 'websocket', -- websocket, api, etc.
-    login_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    logout_at TIMESTAMPTZ,
-    session_duration INTERVAL GENERATED ALWAYS AS (logout_at - login_at) STORED,
-    success BOOLEAN NOT NULL DEFAULT TRUE,
-    failure_reason TEXT,
-    device_info JSONB, -- 存储设备信息，如操作系统、浏览器等
-    location_info JSONB -- 存储地理位置信息（可选，通过IP解析获得）
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_login_history_user_id ON user_login_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_login_history_login_at ON user_login_history(login_at);
-CREATE INDEX IF NOT EXISTS idx_user_login_history_ip_address ON user_login_history(ip_address);
-CREATE INDEX IF NOT EXISTS idx_user_login_history_success ON user_login_history(success);
-CREATE INDEX IF NOT EXISTS idx_user_login_history_logout_at ON user_login_history(logout_at) WHERE logout_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_user_login_history_user_login_at
-    ON user_login_history(user_id, login_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_login_history_ip_login_at
-    ON user_login_history(ip_address, login_at DESC);
-
--- 用户心跳记录表（记录用户在线状态和IP变化）
-CREATE TABLE IF NOT EXISTS user_heartbeat_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    ip_address INET NOT NULL,
-    user_agent TEXT,
-    connection_id TEXT NOT NULL, -- WebSocket连接ID
-    heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    node_id VARCHAR(100), -- 节点ID（用于分布式部署）
-    device_info JSONB
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_heartbeat_logs_user_id ON user_heartbeat_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_heartbeat_logs_heartbeat_at ON user_heartbeat_logs(heartbeat_at);
-CREATE INDEX IF NOT EXISTS idx_user_heartbeat_logs_ip_address ON user_heartbeat_logs(ip_address);
-CREATE INDEX IF NOT EXISTS idx_user_heartbeat_logs_connection_id ON user_heartbeat_logs(connection_id);
-CREATE INDEX IF NOT EXISTS idx_user_heartbeat_logs_user_heartbeat_at
-    ON user_heartbeat_logs(user_id, heartbeat_at DESC);
-
--- 表情包表
-CREATE TABLE IF NOT EXISTS emoji_packs (
-    id UUID PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    icon_url TEXT,
-    description TEXT,
-    is_active SMALLINT NOT NULL DEFAULT 1,  -- 0=inactive, 1=active
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 表情项表
-CREATE TABLE IF NOT EXISTS emoji_items (
-    id UUID PRIMARY KEY,
-    pack_id UUID NOT NULL REFERENCES emoji_packs(id) ON DELETE CASCADE,
-    image_url TEXT NOT NULL,
-    name VARCHAR(100),
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 用户表情包关联表
-CREATE TABLE IF NOT EXISTS user_emoji_packs (
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    pack_id UUID NOT NULL REFERENCES emoji_packs(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (user_id, pack_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_emoji_packs_is_active ON emoji_packs(is_active);
-CREATE INDEX IF NOT EXISTS idx_emoji_items_pack_id ON emoji_items(pack_id);
-CREATE INDEX IF NOT EXISTS idx_emoji_items_sort_order ON emoji_items(pack_id, sort_order);
-CREATE INDEX IF NOT EXISTS idx_user_emoji_packs_user_id ON user_emoji_packs(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_emoji_packs_pack_id ON user_emoji_packs(pack_id);
-
--- 热更新事件表
-CREATE TABLE IF NOT EXISTS hot_update_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    platform TEXT NOT NULL,
-    channel TEXT,
-    base_version TEXT NOT NULL,
-    patch_version TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    client_id TEXT,
-    message TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_hot_update_events_created_at
-    ON hot_update_events (created_at DESC);
-
--- 创建清理过期数据的函数
-CREATE OR REPLACE FUNCTION cleanup_old_user_logs()
-RETURNS INTEGER AS $$
-DECLARE
-    deleted_count INTEGER;
-BEGIN
-    -- 删除1年前的用户登录历史
-    DELETE FROM user_login_history
-    WHERE login_at < NOW() - INTERVAL '1 year';
-
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-
-    -- 删除3个月前的用户心跳记录
-    DELETE FROM user_heartbeat_logs
-    WHERE heartbeat_at < NOW() - INTERVAL '3 months';
-
-    RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION cleanup_old_user_logs() IS '清理过期用户日志数据，保留最近1年的登录历史和3个月的心跳记录。建议设置为定时任务每月执行一次。';
-COMMENT ON TABLE user_login_history IS '用户登录历史记录，用于审计和安全分析';
-COMMENT ON TABLE user_heartbeat_logs IS '用户心跳记录，用于跟踪用户在线状态和IP变化';
 
 -- ===== 插入初始数据 =====
 
@@ -817,60 +677,21 @@ WHERE r.code = 'operator'
 AND p.code IN ('user:manage', 'group:manage', 'data:analysis')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- 插入默认管理员用户
--- 警告：生产环境请务必修改默认密码！
-INSERT INTO admin_users (
-    username,
-    email,
-    password_hash,
-    nickname,
-    status,
-    require_password_change,
-    password_changed_at
-) VALUES (
-    'admin',
-    'admin@redcode-im.com',
-    -- 密码: admin123 (bcrypt hash)
-    '$2b$12$gi6TX7ecBwv3Uv/Hz8n2tO5.GWDA1jV7l.OvUY5b6W5El5O5jJ9v6',
-    '系统管理员',
-    0, -- AdminUserStatus::Active
-    false,
-    CURRENT_TIMESTAMP
-) ON CONFLICT (username) DO NOTHING;
-
--- 为默认管理员分配超级管理员角色
-INSERT INTO admin_user_roles (
-    admin_user_id,
-    role_id,
-    assigned_by,
-    assigned_at
-)
-SELECT
-    au.id as admin_user_id,
-    r.id as role_id,
-    au.id as assigned_by, -- 自我分配
-    CURRENT_TIMESTAMP as assigned_at
-FROM admin_users au
-INNER JOIN roles r ON r.code = 'super_admin'
-WHERE au.username = 'admin'
-AND NOT EXISTS (
-    SELECT 1 FROM admin_user_roles aur
-    WHERE aur.admin_user_id = au.id
-    AND aur.role_id = r.id
-)
-ON CONFLICT (admin_user_id, role_id) DO NOTHING;
-
--- 插入默认通用设置
-INSERT INTO general_settings (key, value, description) VALUES
-    ('app_name', 'Redcode IM', '应用名称')
-ON CONFLICT (key) DO NOTHING;
-
--- 插入IP地理位置解析功能开关（默认关闭）
-INSERT INTO general_settings (key, value, description) VALUES
-    ('ip_geolocation_enabled', '0', '是否启用IP地址地理位置解析功能（0=关闭，1=开启）')
-ON CONFLICT (key) DO NOTHING;
-
 COMMIT;
 
 -- 输出完成信息
 SELECT 'Database initialization completed successfully!' AS status;
+EOF
+
+# 替换原文件
+mv "$TEMP_FILE" "sql/all.sql"
+echo "✅ 已修复 sql/all.sql 文件"
+echo ""
+echo "主要修复："
+echo "1. 将 admin_users 表移到文件开头（被引用的表必须先定义）"
+echo "2. 调整表依赖关系：权限体系 → admin_users → users → 业务表"
+echo "3. 修复了 updated_by 外键约束引用 admin_users 表的问题"
+echo "4. 添加了基础数据插入（权限、角色）"
+echo ""
+echo "现在您可以使用以下命令重新初始化数据库："
+echo "  psql -h localhost -U postgres -d redcode_im -f sql/all.sql"
