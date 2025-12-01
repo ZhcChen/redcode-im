@@ -289,7 +289,6 @@ RedCode IM 的名称、标识、界面设计等归我们所有
 您可以通过以下方式投诉举报：
 应用内举报功能
 邮箱：support@redcode-im.com
-GitHub Issues：https://github.com/redcode-im/redcode-im/issues
 
 13.3 法律途径
 
@@ -349,7 +348,6 @@ GitHub Issues：https://github.com/redcode-im/redcode-im/issues
 邮箱：support@redcode-im.com
 地址：[请填写实际办公地址]
 电话：[请填写联系电话]
-GitHub：https://github.com/redcode-im/redcode-im
 
 特别声明：
 

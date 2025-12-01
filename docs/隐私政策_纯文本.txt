@@ -295,7 +295,6 @@ Cookie 帮助我们：
 邮箱：privacy@redcode-im.com
 地址：[请填写实际办公地址]
 电话：[请填写联系电话]
-GitHub：https://github.com/redcode-im/redcode-im
 
 12.2 响应时间
 我们承诺在15个工作日内回复您的请求
