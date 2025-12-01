@@ -34,13 +34,13 @@
   <div class="chat-header-right" v-if="selectedChat">
         <Avatar
           :src="selectedChat.avatarLocalPath"
-          :text="selectedChat.name"
+          :text="getChatDisplayName(selectedChat)"
           :color-seed="selectedChat ? getChatColorSeed(selectedChat) : undefined"
           :size="42"
           :background-color="selectedChat.groupType === 2 ? 'var(--primary-color)' : undefined"
         />
         <div class="chat-info">
-          <h2 class="chat-title">{{ selectedChat.name }}</h2>
+          <h2 class="chat-title">{{ getChatDisplayName(selectedChat) }}</h2>
           <div v-if="selectedChat.groupType === 1" class="chat-member-count">
             人数 {{ selectedChat.memberCount || 0 }}
           </div>
@@ -97,7 +97,7 @@
           <div class="avatar-container">
             <Avatar
               :src="chat.avatarLocalPath"
-              :text="chat.name"
+              :text="getChatDisplayName(chat)"
               :color-seed="getChatColorSeed(chat)"
               :size="48"
               :background-color="chat.groupType === 2 ? 'var(--primary-color)' : undefined"
@@ -3030,22 +3030,50 @@ const getChatColorSeed = (chat: ChatItem): string => {
   return chat.groupId || chat.id || chat.roomId || chat.name || 'chat'
 }
 
+const pickNonEmpty = (...values: unknown[]): string | null => {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed) return trimmed
+    }
+  }
+  return null
+}
+
 // 获取聊天项的显示名称：单聊优先备注 > 昵称 > 原始名称；群聊/收藏夹直接用 name
 const getChatDisplayName = (chat: ChatItem): string => {
+  const safeName = pickNonEmpty(chat.name) || '未命名会话'
+
   // 群聊和收藏夹直接返回 name
   if (chat.groupType !== 0) {
-    return chat.name || '未命名会话'
+    return safeName
   }
-  // 单聊：优先备注 > 昵称(friendName) > 原始名称
-  const remark = chat.remark?.trim()
-  if (remark) {
-    return remark
-  }
-  const friendName = chat.friendName?.trim()
-  if (friendName) {
-    return friendName
-  }
-  return chat.name || '未命名会话'
+
+  const extra = (chat.extra || {}) as Record<string, any>
+
+  // 单聊：优先备注（含好友备注字段）
+  const remark = pickNonEmpty(
+    chat.remark,
+    extra.friend_remark,
+    extra.friendRemark,
+    extra.remark
+  )
+  if (remark) return remark
+
+  // 其次昵称/显示名
+  const nickname = pickNonEmpty(
+    chat.friendName,
+    extra.friend_name,
+    extra.friendName,
+    extra.display_name,
+    extra.displayName,
+    extra.friend_nickname,
+    extra.friendNickname,
+    extra.nickname
+  )
+  if (nickname) return nickname
+
+  return safeName
 }
 
 // 将指定 groupId 的会话滚动到列表顶部（仅滚动，不改变选中状态）
@@ -8927,6 +8955,9 @@ const loadMessageList = async (groupId: string) => {
         font-weight: bold;
         color: #2C2D3A;
         line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .chat-member-count {

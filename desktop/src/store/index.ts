@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {createStore} from 'vuex'
+import { createStore } from 'vuex'
 import type { AccountInfo } from './modules/accounts'
 import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
 import { UserApi, VersionApi, SettingsApi, apiConfig } from '@/api'
@@ -10,18 +10,18 @@ import accountsModule from './modules/accounts'
 // 辅助函数：格式化最后在线时间
 function formatLastSeen(timeStr: string): string {
     if (!timeStr) return '未知'
-    
+
     const now = new Date()
     const time = new Date(timeStr)
-    
+
     // 检查时间是否有效
     if (isNaN(time.getTime())) return '未知'
-    
+
     const diffMs = now.getTime() - time.getTime()
     const diffMinutes = Math.floor(diffMs / (1000 * 60))
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
     const diffDays = Math.floor(diffHours / 24)
-    
+
     if (diffMinutes < 1) {
         return '刚刚'
     } else if (diffMinutes < 60) {
@@ -42,12 +42,12 @@ function formatLastSeen(timeStr: string): string {
 // 辅助函数：判断是否为最近联系人（7天内添加的好友）
 function isRecentContact(createTime: string): boolean {
     if (!createTime) return false
-    
+
     const now = new Date()
     const time = new Date(createTime)
-    
+
     if (isNaN(time.getTime())) return false
-    
+
     const diffDays = Math.floor((now.getTime() - time.getTime()) / (1000 * 60 * 60 * 24))
     return diffDays <= 7
 }
@@ -104,6 +104,7 @@ export interface ChatItem {
     showNoticeFlag?: boolean
     userAvatar?: string | null
     friendName?: string | null
+    remark?: string | null
     extra?: Record<string, unknown> | null
 }
 
@@ -231,21 +232,21 @@ export const store = createStore<State>({
             userDeviceId: null,
             userSign: null,
             trcSdkAppId: null,
-        powerList: null
-    },
-    version: {
-        current: {
-            buildNumber: apiConfig.buildNumber ?? 100,
-            version: apiConfig.version,
-            channel: apiConfig.channel ?? 'stable'
+            powerList: null
         },
-        latest: {
-            hasUpdate: false,
-            info: null,
-            checking: false,
-            error: null
-        }
-    },
+        version: {
+            current: {
+                buildNumber: apiConfig.buildNumber ?? 100,
+                version: apiConfig.version,
+                channel: apiConfig.channel ?? 'stable'
+            },
+            latest: {
+                hasUpdate: false,
+                info: null,
+                checking: false,
+                error: null
+            }
+        },
         theme: 'light',
         loading: false,
         sidebarWidth: 300,
@@ -288,14 +289,14 @@ export const store = createStore<State>({
         },
 
         // 用户相关
-        SET_USER(state: State, userInfo: { 
-            id: string; 
-            username: string; 
-            nickname: string; 
-            avatar: string; 
+        SET_USER(state: State, userInfo: {
+            id: string;
+            username: string;
+            nickname: string;
+            avatar: string;
             avatarObjectKey?: string | null;
             avatarLocalPath?: string | null;
-            mobile: string; 
+            mobile: string;
             email: string;
             realName?: string;
             chatNumber?: string;
@@ -655,7 +656,7 @@ export const store = createStore<State>({
 
         REMOVE_CHAT_ITEM(state: State, chatId: string) {
             // ...
-            
+
             const beforeCount = state.chatList.list.length
             state.chatList.list = state.chatList.list.filter(chat => {
                 const shouldRemove = chat.id === chatId || chat.groupId === chatId
@@ -665,7 +666,7 @@ export const store = createStore<State>({
                 return !shouldRemove
             })
             const afterCount = state.chatList.list.length
-            
+
         },
 
         // 好友申请相关 mutations
@@ -784,7 +785,7 @@ export const store = createStore<State>({
 
     actions: {
         // 加载应用名称（静默加载，失败不影响启动）
-        async loadAppName({commit}: { commit: any }) {
+        async loadAppName({ commit }: { commit: any }) {
             try {
                 const response = await SettingsApi.getAppName()
                 if (response?.data?.app_name) {
@@ -796,7 +797,7 @@ export const store = createStore<State>({
             }
         },
         // 登录
-        async login({commit, state, getters, dispatch}: { commit: any; state: any; getters: any; dispatch: any }, loginData: {
+        async login({ commit, state, getters, dispatch }: { commit: any; state: any; getters: any; dispatch: any }, loginData: {
             token: string;
             userInfo: {
                 id: string;
@@ -885,7 +886,7 @@ export const store = createStore<State>({
         },
 
         // 登出 - 显示加载蒙版，快速清除客户端状态，立即关闭WebSocket防止账户混乱
-        async logout({commit, state, dispatch, rootGetters}: { commit: any; state: State; dispatch: any; rootGetters: any }) {
+        async logout({ commit, state, dispatch, rootGetters }: { commit: any; state: State; dispatch: any; rootGetters: any }) {
             const logoutId = `LOGOUT_${Date.now()}`;
 
             // 如果已经处于未登录状态，立即收起蒙版并退出
@@ -911,7 +912,7 @@ export const store = createStore<State>({
             import('../api/http').then(({ setLoggingOut, cancelAllPendingRequests, syncRustBackendToken }) => {
                 setLoggingOut(true);
                 cancelAllPendingRequests();
-                syncRustBackendToken(null).catch(() => {});
+                syncRustBackendToken(null).catch(() => { });
             }).catch((error) => {
             })
 
@@ -991,18 +992,18 @@ export const store = createStore<State>({
         },
 
         // 切换主题
-        toggleTheme({commit, state}: { commit: any; state: State }) {
+        toggleTheme({ commit, state }: { commit: any; state: State }) {
             const newTheme = state.theme === 'light' ? 'dark' : 'light'
             commit('SET_THEME', newTheme)
         },
 
         // 设置侧边栏宽度
-        setSidebarWidth({commit}: { commit: any }, width: number) {
+        setSidebarWidth({ commit }: { commit: any }, width: number) {
             commit('SET_SIDEBAR_WIDTH', width)
         },
 
         // 更新待处理的好友申请数量
-        async updatePendingFriendRequests({commit, dispatch, state}: { commit: any; dispatch: any; state: State }) {
+        async updatePendingFriendRequests({ commit, dispatch, state }: { commit: any; dispatch: any; state: State }) {
             try {
                 // 导入 FriendApi 并调用 API
                 const { FriendApi } = await import('../api/friend')
@@ -1011,7 +1012,7 @@ export const store = createStore<State>({
                 if (response.success && typeof response.data === 'number') {
                     // 更新全局状态
                     commit('SET_PENDING_FRIEND_REQUESTS', response.data)
-                    
+
                     // 同步到当前账号
                     const currentAccountId = state.accounts?.currentAccountId
                     if (currentAccountId) {
@@ -1031,17 +1032,17 @@ export const store = createStore<State>({
         },
 
         // 显示全局加载
-        showGlobalLoading({commit}: { commit: any }, text: string = '加载中...') {
+        showGlobalLoading({ commit }: { commit: any }, text: string = '加载中...') {
             commit('SHOW_GLOBAL_LOADING', text)
         },
 
         // 隐藏全局加载
-        hideGlobalLoading({commit}: { commit: any }) {
+        hideGlobalLoading({ commit }: { commit: any }) {
             commit('HIDE_GLOBAL_LOADING')
         },
 
         // 更新全局加载文字
-        updateGlobalLoadingText({commit}: { commit: any }, text: string) {
+        updateGlobalLoadingText({ commit }: { commit: any }, text: string) {
             commit('SET_GLOBAL_LOADING_TEXT', text)
         },
 
@@ -1096,8 +1097,8 @@ export const store = createStore<State>({
                     const extension = latest.platform === 'macos'
                         ? '.dmg'
                         : latest.platform === 'windows'
-                          ? '.exe'
-                          : '.AppImage'
+                            ? '.exe'
+                            : '.AppImage'
                     return `Chatly-${latest.platform || 'app'}-${latest.version}${extension}`
                 }
                 return {
@@ -1112,7 +1113,7 @@ export const store = createStore<State>({
         },
 
         // 加载联系人列表
-        async loadContacts({commit, state}: { commit: any; state: State }, params: { keyword?: string; forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+        async loadContacts({ commit, state }: { commit: any; state: State }, params: { keyword?: string; forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
             const isSearchMode = Boolean(params.keyword && params.keyword.trim().length > 0)
             let shouldResetLoading = false
 
@@ -1235,23 +1236,23 @@ export const store = createStore<State>({
         },
 
         // 搜索联系人
-        async searchContacts({dispatch}: { dispatch: any }, keyword: string) {
+        async searchContacts({ dispatch }: { dispatch: any }, keyword: string) {
             return dispatch('loadContacts', { keyword, forceRefresh: true })
         },
 
         // 清空联系人列表
-        clearContacts({commit}: { commit: any }) {
+        clearContacts({ commit }: { commit: any }) {
             commit('CLEAR_CONTACTS')
         },
 
         // 刷新联系人列表
-        async refreshContacts({dispatch}: { dispatch: any }) {
+        async refreshContacts({ dispatch }: { dispatch: any }) {
             return dispatch('loadContacts', { forceRefresh: true })
         },
 
         // 聊天列表相关 actions
         // 加载聊天列表
-        async loadChatList({commit, state, dispatch}: { commit: any; state: State; dispatch: any }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+        async loadChatList({ commit, state, dispatch }: { commit: any; state: State; dispatch: any }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
             const { forceRefresh = false, compareWithStore = false } = params
             let shouldResetLoading = false
             try {
@@ -1335,13 +1336,13 @@ export const store = createStore<State>({
                             extra?.friend_remark,
                             extra?.friendRemark,
                             extra?.remark,
+                            extra?.friend_nickname,
+                            extra?.friendNickname,
+                            extra?.nickname,
                             extra?.friend_name,
                             extra?.friendName,
                             extra?.display_name,
                             extra?.displayName,
-                            extra?.friend_nickname,
-                            extra?.friendNickname,
-                            extra?.nickname,
                         ]
 
                         let resolvedName: string | null = null
@@ -1511,7 +1512,7 @@ export const store = createStore<State>({
 
                                 // 从 extra 中获取 room_avatar_object_key
                                 const roomAvatarObjectKey = chatItem.extra?.room_avatar_object_key ||
-                                                            chatItem.extra?.roomAvatarObjectKey;
+                                    chatItem.extra?.roomAvatarObjectKey;
 
 
                                 if (!roomAvatarObjectKey) {
@@ -1543,13 +1544,13 @@ export const store = createStore<State>({
 
                                 // 从 extra 中获取 friend_avatar_object_key 和 friend_id
                                 const friendAvatarObjectKey = chatItem.extra?.friend_avatar_object_key ||
-                                                              chatItem.extra?.friendAvatarObjectKey ||
-                                                              chatItem.extra?.avatar_object_key ||
-                                                              chatItem.extra?.avatarObjectKey;
+                                    chatItem.extra?.friendAvatarObjectKey ||
+                                    chatItem.extra?.avatar_object_key ||
+                                    chatItem.extra?.avatarObjectKey;
                                 const friendId = chatItem.extra?.friend_id ||
-                                                chatItem.extra?.friendId ||
-                                                chatItem.extra?.friend_user_id ||
-                                                chatItem.extra?.friendUserId;
+                                    chatItem.extra?.friendId ||
+                                    chatItem.extra?.friend_user_id ||
+                                    chatItem.extra?.friendUserId;
 
 
                                 if (!friendAvatarObjectKey || !friendId) {
@@ -1610,23 +1611,23 @@ export const store = createStore<State>({
         },
 
         // 清空聊天列表
-        clearChatList({commit}: { commit: any }) {
+        clearChatList({ commit }: { commit: any }) {
             commit('CLEAR_CHAT_LIST')
         },
 
         // 刷新聊天列表
-        async refreshChatList({dispatch}: { dispatch: any }) {
+        async refreshChatList({ dispatch }: { dispatch: any }) {
             return dispatch('loadChatList', { forceRefresh: true })
         },
 
         // 更新聊天项
-        updateChatItem({commit}: { commit: any }, chatItem: ChatItem) {
+        updateChatItem({ commit }: { commit: any }, chatItem: ChatItem) {
             commit('UPDATE_CHAT_ITEM', chatItem)
         },
 
-        setChatUnreadCount({commit, dispatch, state}: { commit: any; dispatch: any; state: State }, payload: { groupId: string; unreadCount: number }) {
+        setChatUnreadCount({ commit, dispatch, state }: { commit: any; dispatch: any; state: State }, payload: { groupId: string; unreadCount: number }) {
             commit('SET_CHAT_UNREAD_COUNT', payload)
-            
+
             // 同步更新当前账号的未读数
             const currentAccountId = state.accounts?.currentAccountId
             if (currentAccountId) {
@@ -1635,18 +1636,18 @@ export const store = createStore<State>({
         },
 
         // 添加聊天项
-        addChatItem({commit}: { commit: any }, chatItem: ChatItem) {
+        addChatItem({ commit }: { commit: any }, chatItem: ChatItem) {
             commit('ADD_CHAT_ITEM', chatItem)
         },
 
         // 删除聊天项
-        removeChatItem({commit}: { commit: any }, chatId: string) {
+        removeChatItem({ commit }: { commit: any }, chatId: string) {
             commit('REMOVE_CHAT_ITEM', chatId)
         },
 
         // 好友申请相关 actions
         // 加载好友申请列表
-        async loadFriendRequests({commit, state}: { commit: any; state: State }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
+        async loadFriendRequests({ commit, state }: { commit: any; state: State }, params: { forceRefresh?: boolean; compareWithStore?: boolean } = {}) {
             const { forceRefresh = false, compareWithStore = false } = params
             let shouldResetLoading = false
             try {
@@ -1778,47 +1779,47 @@ export const store = createStore<State>({
         },
 
         // 清空好友申请列表
-        clearFriendRequests({commit}: { commit: any }) {
+        clearFriendRequests({ commit }: { commit: any }) {
             commit('CLEAR_FRIEND_REQUESTS')
         },
 
         // 刷新好友申请列表
-        async refreshFriendRequests({dispatch}: { dispatch: any }) {
+        async refreshFriendRequests({ dispatch }: { dispatch: any }) {
             return dispatch('loadFriendRequests', { forceRefresh: true })
         },
 
         // 更新好友申请项
-        updateFriendRequest({commit}: { commit: any }, friendRequest: FriendRequest) {
+        updateFriendRequest({ commit }: { commit: any }, friendRequest: FriendRequest) {
             commit('UPDATE_FRIEND_REQUEST', friendRequest)
         },
 
         // 添加好友申请项
-        addFriendRequest({commit}: { commit: any }, friendRequest: FriendRequest) {
+        addFriendRequest({ commit }: { commit: any }, friendRequest: FriendRequest) {
             commit('ADD_FRIEND_REQUEST', friendRequest)
         },
 
         // 删除好友申请项
-        removeFriendRequest({commit}: { commit: any }, requestId: string) {
+        removeFriendRequest({ commit }: { commit: any }, requestId: string) {
             commit('REMOVE_FRIEND_REQUEST', requestId)
         },
 
         // 更新当前聊天群头像
-        async updateCurrentChatAvatar({commit, state}: { commit: any; state: any }, payload: { groupId: string; avatarUrl: string }) {
+        async updateCurrentChatAvatar({ commit, state }: { commit: any; state: any }, payload: { groupId: string; avatarUrl: string }) {
             const { groupId, avatarUrl } = payload;
-            
+
             // 更新当前聊天群ID对应的群聊头像
             commit('UPDATE_CURRENT_CHAT_AVATAR', { groupId, avatarUrl });
-            
+
             // 同步更新聊天列表中的对应项
             const chat = state.chatList.list.find((item: any) => item.groupId === groupId);
             if (chat) {
-                commit('UPDATE_CHAT_ITEM', { 
-                    ...chat, 
+                commit('UPDATE_CHAT_ITEM', {
+                    ...chat,
                     avatar: avatarUrl,
                     avatarLocalPath: undefined // 清除本地缓存路径，等待重新下载
                 });
             }
-            
+
             // 强制更新界面显示
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('force-refresh-avatar', {
@@ -1846,43 +1847,43 @@ export const store = createStore<State>({
         hasAppUpdate: (state: State) => state.version.latest.hasUpdate,
         appUpdateError: (state: State) => state.version.latest.error,
         appUpdateChecking: (state: State) => state.version.latest.checking,
-        
+
         // 联系人相关 getters
         contacts: (state: State) => state.contacts.list,
         contactsLoading: (state: State) => state.contacts.loading,
         contactsError: (state: State) => state.contacts.error,
         contactsSearchKeyword: (state: State) => state.contacts.searchKeyword,
         contactsLastUpdateTime: (state: State) => state.contacts.lastUpdateTime,
-        
+
         // 筛选后的联系人列表
         filteredContacts: (state: State) => {
             const keyword = state.contacts.searchKeyword.toLowerCase()
             if (!keyword) {
                 return state.contacts.list
             }
-            return state.contacts.list.filter(contact => 
+            return state.contacts.list.filter(contact =>
                 contact.name.toLowerCase().includes(keyword) ||
                 contact.phone.includes(keyword) ||
                 (contact.email && contact.email.toLowerCase().includes(keyword))
             )
         },
-        
+
         // 按字母分组的联系人
         groupedContacts: (state: State, getters: any) => {
             const groups: Record<string, Contact[]> = {}
-            
+
             // 如果有搜索关键词，使用本地分组逻辑
             if (state.contacts.searchKeyword) {
                 getters.filteredContacts.forEach((contact: Contact) => {
                     const firstChar = contact.name[0].toUpperCase()
                     const key = /[A-Z]/.test(firstChar) ? firstChar : '#'
-                    
+
                     if (!groups[key]) {
                         groups[key] = []
                     }
                     groups[key].push(contact)
                 })
-                
+
                 // 排序
                 Object.keys(groups).forEach(key => {
                     groups[key].sort((a, b) => a.name.localeCompare(b.name))
@@ -1892,27 +1893,27 @@ export const store = createStore<State>({
                 state.contacts.list.forEach((contact: Contact) => {
                     const firstChar = contact.name[0].toUpperCase()
                     const key = /[A-Z]/.test(firstChar) ? firstChar : '#'
-                    
+
                     if (!groups[key]) {
                         groups[key] = []
                     }
                     groups[key].push(contact)
                 })
-                
+
                 // 排序
                 Object.keys(groups).forEach(key => {
                     groups[key].sort((a, b) => a.name.localeCompare(b.name))
                 })
             }
-            
+
             return groups
         },
-        
+
         // 在线联系人数量
         onlineContactsCount: (state: State) => {
             return state.contacts.list.filter(contact => contact.isOnline).length
         },
-        
+
         // 最近联系人
         recentContacts: (state: State) => {
             return state.contacts.list.filter(contact => contact.isRecent)

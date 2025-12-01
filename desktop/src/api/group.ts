@@ -167,12 +167,13 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
   if (summary.friend_nickname) {
     extra.friend_nickname = summary.friend_nickname;
     extra.friendNickname = summary.friend_nickname;
+    extra.friend_name = summary.friend_nickname;
+    extra.friendName = summary.friend_nickname;
+    extra.nickname = summary.friend_nickname;
   }
   if (summary.friend_username) {
     extra.friend_username = summary.friend_username;
     extra.friendUsername = summary.friend_username;
-    extra.friend_name = summary.friend_username;
-    extra.friendName = summary.friend_username;
   }
   if (summary.friend_remark) {
     extra.friend_remark = summary.friend_remark;
