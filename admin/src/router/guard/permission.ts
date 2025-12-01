@@ -18,7 +18,8 @@ export default function setupPermissionGuard(router: Router) {
     if (isDevModeOnly) {
       const { mode } = to.query;
       if (mode !== 'dev') {
-        next(NOT_FOUND);
+        // 重定向到设置页面而不是 404，避免在菜单中显示
+        next({ name: 'Settings' });
         return;
       }
     }

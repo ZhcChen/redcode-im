@@ -33,6 +33,7 @@ export default {
   'menu.settings.emojiPack': '表情包设置',
   'menu.settings.ipinfoToken': 'IP地理位置Token',
   'menu.settings.userProfile': '个人设置',
+  'menu.settings.dataCleanup': '数据清理',
   'menu.version': '版本管理',
   'menu.version.frontend': 'App客户端',
   'menu.version.desktop': '桌面客户端',

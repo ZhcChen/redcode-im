@@ -32,6 +32,7 @@ export default {
   'menu.settings.emojiPack': 'Emoji Pack Settings',
   'menu.settings.ipinfoToken': 'IP Geolocation Token',
   'menu.settings.userProfile': 'Profile Settings',
+  'menu.settings.dataCleanup': 'Data Cleanup',
   'menu.version': 'Version Management',
   'menu.version.frontend': 'App Client',
   'menu.version.desktop': 'Desktop Client',
