@@ -1,11 +1,9 @@
 import { DEFAULT_LAYOUT } from '../base';
 import type { AppRouteRecordRaw } from '../types';
 
-// 在构建时确定的常量，避免环境变量缓存问题
+// 直接使用 import.meta.env 读取环境变量
 const isDataCleanupEnabled =
-  typeof __VITE_ENABLE_DATA_CLEANUP__ !== 'undefined'
-    ? __VITE_ENABLE_DATA_CLEANUP__ === 'true'
-    : false;
+  import.meta.env.VITE_ENABLE_DATA_CLEANUP === 'true';
 
 const SETTINGS: AppRouteRecordRaw = {
   path: '/settings',
