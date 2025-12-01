@@ -150,7 +150,6 @@
             <a-alert
               v-if="!isAnyValidationEnabled"
               type="warning"
-              :
               closable="false"
               style="margin-bottom: 20px"
             >
