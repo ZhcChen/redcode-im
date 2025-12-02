@@ -112,29 +112,19 @@
 
   // 回到顶部按钮逻辑
   const showBackTop = ref(false);
-  const scrollTarget = ref<Window | HTMLElement>(window);
-
-  const detectScrollTarget = () => {
-    const candidates: (HTMLElement | null)[] = [
-      document.querySelector('.layout-content'),
-      document.querySelector('.arco-layout-content'),
-    ];
-
-    const matched = candidates.find((el): el is HTMLElement => !!el);
-    scrollTarget.value = matched ?? window;
-  };
+  const layoutContentEl = ref<HTMLElement | null>(null);
+  const arcoContentEl = ref<HTMLElement | null>(null);
 
   const getScrollTop = () => {
-    const target = scrollTarget.value;
-    if (target instanceof Window) {
-      return (
-        window.pageYOffset ||
-        document.documentElement.scrollTop ||
-        document.body.scrollTop ||
-        0
-      );
-    }
-    return target.scrollTop;
+    const windowScroll =
+      window.pageYOffset ||
+      document.documentElement.scrollTop ||
+      document.body.scrollTop ||
+      0;
+    const layoutScroll = layoutContentEl.value?.scrollTop ?? 0;
+    const arcoScroll = arcoContentEl.value?.scrollTop ?? 0;
+
+    return Math.max(windowScroll, layoutScroll, arcoScroll);
   };
 
   const handleScroll = () => {
@@ -142,31 +132,34 @@
   };
 
   const scrollToTop = () => {
-    const target = scrollTarget.value;
-
-    if (target instanceof Window) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    target.scrollTo({ top: 0, behavior: 'smooth' });
+    layoutContentEl.value?.scrollTo({ top: 0, behavior: 'smooth' });
+    arcoContentEl.value?.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   onMounted(() => {
     isInit.value = true;
-    detectScrollTarget();
-    (scrollTarget.value === window
-      ? window
-      : scrollTarget.value
-    ).addEventListener('scroll', handleScroll, { passive: true });
+    layoutContentEl.value = document.querySelector('.layout-content');
+    arcoContentEl.value = document.querySelector('.arco-layout-content');
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    layoutContentEl.value?.addEventListener('scroll', handleScroll, {
+      passive: true,
+    });
+    if (arcoContentEl.value && arcoContentEl.value !== layoutContentEl.value) {
+      arcoContentEl.value.addEventListener('scroll', handleScroll, {
+        passive: true,
+      });
+    }
     handleScroll();
   });
 
   onUnmounted(() => {
-    (scrollTarget.value === window
-      ? window
-      : scrollTarget.value
-    ).removeEventListener('scroll', handleScroll);
+    window.removeEventListener('scroll', handleScroll);
+    layoutContentEl.value?.removeEventListener('scroll', handleScroll);
+    if (arcoContentEl.value && arcoContentEl.value !== layoutContentEl.value) {
+      arcoContentEl.value.removeEventListener('scroll', handleScroll);
+    }
   });
 </script>
 
