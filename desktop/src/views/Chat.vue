@@ -875,6 +875,20 @@
     @cancel="cancelDelete"
   />
 
+  <!-- 清除聊天记录确认对话框 -->
+  <ConfirmDialog
+    v-model:visible="showClearHistoryConfirm"
+    title="清除聊天记录"
+    :message="clearHistoryDialogMessage"
+    description="仅清除该会话的消息，其他数据不受影响。操作完成后所有在线设备将同步清空。"
+    confirm-text="清除"
+    cancel-text="取消"
+    :loading="clearingHistory"
+    type="danger"
+    @confirm="confirmClearHistory"
+    @cancel="cancelClearHistory"
+  />
+
   <!-- 转发选择对话框 -->
   <Dialog
     :visible="showForwardDialog"
@@ -8584,8 +8598,35 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
   }
 }
 
-const handleClearHistory = async () => {
-  const chat = selectedChat.value
+const showClearHistoryConfirm = ref(false)
+const clearingHistory = ref(false)
+const clearHistoryTarget = ref<ChatItem | null>(null)
+
+const clearHistoryDialogMessage = computed(() => {
+  const chat = clearHistoryTarget.value || selectedChat.value
+  if (!chat) return '确定要清除该会话的所有聊天记录吗？此操作不可撤销。'
+  const label = chat.groupType === 0 ? '该聊天' : '该群聊'
+  const name = getChatDisplayName(chat)
+  return `确定要清除“${name}”的所有聊天记录吗？`
+})
+
+const handleClearHistory = () => {
+  if (!selectedChat.value) {
+    toast.error('请先选择一个会话')
+    return
+  }
+  clearHistoryTarget.value = selectedChat.value
+  showClearHistoryConfirm.value = true
+}
+
+const cancelClearHistory = () => {
+  showClearHistoryConfirm.value = false
+  clearingHistory.value = false
+  clearHistoryTarget.value = null
+}
+
+const confirmClearHistory = async () => {
+  const chat = clearHistoryTarget.value || selectedChat.value
   if (!chat) return
 
   const roomId = chat.groupId || chat.id
@@ -8594,19 +8635,11 @@ const handleClearHistory = async () => {
     return
   }
 
-  const targetLabel = chat.groupType === 0 ? '聊天' : '群聊'
-
   try {
-    const confirmed = confirm(`确定要清除该${targetLabel}的所有聊天记录吗？此操作不可撤销。`)
-    if (!confirmed) return
-
-    const response = await MessageApi.clearGroupHistory({
-      roomId,
-    })
+    clearingHistory.value = true
+    const response = await MessageApi.clearGroupHistory({ roomId })
 
     if (response.success) {
-      toast.success('聊天记录已清除')
-
       messages.value = []
       messageList.value = []
       await removeCache(CACHE_KEYS.messages(roomId))
@@ -8619,12 +8652,17 @@ const handleClearHistory = async () => {
       }
       selectedChat.value = updatedChat
       store.dispatch('updateChatItem', updatedChat)
+      toast.success('聊天记录已清除')
+      showClearHistoryConfirm.value = false
     } else {
       throw new Error(response.message || '清除失败')
     }
   } catch (error: any) {
-    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    const errorMessage = error?.response?.message || error?.message || '网络错误'
     toast.error('清除失败: ' + errorMessage)
+  } finally {
+    clearingHistory.value = false
+    clearHistoryTarget.value = null
   }
 }
 
