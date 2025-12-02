@@ -950,7 +950,7 @@ import { toast } from '../utils/toast'
 import { webSocketManager } from '../utils/websocket'
 import { eventManager } from '../utils/eventManager'
 import { fileConfig } from '../api/config'
-import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
+import { loadCache, saveCache, removeCache, CACHE_KEYS } from '../utils/cache'
 import { rustHttp } from '../api/rust-http'
 import type { HttpRequestParams } from '../api/rust-http'
 import { base64ToUint8Array } from '../utils/binary'
@@ -8544,29 +8544,44 @@ const handleConfirmRemoveMembers = async (selectedMemberIds: string[]) => {
 }
 
 const handleClearHistory = async () => {
-  if (!selectedChat.value) return
+  const chat = selectedChat.value
+  if (!chat) return
+
+  const roomId = chat.groupId || chat.id
+  if (!roomId) {
+    toast.error('无法获取会话 ID，清除失败')
+    return
+  }
+
+  const targetLabel = chat.groupType === 0 ? '聊天' : '群聊'
 
   try {
-    const confirmed = confirm('确定要清除该群聊的所有聊天记录吗？此操作不可撤销。')
+    const confirmed = confirm(`确定要清除该${targetLabel}的所有聊天记录吗？此操作不可撤销。`)
     if (!confirmed) return
 
     const response = await MessageApi.clearGroupHistory({
-      roomId: selectedChat.value.id,
+      roomId,
     })
 
     if (response.success) {
       toast.success('聊天记录已清除')
-      // 清空本地消息列表
+
+      messages.value = []
       messageList.value = []
-      // 重新加载消息
-      if (selectedChat.value) {
-        await loadMessageList(selectedChat.value.groupId)
+      await removeCache(CACHE_KEYS.messages(roomId))
+
+      const updatedChat = {
+        ...chat,
+        lastMessage: '',
+        time: '',
+        unreadCount: 0,
       }
+      selectedChat.value = updatedChat
+      store.dispatch('updateChatItem', updatedChat)
     } else {
       throw new Error(response.message || '清除失败')
     }
   } catch (error: any) {
-    // 优先使用 API 返回的错误消息
     const errorMessage = error?.response?.message || error?.message || '网络错误';
     toast.error('清除失败: ' + errorMessage)
   }

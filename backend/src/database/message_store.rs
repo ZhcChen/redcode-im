@@ -570,6 +570,21 @@ impl<'a> MessageStore<'a> {
         Ok(row)
     }
 
+    pub async fn mark_room_messages_deleted(&self, room_id: Uuid) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE messages
+            SET deleted_at = NOW()
+            WHERE room_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
     pub async fn user_in_room(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
         let exists: Option<(Uuid,)> = sqlx::query_as(
             "SELECT user_id FROM room_members

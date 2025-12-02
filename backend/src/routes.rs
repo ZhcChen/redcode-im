@@ -268,15 +268,11 @@ pub fn create_routes() -> Router<AppState> {
             post(admin::test_geolocation_api),
         )
         // 数据清理API（仅限开发环境）
-        .route(
-            "/admin/data/cleanup/all",
-            post(admin::cleanup_all_app_data),
-        )
+        .route("/admin/data/cleanup/all", post(admin::cleanup_all_app_data))
         // IP地理位置解析开关管理API
         .route(
             "/api/admin/ip-geolocation/enabled",
-            get(admin::get_ip_geolocation_enabled)
-                .patch(admin::set_ip_geolocation_enabled),
+            get(admin::get_ip_geolocation_enabled).patch(admin::set_ip_geolocation_enabled),
         )
         // 聊天记录管理API
         .route(
@@ -391,7 +387,9 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/messages",
-            post(message::send_message).get(message::list_messages),
+            post(message::send_message)
+                .get(message::list_messages)
+                .delete(message::clear_room_messages),
         )
         .route(
             "/rooms/{room_id}/messages/attachments/signature",

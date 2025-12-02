@@ -1050,6 +1050,49 @@ pub struct MessageAttachmentDownloadQuery {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ClearRoomMessagesResponse {
+    pub room_id: String,
+    pub deleted_count: u64,
+}
+
+pub async fn clear_room_messages(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<crate::models::Claims>,
+) -> Result<Json<ClearRoomMessagesResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = MessageStore::new(state.database.pool());
+    let room_store = RoomStore::new(state.database.pool());
+
+    if !store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法清除聊天记录".to_string(),
+        ));
+    }
+
+    let room = room_store
+        .get_room(room_id)
+        .await
+        .map_err(|_| AppError::NotFound("房间不存在".to_string()))?;
+
+    if room.room_type != RoomType::Private && room.owner_id != user_id {
+        return Err(AppError::Forbidden(
+            "只有房主可以清除群聊聊天记录".to_string(),
+        ));
+    }
+
+    let deleted_count = store.mark_room_messages_deleted(room_id).await?;
+    let _ = store.remove_room_pin(room_id, None).await;
+
+    Ok(Json(ClearRoomMessagesResponse {
+        room_id: room_id.to_string(),
+        deleted_count,
+    }))
+}
+
+#[derive(Debug, Serialize)]
 pub struct MessageAttachmentDownloadResponse {
     pub success: bool,
     pub message: String,
