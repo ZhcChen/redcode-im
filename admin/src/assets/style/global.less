@@ -8,11 +8,16 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  overflow-y: scroll;
+  overflow-x: hidden;
   font-size: 14px;
   background-color: var(--color-bg-1);
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* 只保留一个纵向滚动容器，避免根节点与内容区重复出现滚动条导致右侧空白 */
+  overflow-y: auto;
 }
 
 .echarts-tooltip-diy {

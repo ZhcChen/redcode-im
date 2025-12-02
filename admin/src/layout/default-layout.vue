@@ -252,6 +252,7 @@
   }
 
   .layout-content {
+    height: 100vh;
     min-height: 100vh;
     overflow-y: auto;
     background-color: var(--color-fill-2);
