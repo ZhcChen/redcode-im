@@ -260,6 +260,7 @@
     <Dialog 
       v-model="showAddDialog" 
       title="添加联系人" 
+      disable-text-selection
       @confirm="handleConfirmAddContact"
       @cancel="handleCancelAddContact"
       :confirm-text="isSearching ? '搜索中...' : '搜索'"

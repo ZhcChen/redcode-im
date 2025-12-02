@@ -84,6 +84,8 @@ const handleFocus = (event: Event) => {
 <style scoped lang="scss">
 .dialog-input {
   width: 100%;
+  height: 44px;
+  line-height: 44px;
   background: #FFFFFF;
   border: 1px solid #00C2B31A;
   border-radius: 22px;
@@ -106,6 +108,7 @@ const handleFocus = (event: Event) => {
 }
 
 .dialog-input--textarea {
+  height: auto;
   min-height: 88px;
   padding: 12px 16px;
   border-radius: 12px;

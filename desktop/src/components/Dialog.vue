@@ -3,7 +3,11 @@
     <Transition name="dialog-fade">
       <div v-if="visible" class="dialog-overlay" @click="handleOverlayClick">
         <Transition name="dialog-scale">
-          <div v-if="visible" class="dialog-container" @click.stop>
+          <div 
+            v-if="visible" 
+            :class="['dialog-container', { 'dialog-no-select': disableTextSelection }]" 
+            @click.stop
+          >
             <div class="dialog-header">
               <h3 class="dialog-title">{{ title }}</h3>
               <button class="dialog-close-btn" @click="handleClose">
@@ -53,6 +57,8 @@ interface Props {
   cancelText?: string
   /** 确认按钮是否禁用 */
   confirmDisabled?: boolean
+  /** 是否禁用弹窗内文本选中（表单控件除外） */
+  disableTextSelection?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -61,7 +67,8 @@ const props = withDefaults(defineProps<Props>(), {
   showFooter: true,
   confirmText: '确定',
   cancelText: '取消',
-  confirmDisabled: false
+  confirmDisabled: false,
+  disableTextSelection: false
 })
 
 const emits = defineEmits<{
@@ -215,6 +222,32 @@ defineExpose({
     &:hover {
       background: rgba(0, 0, 0, 0.5);
     }
+  }
+}
+
+.dialog-no-select {
+  .dialog-title {
+    user-select: none;
+    cursor: default;
+  }
+
+  .dialog-content {
+    user-select: none;
+    cursor: default;
+  }
+
+  .dialog-content input,
+  .dialog-content textarea,
+  .dialog-content select {
+    user-select: text;
+    cursor: text;
+  }
+
+  .dialog-btn,
+  .dialog-content button,
+  .dialog-content [role='button'] {
+    cursor: pointer;
+    user-select: none;
   }
 }
 

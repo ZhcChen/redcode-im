@@ -2997,7 +2997,20 @@ const chatList = computed(() => store.getters.chatList)
 const messages = ref<Message[]>([])
 const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref<boolean>(false)
-const currentUserId = computed(() => store.getters.currentUser.id)
+// 当前组件所属账号（多账号场景下按传入的 accountId 获取）
+const activeAccount = computed(() => {
+  if (props.accountId) {
+    return store.getters['accounts/getAccountById'](props.accountId)
+  }
+  return store.getters['accounts/currentAccount']
+})
+// 当前账号的用户ID（多账号下不依赖全局 currentUser，避免误判 isSelf）
+const currentUserId = computed(() => {
+  const accountUserId = activeAccount.value?.userInfo?.id
+  if (accountUserId) return accountUserId
+  const globalUser = store.getters.currentUser
+  return globalUser?.id || null
+})
 
 // 获取单聊的对端用户 ID（用于颜色种子保持一致）
 const getPrivateChatPeerId = (chat: ChatItem): string | null => {
@@ -5176,14 +5189,35 @@ const restoreAccountState = async (accountId: string) => {
 watch(
   () => store.state.accounts?.currentAccountId,
   async (newAccountId: any, oldAccountId: any) => {
+    // 多账号：仅在与当前组件所属账号相关时处理
+    if (props.accountId) {
+      // 离开当前账号时缓存状态
+      if (oldAccountId && oldAccountId === props.accountId && newAccountId !== oldAccountId) {
+        saveCurrentAccountState(props.accountId)
+      }
+
+      // 进入当前账号时恢复状态并主动刷新会话
+      if (newAccountId && newAccountId === props.accountId) {
+        await restoreAccountState(props.accountId)
+
+        // 切换回来时强制刷新聊天列表，确保未读与最新消息同步
+        await loadChatList(true)
+
+        // 如果已有选中会话，重新选中以拉取最新消息并清除未读
+        if (selectedChat.value) {
+          const latestChat =
+            chatList.value.find(chat => chat.groupId === selectedChat.value?.groupId) ||
+            selectedChat.value
+          await selectChat(latestChat)
+        }
+      }
+      return
+    }
+
+    // 单账号模式保持原行为
     if (newAccountId && oldAccountId && newAccountId !== oldAccountId) {
-
-      // 保存旧账号的状态
       saveCurrentAccountState(oldAccountId)
-
-      // 恢复新账号的状态
       await restoreAccountState(newAccountId)
-
     }
   }
 )
