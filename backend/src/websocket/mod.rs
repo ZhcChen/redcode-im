@@ -252,7 +252,8 @@ impl ConnectionManager {
                         };
 
                     // 检查IP地理位置解析功能是否启用
-                    let geolocation_enabled = geolocation::is_ip_geolocation_enabled(&database).await;
+                    let geolocation_enabled =
+                        geolocation::is_ip_geolocation_enabled(&database).await;
 
                     if ip_changed && geolocation_enabled {
                         // 异步查询和更新地理位置
@@ -475,7 +476,8 @@ async fn handle_client_event(
                         };
 
                     // 检查IP地理位置解析功能是否启用
-                    let geolocation_enabled = geolocation::is_ip_geolocation_enabled(&state_clone.database).await;
+                    let geolocation_enabled =
+                        geolocation::is_ip_geolocation_enabled(&state_clone.database).await;
 
                     if should_update_geolocation && geolocation_enabled {
                         // 需要初始化地理位置
@@ -792,6 +794,13 @@ pub async fn handle_socket(
                                     operator_id: data.operator_id,
                                     reason: data.reason.clone(),
                                     until: data.until.map(|ts| ts.to_rfc3339()),
+                                }
+                            }
+                            crate::redis::models::PubSubPayload::RoomHistoryCleared { data } => {
+                                ServerPush::RoomHistoryCleared {
+                                    room_id: data.room_id,
+                                    cleared_by: data.cleared_by,
+                                    cleared_at: data.cleared_at.to_rfc3339(),
                                 }
                             }
                         };

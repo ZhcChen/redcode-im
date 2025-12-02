@@ -587,6 +587,10 @@ class WebSocketManager {
         });
         this.refreshContacts();
         break;
+      case 'room_history_cleared': {
+        this.emitRoomHistoryCleared(message);
+        break;
+      }
       case 'friends.version':
       case 'friends_version':
         this.refreshContacts();
@@ -643,6 +647,11 @@ class WebSocketManager {
 
     if (payload.message_update) {
       this.emitMessageUpdate(payload.message_update);
+      return;
+    }
+
+    if (payload.room_history_cleared) {
+      this.emitRoomHistoryCleared(payload.room_history_cleared);
       return;
     }
 
@@ -717,6 +726,12 @@ class WebSocketManager {
       }
     }
     this.dispatchDomEvent('websocket-pin-update', detail);
+  }
+
+  private emitRoomHistoryCleared(raw: any): void {
+    const detail: any = { ...raw };
+    delete detail.type;
+    this.dispatchDomEvent('websocket-room-history-cleared', detail);
   }
 
   private onAuthenticated(connectionId?: string | null): void {

@@ -8274,6 +8274,45 @@ const handleGroupMemberChangedEvent = (event: CustomEvent) => {
   }
 }
 
+const handleRoomHistoryClearedEvent = (event: CustomEvent) => {
+  const detail = event.detail || {}
+  const roomId = detail.room_id || detail.roomId
+  if (!roomId) return
+
+  // 先清除缓存，避免后续重新加载出现旧数据
+  void removeCache(CACHE_KEYS.messages(roomId))
+
+  const chat = chatList.value.find(c => c.groupId === roomId || c.id === roomId)
+
+  // 如果当前正在查看该会话，同步清空消息
+  if (selectedChat.value && (selectedChat.value.groupId === roomId || selectedChat.value.id === roomId)) {
+    messages.value = []
+    messageList.value = []
+
+    const updatedChat = {
+      ...selectedChat.value,
+      lastMessage: '',
+      time: '',
+      unreadCount: 0,
+    }
+    selectedChat.value = updatedChat
+    store.dispatch('updateChatItem', updatedChat)
+    toast.info('聊天记录已被清空')
+    return
+  }
+
+  // 未选中时，仅同步聊天列表展示（若存在）
+  if (chat) {
+    const updatedChat = {
+      ...chat,
+      lastMessage: '',
+      time: '',
+      unreadCount: 0,
+    }
+    store.dispatch('updateChatItem', updatedChat)
+  }
+}
+
 onMounted(async () => {
   // 使用事件管理器添加监听器
   eventManager.addWindowListener('resize', handleWindowResize)
@@ -8288,6 +8327,7 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
   eventManager.addWindowListener('websocket-group-settings-updated', handleGroupSettingsUpdatedEvent as EventListener)
   eventManager.addWindowListener('websocket-group-member-changed', handleGroupMemberChangedEvent as EventListener)
+  eventManager.addWindowListener('websocket-room-history-cleared', handleRoomHistoryClearedEvent as EventListener)
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
@@ -8397,6 +8437,7 @@ onUnmounted(async () => {
   window.removeEventListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
   window.removeEventListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   window.removeEventListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
+  window.removeEventListener('websocket-room-history-cleared', handleRoomHistoryClearedEvent as EventListener)
 
   detachMessagesScrollListener()
 })

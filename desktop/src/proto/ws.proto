@@ -42,6 +42,10 @@ message ServerEvent {
     ServerGroupDissolved group_dissolved = 13;
     ServerGroupOwnerTransferred group_owner_transferred = 14;
     ServerRoomUpdated room_updated = 15;
+    ServerGroupSettingsUpdated group_settings_updated = 16;
+    ServerGroupMemberChanged group_member_changed = 17;
+    ServerFriendProfileUpdated friend_profile_updated = 18;
+    ServerRoomHistoryCleared room_history_cleared = 19;
   }
 }
 
@@ -172,6 +176,21 @@ message ServerGroupOwnerTransferred {
   string new_owner_id = 3;
 }
 
+// 房间聊天记录被清空事件
+message ServerRoomHistoryCleared {
+  string room_id = 1;
+  string cleared_by = 2;
+  string cleared_at = 3;
+}
+
+message ServerGroupSettingsUpdated {
+  string room_id = 1;
+  bool global_mute_enabled = 2;
+  optional string global_mute_reason = 3;
+  optional string global_mute_until = 4;
+  optional string global_mute_set_by = 5;
+}
+
 message ServerRoomUpdated {
   string room_id = 1;
   string room_name = 2;
@@ -179,6 +198,28 @@ message ServerRoomUpdated {
   string avatar_url = 4;
   string avatar_object_key = 5;
   string description = 6;
+}
+
+// 群成员变更事件
+// change_type: "role_changed" | "muted" | "unmuted" | "kicked" | "joined" | "left"
+// new_role: "owner" | "admin" | "member" (仅 role_changed 时有效)
+message ServerGroupMemberChanged {
+  string room_id = 1;
+  string member_id = 2;
+  string change_type = 3;
+  optional string new_role = 4;
+  optional string operator_id = 5;
+  optional string reason = 6;
+  optional string until = 7;
+}
+
+// 好友资料更新事件（用于通知好友资料变化，如头像、昵称等）
+message ServerFriendProfileUpdated {
+  string user_id = 1;
+  string username = 2;
+  string nickname = 3;
+  string avatar_url = 4;
+  string avatar_object_key = 5;
 }
 
 enum PubSubPriority {
@@ -239,6 +280,32 @@ message PubSubRoomUpdate {
   string description = 6;
 }
 
+message PubSubGroupSettingsUpdate {
+  string room_id = 1;
+  bool global_mute_enabled = 2;
+  optional string global_mute_reason = 3;
+  optional string global_mute_until = 4;
+  optional string global_mute_set_by = 5;
+}
+
+// 群成员变更事件（用于跨节点广播）
+message PubSubGroupMemberChanged {
+  string room_id = 1;
+  string member_id = 2;
+  string change_type = 3;
+  optional string new_role = 4;
+  optional string operator_id = 5;
+  optional string reason = 6;
+  optional string until = 7;
+}
+
+// 房间聊天记录被清空事件（跨节点广播）
+message PubSubRoomHistoryCleared {
+  string room_id = 1;
+  string cleared_by = 2;
+  string cleared_at = 3;
+}
+
 message PubSubEvent {
   oneof payload {
     PubSubMessage message = 1;
@@ -246,5 +313,8 @@ message PubSubEvent {
     PubSubMessageUpdate message_update = 3;
     PubSubPinUpdate pin_update = 4;
     PubSubRoomUpdate room_update = 5;
+    PubSubGroupSettingsUpdate group_settings_update = 6;
+    PubSubGroupMemberChanged group_member_changed = 7;
+    PubSubRoomHistoryCleared room_history_cleared = 8;
   }
 }

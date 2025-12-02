@@ -45,6 +45,7 @@ message ServerEvent {
     ServerGroupSettingsUpdated group_settings_updated = 16;
     ServerGroupMemberChanged group_member_changed = 17;
     ServerFriendProfileUpdated friend_profile_updated = 18;
+    ServerRoomHistoryCleared room_history_cleared = 19;
   }
 }
 
@@ -175,6 +176,13 @@ message ServerGroupOwnerTransferred {
   string new_owner_id = 3;
 }
 
+// 房间聊天记录被清空事件
+message ServerRoomHistoryCleared {
+  string room_id = 1;
+  string cleared_by = 2;
+  string cleared_at = 3;
+}
+
 message ServerGroupSettingsUpdated {
   string room_id = 1;
   bool global_mute_enabled = 2;
@@ -291,6 +299,13 @@ message PubSubGroupMemberChanged {
   optional string until = 7;
 }
 
+// 房间聊天记录被清空事件（跨节点广播）
+message PubSubRoomHistoryCleared {
+  string room_id = 1;
+  string cleared_by = 2;
+  string cleared_at = 3;
+}
+
 message PubSubEvent {
   oneof payload {
     PubSubMessage message = 1;
@@ -300,5 +315,6 @@ message PubSubEvent {
     PubSubRoomUpdate room_update = 5;
     PubSubGroupSettingsUpdate group_settings_update = 6;
     PubSubGroupMemberChanged group_member_changed = 7;
+    PubSubRoomHistoryCleared room_history_cleared = 8;
   }
 }

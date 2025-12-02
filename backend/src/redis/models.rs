@@ -230,6 +230,15 @@ pub struct MessageUpdatePayload {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
+/// 房间聊天记录被清空事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomHistoryClearedPayload {
+    pub room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleared_by: Option<Uuid>,
+    pub cleared_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomUpdatePayload {
     pub room_id: Uuid,
@@ -358,6 +367,10 @@ pub enum PubSubPayload {
         #[serde(flatten)]
         data: GroupMemberChangedPayload,
     },
+    RoomHistoryCleared {
+        #[serde(flatten)]
+        data: RoomHistoryClearedPayload,
+    },
 }
 
 /// 缓存键生成器
@@ -386,6 +399,9 @@ impl PubSubPayload {
             }
             PubSubPayload::GroupMemberChanged { data } => {
                 Payload::GroupMemberChanged(ws::PubSubGroupMemberChanged::from(data))
+            }
+            PubSubPayload::RoomHistoryCleared { data } => {
+                Payload::RoomHistoryCleared(ws::PubSubRoomHistoryCleared::from(data))
             }
         };
 
@@ -437,7 +453,44 @@ impl TryFrom<ws::PubSubEvent> for PubSubPayload {
                 let data = GroupMemberChangedPayload::try_from(update)?;
                 Ok(PubSubPayload::GroupMemberChanged { data })
             }
+            Payload::RoomHistoryCleared(update) => {
+                let data = RoomHistoryClearedPayload::try_from(update)?;
+                Ok(PubSubPayload::RoomHistoryCleared { data })
+            }
         }
+    }
+}
+
+impl From<&RoomHistoryClearedPayload> for ws::PubSubRoomHistoryCleared {
+    fn from(value: &RoomHistoryClearedPayload) -> Self {
+        ws::PubSubRoomHistoryCleared {
+            room_id: value.room_id.to_string(),
+            cleared_by: value
+                .cleared_by
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
+            cleared_at: value.cleared_at.to_rfc3339(),
+        }
+    }
+}
+
+impl TryFrom<ws::PubSubRoomHistoryCleared> for RoomHistoryClearedPayload {
+    type Error = String;
+
+    fn try_from(value: ws::PubSubRoomHistoryCleared) -> Result<Self, Self::Error> {
+        let room_id = parse_uuid(&value.room_id, "room_id")?;
+        let cleared_by = if value.cleared_by.is_empty() {
+            None
+        } else {
+            Some(parse_uuid(&value.cleared_by, "cleared_by")?)
+        };
+        let cleared_at = parse_datetime(&value.cleared_at, "cleared_at")?;
+
+        Ok(RoomHistoryClearedPayload {
+            room_id,
+            cleared_by,
+            cleared_at,
+        })
     }
 }
 

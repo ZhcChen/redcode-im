@@ -28,6 +28,7 @@ use crate::redis::cache::CacheManager;
 use crate::redis::models::{
     CacheKeys, CrossNodeMessage, ForwardMessagePayload, MessagePartEnvelope, MessagePriority,
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
+    RoomHistoryClearedPayload,
 };
 use crate::storage;
 use crate::storage::DirectUploadSignature;
@@ -1086,6 +1087,16 @@ pub async fn clear_room_messages(
     let deleted_count = store.mark_room_messages_deleted(room_id).await?;
     let _ = store.remove_room_pin(room_id, None).await;
 
+    let _ = broadcast_room_history_cleared(
+        &state,
+        RoomHistoryClearedPayload {
+            room_id,
+            cleared_by: Some(user_id),
+            cleared_at: Utc::now(),
+        },
+    )
+    .await;
+
     Ok(Json(ClearRoomMessagesResponse {
         room_id: room_id.to_string(),
         deleted_count,
@@ -1331,6 +1342,31 @@ pub async fn broadcast_pin_update(
 
     info!(
         "置顶状态已广播到房间 {} ({} 个订阅者)",
+        channel, subscriber_count
+    );
+
+    Ok(())
+}
+
+pub async fn broadcast_room_history_cleared(
+    state: &AppState,
+    payload: RoomHistoryClearedPayload,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let channel = CacheKeys::pubsub_channel(&payload.room_id);
+    let encoded = PubSubPayload::RoomHistoryCleared {
+        data: payload.clone(),
+    }
+    .encode_protobuf();
+
+    let mut conn = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await?;
+    let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
+
+    info!(
+        "房间聊天记录清空事件已广播到 {} ({} 个订阅者)",
         channel, subscriber_count
     );
 

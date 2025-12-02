@@ -128,6 +128,11 @@ pub enum ServerPush {
         reason: Option<String>,
         until: Option<String>,
     },
+    RoomHistoryCleared {
+        room_id: Uuid,
+        cleared_by: Option<Uuid>,
+        cleared_at: String,
+    },
     FriendProfileUpdated {
         user_id: String,
         username: Option<String>,
@@ -157,6 +162,7 @@ impl ServerPush {
             ServerPush::GroupOwnerTransferred { .. } => "group_owner_transferred",
             ServerPush::GroupSettingsUpdated { .. } => "group_settings_updated",
             ServerPush::GroupMemberChanged { .. } => "group_member_changed",
+            ServerPush::RoomHistoryCleared { .. } => "room_history_cleared",
             ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
         }
     }
@@ -288,6 +294,16 @@ impl ServerPush {
                 "operator_id": operator_id,
                 "reason": reason,
                 "until": until,
+            }),
+            ServerPush::RoomHistoryCleared {
+                room_id,
+                cleared_by,
+                cleared_at,
+            } => json!({
+                "type": "room_history_cleared",
+                "room_id": room_id,
+                "cleared_by": cleared_by,
+                "cleared_at": cleared_at,
             }),
             ServerPush::FriendProfileUpdated {
                 user_id,
@@ -438,6 +454,18 @@ impl ServerPush {
                 operator_id: operator_id.map(|id| id.to_string()),
                 reason: reason.clone(),
                 until: until.clone(),
+            }),
+            ServerPush::RoomHistoryCleared {
+                room_id,
+                cleared_by,
+                cleared_at,
+            } => Payload::RoomHistoryCleared(ws::ServerRoomHistoryCleared {
+                room_id: room_id.to_string(),
+                cleared_by: cleared_by
+                    .as_ref()
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
+                cleared_at: cleared_at.clone(),
             }),
             ServerPush::FriendProfileUpdated {
                 user_id,

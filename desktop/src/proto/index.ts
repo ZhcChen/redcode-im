@@ -21,6 +21,7 @@ export const ServerError = root.lookupType('ws.ServerError');
 export const ServerPong = root.lookupType('ws.ServerPong');
 export const ServerFriendRequestUpdate = root.lookupType('ws.ServerFriendRequestUpdate');
 export const ServerRoomCreated = root.lookupType('ws.ServerRoomCreated');
+export const ServerRoomHistoryCleared = root.lookupType('ws.ServerRoomHistoryCleared');
 
 export type WsMessagePayload = {
   [key: string]: unknown;
