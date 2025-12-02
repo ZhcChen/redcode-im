@@ -41,6 +41,19 @@
         </a-layout>
       </a-layout>
     </a-layout>
+    <!-- 回到顶部按钮 -->
+    <a-back-top
+      :visible-height="100"
+      :bottom="30"
+      :right="30"
+      class="back-top-btn"
+    >
+      <a-button type="primary" shape="circle" size="large">
+        <template #icon>
+          <icon-arrow-up />
+        </template>
+      </a-button>
+    </a-back-top>
   </a-layout>
 </template>
 
@@ -54,6 +67,7 @@
   import TabBar from '@/components/tab-bar/index.vue';
   import usePermission from '@/hooks/permission';
   import useResponsive from '@/hooks/responsive';
+  import { IconArrowUp } from '@arco-design/web-vue/es/icon';
   import PageLayout from './page-layout.vue';
 
   const isInit = ref(false);
@@ -130,6 +144,7 @@
     z-index: 99;
     height: 100%;
     transition: all 0.2s cubic-bezier(0.34, 0.69, 0.1, 1);
+
     &::after {
       position: absolute;
       top: 0;
@@ -150,6 +165,7 @@
     height: 100%;
     overflow: auto;
     overflow-x: hidden;
+
     :deep(.arco-menu) {
       ::-webkit-scrollbar {
         width: 12px;
@@ -157,10 +173,10 @@
       }
 
       ::-webkit-scrollbar-thumb {
-        border: 4px solid transparent;
-        background-clip: padding-box;
-        border-radius: 7px;
         background-color: var(--color-text-4);
+        background-clip: padding-box;
+        border: 4px solid transparent;
+        border-radius: 7px;
       }
 
       ::-webkit-scrollbar-thumb:hover {
@@ -174,5 +190,17 @@
     overflow-y: hidden;
     background-color: var(--color-fill-2);
     transition: padding 0.2s cubic-bezier(0.34, 0.69, 0.1, 1);
+  }
+
+  .back-top-btn {
+    :deep(.arco-back-top-content) {
+      box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+      transition: all 0.3s cubic-bezier(0.34, 0.69, 0.1, 1);
+
+      &:hover {
+        box-shadow: 0 4px 16px 0 rgb(0 0 0 / 15%);
+        transform: translateY(-2px);
+      }
+    }
   }
 </style>
