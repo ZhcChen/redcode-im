@@ -45,13 +45,6 @@
             人数 {{ selectedChat.memberCount || 0 }}
           </div>
         </div>
-        <!-- 语音刷新按钮 -->
-        <div class="voice-refresh-btn" @click="refreshAllAudioUrls" title="刷新语音">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12,4C7.58,4 4,6.58 4,11C4,13.57 4.87,15.96 6.08,17.86L7.14,16.8C6.21,15.19 5.6,13.21 5.6,11.2C5.6,7.79 8.26,5.2 12,5.2C13.58,5.2 15.08,5.55 16.43,6.16L14.89,7.7C13.95,7.28 12.99,7.06 12,7.06C9.2,7.06 7,8.79 7,11.2C7,13.21 7.95,15.53 8.99,17.17C9.79,18.42 10.86,19.5 12,20.47V22H18V18.5C18,14.92 15.39,12 12,12V8.27L15.14,11.41C16.62,9.85 17.54,7.8 17.54,5.67C17.54,4.69 17.34,3.74 17,2.9L18.35,1.55C19.05,3.18 19.4,4.98 19.4,6.8C19.4,9.8 18.6,12.6 17.2,14.9L15.3,13C16.4,11.3 17.1,9.2 17.1,7C17.1,6.3 17.04,5.63 16.93,5H21L18.5,7.5L21,10V10.5L19,8.5L17,10.5V9.5L19,7.5V7C19,4.58 17.17,2.6 14.9,2.05C13.9,1.84 12.9,2.08 12,2.63V2V4Z"/>
-          </svg>
-        </div>
-
         <!-- 群设置按钮 -->
         <div v-if="selectedChat.groupType === 1" class="group-settings-btn" @click="handleShowGroupSettings">
           <img src="@/assets/image/icon-menu.svg" alt="群设置" class="settings-icon" />
@@ -1071,27 +1064,6 @@ const audioUrlCache = reactive<Record<string, string>>({});
 const audioUrlPending = new Set<string>();
 const audioUrlLastAttempt = new Map<string, number>();
 const AUDIO_URL_RETRY_INTERVAL_MS = 5_000;
-
-// 手动刷新所有语音 URL
-const refreshAllAudioUrls = async () => {
-  console.log('[refreshAllAudioUrls] 开始刷新所有语音 URL')
-  // 清空所有缓存
-  Object.keys(audioUrlCache).forEach(key => {
-    delete audioUrlCache[key]
-  })
-  // 清空待下载队列
-  audioUrlPending.clear()
-  // 重新加载当前页面的所有语音消息
-  const audioMessages = messages.value.filter(msg => hasAudioPart(msg))
-  console.log('[refreshAllAudioUrls] 找到语音消息数量:', audioMessages.length)
-  // 批量加载
-  for (const msg of audioMessages) {
-    await loadAudioUrl(msg)
-    // 添加小延迟避免并发请求过多
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  console.log('[refreshAllAudioUrls] 刷新完成')
-}
 
 // 确保音频 URL 加载已启动（用于模板中触发副作用，总是返回空字符串）
 // 通过在模板中使用 audioUrlCache[message.id] || ensureAudioUrlLoading(message)
@@ -9026,29 +8998,6 @@ const loadMessageList = async (groupId: string) => {
       font-size: 14px;
       font-weight: bold;
       color: #2C2D3A;
-    }
-
-    .voice-refresh-btn {
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #9CA0B4;
-      cursor: pointer;
-      transition: all 0.2s;
-      border-radius: 4px;
-      padding: 4px;
-
-      &:hover {
-        color: var(--primary-color);
-        background: rgba(0, 194, 179, 0.1);
-      }
-
-      svg {
-        width: 18px;
-        height: 18px;
-      }
     }
 
     .group-settings-btn {
