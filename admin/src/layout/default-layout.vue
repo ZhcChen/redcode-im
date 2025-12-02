@@ -112,6 +112,7 @@
 
   // 回到顶部按钮逻辑
   const showBackTop = ref(false);
+  const scrollContainers = new Set<HTMLElement>();
   const layoutContentEl = ref<HTMLElement | null>(null);
   const arcoContentEl = ref<HTMLElement | null>(null);
 
@@ -121,19 +122,36 @@
       document.documentElement.scrollTop ||
       document.body.scrollTop ||
       0;
-    const layoutScroll = layoutContentEl.value?.scrollTop ?? 0;
-    const arcoScroll = arcoContentEl.value?.scrollTop ?? 0;
 
-    return Math.max(windowScroll, layoutScroll, arcoScroll);
+    const containerScrolls = Array.from(scrollContainers).map(
+      (el) => el.scrollTop
+    );
+
+    return Math.max(windowScroll, ...containerScrolls);
   };
 
-  const handleScroll = () => {
+  function addScrollContainer(
+    el: HTMLElement | null | undefined,
+    handler: (event: Event) => void
+  ) {
+    if (!el) return;
+    if (scrollContainers.has(el)) return;
+    scrollContainers.add(el);
+    el.addEventListener('scroll', handler, { passive: true });
+  }
+
+  function handleScroll(event?: Event) {
+    // 动态捕捉新的可滚动容器（如富文本编辑器内部滚动区域）
+    if (event?.target instanceof HTMLElement) {
+      addScrollContainer(event.target, handleScroll);
+    }
     showBackTop.value = getScrollTop() > 100;
-  };
+  }
 
   const scrollToTop = () => {
-    layoutContentEl.value?.scrollTo({ top: 0, behavior: 'smooth' });
-    arcoContentEl.value?.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollContainers.forEach((el) => {
+      el.scrollTo({ top: 0, behavior: 'smooth' });
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -142,24 +160,28 @@
     layoutContentEl.value = document.querySelector('.layout-content');
     arcoContentEl.value = document.querySelector('.arco-layout-content');
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    layoutContentEl.value?.addEventListener('scroll', handleScroll, {
+    window.addEventListener('scroll', handleScroll, {
       passive: true,
+      capture: true,
     });
+    addScrollContainer(layoutContentEl.value, handleScroll);
     if (arcoContentEl.value && arcoContentEl.value !== layoutContentEl.value) {
-      arcoContentEl.value.addEventListener('scroll', handleScroll, {
-        passive: true,
-      });
+      addScrollContainer(arcoContentEl.value, handleScroll);
     }
+
+    // 富文本编辑器内部滚动容器（wangeditor）
+    document
+      .querySelectorAll<HTMLElement>('.w-e-scroll, .w-e-text-container')
+      .forEach((el) => addScrollContainer(el, handleScroll));
     handleScroll();
   });
 
   onUnmounted(() => {
-    window.removeEventListener('scroll', handleScroll);
-    layoutContentEl.value?.removeEventListener('scroll', handleScroll);
-    if (arcoContentEl.value && arcoContentEl.value !== layoutContentEl.value) {
-      arcoContentEl.value.removeEventListener('scroll', handleScroll);
-    }
+    window.removeEventListener('scroll', handleScroll, true);
+    scrollContainers.forEach((el) => {
+      el.removeEventListener('scroll', handleScroll);
+    });
+    scrollContainers.clear();
   });
 </script>
 
