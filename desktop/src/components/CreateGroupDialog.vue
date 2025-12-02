@@ -88,13 +88,13 @@
       </div>
 
       <!-- 隐藏的文件输入 -->
-      <input
-        ref="avatarInputRef"
-        type="file"
-        accept="image/*"
-        style="display: none"
-        @change="handleAvatarChange"
-      />
+  <input
+    ref="avatarInputRef"
+    type="file"
+    accept="image/jpeg,image/png,image/webp,image/gif"
+    style="display: none"
+    @change="handleAvatarChange"
+  />
     </div>
   </Mask>
 
@@ -187,8 +187,18 @@ const handleAvatarChange = (event: Event) => {
   const file = target.files?.[0]
   
   if (file) {
-    if (!file.type.startsWith('image/')) {
-      errors.value.groupName = '请选择图片文件'
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+
+    if (!allowedTypes.includes(file.type)) {
+      errors.value.groupName = '仅支持 JPG、PNG、WebP、GIF 图片'
+      return
+    }
+
+    const fileName = file.name.toLowerCase()
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext))
+    if (!hasValidExtension) {
+      errors.value.groupName = '文件扩展名不合法'
       return
     }
     

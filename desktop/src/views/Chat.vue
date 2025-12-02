@@ -6950,12 +6950,27 @@ const handleEditGroupAvatar = () => {
   // 创建文件输入元素用于选择头像
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = 'image/*'
+  input.accept = 'image/jpeg,image/png,image/webp,image/gif'
   input.onchange = async (event) => {
     const target = event.target as HTMLInputElement
     const file = target.files?.[0]
 
     if (file) {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+
+      if (!allowedTypes.includes(file.type)) {
+        toast.warning('仅支持 JPG、PNG、WebP、GIF 图片')
+        return
+      }
+
+      const fileName = file.name.toLowerCase()
+      const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext))
+      if (!hasValidExtension) {
+        toast.warning('文件扩展名不合法')
+        return
+      }
+
       await updateGroupAvatar(file)
     }
   }
