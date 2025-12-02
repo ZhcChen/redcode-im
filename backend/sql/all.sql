@@ -701,6 +701,8 @@ CREATE TABLE IF NOT EXISTS emoji_packs (
     name VARCHAR(100) NOT NULL,
     icon_url TEXT,
     description TEXT,
+    pack_type SMALLINT NOT NULL DEFAULT 0,  -- 0=单个, 1=套件
+    parent_id UUID REFERENCES emoji_packs(id) ON DELETE CASCADE,
     is_active SMALLINT NOT NULL DEFAULT 1,  -- 0=inactive, 1=active
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -725,6 +727,8 @@ CREATE TABLE IF NOT EXISTS user_emoji_packs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_emoji_packs_is_active ON emoji_packs(is_active);
+CREATE INDEX IF NOT EXISTS idx_emoji_packs_pack_type ON emoji_packs(pack_type);
+CREATE INDEX IF NOT EXISTS idx_emoji_packs_parent_id ON emoji_packs(parent_id);
 CREATE INDEX IF NOT EXISTS idx_emoji_items_pack_id ON emoji_items(pack_id);
 CREATE INDEX IF NOT EXISTS idx_emoji_items_sort_order ON emoji_items(pack_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_user_emoji_packs_user_id ON user_emoji_packs(user_id);
