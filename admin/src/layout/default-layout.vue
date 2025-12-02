@@ -42,23 +42,18 @@
       </a-layout>
     </a-layout>
     <!-- 回到顶部按钮 -->
-    <a-back-top
-      :visible-height="100"
-      :bottom="30"
-      :right="30"
-      class="back-top-btn"
-    >
+    <div v-if="showBackTop" class="back-top-btn" @click="scrollToTop">
       <a-button type="primary" shape="circle" size="large">
         <template #icon>
           <icon-arrow-up />
         </template>
       </a-button>
-    </a-back-top>
+    </div>
   </a-layout>
 </template>
 
 <script lang="ts" setup>
-  import { ref, computed, watch, provide, onMounted } from 'vue';
+  import { ref, computed, watch, provide, onMounted, onUnmounted } from 'vue';
   import { useRouter, useRoute } from 'vue-router';
   import { useAppStore, useUserStore } from '@/store';
   import NavBar from '@/components/navbar/index.vue';
@@ -114,8 +109,27 @@
   provide('toggleDrawerMenu', () => {
     drawerVisible.value = !drawerVisible.value;
   });
+
+  // 回到顶部按钮逻辑
+  const showBackTop = ref(false);
+  const handleScroll = () => {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    showBackTop.value = scrollTop > 100;
+  };
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
+
   onMounted(() => {
     isInit.value = true;
+    window.addEventListener('scroll', handleScroll);
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll);
   });
 </script>
 
@@ -193,13 +207,23 @@
   }
 
   .back-top-btn {
-    :deep(.arco-back-top-content) {
+    position: fixed;
+    right: 30px;
+    bottom: 30px;
+    z-index: 1000;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 0.69, 0.1, 1);
+
+    :deep(.arco-btn) {
       box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
       transition: all 0.3s cubic-bezier(0.34, 0.69, 0.1, 1);
+    }
 
-      &:hover {
+    &:hover {
+      transform: translateY(-2px);
+
+      :deep(.arco-btn) {
         box-shadow: 0 4px 16px 0 rgb(0 0 0 / 15%);
-        transform: translateY(-2px);
       }
     }
   }
