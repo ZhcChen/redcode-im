@@ -9,3 +9,7 @@ declare module '*.vue' {
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;
 }
+
+// 构建时注入的特性开关
+// eslint-disable-next-line no-underscore-dangle
+declare const __VITE_ENABLE_DATA_CLEANUP__: string;

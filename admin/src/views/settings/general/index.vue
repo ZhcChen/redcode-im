@@ -150,7 +150,7 @@
             <a-alert
               v-if="!isAnyValidationEnabled"
               type="warning"
-              closable="false"
+              :closable="false"
               style="margin-bottom: 20px"
             >
               至少需要启用一种校验规则

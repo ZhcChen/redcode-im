@@ -112,24 +112,61 @@
 
   // 回到顶部按钮逻辑
   const showBackTop = ref(false);
-  const handleScroll = () => {
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    showBackTop.value = scrollTop > 100;
+  const scrollTarget = ref<Window | HTMLElement>(window);
+
+  const detectScrollTarget = () => {
+    const candidates: (HTMLElement | null)[] = [
+      document.querySelector('.layout-content'),
+      document.querySelector('.arco-layout-content'),
+    ];
+
+    const matched = candidates.find((el): el is HTMLElement => !!el);
+    scrollTarget.value = matched ?? window;
   };
+
+  const getScrollTop = () => {
+    const target = scrollTarget.value;
+    if (target instanceof Window) {
+      return (
+        window.pageYOffset ||
+        document.documentElement.scrollTop ||
+        document.body.scrollTop ||
+        0
+      );
+    }
+    return target.scrollTop;
+  };
+
+  const handleScroll = () => {
+    showBackTop.value = getScrollTop() > 100;
+  };
+
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
+    const target = scrollTarget.value;
+
+    if (target instanceof Window) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    target.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   onMounted(() => {
     isInit.value = true;
-    window.addEventListener('scroll', handleScroll);
+    detectScrollTarget();
+    (scrollTarget.value === window
+      ? window
+      : scrollTarget.value
+    ).addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
   });
 
   onUnmounted(() => {
-    window.removeEventListener('scroll', handleScroll);
+    (scrollTarget.value === window
+      ? window
+      : scrollTarget.value
+    ).removeEventListener('scroll', handleScroll);
   });
 </script>
 
@@ -201,7 +238,7 @@
 
   .layout-content {
     min-height: 100vh;
-    overflow-y: hidden;
+    overflow-y: auto;
     background-color: var(--color-fill-2);
     transition: padding 0.2s cubic-bezier(0.34, 0.69, 0.1, 1);
   }
