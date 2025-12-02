@@ -548,6 +548,11 @@ const handleDownloadUpdate = async () => {
   pointer-events: auto;
 }
 
+// 默认禁用文本选中，避免出现插入符号，仅用户名和手机号保留可选中
+.settings-wrapper :not(input):not(textarea):not(.username-display):not(.phone-label):not(.phone-value) {
+  user-select: none;
+}
+
 .settings-section {
   display: flex;
   flex-direction: column;
@@ -697,6 +702,7 @@ const handleDownloadUpdate = async () => {
   font-size: 22px;
   font-weight: bold;
   color: #2C2D3A;
+  user-select: text;
 }
 
 .username-edit-icon {
@@ -711,11 +717,13 @@ const handleDownloadUpdate = async () => {
 .phone-label {
   font-size: 14px;
   color: $settings-label-color;
+  user-select: text;
 }
 
 .phone-value {
   font-size: 14px;
   color: $settings-text-color;
+  user-select: text;
 }
 
 .privacy-container {

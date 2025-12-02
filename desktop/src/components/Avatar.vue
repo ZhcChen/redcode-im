@@ -217,6 +217,7 @@ const handleImageLoad = () => {
     line-height: 1;
     user-select: none;
     text-align: center;
+    cursor: default;
   }
   
   &__default {
