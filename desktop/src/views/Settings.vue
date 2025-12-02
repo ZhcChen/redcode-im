@@ -258,8 +258,8 @@ const handleChangeAvatar = () => {
   // 触发文件选择
   const input = document.createElement('input')
   input.type = 'file'
-  // 仅允许常见头像格式
-  input.accept = 'image/jpeg,image/png,image/webp,image/gif'
+  // 仅允许常见头像格式（同时声明 MIME 与扩展名，减少系统文件选择器显示其他类型）
+  input.accept = 'image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif'
   input.onchange = handleFileSelect
   input.click()
 }
