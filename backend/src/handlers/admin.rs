@@ -12,11 +12,11 @@ use crate::database::models::{
     AdminUser, AdminUserStatus, CaptchaSettingRecord, Permission, Role, StorageProvider,
     StorageProviderType, UserStatus as DbUserStatus,
 };
-use crate::models::Claims;
 use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
+use crate::models::Claims;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
 use crate::services::geolocation;
@@ -4394,10 +4394,12 @@ pub async fn cleanup_all_app_data(
         // 特殊处理 messages 表：先清除自引用外键字段
         if table_name == &"messages" {
             info!("正在清除 messages 表的自引用字段...");
-            if let Err(e) = sqlx::query("UPDATE messages SET quoted_message_id = NULL, forward_from_message_id = NULL")
-                .execute(&mut *tx)
-                .await
-                .map_err(AppError::DatabaseError)
+            if let Err(e) = sqlx::query(
+                "UPDATE messages SET quoted_message_id = NULL, forward_from_message_id = NULL",
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::DatabaseError)
             {
                 error!("清除 messages 表自引用字段失败: {}", e);
                 last_error = Some(format!("清除 messages 表自引用字段失败: {:?}", e));
@@ -4464,7 +4466,10 @@ pub async fn get_ip_geolocation_enabled(
 ) -> Result<Json<IpGeolocationStatusResponse>, AppError> {
     let enabled = geolocation::is_ip_geolocation_enabled(&state.database).await;
 
-    info!("查询IP地理位置解析功能开关状态: {}", if enabled { "开启" } else { "关闭" });
+    info!(
+        "查询IP地理位置解析功能开关状态: {}",
+        if enabled { "开启" } else { "关闭" }
+    );
 
     Ok(Json(IpGeolocationStatusResponse {
         enabled,

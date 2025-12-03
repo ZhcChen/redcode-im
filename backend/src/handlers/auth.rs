@@ -52,7 +52,8 @@ pub async fn register(
 
     // 邮箱格式校验
     if account_limit.enable_email_validation {
-        let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+        let email_regex =
+            regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
         if !email_regex.is_match(username) {
             return Err(AppError::ValidationError(
                 "用户名必须符合邮箱格式".to_string(),

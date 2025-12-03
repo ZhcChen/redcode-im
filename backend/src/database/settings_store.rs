@@ -219,7 +219,9 @@ impl SettingsStore {
         Ok(record)
     }
 
-    async fn create_default_user_account_limit_setting(&self) -> Result<UserAccountLimitRecord, Error> {
+    async fn create_default_user_account_limit_setting(
+        &self,
+    ) -> Result<UserAccountLimitRecord, Error> {
         let record = query_as::<_, UserAccountLimitRecord>(
             r#"
             INSERT INTO user_account_limit_settings (id, enable_phone_validation, enable_email_validation,

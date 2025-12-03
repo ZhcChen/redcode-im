@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use crate::error::AppError;
 use crate::database::Database;
+use crate::error::AppError;
 
 /// 检查IP地理位置解析功能是否启用
 /// 通过数据库 general_settings 表中的 ip_geolocation_enabled 配置控制
