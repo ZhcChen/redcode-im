@@ -163,7 +163,7 @@ defineExpose({
 
 .dialog-container {
   background: linear-gradient(to bottom, #E7FFF7, #FFFFFF);
-  border-radius: 16px;
+  border-radius: 0;
   padding: 20px 24px;
   max-width: 90vw;
   max-height: 90vh;
