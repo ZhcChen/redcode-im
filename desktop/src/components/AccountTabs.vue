@@ -16,6 +16,7 @@
         }"
         role="button"
         tabindex="0"
+        style="cursor: default;"
         @click.stop="handleSwitchAccount(account.id)"
         @mousedown="handleMouseDown($event, account.id, index)"
       >
@@ -164,8 +165,6 @@ function handleMouseMove(event: MouseEvent) {
   // 移动超过 5px 才算拖拽
   if (!isDragging.value && (deltaX > 5 || deltaY > 5)) {
     isDragging.value = true
-    // 设置全局光标样式
-    document.body.style.cursor = 'grabbing'
   }
 
   if (!isDragging.value) return
@@ -256,15 +255,13 @@ async function handleMouseUp(event: MouseEvent) {
   }
 }
 
-// 重置拖拽状态
-function resetDragState() {
-  isDragging.value = false
-  draggedAccountId.value = null
-  dragOverAccountId.value = null
-  dragStartIndex.value = -1
-  // 恢复光标样式
-  document.body.style.cursor = ''
-}
+  // 重置拖拽状态
+  function resetDragState() {
+    isDragging.value = false
+    draggedAccountId.value = null
+    dragOverAccountId.value = null
+    dragStartIndex.value = -1
+  }
 </script>
 
 <style scoped lang="scss">
@@ -305,7 +302,7 @@ function resetDragState() {
   border-bottom: 2px solid transparent;
   background: transparent;
   padding: 0 12px;
-  cursor: grab; // 拖拽时显示抓取光标
+  cursor: default; // 悬停保持默认指针
   transition: all 0.15s ease;
   color: inherit;
   font: inherit;
@@ -315,7 +312,7 @@ function resetDragState() {
   user-select: none; // 防止拖拽时选中文本
 
   &:active {
-    cursor: grabbing; // 按下时显示抓取中光标
+    cursor: default;
   }
 
   &:hover:not(.dragging):not(.drag-over) {
