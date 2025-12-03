@@ -1021,6 +1021,7 @@ const CachedEmojiImage = defineComponent({
   min-width: 0;
   overflow: hidden;
   width: 100%;
+  user-select: none;
 
   &:hover {
     background-color: #f5f5f5;
