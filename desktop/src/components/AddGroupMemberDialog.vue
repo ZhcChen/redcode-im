@@ -1,5 +1,5 @@
 <template>
-  <Mask :visible="visible" @update:visible="handleVisibleChange" @close="handleClose">
+  <Mask :visible="visible" :z-index="12000" @update:visible="handleVisibleChange" @close="handleClose">
     <div class="add-member-dialog">
       <!-- 左侧 -->
       <div class="left-section">

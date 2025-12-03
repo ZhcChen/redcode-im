@@ -4,6 +4,7 @@
       <div
         v-if="visible"
         class="mask"
+        :style="{ zIndex: zIndex }"
         @click="handleMaskClick"
       >
         <div
@@ -21,6 +22,7 @@
 interface Props {
   visible: boolean
   maskClosable?: boolean
+  zIndex?: number
 }
 
 interface Emits {
@@ -29,7 +31,8 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  maskClosable: true
+  maskClosable: true,
+  zIndex: 1000
 })
 
 const emit = defineEmits<Emits>()
