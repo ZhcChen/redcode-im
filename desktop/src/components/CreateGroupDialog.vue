@@ -549,7 +549,7 @@ defineExpose({
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 6px 12px 6px 6px;
+        padding: 6px 8px 6px 10px;
         background: white;
         border-radius: 20px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -574,18 +574,23 @@ defineExpose({
         }
 
         .remove-btn {
-          width: 20px;
-          height: 20px;
-          background: #ff4757;
-          color: white;
+          margin-left: auto;
+          width: 18px;
+          height: 18px;
+          background: #ff4d4f;
+          color: #fff;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 16px;
-          font-weight: bold;
-          opacity: 0;
+          font-size: 12px;
+          opacity: 0.8;
           transition: opacity 0.2s;
+          cursor: pointer;
+
+          &:hover {
+            opacity: 1;
+          }
         }
       }
     }
