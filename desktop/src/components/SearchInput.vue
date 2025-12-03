@@ -62,9 +62,9 @@ const onEnter = () => {
 .search-input {
   width: 100%;
   height: 40px;
-  background-color: $bg-light-gray;
+  background-color: #ffffff;
   border-radius: 20px; // 高度的一半
-  border: none;
+  border: 1px solid #e0e0e0;
   outline: none;
   box-sizing: border-box;
   

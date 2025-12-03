@@ -16,21 +16,6 @@
         @search="handleSearch"
       />
 
-      <!-- 已选中成员预览 -->
-      <div v-if="selectedMembers.length > 0" class="selected-members-preview">
-        <div class="preview-title">已选中 {{ selectedMembers.length }} 位成员</div>
-        <div class="preview-chips">
-          <div
-            v-for="member in selectedMembers"
-            :key="member.userId"
-            class="preview-chip"
-            @click="handleRemoveFromSelected(member.userId)"
-          >
-            <span class="chip-name">{{ member.nickname || member.username }}</span>
-            <span class="chip-remove">×</span>
-          </div>
-        </div>
-      </div>
 
       <!-- 群成员列表 -->
       <ScrollContainer class="member-list">
@@ -38,18 +23,12 @@
           v-for="member in filteredMembers"
           :key="member.userId"
           class="member-item"
-          :class="{
-            'item-disabled': member.role === 'owner',
-            'item-selected': isSelected(member.userId)
-          }"
+          :class="{ 'item-disabled': member.role === 'owner' }"
           @click="handleToggleMember(member)"
         >
-          <input
-            type="checkbox"
-            :checked="isSelected(member.userId)"
+          <BCheckbox
+            :model-value="isSelected(member.userId)"
             :disabled="member.role === 'owner'"
-            @click.stop="handleToggleMember(member)"
-            class="member-checkbox"
           />
           <Avatar
             :src="member.avatarUrl || ''"
@@ -77,6 +56,7 @@ import Dialog from './Dialog.vue'
 import SearchInput from './SearchInput.vue'
 import Avatar from './Avatar.vue'
 import ScrollContainer from './ScrollContainer.vue'
+import BCheckbox from './BCheckbox.vue'
 import type { RoomMember } from '@/types/models'
 
 interface Props {
@@ -222,51 +202,6 @@ watch(() => props.visible, (newVal) => {
   }
 }
 
-.selected-members-preview {
-  padding: 12px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-
-  .preview-title {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 8px;
-  }
-
-  .preview-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .preview-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    background-color: #e7f5ff;
-    border: 1px solid #d0ebff;
-    border-radius: 16px;
-    font-size: 12px;
-    transition: all 0.2s;
-
-    &:hover {
-      background-color: #d0ebff;
-    }
-
-    .chip-name {
-      color: #1976d2;
-    }
-
-    .chip-remove {
-      color: #1976d2;
-      font-size: 16px;
-      font-weight: bold;
-    }
-  }
-}
-
 .member-list {
   flex: 1;
   display: flex;
@@ -281,24 +216,7 @@ watch(() => props.visible, (newVal) => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 8px;
-  transition: background-color 0.2s;
   cursor: default;
-
-  &:hover {
-    background-color: #f8f9fa;
-  }
-
-  &.item-selected {
-    background-color: #e7f5ff;
-  }
-
-  .member-checkbox {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
 
   .member-info {
     flex: 1;
