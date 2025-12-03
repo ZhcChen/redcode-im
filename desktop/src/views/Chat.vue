@@ -10209,6 +10209,8 @@ const loadMessageList = async (groupId: string) => {
   display: inline-block;
   border-radius: 8px;
   overflow: hidden;
+  user-select: none;
+  cursor: default;
 
   &:hover .video-play-overlay {
     opacity: 0.9;
