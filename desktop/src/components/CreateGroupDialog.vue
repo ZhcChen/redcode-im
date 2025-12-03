@@ -496,7 +496,8 @@ defineExpose({
       text-align: center;
       color: #999;
       font-size: 14px;
-      background: #f8f9fa;
+      background: #ffffff;
+      border: 1px dashed #e5e6eb;
       border-radius: 8px;
     }
 
@@ -505,8 +506,9 @@ defineExpose({
       flex-wrap: wrap;
       gap: 12px;
       padding: 16px;
-      background: #f8f9fa;
+      background: #ffffff;
       border-radius: 8px;
+      border: 1px solid #f0f0f0;
       max-height: 200px;
 
       .member-chip {
