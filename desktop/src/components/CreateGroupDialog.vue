@@ -358,7 +358,7 @@ defineExpose({
 
 .dialog-content {
   flex: 1;
-  padding: 24px;
+  padding: 0;
   min-height: 0;
 
     .avatar-section {
@@ -368,8 +368,8 @@ defineExpose({
       margin-bottom: 32px;
 
       .avatar-wrapper {
-        width: 100px;
-        height: 100px;
+        width: 88px;
+        height: 88px;
         border-radius: 50%;
         overflow: hidden;
         transition: all 0.2s;
