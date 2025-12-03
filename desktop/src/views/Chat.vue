@@ -875,19 +875,20 @@
     @cancel="cancelDelete"
   />
 
-  <!-- 清除聊天记录确认对话框 -->
-  <ConfirmDialog
-    v-model:visible="showClearHistoryConfirm"
+  <!-- 清除聊天记录对话框（统一 Dialog 组件） -->
+  <Dialog
+    v-model="showClearHistoryConfirm"
     title="清除聊天记录"
-    :message="clearHistoryDialogMessage"
-    description="仅清除该会话的消息，其他数据不受影响。操作完成后所有在线设备将同步清空。"
-    confirm-text="清除"
-    cancel-text="取消"
-    :loading="clearingHistory"
-    type="danger"
+    :confirm-text="clearingHistory ? '清除中...' : '清除'"
+    :confirm-disabled="clearingHistory"
     @confirm="confirmClearHistory"
     @cancel="cancelClearHistory"
-  />
+  >
+    <div class="group-name-content">
+      <p class="dialog-tip">{{ clearHistoryDialogMessage }}</p>
+      <p class="dialog-subtip">仅清除该会话的消息，其他数据不受影响。操作完成后所有在线设备将同步清空。</p>
+    </div>
+  </Dialog>
 
   <!-- 转发选择对话框 -->
   <Dialog
