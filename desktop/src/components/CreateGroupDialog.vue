@@ -2,7 +2,7 @@
   <Dialog
     v-model="internalVisible"
     title="创建群聊"
-    :width="'520px'"
+    :width="'680px'"
     :confirm-text="isCreating ? '创建中...' : '创建群聊'"
     :confirm-disabled="isCreating || !canCreate"
     @confirm="handleCreate"
