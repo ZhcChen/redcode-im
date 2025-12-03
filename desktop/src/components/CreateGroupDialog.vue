@@ -368,8 +368,8 @@ defineExpose({
       margin-bottom: 32px;
 
       .avatar-wrapper {
-        width: 88px;
-        height: 88px;
+        width: 72px;
+        height: 72px;
         border-radius: 50%;
         overflow: hidden;
         transition: all 0.2s;
