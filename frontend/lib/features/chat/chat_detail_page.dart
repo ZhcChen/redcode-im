@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import 'constants/emoji_list.dart';
 import 'models/chat_conversation.dart';
 import 'models/chat_message.dart';
 import 'widgets/chat_message_bubble.dart';
@@ -511,53 +512,38 @@ class _EmojiPanel extends StatelessWidget {
 
   final ValueChanged<String> onEmojiSelected;
 
-  static const List<String> _emojis = [
-    '😀',
-    '😁',
-    '😂',
-    '🥲',
-    '😍',
-    '😘',
-    '🤔',
-    '😎',
-    '😢',
-    '😭',
-    '👍',
-    '👋',
-    '🙏',
-    '🔥',
-    '🌟',
-    '❤️',
-  ];
+  static const List<String> _emojis = desktopEmojiList;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 200,
+      height: 280,
       color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: SafeArea(
         top: false,
-        child: Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: _emojis
-              .map(
-                (emoji) => GestureDetector(
-                  onTap: () => onEmojiSelected(emoji),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(emoji, style: const TextStyle(fontSize: 20)),
-                  ),
+        child: GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          physics: const BouncingScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 8,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+          ),
+          itemCount: _emojis.length,
+          itemBuilder: (_, index) {
+            final emoji = _emojis[index];
+            return GestureDetector(
+              onTap: () => onEmojiSelected(emoji),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              )
-              .toList(),
+                child: Text(emoji, style: const TextStyle(fontSize: 20)),
+              ),
+            );
+          },
         ),
       ),
     );

@@ -29,6 +29,7 @@ import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
+import 'constants/emoji_list.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
 import 'models/message_model.dart';
@@ -4098,64 +4099,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   final Map<String, List<EmojiPack>> _suitePacksCache = {};
   final Map<String, bool> _loadingSuitePacks = {};
 
-  static const List<String> emojis = [
-    '😀',
-    '😃',
-    '😄',
-    '😁',
-    '😆',
-    '😅',
-    '🤣',
-    '😂',
-    '🙂',
-    '🙃',
-    '😉',
-    '😊',
-    '😇',
-    '🥰',
-    '😍',
-    '🤩',
-    '😘',
-    '😗',
-    '😚',
-    '😙',
-    '😋',
-    '😛',
-    '😜',
-    '🤪',
-    '😝',
-    '🤑',
-    '🤗',
-    '🤭',
-    '🤫',
-    '🤔',
-    '🤐',
-    '🤨',
-    '😐',
-    '😑',
-    '😶',
-    '😏',
-    '😒',
-    '🙄',
-    '😬',
-    '🤥',
-    '😌',
-    '😔',
-    '😪',
-    '🤤',
-    '😴',
-    '😷',
-    '🤒',
-    '🤕',
-    '🤢',
-    '🤮',
-    '🤧',
-    '🥵',
-    '🥶',
-    '🥴',
-    '😵',
-    '🤯',
-  ];
+  static const List<String> emojis = desktopEmojiList;
 
   @override
   void initState() {
