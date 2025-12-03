@@ -322,8 +322,6 @@ watch(() => props.visible, (newVisible) => {
     if (props.contacts.length === 0 && !props.isLoadingContacts) {
       emit('load-contacts')
     }
-  } else {
-    showMemberSelector.value = false
   }
 })
 
