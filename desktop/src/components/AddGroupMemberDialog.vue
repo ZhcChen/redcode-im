@@ -44,15 +44,17 @@
 
         <!-- 已选择的联系人 -->
         <ScrollContainer class="selected-members">
-          <div
-            v-for="contact in selectedContacts"
-            :key="contact.id"
-            class="selected-member"
-            @click="removeContact(contact.id)"
-          >
-            <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
-            <div class="member-name">{{ contact.nickname }}</div>
-            <div class="remove-btn">×</div>
+          <div class="selected-grid">
+            <div
+              v-for="contact in selectedContacts"
+              :key="contact.id"
+              class="selected-member"
+              @click="removeContact(contact.id)"
+            >
+              <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
+              <div class="member-name">{{ contact.nickname }}</div>
+              <div class="remove-btn">×</div>
+            </div>
           </div>
         </ScrollContainer>
 
@@ -272,8 +274,8 @@ watch(() => props.visible, (newVisible) => {
   .selected-members {
     flex: 1;
     padding: 20px;
-    // OverlayScrollbars 内部内容容器
-    :deep(.os-content) {
+
+    .selected-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
