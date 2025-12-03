@@ -37,11 +37,13 @@
           v-for="member in filteredMembers"
           :key="member.userId"
           class="member-item"
+          :class="{ 'item-disabled': member.role === 'owner' }"
           @click="handleToggleMember(member)"
         >
           <input
             type="checkbox"
             :checked="isSelected(member.userId)"
+            :disabled="member.role === 'owner'"
             @click.stop="handleToggleMember(member)"
             class="member-checkbox"
           />
@@ -118,12 +120,14 @@ const selectedMembers = computed(() => {
 
 // 过滤后的成员列表
 const filteredMembers = computed(() => {
+  const base = props.members.filter(member => member.role !== 'owner')
+
   if (!searchKeyword.value.trim()) {
-    return props.members
+    return base
   }
 
   const keyword = searchKeyword.value.trim().toLowerCase()
-  return props.members.filter(member => {
+  return base.filter(member => {
     const nickname = (member.nickname || '').toLowerCase()
     const username = (member.username || '').toLowerCase()
     return nickname.includes(keyword) || username.includes(keyword)
@@ -137,6 +141,9 @@ const isSelected = (userId: string): boolean => {
 
 // 切换成员选中状态
 const handleToggleMember = (member: RoomMember) => {
+  if (member.role === 'owner') {
+    return
+  }
   if (selectedMemberIds.value.has(member.userId)) {
     selectedMemberIds.value.delete(member.userId)
   } else {
