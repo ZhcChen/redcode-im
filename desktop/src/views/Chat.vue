@@ -8852,7 +8852,6 @@ const confirmDissolveGroup = async () => {
     }
     toast.success('群聊已解散')
     store.dispatch('removeChatItem', selectedChat.value.groupId)
-    webSocketManager.leaveRoom(selectedChat.value.groupId)
     selectedChat.value = null
     messages.value = []
     messageList.value = []
