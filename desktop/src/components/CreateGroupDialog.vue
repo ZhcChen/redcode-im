@@ -1,13 +1,15 @@
 <template>
-  <Mask :visible="visible" @update:visible="handleVisibleChange" @close="handleClose">
+  <Dialog
+    v-model="internalVisible"
+    title="创建群聊"
+    :width="'520px'"
+    :confirm-text="isCreating ? '创建中...' : '创建群聊'"
+    :confirm-disabled="isCreating || !canCreate"
+    @confirm="handleCreate"
+    @cancel="handleClose"
+    @close="handleClose"
+  >
     <div class="create-group-dialog">
-      <!-- 头部 -->
-      <div class="dialog-header">
-        <div class="title">创建群聊</div>
-        <div class="close-btn" @click="handleClose">×</div>
-      </div>
-
-      <!-- 内容区域 -->
       <ScrollContainer class="dialog-content">
         <!-- 群头像 -->
         <div class="avatar-section">
@@ -79,24 +81,16 @@
         </div>
       </ScrollContainer>
 
-      <!-- 底部操作按钮 -->
-      <div class="dialog-footer">
-        <button class="cancel-btn" @click="handleClose" :disabled="isCreating">取消</button>
-        <button class="confirm-btn" @click="handleCreate" :disabled="isCreating || !canCreate">
-          {{ isCreating ? '创建中...' : '创建群聊' }}
-        </button>
-      </div>
-
       <!-- 隐藏的文件输入 -->
-  <input
-    ref="avatarInputRef"
-    type="file"
-    accept="image/jpeg,image/png,image/webp,image/gif"
-    style="display: none"
-    @change="handleAvatarChange"
-  />
+      <input
+        ref="avatarInputRef"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        style="display: none"
+        @change="handleAvatarChange"
+      />
     </div>
-  </Mask>
+  </Dialog>
 
   <!-- 成员选择对话框 -->
   <AddGroupMemberDialog
@@ -110,7 +104,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import Mask from './Mask.vue'
+import Dialog from './Dialog.vue'
 import BInput from './BInput.vue'
 import Avatar from './Avatar.vue'
 import AddGroupMemberDialog from './AddGroupMemberDialog.vue'
@@ -146,6 +140,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+const internalVisible = ref(props.visible)
 
 // 表单数据
 const groupName = ref('')
@@ -293,21 +289,11 @@ const resetForm = () => {
   }
 }
 
-// 处理visible变化
-const handleVisibleChange = (newVisible: boolean) => {
-  emit('update:visible', newVisible)
-}
+const internalVisible = ref(props.visible)
 
-// 关闭对话框
-const handleClose = () => {
-  if (isCreating.value) return
-  resetForm()
-  emit('update:visible', false)
-  emit('close')
-}
-
-// 监听visible变化
+// 同步外部 visible -> 内部
 watch(() => props.visible, (newVisible) => {
+  internalVisible.value = newVisible
   if (newVisible) {
     resetForm()
     // 如果没有联系人数据且未在加载，触发加载
@@ -319,6 +305,19 @@ watch(() => props.visible, (newVisible) => {
   }
 })
 
+// 同步内部 -> 外部
+watch(internalVisible, (newVisible) => {
+  emit('update:visible', newVisible)
+})
+
+// 关闭对话框
+const handleClose = () => {
+  if (isCreating.value) return
+  resetForm()
+  internalVisible.value = false
+  emit('close')
+}
+
 // 暴露创建状态控制方法
 defineExpose({
   setCreating: (value: boolean) => {
@@ -329,7 +328,7 @@ defineExpose({
 
 <style lang="scss" scoped>
 .create-group-dialog {
-  width: 560px;
+  width: 100%;
   background: white;
   border-radius: 12px;
   display: flex;
