@@ -352,9 +352,13 @@ defineExpose({
   max-height: 90vh;
   overflow: hidden;
   box-sizing: border-box;
+  user-select: none;
+  cursor: default;
 
   * {
     box-sizing: border-box;
+    user-select: none;
+    cursor: default;
   }
 }
 
