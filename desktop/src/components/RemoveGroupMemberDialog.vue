@@ -207,6 +207,15 @@ watch(() => props.visible, (newVal) => {
   gap: 16px;
   padding: 16px 8px;
   max-height: 500px;
+  user-select: none;
+  cursor: default;
+
+  // 搜索框正常输入与选中
+  .search-input,
+  .search-input input {
+    user-select: text;
+    cursor: text;
+  }
 }
 
 .selected-members-preview {
@@ -268,6 +277,7 @@ watch(() => props.visible, (newVal) => {
   padding: 12px;
   border-radius: 8px;
   transition: background-color 0.2s;
+  cursor: default;
 
   &:hover {
     background-color: #f5f5f5;
@@ -296,6 +306,11 @@ watch(() => props.visible, (newVal) => {
       color: #686A8A;
     }
   }
+}
+
+.item-disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .empty-state {
