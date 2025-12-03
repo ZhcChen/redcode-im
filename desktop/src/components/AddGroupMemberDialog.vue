@@ -173,7 +173,7 @@ watch(() => props.visible, (newVisible) => {
 
 <style lang="scss" scoped>
 .add-member-dialog {
-  width: 800px;
+  width: 860px;
   height: 600px;
   background: white;
   border-radius: 12px;
@@ -246,7 +246,7 @@ watch(() => props.visible, (newVisible) => {
 }
 
 .right-section {
-  width: 300px;
+  width: 360px;
   display: flex;
   flex-direction: column;
 
@@ -275,7 +275,7 @@ watch(() => props.visible, (newVisible) => {
     // OverlayScrollbars 内部内容容器
     :deep(.os-content) {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
       align-content: flex-start;
     }
