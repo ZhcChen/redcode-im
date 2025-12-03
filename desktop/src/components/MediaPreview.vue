@@ -704,8 +704,8 @@ watch(() => props.visible, (newVisible) => {
 
 .toolbar-buttons {
   position: absolute;
-  top: -50px;
-  right: 0;
+  top: 16px;
+  right: 16px;
   display: flex;
   gap: 8px;
   z-index: 10001;
