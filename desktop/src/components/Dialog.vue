@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import ScrollContainer from './ScrollContainer.vue'
 
 interface Props {
