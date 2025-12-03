@@ -50,6 +50,12 @@ tests/go/desktop_add_member/
   go test -v -run TestAddMembers_Smoke
   ```
 
+## 执行规则（backend 端口与进程）
+- 涉及 backend 的测试必须由测试脚本自行启动 backend 服务。
+- 启动前检查目标端口（默认 8010，可由 `PORT` 环境变量覆盖）；若被占用，优先 kill 占用该端口的进程后再启动 backend。
+- 启动时建议使用独立端口以避免影响现有实例，例如 `PORT=18010 cargo run --quiet`。
+- 测试完成后必须关闭本次启动的 backend 进程，保持环境整洁。
+
 ## 扩展计划
 - 增加 WS 层验证：订阅 `GroupMemberChanged` 事件，确认 joined/kicked 广播。
 - 引入并行用例与 race 检查，覆盖并发添加同一用户的幂等性。
