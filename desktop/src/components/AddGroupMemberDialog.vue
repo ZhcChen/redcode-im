@@ -272,20 +272,19 @@ watch(() => props.visible, (newVisible) => {
   .selected-members {
     flex: 1;
     padding: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px; /* 修改间距为20px */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 16px;
     align-content: flex-start;
 
     .selected-member {
-      width: calc((100% - 40px) / 3); /* 一行3个，减去两个间距(20px * 2 = 40px) */
       display: flex;
       flex-direction: column;
       align-items: center;
       position: relative;
 
       .member-name {
-        font-size: 11px; /* 稍微减小字体 */
+        font-size: 11px;
         color: #333;
         text-align: center;
         line-height: 1.2;
@@ -293,22 +292,22 @@ watch(() => props.visible, (newVisible) => {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        margin-top: 6px; /* 添加与Avatar组件的间距 */
+        margin-top: 6px;
       }
 
       .remove-btn {
         position: absolute;
-        top: -5px;
-        right: 5px;
-        width: 20px;
-        height: 20px;
+        top: -6px;
+        right: 2px;
+        width: 18px;
+        height: 18px;
         background: #ff4757;
         color: white;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: bold;
         opacity: 0;
         transition: opacity 0.2s;
