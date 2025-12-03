@@ -346,7 +346,7 @@ defineExpose({
 .create-group-dialog {
   width: 100%;
   background: transparent;
-  border-radius: 12px;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   max-height: 90vh;
