@@ -64,10 +64,17 @@ pub async fn get_group_settings(
 
     let store = GroupManagementStore::new(state.database.pool());
 
-    let settings = store
-        .get_group_settings(room_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?;
+    let settings = match store.get_group_settings(room_id).await? {
+        Some(s) => s,
+        None => {
+            // 兼容历史群聊未生成设置记录的情况
+            store.ensure_group_settings_row(room_id).await?;
+            store
+                .get_group_settings(room_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?
+        }
+    };
 
     // 查询当前用户的个人禁言状态
     let my_mute = if let Some(mute) = store.find_active_mute(room_id, user_id).await? {
@@ -756,10 +763,16 @@ pub async fn add_group_members(
         ));
     }
 
-    let settings = store
-        .get_group_settings(room_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?;
+    let settings = match store.get_group_settings(room_id).await? {
+        Some(s) => s,
+        None => {
+            store.ensure_group_settings_row(room_id).await?;
+            store
+                .get_group_settings(room_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?
+        }
+    };
 
     let current_count = store.count_active_members(room_id).await?;
     let remaining = settings.max_members as i64 - current_count;

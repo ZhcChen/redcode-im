@@ -54,7 +54,7 @@ impl<'a> GroupManagementStore<'a> {
         }
     }
 
-    async fn ensure_group_settings_row(&self, room_id: Uuid) -> Result<(), sqlx::Error> {
+    pub async fn ensure_group_settings_row(&self, room_id: Uuid) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
             INSERT INTO group_settings (room_id)
