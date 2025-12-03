@@ -27,7 +27,7 @@
         <!-- 群名称 -->
         <div class="form-group">
           <label class="form-label">群聊名称</label>
-          <BInput
+          <DialogInput
             v-model="groupName"
             placeholder="请输入群聊名称"
             :maxlength="20"
@@ -39,14 +39,14 @@
         <!-- 群公告 -->
         <div class="form-group">
           <label class="form-label">群公告（选填）</label>
-          <textarea
+          <DialogInput
             v-model="groupNotice"
-            class="notice-textarea"
             placeholder="请输入群公告"
-            maxlength="200"
-            rows="3"
+            :maxlength="200"
+            :rows="4"
             :disabled="isCreating"
-          ></textarea>
+            multiline
+          />
           <div class="notice-count">{{ groupNotice.length }}/200</div>
         </div>
 
@@ -105,10 +105,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import Dialog from './Dialog.vue'
-import BInput from './BInput.vue'
 import Avatar from './Avatar.vue'
 import AddGroupMemberDialog from './AddGroupMemberDialog.vue'
 import ScrollContainer from './ScrollContainer.vue'
+import DialogInput from './DialogInput.vue'
 
 interface Contact {
   id: string
