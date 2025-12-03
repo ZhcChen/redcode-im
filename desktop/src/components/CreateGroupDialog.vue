@@ -38,31 +38,68 @@
 
         <!-- 群成员 -->
         <div class="form-group">
-          <div class="member-header">
+          <div class="member-header-inline">
             <label class="form-label">群成员（{{ selectedMemberIds.length }}）</label>
-            <button class="add-member-btn" @click="handleSelectMembers" :disabled="isLoadingContacts">
-              {{ isLoadingContacts ? '加载中...' : '添加好友' }}
-            </button>
+            <span class="member-hint">选择至少一位好友加入群聊</span>
           </div>
 
-          <div v-if="isLoadingContacts" class="loading-state">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">加载好友列表中...</div>
-          </div>
-          <div v-else-if="selectedMembers.length === 0" class="empty-state">
-            点击右侧按钮，选择至少一位好友加入群聊
-          </div>
-          <ScrollContainer v-else class="selected-members" size="thin">
-            <div
-            v-for="member in selectedMembers"
-            :key="member.id"
-            class="member-chip"
-          >
-              <Avatar :src="member.avatar" :text="member.nickname" :color-seed="member.id" :size="32" />
-              <span class="member-name">{{ member.nickname }}</span>
-              <div class="remove-btn" @click="removeMember(member.id)">×</div>
+          <div class="member-picker" :class="{ loading: isLoadingContacts }">
+            <div class="picker-left">
+              <div class="search-wrapper">
+                <SearchInput
+                  v-model="searchKeyword"
+                  placeholder="搜索联系人..."
+                />
+              </div>
+
+              <ScrollContainer class="contact-list" size="thin">
+                <div v-if="isLoadingContacts" class="loading-state inline">
+                  <div class="loading-spinner"></div>
+                  <div class="loading-text">加载好友列表中...</div>
+                </div>
+                <div v-else-if="filteredContacts.length === 0" class="empty-state inline">
+                  <div class="empty-text">{{ searchKeyword ? '未找到匹配的联系人' : '暂无可添加的联系人' }}</div>
+                </div>
+                <div
+                  v-else
+                  v-for="contact in filteredContacts"
+                  :key="contact.id"
+                  class="contact-item"
+                  :class="{ selected: isSelected(contact.id) }"
+                  @click="toggleContact(contact)"
+                >
+                  <div class="contact-info">
+                    <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="36" />
+                    <div class="name">{{ contact.nickname }}</div>
+                  </div>
+                  <div class="select-indicator">{{ isSelected(contact.id) ? '✓' : '' }}</div>
+                </div>
+              </ScrollContainer>
             </div>
-          </ScrollContainer>
+
+            <div class="picker-right">
+              <div class="selected-header">
+                <div class="title">已选择 {{ selectedMembers.length }} 人</div>
+                <div class="subtitle">点击可移除</div>
+              </div>
+              <ScrollContainer class="selected-members" size="thin">
+                <div v-if="selectedMembers.length === 0" class="empty-state inline">
+                  <div class="empty-text">尚未选择成员</div>
+                </div>
+                <div
+                  v-else
+                  v-for="member in selectedMembers"
+                  :key="member.id"
+                  class="member-chip"
+                  @click="removeMember(member.id)"
+                >
+                  <Avatar :src="member.avatar" :text="member.nickname" :color-seed="member.id" :size="28" />
+                  <span class="member-name">{{ member.nickname }}</span>
+                  <div class="remove-btn">×</div>
+                </div>
+              </ScrollContainer>
+            </div>
+          </div>
           <div v-if="errors.members" class="error-text">{{ errors.members }}</div>
         </div>
       </ScrollContainer>
@@ -78,23 +115,15 @@
     </div>
   </Dialog>
 
-  <!-- 成员选择对话框 -->
-  <AddGroupMemberDialog
-    v-model:visible="showMemberSelector"
-    :contacts="contacts"
-    :selected-ids="selectedMemberIds"
-    @confirm="handleMembersSelected"
-    @close="showMemberSelector = false"
-  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import Dialog from './Dialog.vue'
 import Avatar from './Avatar.vue'
-import AddGroupMemberDialog from './AddGroupMemberDialog.vue'
 import ScrollContainer from './ScrollContainer.vue'
 import DialogInput from './DialogInput.vue'
+import SearchInput from './SearchInput.vue'
 
 interface Contact {
   id: string
@@ -114,7 +143,6 @@ interface Emits {
   (e: 'close'): void
   (e: 'create', data: {
     name: string
-    notice?: string
     avatar?: string
     memberIds: string[]
   }): void
@@ -130,14 +158,13 @@ const emit = defineEmits<Emits>()
 
 // 表单数据
 const groupName = ref('')
-const groupNotice = ref('')
 const groupAvatar = ref<string>()
 const avatarFile = ref<File>()
 const selectedMemberIds = ref<string[]>([])
+const searchKeyword = ref('')
 
 // 状态
 const isCreating = ref(false)
-const showMemberSelector = ref(false)
 const avatarInputRef = ref<HTMLInputElement>()
 
 // 错误信息
@@ -150,6 +177,27 @@ const errors = ref({
 const selectedMembers = computed(() => {
   return props.contacts.filter(contact => selectedMemberIds.value.includes(contact.id))
 })
+
+const filteredContacts = computed(() => {
+  if (!searchKeyword.value) return props.contacts
+  const keyword = searchKeyword.value.toLowerCase()
+  return props.contacts.filter(contact =>
+    contact.nickname.toLowerCase().includes(keyword) ||
+    (contact.username && contact.username.toLowerCase().includes(keyword))
+  )
+})
+
+const isSelected = (contactId: string) => selectedMemberIds.value.includes(contactId)
+
+const toggleContact = (contact: Contact) => {
+  const index = selectedMemberIds.value.indexOf(contact.id)
+  if (index > -1) {
+    selectedMemberIds.value.splice(index, 1)
+  } else {
+    selectedMemberIds.value.push(contact.id)
+    errors.value.members = ''
+  }
+}
 
 // 是否可以创建
 const canCreate = computed(() => {
@@ -202,20 +250,6 @@ const handleAvatarChange = (event: Event) => {
   target.value = ''
 }
 
-// 处理选择成员
-const handleSelectMembers = () => {
-  if (props.contacts.length === 0 && !props.isLoadingContacts) {
-    emit('load-contacts')
-  }
-  showMemberSelector.value = true
-}
-
-// 处理成员选择完成
-const handleMembersSelected = (memberIds: string[]) => {
-  selectedMemberIds.value = memberIds
-  errors.value.members = ''
-}
-
 // 移除成员
 const removeMember = (memberId: string) => {
   const index = selectedMemberIds.value.indexOf(memberId)
@@ -255,7 +289,6 @@ const handleCreate = () => {
   
   emit('create', {
     name: groupName.value.trim(),
-    notice: groupNotice.value.trim() || undefined,
     avatar: groupAvatar.value,
     memberIds: selectedMemberIds.value
   })
@@ -267,6 +300,7 @@ const resetForm = () => {
   groupAvatar.value = undefined
   avatarFile.value = undefined
   selectedMemberIds.value = []
+  searchKeyword.value = ''
   errors.value = {
     groupName: '',
     members: ''
@@ -560,6 +594,110 @@ defineExpose({
       margin-top: 6px;
       font-size: 12px;
       color: #ff4757;
+    }
+  }
+
+  .member-header-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+
+    .member-hint {
+      font-size: 12px;
+      color: #999;
+    }
+  }
+
+  .member-picker {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 12px;
+    align-items: stretch;
+
+    .picker-left,
+    .picker-right {
+      background: #fff;
+      border: 1px solid #f0f0f0;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      min-height: 260px;
+    }
+
+    .search-wrapper {
+      padding: 12px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .contact-list {
+      flex: 1;
+      padding: 8px 12px 12px;
+
+      .contact-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #fafbfc;
+        border: 1px solid transparent;
+        transition: all 0.15s ease;
+        margin-bottom: 8px;
+        cursor: pointer;
+
+        &.selected {
+          border-color: #00c2b3;
+          background: #e8fffa;
+        }
+
+        .contact-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+
+          .name {
+            font-size: 14px;
+            color: #333;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+        }
+
+        .select-indicator {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 1px solid #dcdfe6;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          color: #00c2b3;
+        }
+      }
+    }
+
+    .picker-right {
+      .selected-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        border-bottom: 1px solid #f3f4f6;
+
+        .title {
+          font-size: 14px;
+          font-weight: 600;
+          color: #333;
+        }
+        .subtitle {
+          font-size: 12px;
+          color: #999;
+        }
+      }
     }
   }
 }
