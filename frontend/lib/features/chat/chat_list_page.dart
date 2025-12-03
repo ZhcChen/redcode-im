@@ -858,14 +858,9 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   Widget _buildDefaultAvatar() {
     final name = widget.chat.name.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    // 背景色使用稳定种子，优先 roomId/好友ID，保证与消息列表一致
-    final seed = widget.chat.type == ChatType.single
-        ? (widget.chat.extra?['friend_user_id'] as String? ??
-            widget.chat.extra?['friendUserId'] as String? ??
-            widget.chat.roomId)
-        : widget.chat.roomId;
-    final backgroundColor =
-        AvatarColorUtils.generateBackgroundColor(seed ?? name);
+    // 背景色使用稳定种子，单聊优先对端用户ID，群聊用 roomId，与桌面端逻辑保持一致
+    final seed = _resolveChatColorSeed(widget.chat);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
 
     return Container(
       width: 48,
@@ -886,6 +881,36 @@ class _ChatAvatarState extends State<_ChatAvatar> {
       ),
     );
   }
+}
+
+/// 提取单聊对端用户 ID，逻辑与桌面端 getPrivateChatPeerId 保持一致
+String? _peerIdFromExtra(Map<String, dynamic>? extra) {
+  if (extra == null) return null;
+  final candidates = <String?>[
+    extra['friend_id'] as String?,
+    extra['friendId'] as String?,
+    extra['friend_user_id'] as String?,
+    extra['friendUserId'] as String?,
+    extra['target_user_id'] as String?,
+    extra['targetUserId'] as String?,
+    extra['peer_user_id'] as String?,
+    extra['peerUserId'] as String?,
+    extra['user_id'] as String?,
+    extra['userId'] as String?,
+  ];
+  for (final c in candidates) {
+    if (c != null && c.trim().isNotEmpty) return c.trim();
+  }
+  return null;
+}
+
+/// 统一头像颜色种子：单聊优先对端用户ID，群聊使用 roomId/id/name
+String _resolveChatColorSeed(Chat chat) {
+  if (chat.type == ChatType.single) {
+    final peerId = _peerIdFromExtra(chat.extra);
+    if (peerId != null) return peerId;
+  }
+  return chat.roomId ?? chat.id ?? chat.name;
 }
 
 class _EmptyPlaceholder extends StatelessWidget {

@@ -3541,7 +3541,7 @@ class _ForwardTargetTile extends StatelessWidget {
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
+          color: Colors.white,
         ),
       ),
     );
