@@ -289,6 +289,7 @@ const resetForm = () => {
   }
 }
 
+// 可见性控制（同步 Dialog）
 const internalVisible = ref(props.visible)
 
 // 同步外部 visible -> 内部
@@ -296,7 +297,6 @@ watch(() => props.visible, (newVisible) => {
   internalVisible.value = newVisible
   if (newVisible) {
     resetForm()
-    // 如果没有联系人数据且未在加载，触发加载
     if (props.contacts.length === 0 && !props.isLoadingContacts) {
       emit('load-contacts')
     }
