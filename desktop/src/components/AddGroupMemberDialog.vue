@@ -282,19 +282,20 @@ watch(() => props.visible, (newVisible) => {
 
     .selected-member {
       display: flex;
+      flex-direction: column;
       align-items: center;
       position: relative;
 
       .member-name {
         font-size: 11px;
         color: #333;
-        text-align: left;
+        text-align: center;
         line-height: 1.2;
         max-width: 70px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        margin-left: 8px;
+        margin-top: 6px;
       }
 
       .remove-btn {
