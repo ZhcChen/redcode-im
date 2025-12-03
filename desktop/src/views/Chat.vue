@@ -879,6 +879,7 @@
   <Dialog
     v-model="showClearHistoryConfirm"
     title="清除聊天记录"
+    :width="'420px'"
     :confirm-text="clearingHistory ? '清除中...' : '清除'"
     :confirm-disabled="clearingHistory"
     @confirm="confirmClearHistory"
@@ -886,7 +887,7 @@
   >
     <div class="group-name-content">
       <p class="dialog-tip">{{ clearHistoryDialogMessage }}</p>
-      <p class="dialog-subtip">仅清除该会话的消息，其他数据不受影响。操作完成后所有在线设备将同步清空。</p>
+      <p class="dialog-subtip">清除后双方所有设备的此会话消息都会被移除，操作不可恢复。</p>
     </div>
   </Dialog>
 

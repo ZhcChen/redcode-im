@@ -6,6 +6,7 @@
           <div 
             v-if="visible" 
             :class="['dialog-container', { 'dialog-no-select': disableTextSelection }]" 
+            :style="computedStyle"
             @click.stop
           >
             <div class="dialog-header">
@@ -59,6 +60,8 @@ interface Props {
   confirmDisabled?: boolean
   /** 是否禁用弹窗内文本选中（表单控件除外） */
   disableTextSelection?: boolean
+  /** 弹窗宽度（例如 '420px' 或 '50%'） */
+  width?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -68,7 +71,8 @@ const props = withDefaults(defineProps<Props>(), {
   confirmText: '确定',
   cancelText: '取消',
   confirmDisabled: false,
-  disableTextSelection: false
+  disableTextSelection: false,
+  width: '420px'
 })
 
 const emits = defineEmits<{
@@ -87,6 +91,11 @@ const getActualVisible = () => {
 }
 
 const visible = ref(getActualVisible())
+
+// 计算样式（支持宽度自定义）
+const computedStyle = computed(() => ({
+  width: props.width,
+}))
 
 // 监听 modelValue 变化
 watch(() => props.modelValue, (newValue) => {
