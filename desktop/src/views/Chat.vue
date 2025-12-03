@@ -9555,7 +9555,7 @@ const loadMessageList = async (groupId: string) => {
   
   .input-container {
     display: flex;
-    align-items: flex-end; /* 恢复flex-end，这样多行时图标靠底部 */
+    align-items: center; /* 垂直居中对齐，确保单行和禁言状态下居中 */
     min-height: 54px;
     width: 100%;
     background: white;
@@ -9603,13 +9603,11 @@ const loadMessageList = async (groupId: string) => {
       display: flex;
       align-items: center;
       gap: 16px;
-      margin-bottom: 2px; /* 稍微上移，与textarea文本行对齐 */
     }
 
     .input-right-actions {
       display: flex;
       align-items: center;
-      margin-bottom: 2px; /* 稍微上移，与textarea文本行对齐 */
     }
 
     .action-icon {
