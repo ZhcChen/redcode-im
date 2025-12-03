@@ -275,7 +275,7 @@ watch(() => props.visible, (newVisible) => {
     // OverlayScrollbars 内部内容容器
     :deep(.os-content) {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
       align-content: flex-start;
     }
