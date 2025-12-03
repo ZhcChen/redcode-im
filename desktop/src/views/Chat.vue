@@ -9351,8 +9351,6 @@ const loadMessageList = async (groupId: string) => {
       // 媒体消息特殊处理 - 自己的消息
       .media-message {
         margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
-        border-radius: 8px;
-        overflow: hidden;
 
         .message-image {
           max-width: 200px;
@@ -9439,8 +9437,6 @@ const loadMessageList = async (groupId: string) => {
     // 媒体消息特殊处理 - 他人消息
     .media-message {
       margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
-      border-radius: 8px;
-      overflow: hidden;
 
       .message-image {
         max-width: 200px;

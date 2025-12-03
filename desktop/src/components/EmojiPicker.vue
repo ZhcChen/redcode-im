@@ -1016,10 +1016,8 @@ const CachedEmojiImage = defineComponent({
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
-  border-radius: 6px;
   transition: background-color 0.2s;
   min-width: 0;
-  overflow: hidden;
   width: 100%;
   user-select: none;
 
