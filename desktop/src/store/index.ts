@@ -108,7 +108,7 @@ export interface ChatItem {
     extra?: Record<string, unknown> | null
 }
 
-const sortChatItems = (list: ChatItem[]) => {
+const sortChatItems = (list: ChatItem[], currentChatGroupId?: string | null) => {
     list.sort((a, b) => {
         const aIsFavorite = a.groupType === 2
         const bIsFavorite = b.groupType === 2
@@ -119,6 +119,14 @@ const sortChatItems = (list: ChatItem[]) => {
         if (a.isTop && !b.isTop) return -1
         if (!a.isTop && b.isTop) return 1
 
+        // 当前选中的会话优先显示（在收藏夹和置顶之后）
+        const aIsCurrent = currentChatGroupId && (a.groupId === currentChatGroupId || a.id === currentChatGroupId)
+        const bIsCurrent = currentChatGroupId && (b.groupId === currentChatGroupId || b.id === currentChatGroupId)
+
+        if (aIsCurrent && !bIsCurrent) return -1
+        if (!aIsCurrent && bIsCurrent) return 1
+
+        // 时间倒序（最新消息在前）
         return new Date(b.time).getTime() - new Date(a.time).getTime()
     })
 }
@@ -565,7 +573,7 @@ export const store = createStore<State>({
         SET_CHAT_LIST(state: State, chatList: ChatItem[]) {
             // 保留原有的直接设置功能，用于初始化或完全替换
             const sortedChatList = [...chatList]
-            sortChatItems(sortedChatList)
+            sortChatItems(sortedChatList, state.currentChatGroupId)
             state.chatList.list = sortedChatList
             state.chatList.lastUpdateTime = Date.now()
             state.chatList.error = null
@@ -619,8 +627,8 @@ export const store = createStore<State>({
                 }
             })
 
-            // 4. 重新排序（收藏夹优先，其次置顶，再按时间倒序）
-            sortChatItems(state.chatList.list)
+            // 4. 重新排序（收藏夹优先，其次置顶，再按时间倒序，当前选中会话优先）
+            sortChatItems(state.chatList.list, state.currentChatGroupId)
 
             // 5. 更新最后更新时间和清除错误状态
             state.chatList.lastUpdateTime = Date.now()
@@ -632,8 +640,8 @@ export const store = createStore<State>({
             const index = state.chatList.list.findIndex(chat => chat.id === updatedChat.id)
             if (index !== -1) {
                 state.chatList.list.splice(index, 1, updatedChat)
-                // 重新排序
-                sortChatItems(state.chatList.list)
+                // 重新排序，确保当前选中会话优先
+                sortChatItems(state.chatList.list, state.currentChatGroupId)
             }
         },
 
@@ -649,8 +657,8 @@ export const store = createStore<State>({
             const exists = state.chatList.list.some(chat => chat.id === newChat.id)
             if (!exists) {
                 state.chatList.list.push(newChat)
-                // 重新排序
-                sortChatItems(state.chatList.list)
+                // 重新排序，确保当前选中会话优先
+                sortChatItems(state.chatList.list, state.currentChatGroupId)
             }
         },
 
