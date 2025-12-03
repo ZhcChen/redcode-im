@@ -161,6 +161,14 @@ pub enum TauriEventPayload {
         old_owner_id: String,
         new_owner_id: String,
     },
+    /// 群设置更新
+    GroupSettingsUpdated(serde_json::Value),
+    /// 群成员变更
+    GroupMemberChanged(serde_json::Value),
+    /// 好友资料更新
+    FriendProfileUpdated(serde_json::Value),
+    /// 房间历史清除
+    RoomHistoryCleared(serde_json::Value),
     /// 错误
     Error { message: String },
     /// Pong
@@ -347,6 +355,43 @@ impl TauriEventPayload {
                     old_owner_id: transferred.old_owner_id,
                     new_owner_id: transferred.new_owner_id,
                 })
+            }
+            ws::server_event::Payload::GroupSettingsUpdated(settings) => {
+                let json = serde_json::json!({
+                    "room_id": settings.room_id,
+                    "global_mute_enabled": settings.global_mute_enabled,
+                    "global_mute_reason": settings.global_mute_reason,
+                    "global_mute_until": settings.global_mute_until,
+                    "global_mute_set_by": settings.global_mute_set_by,
+                });
+                Some(Self::GroupSettingsUpdated(json))
+            }
+            ws::server_event::Payload::GroupMemberChanged(member) => {
+                let json = serde_json::json!({
+                    "room_id": member.room_id,
+                    "member_id": member.member_id,
+                    "change_type": member.change_type,
+                    "new_role": member.new_role,
+                    "operator_id": member.operator_id,
+                });
+                Some(Self::GroupMemberChanged(json))
+            }
+            ws::server_event::Payload::FriendProfileUpdated(profile) => {
+                let json = serde_json::json!({
+                    "user_id": profile.user_id,
+                    "nickname": profile.nickname,
+                    "avatar_url": profile.avatar_url,
+                    "avatar_object_key": profile.avatar_object_key,
+                });
+                Some(Self::FriendProfileUpdated(json))
+            }
+            ws::server_event::Payload::RoomHistoryCleared(cleared) => {
+                let json = serde_json::json!({
+                    "room_id": cleared.room_id,
+                    "cleared_at": cleared.cleared_at,
+                    "cleared_by": cleared.cleared_by,
+                });
+                Some(Self::RoomHistoryCleared(json))
             }
             ws::server_event::Payload::Error(err) => Some(Self::Error {
                 message: err.message,

@@ -858,7 +858,7 @@ pub async fn upload_current_admin_avatar(
 
     // 更新用户头像URL
     let store = admin::AdminUserStore::new(state.database.clone());
-    let updated_user = store
+    let _updated_user = store
         .update_admin_user(&admin_user_id, None, Some(file_url.clone()))
         .await?
         .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
