@@ -165,10 +165,6 @@
           </div>
         </div>
 
-        <div v-if="mediaName" class="media-info">
-          <div class="media-name">{{ mediaName }}</div>
-          <div v-if="mediaSize" class="media-size">{{ formatFileSize(mediaSize) }}</div>
-        </div>
       </div>
     </div>
   </div>
