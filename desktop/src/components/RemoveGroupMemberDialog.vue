@@ -2,6 +2,7 @@
   <Dialog
     v-model="isVisible"
     title="删除群成员"
+    :disable-text-selection="true"
     @confirm="handleConfirm"
     @cancel="handleCancel"
     :confirm-text="confirmText"
