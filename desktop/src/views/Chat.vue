@@ -875,6 +875,17 @@
     @cancel="cancelDelete"
   />
 
+  <!-- 解散群聊确认对话框 -->
+  <ConfirmDialog
+    v-model:visible="showDissolveGroupConfirm"
+    title="解散群聊"
+    message="解散群聊后所有成员将失去该会话，确认继续？"
+    confirm-text="解散"
+    cancel-text="取消"
+    type="danger"
+    @confirm="confirmDissolveGroup"
+  />
+
   <!-- 清除聊天记录对话框（统一 Dialog 组件） -->
   <Dialog
     v-model="showClearHistoryConfirm"
@@ -2817,6 +2828,9 @@ const messageContextMenuTarget = ref<Message | null>(null)
 // 删除对话确认对话框状态
 const showDeleteConfirm = ref<boolean>(false)
 const deleteTargetChat = ref<ChatItem | null>(null)
+
+// 解散群聊确认对话框状态
+const showDissolveGroupConfirm = ref<boolean>(false)
 
 // 回复消息状态
 const replyingMessage = ref<Message | null>(null)
@@ -8816,14 +8830,17 @@ const confirmTransferOwner = async () => {
   }
 }
 
-const handleDissolveGroup = async () => {
+const handleDissolveGroup = () => {
   if (!selectedChat.value) return
   if (!isCurrentUserGroupOwner.value) {
     toast.error('只有群主可以解散群聊')
     return
   }
-  const confirmed = window.confirm('解散群聊后所有成员将失去该会话，确认继续？')
-  if (!confirmed) return
+  showDissolveGroupConfirm.value = true
+}
+
+const confirmDissolveGroup = async () => {
+  if (!selectedChat.value) return
 
   try {
     dissolvingGroup.value = true
