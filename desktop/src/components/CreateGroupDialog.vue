@@ -141,7 +141,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const internalVisible = ref(props.visible)
 
 // 表单数据
 const groupName = ref('')
@@ -290,9 +289,9 @@ const resetForm = () => {
 }
 
 // 可见性控制（同步 Dialog）
+// 可见性控制（同步 Dialog）
 const internalVisible = ref(props.visible)
 
-// 同步外部 visible -> 内部
 watch(() => props.visible, (newVisible) => {
   internalVisible.value = newVisible
   if (newVisible) {
@@ -305,12 +304,10 @@ watch(() => props.visible, (newVisible) => {
   }
 })
 
-// 同步内部 -> 外部
 watch(internalVisible, (newVisible) => {
   emit('update:visible', newVisible)
 })
 
-// 关闭对话框
 const handleClose = () => {
   if (isCreating.value) return
   resetForm()
