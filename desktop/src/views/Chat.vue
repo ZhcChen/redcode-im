@@ -876,15 +876,17 @@
   />
 
   <!-- 解散群聊确认对话框 -->
-  <ConfirmDialog
-    v-model:visible="showDissolveGroupConfirm"
+  <Dialog
+    v-model="showDissolveGroupConfirm"
     title="解散群聊"
-    message="解散群聊后所有成员将失去该会话，确认继续？"
-    confirm-text="解散"
-    cancel-text="取消"
-    type="danger"
+    :confirm-text="dissolvingGroup ? '解散中...' : '解散'"
+    :confirm-disabled="dissolvingGroup"
     @confirm="confirmDissolveGroup"
-  />
+  >
+    <div class="dissolve-group-content">
+      解散群聊后所有成员将失去该会话，确认继续？
+    </div>
+  </Dialog>
 
   <!-- 清除聊天记录对话框（统一 Dialog 组件） -->
   <Dialog
@@ -8862,6 +8864,7 @@ const confirmDissolveGroup = async () => {
     toast.error(error?.message || '解散失败')
   } finally {
     dissolvingGroup.value = false
+    showDissolveGroupConfirm.value = false
   }
 }
 
@@ -10318,6 +10321,14 @@ const loadMessageList = async (groupId: string) => {
       color: rgba(255, 255, 255, 0.7);
     }
   }
+}
+
+// 解散群聊对话框样式
+.dissolve-group-content {
+  padding: 16px 8px;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
 }
 
 // 群名输入对话框样式
