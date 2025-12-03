@@ -9359,7 +9359,6 @@ const loadMessageList = async (groupId: string) => {
           max-height: 200px;
           width: auto;
           height: auto;
-          border-radius: 8px;
         }
 
         .video-container {
@@ -9448,7 +9447,6 @@ const loadMessageList = async (groupId: string) => {
         max-height: 200px;
         width: auto;
         height: auto;
-        border-radius: 8px;
       }
 
       .video-container {
@@ -10152,7 +10150,6 @@ const loadMessageList = async (groupId: string) => {
 .message-image {
   max-width: 200px;
   max-height: 200px;
-  border-radius: 8px;
   transition: opacity 0.2s;
   display: block;
   cursor: default;

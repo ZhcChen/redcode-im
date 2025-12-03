@@ -1040,7 +1040,6 @@ const CachedEmojiImage = defineComponent({
     width: 100%;
     height: 100%;
     object-fit: contain; // 保持原始宽高比，缩放以适应容器
-    border-radius: 6px;
     display: block;
   }
 
