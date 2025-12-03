@@ -286,12 +286,16 @@ const validateForm = (): boolean => {
 // 处理创建
 const handleCreate = () => {
   if (!validateForm()) return
-  
+
   emit('create', {
     name: groupName.value.trim(),
     avatar: groupAvatar.value,
     memberIds: selectedMemberIds.value
   })
+
+  // 点击确认后立即收起弹窗，避免成功后仍停留
+  internalVisible.value = false
+  emit('update:visible', false)
 }
 
 // 重置表单
