@@ -995,23 +995,17 @@ const CachedEmojiImage = defineComponent({
 }
 
 .emoji-grid {
+  display: grid;
+  gap: 12px;
   width: 100%;
   box-sizing: border-box;
 
-  // OverlayScrollbars 的 viewport 需要应用 grid 样式
-  :deep(.os-viewport) {
-    display: grid;
-    gap: 12px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  &.emoji-grid-8 :deep(.os-viewport) {
+  &.emoji-grid-8 {
     grid-template-columns: repeat(8, 1fr);
     gap: 8px;
   }
 
-  &.emoji-grid-6 :deep(.os-viewport) {
+  &.emoji-grid-6 {
     grid-template-columns: repeat(6, 1fr);
   }
 }
