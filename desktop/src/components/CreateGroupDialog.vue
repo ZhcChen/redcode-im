@@ -326,7 +326,7 @@ defineExpose({
 <style lang="scss" scoped>
 .create-group-dialog {
   width: 100%;
-  background: white;
+  background: transparent;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
