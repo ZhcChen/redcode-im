@@ -623,7 +623,6 @@ defineExpose({
     .picker-left,
     .picker-right {
       background: #fff;
-      border: 1px solid #f0f0f0;
       border-radius: 10px;
       display: flex;
       flex-direction: column;
@@ -648,7 +647,7 @@ defineExpose({
         background: #fafbfc;
         border: 1px solid transparent;
         transition: all 0.15s ease;
-        margin-bottom: 8px;
+        margin: 10px 0;
         cursor: pointer;
 
         &.selected {
