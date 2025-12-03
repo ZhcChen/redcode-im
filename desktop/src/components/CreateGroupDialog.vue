@@ -376,38 +376,40 @@ defineExpose({
   padding: 24px;
   min-height: 0;
 
-  .avatar-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 32px;
+    .avatar-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 32px;
 
-    .avatar-wrapper {
-      width: 100px;
-      height: 100px;
-      border-radius: 20px;
-      overflow: hidden;
-      transition: all 0.2s;
+      .avatar-wrapper {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        overflow: hidden;
+        transition: all 0.2s;
+        background: #fff;
+        border: 1px solid #f0f0f0;
 
-      &:hover {
-        transform: scale(1.05);
+        &:hover {
+          transform: scale(1.05);
+        }
+
+        .avatar-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .avatar-placeholder {
+          width: 100%;
+          height: 100%;
+          background: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
       }
-
-      .avatar-image {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      .avatar-placeholder {
-        width: 100%;
-        height: 100%;
-        background: #f5f5f5;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-    }
 
     .avatar-hint {
       margin-top: 12px;
