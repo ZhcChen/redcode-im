@@ -272,10 +272,13 @@ watch(() => props.visible, (newVisible) => {
   .selected-members {
     flex: 1;
     padding: 20px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
-    gap: 16px;
-    align-content: flex-start;
+    // OverlayScrollbars 内部内容容器
+    :deep(.os-content) {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      align-content: flex-start;
+    }
 
     .selected-member {
       display: flex;
