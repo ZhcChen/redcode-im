@@ -728,7 +728,15 @@ function handleChatMessage(detail: any) {
   const targetUserId = eventUserId || user.value?.id
   const senderId = payload?.sender_id || payload?.senderId
   if (senderId && senderId !== targetUserId) {
-    NotificationApi.showNewMessageNotification()
+    // 检查消息所属的聊天是否开启了免打扰
+    const roomId = payload?.room_id || payload?.roomId
+    const chat = roomId ? store.getters.getChatByGroupId(roomId) : null
+    const isMuted = chat?.chatStatus === 1 // chatStatus === 1 表示免打扰状态
+
+    // 只有非免打扰状态才播放提示音和任务栏提醒
+    if (!isMuted) {
+      NotificationApi.showNewMessageNotification()
+    }
   }
 }
 

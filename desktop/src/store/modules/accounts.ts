@@ -493,11 +493,16 @@ const accountsModule = {
 
     /**
      * 同步账号未读数（根据聊天列表计算）
+     * 注意：免打扰状态（chatStatus === 1）的聊天不计入未读数，不触发 Tab 闪烁提醒
      */
     syncAccountUnreadCount({ commit, state, rootGetters }, accountId: string) {
-      // 获取聊天列表的总未读数
+      // 获取聊天列表的总未读数（排除免打扰的聊天）
       const chatList = rootGetters.chatList || []
       const totalUnread = chatList.reduce((sum: number, chat: any) => {
+        // chatStatus === 1 表示免打扰状态，不计入账号未读数
+        if (chat.chatStatus === 1) {
+          return sum
+        }
         return sum + (chat.unreadCount || 0)
       }, 0)
 
