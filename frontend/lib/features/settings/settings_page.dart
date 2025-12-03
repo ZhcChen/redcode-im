@@ -497,7 +497,7 @@ class _UserInfoSectionState extends State<_UserInfoSection> {
     }
 
     // 默认头像
-    return _DefaultAvatar(displayName: displayName);
+    return _DefaultAvatar(displayName: displayName, colorSeed: widget.user?.id);
   }
 
   @override
@@ -636,15 +636,18 @@ class _UserInfoSectionState extends State<_UserInfoSection> {
 }
 
 class _DefaultAvatar extends StatelessWidget {
-  const _DefaultAvatar({required this.displayName});
+  const _DefaultAvatar({required this.displayName, this.colorSeed});
 
   final String displayName;
+  final String? colorSeed;
 
   @override
   Widget build(BuildContext context) {
     final name = displayName.trim();
     final initial = AvatarColorUtils.getInitial(name);
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(name);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(
+      (colorSeed != null && colorSeed!.trim().isNotEmpty) ? colorSeed! : name,
+    );
 
     return Container(
       width: 100,
