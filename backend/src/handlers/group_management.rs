@@ -763,16 +763,13 @@ pub async fn add_group_members(
         ));
     }
 
-    let settings = match store.get_group_settings(room_id).await? {
-        Some(s) => s,
-        None => {
-            store.ensure_group_settings_row(room_id).await?;
-            store
-                .get_group_settings(room_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?
-        }
-    };
+    let settings = store
+        .get_or_create_group_settings(room_id)
+        .await
+        .map_err(|e| {
+            error!("获取或创建群设置失败: {:?}", e);
+            AppError::NotFound("Group settings not found".to_string())
+        })?;
 
     let current_count = store.count_active_members(room_id).await?;
     let remaining = settings.max_members as i64 - current_count;

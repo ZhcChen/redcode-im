@@ -440,6 +440,29 @@ impl<'a> GroupManagementStore<'a> {
         Ok(count)
     }
 
+    /// 获取群设置；若不存在则创建默认记录并返回
+    pub async fn get_or_create_group_settings(
+        &self,
+        room_id: Uuid,
+    ) -> Result<GroupSettings, sqlx::Error> {
+        let settings = sqlx::query_as::<_, GroupSettings>(
+            r#"
+            INSERT INTO group_settings (room_id)
+            VALUES ($1)
+            ON CONFLICT (room_id) DO UPDATE SET updated_at = group_settings.updated_at
+            RETURNING id, room_id, join_approval_required, member_can_invite,
+                     member_can_add_friends, require_admin_to_add_friends, max_members,
+                     global_mute_enabled, global_mute_until, global_mute_reason, global_mute_set_by,
+                     created_at, updated_at
+            "#,
+        )
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await?;
+
+        Ok(settings)
+    }
+
     // ===== 群聊邀请管理 =====
 
     pub async fn create_invitations(
