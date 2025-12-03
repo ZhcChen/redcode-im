@@ -6859,17 +6859,24 @@ const handleContextMenuMute = async (chat: ChatItem) => {
     
     if (response.success) {
       // 更新本地状态
+      const newChatStatus = targetState === 2 ? 1 : 0
       const chatIndex = chatList.value.findIndex(c => c.id === chat.id)
       if (chatIndex !== -1) {
-        chatList.value[chatIndex].chatStatus = targetState === 2 ? 1 : 0
+        chatList.value[chatIndex].chatStatus = newChatStatus
       }
-      
+
       // 更新 store
       store.dispatch('updateChatItem', {
         ...chat,
-        chatStatus: targetState === 2 ? 1 : 0
+        chatStatus: newChatStatus
       })
-      
+
+      // 同步账号未读数（免打扰状态变化会影响 Tab 闪烁）
+      const currentAccountId = store.state.accounts.currentAccountId
+      if (currentAccountId) {
+        store.dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+      }
+
       toast.success(targetState === 2 ? '已开启消息免打扰' : '已允许消息通知')
     } else {
       toast.error(response.message || '设置失败')
@@ -7234,7 +7241,29 @@ const handleToggleMute = async (value: boolean) => {
 
     if (response.success) {
       // 更新本地状态
-      selectedChat.value.chatStatus = value ? 2 : 0
+      // 注意：chatStatus 使用 1 表示免打扰，与后端 notification_settings=2 对应
+      // 前端统一使用 chatStatus: 0=允许通知, 1=免打扰
+      const newChatStatus = value ? 1 : 0
+      selectedChat.value.chatStatus = newChatStatus
+
+      // 更新 chatList 中的状态
+      const chatIndex = chatList.value.findIndex(c => c.id === selectedChat.value!.id)
+      if (chatIndex !== -1) {
+        chatList.value[chatIndex].chatStatus = newChatStatus
+      }
+
+      // 更新 store
+      store.dispatch('updateChatItem', {
+        ...selectedChat.value,
+        chatStatus: newChatStatus
+      })
+
+      // 同步账号未读数（免打扰状态变化会影响 Tab 闪烁）
+      const currentAccountId = store.state.accounts.currentAccountId
+      if (currentAccountId) {
+        store.dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+      }
+
       toast.success(value ? '已开启消息免打扰' : '已关闭消息免打扰')
     } else {
       // 使用 API 返回的错误消息

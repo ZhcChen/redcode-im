@@ -498,16 +498,6 @@ const accountsModule = {
     syncAccountUnreadCount({ commit, state, rootGetters }, accountId: string) {
       // 获取聊天列表的总未读数（排除免打扰的聊天）
       const chatList = rootGetters.chatList || []
-
-      // 调试日志
-      const mutedChats = chatList.filter((chat: any) => chat.chatStatus === 1)
-      console.log('[syncAccountUnreadCount] 免打扰聊天:', mutedChats.map((c: any) => ({
-        groupId: c.groupId,
-        name: c.name,
-        chatStatus: c.chatStatus,
-        unreadCount: c.unreadCount
-      })))
-
       const totalUnread = chatList.reduce((sum: number, chat: any) => {
         // chatStatus === 1 表示免打扰状态，不计入账号未读数
         if (chat.chatStatus === 1) {
@@ -515,8 +505,6 @@ const accountsModule = {
         }
         return sum + (chat.unreadCount || 0)
       }, 0)
-
-      console.log('[syncAccountUnreadCount] 计算结果:', { accountId, totalUnread })
 
       // 更新账号未读数
       commit('UPDATE_UNREAD_COUNT', {

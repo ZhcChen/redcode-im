@@ -733,15 +733,6 @@ function handleChatMessage(detail: any) {
     const chat = roomId ? store.getters.getChatByGroupId(roomId) : null
     const isMuted = chat?.chatStatus === 1 // chatStatus === 1 表示免打扰状态
 
-    // 调试日志
-    console.log('[App handleChatMessage] 免打扰检查:', {
-      roomId,
-      chatFound: !!chat,
-      chatStatus: chat?.chatStatus,
-      isMuted,
-      payload
-    })
-
     // 只有非免打扰状态才播放提示音和任务栏提醒
     if (!isMuted) {
       NotificationApi.showNewMessageNotification()

@@ -1284,14 +1284,6 @@ export const store = createStore<State>({
                 if (response.success && Array.isArray(response.data)) {
                     const groups = response.data
 
-                    // 调试日志：检查免打扰状态
-                    console.log('[loadChatList] 原始数据中的免打扰状态:', groups.map((g: any) => ({
-                        roomId: g.roomId,
-                        name: g.name,
-                        isMuted: g.isMuted,
-                        is_muted: g.is_muted
-                    })))
-
                     const contactsMap = new Map<string, any>((state.contacts?.list || []).map((contact: any) => [String(contact.id), contact]))
                     const currentNameSet = new Set<string>()
                     const pushName = (value?: any) => {
