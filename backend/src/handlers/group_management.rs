@@ -5,6 +5,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use tracing::{error, info};
@@ -14,10 +15,11 @@ use crate::database::{
     models::{
         AppointAdminRequest, CreateAnnouncementRequest, CreateRuleRequest, GroupAdmin,
         GroupAnnouncement, GroupDetailInfo, GroupInvitation, GroupMute, GroupOperationLog,
-        GroupRule, GroupSettings, InviteToGroupRequest, JoinGroupRequest, JoinRequest,
+        GroupRule, GroupSettings, InviteToGroupRequest, JoinGroupRequest, JoinRequest, MemberRole,
         MuteUserRequest, ReviewJoinRequestRequest, UpdateAnnouncementRequest,
         UpdateGroupSettingsRequest, UpdateRuleRequest,
     },
+    room_store::RoomStore,
 };
 use crate::error::AppError;
 use crate::models::Claims;
@@ -691,6 +693,190 @@ pub async fn respond_to_invitation(
         .await;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ===== 群成员管理 API =====
+
+#[derive(Debug, Deserialize)]
+pub struct AddGroupMembersRequest {
+    pub user_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AddGroupMembersResponse {
+    pub success: bool,
+    pub added_user_ids: Vec<Uuid>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skipped_user_ids: Vec<Uuid>,
+}
+
+pub async fn add_group_members(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+    Json(request): Json<AddGroupMembersRequest>,
+) -> Result<Json<AddGroupMembersResponse>, AppError> {
+    let operator_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    if request.user_ids.is_empty() {
+        return Err(AppError::ValidationError(
+            "待添加成员列表不能为空".to_string(),
+        ));
+    }
+
+    let mut unique_ids = HashSet::new();
+    let mut target_user_ids = Vec::new();
+    for raw_id in request.user_ids.iter() {
+        let trimmed = raw_id.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let user_id = Uuid::parse_str(trimmed)
+            .map_err(|_| AppError::ValidationError(format!("无效的用户ID: {}", trimmed)))?;
+        if user_id == operator_id {
+            continue;
+        }
+        if unique_ids.insert(user_id) {
+            target_user_ids.push(user_id);
+        }
+    }
+
+    if target_user_ids.is_empty() {
+        return Err(AppError::ValidationError(
+            "没有有效的待添加成员".to_string(),
+        ));
+    }
+
+    let store = GroupManagementStore::new(state.database.pool());
+    let can_manage = store.can_manage_group(room_id, operator_id).await?;
+    if !can_manage {
+        return Err(AppError::Forbidden(
+            "Only group owner or admin can add members".to_string(),
+        ));
+    }
+
+    let settings = store
+        .get_group_settings(room_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?;
+
+    let current_count = store.count_active_members(room_id).await?;
+    let remaining = settings.max_members as i64 - current_count;
+    if remaining <= 0 {
+        return Err(AppError::ValidationError("群成员已达到上限".to_string()));
+    }
+    if target_user_ids.len() as i64 > remaining {
+        return Err(AppError::ValidationError(format!(
+            "可添加成员数量超出上限，仅剩 {} 个名额",
+            remaining
+        )));
+    }
+
+    let room_store = RoomStore::new(state.database.pool());
+    let mut added_user_ids = Vec::new();
+    let mut skipped_user_ids = Vec::new();
+
+    for user_id in target_user_ids {
+        if room_store.is_user_in_room(room_id, user_id).await? {
+            skipped_user_ids.push(user_id);
+            continue;
+        }
+
+        let _ = room_store
+            .add_member(room_id, user_id, Some(MemberRole::Member))
+            .await?;
+        added_user_ids.push(user_id);
+
+        if let Err(e) = broadcast_group_member_changed(
+            &state,
+            room_id,
+            user_id,
+            GroupMemberChangeType::Joined,
+            None,
+            Some(operator_id),
+            None,
+            None,
+        )
+        .await
+        {
+            error!("广播群成员加入事件失败: {}", e);
+        }
+    }
+
+    let _ = store
+        .log_operation(
+            room_id,
+            operator_id,
+            None,
+            "add_members",
+            Some(serde_json::json!({
+                "added": added_user_ids,
+                "skipped": skipped_user_ids
+            })),
+        )
+        .await;
+
+    Ok(Json(AddGroupMembersResponse {
+        success: true,
+        added_user_ids,
+        skipped_user_ids,
+    }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct RemoveGroupMemberResponse {
+    pub success: bool,
+}
+
+pub async fn remove_group_member(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((room_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<RemoveGroupMemberResponse>, AppError> {
+    let operator_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = GroupManagementStore::new(state.database.pool());
+    let can_manage = store.can_manage_group(room_id, operator_id).await?;
+    if !can_manage {
+        return Err(AppError::Forbidden(
+            "Only group owner or admin can remove members".to_string(),
+        ));
+    }
+
+    if store.is_group_owner(room_id, member_id).await? {
+        return Err(AppError::Forbidden("无法移除群主".to_string()));
+    }
+
+    let room_store = RoomStore::new(state.database.pool());
+    let removed = room_store.remove_member(room_id, member_id).await?;
+    if !removed {
+        return Err(AppError::NotFound(
+            "User is not a member of this room".to_string(),
+        ));
+    }
+
+    let _ = store
+        .log_operation(room_id, operator_id, Some(member_id), "remove_member", None)
+        .await;
+
+    if let Err(e) = broadcast_group_member_changed(
+        &state,
+        room_id,
+        member_id,
+        GroupMemberChangeType::Kicked,
+        None,
+        Some(operator_id),
+        None,
+        None,
+    )
+    .await
+    {
+        error!("广播群成员移除事件失败: {}", e);
+    }
+
+    Ok(Json(RemoveGroupMemberResponse { success: true }))
 }
 
 // ===== 群管理员管理 API =====

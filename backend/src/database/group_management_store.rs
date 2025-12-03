@@ -425,6 +425,21 @@ impl<'a> GroupManagementStore<'a> {
         Ok(updated)
     }
 
+    /// 统计当前群成员数量（不含已删除）
+    pub async fn count_active_members(&self, room_id: Uuid) -> Result<i64, sqlx::Error> {
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) FROM room_members
+            WHERE room_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await?;
+
+        Ok(count)
+    }
+
     // ===== 群聊邀请管理 =====
 
     pub async fn create_invitations(

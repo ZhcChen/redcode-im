@@ -357,7 +357,18 @@ pub fn create_routes() -> Router<AppState> {
         .route("/rooms", post(room::create_room).get(room::list_my_rooms))
         .route("/rooms/{room_id}/join", post(room::join_room))
         .route("/rooms/{room_id}/leave", post(room::leave_room))
-        .route("/rooms/{room_id}/members", get(room::list_members))
+        .route(
+            "/rooms/{room_id}/members",
+            get(room::list_members).post(group_management::add_group_members),
+        )
+        .route(
+            "/rooms/{room_id}/members/add",
+            post(group_management::add_group_members),
+        )
+        .route(
+            "/rooms/{room_id}/members/{user_id}",
+            delete(group_management::remove_group_member),
+        )
         .route(
             "/rooms/{room_id}",
             get(room::get_room)
