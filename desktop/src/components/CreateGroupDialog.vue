@@ -391,10 +391,6 @@ defineExpose({
         background: #fff;
         border: 1px solid #f0f0f0;
 
-        &:hover {
-          transform: scale(1.05);
-        }
-
         .avatar-image {
           width: 100%;
           height: 100%;
