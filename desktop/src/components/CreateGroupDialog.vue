@@ -531,7 +531,7 @@ defineExpose({
       color: #999;
       font-size: 14px;
       background: #ffffff;
-      border: 1px dashed #e5e6eb;
+      border: none;
       border-radius: 8px;
     }
 
@@ -542,7 +542,7 @@ defineExpose({
       padding: 16px;
       background: #ffffff;
       border-radius: 8px;
-      border: 1px solid #f0f0f0;
+      border: none;
       max-height: 200px;
 
       .member-chip {
@@ -550,6 +550,7 @@ defineExpose({
         align-items: center;
         gap: 8px;
         padding: 6px 8px 6px 10px;
+        margin: 6px 0;
         background: white;
         border-radius: 20px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
