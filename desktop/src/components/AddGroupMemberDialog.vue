@@ -175,7 +175,7 @@ watch(() => props.visible, (newVisible) => {
 
 <style lang="scss" scoped>
 .add-member-dialog {
-  width: 860px;
+  width: 940px;
   height: 600px;
   background: white;
   border-radius: 12px;
@@ -248,7 +248,7 @@ watch(() => props.visible, (newVisible) => {
 }
 
 .right-section {
-  width: 360px;
+  width: 440px;
   display: flex;
   flex-direction: column;
 
@@ -277,8 +277,8 @@ watch(() => props.visible, (newVisible) => {
 
     .selected-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
       align-content: flex-start;
     }
 
@@ -293,7 +293,7 @@ watch(() => props.visible, (newVisible) => {
         color: #333;
         text-align: center;
         line-height: 1.2;
-        max-width: 100%;
+        max-width: 90px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
