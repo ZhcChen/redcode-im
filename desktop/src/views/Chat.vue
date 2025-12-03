@@ -8844,14 +8844,15 @@ const handleDissolveGroup = () => {
 const confirmDissolveGroup = async () => {
   if (!selectedChat.value) return
 
+  const groupId = selectedChat.value.groupId
   try {
     dissolvingGroup.value = true
-    const response = await GroupApi.dissolveGroup({ roomId: selectedChat.value.groupId })
+    const response = await GroupApi.dissolveGroup({ roomId: groupId })
     if (!response.success) {
       throw new Error(response.message || '解散失败')
     }
     toast.success('群聊已解散')
-    store.dispatch('removeChatItem', selectedChat.value.groupId)
+    store.dispatch('removeChatItem', groupId)
     selectedChat.value = null
     messages.value = []
     messageList.value = []
