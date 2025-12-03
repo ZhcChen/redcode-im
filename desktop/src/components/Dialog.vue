@@ -213,6 +213,7 @@ defineExpose({
 
 .dialog-content {
   flex: 1;
+  background: transparent;
 
   // 自定义滚动条样式
   &::-webkit-scrollbar {
