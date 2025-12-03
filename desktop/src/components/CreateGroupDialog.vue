@@ -36,20 +36,6 @@
           <div v-if="errors.groupName" class="error-text">{{ errors.groupName }}</div>
         </div>
 
-        <!-- 群公告 -->
-        <div class="form-group">
-          <label class="form-label">群公告（选填）</label>
-          <DialogInput
-            v-model="groupNotice"
-            placeholder="请输入群公告"
-            :maxlength="200"
-            :rows="4"
-            :disabled="isCreating"
-            multiline
-          />
-          <div class="notice-count">{{ groupNotice.length }}/200</div>
-        </div>
-
         <!-- 群成员 -->
         <div class="form-group">
           <div class="member-header">
@@ -278,7 +264,6 @@ const handleCreate = () => {
 // 重置表单
 const resetForm = () => {
   groupName.value = ''
-  groupNotice.value = ''
   groupAvatar.value = undefined
   avatarFile.value = undefined
   selectedMemberIds.value = []
