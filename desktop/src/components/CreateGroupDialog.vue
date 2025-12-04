@@ -634,6 +634,7 @@ defineExpose({
       display: flex;
       flex-direction: column;
       min-height: 260px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     }
 
     .search-wrapper {
