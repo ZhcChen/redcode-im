@@ -1,82 +1,53 @@
 <template>
-  <Mask :visible="visible" :z-index="12000" @update:visible="handleVisibleChange" @close="handleClose">
-    <div class="add-member-dialog">
-      <!-- 左侧 -->
-      <div class="left-section">
-        <!-- 搜索框 -->
-        <div class="search-wrapper">
-          <SearchInput
-            v-model="searchKeyword"
-            placeholder="搜索联系人..."
+  <Dialog
+    v-model="isVisible"
+    title="添加群成员"
+    :disable-text-selection="true"
+    :confirm-text="confirmText"
+    :confirm-disabled="selectedIds.length === 0"
+    width="500px"
+    @confirm="handleConfirm"
+    @cancel="handleCancel"
+  >
+    <div class="add-member-content">
+      <!-- 搜索框 -->
+      <SearchInput
+        v-model="searchKeyword"
+        placeholder="搜索联系人..."
+      />
+
+      <!-- 联系人列表 -->
+      <ScrollContainer class="contact-list">
+        <!-- 空状态提示 -->
+        <div v-if="filteredContacts.length === 0" class="empty-state">
+          <div class="empty-text">{{ searchKeyword ? '未找到匹配的联系人' : '暂无可添加的联系人' }}</div>
+          <div v-if="!searchKeyword && props.contacts.length === 0" class="empty-hint">请先添加好友</div>
+        </div>
+
+        <div
+          v-for="contact in filteredContacts"
+          :key="contact.id"
+          class="contact-item"
+          @click="toggleContact(contact)"
+        >
+          <BCheckbox
+            :model-value="isSelected(contact.id)"
           />
+          <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
+          <div class="contact-name">{{ contact.nickname }}</div>
         </div>
-
-        <!-- 联系人列表 -->
-        <ScrollContainer class="contact-list">
-          <!-- 空状态提示 -->
-          <div v-if="filteredContacts.length === 0" class="empty-state">
-            <div class="empty-text">{{ searchKeyword ? '未找到匹配的联系人' : '暂无可添加的联系人' }}</div>
-            <div v-if="!searchKeyword && props.contacts.length === 0" class="empty-hint">请先添加好友</div>
-          </div>
-          
-          <div
-            v-for="contact in filteredContacts"
-            :key="contact.id"
-            class="contact-item"
-            @click="toggleContact(contact)"
-          >
-            <div class="contact-info">
-              <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
-              <div class="name">{{ contact.nickname }}</div>
-            </div>
-            <BRadio :model-value="isSelected(contact.id)" />
-          </div>
-        </ScrollContainer>
-      </div>
-
-      <!-- 右侧 -->
-      <div class="right-section">
-        <!-- 标题行 -->
-        <div class="header">
-          <div class="title">添加群成员</div>
-          <div class="count">已选择{{ selectedContacts.length }}位联系人</div>
-        </div>
-
-        <!-- 已选择的联系人 -->
-        <ScrollContainer class="selected-members">
-          <div class="selected-grid">
-            <div
-              v-for="contact in selectedContacts"
-              :key="contact.id"
-              class="selected-member"
-              @click="removeContact(contact.id)"
-            >
-              <Avatar :src="contact.avatar" :text="contact.nickname" :color-seed="contact.id" :size="40" />
-              <div class="member-name">{{ contact.nickname }}</div>
-              <div class="remove-btn">×</div>
-            </div>
-          </div>
-        </ScrollContainer>
-
-        <!-- 操作按钮 -->
-        <div class="actions">
-          <button class="cancel-btn" @click="handleClose">取消</button>
-          <button class="confirm-btn" :disabled="selectedContacts.length === 0" @click="handleConfirm">
-            确定
-          </button>
-        </div>
-      </div>
+      </ScrollContainer>
     </div>
-  </Mask>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import Mask from './Mask.vue'
+import Dialog from './Dialog.vue'
 import SearchInput from './SearchInput.vue'
-import BRadio from './BRadio.vue'
 import Avatar from './Avatar.vue'
 import ScrollContainer from './ScrollContainer.vue'
+import BCheckbox from './BCheckbox.vue'
 
 interface Contact {
   id: string
@@ -103,11 +74,25 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+// 内部可见性状态
+const isVisible = computed({
+  get: () => props.visible,
+  set: (value: boolean) => emit('update:visible', value)
+})
+
 // 搜索关键词
 const searchKeyword = ref('')
 
 // 选中的联系人ID列表
 const selectedIds = ref<string[]>([...props.selectedIds])
+
+// 确认按钮文本
+const confirmText = computed(() => {
+  if (selectedIds.value.length === 0) {
+    return '请选择联系人'
+  }
+  return `添加 ${selectedIds.value.length} 位联系人`
+})
 
 // 过滤后的联系人列表
 const filteredContacts = computed(() => {
@@ -117,11 +102,6 @@ const filteredContacts = computed(() => {
     contact.nickname.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
     (contact.username && contact.username.toLowerCase().includes(searchKeyword.value.toLowerCase()))
   )
-})
-
-// 选中的联系人详情列表
-const selectedContacts = computed(() => {
-  return props.contacts.filter(contact => selectedIds.value.includes(contact.id))
 })
 
 // 判断联系人是否被选中
@@ -139,29 +119,22 @@ const toggleContact = (contact: Contact) => {
   }
 }
 
-// 移除选中的联系人
-const removeContact = (contactId: string) => {
-  const index = selectedIds.value.indexOf(contactId)
-  if (index > -1) {
-    selectedIds.value.splice(index, 1)
-  }
-}
-
-// 处理visible变化
-const handleVisibleChange = (newVisible: boolean) => {
-  emit('update:visible', newVisible)
-}
-
-// 关闭弹窗
-const handleClose = () => {
-  emit('update:visible', false)
-  emit('close')
-}
-
 // 确认选择
 const handleConfirm = () => {
   emit('confirm', selectedIds.value)
-  handleClose()
+  handleReset()
+}
+
+// 取消
+const handleCancel = () => {
+  emit('close')
+  handleReset()
+}
+
+// 重置状态
+const handleReset = () => {
+  searchKeyword.value = ''
+  selectedIds.value = [...props.selectedIds]
 }
 
 // 监听props变化，重置选中状态
@@ -171,197 +144,89 @@ watch(() => props.visible, (newVisible) => {
     searchKeyword.value = ''
   }
 })
+
+// 当对话框关闭时重置状态
+watch(() => isVisible.value, (newVal) => {
+  if (!newVal) {
+    handleReset()
+  }
+})
 </script>
 
 <style lang="scss" scoped>
-.add-member-dialog {
-  width: 940px;
-  height: 600px;
-  background: white;
-  border-radius: 12px;
+.add-member-content {
   display: flex;
-  overflow: hidden;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 8px;
+  max-height: 500px;
+  user-select: none;
+  cursor: default;
+
+  .search-input,
+  .search-input input {
+    user-select: text;
+    cursor: text;
+  }
 }
 
-.left-section {
+.contact-list {
   flex: 1;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #f0f0f0;
+  gap: 8px;
+  min-height: 200px;
+  max-height: 400px;
 
-  .search-wrapper {
-    padding: 20px;
-    border-bottom: 1px solid #f0f0f0;
-  }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
 
-  .contact-list {
-    flex: 1;
-    padding: 0 20px;
-
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 60px 20px;
-      
-      .empty-text {
-        font-size: 14px;
-        color: #999;
-        margin-bottom: 8px;
-      }
-      
-      .empty-hint {
-        font-size: 12px;
-        color: #ccc;
-      }
+    .empty-text {
+      font-size: 14px;
+      color: #999;
+      margin-bottom: 8px;
     }
 
-    .contact-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid #f8f8f8;
-      transition: background-color 0.2s;
+    .empty-hint {
+      font-size: 12px;
+      color: #ccc;
+    }
+  }
 
-      &:hover {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 12px 8px;
-        margin: 0 -8px;
-      }
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    cursor: default;
 
-      .contact-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-
-        .name {
-          font-size: 14px;
-          color: #333;
-          font-weight: 400;
-        }
-      }
+    .contact-name {
+      font-size: 14px;
+      color: #333;
+      font-weight: 400;
     }
   }
 }
 
-.right-section {
-  width: 440px;
-  display: flex;
-  flex-direction: column;
+/* 滚动条样式 */
+.contact-list::-webkit-scrollbar {
+  width: 4px;
+}
 
-  .header {
-    padding: 20px;
-    border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+.contact-list::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-    .title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #333;
-    }
+.contact-list::-webkit-scrollbar-thumb {
+  background-color: #CCCCCC;
+  border-radius: 2px;
+}
 
-    .count {
-      font-size: 12px;
-      color: #666;
-    }
-  }
-
-  .selected-members {
-    flex: 1;
-    padding: 20px;
-
-    .selected-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      align-content: flex-start;
-    }
-
-    .selected-member {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      position: relative;
-
-      .member-name {
-        font-size: 11px;
-        color: #333;
-        text-align: center;
-        line-height: 1.2;
-        max-width: 90px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        margin-top: 6px;
-      }
-
-      .remove-btn {
-        position: absolute;
-        top: -6px;
-        right: 2px;
-        width: 18px;
-        height: 18px;
-        background: #ff4757;
-        color: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: bold;
-        opacity: 0;
-        transition: opacity 0.2s;
-      }
-
-      &:hover .remove-btn {
-        opacity: 1;
-      }
-    }
-  }
-
-  .actions {
-    padding: 20px;
-    display: flex;
-    gap: 12px;
-    border-top: 1px solid #f0f0f0;
-
-    .cancel-btn,
-    .confirm-btn {
-      flex: 1;
-      height: 40px;
-      border-radius: 8px;
-      border: none;
-      font-size: 14px;
-      transition: all 0.2s;
-    }
-
-    .cancel-btn {
-      background: #f8f9fa;
-      color: #666;
-
-      &:hover {
-        background: #e9ecef;
-      }
-    }
-
-    .confirm-btn {
-      background: var(--primary-color, #007bff);
-      color: white;
-
-      &:hover:not(:disabled) {
-        opacity: 0.9;
-      }
-
-      &:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-      }
-    }
-  }
+.contact-list::-webkit-scrollbar-thumb:hover {
+  background-color: #BBBBBB;
 }
 </style>
