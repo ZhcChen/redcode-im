@@ -4688,9 +4688,25 @@ const isEmojiOnlyPreviewText = (text: string): boolean => {
 
 // 获取用于会话列表副标题展示的消息预览文案
 const getMessagePreviewText = (message: Message): string => {
+  // 优先根据消息类型返回固定文案
+  switch (message.type) {
+    case MessageType.IMAGE:
+      return '[图片]'
+    case MessageType.VIDEO:
+      return '[视频]'
+    case MessageType.VOICE:
+      return '[语音]'
+    case MessageType.FILE:
+      return '[附件]'
+    default:
+      break
+  }
+
+  // 获取文本内容
   const text = getTextContent(message)
   if (!text) return ''
 
+  // 纯表情消息显示为 [表情]
   if (isEmojiOnlyPreviewText(text)) {
     return '[表情]'
   }
