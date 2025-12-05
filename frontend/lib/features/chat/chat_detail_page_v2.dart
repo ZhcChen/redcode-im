@@ -569,6 +569,23 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               children: [
                 _buildHeader(context),
                 if (_multiSelectMode) _buildMultiSelectBar(Theme.of(context)),
+                // 置顶消息 banner - 固定在导航栏下方，不跟随滚动
+                Consumer<ChatProvider>(
+                  builder: (context, provider, child) {
+                    final pinnedMessage = provider.pinnedMessage;
+                    if (pinnedMessage == null || !provider.messages.contains(pinnedMessage)) {
+                      return const SizedBox.shrink();
+                    }
+                    return RepaintBoundary(
+                      key: ValueKey('pinned_banner_${pinnedMessage.id}'),
+                      child: _PinnedMessageBanner(
+                        message: pinnedMessage,
+                        onTap: () => _scrollToMessage(pinnedMessage.id),
+                        onUnpin: () => unawaited(_togglePinMessage(pinnedMessage)),
+                      ),
+                    );
+                  },
+                ),
                 Expanded(
                   child: Stack(
                     children: [
@@ -794,8 +811,13 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           // 只有在初始加载时才需要动画，后续直接使用静态 Opacity
           final messageListWidget = ListView.builder(
             controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-            itemCount: messages.length + (hasPinnedBanner ? 1 : 0),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              hasPinnedBanner ? 8 : 12, // 有置顶 banner 时减少顶部间距
+              16,
+              bottomPadding,
+            ),
+            itemCount: messages.length,
             // 性能优化：增加缓存范围，减少滚动时的重建
             cacheExtent: 500,
             // 性能优化：消息列表不需要保持状态
@@ -803,24 +825,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             // 性能优化：启用重绘边界，减少不必要的重绘
             addRepaintBoundaries: true,
             itemBuilder: (context, index) {
-              if (hasPinnedBanner && index == 0) {
-                // ignore: unnecessary_non_null_assertion
-                final pinned = pinnedMessage!;
-                return RepaintBoundary(
-                  key: ValueKey('pinned_banner_${pinned.id}'),
-                  child: _PinnedMessageBanner(
-                    message: pinned,
-                    onTap: () => _scrollToMessage(pinned.id),
-                    onUnpin: () => unawaited(_togglePinMessage(pinned)),
-                  ),
-                );
-              }
-
-              final effectiveIndex = hasPinnedBanner ? index - 1 : index;
-              final message = messages[effectiveIndex];
-              final previousMessage = effectiveIndex > 0
-                  ? messages[effectiveIndex - 1]
-                  : null;
+              final message = messages[index];
+              final previousMessage = index > 0 ? messages[index - 1] : null;
               final isSelected = _selectedMessageIds.contains(message.id);
 
               final showTimestamp = message.shouldShowTimestamp(
@@ -3208,66 +3214,89 @@ class _PinnedMessageBanner extends StatelessWidget {
     final preview = _buildPreviewText();
     final forwardInfo = message.forwardInfo;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
-          ),
+    // 固定高度，避免轮播切换时整体高度抖动
+    const bannerHeight = 52.0;
+
+    return Container(
+      height: bannerHeight,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(
+          top: BorderSide(color: Color(0xFFF0F0F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFF0F0F0), width: 1),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.push_pin, size: 18, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+              // 左侧指示器
+              Container(
+                padding: const EdgeInsets.only(left: 16),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      '已置顶',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (forwardInfo != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '转发自 ${forwardInfo.displaySourceName}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 4),
-                    Text(
-                      preview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: message.isDeleted
-                            ? AppColors.textTertiary
-                            : AppColors.textPrimary,
-                      ),
+                    Icon(
+                      Icons.push_pin,
+                      size: 18,
+                      color: AppColors.primary,
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.close,
-                  size: 18,
-                  color: AppColors.textTertiary,
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            '置顶消息',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Expanded(
+                        child: Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: message.isDeleted
+                                ? AppColors.textTertiary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                splashRadius: 18,
-                onPressed: onUnpin,
+              ),
+              // 右侧图标按钮
+              SizedBox(
+                width: 64,
+                child: Material(
+                  color: Colors.transparent,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.more_horiz,
+                      size: 20,
+                      color: AppColors.textQuaternary,
+                    ),
+                    splashRadius: 18,
+                    onPressed: onUnpin,
+                  ),
+                ),
               ),
             ],
           ),
