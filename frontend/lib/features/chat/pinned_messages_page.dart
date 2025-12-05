@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/constants/colors.dart';
-import '../../core/services/message_service.dart';
-import '../../core/models/message.dart';
+import 'package:provider/provider.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/services/message_service.dart';
+import '../models/message_model.dart';
 import 'providers/chat_provider.dart';
-import 'widgets/chat_bubble.dart';
-import 'models/message_model.dart';
 
 class PinnedMessagesPage extends StatefulWidget {
-  final String chatId;
+  final String roomId;
+  final ChatProvider chatProvider;
 
   const PinnedMessagesPage({
     super.key,
-    required this.chatId,
+    required this.roomId,
+    required this.chatProvider,
   });
 
   @override
@@ -20,52 +21,21 @@ class PinnedMessagesPage extends StatefulWidget {
 }
 
 class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
-  late final ChatProvider _chatProvider;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _chatProvider = ChatProvider(
-      chatId: widget.chatId,
-      messageService: MessageService(),
-    );
-    _loadPinnedMessages();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _chatProvider.dispose();
     super.dispose();
   }
 
-  Future<void> _loadPinnedMessages() async {
-    try {
-      await _chatProvider.loadInitialMessages();
-    } catch (e) {
-      debugPrint('Failed to load pinned messages: $e');
-    }
-  }
-
   Future<void> _handleRefresh() async {
-    await _loadPinnedMessages();
-  }
-
-  void _scrollToMessage(String messageId) {
-    // 查找消息在列表中的索引
-    final messages = _chatProvider.pinnedMessages;
-    final index = messages.indexWhere((msg) => msg.id == messageId);
-
-    if (index != -1) {
-      // 滚动到指定位置
-      final position = index * 80.0; // 估算每个消息的高度
-      _scrollController.animateTo(
-        position,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+    // Refresh is handled by the RefreshIndicator widget
   }
 
   String _formatTime(DateTime dateTime) {
@@ -182,7 +152,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
                   // 判断是否需要显示日期分隔
                   final showDateDivider = previousMessage == null ||
-                      message.createdAt.day != previousMessage.createdAt.day;
+                      message.timestamp.day != previousMessage.timestamp.day;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +169,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              _formatDate(message.createdAt),
+                              _formatDate(message.timestamp),
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: AppColors.textTertiary,
                               ),
@@ -266,7 +236,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
                       ),
                     ),
                     Text(
-                      _formatTime(message.createdAt),
+                      _formatTime(message.timestamp),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textTertiary,
                       ),
@@ -299,7 +269,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
                       ),
                       label: Text(
                         '取消置顶',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppColors.primary,
                           fontSize: 13,
                         ),
@@ -431,7 +401,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
   Future<void> _unpinMessage(Message message) async {
     try {
-      await _chatProvider.unpinMessage(message);
+      await widget.chatProvider.unpinMessage(message);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('已取消置顶')),

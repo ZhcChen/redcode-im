@@ -2091,7 +2091,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => PinnedMessagesPage(
-          chatId: widget.roomId,
+          roomId: widget.roomId,
+          chatProvider: _chatProvider,
         ),
       ),
     );
