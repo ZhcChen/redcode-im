@@ -730,7 +730,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject } from 'vue'
+import { toRefs } from 'vue'
 import Avatar from './Avatar.vue'
 import VoiceMessage from './VoiceMessage.vue'
 import type { Message, QuotedMessage } from '@/types/models'
@@ -738,9 +738,8 @@ import type { Message, QuotedMessage } from '@/types/models'
 interface Props {
   message: Message
   isSelf: boolean
+  context: MessageBubbleContext
 }
-
-const { message, isSelf } = defineProps<Props>()
 
 interface MessageBubbleContext {
   MESSAGE_CONSTANTS: any
@@ -779,11 +778,8 @@ interface MessageBubbleContext {
   scrollToQuoted: (q: QuotedMessage) => void
 }
 
-const bubbleCtx = inject<MessageBubbleContext>('messageBubbleContext')
-
-if (!bubbleCtx) {
-  throw new Error('MessageBubble must be used inside Chat view with provided context')
-}
+const props = defineProps<Props>()
+const { message, isSelf, context } = toRefs(props)
 
 const {
   MESSAGE_CONSTANTS,
@@ -820,6 +816,5 @@ const {
   getQuotedImageSrc,
   getSenderAvatarById,
   scrollToQuoted
-} = bubbleCtx
+} = context.value
 </script>
-
