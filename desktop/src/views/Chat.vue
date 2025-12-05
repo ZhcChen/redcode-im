@@ -953,12 +953,15 @@
               @click="handlePinnedPanelItemClick(item)"
             >
               <!-- 复用消息列表的气泡组件 -->
-              <div class="message pinned-drawer-message">
+              <div
+                class="message pinned-drawer-message"
+                :class="{ 'own-message': item.isSelf }"
+              >
                 <Avatar
                   :src="item.senderAvatarLocalPath"
                   :text="item.senderName"
                   :color-seed="item.senderId"
-                  :size="36"
+                  :size="40"
                 />
                 <div class="message-wrapper">
                   <div class="message-sender-name">
