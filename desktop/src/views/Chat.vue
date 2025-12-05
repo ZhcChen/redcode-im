@@ -4706,6 +4706,20 @@ const getMessagePreviewText = (message: Message): string => {
   const text = getTextContent(message)
   if (!text) return ''
 
+  // 处理 mixed 类型消息：根据 content 前缀判断附件类型
+  if (text.startsWith('[图片]')) {
+    return '[图片]'
+  }
+  if (text.startsWith('[视频]')) {
+    return '[视频]'
+  }
+  if (text.startsWith('[语音]')) {
+    return '[语音]'
+  }
+  if (text.startsWith('[文件]')) {
+    return '[附件]'
+  }
+
   // 纯表情消息显示为 [表情]
   if (isEmojiOnlyPreviewText(text)) {
     return '[表情]'

@@ -151,6 +151,7 @@ const buildLastMessagePreview = (
   const type = parseMessageType(preview.message_type || "");
   const rawContent = (preview.content || "").trim();
 
+  // 优先根据消息类型返回固定文案
   switch (type) {
     case MessageType.IMAGE:
       return "[图片]";
@@ -166,6 +167,20 @@ const buildLastMessagePreview = (
 
   if (!rawContent) {
     return "";
+  }
+
+  // 处理 mixed 类型消息：根据 content 前缀判断附件类型
+  if (rawContent.startsWith("[图片]")) {
+    return "[图片]";
+  }
+  if (rawContent.startsWith("[视频]")) {
+    return "[视频]";
+  }
+  if (rawContent.startsWith("[语音]")) {
+    return "[语音]";
+  }
+  if (rawContent.startsWith("[文件]")) {
+    return "[附件]";
   }
 
   if (isEmojiOnlyPreviewText(rawContent)) {
