@@ -457,15 +457,6 @@ pub fn create_routes() -> Router<AppState> {
                 .patch(group_management::update_group_settings),
         )
         .route(
-            "/rooms/{room_id}/announcements",
-            get(group_management::list_announcements).post(group_management::create_announcement),
-        )
-        .route(
-            "/rooms/{room_id}/announcements/{announcement_id}",
-            patch(group_management::update_announcement)
-                .delete(group_management::delete_announcement),
-        )
-        .route(
             "/rooms/{room_id}/rules",
             get(group_management::list_rules).post(group_management::create_rule),
         )

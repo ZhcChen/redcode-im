@@ -13,10 +13,9 @@ use tracing::{error, info};
 use crate::database::{
     group_management_store::GroupManagementStore,
     models::{
-        AppointAdminRequest, CreateAnnouncementRequest, CreateRuleRequest, GroupAdmin,
-        GroupAnnouncement, GroupDetailInfo, GroupInvitation, GroupMute, GroupOperationLog,
-        GroupRule, GroupSettings, InviteToGroupRequest, JoinGroupRequest, JoinRequest, MemberRole,
-        MuteUserRequest, ReviewJoinRequestRequest, UpdateAnnouncementRequest,
+        AppointAdminRequest, CreateRuleRequest, GroupAdmin, GroupDetailInfo, GroupInvitation,
+        GroupMute, GroupOperationLog, GroupRule, GroupSettings, InviteToGroupRequest,
+        JoinGroupRequest, JoinRequest, MemberRole, MuteUserRequest, ReviewJoinRequestRequest,
         UpdateGroupSettingsRequest, UpdateRuleRequest,
     },
     room_store::RoomStore,
@@ -210,146 +209,6 @@ pub async fn update_group_settings(
         settings,
         my_mute: None,
     }))
-}
-
-// ===== 群公告管理 API =====
-
-#[derive(Serialize)]
-pub struct CreateAnnouncementResponse {
-    pub announcement: GroupAnnouncement,
-}
-
-pub async fn create_announcement(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(room_id): Path<Uuid>,
-    Json(request): Json<CreateAnnouncementRequest>,
-) -> Result<Json<CreateAnnouncementResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
-
-    let store = GroupManagementStore::new(state.database.pool());
-
-    // 权限检查：只有群主或管理员可以发布公告
-    let can_manage = store.can_manage_group(room_id, user_id).await?;
-    if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can create announcements".to_string(),
-        ));
-    }
-
-    let announcement = store.create_announcement(room_id, user_id, request).await?;
-
-    // 记录操作日志
-    let _ = store
-        .log_operation(
-            room_id,
-            user_id,
-            None,
-            "create_announcement",
-            Some(serde_json::json!({
-                "announcement_id": announcement.id,
-                "title": announcement.title
-            })),
-        )
-        .await;
-
-    Ok(Json(CreateAnnouncementResponse { announcement }))
-}
-
-#[derive(Serialize)]
-pub struct ListAnnouncementsResponse {
-    pub announcements: Vec<GroupAnnouncement>,
-}
-
-pub async fn list_announcements(
-    State(state): State<AppState>,
-    Path(room_id): Path<Uuid>,
-) -> Result<Json<ListAnnouncementsResponse>, AppError> {
-    let store = GroupManagementStore::new(state.database.pool());
-    let announcements = store.list_announcements(room_id).await?;
-
-    Ok(Json(ListAnnouncementsResponse { announcements }))
-}
-
-pub async fn update_announcement(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((room_id, announcement_id)): Path<(Uuid, Uuid)>,
-    Json(request): Json<UpdateAnnouncementRequest>,
-) -> Result<Json<CreateAnnouncementResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
-
-    let store = GroupManagementStore::new(state.database.pool());
-
-    // 权限检查：只有群主或管理员可以修改公告
-    let can_manage = store.can_manage_group(room_id, user_id).await?;
-    if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can update announcements".to_string(),
-        ));
-    }
-
-    let announcement = store
-        .update_announcement(announcement_id, request)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Announcement not found".to_string()))?;
-
-    // 记录操作日志
-    let _ = store
-        .log_operation(
-            room_id,
-            user_id,
-            None,
-            "update_announcement",
-            Some(serde_json::json!({
-                "announcement_id": announcement.id,
-                "title": announcement.title
-            })),
-        )
-        .await;
-
-    Ok(Json(CreateAnnouncementResponse { announcement }))
-}
-
-pub async fn delete_announcement(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((room_id, announcement_id)): Path<(Uuid, Uuid)>,
-) -> Result<StatusCode, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
-
-    let store = GroupManagementStore::new(state.database.pool());
-
-    // 权限检查：只有群主或管理员可以删除公告
-    let can_manage = store.can_manage_group(room_id, user_id).await?;
-    if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can delete announcements".to_string(),
-        ));
-    }
-
-    let deleted = store.delete_announcement(announcement_id).await?;
-    if !deleted {
-        return Err(AppError::NotFound("Announcement not found".to_string()));
-    }
-
-    // 记录操作日志
-    let _ = store
-        .log_operation(
-            room_id,
-            user_id,
-            None,
-            "delete_announcement",
-            Some(serde_json::json!({
-                "announcement_id": announcement_id
-            })),
-        )
-        .await;
-
-    Ok(StatusCode::NO_CONTENT)
 }
 
 // ===== 群规管理 API =====

@@ -849,19 +849,6 @@ pub struct GroupSettings {
     pub updated_at: DateTime<Utc>,
 }
 
-/// 群公告
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct GroupAnnouncement {
-    pub id: Uuid,
-    pub room_id: Uuid,
-    pub title: String,
-    pub content: String,
-    pub publisher_id: Uuid,
-    pub is_pinned: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
 /// 群规
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GroupRule {
@@ -988,22 +975,6 @@ pub struct GroupMute {
 
 // ===== 群聊管理请求结构体 =====
 
-/// 创建群公告请求
-#[derive(Debug, Deserialize)]
-pub struct CreateAnnouncementRequest {
-    pub title: String,
-    pub content: String,
-    pub is_pinned: Option<bool>,
-}
-
-/// 更新群公告请求
-#[derive(Debug, Deserialize)]
-pub struct UpdateAnnouncementRequest {
-    pub title: Option<String>,
-    pub content: Option<String>,
-    pub is_pinned: Option<bool>,
-}
-
 /// 创建群规请求
 #[derive(Debug, Deserialize)]
 pub struct CreateRuleRequest {
@@ -1089,7 +1060,6 @@ pub struct GroupDetailInfo {
     pub global_mute_reason: Option<String>,
     pub global_mute_set_by: Option<Uuid>,
     pub current_member_count: i64,
-    pub announcement_count: i64,
     pub pending_request_count: i64,
 }
 

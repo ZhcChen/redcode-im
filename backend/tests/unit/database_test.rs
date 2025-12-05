@@ -121,27 +121,6 @@ fn test_group_settings_serialization() {
 }
 
 #[test]
-fn test_group_announcement_serialization() {
-    let announcement = GroupAnnouncement {
-        id: Uuid::new_v4(),
-        room_id: Uuid::new_v4(),
-        title: "Welcome".to_string(),
-        content: "Welcome to the group!".to_string(),
-        publisher_id: Uuid::new_v4(),
-        is_pinned: true,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-    };
-
-    let serialized = serde_json::to_string(&announcement).unwrap();
-    let deserialized: GroupAnnouncement = serde_json::from_str(&serialized).unwrap();
-
-    assert_eq!(announcement.room_id, deserialized.room_id);
-    assert_eq!(announcement.title, deserialized.title);
-    assert_eq!(announcement.is_pinned, deserialized.is_pinned);
-}
-
-#[test]
 fn test_join_request_status_enum() {
     assert_eq!(JoinRequestStatus::Pending as i32, 0);
     assert_eq!(JoinRequestStatus::Approved as i32, 1);
@@ -163,22 +142,6 @@ fn test_invitation_status_enum() {
     assert_eq!(InvitationStatus::Accepted.to_string(), "accepted");
     assert_eq!(InvitationStatus::Declined.to_string(), "declined");
     assert_eq!(InvitationStatus::Expired.to_string(), "expired");
-}
-
-#[test]
-fn test_create_announcement_request() {
-    let request = CreateAnnouncementRequest {
-        title: "Test Announcement".to_string(),
-        content: "This is a test announcement content".to_string(),
-        is_pinned: Some(true),
-    };
-
-    let serialized = serde_json::to_string(&request).unwrap();
-    let deserialized: CreateAnnouncementRequest = serde_json::from_str(&serialized).unwrap();
-
-    assert_eq!(request.title, deserialized.title);
-    assert_eq!(request.content, deserialized.content);
-    assert_eq!(request.is_pinned, deserialized.is_pinned);
 }
 
 #[test]
@@ -281,7 +244,6 @@ fn test_group_detail_info() {
         global_mute_reason: None,
         global_mute_set_by: None,
         current_member_count: 10,
-        announcement_count: 5,
         pending_request_count: 2,
     };
 

@@ -922,32 +922,6 @@
       </div>
     </Dialog>
 
-    <!-- 修改群公告对话框 -->
-    <Dialog
-      v-model="showEditGroupNoticeDialog"
-      title="修改群公告"
-      @confirm="handleConfirmEditGroupNotice"
-      @cancel="handleCancelEditGroupNotice"
-      :confirm-text="isUpdatingGroupNotice ? '保存中...' : '保存'"
-      :confirm-disabled="isUpdatingGroupNotice || !editingGroupNotice.trim()"
-    >
-      <div class="group-name-content">
-        <textarea
-          v-model="editingGroupNotice"
-          class="group-notice-textarea"
-          placeholder="请输入群公告..."
-          :disabled="isUpdatingGroupNotice"
-          rows="4"
-          maxlength="100"
-        />
-
-        <!-- 错误提示 -->
-        <div v-if="groupNameError" class="group-name-error">
-          {{ groupNameError }}
-        </div>
-      </div>
-    </Dialog>
-
     <!-- 修改备注对话框 -->
     <Dialog
       v-model="showEditRemarkDialog"
@@ -3007,8 +2981,6 @@ interface ChatItem {
   groupType: number // 0=单聊, 1=群聊
   lastMessageId?: string | null
   chatStatus?: number
-  groupNotice?: string | null
-  showNoticeFlag?: boolean
   userAvatar?: string | null
   friendName?: string | null
   remark?: string | null
@@ -3165,11 +3137,6 @@ const showEditGroupNameDialog = ref<boolean>(false)
 const editingGroupName = ref<string>('')
 const isUpdatingGroupName = ref<boolean>(false)
 const groupNameError = ref<string>('')
-
-// 群公告修改相关状态
-const showEditGroupNoticeDialog = ref<boolean>(false)
-const editingGroupNotice = ref<string>('')
-const isUpdatingGroupNotice = ref<boolean>(false)
 
 // 备注修改相关状态
 const showEditRemarkDialog = ref<boolean>(false)
@@ -3759,55 +3726,6 @@ const loadChatList = async (forceRefresh = false) => {
   }
 }
 
-// 发送群公告修改的系统消息（与bear-chat-uniapp保持一致）
-const sendGroupNoticeUpdateSystemMessage = async (groupId: string, groupNotice: string) => {
-  try {
-    const user = store.getters.currentUser
-    const timestamp = Date.now()
-
-
-    // 构造系统消息对象，参考bear-chat-uniapp的格式
-    const systemMessage = {
-      id: `${timestamp}`,
-      chatGroupId: groupId,
-      userId: parseInt(user?.id || currentUserId.value) || 0,
-      meFlag: true,
-      userName: user?.username || user?.nickname || '用户',
-      userAvatar: user?.avatar || '/static/image/default/default-user/default-user.png',
-      messageType: MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG,
-      contentType: MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,
-      content: {
-        text: groupNotice.length > 0 ? '群主发布了新的公告' : '群主作废了群公告', // 根据bear-chat-uniapp的解析规则
-        sysMsgType: 'updateGroupNotice', // 系统消息类型
-        param: {
-          groupId: groupId,
-          groupNotice: groupNotice,
-          showNoticeFlag: 1
-        }
-      },
-      createTime: getTimeStr(timestamp),
-      timestamp: timestamp,
-      platFrom: MESSAGE_CONSTANTS.PLATFORM.WEB,
-      showTimeFlag: true
-    }
-
-
-    // 通过WebSocket发送系统消息
-    await new Promise((resolve, reject) => {
-      webSocketManager.sendMessage(systemMessage, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting, (success: boolean) => {
-        if (success) {
-          resolve(true)
-        } else {
-          reject(new Error('系统消息发送失败'))
-        }
-      })
-    })
-
-  } catch (error: any) {
-    // 静默处理错误，不影响用户体验
-  }
-}
-
 // 发送群头像修改的系统消息（与bear-chat-uniapp保持一致）
 const sendGroupAvatarUpdateSystemMessage = async (groupId: string, avatarUrl: string) => {
   try {
@@ -3911,8 +3829,6 @@ const loadGroupDetailInfo = async (groupId: string) => {
           avatar: avatarUrl,
           groupType: groupInfo.type === ChatType.GROUP ? 1 : 0,
           memberCount: groupInfo.memberCount ?? selectedChat.value.memberCount,
-          groupNotice: description,
-          showNoticeFlag: description.trim().length > 0,
           extra: mergedExtra,
         }
 
@@ -7431,108 +7347,6 @@ const updateGroupAvatar = async (file: File) => {
     // 隐藏加载状态
     store.dispatch('hideGlobalLoading')
   }
-}
-
-// 处理群公告修改
-const handleEditGroupNotice = () => {
-  if (!selectedChat.value) return
-
-
-  // 设置当前群公告作为默认值（如果有的话）
-  editingGroupNotice.value = selectedChat.value.groupNotice || ''
-  groupNameError.value = ''
-
-  // 关闭群设置抽屉，打开群公告修改弹窗
-  showGroupSettings.value = false
-  showEditGroupNoticeDialog.value = true
-}
-
-// 确认修改群公告
-const handleConfirmEditGroupNotice = async () => {
-  const newGroupNotice = editingGroupNotice.value.trim()
-
-  // 验证群公告
-  if (!newGroupNotice) {
-    groupNameError.value = '群公告不能为空'
-    return
-  }
-
-  if (newGroupNotice.length > 500) {
-    groupNameError.value = '群公告不能超过500个字符'
-    return
-  }
-
-  if (!selectedChat.value?.groupId) {
-    groupNameError.value = '未找到群组信息'
-    return
-  }
-
-  isUpdatingGroupNotice.value = true
-  groupNameError.value = ''
-
-  try {
-    const roomId = selectedChat.value.groupId
-
-    // 1. 先获取现有的群公告列表
-    const listResponse = await GroupApi.listAnnouncements({ roomId })
-
-    let response: any
-
-    if (listResponse.success && listResponse.data && listResponse.data.length > 0) {
-      // 如果有现有公告，更新最新的一条
-      const latestAnnouncement = listResponse.data[0]
-
-      response = await GroupApi.updateAnnouncement({
-        roomId,
-        announcementId: latestAnnouncement.id,
-        content: newGroupNotice
-      })
-    } else {
-      // 如果没有公告，创建新的
-
-      response = await GroupApi.createAnnouncement({
-        roomId,
-        content: newGroupNotice
-      })
-    }
-
-    if (response.success) {
-      toast.success('群公告修改成功')
-
-      // 更新本地数据
-      if (selectedChat.value) {
-        selectedChat.value.groupNotice = newGroupNotice
-        selectedChat.value.showNoticeFlag = 1
-
-      }
-
-      // 发送群公告修改的系统消息
-      await sendGroupNoticeUpdateSystemMessage(roomId, newGroupNotice)
-
-      // 重新加载群详情以确保数据同步
-      await loadGroupDetailInfo(roomId)
-
-      // 关闭弹窗
-      showEditGroupNoticeDialog.value = false
-    } else {
-      // 使用 API 返回的错误消息
-      groupNameError.value = response.message || '修改失败'
-    }
-  } catch (error: any) {
-    // 优先使用 API 返回的错误消息
-    const errorMessage = error?.response?.message || error?.message || '网络错误，请稍后重试';
-    groupNameError.value = errorMessage
-  } finally {
-    isUpdatingGroupNotice.value = false
-  }
-}
-
-// 取消修改群公告
-const handleCancelEditGroupNotice = () => {
-  showEditGroupNoticeDialog.value = false
-  editingGroupNotice.value = ''
-  groupNameError.value = ''
-  isUpdatingGroupNotice.value = false
 }
 
 // 处理备注修改

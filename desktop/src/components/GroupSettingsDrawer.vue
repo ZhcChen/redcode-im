@@ -95,14 +95,6 @@
             </div>
           </div>
 
-          <div class="setting-item" @click="handleEditGroupNotice">
-            <div class="setting-label">群公告</div>
-            <div class="setting-value">
-              <span class="setting-value__text">{{ groupNoticeText }}</span>
-              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
-            </div>
-          </div>
-
           <div class="setting-item" v-if="isGroupOwner">
             <div class="setting-label">全体禁言</div>
             <div class="setting-value">
@@ -198,8 +190,6 @@ interface GroupInfo {
   groupType: number
   isTop?: boolean
   chatStatus?: number
-  groupNotice?: string | null
-  showNoticeFlag?: boolean
   remark?: string | null
 }
 
@@ -216,7 +206,6 @@ interface Emits {
   (e: 'close'): void
   (e: 'edit-group-name'): void
   (e: 'edit-group-avatar'): void
-  (e: 'edit-group-notice'): void
   (e: 'edit-remark'): void
   (e: 'toggle-mute', value: boolean): void
   (e: 'toggle-top', value: boolean): void
@@ -279,15 +268,6 @@ watch(() => props.groupInfo, (newGroupInfo: GroupInfo | null | undefined) => {
   }
 }, { immediate: true })
 
-// 计算群公告显示文本
-const groupNoticeText = computed(() => {
-  const groupInfo = props.groupInfo
-  if (!groupInfo) return '暂无公告'
-
-  const notice = groupInfo.groupNotice || ''
-  return notice.trim().length > 0 ? notice : '暂无公告'
-})
-
 // 计算备注显示文本
 const remarkText = computed(() => {
   const groupInfo = props.groupInfo
@@ -313,10 +293,6 @@ const handleEditGroupName = () => {
 
 const handleEditGroupAvatar = () => {
   emit('edit-group-avatar')
-}
-
-const handleEditGroupNotice = () => {
-  emit('edit-group-notice')
 }
 
 const handleEditRemark = () => {

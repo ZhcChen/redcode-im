@@ -14,7 +14,6 @@ class CreateGroupPage extends StatefulWidget {
 
 class _CreateGroupPageState extends State<CreateGroupPage> {
   final TextEditingController _groupNameController = TextEditingController();
-  final TextEditingController _groupDescController = TextEditingController();
   final FriendService _friendService = FriendService();
   final RoomService _roomService = RoomService();
 
@@ -94,22 +93,6 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
               decoration: InputDecoration(
                 labelText: '群聊名称',
                 hintText: '请输入群聊名称',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.primary),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _groupDescController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: '群公告（选填）',
-                hintText: '请输入群公告',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -224,7 +207,6 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     if (_isSubmitting) return;
 
     final groupName = _groupNameController.text.trim();
-    final description = _groupDescController.text.trim();
 
     if (groupName.isEmpty) {
       ScaffoldMessenger.of(
@@ -246,7 +228,6 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     try {
       final createdRoom = await _roomService.createGroup(
         name: groupName,
-        description: description.isEmpty ? null : description,
         memberIds: _selectedFriendIds.toList(),
       );
 
@@ -308,7 +289,6 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   @override
   void dispose() {
     _groupNameController.dispose();
-    _groupDescController.dispose();
     super.dispose();
   }
 }

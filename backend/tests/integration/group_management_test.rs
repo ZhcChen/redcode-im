@@ -184,56 +184,6 @@ async fn test_group_settings() {
 }
 
 #[tokio::test]
-async fn test_announcement_management() {
-    let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
-
-    let (_, _, token) = create_test_user(&server).await;
-
-    // 创建聊天室
-    let room_data = json!({
-        "name": "Test Room",
-        "description": "A test room",
-        "room_type": "group"
-    });
-
-    let room_response = server.post("/api/v1/rooms")
-        .add_header("Authorization", format!("Bearer {}", token))
-        .json(&room_data)
-        .await;
-
-    assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
-    let room_id = room_body["room"]["id"].as_str().unwrap();
-
-    // 创建公告
-    let announcement_data = json!({
-        "title": "Welcome",
-        "content": "This is a test announcement"
-    });
-
-    let create_response = server.post(&format!("/api/v1/rooms/{}/announcements", room_id))
-        .add_header("Authorization", format!("Bearer {}", token))
-        .json(&announcement_data)
-        .await;
-
-    assert_eq!(create_response.status_code(), StatusCode::OK);
-
-    // 获取公告列表
-    let list_response = server.get(&format!("/api/v1/rooms/{}/announcements", room_id))
-        .add_header("Authorization", format!("Bearer {}", token))
-        .await;
-
-    assert_eq!(list_response.status_code(), StatusCode::OK);
-    let list_body = list_response.json::<serde_json::Value>().await;
-    let announcements = list_body["announcements"].as_array().unwrap();
-    assert_eq!(announcements.len(), 1);
-}
-
-#[tokio::test]
 async fn test_group_rules() {
     let app = create_routes();
     let config = TestServerConfig::builder()

@@ -794,56 +794,6 @@ export class GroupApi {
     return response;
   }
 
-  // 群公告相关 API
-  static async createAnnouncement(params: {
-    roomId: string;
-    title?: string;
-    content: string;
-  }): Promise<ApiResponse<{ announcementId: string }>> {
-    const payload = {
-      title: params.title || '群公告',
-      content: params.content,
-    };
-
-    const response = await post<{ announcement: { id: string } }>(`/rooms/${params.roomId}/announcements`, payload);
-
-    if (!response.success || !response.data) {
-      return {
-        ...response,
-        data: null,
-      };
-    }
-
-    return {
-      ...response,
-      data: {
-        announcementId: response.data.announcement.id,
-      },
-    };
-  }
-
-  static async updateAnnouncement(params: {
-    roomId: string;
-    announcementId: string;
-    title?: string;
-    content: string;
-  }): Promise<ApiResponse<null>> {
-    const payload: Record<string, unknown> = {
-      content: params.content,
-    };
-
-    if (params.title) {
-      payload.title = params.title;
-    }
-
-    const response = await patch<null>(
-      `/rooms/${params.roomId}/announcements/${params.announcementId}`,
-      payload
-    );
-
-    return response;
-  }
-
   /**
    * 获取群头像临时下载地址
    */
@@ -873,50 +823,6 @@ export class GroupApi {
       data: {
         downloadUrl: response.data.download_url,
       },
-    };
-  }
-
-  static async listAnnouncements(params: {
-    roomId: string;
-  }): Promise<ApiResponse<Array<{
-    id: string;
-    title: string;
-    content: string;
-    authorId: string;
-    isPinned: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }>>> {
-    interface BackendAnnouncement {
-      id: string;
-      title: string;
-      content: string;
-      publisher_id: string;
-      is_pinned: boolean;
-      created_at: string;
-      updated_at: string;
-    }
-
-    const response = await get<{ announcements: BackendAnnouncement[] }>(`/rooms/${params.roomId}/announcements`);
-
-    if (!response.success || !response.data || !response.data.announcements) {
-      return {
-        ...response,
-        data: null,
-      };
-    }
-
-    return {
-      ...response,
-      data: response.data.announcements.map(announcement => ({
-        id: announcement.id,
-        title: announcement.title,
-        content: announcement.content,
-        authorId: announcement.publisher_id,
-        isPinned: announcement.is_pinned,
-        createdAt: parseTimestamp(announcement.created_at),
-        updatedAt: parseTimestamp(announcement.updated_at),
-      })),
     };
   }
 }

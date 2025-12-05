@@ -25,7 +25,6 @@ export const MSG_TYPE = {
 export const SYS_MSG_TYPE = {
   updateGroupName: 'updateGroupName', // 修改群名称
   updateGroupAvatar: 'updateGroupAvatar', // 修改群头像
-  updateGroupNotice: 'updateGroupNotice', // 修改群公告
   quitGroup: 'quitGroup', // 主动退出群组
   joinGroupMember: 'joinGroupMember', // 添加、邀请群成员
   deleteGroupMember: 'deleteGroupMember', // 删除群成员

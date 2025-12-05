@@ -3,10 +3,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::database::models::{
-    AppointAdminRequest, CreateAnnouncementRequest, CreateRuleRequest, GroupAdmin,
-    GroupAnnouncement, GroupDetailInfo, GroupInvitation, GroupMute, GroupOperationLog, GroupRule,
-    GroupSettings, InvitationStatus, InviteToGroupRequest, JoinGroupRequest, JoinRequest,
-    MuteUserRequest, ReviewJoinRequestRequest, UpdateAnnouncementRequest,
+    AppointAdminRequest, CreateRuleRequest, GroupAdmin, GroupDetailInfo, GroupInvitation,
+    GroupMute, GroupOperationLog, GroupRule, GroupSettings, InvitationStatus, InviteToGroupRequest,
+    JoinGroupRequest, JoinRequest, MuteUserRequest, ReviewJoinRequestRequest,
     UpdateGroupSettingsRequest, UpdateRuleRequest,
 };
 
@@ -167,106 +166,6 @@ impl<'a> GroupManagementStore<'a> {
         .await?;
 
         Ok(cleared)
-    }
-
-    // ===== 群公告管理 =====
-
-    pub async fn create_announcement(
-        &self,
-        room_id: Uuid,
-        publisher_id: Uuid,
-        request: CreateAnnouncementRequest,
-    ) -> Result<GroupAnnouncement, sqlx::Error> {
-        let announcement = sqlx::query_as::<_, GroupAnnouncement>(
-            r#"
-            INSERT INTO group_announcements
-            (room_id, title, content, publisher_id, is_pinned)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, room_id, title, content, publisher_id, is_pinned, created_at, updated_at
-            "#,
-        )
-        .bind(room_id)
-        .bind(request.title)
-        .bind(request.content)
-        .bind(publisher_id)
-        .bind(request.is_pinned.unwrap_or(false))
-        .fetch_one(self.pool)
-        .await?;
-
-        Ok(announcement)
-    }
-
-    pub async fn list_announcements(
-        &self,
-        room_id: Uuid,
-    ) -> Result<Vec<GroupAnnouncement>, sqlx::Error> {
-        let announcements = sqlx::query_as::<_, GroupAnnouncement>(
-            r#"
-            SELECT id, room_id, title, content, publisher_id, is_pinned, created_at, updated_at
-            FROM group_announcements
-            WHERE room_id = $1
-            ORDER BY is_pinned DESC, created_at DESC
-            "#,
-        )
-        .bind(room_id)
-        .fetch_all(self.pool)
-        .await?;
-
-        Ok(announcements)
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_announcement(
-        &self,
-        announcement_id: Uuid,
-    ) -> Result<Option<GroupAnnouncement>, sqlx::Error> {
-        let announcement = sqlx::query_as::<_, GroupAnnouncement>(
-            r#"
-            SELECT id, room_id, title, content, publisher_id, is_pinned, created_at, updated_at
-            FROM group_announcements
-            WHERE id = $1
-            "#,
-        )
-        .bind(announcement_id)
-        .fetch_optional(self.pool)
-        .await?;
-
-        Ok(announcement)
-    }
-
-    pub async fn update_announcement(
-        &self,
-        announcement_id: Uuid,
-        request: UpdateAnnouncementRequest,
-    ) -> Result<Option<GroupAnnouncement>, sqlx::Error> {
-        let updated = sqlx::query_as::<_, GroupAnnouncement>(
-            r#"
-            UPDATE group_announcements
-            SET title = COALESCE($2, title),
-                content = COALESCE($3, content),
-                is_pinned = COALESCE($4, is_pinned),
-                updated_at = NOW()
-            WHERE id = $1
-            RETURNING id, room_id, title, content, publisher_id, is_pinned, created_at, updated_at
-            "#,
-        )
-        .bind(announcement_id)
-        .bind(request.title)
-        .bind(request.content)
-        .bind(request.is_pinned)
-        .fetch_optional(self.pool)
-        .await?;
-
-        Ok(updated)
-    }
-
-    pub async fn delete_announcement(&self, announcement_id: Uuid) -> Result<bool, sqlx::Error> {
-        let result = sqlx::query("DELETE FROM group_announcements WHERE id = $1")
-            .bind(announcement_id)
-            .execute(self.pool)
-            .await?;
-
-        Ok(result.rows_affected() > 0)
     }
 
     // ===== 群规管理 =====

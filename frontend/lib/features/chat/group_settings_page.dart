@@ -625,14 +625,6 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                         }
                       : null),
           ),
-          _SettingTile(
-            label: '群公告',
-            value: widget.chat.extra?['notice'] as String? ?? '无',
-            showValueOnRight: true,
-            onTap: () {
-              debugPrint('Edit group notice');
-            },
-          ),
         ],
       ),
     );
