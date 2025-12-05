@@ -127,6 +127,12 @@
       </div>
       
       <div class="chat-window" v-if="selectedChat">
+        <!-- 置顶消息 Banner -->
+        <PinnedMessageBanner
+          :message="pinnedMessage"
+          @click="scrollToPinnedMessage"
+          @unpin="unpinCurrentMessage"
+        />
         <ScrollContainer
           class="chat-messages"
           :class="{ 'multi-select-active': multiSelectMode, 'drag-selecting': isDragSelectingClass }"
@@ -179,7 +185,14 @@
               :size="40"
             />
             <div v-if="!message.isSelf" class="message-wrapper">
-              <div class="message-sender-name">{{ message.senderName }}</div>
+              <div class="message-sender-name">
+                {{ message.senderName }}
+                <span v-if="message.pinnedAt" class="pinned-indicator" title="已置顶">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+                  </svg>
+                </span>
+              </div>
               <div
                 class="message-content"
                 :class="{
@@ -476,6 +489,11 @@
                   v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
                         message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
                 >
+                  <span v-if="message.pinnedAt" class="pinned-indicator" title="已置顶">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+                    </svg>
+                  </span>
                   {{ formatMessageTime(message.createTime || message.time) }}
                 </div>
               </div>
@@ -784,6 +802,11 @@
                 v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
                       message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
               >
+                <span v-if="message.pinnedAt" class="pinned-indicator" title="已置顶">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+                  </svg>
+                </span>
                 {{ formatMessageTime(message.createTime || message.time) }}
                 <svg v-if="message.isSelf && message.status === 2" class="message-status-icon sent" width="20" height="20" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
@@ -1208,6 +1231,7 @@ import VoiceMessage from '../components/VoiceMessage.vue'
 import ChatContextMenu from '../components/ChatContextMenu.vue'
 import MessageContextMenu from '../components/MessageContextMenu.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import PinnedMessageBanner from '../components/PinnedMessageBanner.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
@@ -3241,6 +3265,10 @@ const quotedHighlightTimers = new Map<string, number>()
 // 数据状态管理 - 使用store中的数据
 const chatList = computed(() => store.getters.chatList)
 const messages = ref<Message[]>([])
+// 置顶消息：从当前消息列表中查找有 pinnedAt 的消息
+const pinnedMessage = computed<Message | null>(() => {
+  return messages.value.find(msg => msg.pinnedAt) || null
+})
 const loading = computed(() => store.getters.chatListLoading)
 const messagesLoading = ref<boolean>(false)
 // 当前组件所属账号（多账号场景下按传入的 accountId 获取）
@@ -4794,6 +4822,57 @@ const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
     }, 5200)
     quotedHighlightTimers.set(quoted.id, timer)
   })
+}
+
+// 滚动到置顶消息
+const scrollToPinnedMessage = () => {
+  const pinned = pinnedMessage.value
+  if (!pinned?.id) return
+  nextTick(() => {
+    const container = getMessagesViewport()
+    const target = container?.querySelector(`[data-message-id="${pinned.id}"]`) as HTMLElement | null
+    if (!target) return
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    // 触发高亮动画
+    const existingTimer = quotedHighlightTimers.get(pinned.id)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      quotedHighlightTimers.delete(pinned.id)
+    }
+
+    target.classList.remove('quoted-highlighted')
+    void target.offsetWidth
+    target.classList.add('quoted-highlighted')
+    const timer = window.setTimeout(() => {
+      target.classList.remove('quoted-highlighted')
+      quotedHighlightTimers.delete(pinned.id)
+    }, 5200)
+    quotedHighlightTimers.set(pinned.id, timer)
+  })
+}
+
+// 取消当前置顶消息
+const unpinCurrentMessage = async () => {
+  const pinned = pinnedMessage.value
+  if (!pinned || !selectedChat.value) return
+
+  try {
+    const res = await MessageApi.unpinMessage({
+      groupId: selectedChat.value.groupId,
+      messageId: pinned.id
+    })
+    if (res.success) {
+      pinned.pinnedAt = null
+      toast.success('已取消置顶')
+    } else {
+      toast.error(res.message || '取消置顶失败')
+    }
+  } catch (error) {
+    console.error('取消置顶失败', error)
+    toast.error('取消置顶失败')
+  }
 }
 
 const canCopyMessage = (message: Message | null): boolean => {
@@ -8419,35 +8498,64 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
 }
 
 const handleWebSocketPinUpdate = (event: CustomEvent) => {
-  const detail = event.detail as { room_id?: string; roomId?: string; is_pinned?: boolean; isPinned?: boolean; message?: DomainMessage } | undefined
+  const detail = event.detail as {
+    room_id?: string
+    roomId?: string
+    message_id?: string
+    messageId?: string
+    is_pinned?: boolean
+    isPinned?: boolean
+    pinned_at?: string
+    pinnedAt?: string
+    pinned_by?: string
+    pinnedBy?: string
+    message?: DomainMessage
+  } | undefined
   if (!detail) return
 
   const roomId = detail.room_id || detail.roomId
-  if (!roomId || !selectedChat.value || roomId !== selectedChat.value.groupId) {
+  const messageId = detail.message_id || detail.messageId
+  if (!roomId) return
+
+  // 只处理当前选中聊天室的消息置顶事件
+  if (!selectedChat.value || roomId !== selectedChat.value.groupId) {
     return
   }
 
+  const isPinned = detail.is_pinned ?? detail.isPinned ?? false
+  const pinnedAt = detail.pinned_at || detail.pinnedAt
+
+  // 如果服务器返回了完整的消息，使用它来更新
   if (detail.message) {
     const uiMessage = mapDomainMessageToUi(detail.message)
     const existingIndex = messages.value.findIndex((msg) => msg.id === uiMessage.id)
     if (existingIndex !== -1) {
       messages.value.splice(existingIndex, 1, {
         ...messages.value[existingIndex],
-        ...uiMessage
+        ...uiMessage,
+        pinnedAt: isPinned && pinnedAt ? new Date(pinnedAt) : null
       })
     }
-  }
-
-  const isPinned = detail.is_pinned ?? detail.isPinned ?? false
-  selectedChat.value.isTop = isPinned
-
-  const chatItem = store.getters.getChatByGroupId(roomId)
-  if (chatItem) {
-    const updatedChat = {
-      ...chatItem,
-      isTop: isPinned
+  } else if (messageId) {
+    // 没有完整消息，只更新 pinnedAt 字段
+    // 如果是取消置顶，清除所有消息的置顶状态
+    if (!isPinned) {
+      messages.value.forEach((msg) => {
+        if (msg.pinnedAt) {
+          msg.pinnedAt = null
+        }
+      })
+    } else {
+      // 设置新的置顶消息
+      // 先清除其他消息的置顶状态（每个房间只能有一条置顶消息）
+      messages.value.forEach((msg) => {
+        if (msg.id === messageId) {
+          msg.pinnedAt = pinnedAt ? new Date(pinnedAt) : new Date()
+        } else if (msg.pinnedAt) {
+          msg.pinnedAt = null
+        }
+      })
     }
-    store.dispatch('updateChatItem', updatedChat)
   }
 }
 
@@ -9689,6 +9797,9 @@ const loadMessageList = async (groupId: string) => {
     line-height: 16px;
     color: $message-sender-name-color;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 }
 
@@ -9750,6 +9861,9 @@ const loadMessageList = async (groupId: string) => {
       text-align: left;
       line-height: 1;
       white-space: nowrap; /* 防止时间换行 */
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .message-edited-flag {
@@ -9762,6 +9876,18 @@ const loadMessageList = async (groupId: string) => {
   // 对方消息整体右移，为左侧选择控件留白
   &:not(.own-message) {
     padding-left: 32px;
+  }
+}
+
+// 置顶消息图标样式
+.pinned-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  svg {
+    stroke: var(--primary-color, #409eff);
   }
 }
 
