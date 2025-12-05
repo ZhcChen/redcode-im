@@ -63,6 +63,14 @@ const currentVersionInfo = computed(() => versionState.value.current);
 const accounts = computed(() => store.getters['accounts/allAccounts']);
 const currentAccountId = computed(() => store.state.accounts.currentAccountId);
 const isLoggedIn = computed(() => store.getters.isLoggedIn);
+// 当前是否存在有效的激活账号
+const hasValidCurrentAccount = computed(
+  () => !!currentAccountId.value && accounts.value.some(acc => acc.id === currentAccountId.value)
+);
+// 只有在已登录且账号数量大于 1 且当前激活账号有效时，才启用多账号独立页面架构
+const showMultiAccountLayout = computed(
+  () => isLoggedIn.value && accounts.value.length > 1 && hasValidCurrentAccount.value
+);
 // 只有多个账号时才显示切换标签
 const showAccountTabs = computed(() => accounts.value.length > 1 && isLoggedIn.value);
 const keepAliveViews = ['Home', 'Chat', 'Contacts', 'Settings'];
@@ -1312,7 +1320,7 @@ onUnmounted(() => {
 
     <div :class="['app-main', { 'app-main--with-tabs': showAccountTabs }]">
       <!-- 多账号独立页面架构：为每个账号创建独立的页面容器 -->
-      <template v-if="isLoggedIn && accounts.length > 0">
+      <template v-if="showMultiAccountLayout">
         <!-- 为每个账号创建独立的页面容器，使用 v-show 控制显示/隐藏 -->
         <template v-for="account in accounts" :key="account.id">
           <div
