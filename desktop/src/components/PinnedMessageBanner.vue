@@ -212,7 +212,7 @@ const handleIconClick = () => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  padding: 0 24px 0 12px; // 扩大点击区域并靠右留出内边距
+  padding: 0 16px 0 12px; // 右侧间距缩小，让图标更靠近右边缘，视觉上与顶部群设置按钮更对齐
 }
 
 .pinned-icon-button svg {
