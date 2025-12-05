@@ -796,6 +796,25 @@ class MessageService with ChangeNotifier {
     return null;
   }
 
+  List<Message> getPinnedMessages(String roomId) {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null || messages.isEmpty) return [];
+
+    final pinnedIds = _pinnedMessageIds[roomId];
+    if (pinnedIds != null && pinnedIds.isNotEmpty) {
+      final pinnedList = <Message>[];
+      for (final message in messages) {
+        if (pinnedIds.contains(message.id) && message.isPinned) {
+          pinnedList.add(message);
+        }
+      }
+      return pinnedList;
+    }
+
+    // 回退：直接从消息列表中找到所有置顶消息
+    return messages.where((message) => message.isPinned).toList();
+  }
+
   bool isMessagePinned(String roomId, String messageId) {
     final pinnedIds = _pinnedMessageIds[roomId];
     if (pinnedIds != null && pinnedIds.isNotEmpty) {

@@ -35,6 +35,7 @@ import 'models/chat_model.dart';
 import 'models/message_model.dart';
 import 'models/message_reader.dart';
 import 'group_settings_page.dart';
+import 'pinned_messages_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
@@ -582,6 +583,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                         message: pinnedMessage,
                         onTap: () => _scrollToMessage(pinnedMessage.id),
                         onUnpin: () => unawaited(_togglePinMessage(pinnedMessage)),
+                        onIconTap: () => _showPinnedMessagesPanel(),
                       ),
                     );
                   },
@@ -2085,6 +2087,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     );
   }
 
+  void _showPinnedMessagesPanel() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PinnedMessagesPage(
+          chatId: widget.roomId,
+        ),
+      ),
+    );
+  }
+
   void _onScroll() {
     final isNearBottom = _isListNearBottom();
     if (isNearBottom != _isAtBottom) {
@@ -3202,11 +3214,13 @@ class _PinnedMessageBanner extends StatelessWidget {
     required this.message,
     required this.onTap,
     required this.onUnpin,
+    required this.onIconTap,
   });
 
   final Message message;
   final VoidCallback onTap;
   final VoidCallback onUnpin;
+  final VoidCallback onIconTap;
 
   @override
   Widget build(BuildContext context) {
@@ -3289,12 +3303,12 @@ class _PinnedMessageBanner extends StatelessWidget {
                   color: Colors.transparent,
                   child: IconButton(
                     icon: const Icon(
-                      Icons.more_horiz,
+                      Icons.keyboard_arrow_right,
                       size: 20,
                       color: AppColors.textQuaternary,
                     ),
                     splashRadius: 18,
-                    onPressed: onUnpin,
+                    onPressed: onIconTap,
                   ),
                 ),
               ),

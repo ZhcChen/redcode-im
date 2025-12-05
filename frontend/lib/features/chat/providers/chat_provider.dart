@@ -41,6 +41,10 @@ class ChatProvider with ChangeNotifier {
       ? null
       : _messageService.getPinnedMessage(_currentRoomId!);
 
+  List<Message> get pinnedMessages => _currentRoomId == null
+      ? []
+      : _messageService.getPinnedMessages(_currentRoomId!);
+
   bool isMessagePinned(Message message) {
     return _messageService.isMessagePinned(message.roomId, message.id);
   }
