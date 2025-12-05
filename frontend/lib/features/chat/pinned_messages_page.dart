@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/services/message_service.dart';
-import '../models/message_model.dart';
+import 'models/message_model.dart';
 import 'providers/chat_provider.dart';
 
 class PinnedMessagesPage extends StatefulWidget {
