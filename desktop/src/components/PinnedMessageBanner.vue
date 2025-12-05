@@ -217,8 +217,8 @@ const handleIconClick = () => {
 
 .pinned-icon-button svg {
   stroke: #555555;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .pinned-icon-button:hover svg {
