@@ -5454,44 +5454,6 @@ const scrollToBottomAfterImageLoad = () => {
   scrollToBottom(true)
 }
 
-// 提供给消息气泡组件使用的上下文（用于置顶消息抽屉复用气泡渲染逻辑）
-const messageBubbleContext = {
-  MESSAGE_CONSTANTS,
-  audioUrlCache,
-  getTextContent,
-  hasAudioPart,
-  ensureAudioUrlLoading,
-  getAudioDuration,
-  parseImageSrc,
-  getImageAlt,
-  isMessageUploading,
-  handleImagePreview,
-  scrollToBottomAfterImageLoad,
-  handleImageError,
-  parseVideoScreenShotSrc,
-  parseVideoSrc,
-  handleVideoPlay,
-  handleVideoThumbnailError,
-  isFileDownloading,
-  getFileIconType,
-  getFileIconClass,
-  getFileProgress,
-  shouldShowDownloadIcon,
-  handleFileDownload,
-  getFileName,
-  getFileSize,
-  formatFileSize,
-  formatMessageTime,
-  getQuotedAvatar,
-  getQuotedInitial,
-  getQuotedSenderName,
-  getQuotedText,
-  getQuotedMediaType,
-  getQuotedImageSrc,
-  getSenderAvatarById,
-  scrollToQuoted
-}
-
 // 监听消息变化，自动滚动到底部
 watch(messages, (newMessages, oldMessages) => {
   // 当首次加载消息或消息数量增加时，滚动到底部
@@ -6440,6 +6402,44 @@ const handleVideoPlay = async (message: Message) => {
     console.error('视频播放失败:', error)
     toast.error('视频加载失败: ' + (error?.message || '未知错误'))
   }
+}
+
+// 提供给消息气泡组件使用的上下文（用于置顶消息抽屉复用气泡渲染逻辑）
+const messageBubbleContext = {
+  MESSAGE_CONSTANTS,
+  audioUrlCache,
+  getTextContent,
+  hasAudioPart,
+  ensureAudioUrlLoading,
+  getAudioDuration,
+  parseImageSrc,
+  getImageAlt,
+  isMessageUploading,
+  handleImagePreview,
+  scrollToBottomAfterImageLoad,
+  handleImageError,
+  parseVideoScreenShotSrc,
+  parseVideoSrc,
+  handleVideoPlay,
+  handleVideoThumbnailError,
+  isFileDownloading,
+  getFileIconType,
+  getFileIconClass,
+  getFileProgress,
+  shouldShowDownloadIcon,
+  handleFileDownload,
+  getFileName,
+  getFileSize,
+  formatFileSize,
+  formatMessageTime,
+  getQuotedAvatar,
+  getQuotedInitial,
+  getQuotedSenderName,
+  getQuotedText,
+  getQuotedMediaType,
+  getQuotedImageSrc,
+  getSenderAvatarById,
+  scrollToQuoted
 }
 
 // 处理上传点击
