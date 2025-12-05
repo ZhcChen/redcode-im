@@ -801,6 +801,19 @@ function handleMessageRead(detail: any) {
 function handlePinUpdate(detail: any) {
   const roomId = detail?.room_id || detail?.roomId;
   const isPinned = detail?.is_pinned ?? detail?.isPinned;
+
+  // 如果包含 message 或 messageId，说明是“消息置顶”事件，
+  // 交由 Chat.vue 中的 handleWebSocketPinUpdate 处理，这里不再更新会话置顶状态。
+  const hasMessagePayload =
+    detail?.message ||
+    detail?.message_id ||
+    detail?.messageId;
+
+  if (hasMessagePayload) {
+    return;
+  }
+
+  // 仅在明确的“会话置顶”事件中更新会话列表 isTop 状态
   if (roomId !== undefined && isPinned !== undefined) {
     const chat = store.getters.getChatByGroupId(roomId);
     if (chat) {

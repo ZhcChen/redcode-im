@@ -1,18 +1,31 @@
 <template>
-  <div v-if="message" class="pinned-message-banner" @click="handleClick">
-    <div class="pin-icon">
+  <div v-if="message" class="pinned-message-banner">
+    <div class="pinned-indicators">
+      <span
+        v-for="(_, index) in indicators"
+        :key="index"
+        :class="['pinned-indicator', { 'pinned-indicator--active': index === props.activeIndex }]"
+      />
+    </div>
+    <div class="pinned-main" @click="handleClick">
+      <Transition name="pinned-banner-slide" mode="out-in">
+        <div class="pinned-main-inner" :key="previewKey">
+          <div class="pinned-header">
+            <span class="pinned-title">置顶消息</span>
+            <span v-if="total > 1" class="pinned-count">{{ total }} 条</span>
+          </div>
+          <div class="pinned-preview">{{ previewText }}</div>
+        </div>
+      </Transition>
+    </div>
+    <button
+      class="pinned-icon-button"
+      type="button"
+      @click.stop="handleIconClick"
+      title="查看置顶消息"
+    >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
-      </svg>
-    </div>
-    <div class="pin-content">
-      <div class="pin-label">已置顶</div>
-      <div class="pin-preview">{{ previewText }}</div>
-    </div>
-    <button class="pin-close" @click.stop="handleUnpin" title="取消置顶">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
     </button>
   </div>
@@ -34,15 +47,29 @@ const CONTENT_TYPE = {
 
 interface Props {
   message: Message | null
+  /** 置顶消息数量，用于显示指标条，默认 1 条 */
+  total?: number
+  /** 当前激活的置顶消息索引（从 0 开始） */
+  activeIndex?: number
 }
 
 interface Emits {
+  // 点击主体区域：滚动到当前/上一条置顶消息
   (e: 'click'): void
-  (e: 'unpin'): void
+  // 点击右侧图标：打开置顶消息抽屉
+  (e: 'icon-click'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  total: 1,
+  activeIndex: 0
+})
 const emit = defineEmits<Emits>()
+
+const indicators = computed(() => {
+  const count = Math.max(props.total || 1, 1)
+  return Array.from({ length: count })
+})
 
 const previewText = computed(() => {
   if (!props.message) return ''
@@ -90,93 +117,138 @@ const previewText = computed(() => {
   }
 })
 
+const previewKey = computed(() => {
+  return props.message?.id || 'empty'
+})
+
 const handleClick = () => {
   emit('click')
 }
 
-const handleUnpin = () => {
-  emit('unpin')
+const handleIconClick = () => {
+  emit('icon-click')
 }
 </script>
 
 <style scoped lang="scss">
 .pinned-message-banner {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  margin: 0 16px 8px 16px;
-  background: rgba(var(--primary-rgb, 64, 158, 255), 0.08);
-  border-radius: 12px;
-  border: 1px solid rgba(var(--primary-rgb, 64, 158, 255), 0.15);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  align-items: stretch;
+  width: 100%;
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
   flex-shrink: 0;
+  height: 52px; /* 固定高度，避免轮播切换时整体高度抖动 */
+  box-sizing: border-box;
+}
 
-  &:hover {
-    background: rgba(var(--primary-rgb, 64, 158, 255), 0.12);
-    border-color: rgba(var(--primary-rgb, 64, 158, 255), 0.25);
-  }
+.pinned-indicators {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 0 10px 16px;
+}
 
-  .pin-icon {
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary-color, #409eff);
-    border-radius: 8px;
+.pinned-indicator {
+  width: 2px;
+  height: 14px;
+  border-radius: 999px;
+  background-color: rgba(var(--primary-rgb, 0, 194, 179), 0.25);
+}
 
-    svg {
-      stroke: #fff;
-    }
-  }
+.pinned-indicator--active {
+  background-color: var(--primary-color, #00C2B3);
+}
 
-  .pin-content {
-    flex: 1;
-    min-width: 0;
+.pinned-main {
+  flex: 1;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  cursor: pointer;
+  min-width: 0; // 允许内部文本收缩，配合省略号
+  overflow: hidden; // 为上下滚动动画提供裁剪容器
+}
 
-    .pin-label {
-      font-size: 12px;
-      color: var(--primary-color, #409eff);
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
+.pinned-main-inner {
+  display: flex;
+  flex-direction: column;
+}
 
-    .pin-preview {
-      font-size: 13px;
-      color: #666;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
+.pinned-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
 
-  .pin-close {
-    flex-shrink: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.15s;
+.pinned-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-color, #00C2B3);
+}
 
-    svg {
-      stroke: #999;
-    }
+.pinned-count {
+  font-size: 12px;
+  color: #999999;
+}
 
-    &:hover {
-      background: rgba(0, 0, 0, 0.08);
+.pinned-preview {
+  font-size: 13px;
+  color: #666666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-      svg {
-        stroke: #666;
-      }
-    }
-  }
+.pinned-icon-button {
+  min-width: 64px;
+  border: none;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0 24px 0 12px; // 扩大点击区域并靠右留出内边距
+}
+
+.pinned-icon-button svg {
+  stroke: #555555;
+  width: 18px;
+  height: 18px;
+}
+
+.pinned-icon-button:hover svg {
+  stroke: #222222;
+}
+
+/* 置顶 Banner 文本上下滚动动画 */
+.pinned-banner-slide-enter-active,
+.pinned-banner-slide-leave-active {
+  transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.28s ease-out;
+  will-change: transform, opacity;
+}
+
+.pinned-banner-slide-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.pinned-banner-slide-enter-to {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.pinned-banner-slide-leave-from {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.pinned-banner-slide-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
 }
 </style>

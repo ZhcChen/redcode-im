@@ -86,7 +86,8 @@ class MessageService with ChangeNotifier {
   List<Chat> _chats = [];
   final Map<String, List<MessageReader>> _messageReadersCache = {};
   final Map<String, int> _roomMemberCountCache = {};
-  final Map<String, String> _pinnedMessageIds = {};
+  // 每个房间可能存在多条置顶消息，这里缓存 messageId 列表以便快速查询
+  final Map<String, List<String>> _pinnedMessageIds = {};
 
   // 单例模式
   static MessageService? _instance;
@@ -694,11 +695,9 @@ class MessageService with ChangeNotifier {
           _refreshPinnedCache(roomId);
           notifyListeners();
           unawaited(_persistMessages(roomId));
-          _pinnedMessageIds[roomId] = messageId;
         }
       }
     } else {
-      _pinnedMessageIds.remove(roomId);
       _refreshPinnedCache(roomId);
       notifyListeners();
     }
@@ -728,7 +727,6 @@ class MessageService with ChangeNotifier {
       return;
     }
 
-    _pinnedMessageIds.remove(roomId);
     final messages = _messagesByRoom[roomId];
     if (messages != null) {
       final index = messages.indexWhere((m) => m.id == messageId);
@@ -779,18 +777,19 @@ class MessageService with ChangeNotifier {
     final messages = _messagesByRoom[roomId];
     if (messages == null || messages.isEmpty) return null;
 
-    final pinnedId = _pinnedMessageIds[roomId];
-    if (pinnedId != null) {
+    final pinnedIds = _pinnedMessageIds[roomId];
+    if (pinnedIds != null && pinnedIds.isNotEmpty) {
+      final firstId = pinnedIds.first;
       for (final message in messages) {
-        if (message.id == pinnedId) {
+        if (message.id == firstId && message.isPinned) {
           return message;
         }
       }
     }
 
+    // 回退：直接从消息列表中找到第一条置顶消息
     for (final message in messages) {
       if (message.isPinned) {
-        _pinnedMessageIds[roomId] = message.id;
         return message;
       }
     }
@@ -798,19 +797,15 @@ class MessageService with ChangeNotifier {
   }
 
   bool isMessagePinned(String roomId, String messageId) {
-    final pinnedId = _pinnedMessageIds[roomId];
-    if (pinnedId != null) {
-      return pinnedId == messageId;
+    final pinnedIds = _pinnedMessageIds[roomId];
+    if (pinnedIds != null && pinnedIds.isNotEmpty) {
+      return pinnedIds.contains(messageId);
     }
     final messages = _messagesByRoom[roomId];
     if (messages == null || messages.isEmpty) return false;
     for (final message in messages) {
       if (message.id == messageId) {
-        if (message.isPinned) {
-          _pinnedMessageIds[roomId] = messageId;
-          return true;
-        }
-        return false;
+        return message.isPinned;
       }
     }
     return false;
@@ -1162,9 +1157,18 @@ class MessageService with ChangeNotifier {
 
     messages[index] = message.copyWith(isDeleted: isDeleted, extra: extra);
 
-    if (isDeleted && _pinnedMessageIds[roomId] == messageId) {
-      _pinnedMessageIds.remove(roomId);
-      _refreshPinnedCache(roomId);
+    if (isDeleted) {
+      final list = List<String>.from(
+        _pinnedMessageIds[roomId] ?? const <String>[],
+      );
+      if (list.remove(messageId)) {
+        if (list.isEmpty) {
+          _pinnedMessageIds.remove(roomId);
+        } else {
+          _pinnedMessageIds[roomId] = list;
+        }
+        _refreshPinnedCache(roomId);
+      }
     }
 
     notifyListeners();
@@ -1178,10 +1182,22 @@ class MessageService with ChangeNotifier {
     DateTime? pinnedAt,
     String? pinnedBy,
   }) async {
-    if (isPinned && messageId != null && messageId.isNotEmpty) {
-      _pinnedMessageIds[roomId] = messageId;
-    } else {
-      _pinnedMessageIds.remove(roomId);
+    if (messageId != null && messageId.isNotEmpty) {
+      final list = List<String>.from(
+        _pinnedMessageIds[roomId] ?? const <String>[],
+      );
+      if (isPinned) {
+        if (!list.contains(messageId)) {
+          list.add(messageId);
+        }
+      } else {
+        list.removeWhere((id) => id == messageId);
+      }
+      if (list.isEmpty) {
+        _pinnedMessageIds.remove(roomId);
+      } else {
+        _pinnedMessageIds[roomId] = list;
+      }
     }
 
     final messages = _messagesByRoom[roomId];
@@ -1369,10 +1385,20 @@ class MessageService with ChangeNotifier {
   }
 
   void _applyPinnedState(String roomId, Message message) {
+    final list = List<String>.from(
+      _pinnedMessageIds[roomId] ?? const <String>[],
+    );
     if (message.isPinned) {
-      _pinnedMessageIds[roomId] = message.id;
-    } else if (_pinnedMessageIds[roomId] == message.id) {
+      if (!list.contains(message.id)) {
+        list.add(message.id);
+      }
+    } else {
+      list.removeWhere((id) => id == message.id);
+    }
+    if (list.isEmpty) {
       _pinnedMessageIds.remove(roomId);
+    } else {
+      _pinnedMessageIds[roomId] = list;
     }
   }
 
@@ -1405,18 +1431,17 @@ class MessageService with ChangeNotifier {
       return;
     }
 
-    String? pinnedId;
+    final pinnedIds = <String>[];
     for (final message in messages) {
       if (message.isPinned) {
-        pinnedId = message.id;
-        break;
+        pinnedIds.add(message.id);
       }
     }
 
-    if (pinnedId != null) {
-      _pinnedMessageIds[roomId] = pinnedId;
-    } else {
+    if (pinnedIds.isEmpty) {
       _pinnedMessageIds.remove(roomId);
+    } else {
+      _pinnedMessageIds[roomId] = pinnedIds;
     }
   }
 

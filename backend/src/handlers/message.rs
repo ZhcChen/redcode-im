@@ -741,7 +741,8 @@ pub async fn list_messages(
         .get_room_messages_paged(room_id, limit, params.before_id, params.since_id)
         .await?;
 
-    let room_pin = store.get_room_pin(room_id).await?;
+    // 支持每个房间多条置顶记录
+    let room_pins = store.get_room_pins(room_id).await?;
 
     let mut part_query_ids: Vec<Uuid> = Vec::new();
     for msg in &items {
@@ -769,13 +770,9 @@ pub async fn list_messages(
     let messages = items
         .into_iter()
         .map(|msg| {
-            let pin_ref = room_pin.as_ref().and_then(|pin| {
-                if pin.message_id == msg.id {
-                    Some(pin)
-                } else {
-                    None
-                }
-            });
+            let pin_ref = room_pins
+                .iter()
+                .find(|pin| pin.message_id == msg.id);
 
             let delivery_status = if msg.sender_id == user_id {
                 if read_message_ids.contains(&msg.id) {
@@ -879,14 +876,11 @@ pub async fn unpin_message(
         ));
     }
 
-    let current_pin = store.get_room_pin(room_id).await?;
-    if let Some(pin) = current_pin.as_ref() {
-        if pin.message_id != message_id {
-            return Err(AppError::ValidationError(
-                "当前置顶的不是该消息".to_string(),
-            ));
-        }
-    } else {
+    // 允许房间内多条置顶，这里仅取消当前消息的置顶（如果存在）
+    let removed = store.remove_room_pin(room_id, Some(message_id)).await?;
+
+    // 如果当前消息并未被置顶，直接返回幂等结果
+    if removed == 0 {
         return Ok(Json(PinMessageResponse {
             room_id: room_id.to_string(),
             is_pinned: false,
@@ -895,8 +889,6 @@ pub async fn unpin_message(
             pinned_by: None,
         }));
     }
-
-    store.remove_room_pin(room_id, Some(message_id)).await?;
 
     if let Err(e) = broadcast_pin_update(
         &state,
@@ -972,24 +964,22 @@ pub async fn delete_message(
         return Err(AppError::ValidationError("消息已删除".to_string()));
     }
 
-    let current_pin = store.get_room_pin(room_id).await?;
-    if let Some(pin) = current_pin.as_ref() {
-        if pin.message_id == message_id {
-            store.remove_room_pin(room_id, Some(message_id)).await?;
-            if let Err(e) = broadcast_pin_update(
-                &state,
-                PinUpdatePayload {
-                    room_id,
-                    message_id: Some(message_id),
-                    pinned_by: None,
-                    pinned_at: None,
-                    is_pinned: false,
-                },
-            )
-            .await
-            {
-                error!("广播取消置顶失败: {}", e);
-            }
+    // 删除消息时，如果该消息有置顶记录，则一并移除并广播取消置顶事件
+    let removed = store.remove_room_pin(room_id, Some(message_id)).await?;
+    if removed > 0 {
+        if let Err(e) = broadcast_pin_update(
+            &state,
+            PinUpdatePayload {
+                room_id,
+                message_id: Some(message_id),
+                pinned_by: None,
+                pinned_at: None,
+                is_pinned: false,
+            },
+        )
+        .await
+        {
+            error!("广播取消置顶失败: {}", e);
         }
     }
 
