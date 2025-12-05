@@ -10488,16 +10488,14 @@ const loadMessageList = async (groupId: string) => {
 
 // 跨天日期分隔条样式
 .message-date-divider {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
-  height: 22px;
+  padding: 6px 16px;
   border-radius: 11px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.3);
   color: #ffffff;
   font-size: 14px;
-  line-height: 22px;
   margin: 16px auto;
   position: relative;
   z-index: 1;
