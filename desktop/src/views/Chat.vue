@@ -9913,6 +9913,24 @@ const loadMessageList = async (groupId: string) => {
 
 .pinned-messages-list .message {
   padding-left: 0; // 覆盖普通消息左侧为多选预留的缩进
+  margin-bottom: 0; // 重置间距，由相邻选择器控制
+}
+
+.pinned-messages-list .message + .message {
+  margin-top: 8px; // 与普通消息列表保持一致的间距
+}
+
+.pinned-messages-list .message-content {
+  font-size: 16px; // 确保文字消息字体大小与普通列表一致
+}
+
+.pinned-messages-list .message-time-other {
+  font-size: 12px; // 确保消息时间字体大小与普通列表一致
+  color: #999999; // 确保时间文字颜色与普通列表一致
+}
+
+.pinned-messages-list .message-image {
+  border-radius: 12px; // 确保图片消息的圆角与普通列表一致
 }
 
 .pinned-media-thumb-img {
@@ -9931,10 +9949,6 @@ const loadMessageList = async (groupId: string) => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-}
-
-.pinned-messages-list .message {
-  padding-left: 0; // 覆盖普通消息左侧为多选预留的缩进
 }
 
 .pinned-messages-item {
