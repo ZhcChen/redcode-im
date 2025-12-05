@@ -177,7 +177,7 @@
               v-if="shouldShowDateDivider(messages, index)"
               class="message-date-divider"
             >
-              {{ formatDateDivider(message) }}
+              {{ formatDateDivider(message, messages) }}
             </div>
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
@@ -964,7 +964,7 @@
                 v-if="shouldShowDateDivider(pinnedMessagesList, index)"
                 class="message-date-divider"
               >
-                {{ formatDateDivider(item) }}
+                {{ formatDateDivider(item, pinnedMessagesList) }}
               </div>
               <!-- 复用消息列表的气泡组件 -->
               <div class="message pinned-drawer-message">
@@ -3325,25 +3325,40 @@ const shouldShowDateDivider = (list: Message[], index: number): boolean => {
   return curDate.toDateString() !== prevDate.toDateString()
 }
 
-// 格式化日期分隔条文案（只显示月-日或年-月-日）
-const formatDateDivider = (message: Message): string => {
+// 格式化日期分隔条文案（根据与列表最新一条消息是否跨年决定是否展示年份）
+const formatDateDivider = (message: Message, list?: Message[]): string => {
   const timeStr = message.createTime || message.time
   if (!timeStr) return ''
   const d = new Date(timeStr)
   if (isNaN(d.getTime())) return ''
 
-  const now = new Date()
-  const isThisYear = d.getFullYear() === now.getFullYear()
-
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-
-  if (isThisYear) {
-    return `${month}-${day}`
+  // 选取当前列表中最新一条消息作为对比基准（默认使用当前时间兜底）
+  let referenceDate = new Date()
+  if (Array.isArray(list) && list.length > 0) {
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const candidate = list[i]
+      const refStr = candidate?.createTime || candidate?.time
+      if (!refStr) continue
+      const rd = new Date(refStr)
+      if (!isNaN(rd.getTime())) {
+        referenceDate = rd
+        break
+      }
+    }
   }
 
   const year = d.getFullYear()
-  return `${year}-${month}-${day}`
+  const month = d.getMonth() + 1
+  const day = d.getDate()
+  const sameYear = year === referenceDate.getFullYear()
+
+  if (sameYear) {
+    // 同一年：仅展示「10月1日」
+    return `${month}月${day}日`
+  }
+
+  // 跨年：展示「2020年10月1日」
+  return `${year}年${month}月${day}日`
 }
 
 const handleMessagesScroll = () => {
