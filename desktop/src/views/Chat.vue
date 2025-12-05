@@ -9804,6 +9804,7 @@ const loadMessageList = async (groupId: string) => {
 .pinned-messages-list {
   padding: 12px 18px 16px;
   overflow-y: auto;
+  flex: 1; // 占满标题栏下方的剩余空间
   background-color: $bg-chat; // 与消息列表背景保持一致
 }
 
