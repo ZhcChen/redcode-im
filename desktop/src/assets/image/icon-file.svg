@@ -2,13 +2,13 @@
   <path
     d="M7.4 4h7.2L19.4 8.9v10.7c0 1.05-.85 1.9-1.9 1.9H7.4c-1.05 0-1.9-.85-1.9-1.9V5.9C5.5 4.85 6.35 4 7.4 4Z"
     fill="#F8F9FB"
-    stroke="#707991"
+    stroke="#666666"
     stroke-width="1.7"
     stroke-linejoin="round"
   />
   <path
     d="M14.6 4v3.9c0 .55.45 1 1 1h3.2"
-    stroke="#707991"
+    stroke="#666666"
     stroke-width="1.7"
     stroke-linecap="round"
     stroke-linejoin="round"
