@@ -229,9 +229,14 @@ async function restoreOriginalWindowSize() {
     } catch (error) {
     }
 
-    const sizeToRestore = originalSize ?? DEFAULT_MAIN_WINDOW_SIZE;
-
-    if (!originalSize) {
+    // 若记录的原始尺寸明显异常（例如高度远大于默认窗口），则回退为默认主窗口尺寸
+    let sizeToRestore = DEFAULT_MAIN_WINDOW_SIZE;
+    if (originalSize) {
+      const heightLimit = DEFAULT_MAIN_WINDOW_SIZE.height * 1.5;
+      const widthLimit = DEFAULT_MAIN_WINDOW_SIZE.width * 1.5;
+      if (originalSize.height <= heightLimit && originalSize.width <= widthLimit) {
+        sizeToRestore = originalSize;
+      }
     }
 
     await setWindowSizeSafe(sizeToRestore.width, sizeToRestore.height);
