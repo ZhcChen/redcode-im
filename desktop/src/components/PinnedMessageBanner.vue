@@ -21,7 +21,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Message } from '@/types/models'
-import { MESSAGE_CONSTANTS } from '@/constants/message'
+
+// 内容类型常量
+const CONTENT_TYPE = {
+  TEXT: 1,
+  IMAGE: 2,
+  VIDEO: 3,
+  AUDIO: 4,
+  FILE: 5,
+  MIXED: 14
+}
 
 interface Props {
   message: Message | null
@@ -64,17 +73,17 @@ const previewText = computed(() => {
   }
 
   switch (contentType) {
-    case MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE:
+    case CONTENT_TYPE.TEXT:
       return props.message.content || ''
-    case MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE:
+    case CONTENT_TYPE.IMAGE:
       return '[图片消息]'
-    case MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE:
+    case CONTENT_TYPE.AUDIO:
       return '[语音消息]'
-    case MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE:
+    case CONTENT_TYPE.VIDEO:
       return '[视频消息]'
-    case MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE:
+    case CONTENT_TYPE.FILE:
       return '[文件消息]'
-    case MESSAGE_CONSTANTS.CONTENT_TYPE.MIXED_CONTENT_TYPE:
+    case CONTENT_TYPE.MIXED:
       return '[多媒体消息]'
     default:
       return props.message.content || '[消息]'
