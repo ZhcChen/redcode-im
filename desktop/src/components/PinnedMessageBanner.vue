@@ -205,14 +205,15 @@ const handleIconClick = () => {
 }
 
 .pinned-icon-button {
-  min-width: 64px;
+  width: 24px;
+  min-width: 24px;
   border: none;
   background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  padding: 0 24px 0 12px; // 扩大点击区域并靠右留出内边距
+  padding: 0 20px 0 12px; // 右侧与 chat-header 设置按钮保持 20px 视觉对齐，左侧保留一定点击区域
 }
 
 .pinned-icon-button svg {
