@@ -216,7 +216,7 @@ const handleIconClick = () => {
 }
 
 .pinned-icon-button svg {
-  stroke: #666666; // 与语音/表情等图标统一的中性灰
+  stroke: #707991; // 与输入区 action-icon 统一的中性灰
   width: 22px;
   height: 22px;
 }
