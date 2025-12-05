@@ -9708,10 +9708,11 @@ const loadMessageList = async (groupId: string) => {
       padding: 12px 16px;
       border-radius: 16px 16px 0 16px; /* 右下角0px，其余16px */
       white-space: pre-wrap; /* 保留换行符和空格 */
+      word-wrap: break-word;
+      word-break: break-word; /* 确保长单词/URL能正确换行 */
       font-size: 16px;
       overflow: hidden; /* 防止内容溢出 */
       max-width: 60%; /* 与对方消息宽度保持一致 */
-      width: fit-content; /* 让宽度自适应内容 */
 
       // 媒体消息特殊处理 - 自己的消息
       .media-message {
@@ -9790,7 +9791,6 @@ const loadMessageList = async (groupId: string) => {
   display: flex;
   flex-direction: column;
   max-width: 60%;
-  width: fit-content; /* 让宽度自适应内容 */
 
   .message-sender-name {
     font-size: 12px;
@@ -9808,8 +9808,8 @@ const loadMessageList = async (groupId: string) => {
     padding: 12px 16px;
     border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
     max-width: 100%; /* 占满 message-wrapper 的宽度，message-wrapper 已设置 60% */
-    width: fit-content; /* 让宽度自适应内容 */
     word-wrap: break-word;
+    word-break: break-word; /* 确保长单词/URL能正确换行 */
     white-space: pre-wrap; /* 保留换行符和空格 */
     font-size: 16px;
     color: $text-primary;
@@ -10334,22 +10334,18 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-// 对于他人消息，message-content-row使用flex布局
+// 对于他人消息，message-wrapper使用flex布局
 .message:not(.own-message) .message-wrapper {
   display: flex;
   flex-direction: column;
-  max-width: 40vw; /* 使用视口宽度单位，更好地响应窗口大小变化 */
-  min-width: fit-content; /* 宽度根据内容自适应 */
-  width: fit-content; /* 让宽度自适应内容 */
+  // max-width 继承自 .message-wrapper 的 60%
 }
 
-// 对于自己的消息，也使用flex布局
+// 对于自己的消息，message-content布局
 .message.own-message {
   .message-content {
     display: inline-block;
-    max-width: 40vw; /* 使用视口宽度单位，与对方消息保持一致 */
-    min-width: fit-content; /* 宽度根据内容自适应 */
-    width: fit-content; /* 让宽度自适应内容 */
+    // max-width 继承自 .message.own-message .message-content 的 60%
   }
 }
 
