@@ -3314,7 +3314,8 @@ let messagesViewportEl: HTMLElement | null = null
 
 // 判断是否需要在当前消息前插入日期分隔条（跨天）
 const shouldShowDateDivider = (list: Message[], index: number): boolean => {
-  if (index === 0) return true
+  // 只在“两个消息之间”跨天时展示，不在第一条前强制展示
+  if (index <= 0) return false
   const current = list[index]
   const prev = list[index - 1]
   if (!current?.createTime || !prev?.createTime) return false
@@ -10035,12 +10036,12 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-  .message {
-    display: flex;
-    align-items: flex-start; /* 顶部对齐，让用户名和头像顶部对齐 */
-    gap: 8px;
-    position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
-    margin-bottom: 8px; /* 添加消息间距 */
+.message {
+  display: flex;
+  align-items: flex-start; /* 顶部对齐，让用户名和头像顶部对齐 */
+  gap: 8px;
+  position: relative; /* 添加相对定位以支持绝对定位的加载动画 */
+  margin-bottom: 0; /* 基础间距交给相邻选择器控制 */
 
   &.selected-message {
     &::before {
@@ -10454,6 +10455,11 @@ const loadMessageList = async (groupId: string) => {
       }
     }
   }
+}
+
+// 相邻两条消息之间的默认垂直间距
+.message + .message {
+  margin-top: 8px;
 }
 
 .empty-chat {
