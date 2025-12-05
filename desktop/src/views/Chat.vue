@@ -9592,6 +9592,7 @@ const loadMessageList = async (groupId: string) => {
 
   &.own-message {
     flex-direction: row-reverse;
+    margin-right: 12px; /* 增加右侧间距 */
 
     .message-content {
       background-color: $primary-color;
