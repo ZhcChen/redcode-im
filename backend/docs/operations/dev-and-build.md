@@ -13,7 +13,19 @@
    ```bash
    docker compose up -d postgres redis-session redis-cache
    ```
-3. **运行后端**：带上调试日志可以更快定位问题。
+3. **（首次部署）初始化数据库结构**
+   > 仅在**首次在新环境使用 RedCode IM** 时需要执行，后续重复启动无需再次执行。
+   - 确保目标数据库为空或确认可以覆盖现有结构；
+   - 在项目根目录（包含 `backend/`、`backend/sql/all.sql`）下执行：
+     ```bash
+     # PostgreSQL 运行在 Docker 容器中
+     docker exec -i postgres psql -U postgres -d redcode_im < backend/sql/all.sql
+     
+     # PostgreSQL 直接运行在本地
+     psql -h localhost -U postgres -d redcode_im < backend/sql/all.sql
+     ```
+   - 该步骤会一次性创建所有业务表、管理后台相关表及初始数据，后端在后续启动时只会做结构校验，不再自动补齐管理员表。
+4. **运行后端**：带上调试日志可以更快定位问题。
    ```bash
    RUST_LOG=debug cargo run
    ```
@@ -69,7 +81,7 @@ docker run --rm \
            PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
            cargo build --release --target x86_64-unknown-linux-musl'
 ```
-> 单条命令即完成 OpenSSL 编译与交叉构建（首次运行约需 3~5 分钟下载、编译 OpenSSL 3.3.1），产物位于 `target/x86_64-unknown-linux-musl/release/redcode-im-backend`，可直接部署到 Linux/x86 或打包到 Docker。`--add-host=host.docker.internal:host-gateway` 让 Linux 主机也能解析 `host.docker.internal`，以便容器访问宿主机上的 PostgreSQL。若使用自定义数据库地址，请将 `-e DATABASE_URL=...` 替换为实际连接串，同时务必保持仓库根目录（含 `init_admin_tables.sql`）挂载到 `/work`。
+> 单条命令即完成 OpenSSL 编译与交叉构建（首次运行约需 3~5 分钟下载、编译 OpenSSL 3.3.1），产物位于 `target/x86_64-unknown-linux-musl/release/redcode-im-backend`，可直接部署到 Linux/x86 或打包到 Docker。`--add-host=host.docker.internal:host-gateway` 让 Linux 主机也能解析 `host.docker.internal`，以便容器访问宿主机上的 PostgreSQL。若使用自定义数据库地址，请将 `-e DATABASE_URL=...` 替换为实际连接串。
 ```bash
 DATABASE_URL=... \
 REDIS_SESSION_URL=... \

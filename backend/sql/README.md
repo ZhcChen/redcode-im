@@ -5,7 +5,7 @@
 ### all.sql
 完整的数据库初始化脚本，包含所有表结构、索引、视图、触发器和初始数据。
 
-**执行方式：**
+**执行方式（新项目首次部署必须执行一次）：**
 
 如果 PostgreSQL 在 Docker 容器中运行：
 ```bash
@@ -16,6 +16,11 @@ docker exec -i postgres psql -U postgres -d redcode_im < sql/all.sql
 ```bash
 psql -h localhost -U postgres -d redcode_im < sql/all.sql
 ```
+
+> 说明：
+> - 本项目视为**全新项目**，不再保留针对旧库自动补齐管理员相关表的逻辑；
+> - 在任意环境（开发 / 测试 / 生产）**第一次部署数据库时，必须在启动后端服务之前执行一次 `all.sql`**，以初始化所有业务表和管理后台表；
+> - 初始化完成后，后端的 `Database::migrate` 仅做结构存在性校验，不再尝试创建缺失的管理员表或迁移旧数据。
 
 ## 数据库迁移规则
 

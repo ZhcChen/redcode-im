@@ -203,46 +203,88 @@ async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
     Ok(())
 }
 
-// 自定义命令：生成视频首帧缩略图
+// 自定义命令：生成视频首帧缩略图（使用 ffmpeg-sidecar 自动管理 ffmpeg）
 #[tauri::command]
 async fn generate_video_thumbnail(
     video_path: String,
     output_path: String,
     time_sec: f64,
 ) -> Result<String, String> {
-    use std::process::Command;
+    use ffmpeg_sidecar::command::FfmpegCommand;
+    use ffmpeg_sidecar::download;
+    use std::fs::File;
+    use std::io::Write;
+    use tauri::async_runtime::spawn_blocking;
 
-    // 检查 ffmpeg 是否可用
-    let ffmpeg_check = Command::new("ffmpeg").arg("-version").output();
-    if let Err(e) = ffmpeg_check {
-        return Err(format!("未找到 ffmpeg，请先安装 ffmpeg: {}", e));
-    }
+    let handle = spawn_blocking(move || -> Result<String, String> {
+        // 自动下载/准备 ffmpeg 二进制（首次运行可能稍慢）
+        download::auto_download().map_err(|e| format!("下载 ffmpeg 失败: {e}"))?;
 
-    // 使用 ffmpeg 生成缩略图
-    let output = Command::new("ffmpeg")
-        .args(&[
-            "-i",
-            &video_path,
-            "-ss",
-            &time_sec.to_string(),
-            "-vframes",
-            "1",
-            "-vf",
-            "scale=320:-1",
-            "-q:v",
-            "2",
-            "-y", // 覆盖输出文件
-            &output_path,
-        ])
-        .output()
-        .map_err(|e| format!("执行 ffmpeg 失败: {}", e))?;
+        let mut command = FfmpegCommand::new();
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffmpeg 错误: {}", stderr));
-    }
+        // 通过 stdout 输出 JPEG 缩略图
+        command
+            .arg("-y")
+            .arg("-ss")
+            .arg(time_sec.to_string())
+            .arg("-i")
+            .arg(&video_path)
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-vf")
+            .arg("scale=320:-1")
+            .arg("-f")
+            .arg("image2")
+            .arg("-vcodec")
+            .arg("mjpeg")
+            .arg("-q:v")
+            .arg("2")
+            .arg("pipe:1")
+            .pipe_stdout();
 
-    Ok(output_path)
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
+
+        let mut stdout = child
+            .take_stdout()
+            .ok_or_else(|| "无法获取 ffmpeg 输出流".to_string())?;
+
+        let mut buffer = Vec::new();
+        std::io::Read::read_to_end(&mut stdout, &mut buffer)
+            .map_err(|e| format!("读取 ffmpeg 输出失败: {e}"))?;
+
+        let status = child
+            .wait()
+            .map_err(|e| format!("等待 ffmpeg 退出失败: {e}"))?;
+
+        if !status.success() {
+            return Err(format!("ffmpeg 生成缩略图失败，退出码: {:?}", status.code()));
+        }
+
+        if buffer.is_empty() {
+            return Err("ffmpeg 未产生任何缩略图数据".to_string());
+        }
+
+        // 写入到目标文件
+        if let Some(parent) = std::path::Path::new(&output_path).parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("创建缩略图目录失败: {e}"))?;
+            }
+        }
+
+        let mut file =
+            File::create(&output_path).map_err(|e| format!("创建缩略图文件失败: {e}"))?;
+        file.write_all(&buffer)
+            .map_err(|e| format!("写入缩略图文件失败: {e}"))?;
+
+        Ok(output_path)
+    });
+
+    handle
+        .await
+        .map_err(|e| format!("执行缩略图任务失败: {e}"))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

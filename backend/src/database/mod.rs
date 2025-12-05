@@ -77,39 +77,6 @@ impl Database {
             return Ok(());
         }
 
-        // 检查并创建管理员用户相关表（如果不存在）
-        tracing::info!("检查管理员用户表是否存在...");
-        let admin_tables_exist = sqlx::query(
-            "SELECT (
-                 EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='admin_users')
-              OR EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='admin_user_roles')
-              OR EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='admin_login_history')
-              OR EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='admin_operation_logs')
-            ) AS exists;",
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .get::<bool, _>("exists");
-
-        if !admin_tables_exist {
-            tracing::info!("创建管理员用户相关表...");
-            const ADMIN_SQL: &str = include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../init_admin_tables.sql"
-            ));
-            for stmt in split_sql_statements(ADMIN_SQL) {
-                if stmt.trim().is_empty() {
-                    continue;
-                }
-                sqlx::query(&stmt)
-                    .execute(&mut *self.pool.acquire().await?)
-                    .await?;
-            }
-            tracing::info!("管理员用户表创建完成");
-        } else {
-            tracing::info!("管理员用户表已存在");
-        }
-
         tracing::info!("数据库结构校验通过：无需变更");
         Ok(())
     }
