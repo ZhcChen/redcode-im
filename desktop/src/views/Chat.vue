@@ -9919,21 +9919,6 @@ const loadMessageList = async (groupId: string) => {
   color: #999999;
 }
 
-// 抽屉中的置顶消息采用统一的左侧气泡样式，避免左右交错导致视觉杂乱
-.pinned-drawer-message {
-  // 取消 own-message 在主列表中的右侧布局，仅在抽屉中生效
-  &.own-message {
-    flex-direction: row;
-    margin-right: 0;
-
-    .message-content {
-      background-color: #ffffff;
-      color: $text-primary;
-      border-radius: 0 16px 16px 16px;
-    }
-  }
-}
-
 // 置顶消息抽屉过渡动画（从右向左滑入/滑出）
 .pinned-messages-drawer-enter-active,
 .pinned-messages-drawer-leave-active {
@@ -10881,6 +10866,26 @@ const loadMessageList = async (groupId: string) => {
       }
     }
   }
+}
+
+// 抽屉中的置顶消息列表：不区分自己/对方，统一使用左侧白底气泡样式
+.pinned-messages-list .message.own-message {
+  flex-direction: row;
+  margin-right: 0;
+}
+
+.pinned-messages-list .message.own-message .message-content {
+  background-color: #ffffff;
+  color: $text-primary;
+  border-radius: 0 16px 16px 16px;
+}
+
+.pinned-messages-list .message.own-message .file-info .file-name {
+  color: #262626;
+}
+
+.pinned-messages-list .message.own-message .file-info .file-size {
+  color: #8c8c8c;
 }
 
 // 发送状态样式调整
