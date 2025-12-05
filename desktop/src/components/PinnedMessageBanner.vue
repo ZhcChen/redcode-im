@@ -212,11 +212,11 @@ const handleIconClick = () => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  padding: 0 16px 0 12px; // 右侧间距缩小，让图标更靠近右边缘，视觉上与顶部群设置按钮更对齐
+  padding: 0 12px 0 12px; // 再进一步缩小右侧间距，与顶部右侧按钮视觉对齐
 }
 
 .pinned-icon-button svg {
-  stroke: #555555;
+  stroke: #9ca3af; // 与表情按钮等 action-icon 视觉接近的中性灰
   width: 22px;
   height: 22px;
 }
