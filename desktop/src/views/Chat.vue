@@ -953,7 +953,13 @@
               @click="handlePinnedPanelItemClick(item)"
             >
               <!-- 复用消息列表的气泡样式 -->
-              <div class="message">
+              <div class="message pinned-drawer-message">
+                <Avatar
+                  :src="item.senderAvatarLocalPath"
+                  :text="item.senderName"
+                  :color-seed="item.senderId"
+                  :size="36"
+                />
                 <div class="message-wrapper">
                   <div class="message-sender-name">
                     {{ item.senderName }}
@@ -9806,6 +9812,10 @@ const loadMessageList = async (groupId: string) => {
   overflow-y: auto;
   flex: 1; // 占满标题栏下方的剩余空间
   background-color: $bg-chat; // 与消息列表背景保持一致
+}
+
+.pinned-messages-list .message {
+  padding-left: 0; // 覆盖普通消息左侧为多选预留的缩进
 }
 
 .pinned-messages-item {
