@@ -931,7 +931,7 @@
               @click="closePinnedMessagesPanel"
               aria-label="返回"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
@@ -952,15 +952,20 @@
               class="pinned-messages-item"
               @click="handlePinnedPanelItemClick(item)"
             >
-              <div class="pinned-messages-item-main">
-                <div class="item-meta">
-                  <span class="item-sender">{{ item.senderName }}</span>
-                  <span class="item-time">
-                    {{ formatMessageTime(item.createTime || item.time) }}
-                  </span>
-                </div>
-                <div class="item-preview">
-                  {{ getTextContent(item) }}
+              <!-- 复用消息列表的气泡样式 -->
+              <div class="message">
+                <div class="message-wrapper">
+                  <div class="message-sender-name">
+                    {{ item.senderName }}
+                  </div>
+                  <div class="message-content">
+                    <div class="pinned-item-preview-text">
+                      {{ getTextContent(item) }}
+                    </div>
+                    <div class="message-time-other">
+                      {{ formatMessageTime(item.createTime || item.time) }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -9766,6 +9771,8 @@ const loadMessageList = async (groupId: string) => {
 
   svg {
     stroke: #555555;
+    width: 20px;
+    height: 20px;
   }
 
   &:hover {
@@ -9795,18 +9802,14 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .pinned-messages-list {
-  padding: 8px 18px 14px;
+  padding: 12px 18px 16px;
   overflow-y: auto;
+  background-color: $bg-chat; // 与消息列表背景保持一致
 }
 
 .pinned-messages-item {
-  padding: 8px 0;
-  border-bottom: 1px solid #f5f5f5;
+  padding: 4px 0;
   cursor: pointer;
-
-  &:last-of-type {
-    border-bottom: none;
-  }
 }
 
 .pinned-messages-item-main {
