@@ -965,9 +965,27 @@
                     {{ item.senderName }}
                   </div>
                   <div class="message-content">
-                    <div class="pinned-item-preview-text">
-                      {{ getTextContent(item) }}
-                    </div>
+                    <!-- 图片消息：展示缩略图 + 一行预览文案 -->
+                    <template v-if="item.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
+                      <div class="pinned-media-thumb" v-if="parseImageSrc(item)">
+                        <img
+                          :src="parseImageSrc(item)"
+                          :alt="getImageAlt(item)"
+                          class="pinned-media-thumb-img"
+                        />
+                      </div>
+                      <div class="pinned-item-preview-text">
+                        {{ getTextContent(item) }}
+                      </div>
+                    </template>
+
+                    <!-- 其他类型：仅展示预览文案 -->
+                    <template v-else>
+                      <div class="pinned-item-preview-text">
+                        {{ getTextContent(item) }}
+                      </div>
+                    </template>
+
                     <div class="message-time-other">
                       {{ formatMessageTime(item.createTime || item.time) }}
                     </div>
@@ -9812,6 +9830,28 @@ const loadMessageList = async (groupId: string) => {
   overflow-y: auto;
   flex: 1; // 占满标题栏下方的剩余空间
   background-color: $bg-chat; // 与消息列表背景保持一致
+}
+
+.pinned-messages-list .message {
+  padding-left: 0; // 覆盖普通消息左侧为多选预留的缩进
+}
+
+.pinned-media-thumb-img {
+  max-width: 200px;
+  max-height: 140px;
+  border-radius: 8px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.pinned-item-preview-text {
+  font-size: 14px;
+  color: $text-primary;
+  max-height: 2.8em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .pinned-messages-list .message {
