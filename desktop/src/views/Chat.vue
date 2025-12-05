@@ -5674,6 +5674,16 @@ const selectChat = async (chat: ChatItem) => {
 
   await loadMessages(chat.groupId)
 
+  // 进入会话或切换回会话后，置顶 Banner 默认展示最新的一条置顶消息
+  nextTick(() => {
+    const list = pinnedMessagesList.value
+    if (list.length > 0) {
+      currentPinnedIndex.value = list.length - 1
+    } else {
+      currentPinnedIndex.value = 0
+    }
+  })
+
   // 加载消息后，标记消息已读（参考移动端实现）
   // 找到最后一条接收到的消息（非自己发送的）
   let latestIncomingMessage: Message | null = null
