@@ -180,7 +180,14 @@
             />
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">{{ message.senderName }}</div>
-              <div class="message-content">
+              <div
+                class="message-content"
+                :class="{
+                  'media-only-content':
+                    message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+                    message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
+                }"
+              >
                 <!-- 引用消息预览 -->
                 <template v-if="message.quotedMessage">
                   <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
@@ -226,19 +233,74 @@
                 <!-- 图片消息 -->
                 <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
                   <div class="media-message image-message">
-                    <img
-                      v-if="parseImageSrc(message)"
-                      :src="parseImageSrc(message)"
-                      :alt="getImageAlt(message)"
-                      class="message-image"
-                      :class="{ uploading: isMessageUploading(message) }"
-                      @click="handleImagePreview(parseImageSrc(message), message)"
-                      @load="scrollToBottomAfterImageLoad"
-                      @error="handleImageError"
-                      loading="lazy"
-                    />
-                    <div v-else class="image-loading-placeholder">
-                      <div class="loading-text">图片加载中...</div>
+                    <div class="media-main">
+                      <img
+                        v-if="parseImageSrc(message)"
+                        :src="parseImageSrc(message)"
+                        :alt="getImageAlt(message)"
+                        class="message-image"
+                        :class="{ uploading: isMessageUploading(message) }"
+                        @click="handleImagePreview(parseImageSrc(message), message)"
+                        @load="scrollToBottomAfterImageLoad"
+                        @error="handleImageError"
+                        loading="lazy"
+                      />
+                      <div v-else class="image-loading-placeholder">
+                        <div class="loading-text">图片加载中...</div>
+                      </div>
+
+                      <div
+                        v-if="isMessageUploading(message)"
+                        class="media-loading-overlay"
+                      >
+                        <div class="media-loading-spinner">
+                          <div class="loading-spinner"></div>
+                        </div>
+                      </div>
+
+                      <div class="media-time-badge">
+                        <span class="media-time-text">
+                          {{ formatMessageTime(message.createTime || message.time) }}
+                        </span>
+                        <svg
+                          v-if="message.isSelf && message.status === 2"
+                          class="media-status-icon sent"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                        <svg
+                          v-if="message.isSelf && message.status === 4"
+                          class="media-status-icon read"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                            fill="currentColor"
+                          />
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </template>
@@ -247,7 +309,7 @@
                 <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
                   <div class="media-message video-message">
                     <div class="video-container" @click="handleVideoPlay(message)">
-                      <!-- 如果有视频缩略图则显示，否则显示默认视频图标 -->
+                      <!-- 如果有视频缩略图则显示，否则显示默认占位 UI -->
                       <div v-if="parseVideoScreenShotSrc(message)" class="video-thumbnail-wrapper">
                         <img
                           :src="parseVideoScreenShotSrc(message)"
@@ -258,18 +320,83 @@
                           loading="lazy"
                         />
                       </div>
-                      <!-- 默认视频显示 -->
-                      <div v-else class="video-placeholder">
-                        <div class="video-icon">🎬</div>
-                        <div class="video-info">
-                          <div class="video-filename">{{ (typeof message.content === 'object' && message.content.name) || '视频文件' }}</div>
-                          <div class="video-size" v-if="typeof message.content === 'object' && message.content.size">
-                            {{ formatFileSize(message.content.size) }}
+                      <div class="video-placeholder">
+                        <div class="video-placeholder-inner">
+                          <!-- 使用视频资源渲染首帧（如可用） -->
+                          <video
+                            v-if="parseVideoSrc(message)"
+                            class="video-placeholder-video"
+                            :src="parseVideoSrc(message)"
+                            preload="metadata"
+                            muted
+                            playsinline
+                            @loadeddata="scrollToBottomAfterImageLoad"
+                            @error="handleVideoThumbnailError"
+                          ></video>
+                          <!-- 居中覆盖的占位内容 -->
+                          <div class="video-placeholder-overlay">
+                            <div class="video-icon">🎬</div>
+                            <div class="video-placeholder-text">
+                              {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
+                            </div>
                           </div>
                         </div>
                       </div>
                       <div class="video-play-overlay">
                         <div class="play-icon">▶</div>
+                      </div>
+
+                      <div
+                        v-if="isMessageUploading(message)"
+                        class="media-loading-overlay"
+                      >
+                        <div class="media-loading-spinner">
+                          <div class="loading-spinner"></div>
+                        </div>
+                      </div>
+
+                      <div class="media-time-badge">
+                        <span class="media-time-text">
+                          {{ formatMessageTime(message.createTime || message.time) }}
+                        </span>
+                        <svg
+                          v-if="message.isSelf && message.status === 2"
+                          class="media-status-icon sent"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                        <svg
+                          v-if="message.isSelf && message.status === 4"
+                          class="media-status-icon read"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                            fill="currentColor"
+                          />
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                            fill="currentColor"
+                          />
+                        </svg>
                       </div>
                     </div>
                   </div>
@@ -344,7 +471,11 @@
                 <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
               </template>
 
-                <div class="message-time-other">
+                <div
+                  class="message-time-other"
+                  v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
+                        message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
+                >
                   {{ formatMessageTime(message.createTime || message.time) }}
                 </div>
               </div>
@@ -358,7 +489,15 @@
             >
               ✓
             </div>
-            <div v-if="message.isSelf" class="message-content">
+            <div
+              v-if="message.isSelf"
+              class="message-content"
+              :class="{
+                'media-only-content':
+                  message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+                  message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
+              }"
+            >
               <template v-if="message.quotedMessage">
                 <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
                   <div class="quoted-header">
@@ -402,6 +541,7 @@
               <!-- 图片消息 -->
               <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
                 <div class="media-message image-message">
+                  <div class="media-main">
                     <img
                       v-if="parseImageSrc(message)"
                       :src="parseImageSrc(message)"
@@ -416,6 +556,60 @@
                     <div v-else class="image-loading-placeholder">
                       <div class="loading-text">图片加载中...</div>
                     </div>
+
+                    <div
+                      v-if="isMessageUploading(message)"
+                      class="media-loading-overlay"
+                    >
+                      <div class="media-loading-spinner">
+                        <div class="loading-spinner"></div>
+                      </div>
+                    </div>
+
+                    <div class="media-time-badge">
+                      <span class="media-time-text">
+                        {{ formatMessageTime(message.createTime || message.time) }}
+                      </span>
+                      <svg
+                        v-if="message.isSelf && message.status === 2"
+                        class="media-status-icon sent"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                      <svg
+                        v-if="message.isSelf && message.status === 4"
+                        class="media-status-icon read"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                          fill="currentColor"
+                        />
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
               </template>
 
@@ -423,7 +617,7 @@
               <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
                 <div class="media-message video-message">
                   <div class="video-container" @click="handleVideoPlay(message)">
-                    <!-- 如果有视频缩略图则显示，否则显示默认视频图标 -->
+                    <!-- 如果有视频缩略图则显示，否则显示默认占位 UI -->
                     <div v-if="parseVideoScreenShotSrc(message)" class="video-thumbnail-wrapper">
                       <img
                         :src="parseVideoScreenShotSrc(message)"
@@ -434,18 +628,83 @@
                         loading="lazy"
                       />
                     </div>
-                    <!-- 默认视频显示 -->
-                    <div v-else class="video-placeholder">
-                      <div class="video-icon">🎬</div>
-                      <div class="video-info">
-                        <div class="video-filename">{{ (typeof message.content === 'object' && message.content.name) || '视频文件' }}</div>
-                        <div class="video-size" v-if="typeof message.content === 'object' && message.content.size">
-                          {{ formatFileSize(message.content.size) }}
+                    <div class="video-placeholder">
+                      <div class="video-placeholder-inner">
+                        <!-- 使用视频资源渲染首帧（如可用） -->
+                        <video
+                          v-if="parseVideoSrc(message)"
+                          class="video-placeholder-video"
+                          :src="parseVideoSrc(message)"
+                          preload="metadata"
+                          muted
+                          playsinline
+                          @loadeddata="scrollToBottomAfterImageLoad"
+                          @error="handleVideoThumbnailError"
+                        ></video>
+                        <!-- 居中覆盖的占位内容 -->
+                        <div class="video-placeholder-overlay">
+                          <div class="video-icon">🎬</div>
+                          <div class="video-placeholder-text">
+                            {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
+                          </div>
                         </div>
                       </div>
                     </div>
                     <div class="video-play-overlay">
                       <div class="play-icon">▶</div>
+                    </div>
+
+                    <div
+                      v-if="isMessageUploading(message)"
+                      class="media-loading-overlay"
+                    >
+                      <div class="media-loading-spinner">
+                        <div class="loading-spinner"></div>
+                      </div>
+                    </div>
+
+                    <div class="media-time-badge">
+                      <span class="media-time-text">
+                        {{ formatMessageTime(message.createTime || message.time) }}
+                      </span>
+                      <svg
+                        v-if="message.isSelf && message.status === 2"
+                        class="media-status-icon sent"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                      <svg
+                        v-if="message.isSelf && message.status === 4"
+                        class="media-status-icon read"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                          fill="currentColor"
+                        />
+                        <path
+                          fill-rule="evenodd"
+                          clip-rule="evenodd"
+                          d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                          fill="currentColor"
+                        />
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -520,7 +779,11 @@
                 <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
               </template>
 
-              <div class="message-time">
+              <div
+                class="message-time"
+                v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
+                      message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
+              >
                 {{ formatMessageTime(message.createTime || message.time) }}
                 <svg v-if="message.isSelf && message.status === 2" class="message-status-icon sent" width="20" height="20" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
@@ -536,7 +799,12 @@
               <button v-if="message.isSelf" @click="resendMessage(message)" class="resend-btn">重发</button>
             </div>
             <!-- 加载动画放在消息框外面左下角 -->
-            <div v-if="message.status === 1" class="message-loading-indicator">
+            <div
+              v-if="message.status === 1 &&
+                    message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
+                    message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
+              class="message-loading-indicator"
+            >
               <div class="loading-spinner"></div>
             </div>
             </template>
@@ -1212,6 +1480,11 @@ type AttachmentMeta = {
   durationMs?: number | null;
   mime: string;
   summary: string;
+  /**
+   * 视频首帧缩略图在 COS 中的 key（可选）
+   * 仅对视频附件生效，由上传流程填充
+   */
+  thumbnailKey?: string | null;
 };
 
 const MESSAGES_CACHE_LIMIT = 200;
@@ -1770,6 +2043,8 @@ const buildAttachmentPartPayload = (
     width: meta.width ?? undefined,
     height: meta.height ?? undefined,
     durationMs: meta.durationMs ?? undefined,
+    // 对于视频，这里带上缩略图的 key，后端会写入 thumbnail_key 字段
+    thumbnailKey: meta.thumbnailKey ?? undefined,
   };
 };
 
@@ -4177,60 +4452,8 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
     return
   }
 
-  // 没有 thumbnailKey，尝试从视频文件生成首帧
-  if (attachment.localPath && !attachment.localPath.startsWith('blob:')) {
-    console.log('视频没有缩略图，开始生成首帧:', attachment.localPath)
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      // 生成缩略图文件名
-      const thumbnailPath = `${attachment.localPath}.jpg`
-      // 调用 Rust 函数生成首帧
-      const result = await invoke<string>('generate_video_thumbnail', {
-        videoPath: attachment.localPath,
-        outputPath: thumbnailPath,
-        timeSec: 1.0  // 1秒处截取
-      })
-      console.log('视频首帧生成成功:', result)
-
-      // 更新视频 part 的缩略图 localPath
-      const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
-      if (index !== -1) {
-        const msg = messages.value[index]
-        if (Array.isArray(msg.parts)) {
-          const partIndex = msg.parts.findIndex((p: MessagePart) => p === videoPart)
-          if (partIndex !== -1 && msg.parts[partIndex].attachment) {
-            const updatedParts = [...msg.parts]
-            updatedParts[partIndex] = {
-              ...updatedParts[partIndex],
-              attachment: {
-                ...updatedParts[partIndex].attachment!,
-                localPath: result,
-                thumbnailKey: `generated:${attachment.key}`
-              }
-            }
-            messages.value[index] = {
-              ...msg,
-              parts: updatedParts
-            }
-            console.log('ensureVideoThumbnailLocalPath: 已生成并更新视频首帧')
-          }
-        }
-      }
-
-      // 缓存缩略图
-      attachmentUrlCache.set(`generated:${attachment.key}`, {
-        localPath: result,
-        expiresAt: Date.now() + ATTACHMENT_CACHE_TTL_MS,
-      })
-    } catch (error) {
-      console.warn('生成视频首帧失败:', error)
-      // 生成失败不阻断视频播放
-    }
-  } else {
-    console.log('视频需要下载，开始下载:', attachment.localPath)
-    // 如果视频还没有下载，先下载视频
-    await ensureAttachmentLocalPath(message, videoPart)
-  }
+  // TODO: 若后端未来为所有视频生成缩略图，可在此扩展逻辑；
+  // 当前仅在存在 thumbnailKey 时下载缩略图，不再在客户端依赖 ffmpeg 生成首帧。
 }
 
 const parseVideoScreenShotSrc = (message: Message): string => {
@@ -4410,7 +4633,7 @@ const getTextContent = (message: Message): string => {
       case MessagePartType.AUDIO:
         return '[语音]'
       case MessagePartType.FILE:
-        return '[文件]'
+        return '[附件]'
       default:
         break
     }
@@ -4421,16 +4644,58 @@ const getTextContent = (message: Message): string => {
   }
 
   if (typeof message.content === 'object' && message.content) {
-    // 如果是对象，尝试获取text字段
-    if ((message.content as any).text) {
-      return (message.content as any).text
+    const contentObj = message.content as any
+
+    // 如果是对象，优先尝试获取 text 字段
+    if (contentObj.text) {
+      return contentObj.text
     }
 
-    // 如果没有text字段，返回JSON字符串（用于调试）
+    // 根据 type 字段兜底映射常见类型
+    const type = typeof contentObj.type === 'string' ? contentObj.type.toLowerCase() : ''
+    switch (type) {
+      case 'image':
+        return '[图片]'
+      case 'video':
+        return '[视频]'
+      case 'audio':
+      case 'voice':
+        return '[语音]'
+      case 'file':
+        return '[附件]'
+      default:
+        break
+    }
+
+    // 如果没有可识别字段，返回 JSON 字符串（用于调试）
     return JSON.stringify(message.content)
   }
 
   return ''
+}
+
+const isEmojiOnlyPreviewText = (text: string): boolean => {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+
+  // 去掉变体选择符与零宽连接符，方便匹配由多个 Emoji 组合而成的表情
+  const normalized = trimmed.replace(/[\uFE0F\u200D]/g, '')
+
+  // 粗略判断：仅由常见 Emoji 区段字符组成，则认为是表情消息
+  const emojiRegex = /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])+$/u
+  return emojiRegex.test(normalized)
+}
+
+// 获取用于会话列表副标题展示的消息预览文案
+const getMessagePreviewText = (message: Message): string => {
+  const text = getTextContent(message)
+  if (!text) return ''
+
+  if (isEmojiOnlyPreviewText(text)) {
+    return '[表情]'
+  }
+
+  return text
 }
 
 const getQuotedSenderName = (quoted: QuotedMessage): string => {
@@ -6096,6 +6361,7 @@ const uploadAndSendFile = async (file: File) => {
   let tempId: string | null = null
   let attachmentKey = ''
   let localUrl: string | null = null
+  let videoThumbnailKey: string | null = null
 
   try {
     console.log('开始处理文件:', file.name, '类型:', file.type, '大小:', file.size)
@@ -6141,7 +6407,7 @@ const uploadAndSendFile = async (file: File) => {
     localUrl = URL.createObjectURL(file)
     registerBlobUrl(localUrl)
     const timestamp = Date.now()
-    tempId = `upload_${timestamp}_${Math.random().toString(36).slice(2, 8)}`
+    tempId = `${timestamp}`
     const user = store.getters.currentUser
     const placeholderPart = buildPlaceholderPart(meta, attachmentKey, file, localUrl)
     const contentTypeCode = partTypeContentMap[meta.partType as keyof typeof partTypeContentMap] ?? MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
@@ -6189,6 +6455,95 @@ const uploadAndSendFile = async (file: File) => {
     })
     console.log('文件上传完成:', file.name)
 
+    // 如果是视频文件，上传完成后生成并上传首帧缩略图，并更新临时消息中的 thumbnailKey
+    if (meta.partType === 'video') {
+      try {
+        console.log('开始为视频生成首帧缩略图:', file.name)
+        // 仅在桌面端环境下调用 Tauri 命令
+        const isTauri = typeof (window as any).__TAURI_IPC__ !== 'undefined'
+        if (isTauri) {
+          const [{ invoke }, { join, appDataDir }, { mkdir, writeTextFile, exists }] = await Promise.all([
+            import('@tauri-apps/api/core'),
+            import('@tauri-apps/api/path'),
+            import('@tauri-apps/plugin-fs')
+          ])
+
+          const appDir = await appDataDir()
+          const thumbnailsDir = `${appDir}thumbnails`
+          const dirExists = await exists(thumbnailsDir)
+          if (!dirExists) {
+            await mkdir(thumbnailsDir, { recursive: true })
+          }
+
+          const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')
+          const timestamp = Date.now()
+          const thumbnailFileName = `${timestamp}_${safeName}.jpg`
+          const thumbnailPath = await join(thumbnailsDir, thumbnailFileName)
+
+          // 先将原始文件保存到本地再传给 Rust 侧（目前 rust-http.upload 仅支持路径）
+          const tempVideoPath = await join(thumbnailsDir, `${timestamp}_${safeName}.video_path`)
+          // 为了避免大文件写入两次，这里只把路径传给 Rust，实际视频文件由原始上传路径承担；
+          // 如果后续需要从 COS 再下载再截帧，可调整为先下载本地再调用。
+          // 当前实现仅示意如何调用 generate_video_thumbnail。
+
+          // 由于 uploadWithSignature 目前直接走 COS，不经过本地文件，这里暂时跳过本地写入，
+          // 假设 video_path 已经是本地路径（后续可扩展）。
+
+          await writeTextFile(tempVideoPath, attachmentKey)
+
+          const generatedPath = await invoke<string>('generate_video_thumbnail', {
+            videoPath: tempVideoPath,
+            outputPath: thumbnailPath,
+            timeSec: 0.5
+          })
+
+          console.log('首帧缩略图生成完成，本地路径:', generatedPath)
+
+          // 使用文件上传（通过 Rust 侧 http_upload，将缩略图作为 image/jpeg 上传到后端文件服务）
+          // 这里复用 rust-http.upload，要求后端提供统一文件上传路径（例如 /files/upload）
+          if (isRustEnabled('RUST_FILE_UPLOAD')) {
+            const uploadPath = '/files/upload'
+            const uploadResult = await rustHttp.upload<{ key: string }>(uploadPath, generatedPath)
+            if (uploadResult.success && uploadResult.data?.key) {
+              videoThumbnailKey = uploadResult.data.key
+              console.log('缩略图上传完成，object key:', videoThumbnailKey)
+
+              // 更新临时消息中的 thumbnailKey，用于本地展示
+              if (tempId) {
+                const msgIndex = messages.value.findIndex((msg) => msg.id === tempId)
+                if (msgIndex !== -1 && Array.isArray(messages.value[msgIndex].parts)) {
+                  const updatedParts = messages.value[msgIndex].parts!.map((part) => {
+                    if (part.attachment?.key === attachmentKey && part.type === MessagePartType.VIDEO) {
+                      return {
+                        ...part,
+                        attachment: {
+                          ...part.attachment,
+                          thumbnailKey: videoThumbnailKey,
+                        }
+                      }
+                    }
+                    return part
+                  })
+                  messages.value[msgIndex] = {
+                    ...messages.value[msgIndex],
+                    parts: updatedParts,
+                  }
+                }
+              }
+            } else {
+              console.warn('缩略图上传失败:', uploadResult.message)
+            }
+          } else {
+            console.warn('RUST_FILE_UPLOAD 未启用，跳过缩略图上传')
+          }
+        } else {
+          console.log('当前环境不是 Tauri，跳过视频首帧缩略图生成')
+        }
+      } catch (thumbnailError: any) {
+        console.warn('生成或上传视频首帧缩略图失败:', thumbnailError?.message || thumbnailError)
+      }
+    }
+
     if (tempId) {
       updateAttachmentProgress(tempId, attachmentKey, null)
     }
@@ -6197,7 +6552,14 @@ const uploadAndSendFile = async (file: File) => {
     const apiMessage = await webSocketManager.sendMessage({
       roomId: selectedChat.value.groupId,
       content: meta.summary,
-      parts: [buildAttachmentPartPayload(meta, attachmentKey, file)],
+      parts: [buildAttachmentPartPayload(
+        {
+          ...meta,
+          thumbnailKey: meta.partType === 'video' ? (videoThumbnailKey ?? meta.thumbnailKey ?? null) : meta.thumbnailKey ?? null
+        },
+        attachmentKey,
+        file
+      )],
     }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
     console.log('消息发送完成:', apiMessage?.id)
 
@@ -8019,7 +8381,7 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
     const updatedChat = {
       ...existingChat,
-      lastMessage: getTextContent(uiMessage),
+      lastMessage: getMessagePreviewText(uiMessage),
       time: uiMessage.time,
       lastMessageId: messageData.id,
       unreadCount
@@ -8086,7 +8448,7 @@ const handleWebSocketMessageUpdate = (event: CustomEvent) => {
   if (chatItem && chatItem.lastMessageId === message.id) {
     const updatedChat = {
       ...chatItem,
-      lastMessage: message.isDeleted ? '[消息已删除]' : getTextContent(uiMessage),
+      lastMessage: message.isDeleted ? '[消息已删除]' : getMessagePreviewText(uiMessage),
       time: uiMessage.time
     }
     store.dispatch('updateChatItem', updatedChat)
@@ -9402,27 +9764,38 @@ const loadMessageList = async (groupId: string) => {
         margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
 
         .message-image {
-          max-width: 200px;
-          max-height: 200px;
+          max-width: 300px;
+          max-height: 300px;
           width: auto;
           height: auto;
         }
 
         .video-container {
-          max-width: 280px; /* 确保不超出气泡 */
+          max-width: 340px; /* 确保不超出气泡 */
           border-radius: 8px;
         }
 
         .video-placeholder {
-          max-width: 280px; /* 确保不超出气泡 */
+          max-width: 340px; /* 确保不超出气泡 */
           border-radius: 8px;
         }
 
         .video-thumbnail {
-          max-width: 200px;
-          max-height: 200px;
+          max-width: 300px;
+          max-height: 300px;
           border-radius: 8px;
         }
+      }
+
+      &.media-only-content {
+        background-color: transparent;
+        color: $text-primary;
+        padding: 0;
+        border-radius: 0;
+      }
+
+      &.media-only-content .media-message {
+        margin: 0;
       }
 
       .message-time {
@@ -9459,23 +9832,23 @@ const loadMessageList = async (groupId: string) => {
     }
   }
 
-  .message-wrapper {
-    display: flex;
-    flex-direction: column;
-    max-width: 60%;
+.message-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 60%;
 
-    .message-sender-name {
-      font-size: 12px;
-      line-height: 16px;
-      color: $message-sender-name-color;
-      margin-bottom: 8px;
-    }
+  .message-sender-name {
+    font-size: 12px;
+    line-height: 16px;
+    color: $message-sender-name-color;
+    margin-bottom: 8px;
   }
+}
 
-    .message-content {
-      background-color: #ffffff;
-      padding: 12px 16px;
-      border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
+.message-content {
+    background-color: #ffffff;
+    padding: 12px 16px;
+    border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
     max-width: 100%; /* 占满 message-wrapper 的宽度，message-wrapper 已设置 60% */
     word-wrap: break-word;
     white-space: pre-wrap; /* 保留换行符和空格 */
@@ -9488,27 +9861,38 @@ const loadMessageList = async (groupId: string) => {
       margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
 
       .message-image {
-        max-width: 200px;
-        max-height: 200px;
+        max-width: 300px;
+        max-height: 300px;
         width: auto;
         height: auto;
       }
 
       .video-container {
-        max-width: 280px; /* 确保不超出气泡 */
+        max-width: 340px; /* 确保不超出气泡 */
         border-radius: 8px;
       }
 
       .video-placeholder {
-        max-width: 280px; /* 确保不超出气泡 */
+        max-width: 340px; /* 确保不超出气泡 */
         border-radius: 8px;
       }
 
       .video-thumbnail {
-        max-width: 200px;
-        max-height: 200px;
+        max-width: 300px;
+        max-height: 300px;
         border-radius: 8px;
       }
+    }
+
+    &.media-only-content {
+      background-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      min-width: 0;
+    }
+
+    &.media-only-content .media-message {
+      margin: 0;
     }
 
     .message-time-other {
@@ -9903,12 +10287,85 @@ const loadMessageList = async (groupId: string) => {
   position: relative;
 }
 
+.media-message {
+  display: inline-block;
+}
+
+.media-main {
+  position: relative;
+  display: inline-block;
+}
+
+.media-main .message-image,
+.media-main .image-loading-placeholder {
+  display: block;
+  border-radius: 8px;
+}
+
+.media-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.media-loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.media-loading-spinner .loading-spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+}
+
+.media-time-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+}
+
+.media-time-text {
+  white-space: nowrap;
+}
+
+.media-status-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+
+  &.sent,
+  &.read {
+    color: #ffffff;
+  }
+}
+
 // 对于他人消息，message-content-row使用flex布局
 .message:not(.own-message) .message-wrapper {
   display: flex;
   flex-direction: column;
   max-width: 40vw; /* 使用视口宽度单位，更好地响应窗口大小变化 */
-  min-width: 200px; /* 设置最小宽度，避免过窄 */
+  min-width: 0;
 }
 
 // 对于自己的消息，也使用flex布局
@@ -9917,6 +10374,10 @@ const loadMessageList = async (groupId: string) => {
     display: inline-block;
     max-width: 40vw; /* 使用视口宽度单位，与对方消息保持一致 */
     min-width: 200px; /* 设置最小宽度，避免过窄 */
+
+    &.media-only-content {
+      min-width: 0;
+    }
   }
 }
 
@@ -10191,8 +10652,8 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .message-image {
-  max-width: 200px;
-  max-height: 200px;
+  max-width: 300px;
+  max-height: 300px;
   transition: opacity 0.2s;
   display: block;
   cursor: default;
@@ -10204,8 +10665,8 @@ const loadMessageList = async (groupId: string) => {
 
 // 图片加载占位符
 .image-loading-placeholder {
-  width: 200px;
-  height: 120px;
+  width: 300px;
+  height: 180px;
   background: #f5f5f5;
   border-radius: 8px;
   display: flex;
@@ -10265,8 +10726,8 @@ const loadMessageList = async (groupId: string) => {
 }
 
 .video-thumbnail {
-  max-width: 200px;
-  max-height: 200px;
+  max-width: 300px;
+  max-height: 300px;
   border-radius: 8px;
   display: block;
   transition: opacity 0.2s;
@@ -10294,37 +10755,51 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-// 视频占位符样式
+// 视频占位符样式（首帧未加载时）
 .video-placeholder {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background-color: #f3f4f6;
+  position: relative;
+  width: 300px;
+  height: 180px;
+  background-color: #e5e7eb;
   border-radius: 8px;
-  min-width: 200px;
-  max-width: 300px;
+  border: 1px dashed #cbd5e1;
+
+  .video-placeholder-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: inherit;
+  }
 
   .video-icon {
-    font-size: 32px;
-    margin-right: 12px;
+    font-size: 28px;
   }
 
-  .video-info {
-    flex: 1;
-
-    .video-filename {
-      font-size: 14px;
-      font-weight: 500;
-      color: #374151;
-      margin-bottom: 4px;
-      word-break: break-all;
-    }
-
-    .video-size {
-      font-size: 12px;
-      color: #6b7280;
-    }
+  .video-placeholder-text {
+    font-size: 12px;
+    color: #6b7280;
   }
+}
+
+.video-placeholder-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.video-placeholder-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
 }
 
 .video-thumbnail-wrapper {
@@ -10340,15 +10815,8 @@ const loadMessageList = async (groupId: string) => {
   }
 
   .video-placeholder {
-    background-color: rgba(255, 255, 255, 0.1);
-
-    .video-info .video-filename {
-      color: rgba(255, 255, 255, 0.9);
-    }
-
-    .video-info .video-size {
-      color: rgba(255, 255, 255, 0.7);
-    }
+    background-color: #e5e7eb;
+    border-color: #cbd5e1;
   }
 }
 

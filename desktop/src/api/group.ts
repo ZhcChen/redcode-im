@@ -1,13 +1,14 @@
 import { get, post, del, patch } from "./http";
 import type { ApiResponse } from "./http";
 import { rustHttp } from "./rust-http";
+import { parseMessageType } from "./message";
 import type {
   Chat,
   RoomMember,
   RoomMemberRole,
   EnsureChatResult,
 } from "@/types/models";
-import { ChatType } from "@/types/models";
+import { ChatType, MessageType } from "@/types/models";
 
 type BackendRoomType = "private" | "group" | "public" | "favorite";
 
@@ -128,6 +129,52 @@ const parseRoomType = (value: BackendRoomType): ChatType => {
   }
 };
 
+const isEmojiOnlyPreviewText = (text: string): boolean => {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  // 去掉变体选择符与零宽连接符，方便匹配由多个 Emoji 组合而成的表情
+  const normalized = trimmed.replace(/[\uFE0F\u200D]/g, "");
+
+  // 粗略判断：仅由常见 Emoji 区段字符组成，则认为是表情消息
+  const emojiRegex = /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])+$/u;
+  return emojiRegex.test(normalized);
+};
+
+const buildLastMessagePreview = (
+  preview?: BackendChatMessagePreview | null,
+): string => {
+  if (!preview) {
+    return "";
+  }
+
+  const type = parseMessageType(preview.message_type || "");
+  const rawContent = (preview.content || "").trim();
+
+  switch (type) {
+    case MessageType.IMAGE:
+      return "[图片]";
+    case MessageType.VIDEO:
+      return "[视频]";
+    case MessageType.VOICE:
+      return "[语音]";
+    case MessageType.FILE:
+      return "[附件]";
+    default:
+      break;
+  }
+
+  if (!rawContent) {
+    return "";
+  }
+
+  if (isEmojiOnlyPreviewText(rawContent)) {
+    return "[表情]";
+  }
+
+  return rawContent;
+};
+
 const parseTimestamp = (value?: string | null): Date => {
   if (!value) {
     return new Date();
@@ -198,7 +245,7 @@ const mapChatSummary = (summary: BackendChatSummary): Chat => {
     name: summary.name,
     avatar: summary.avatar_url ?? null,
     type: parseRoomType(summary.room_type),
-    lastMessage: lastMessage?.content ?? "",
+    lastMessage: buildLastMessagePreview(lastMessage),
     lastMessageTime: parseTimestamp(lastTimestamp),
     lastMessageId: lastMessage?.id,
     unreadCount: summary.unread_count ?? 0,
