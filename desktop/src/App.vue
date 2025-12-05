@@ -602,8 +602,9 @@ async function initAllAccountWebSockets() {
     if (!acc?.token || !acc?.userInfo?.id) continue;
     try {
       // 加载该账号的聊天列表
-      const loadResult = await invoke<{ chats: any[] }>('account_load_data', { token: acc.token });
-      const chats = loadResult?.chats || [];
+      const loadResult = await invoke<{ chats: unknown }>('account_load_data', { token: acc.token });
+      const chatsRaw = loadResult?.chats;
+      const chats = Array.isArray(chatsRaw) ? chatsRaw : [];
 
       // 提取所有房间 ID
       const roomIds = chats
