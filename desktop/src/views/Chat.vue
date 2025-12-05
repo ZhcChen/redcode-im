@@ -159,7 +159,7 @@
           <div
             v-else
             class="message"
-            v-for="message in messages"
+            v-for="(message, index) in messages"
             :key="message.id"
             :data-message-id="message.id"
             :class="{
@@ -172,6 +172,13 @@
             @click="toggleMessageSelection(message)"
             @mouseenter="handleMessageHover(message)"
           >
+            <!-- 跨天日期分隔条 -->
+            <div
+              v-if="shouldShowDateDivider(messages, index)"
+              class="message-date-divider"
+            >
+              {{ formatDateDivider(message) }}
+            </div>
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -947,11 +954,18 @@
             class="pinned-messages-list"
           >
             <div
-              v-for="item in pinnedMessagesList"
+              v-for="(item, index) in pinnedMessagesList"
               :key="item.id"
               class="pinned-messages-item"
               @click="handlePinnedPanelItemClick(item)"
             >
+              <!-- 跨天日期分隔条（置顶列表） -->
+              <div
+                v-if="shouldShowDateDivider(pinnedMessagesList, index)"
+                class="message-date-divider"
+              >
+                {{ formatDateDivider(item) }}
+              </div>
               <!-- 复用消息列表的气泡组件 -->
               <div class="message pinned-drawer-message">
                 <Avatar
@@ -3298,6 +3312,40 @@ const showScrollToBottom = ref<boolean>(false)
 const SCROLL_BOTTOM_THRESHOLD = 160
 let messagesViewportEl: HTMLElement | null = null
 
+// 判断是否需要在当前消息前插入日期分隔条（跨天）
+const shouldShowDateDivider = (list: Message[], index: number): boolean => {
+  if (index === 0) return true
+  const current = list[index]
+  const prev = list[index - 1]
+  if (!current?.createTime || !prev?.createTime) return false
+  const curDate = new Date(current.createTime)
+  const prevDate = new Date(prev.createTime)
+  if (isNaN(curDate.getTime()) || isNaN(prevDate.getTime())) return false
+
+  return curDate.toDateString() !== prevDate.toDateString()
+}
+
+// 格式化日期分隔条文案（只显示月-日或年-月-日）
+const formatDateDivider = (message: Message): string => {
+  const timeStr = message.createTime || message.time
+  if (!timeStr) return ''
+  const d = new Date(timeStr)
+  if (isNaN(d.getTime())) return ''
+
+  const now = new Date()
+  const isThisYear = d.getFullYear() === now.getFullYear()
+
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+
+  if (isThisYear) {
+    return `${month}-${day}`
+  }
+
+  const year = d.getFullYear()
+  return `${year}-${month}-${day}`
+}
+
 const handleMessagesScroll = () => {
   const vp = messagesViewportEl || getMessagesViewport()
   if (!vp) return
@@ -5317,45 +5365,16 @@ const getTimeStr = (timestamp: number, type?: string) => {
   }
 }
 
-// 格式化消息时间显示
+// 格式化消息时间显示（气泡内只展示时:分）
 const formatMessageTime = (timeStr: string) => {
   if (!timeStr) return ''
 
   const messageTime = new Date(timeStr)
-  const now = new Date()
-
   if (isNaN(messageTime.getTime())) return timeStr
 
-  // 判断是否为今天
-  const isToday = messageTime.toDateString() === now.toDateString()
-  // 判断是否为今年
-  const isThisYear = messageTime.getFullYear() === now.getFullYear()
-
-  if (isToday) {
-    // 今天只显示时间 HH:MM
-    return messageTime.toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    })
-  } else if (isThisYear) {
-    // 今年但不是今天显示月日时间 MM-DD HH:MM
-    const month = String(messageTime.getMonth() + 1).padStart(2, '0')
-    const day = String(messageTime.getDate()).padStart(2, '0')
-    const hour = String(messageTime.getHours()).padStart(2, '0')
-    const minute = String(messageTime.getMinutes()).padStart(2, '0')
-
-    return `${month}-${day} ${hour}:${minute}`
-  } else {
-    // 不是今年显示完整时间 YYYY-MM-DD HH:MM
-    const year = messageTime.getFullYear()
-    const month = String(messageTime.getMonth() + 1).padStart(2, '0')
-    const day = String(messageTime.getDate()).padStart(2, '0')
-    const hour = String(messageTime.getHours()).padStart(2, '0')
-    const minute = String(messageTime.getMinutes()).padStart(2, '0')
-
-    return `${year}-${month}-${day} ${hour}:${minute}`
-  }
+  const hour = String(messageTime.getHours()).padStart(2, '0')
+  const minute = String(messageTime.getMinutes()).padStart(2, '0')
+  return `${hour}:${minute}`
 }
 
 // 滚动到底部函数
@@ -10465,6 +10484,23 @@ const loadMessageList = async (groupId: string) => {
 
 .message-failed {
   opacity: 0.6;
+}
+
+// 跨天日期分隔条样式
+.message-date-divider {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  height: 22px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 22px;
+  margin: 16px auto;
+  position: relative;
+  z-index: 1;
 }
 
 
