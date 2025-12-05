@@ -10214,20 +10214,6 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-// 置顶消息图标样式（消息气泡内绝对定位，避免影响气泡宽度）
-.message-content .pinned-indicator {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  svg {
-    stroke: var(--primary-color, #409eff);
-  }
-}
-
 .select-indicator {
   position: absolute;
   width: 15px;

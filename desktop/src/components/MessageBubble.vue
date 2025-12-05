@@ -333,15 +333,6 @@
       <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
     </template>
 
-    <!-- 置顶图标 -->
-    <span v-if="message.pinnedAt" class="pinned-indicator" title="已置顶">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path
-          d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
-        />
-      </svg>
-    </span>
-
     <div
       class="message-time-other"
       v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
