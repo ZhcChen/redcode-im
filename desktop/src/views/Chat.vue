@@ -9919,6 +9919,21 @@ const loadMessageList = async (groupId: string) => {
   color: #999999;
 }
 
+// 抽屉中的置顶消息采用统一的左侧气泡样式，避免左右交错导致视觉杂乱
+.pinned-drawer-message {
+  // 取消 own-message 在主列表中的右侧布局，仅在抽屉中生效
+  &.own-message {
+    flex-direction: row;
+    margin-right: 0;
+
+    .message-content {
+      background-color: #ffffff;
+      color: $text-primary;
+      border-radius: 0 16px 16px 16px;
+    }
+  }
+}
+
 // 置顶消息抽屉过渡动画（从右向左滑入/滑出）
 .pinned-messages-drawer-enter-active,
 .pinned-messages-drawer-leave-active {
