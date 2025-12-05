@@ -16,6 +16,7 @@ import LoadingMask from './components/LoadingMask.vue'
 import AccountTabs from './components/AccountTabs.vue'
 import AccountHome from './components/AccountHome.vue'
 import type { AccountInfo } from './store/modules/accounts'
+import { logDebug } from './utils/frontendLogger'
 
 const store = useStore();
 const router = useRouter();
@@ -733,19 +734,46 @@ function handleChatMessage(detail: any) {
   triggerCrossAccountUnreadRefresh('ws-chat-message')
 
   // 播放新消息通知（仅当不是自己发送的消息时）
-  // 多账号场景：使用事件中的 userId 或当前账号 userId
-  const targetUserId = eventUserId || user.value?.id
+  // 使用归一化后的 isSelf 字段判断是否自己发送
+  const isSelf = payload?.isSelf === true
+  // 兼容某些路径下没有 isSelf 的情况，退回到 senderId 判断
   const senderId = payload?.sender_id || payload?.senderId
-  if (senderId && senderId !== targetUserId) {
-    // 检查消息所属的聊天是否开启了免打扰
-    const roomId = payload?.room_id || payload?.roomId
-    const chat = roomId ? store.getters.getChatByGroupId(roomId) : null
-    const isMuted = chat?.chatStatus === 1 // chatStatus === 1 表示免打扰状态
+  const selfBySender =
+    eventUserId && senderId && String(senderId) === String(eventUserId)
 
-    // 只有非免打扰状态才播放提示音和任务栏提醒
-    if (!isMuted) {
-      NotificationApi.showNewMessageNotification()
-    }
+  if (isSelf || selfBySender) {
+    logDebug('CHAT_MESSAGE_NOTIFY', '忽略自己发送的消息，无需提示音', {
+      eventUserId,
+      senderId,
+      isSelf,
+      selfBySender,
+      roomId: payload?.room_id || payload?.roomId,
+      messageId: payload?.id,
+    })
+    return
+  }
+
+  // 检查消息所属的聊天是否开启了免打扰
+  const roomId = payload?.room_id || payload?.roomId
+  const chat = roomId ? store.getters.getChatByGroupId(roomId) : null
+  const isMuted = chat?.chatStatus === 1 // chatStatus === 1 表示免打扰状态
+
+  // 只有非免打扰状态才播放提示音和任务栏提醒
+  if (!isMuted) {
+    logDebug('CHAT_MESSAGE_NOTIFY', '触发新消息提示音', {
+      eventUserId,
+      senderId,
+      roomId,
+      messageId: payload?.id,
+    })
+    NotificationApi.showNewMessageNotification()
+  } else {
+    logDebug('CHAT_MESSAGE_NOTIFY', '会话为免打扰状态，跳过提示音', {
+      eventUserId,
+      senderId,
+      roomId,
+      messageId: payload?.id,
+    })
   }
 }
 

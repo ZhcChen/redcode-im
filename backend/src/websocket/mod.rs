@@ -18,7 +18,7 @@ use std::{
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
-use crate::{auth, proto::ws, services::geolocation, AppState};
+use crate::{auth, database::room_store::RoomStore, proto::ws, services::geolocation, AppState};
 use protocol::{ConnectionFormat, OutboundFrame};
 use tracing::{debug, error, info, trace, warn};
 
@@ -52,6 +52,17 @@ impl ConnectionManager {
             connection_rooms: Arc::new(RwLock::new(HashMap::new())),
             room_subscribers: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    // 通过连接ID获取对应的用户ID（如果已认证）
+    pub async fn get_user_id_by_conn(&self, conn_id: &str) -> Option<String> {
+        let user_conns = self.user_connections.read().await;
+        for (user_id, connections) in user_conns.iter() {
+            if connections.contains_key(conn_id) {
+                return Some(user_id.clone());
+            }
+        }
+        None
     }
 
     // 注册连接
@@ -544,6 +555,35 @@ async fn handle_client_event(
             }
         },
         ClientEvent::Join { room_id } => {
+            // 校验该连接所属用户是否为房间成员，防止订阅不属于自己的房间
+            let user_id = connection_manager
+                .get_user_id_by_conn(conn_id)
+                .await
+                .ok_or_else(|| "连接未认证".to_string())?;
+
+            let user_uuid =
+                Uuid::parse_str(&user_id).map_err(|_| "invalid user_id".to_string())?;
+
+            let room_store = RoomStore::new(state.database.pool());
+            let is_member = room_store
+                .is_user_in_room(room_id, user_uuid)
+                .await
+                .map_err(|err| {
+                    error!(
+                        "检查用户 {} 是否在房间 {} 时出错: {}",
+                        user_id, room_id, err
+                    );
+                    "internal error".to_string()
+                })?;
+
+            if !is_member {
+                error!(
+                    "用户 {} 尝试通过连接 {} 订阅不属于自己的房间 {}",
+                    user_id, conn_id, room_id
+                );
+                return Err("forbidden: not a member of this room".to_string());
+            }
+
             connection_manager
                 .subscribe_room(conn_id, room_id)
                 .await

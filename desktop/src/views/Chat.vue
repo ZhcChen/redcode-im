@@ -158,27 +158,32 @@
           </div>
           <div
             v-else
-            class="message"
             v-for="(message, index) in messages"
             :key="message.id"
-            :data-message-id="message.id"
-            :class="{
-              'own-message': message.isSelf,
-              'message-failed': message.status === 5,
-              'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG,
-              'selected-message': isMessageSelected(message)
-            }"
-            @contextmenu.prevent="handleMessageContextMenu(message, $event)"
-            @click="toggleMessageSelection(message)"
-            @mouseenter="handleMessageHover(message)"
+            class="message-row"
           >
             <!-- 跨天日期分隔条 -->
             <div
               v-if="shouldShowDateDivider(messages, index)"
-              class="message-date-divider"
+              class="message-date-wrapper"
             >
-              {{ formatDateDivider(message, messages) }}
+              <div class="message-date-divider">
+                {{ formatDateDivider(message, messages) }}
+              </div>
             </div>
+            <div
+              class="message"
+              :data-message-id="message.id"
+              :class="{
+                'own-message': message.isSelf,
+                'message-failed': message.status === 5,
+                'system-message': message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG,
+                'selected-message': isMessageSelected(message)
+              }"
+              @contextmenu.prevent="handleMessageContextMenu(message, $event)"
+              @click="toggleMessageSelection(message)"
+              @mouseenter="handleMessageHover(message)"
+            >
             <!-- 系统消息特殊显示 -->
             <div v-if="message.messageType === MESSAGE_CONSTANTS.MSG_TYPE.SYSTEM_MSG" class="system-message-content">
               <div class="system-message-text">{{ getTextContent(message) }}</div>
@@ -842,6 +847,7 @@
               <div class="loading-spinner"></div>
             </div>
             </template>
+            </div>
           </div>
         </ScrollContainer>
         <button
@@ -962,9 +968,11 @@
               <!-- 跨天日期分隔条（置顶列表） -->
               <div
                 v-if="shouldShowDateDivider(pinnedMessagesList, index)"
-                class="message-date-divider"
+                class="message-date-wrapper"
               >
-                {{ formatDateDivider(item, pinnedMessagesList) }}
+                <div class="message-date-divider">
+                  {{ formatDateDivider(item, pinnedMessagesList) }}
+                </div>
               </div>
               <!-- 复用消息列表的气泡组件 -->
               <div class="message pinned-drawer-message">
@@ -8207,6 +8215,8 @@ const isContentMatch = (content1: any, content2: any): boolean => {
   return false
 }
 
+import { logDebug, logWarn } from '@/utils/frontendLogger';
+
 // WebSocket消息监听
 const handleWebSocketMessage = (event: CustomEvent) => {
   const detail = event.detail as { message?: DomainMessage; raw?: any; userId?: string }
@@ -8230,7 +8240,26 @@ const handleWebSocketMessage = (event: CustomEvent) => {
         (acc: any) => acc.userInfo?.id === eventUserId
       )
       if (targetAccount) {
+        logDebug('MULTI_ACCOUNT_UNREAD', '非当前账号收到消息，增加未读', {
+          eventUserId,
+          targetAccountId: targetAccount.id,
+          targetNickname: targetAccount.userInfo?.nickname,
+          senderId: (messageData as any).senderId ?? (messageData as any).sender_id,
+          messageId: messageData.id,
+          roomId: (messageData as any).roomId ?? (messageData as any).room_id,
+          isSelf: messageData.isSelf,
+        })
         store.commit('accounts/INCREMENT_UNREAD_COUNT', targetAccount.id)
+      } else {
+        logWarn('MULTI_ACCOUNT_UNREAD', '非当前账号收到消息，但在账号列表中找不到匹配 userId', {
+          eventUserId,
+          knownAccountUserIds: store.state.accounts.accounts.map(
+            (acc: any) => acc.userInfo?.id,
+          ),
+          senderId: (messageData as any).senderId ?? (messageData as any).sender_id,
+          messageId: messageData.id,
+          roomId: (messageData as any).roomId ?? (messageData as any).room_id,
+        })
       }
     }
     return // 不更新当前账号的 chatList
@@ -10507,17 +10536,33 @@ const loadMessageList = async (groupId: string) => {
   opacity: 0.6;
 }
 
+// 聊天消息行容器（用于控制整体间距）
+.message-row {
+  width: 100%;
+}
+
+// 相邻两条消息（含日期分隔）的垂直间距
+.message-row + .message-row {
+  margin-top: 16px;
+}
+
+// 跨天日期分隔条外层容器，用于居中对齐
+.message-date-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
 // 跨天日期分隔条样式
 .message-date-divider {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 16px;
-  border-radius: 11px;
+  padding: 5px 16px;
+  border-radius: 999px;
   background: rgba(0, 0, 0, 0.3);
   color: #ffffff;
   font-size: 14px;
-  margin: 16px auto;
+  margin: 0 0 16px;
   position: relative;
   z-index: 1;
 }
