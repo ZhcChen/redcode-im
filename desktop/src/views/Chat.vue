@@ -7040,6 +7040,8 @@ const handleMessageMenuPin = async () => {
       if (res.success) {
         target.pinnedAt = null
         toast.success('已取消置顶')
+        // 取消置顶时，当前 Banner 索引自动回到 0
+        currentPinnedIndex.value = 0
       } else {
         toast.error(res.message || '取消置顶失败')
       }
@@ -7048,6 +7050,14 @@ const handleMessageMenuPin = async () => {
       if (res.success) {
         target.pinnedAt = res.data?.pinnedAt || new Date()
         toast.success('消息已置顶')
+        // 置顶成功后，Banner 立即切换到最新置顶的这一条
+        nextTick(() => {
+          const list = pinnedMessagesList.value
+          const idx = list.findIndex((msg) => msg.id === target.id)
+          if (idx >= 0) {
+            currentPinnedIndex.value = idx
+          }
+        })
       } else {
         toast.error(res.message || '置顶失败')
       }
@@ -8638,6 +8648,20 @@ const handleWebSocketPinUpdate = (event: CustomEvent) => {
         }
       }
     })
+  }
+
+  // 如果是置顶操作（无论来自自己还是其他端），Banner 立即切换到这条消息
+  if (isPinned && (detail.message || messageId)) {
+    const targetId = detail.message?.id || messageId
+    if (targetId) {
+      nextTick(() => {
+        const list = pinnedMessagesList.value
+        const idx = list.findIndex((msg) => msg.id === targetId)
+        if (idx >= 0) {
+          currentPinnedIndex.value = idx
+        }
+      })
+    }
   }
 }
 
