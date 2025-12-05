@@ -964,32 +964,7 @@
                   <div class="message-sender-name">
                     {{ item.senderName }}
                   </div>
-                  <div class="message-content">
-                    <!-- 图片消息：展示缩略图 + 一行预览文案 -->
-                    <template v-if="item.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
-                      <div class="pinned-media-thumb" v-if="parseImageSrc(item)">
-                        <img
-                          :src="parseImageSrc(item)"
-                          :alt="getImageAlt(item)"
-                          class="pinned-media-thumb-img"
-                        />
-                      </div>
-                      <div class="pinned-item-preview-text">
-                        {{ getTextContent(item) }}
-                      </div>
-                    </template>
-
-                    <!-- 其他类型：仅展示预览文案 -->
-                    <template v-else>
-                      <div class="pinned-item-preview-text">
-                        {{ getTextContent(item) }}
-                      </div>
-                    </template>
-
-                    <div class="message-time-other">
-                      {{ formatMessageTime(item.createTime || item.time) }}
-                    </div>
-                  </div>
+                  <MessageBubble :message="item" :is-self="false" />
                 </div>
               </div>
             </div>
@@ -1291,11 +1266,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import ScrollContainer from '../components/ScrollContainer.vue'
 import MessageListSkeleton from '../components/MessageListSkeleton.vue'
+import MessageBubble from '../components/MessageBubble.vue'
 
 // Props: 接收账号ID（用于多实例页面架构）
 interface Props {
@@ -5477,6 +5453,44 @@ const scrollToBottomOnLoad = () => {
 const scrollToBottomAfterImageLoad = () => {
   scrollToBottom(true)
 }
+
+// 提供给消息气泡组件复用的上下文
+provide('messageBubbleContext', {
+  MESSAGE_CONSTANTS,
+  audioUrlCache,
+  getTextContent,
+  hasAudioPart,
+  ensureAudioUrlLoading,
+  getAudioDuration,
+  parseImageSrc,
+  getImageAlt,
+  isMessageUploading,
+  handleImagePreview,
+  scrollToBottomAfterImageLoad,
+  handleImageError,
+  parseVideoScreenShotSrc,
+  parseVideoSrc,
+  handleVideoPlay,
+  handleVideoThumbnailError,
+  isFileDownloading,
+  getFileIconType,
+  getFileIconClass,
+  getFileProgress,
+  shouldShowDownloadIcon,
+  handleFileDownload,
+  getFileName,
+  getFileSize,
+  formatFileSize,
+  formatMessageTime,
+  getQuotedAvatar,
+  getQuotedInitial,
+  getQuotedSenderName,
+  getQuotedText,
+  getQuotedMediaType,
+  getQuotedImageSrc,
+  getSenderAvatarById,
+  scrollToQuoted
+})
 
 // 监听消息变化，自动滚动到底部
 watch(messages, (newMessages, oldMessages) => {
