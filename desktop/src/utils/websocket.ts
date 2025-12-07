@@ -292,6 +292,32 @@ class WebSocketManager {
         break;
       }
 
+      case 'friend_profile_updated':
+      case 'friend.updated': {
+        // 好友资料变更事件（昵称 / 头像 等）
+        // 仅当前活跃账号需要刷新本地联系人/会话列表
+        if (isCurrentUser) {
+          const detail = ((payload as any)?.payload ?? payload) || {};
+
+          // 向上层派发统一的好友变更事件，沿用 legacy 约定：
+          // type: 'updated', payload: 好友最新资料
+          this.dispatchDomEvent('websocket-friend-change', {
+            type: 'updated',
+            payload: {
+              user_id: detail.user_id ?? detail.userId,
+              username: detail.username,
+              nickname: detail.nickname,
+              avatar_url: detail.avatar_url ?? detail.avatarUrl,
+              avatar_object_key: detail.avatar_object_key ?? detail.avatarObjectKey,
+            },
+          });
+
+          // 刷新联系人列表，保证 UI 与后端资料一致
+          this.refreshContacts(true);
+        }
+        break;
+      }
+
       case 'roomcreated': {
         const roomData = payload.payload as { room_id: string };
         // 修复：非当前账号也需要订阅新创建的房间
