@@ -1099,7 +1099,7 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 - **缓存**: Redis 7
 - **序列化**: Protocol Buffers (prost)
 - **认证**: JWT (jsonwebtoken)
-- **密码加密**: bcrypt / argon2
+- **密码加密**: bcrypt
 
 ---
 

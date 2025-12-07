@@ -21,7 +21,6 @@
  # 认证和加密
  jsonwebtoken = "9.3"
  bcrypt = "0.16"
- argon2 = "0.5.3"  # 升级到最新稳定版本，修复 RC 版本问题
 
  # 时间处理
  chrono = { version = "0.4", features = ["serde"] }

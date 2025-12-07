@@ -338,37 +338,3 @@ pub mod jwt_security {
     }
 }
 
-/// 密码安全
-pub mod password_security {
-    use argon2::{hash_encoded, verify_encoded, Config, Variant, Version};
-
-    /// 密码哈希配置
-    const CONFIG: Config = Config {
-        variant: Variant::Argon2id,
-        version: Version::Version13,
-        mem_cost: 65536, // 64 MB
-        time_cost: 3,    // 3 次迭代
-        thread_mode: argon2::ThreadMode::Parallel,
-        secret: &[],
-        ad: &[],
-        hash_length: 32,
-    };
-
-    /// 哈希密码
-    pub fn hash_password(password: &[u8], salt: &[u8]) -> Result<String, argon2::Error> {
-        hash_encoded(password, salt, &CONFIG)
-    }
-
-    /// 验证密码
-    pub fn verify_password(password: &[u8], hash: &str) -> Result<bool, argon2::Error> {
-        verify_encoded(hash, password).map(|_| true)
-    }
-
-    /// 生成安全盐值
-    pub fn generate_salt() -> String {
-        use rand::Rng;
-        let mut salt = [0u8; 16];
-        rand::thread_rng().fill(&mut salt);
-        base64::encode(&salt)
-    }
-}
