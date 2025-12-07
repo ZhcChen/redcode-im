@@ -1,8 +1,8 @@
-# sql/all.sql 完整化修复报告
+# sql/base.sql（原 sql/all.sql）完整化修复报告
 
 ## 问题描述
 
-用户发现 `sql/all.sql` 文件**不完整**，缺少大量迁移文件中的表定义和初始数据。
+用户发现 `sql/all.sql` 文件**不完整**，缺少大量迁移文件中的表定义和初始数据（现该文件已重命名为 `sql/base.sql`，作为基础初始化脚本使用）。
 
 ## 问题分析
 
@@ -188,8 +188,8 @@ dropdb -h localhost -U postgres redcode_im
 # 2. 创建数据库
 createdb -h localhost -U postgres redcode_im
 
-# 3. 初始化（使用完整的all.sql）
-psql -h localhost -U postgres -d redcode_im -f sql/all.sql
+# 3. 初始化（使用完整的 base.sql）
+psql -h localhost -U postgres -d redcode_im -f sql/base.sql
 ```
 
 ### 登录管理后台
@@ -239,10 +239,10 @@ cp sql/all.sql.backup.20251201_151535 sql/all.sql
 ## 相关文件
 
 ### 核心文件
-- **📄 sql/all.sql** - 完整的数据库初始化脚本（870行）
-- **📁 sql/migrations/** - 迁移文件目录（16个文件）
+- **📄 sql/base.sql** - 完整的数据库初始化脚本（由原 `sql/all.sql` 重命名而来）
+- **📁 sql/migrations_legacy_20251207/** - 历史迁移文件归档目录（已合并进 base.sql）
 
-### 验证脚本
+### 验证脚本（仅供历史参考，如需使用请先将脚本中的 all.sql 修改为 base.sql）
 - **🔧 scripts/verify-sql-all.sh** - 验证文件完整性
 
 ### 文档
@@ -256,11 +256,11 @@ cp sql/all.sql.backup.20251201_151535 sql/all.sql
 # 1. 运行验证脚本
 ./scripts/verify-sql-all.sh
 
-# 2. 检查文件完整性
-wc -l sql/all.sql  # 应该是870行
+# 2. 检查文件完整性（如已将脚本更新为 base.sql）
+wc -l sql/base.sql  # 行数仅供参考
 
 # 3. 检查关键表
-grep -c "CREATE TABLE" sql/all.sql  # 应该是41个表
+grep -c "CREATE TABLE" sql/base.sql
 
 # 4. 模拟初始化（不执行）
 psql -h localhost -U postgres -d postgres -c "SELECT 1" 2>/dev/null || echo "需要先创建数据库"

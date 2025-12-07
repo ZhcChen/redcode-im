@@ -14,17 +14,18 @@
    docker compose up -d postgres redis-session redis-cache
    ```
 3. **（首次部署）初始化数据库结构**
-   > 仅在**首次在新环境使用 RedCode IM** 时需要执行，后续重复启动无需再次执行。
+   > 仅在**首次在新环境使用 RedCode IM** 且目标数据库为空库时需要执行，后续重复启动无需再次执行。
    - 确保目标数据库为空或确认可以覆盖现有结构；
-   - 在项目根目录（包含 `backend/`、`backend/sql/all.sql`）下执行：
+   - 推荐做法：直接启动 backend，由 `Database::migrate` 自动执行 `backend/sql/base.sql` 并记录迁移；
+   - 如需手工执行，也可以在项目根目录（包含 `backend/`、`backend/sql/base.sql`）下执行：
      ```bash
      # PostgreSQL 运行在 Docker 容器中
-     docker exec -i postgres psql -U postgres -d redcode_im < backend/sql/all.sql
+     docker exec -i postgres psql -U postgres -d redcode_im < backend/sql/base.sql
      
      # PostgreSQL 直接运行在本地
-     psql -h localhost -U postgres -d redcode_im < backend/sql/all.sql
+     psql -h localhost -U postgres -d redcode_im < backend/sql/base.sql
      ```
-   - 该步骤会一次性创建所有业务表、管理后台相关表及初始数据，后端在后续启动时只会做结构校验，不再自动补齐管理员表。
+   - 该步骤会一次性创建所有业务表、管理后台相关表及初始数据，后续结构演进通过 `backend/sql/migrations/` 下的增量脚本 + `db_migrations` 表管理。
 4. **运行后端**：带上调试日志可以更快定位问题。
    ```bash
    RUST_LOG=debug cargo run

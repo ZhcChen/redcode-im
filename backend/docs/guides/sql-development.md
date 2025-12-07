@@ -4,23 +4,24 @@
 
 ## 基本原则
 
-1. **全量脚本保持最新**：`backend/sql/all.sql` 必须始终包含当前系统所需的全部表结构、索引以及基础数据。此脚本用于初始化全新数据库实例。
-2. **增量脚本记录变更**：每次结构调整时，除了更新全量脚本，还需要新增一份增量脚本，以便在已有环境中执行迁移。
-3. **脚本幂等**：无论全量还是增量脚本，尽量使用 `CREATE TABLE IF NOT EXISTS`、`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`、`CREATE INDEX IF NOT EXISTS` 等写法，保证重复执行不会出错。
+1. **基础脚本保持最新**：`backend/sql/base.sql` 必须始终包含当前系统所需的全部表结构、索引以及基础数据。此脚本用于初始化全新数据库实例（空库）。
+2. **增量脚本记录变更**：每次结构调整时，需要新增一份增量脚本到 `backend/sql/migrations/`，由后端在启动时通过迁移记录表自动执行。
+3. **脚本幂等**：无论基础脚本还是增量脚本，尽量使用 `CREATE TABLE IF NOT EXISTS`、`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`、`CREATE INDEX IF NOT EXISTS` 等写法，保证重复执行不会出错。
 
 ## 增量脚本要求
 
 - **存放位置**：`backend/sql/migrations/` 目录（若不存在请先创建）。
-- **命名规范**：`YYYYMMDD_<简要描述>.sql`，例如 `20251112_add_user_room_pins.sql`。
+- **命名规范**：`YYYYMMDDHHMMSS_<简要描述>.sql`，例如 `20251112120000_add_user_room_pins.sql`。
 - **内容范围**：仅包含本次新增或修改的 DDL/初始化数据，禁止回滚逻辑。
 - **提交策略**：与代码改动同一次提交推送，确保代码与数据库结构同步。
 
 ## 更新流程
 
-1. 在 `backend/sql/all.sql` 中合并新的表结构或数据调整。
-2. 复制相同的变更到新的增量脚本文件。
-3. 更新本规范（必要时）或在相关需求文档中标记变更。
-4. 通知运维或执行迁移的同事增量脚本文件名。
+1. 在 `backend/sql/base.sql` 中合并新的表结构或数据调整（保持全量快照始终最新，以便新环境初始化）。
+2. 将相同的变更复制到新的增量脚本文件（放在 `backend/sql/migrations/`）。
+3. 在 `backend/src/database/mod.rs` 的 `MIGRATIONS` 常量数组中追加对应脚本条目，写死执行顺序。
+4. 更新本规范（必要时）或在相关需求文档中标记变更。
+5. 通知运维或执行迁移的同事增量脚本文件名（通常只需重启 backend 即可应用未执行的脚本）。
 
 ## 示例
 
@@ -39,4 +40,4 @@ CREATE INDEX IF NOT EXISTS idx_user_room_pins_room_id ON user_room_pins(room_id)
 CREATE INDEX IF NOT EXISTS idx_user_room_pins_pinned_at ON user_room_pins(pinned_at);
 ```
 
-执行顺序建议：先运行最新增量脚本，再根据需要执行历史脚本或全量脚本进行初始化。
+执行顺序说明：由 `MIGRATIONS` 数组控制，后端会在启动时按照该数组顺序，查询 `db_migrations` 表并仅执行尚未记录的脚本。

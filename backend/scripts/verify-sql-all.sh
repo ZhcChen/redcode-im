@@ -1,23 +1,23 @@
 #!/bin/bash
-# 验证 sql/all.sql 文件的完整性
+# 验证 sql/base.sql 文件的完整性（历史脚本，保留以兼容旧流程）
 
 echo "========================================="
-echo "验证 sql/all.sql 文件完整性"
+echo "验证 sql/base.sql 文件完整性"
 echo "========================================="
 echo ""
 
 # 检查文件是否存在
-if [ ! -f "sql/all.sql" ]; then
-    echo "❌ 错误：sql/all.sql 文件不存在！"
+if [ ! -f "sql/base.sql" ]; then
+    echo "❌ 错误：sql/base.sql 文件不存在！"
     exit 1
 fi
 
-echo "✅ 文件存在：sql/all.sql"
+echo "✅ 文件存在：sql/base.sql"
 echo ""
 
 # 检查文件行数
-line_count=$(wc -l < sql/all.sql)
-echo "📊 文件行数：$line_count 行（新增了$(($line_count - 708))行）"
+line_count=$(wc -l < sql/base.sql)
+echo "📊 文件行数：$line_count 行"
 echo ""
 
 # 检查关键表是否存在
@@ -37,7 +37,7 @@ tables=(
 )
 
 for table in "${tables[@]}"; do
-    if grep -q "CREATE TABLE.*$table" sql/all.sql; then
+    if grep -q "CREATE TABLE.*$table" sql/base.sql; then
         echo "  ✅ $table"
     else
         echo "  ❌ $table (缺失)"
@@ -55,7 +55,7 @@ inserts=(
 )
 
 for insert in "${inserts[@]}"; do
-    if grep -q "$insert" sql/all.sql; then
+    if grep -q "$insert" sql/base.sql; then
         echo "  ✅ $insert"
     else
         echo "  ❌ $insert (缺失)"
@@ -66,13 +66,13 @@ echo ""
 
 # 检查事务控制
 echo "🔍 检查事务控制："
-if grep -q "BEGIN;" sql/all.sql; then
+if grep -q "BEGIN;" sql/base.sql; then
     echo "  ✅ 事务开始 (BEGIN)"
 else
     echo "  ❌ 事务开始 (缺失)"
 fi
 
-if grep -q "COMMIT;" sql/all.sql; then
+if grep -q "COMMIT;" sql/base.sql; then
     echo "  ✅ 事务提交 (COMMIT)"
 else
     echo "  ❌ 事务提交 (缺失)"
@@ -82,7 +82,7 @@ echo ""
 
 # 检查默认管理员账号
 echo "🔍 检查默认管理员账号："
-if grep -q "username.*admin" sql/all.sql; then
+if grep -q "username.*admin" sql/base.sql; then
     echo "  ✅ 默认管理员账号："
     echo "     用户名：admin"
     echo "     邮箱：admin@redcode-im.com"
@@ -95,8 +95,8 @@ echo ""
 
 # 检查备份文件
 echo "📋 相关文件："
-echo "  📄 sql/all.sql - 主文件（708行）"
-echo "  📄 sql/all.sql.backup.20251201_151535 - 备份文件"
+echo "  📄 sql/base.sql - 主文件"
+echo "  📄 sql/all.sql.backup.20251201_151535 - 历史备份文件"
 echo ""
 
 # 总结
@@ -109,7 +109,7 @@ echo "  1. 创建数据库："
 echo "     createdb -h localhost -U postgres redcode_im"
 echo ""
 echo "  2. 初始化数据："
-echo "     psql -h localhost -U postgres -d redcode_im -f sql/all.sql"
+echo "     psql -h localhost -U postgres -d redcode_im -f sql/base.sql"
 echo ""
 echo "  3. 登录管理后台："
 echo "     用户名：admin"

@@ -21,6 +21,26 @@ pub struct Database {
     pub pool: PgPool,
 }
 
+/// 迁移记录表名称
+const MIGRATIONS_TABLE: &str = "db_migrations";
+
+/// 基础初始化脚本（原 all.sql，重命名为 base.sql）
+const BASE_MIGRATION_NAME: &str = "base.sql";
+const BASE_MIGRATION_SQL: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/base.sql"));
+
+/// 按执行顺序写死的迁移脚本列表
+///
+/// 说明：
+/// - 第一个必须是基础脚本 `base.sql`，用于初始化全新数据库；
+/// - 后续新增迁移文件时，请按时间顺序追加到此数组中；
+const MIGRATIONS: &[(&str, &str)] = &[
+    // 基础初始化脚本
+    (BASE_MIGRATION_NAME, BASE_MIGRATION_SQL),
+    // 后续迁移脚本示例（请按时间顺序追加）：
+    // ("20260101090000_add_some_table.sql", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/migrations/20260101090000_add_some_table.sql"))),
+];
+
 impl Database {
     /// 创建数据库连接池
     pub async fn new() -> Result<Self, sqlx::Error> {
@@ -43,47 +63,164 @@ impl Database {
     /// 运行数据库迁移
     ///
     /// 规则：
-    /// - 若检测到基础表不存在（空库），自动执行全量初始化脚本 `backend/sql/all.sql`；
-    /// - 否则认为结构已由应用层维护，仅做存在性校验后退出；
-    /// - 所有脚本均使用同一数据库连接顺序执行，兼容 DO $$ 与 BEGIN/COMMIT；
+    /// - 使用 `db_migrations` 表记录已执行的脚本名称；
+    /// - 按顺序执行 MIGRATIONS 数组中写死的脚本；
+    /// - 针对不同环境做兼容处理：
+    ///   - 空库（public 下没有任何表）：创建迁移记录表，顺序执行全部 MIGRATIONS；
+    ///   - 非空库但不存在迁移记录表：创建迁移记录表，并仅记录 `base.sql` 已执行，然后执行其余 MIGRATIONS；
+    ///   - 已存在迁移记录表：按照 MIGRATIONS 顺序执行尚未记录的脚本。
     pub async fn migrate(&self) -> Result<(), sqlx::Error> {
         use sqlx::Row;
 
-        // 1) 检查是否为空库（至少判断 users/rooms/messages 三张核心表）
-        let base_tables_exist: bool = sqlx::query(
-            "SELECT (
-                 EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='users')
-              OR EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='rooms')
-              OR EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='messages')
-            ) AS exists;",
+        // 1) 检查 public schema 中是否存在任何表，用于识别“空库”
+        let table_count: i64 = sqlx::query(
+            "SELECT COUNT(*) AS count
+             FROM information_schema.tables
+             WHERE table_schema = 'public'
+               AND table_type = 'BASE TABLE';",
         )
+        .fetch_one(&self.pool)
+        .await?
+        .get::<i64, _>("count");
+
+        let is_empty_database = table_count == 0;
+
+        // 2) 检查迁移记录表是否存在
+        let migrations_table_exists: bool = sqlx::query(
+            "SELECT EXISTS (
+                 SELECT 1
+                 FROM information_schema.tables
+                 WHERE table_schema = 'public'
+                   AND table_name = $1
+             ) AS exists;",
+        )
+        .bind(MIGRATIONS_TABLE)
         .fetch_one(&self.pool)
         .await?
         .get::<bool, _>("exists");
 
-        if !base_tables_exist {
-            tracing::warn!("检测到数据库为空：将执行全量初始化脚本 all.sql");
+        // 3) 确保迁移记录表存在（在任意场景下都需要）
+        self.ensure_migrations_table().await?;
 
-            const ALL_SQL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/all.sql"));
-            let mut conn = self.pool.acquire().await?;
-            for stmt in split_sql_statements(ALL_SQL) {
-                // 避免执行空语句
-                if stmt.trim().is_empty() {
-                    continue;
-                }
-                sqlx::query(&stmt).execute(&mut *conn).await?;
-            }
-            tracing::info!("全量初始化脚本执行完成");
+        if is_empty_database {
+            // 情况 A：空库（没有任何业务表）
+            tracing::warn!(
+                "检测到数据库为空: 将按顺序执行基础脚本 {:?} 以及后续迁移脚本",
+                MIGRATIONS.iter().map(|(name, _)| *name).collect::<Vec<_>>()
+            );
+
+            self.apply_migrations(MIGRATIONS).await?;
+            tracing::info!("空库初始化与迁移执行完成");
             return Ok(());
         }
 
-        tracing::info!("数据库结构校验通过：无需变更");
+        if !migrations_table_exists {
+            // 情况 B：非空库且尚未存在迁移记录表
+            // 说明：这是线上已有的旧环境，已经通过原来的 all.sql/base.sql 完成初始化，
+            // 此时仅需要补上一条“base.sql 已执行”的记录，然后执行后续迁移脚本。
+            tracing::info!(
+                "检测到非空数据库且缺少迁移记录表: 将补记录 base.sql 已执行，然后执行后续迁移"
+            );
+
+            // 标记 base.sql 已执行（不再重复执行）
+            self.insert_migration_record(BASE_MIGRATION_NAME).await?;
+
+            // 执行 base 之后的迁移（若未来追加）
+            if MIGRATIONS.len() > 1 {
+                self.apply_migrations(&MIGRATIONS[1..]).await?;
+            }
+
+            tracing::info!("迁移记录表初始化完成, 后续迁移已同步执行");
+            return Ok(());
+        }
+
+        // 情况 C：非空库且已有迁移记录表 —— 正常增量迁移
+        tracing::info!(
+            "检测到已有迁移记录表 {}: 将按顺序执行未完成的迁移脚本",
+            MIGRATIONS_TABLE
+        );
+        self.apply_migrations(MIGRATIONS).await?;
+        tracing::info!("数据库迁移已完成");
         Ok(())
     }
 
     /// 获取连接池
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+}
+
+impl Database {
+    /// 确保迁移记录表存在
+    async fn ensure_migrations_table(&self) -> Result<(), sqlx::Error> {
+        let create_table_sql = format!(
+            "
+            CREATE TABLE IF NOT EXISTS {} (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            ",
+            MIGRATIONS_TABLE
+        );
+
+        sqlx::query(&create_table_sql).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    /// 检查指定迁移是否已经执行
+    async fn has_migration(&self, name: &str) -> Result<bool, sqlx::Error> {
+        use sqlx::Row;
+
+        let exists: bool = sqlx::query(&format!(
+            "SELECT EXISTS (
+                 SELECT 1 FROM {} WHERE name = $1
+             ) AS exists;",
+            MIGRATIONS_TABLE
+        ))
+        .bind(name)
+        .fetch_one(&self.pool)
+        .await?
+        .get::<bool, _>("exists");
+
+        Ok(exists)
+    }
+
+    /// 插入迁移执行记录
+    async fn insert_migration_record(&self, name: &str) -> Result<(), sqlx::Error> {
+        let insert_sql = format!(
+            "INSERT INTO {} (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;",
+            MIGRATIONS_TABLE
+        );
+        sqlx::query(&insert_sql).bind(name).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    /// 执行给定列表中的迁移脚本（按顺序）
+    async fn apply_migrations(&self, migrations: &[(&str, &str)]) -> Result<(), sqlx::Error> {
+        let mut conn = self.pool.acquire().await?;
+
+        for (name, sql) in migrations {
+            if self.has_migration(name).await? {
+                tracing::info!("跳过已执行的迁移脚本: {}", name);
+                continue;
+            }
+
+            tracing::info!("开始执行迁移脚本: {}", name);
+
+            for stmt in split_sql_statements(sql) {
+                let trimmed = stmt.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                sqlx::query(trimmed).execute(&mut *conn).await?;
+            }
+
+            self.insert_migration_record(name).await?;
+            tracing::info!("迁移脚本执行完成: {}", name);
+        }
+
+        Ok(())
     }
 }
 

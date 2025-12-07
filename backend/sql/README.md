@@ -2,34 +2,34 @@
 
 ## 数据库初始化
 
-### all.sql
-完整的数据库初始化脚本，包含所有表结构、索引、视图、触发器和初始数据。
+### base.sql
+基础数据库初始化脚本，包含**当前版本的所有表结构、索引、视图、触发器和初始数据**。
 
 **执行方式（新项目首次部署必须执行一次）：**
 
-如果 PostgreSQL 在 Docker 容器中运行：
+如果 PostgreSQL 在 Docker 容器中运行（可选，通常只在手工初始化时使用）：
 ```bash
-docker exec -i postgres psql -U postgres -d redcode_im < sql/all.sql
+docker exec -i postgres psql -U postgres -d redcode_im < sql/base.sql
 ```
 
-如果 PostgreSQL 直接安装在本地：
+如果 PostgreSQL 直接安装在本地（可选）：
 ```bash
-psql -h localhost -U postgres -d redcode_im < sql/all.sql
+psql -h localhost -U postgres -d redcode_im < sql/base.sql
 ```
 
 > 说明：
-> - 本项目视为**全新项目**，不再保留针对旧库自动补齐管理员相关表的逻辑；
-> - 在任意环境（开发 / 测试 / 生产）**第一次部署数据库时，必须在启动后端服务之前执行一次 `all.sql`**，以初始化所有业务表和管理后台表；
-> - 初始化完成后，后端的 `Database::migrate` 仅做结构存在性校验，不再尝试创建缺失的管理员表或迁移旧数据。
+> - 线上已有环境已视为执行过原 `all.sql`（现更名为 `base.sql`），不需要也不允许重复执行；
+> - 在全新环境（数据库为空库，无任何业务表）下，可以通过启动 backend，让 `Database::migrate` 自动执行 `base.sql` 并记录迁移；
+> - 之后的结构演进全部通过 `backend/sql/migrations/` 下的增量脚本 + 迁移记录表 `db_migrations` 管理，`Database::migrate` 会在启动时自动按顺序执行未记录的脚本。
 
 ## 数据库迁移规则
 
 开发过程中，如果有 SQL 结构或者数据更新，请遵循以下规则：
 
 1. **增量迁移脚本**：
-   - 所有数据库结构变更或数据更新必须使用增量 SQL 脚本
-   - 脚本文件命名格式：`YYYYMMDD_描述性名称.sql`（例如：20251112_add_user_room_pins.sql）
-   - 脚本文件放置在 `migrations/` 目录下
+   - 所有数据库结构变更或数据更新必须使用增量 SQL 脚本；
+   - 脚本文件命名格式：`YYYYMMDDHHMMSS_描述性名称.sql`（例如：`20251112120000_add_user_room_pins.sql`）；
+   - 脚本文件放置在 `backend/sql/migrations/` 目录下。
 
 2. **迁移脚本内容**：
    - 每个脚本应该是幂等的，使用 `IF NOT EXISTS` 等条件判断
@@ -37,8 +37,8 @@ psql -h localhost -U postgres -d redcode_im < sql/all.sql
    - 避免使用特定数据库的方言，保持 SQL 标准兼容性
 
 3. **迁移执行顺序**：
-   - 迁移脚本按照文件名中的日期顺序执行
-   - 每个迁移脚本执行后应记录到数据库迁移历史表中
+- 迁移脚本的执行顺序由 backend 代码中写死的常量数组 `MIGRATIONS` 控制（`backend/src/database/mod.rs`）；
+- 每个迁移脚本执行成功后都会在 `db_migrations` 表中记录一条执行记录（字段 `name` 对应脚本文件名）。
 
 4. **测试与验证**：
    - 每个迁移脚本应在测试环境充分测试
