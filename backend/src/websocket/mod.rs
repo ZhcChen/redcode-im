@@ -40,7 +40,6 @@ pub struct ConnectionInfo {
     #[allow(dead_code)]
     pub connected_at: chrono::DateTime<chrono::Utc>,
     pub last_ping: chrono::DateTime<chrono::Utc>,
-    pub client_ip: std::net::IpAddr,
     pub format: ConnectionFormat,
     pub sender: mpsc::UnboundedSender<OutboundFrame>,
 }
@@ -70,7 +69,7 @@ impl ConnectionManager {
         &self,
         conn_id: String,
         user_id: String,
-        client_ip: std::net::IpAddr,
+        _client_ip: std::net::IpAddr,
         format: ConnectionFormat,
         sender: mpsc::UnboundedSender<OutboundFrame>,
     ) {
@@ -79,7 +78,6 @@ impl ConnectionManager {
             user_id: user_id.clone(),
             connected_at: chrono::Utc::now(),
             last_ping: chrono::Utc::now(),
-            client_ip,
             format,
             sender,
         };
@@ -561,8 +559,7 @@ async fn handle_client_event(
                 .await
                 .ok_or_else(|| "连接未认证".to_string())?;
 
-            let user_uuid =
-                Uuid::parse_str(&user_id).map_err(|_| "invalid user_id".to_string())?;
+            let user_uuid = Uuid::parse_str(&user_id).map_err(|_| "invalid user_id".to_string())?;
 
             let room_store = RoomStore::new(state.database.pool());
             let is_member = room_store

@@ -93,9 +93,7 @@ pub struct IpInfoToken {
     pub token: String,
     pub monthly_limit: i32,
     pub used_count: i32,
-    pub reset_date: chrono::NaiveDate,
     pub status: String,
-    pub last_used_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,9 +197,7 @@ impl GeolocationService {
                 token: row.try_get("token")?,
                 monthly_limit: row.try_get("monthly_limit")?,
                 used_count: row.try_get("used_count")?,
-                reset_date: row.try_get("reset_date")?,
                 status: row.try_get("status")?,
-                last_used_at: row.try_get("last_used_at")?,
             };
 
             info!(
@@ -483,12 +479,6 @@ impl GeolocationService {
     }
 
     /// 清理过期的token缓存
-    pub async fn cleanup_token_cache(&self) {
-        let mut cache = self.token_cache.write().await;
-        cache.clear();
-        debug!("清理了token缓存");
-    }
-
     /// 获取全球用户分布数据（用于地图显示）
     pub async fn get_global_user_distribution(&self) -> Result<Vec<UserLocationMapData>, AppError> {
         let rows = sqlx::query(

@@ -6,12 +6,6 @@ pub mod cache;
 pub mod models;
 pub mod session;
 
-/// Redis 键名前缀
-pub const CONFIG_PREFIX: &str = "redcode:config:";
-
-/// IP解析功能开关键名
-pub const IP_GEOLOCATION_ENABLED_KEY: &str = "ip_geolocation_enabled";
-
 /// Redis 连接管理器
 ///
 /// 多实例架构:

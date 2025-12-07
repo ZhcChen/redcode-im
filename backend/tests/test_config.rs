@@ -9,7 +9,7 @@ pub struct TestDatabase {
 impl TestDatabase {
     pub async fn new() -> Self {
         // 使用测试数据库连接字符串
-        let database_url = env::var("DATABASE_URL_TEST")
+        let _database_url = env::var("DATABASE_URL_TEST")
             .or_else(|_| env::var("DATABASE_URL"))
             .expect("DATABASE_URL or DATABASE_URL_TEST must be set");
 

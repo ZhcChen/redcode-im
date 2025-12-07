@@ -42,13 +42,6 @@ pub struct AdminUserInfo {
     pub updated_at: String,
 }
 
-/// 管理员登录请求
-#[derive(Debug, Deserialize)]
-pub struct AdminLoginRequest {
-    pub username: String,
-    pub password: String,
-}
-
 /// 管理员创建请求
 #[derive(Debug, Deserialize)]
 pub struct CreateAdminUserRequest {
@@ -56,13 +49,6 @@ pub struct CreateAdminUserRequest {
     pub email: String,
     pub password: String,
     pub nickname: Option<String>,
-}
-
-/// 管理员更新请求
-#[derive(Debug, Deserialize)]
-pub struct UpdateAdminUserRequest {
-    pub nickname: Option<String>,
-    pub status: Option<String>,
 }
 
 /// 管理员用户列表参数

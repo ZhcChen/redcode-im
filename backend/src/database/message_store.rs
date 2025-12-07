@@ -498,16 +498,6 @@ impl<'a> MessageStore<'a> {
         Ok(rec)
     }
 
-    pub async fn get_room_pin(&self, room_id: Uuid) -> Result<Option<RoomPin>, sqlx::Error> {
-        let row = sqlx::query_as::<_, RoomPin>(
-            "SELECT room_id, message_id, pinned_by, pinned_at FROM room_pins WHERE room_id = $1",
-        )
-        .bind(room_id)
-        .fetch_optional(self.pool)
-        .await?;
-        Ok(row)
-    }
-
     /// 获取房间内所有置顶记录（支持多条置顶）
     pub async fn get_room_pins(&self, room_id: Uuid) -> Result<Vec<RoomPin>, sqlx::Error> {
         let rows = sqlx::query_as::<_, RoomPin>(

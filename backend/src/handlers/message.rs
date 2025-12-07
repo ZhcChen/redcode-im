@@ -770,9 +770,7 @@ pub async fn list_messages(
     let messages = items
         .into_iter()
         .map(|msg| {
-            let pin_ref = room_pins
-                .iter()
-                .find(|pin| pin.message_id == msg.id);
+            let pin_ref = room_pins.iter().find(|pin| pin.message_id == msg.id);
 
             let delivery_status = if msg.sender_id == user_id {
                 if read_message_ids.contains(&msg.id) {

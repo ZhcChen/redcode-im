@@ -2,15 +2,16 @@
 
 ## 功能概述
 
-本功能为项目的IP地理位置解析添加了一个Redis控制的开关，用于管理员控制是否启用用户IP解析用于数据统计。
+本功能为项目的IP地理位置解析添加了一个集中配置的开关，用于管理员控制是否启用用户IP解析用于数据统计。
 
 ## 关键特性
 
-### 1. Redis开关控制
-- **键名**：`redcode:config:ip_geolocation_enabled`
-- **默认值**：关闭（未设置或值为0时关闭）
-- **开启值**：1
-- **关闭值**：0
+### 1. 配置存储
+- **存储位置**：PostgreSQL `general_settings` 表
+- **配置键名**：`ip_geolocation_enabled`
+- **默认值**：关闭（未设置或值为"0"时关闭）
+- **开启值**：`"1"`
+- **关闭值**：`"0"`
 
 ### 2. 开关行为
 - ✅ **开（值为1）**：正常进行IP地理位置解析，用于管理员数据统计
@@ -56,12 +57,7 @@ Content-Type: application/json
 
 ## 代码实现
 
-### 1. Redis配置管理 (`src/redis/mod.rs`)
-- 添加了配置键名前缀：`CONFIG_PREFIX`
-- 添加了IP解析开关键名：`IP_GEOLOCATION_ENABLED_KEY`
-- 新增 `get_config_client()` 方法获取配置Redis连接
-
-### 2. 地理位置服务 (`src/services/geolocation.rs`)
+### 1. 地理位置服务 (`src/services/geolocation.rs`)
 新增两个函数：
 - `is_ip_geolocation_enabled()` - 检查开关状态
 - `set_ip_geolocation_enabled()` - 设置开关状态
@@ -73,12 +69,12 @@ Content-Type: application/json
 
 都添加了开关检查，只有开关开启时才进行IP解析。
 
-### 4. Admin API (`src/handlers/admin.rs`)
+### 3. Admin API (`src/handlers/admin.rs`)
 新增两个API端点：
 - `get_ip_geolocation_enabled()` - 查询开关状态
 - `set_ip_geolocation_enabled()` - 设置开关状态
 
-### 5. 路由配置 (`src/routes.rs`)
+### 4. 路由配置 (`src/routes.rs`)
 添加了路由：
 ```rust
 .route(
@@ -126,7 +122,7 @@ curl http://localhost:3000/api/admin/ip-geolocation/enabled
 ## 安全性
 
 1. **默认安全**：开关默认关闭，避免不必要的IP解析
-2. **Redis隔离**：配置存储在独立的Redis命名空间
+2. **集中配置**：开关状态统一存储在数据库配置表中，便于审计和备份
 3. **访问控制**：API需要管理员权限访问
 
 ## 监控与日志
@@ -146,7 +142,7 @@ INFO 查询IP地理位置解析功能开关状态: 关闭
 1. **Token消耗**：开启开关后会消耗IPinfo API token额度
 2. **数据库写入**：每次IP变化都会写入用户地理位置表
 3. **隐私保护**：关闭开关后不会记录用户地理位置信息
-4. **配置持久性**：开关状态存储在Redis中，带1年过期时间
+4. **配置持久性**：开关状态存储在数据库中，带来更强的一致性和持久性
 
 ## 部署建议
 
@@ -158,15 +154,13 @@ INFO 查询IP地理位置解析功能开关状态: 关闭
 
 ## 技术细节
 
-### Redis键格式
-```
-redcode:config:ip_geolocation_enabled
-```
-
-### 数据类型
-- String类型
-- 值："0"（关闭）或"1"（开启）
-- TTL：365天（可选）
+### 配置表结构（核心字段）
+- 表名：`general_settings`
+- 关键字段：
+  - `key`：配置键名（此处为 `ip_geolocation_enabled`）
+  - `value`：配置值（"0"=关闭，"1"=开启）
+  - `description`：配置说明
+  - `updated_at` / `updated_by`：最近更新时间和操作者
 
 ### 错误处理
 - Redis连接失败：默认关闭功能
@@ -175,7 +169,6 @@ redcode:config:ip_geolocation_enabled
 
 ## 相关文件
 
-- `src/redis/mod.rs` - Redis配置管理
 - `src/services/geolocation.rs` - 地理位置服务和开关逻辑
 - `src/websocket/mod.rs` - WebSocket连接处理
 - `src/handlers/admin.rs` - Admin API实现
@@ -183,4 +176,4 @@ redcode:config:ip_geolocation_enabled
 
 ---
 
-**注意**：本功能需要Redis服务正常运行，且IPinfo API token配置正确才能正常工作。
+**注意**：本功能依赖 PostgreSQL 中的 `general_settings` 表和正确配置的 IPinfo API token 才能正常工作。

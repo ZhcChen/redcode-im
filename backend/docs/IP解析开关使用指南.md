@@ -2,15 +2,15 @@
 
 ## 🎯 功能概述
 
-项目已添加了Redis控制的IP地理位置解析开关，管理员可以通过开关控制是否启用用户IP解析功能用于数据统计。
+项目已添加了集中配置控制的 IP 地理位置解析开关，管理员可以通过开关控制是否启用用户 IP 解析功能用于数据统计。
 
 ## 📋 核心特性
 
 ### ✅ 已实现功能
-1. **Redis开关控制** - 使用 `redcode:config:ip_geolocation_enabled` 键存储开关状态
-2. **默认关闭** - 开关未设置或值为0时，IP解析功能关闭
-3. **实时生效** - 修改开关后立即影响所有新的WebSocket连接
-4. **API管理** - 提供REST API查询和设置开关状态
+1. **集中配置控制** - 使用数据库 `general_settings` 表中的 `ip_geolocation_enabled` 键存储开关状态
+2. **默认关闭** - 配置未设置或值为 `"0"` 时，IP 解析功能关闭
+3. **实时生效** - 修改开关后立即影响所有新的 WebSocket 连接
+4. **API管理** - 提供 REST API 查询和设置开关状态
 5. **日志记录** - 详细记录开关状态变化和功能执行情况
 
 ## 🚀 快速开始
@@ -59,23 +59,16 @@ curl -X PATCH http://localhost:3000/api/admin/ip-geolocation/enabled \
 4. 点击切换开关状态
 5. 保存设置
 
-### 手动Redis操作（高级用户）
-```bash
-# 进入Redis CLI
-redis-cli -p 6381
-
-# 查看当前状态
-GET redcode:config:ip_geolocation_enabled
-
-# 开启功能（值为1）
-SET redcode:config:ip_geolocation_enabled 1 EX 31536000
-
-# 关闭功能（值为0）
-SET redcode:config:ip_geolocation_enabled 0 EX 31536000
-
-# 删除开关（恢复默认关闭状态）
-DEL redcode:config:ip_geolocation_enabled
+### 通过配置数据库直接操作（高级用户）
+```sql
+-- 查询当前状态
+SELECT value
+FROM general_settings
+WHERE key = 'ip_geolocation_enabled';
 ```
+
+- 返回 `"1"`：表示开启
+- 返回 `"0"` 或无记录：表示关闭
 
 ## 📊 功能影响范围
 
@@ -117,12 +110,11 @@ INFO 成功更新用户 {uuid} 的地理位置: Some("Beijing"), Some("China")
 
 ## ⚙️ 技术实现细节
 
-### Redis键信息
-- **键名**：`redcode:config:ip_geolocation_enabled`
+### 配置信息
+- **键名**：`ip_geolocation_enabled`
+- **数据来源**：PostgreSQL `general_settings` 表
 - **数据类型**：String
 - **有效值**：`"0"`（关闭）、`"1"`（开启）
-- **过期时间**：365天（自动续期）
-- **存储位置**：Redis Session实例（端口6381）
 
 ### API端点
 | 方法 | 路径 | 描述 | 权限 |
@@ -131,17 +123,15 @@ INFO 成功更新用户 {uuid} 的地理位置: Some("Beijing"), Some("China")
 | PATCH | `/api/admin/ip-geolocation/enabled` | 设置开关状态 | 管理员 |
 
 ### 影响的核心文件
-1. **src/redis/mod.rs** - Redis配置和键名定义
-2. **src/services/geolocation.rs** - 开关逻辑实现
-3. **src/websocket/mod.rs** - WebSocket中的开关检查
-4. **src/handlers/admin.rs** - Admin API实现
-5. **src/routes.rs** - 路由配置
+1. **src/services/geolocation.rs** - 开关逻辑实现
+2. **src/websocket/mod.rs** - WebSocket中的开关检查
+3. **src/handlers/admin.rs** - Admin API实现
+4. **src/routes.rs** - 路由配置
 
 ## 🔒 安全考虑
 
 ### 访问控制
 - ✅ API需要管理员权限才能访问
-- ✅ 开关状态存储在独立的Redis命名空间
 - ✅ 默认关闭，保护用户隐私
 
 ### 隐私保护
@@ -172,15 +162,8 @@ INFO 成功更新用户 {uuid} 的地理位置: Some("Beijing"), Some("China")
 **解决**：重启WebSocket连接或等待用户重新连接
 
 #### 2. 无法查询开关状态
-**原因**：Redis连接失败或权限问题
-**解决**：
-```bash
-# 检查Redis服务
-redis-cli -p 6381 ping
-
-# 检查Redis认证
-redis-cli -p 6381 auth <password>
-```
+**原因**：数据库连接失败或配置表缺失
+**解决**：检查数据库连接和 `general_settings` 表结构是否正确
 
 #### 3. IP解析不执行
 **检查步骤**：
