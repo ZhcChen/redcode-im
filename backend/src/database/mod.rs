@@ -37,8 +37,14 @@ const BASE_MIGRATION_SQL: &str =
 const MIGRATIONS: &[(&str, &str)] = &[
     // 基础初始化脚本
     (BASE_MIGRATION_NAME, BASE_MIGRATION_SQL),
-    // 后续迁移脚本示例（请按时间顺序追加）：
-    // ("20260101090000_add_some_table.sql", include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/migrations/20260101090000_add_some_table.sql"))),
+    // 2025-12-07：好友相关 WebSocket 事件占位迁移（当前不做结构变更）
+    (
+        "20251207120000_friend_ws_placeholder.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251207120000_friend_ws_placeholder.sql"
+        )),
+    ),
 ];
 
 impl Database {
