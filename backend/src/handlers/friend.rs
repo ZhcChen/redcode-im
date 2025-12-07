@@ -385,6 +385,12 @@ pub struct UpdateRemarkResponse {
     pub remark: Option<String>,
 }
 
+#[derive(serde::Serialize)]
+pub struct DeleteFriendResponse {
+    pub success: bool,
+    pub message: String,
+}
+
 /// 更新好友备注
 pub async fn update_friend_remark(
     State(state): State<AppState>,
@@ -407,4 +413,57 @@ pub async fn update_friend_remark(
         .await?;
 
     Ok(Json(UpdateRemarkResponse { remark }))
+}
+
+/// 删除好友
+pub async fn delete_friend(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(friend_user_id_str): Path<String>,
+) -> Result<Json<DeleteFriendResponse>, AppError> {
+    let current_user_id = string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+    let friend_user_id = string_to_uuid(&friend_user_id_str)
+        .map_err(|e| AppError::ValidationError(format!("无效的好友ID: {}", e)))?;
+
+    if current_user_id == friend_user_id {
+        return Err(AppError::ValidationError(
+            "不能删除自己为好友".to_string(),
+        ));
+    }
+
+    let friend_store = FriendStore::new(state.database.clone());
+    let deleted = friend_store
+        .delete_friendship(current_user_id, friend_user_id)
+        .await?;
+
+    if !deleted {
+        return Err(AppError::NotFound("好友关系不存在".to_string()));
+    }
+
+    // 向双方推送好友删除事件
+    let current_id_str = current_user_id.to_string();
+    let friend_id_str = friend_user_id.to_string();
+
+    let event_for_current = ServerPush::FriendshipDeleted {
+        user_id: friend_id_str.clone(),
+    };
+    let event_for_friend = ServerPush::FriendshipDeleted {
+        user_id: current_id_str.clone(),
+    };
+
+    state
+        .connection_manager
+        .send_to_user(&current_id_str, event_for_current)
+        .await;
+
+    state
+        .connection_manager
+        .send_to_user(&friend_id_str, event_for_friend)
+        .await;
+
+    Ok(Json(DeleteFriendResponse {
+        success: true,
+        message: "删除好友成功".to_string(),
+    }))
 }

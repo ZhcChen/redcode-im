@@ -292,6 +292,33 @@ class WebSocketManager {
         break;
       }
 
+      case 'friendshipdeleted':
+      case 'friendship_deleted': {
+        // 好友关系删除事件
+        if (isCurrentUser) {
+          const detail = ((payload as any)?.payload ?? payload) || {};
+          const deletedUserId = detail.user_id ?? detail.userId;
+
+          // 通知上层删除好友，兼容 legacy 监听器
+          this.dispatchDomEvent('websocket-delete-friend', {
+            userId: deletedUserId,
+          });
+
+          this.dispatchDomEvent('websocket-friend-change', {
+            type: 'deleted',
+            payload: {
+              user_id: deletedUserId,
+            },
+          });
+
+          // 刷新联系人和聊天列表
+          this.refreshContacts(true);
+          this.refreshChatList(true);
+        }
+        break;
+      }
+
+      case 'friendprofileupdated':
       case 'friend_profile_updated':
       case 'friend.updated': {
         // 好友资料变更事件（昵称 / 头像 等）

@@ -794,14 +794,19 @@ function handleFriendChange(detail: any) {
 function handleDeleteFriend(detail: any) {
   // 处理删除好友逻辑
   const currentChatGroupId = store.state.currentChatGroupId;
-  const deletedGroupId = detail.content?.chatGroupId;
-  
+  const deletedGroupId = detail.chatGroupId || detail.content?.chatGroupId;
+  const deletedUserId = detail.userId || detail.content?.userId;
+
+  // 若当前正在与该好友的私聊房间中，可以根据后续扩展的 roomId / chatGroupId 做更精细判断
   if (deletedGroupId && currentChatGroupId === deletedGroupId) {
     toast.warning('您已被对方删除好友');
     router.push('/home');
+  } else if (deletedUserId) {
+    // 没有房间ID时，仍然给出提示（不强制跳转）
+    toast.warning('好友关系已解除');
   }
-  
-  // 好友被删除后，也需要更新申请数量
+
+  // 好友被删除后，也需要更新申请数量和未读数
   store.dispatch('updatePendingFriendRequests');
   triggerCrossAccountUnreadRefresh('friend-delete')
 }

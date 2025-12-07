@@ -167,6 +167,8 @@ pub enum TauriEventPayload {
     GroupMemberChanged(serde_json::Value),
     /// 好友资料更新
     FriendProfileUpdated(serde_json::Value),
+    /// 好友关系删除
+    FriendshipDeleted { user_id: String },
     /// 房间历史清除
     RoomHistoryCleared(serde_json::Value),
     /// 错误
@@ -384,6 +386,11 @@ impl TauriEventPayload {
                     "avatar_object_key": profile.avatar_object_key,
                 });
                 Some(Self::FriendProfileUpdated(json))
+            }
+            ws::server_event::Payload::FriendshipDeleted(deleted) => {
+                Some(Self::FriendshipDeleted {
+                    user_id: deleted.user_id,
+                })
             }
             ws::server_event::Payload::RoomHistoryCleared(cleared) => {
                 let json = serde_json::json!({

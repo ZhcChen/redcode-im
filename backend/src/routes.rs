@@ -345,6 +345,10 @@ pub fn create_routes() -> Router<AppState> {
             "/friends/{friend_user_id}/remark",
             patch(friend::update_friend_remark),
         )
+        .route(
+            "/friends/{friend_user_id}",
+            delete(friend::delete_friend),
+        )
         // chats
         .route("/chats", get(room::list_chat_summaries))
         .route("/chats/{room_id}", delete(room::delete_chat))

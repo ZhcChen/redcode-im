@@ -309,6 +309,54 @@ impl FriendStore {
         Ok(exists.is_some())
     }
 
+    /// 删除好友关系（包括双方备注）
+    pub async fn delete_friendship(
+        &self,
+        user_id: Uuid,
+        friend_user_id: Uuid,
+    ) -> Result<bool, AppError> {
+        if user_id == friend_user_id {
+            return Err(AppError::ValidationError(
+                "不能删除自己为好友".to_string(),
+            ));
+        }
+
+        let (first, second) = sort_user_pair(user_id, friend_user_id);
+        let pool = self.pool();
+
+        // 删除好友关系
+        let result = sqlx::query(
+            r#"
+            DELETE FROM friendships
+            WHERE user_a_id = $1 AND user_b_id = $2
+            "#,
+        )
+        .bind(first)
+        .bind(second)
+        .execute(pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            // 不存在好友关系
+            return Ok(false);
+        }
+
+        // 删除双方备注记录（如果有）
+        sqlx::query(
+            r#"
+            DELETE FROM user_friend_remarks
+            WHERE (user_id = $1 AND friend_user_id = $2)
+               OR (user_id = $2 AND friend_user_id = $1)
+            "#,
+        )
+        .bind(user_id)
+        .bind(friend_user_id)
+        .execute(pool)
+        .await?;
+
+        Ok(true)
+    }
+
     /// 更新或创建好友备注
     pub async fn upsert_friend_remark(
         &self,

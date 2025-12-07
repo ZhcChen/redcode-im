@@ -133,6 +133,11 @@ pub enum ServerPush {
         cleared_by: Option<Uuid>,
         cleared_at: String,
     },
+     /// 好友关系删除
+    FriendshipDeleted {
+        /// 被删除的好友用户ID（对事件接收方而言，对方的 user_id）
+        user_id: String,
+    },
     FriendProfileUpdated {
         user_id: String,
         username: Option<String>,
@@ -163,6 +168,7 @@ impl ServerPush {
             ServerPush::GroupSettingsUpdated { .. } => "group_settings_updated",
             ServerPush::GroupMemberChanged { .. } => "group_member_changed",
             ServerPush::RoomHistoryCleared { .. } => "room_history_cleared",
+            ServerPush::FriendshipDeleted { .. } => "friendship_deleted",
             ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
         }
     }
@@ -304,6 +310,10 @@ impl ServerPush {
                 "room_id": room_id,
                 "cleared_by": cleared_by,
                 "cleared_at": cleared_at,
+            }),
+            ServerPush::FriendshipDeleted { user_id } => json!({
+                "type": "friendship_deleted",
+                "user_id": user_id,
             }),
             ServerPush::FriendProfileUpdated {
                 user_id,
@@ -467,6 +477,11 @@ impl ServerPush {
                     .unwrap_or_default(),
                 cleared_at: cleared_at.clone(),
             }),
+            ServerPush::FriendshipDeleted { user_id } => {
+                Payload::FriendshipDeleted(ws::ServerFriendshipDeleted {
+                    user_id: user_id.clone(),
+                })
+            }
             ServerPush::FriendProfileUpdated {
                 user_id,
                 username,
