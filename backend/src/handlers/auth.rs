@@ -4,13 +4,11 @@ use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::handlers::admin;
-use crate::handlers::user;
 use crate::models::convert::{
     api_create_user_to_db, api_login_to_db, db_user_to_api_user_info, string_to_uuid,
 };
 use crate::models::UserStatus;
 use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, UserInfo};
-use crate::storage;
 use crate::AppState;
 use axum::{
     extract::{Extension, State},
@@ -769,104 +767,5 @@ pub async fn change_current_admin_password(
     Ok(Json(ChangeAdminPasswordResponse {
         success: true,
         message: "密码重置成功".to_string(),
-    }))
-}
-
-/// 上传当前管理员用户头像
-#[derive(Debug, Serialize)]
-pub struct UploadAdminAvatarResponse {
-    pub success: bool,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avatar_url: Option<String>,
-}
-
-pub async fn upload_current_admin_avatar(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    mut multipart: axum::extract::Multipart,
-) -> Result<Json<UploadAdminAvatarResponse>, AppError> {
-    let admin_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
-
-    // 从 multipart 中获取文件
-    let mut avatar_file = None;
-    let mut content_type = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| AppError::InternalError(format!("读取上传文件失败: {}", e)))?
-    {
-        if field.name() == Some("avatar") {
-            // 先获取 content_type，再读取数据
-            content_type = field.content_type().map(|s| s.to_string());
-
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| AppError::InternalError(format!("读取文件数据失败: {}", e)))?;
-
-            // 验证文件大小 (5MB)
-            if data.len() > 5 * 1024 * 1024 {
-                return Err(AppError::ValidationError(
-                    "文件大小不能超过 5MB".to_string(),
-                ));
-            }
-
-            avatar_file = Some(data);
-            break;
-        }
-    }
-
-    if avatar_file.is_none() {
-        return Err(AppError::ValidationError(
-            "请选择要上传的头像文件".to_string(),
-        ));
-    }
-
-    let file_data = avatar_file.unwrap();
-    let content_type = content_type.unwrap_or_else(|| "image/jpeg".to_string());
-
-    // 验证文件类型
-    if !content_type.starts_with("image/") {
-        return Err(AppError::ValidationError("只支持上传图片文件".to_string()));
-    }
-
-    // 生成文件名
-    let file_ext = match content_type.as_str() {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        _ => "jpg",
-    };
-
-    let file_key = format!("admin/avatars/{}.{}", admin_user_id, file_ext);
-
-    // 获取默认存储提供商
-    let provider = user::load_default_storage_provider(&state).await?;
-
-    // 创建存储服务实例
-    let storage_service = storage::create_storage_service(&provider)
-        .map_err(|e| AppError::InternalError(format!("创建存储服务失败: {}", e)))?;
-
-    // 上传到存储
-    let file_url = storage_service
-        .upload_file(&file_key, file_data, Some(&content_type))
-        .await
-        .map_err(|e| AppError::InternalError(format!("上传文件失败: {}", e)))?;
-
-    // 更新用户头像URL
-    let store = admin::AdminUserStore::new(state.database.clone());
-    let _updated_user = store
-        .update_admin_user(&admin_user_id, None, Some(file_url.clone()))
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
-
-    Ok(Json(UploadAdminAvatarResponse {
-        success: true,
-        message: "头像上传成功".to_string(),
-        avatar_url: Some(file_url),
     }))
 }

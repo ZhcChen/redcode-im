@@ -39,14 +39,6 @@ export function changeCurrentUserPassword(data: ChangePasswordRequest) {
   return axios.post('/auth/admin/me/password', data);
 }
 
-export function uploadAvatar(formData: FormData) {
-  return axios.post<UploadAvatarResponse>('/auth/admin/me/avatar', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-}
-
 export function updateUserAvatar(avatarUrl: string) {
   return axios.patch<{ success: boolean; message: string; data: UserInfo }>(
     '/auth/admin/me',

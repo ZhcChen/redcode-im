@@ -144,7 +144,6 @@
     getCurrentUserInfo,
     updateCurrentUserProfile,
     changeCurrentUserPassword,
-    uploadAvatar,
     updateUserAvatar,
     type UpdateUserProfileRequest,
     type ChangePasswordRequest,

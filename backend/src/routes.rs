@@ -49,11 +49,6 @@ pub fn create_routes() -> Router<AppState> {
                 .route_layer(middleware::from_fn(auth_middleware)),
         )
         .route(
-            "/auth/admin/me/avatar",
-            post(auth::upload_current_admin_avatar)
-                .route_layer(middleware::from_fn(auth_middleware)),
-        )
-        .route(
             "/settings/privacy-policy",
             get(settings::get_privacy_policy),
         )
