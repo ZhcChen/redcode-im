@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS app_versions (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     released_at TIMESTAMPTZ,
     created_by UUID,
-    updated_by UUID
+    updated_by UUID,
+    CONSTRAINT app_versions_platform_check
+        CHECK (platform IN ('windows', 'macos', 'ios', 'android', 'linux'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_app_versions_unique
@@ -123,6 +125,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_app_versions_unique
 
 CREATE INDEX IF NOT EXISTS idx_app_versions_list
     ON app_versions(platform, is_active, released_at DESC);
+
+COMMENT ON COLUMN app_versions.platform IS
+    '支持平台: windows(Windows桌面), macos(macOS桌面), ios(iOS移动端), android(Android移动端), linux(Linux桌面)';
 
 -- 文档表
 CREATE TABLE IF NOT EXISTS app_documents (
@@ -269,12 +274,13 @@ CREATE INDEX IF NOT EXISTS idx_messages_forward_from_message
     ON messages(forward_from_message_id)
     WHERE forward_from_message_id IS NOT NULL;
 
--- 房间置顶表
+-- 房间置顶表（支持每个房间多条消息置顶）
 CREATE TABLE IF NOT EXISTS room_pins (
-    room_id UUID PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     pinned_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT room_pins_pkey PRIMARY KEY (room_id, message_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_room_pins_message_id ON room_pins(message_id);
@@ -420,11 +426,11 @@ CREATE INDEX IF NOT EXISTS idx_feedbacks_created_at
 CREATE TABLE IF NOT EXISTS group_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    join_approval_required BOOLEAN DEFAULT FALSE,
-    member_can_invite BOOLEAN DEFAULT TRUE,
-    member_can_add_friends BOOLEAN DEFAULT TRUE,
-    require_admin_to_add_friends BOOLEAN DEFAULT FALSE,
-    max_members INTEGER DEFAULT 500,
+    join_approval_required BOOLEAN NOT NULL DEFAULT FALSE,
+    member_can_invite BOOLEAN NOT NULL DEFAULT TRUE,
+    member_can_add_friends BOOLEAN NOT NULL DEFAULT TRUE,
+    require_admin_to_add_friends BOOLEAN NOT NULL DEFAULT FALSE,
+    max_members INTEGER NOT NULL DEFAULT 500,
     global_mute_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     global_mute_until TIMESTAMPTZ,
     global_mute_reason TEXT,
@@ -641,6 +647,7 @@ CREATE TABLE IF NOT EXISTS user_geolocations (
     timezone VARCHAR(50),
     zip_code VARCHAR(20),
     geolocation_source VARCHAR(50) DEFAULT 'ipinfo', -- 数据来源
+    hostname TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -649,6 +656,8 @@ CREATE INDEX IF NOT EXISTS idx_user_geolocations_ip ON user_geolocations(ip_addr
 CREATE INDEX IF NOT EXISTS idx_user_geolocations_country ON user_geolocations(country);
 CREATE INDEX IF NOT EXISTS idx_user_geolocations_updated_at ON user_geolocations(updated_at);
 CREATE INDEX IF NOT EXISTS idx_user_geolocations_city ON user_geolocations(city);
+
+COMMENT ON COLUMN user_geolocations.hostname IS '主机名，从ipinfo.io获取';
 
 -- 用户登录历史表（用于审计和安全分析）
 CREATE TABLE IF NOT EXISTS user_login_history (
@@ -734,6 +743,35 @@ CREATE INDEX IF NOT EXISTS idx_emoji_items_sort_order ON emoji_items(pack_id, so
 CREATE INDEX IF NOT EXISTS idx_user_emoji_packs_user_id ON user_emoji_packs(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_emoji_packs_pack_id ON user_emoji_packs(pack_id);
 
+-- 热更新补丁表（Flutter/移动端增量包）
+CREATE TABLE IF NOT EXISTS hot_updates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    platform TEXT NOT NULL,
+    app_version_id UUID NOT NULL REFERENCES app_versions(id) ON DELETE CASCADE,
+    patch_version TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'stable',
+    download_key TEXT NOT NULL,
+    download_url TEXT,
+    file_size BIGINT,
+    checksum TEXT,
+    signature TEXT,
+    rollout_percentage INTEGER NOT NULL DEFAULT 100 CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100),
+    mandatory BOOLEAN NOT NULL DEFAULT FALSE,
+    description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    released_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by UUID,
+    updated_by UUID
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hot_updates_unique
+    ON hot_updates(app_version_id, patch_version);
+
+CREATE INDEX IF NOT EXISTS idx_hot_updates_lookup
+    ON hot_updates(platform, channel, is_active, released_at DESC NULLS LAST);
+
 -- 热更新事件表
 CREATE TABLE IF NOT EXISTS hot_update_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -744,11 +782,37 @@ CREATE TABLE IF NOT EXISTS hot_update_events (
     event_type TEXT NOT NULL,
     client_id TEXT,
     message TEXT,
+    client_type TEXT,
+    os_version TEXT,
+    os_arch TEXT,
+    app_arch TEXT,
+    build_number INTEGER,
+    trigger_source TEXT,
+    network_type TEXT,
+    device_info TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_hot_update_events_created_at
     ON hot_update_events (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_hot_update_events_client_type
+    ON hot_update_events (client_type);
+
+CREATE INDEX IF NOT EXISTS idx_hot_update_events_platform_client_type
+    ON hot_update_events (platform, client_type);
+
+CREATE INDEX IF NOT EXISTS idx_hot_update_events_os_version
+    ON hot_update_events (os_version);
+
+COMMENT ON COLUMN hot_update_events.client_type IS '客户端类型：desktop（桌面端）或frontend（移动端）';
+COMMENT ON COLUMN hot_update_events.os_version IS '操作系统版本，如：Windows 11, iOS 17.1, Android 13';
+COMMENT ON COLUMN hot_update_events.os_arch IS '操作系统架构：x64, arm64, arm等';
+COMMENT ON COLUMN hot_update_events.app_arch IS '应用架构：x64, arm64, arm等';
+COMMENT ON COLUMN hot_update_events.build_number IS '构建号';
+COMMENT ON COLUMN hot_update_events.trigger_source IS '触发来源：manual（手动）、auto（自动）、notification（通知）';
+COMMENT ON COLUMN hot_update_events.network_type IS '网络类型：wifi, cellular, ethernet, unknown';
+COMMENT ON COLUMN hot_update_events.device_info IS '设备详细信息摘要，如：platform:Win32,lang:zh-CN,cookies:true';
 
 -- 创建清理过期数据的函数
 CREATE OR REPLACE FUNCTION cleanup_old_user_logs()
