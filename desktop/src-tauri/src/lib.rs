@@ -2,6 +2,7 @@ use tauri::{AppHandle, Manager, Window, WindowEvent};
 
 // 导入模块
 mod account;
+mod audio;
 mod cache;
 mod http;
 mod logger;
@@ -13,6 +14,8 @@ mod websocket;
 
 use account::commands::*;
 use account::AccountManager;
+use audio::commands::*;
+use audio::recorder::AudioRecorderState;
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
@@ -315,6 +318,7 @@ pub fn run() {
         .manage(http_client_state)
         .manage(ws_manager)
         .manage(account_manager)
+        .manage(AudioRecorderState::default())
         .invoke_handler(tauri::generate_handler![
             // 窗口相关命令
             force_center_window,
@@ -391,7 +395,15 @@ pub fn run() {
             ws_get_current_user,
             // 通知相关命令
             play_notification_sound,
-            request_attention
+            request_attention,
+            // 音频录制相关命令
+            check_microphone_permission,
+            request_microphone_permission,
+            start_recording,
+            stop_recording,
+            cancel_recording,
+            get_recording_status,
+            get_recording_duration
         ])
         .setup(|app| {
             let log_path = logger::init_logger(&app.handle())

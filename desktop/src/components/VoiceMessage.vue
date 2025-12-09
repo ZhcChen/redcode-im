@@ -115,7 +115,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { VoiceRecorder, VoicePlayer, VoiceUtils, type VoiceRecording } from '../utils/voiceRecorder'
+import { VoicePlayer, VoiceUtils, type VoiceRecording } from '../utils/voiceRecorder'
+import { NativeVoiceRecorder, isNativeRecordingSupported } from '../utils/nativeVoiceRecorder'
 import { toast } from '@/utils/toast'
 
 // Props
@@ -162,7 +163,7 @@ const barCount = defaultBaseHeights.length
 
 // 实例
 const voicePlayer = new VoicePlayer()
-const voiceRecorder = new VoiceRecorder()
+const voiceRecorder = new NativeVoiceRecorder()
 let recordingTimer: number | null = null
 
 // 设置播放结束回调
@@ -183,7 +184,7 @@ voicePlayer.onProgress((progress: number) => {
 })
 
 // 计算属性
-const isSupported = computed(() => VoiceRecorder.isSupported())
+const isSupported = computed(() => isNativeRecordingSupported())
 
 const formattedDuration = computed(() => {
   const secondsRaw = effectiveDuration.value / 1000
@@ -350,8 +351,11 @@ const toggleRecord = async () => {
         recordingTimer = null
       }
     } else {
-      // 开始录音：先请求权限，再启动录音
-      await VoiceRecorder.requestPermission()
+      // 开始录音：先请求权限，再启动录音（使用原生 Rust API）
+      const granted = await NativeVoiceRecorder.requestPermission()
+      if (!granted) {
+        throw new Error('麦克风权限被拒绝，请在系统设置中开启麦克风权限后重试')
+      }
       await voiceRecorder.startRecording()
       isRecording.value = true
       recordingStartTime.value = Date.now()
@@ -359,20 +363,24 @@ const toggleRecord = async () => {
 
       // 更新录音时长
       recordingTimer = window.setInterval(() => {
-        recordingDuration.value = (Date.now() - recordingStartTime.value) / 1000
+        recordingDuration.value = voiceRecorder.getRecordingDuration()
       }, 100)
     }
   } catch (err: any) {
     console.error('录音失败:', err)
     isRecording.value = false
+    if (recordingTimer) {
+      clearInterval(recordingTimer)
+      recordingTimer = null
+    }
     const message = err?.message || '录音失败，请检查麦克风权限或设备设置'
     toast.error(message)
   }
 }
 
-const handleCancel = () => {
+const handleCancel = async () => {
   if (isRecording.value) {
-    voiceRecorder.cancelRecording()
+    await voiceRecorder.cancelRecording()
     isRecording.value = false
     if (recordingTimer) {
       clearInterval(recordingTimer)
@@ -452,9 +460,9 @@ onMounted(() => {
   }
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
   voicePlayer.destroy()
-  voiceRecorder.destroy()
+  await voiceRecorder.destroy()
   if (animationFrame.value) {
     cancelAnimationFrame(animationFrame.value)
   }

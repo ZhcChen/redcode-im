@@ -204,13 +204,13 @@
             <Avatar
               v-if="!message.isSelf"
               :src="message.senderAvatarLocalPath"
-              :text="message.senderName"
+              :text="getMessageSenderName(message)"
               :color-seed="message.senderId"
               :size="40"
             />
             <div v-if="!message.isSelf" class="message-wrapper">
               <div class="message-sender-name">
-                {{ message.senderName }}
+                {{ getMessageSenderName(message) }}
               </div>
               <div
                 class="message-content"
@@ -974,20 +974,27 @@
                   {{ formatDateDivider(item, pinnedMessagesList) }}
                 </div>
               </div>
-              <!-- 复用消息列表的气泡组件 -->
-              <div class="message pinned-drawer-message">
+              <!-- 复用气泡：根据 isSelf 分左右，与主列表一致 -->
+              <div
+                class="message pinned-drawer-message"
+                :class="{ 'own-message': item.isSelf }"
+              >
                 <Avatar
+                  v-if="!item.isSelf"
                   :src="item.senderAvatarLocalPath"
-                  :text="item.senderName"
+                  :text="getMessageSenderName(item)"
                   :color-seed="item.senderId"
                   :size="40"
                 />
                 <div class="message-wrapper">
                   <div class="message-sender-name">
-                    {{ item.senderName }}
+                    {{ getMessageSenderName(item) }}
                   </div>
-                  <!-- 抽屉内的置顶消息统一按对方消息样式展示 -->
-                  <MessageBubble :message="item" :is-self="false" :context="messageBubbleContext" />
+                  <MessageBubble
+                    :message="item"
+                    :is-self="item.isSelf"
+                    :context="messageBubbleContext"
+                  />
                 </div>
               </div>
             </div>
@@ -1165,11 +1172,11 @@
     </Dialog>
 
     <!-- 语音录制弹窗 -->
-  <Dialog
-    :visible="showVoiceRecorder"
-    title="语音消息"
-    @close="closeVoiceRecorder"
-  >
+    <Dialog
+      :visible="showVoiceRecorder"
+      title="语音消息"
+      @close="closeVoiceRecorder"
+    >
       <VoiceMessage
         :show-recorder="true"
         @voice-send="handleVoiceSend"
@@ -3261,7 +3268,7 @@ const isUpdatingRemark = ref<boolean>(false)
 // 消息列表相关
 const messageList = ref<Message[]>([])
 
-// 语音相关状态
+// 语音相关状态（录音弹窗 + 播放）
 const showVoiceRecorder = ref<boolean>(false)
 
 // 聊天消息容器引用 (ScrollContainer 组件)
@@ -3486,7 +3493,27 @@ const pickNonEmpty = (...values: unknown[]): string | null => {
   return null
 }
 
-// 获取聊天项的显示名称：单聊优先备注 > 昵称 > 原始名称；群聊/收藏夹直接用 name
+// 获取消息发送者显示名称：优先使用全局用户资料中的昵称 / 用户名
+const getMessageSenderName = (message: Message): string => {
+  const baseName = pickNonEmpty(
+    (message as any).senderName,
+    (message as any).senderNickname,
+    (message as any).senderUsername
+  ) || '用户'
+
+  const getUserProfileById = (store.getters as any)?.getUserProfileById
+  if (typeof getUserProfileById === 'function' && message.senderId) {
+    const profile = getUserProfileById(message.senderId) as { nickname?: string | null; username?: string | null } | null
+    if (profile) {
+      const profileName = pickNonEmpty(profile.nickname, profile.username)
+      if (profileName) return profileName
+    }
+  }
+
+  return baseName
+}
+
+// 获取聊天项的显示名称：单聊优先备注 > 用户资料昵称/用户名 > 原始名称；群聊/收藏夹直接用 name
 const getChatDisplayName = (chat: ChatItem): string => {
   const safeName = pickNonEmpty(chat.name) || '未命名会话'
 
@@ -3506,8 +3533,21 @@ const getChatDisplayName = (chat: ChatItem): string => {
   )
   if (remark) return remark
 
-  // 其次昵称/显示名
+  // 其次昵称/显示名：优先使用全局用户资料中的昵称 / 用户名
+  let profileNickname: string | null = null
+  const getUserProfileById = (store.getters as any)?.getUserProfileById
+  if (typeof getUserProfileById === 'function') {
+    const peerId = getPrivateChatPeerId(chat)
+    if (peerId) {
+      const profile = getUserProfileById(peerId) as { nickname?: string | null; username?: string | null } | null
+      if (profile) {
+        profileNickname = pickNonEmpty(profile.nickname, profile.username)
+      }
+    }
+  }
+
   const nickname = pickNonEmpty(
+    profileNickname,
     chat.friendName,
     extra.friend_name,
     extra.friendName,
@@ -4987,16 +5027,21 @@ const scrollToQuoted = (quoted: QuotedMessage | null | undefined) => {
   scrollToMessageById(quoted?.id ?? null)
 }
 
-// 切换置顶消息 Banner 显示（类似公告走马灯），不滚动消息列表
 const scrollToPinnedMessage = () => {
   const list = pinnedMessagesList.value
   if (!list.length) return
 
-  const count = list.length
-  if (count === 1) return
+  const current = pinnedMessage.value
+  if (!current) return
 
-  // 依次滚动到上一条置顶消息（走马灯效果）
-  currentPinnedIndex.value = (currentPinnedIndex.value - 1 + count) % count
+  // 先定位到当前 Banner 显示的置顶消息
+  scrollToMessageById(current.id)
+
+  // 再切换 Banner 显示到下一条置顶消息（走马灯效果）
+  const count = list.length
+  if (count > 1) {
+    currentPinnedIndex.value = (currentPinnedIndex.value - 1 + count) % count
+  }
 }
 
 const openPinnedMessagesPanel = () => {
@@ -9435,8 +9480,12 @@ const confirmDissolveGroup = async () => {
   }
 }
 
-// 语音功能
+// 语音功能：录音 + 直传 COS + 发送语音消息
 const handleVoiceClick = () => {
+  if (!selectedChat.value) {
+    toast.error('请先选择一个会话')
+    return
+  }
   showVoiceRecorder.value = true
 }
 
@@ -9455,14 +9504,13 @@ const handleVoiceSend = async (recording: any) => {
   })
 
   try {
-
-    // 1. 获取语音上传签名
+    // 1. 获取语音上传签名（使用 WAV 格式，由 Rust 原生录音生成）
     console.log('[handleVoiceSend] 1. 获取上传签名...')
     const signatureResponse = await MessageApi.generateMessageAttachmentSignature({
       roomId: selectedChat.value.id,
       partType: 4, // AUDIO_CONTENT_TYPE
-      filename: `voice_${recording.id}.webm`,
-      contentType: 'audio/webm',
+      filename: `voice_${recording.id}.wav`,
+      contentType: 'audio/wav',
       fileSize: recording.blob.size,
     })
 
@@ -9477,18 +9525,18 @@ const handleVoiceSend = async (recording: any) => {
       throw new Error(signatureResponse.message || '获取上传签名失败')
     }
 
-    // 2. 直接上传到COS
+    // 2. 直接上传到 COS
     console.log('[handleVoiceSend] 2. 开始上传到 COS...')
     const { key, signature } = signatureResponse.data
     const headersObj: Record<string, string> = {}
 
     // 将 Headers 转换为普通对象
     if (signature.headers) {
-      Object.entries(signature.headers).forEach(([key, value]) => {
-        headersObj[key] = String(value)
+      Object.entries(signature.headers).forEach(([headerKey, value]) => {
+        headersObj[headerKey] = String(value)
       })
     }
-    headersObj['Content-Type'] = 'audio/webm'
+    headersObj['Content-Type'] = 'audio/wav'
     if (!headersObj['Content-Length']) {
       headersObj['Content-Length'] = String(recording.blob.size)
     }
@@ -9523,15 +9571,17 @@ const handleVoiceSend = async (recording: any) => {
 
     // 3. 创建语音消息
     console.log('[handleVoiceSend] 3. 创建语音消息...')
+    // recording.duration 是秒数，需要转换为毫秒
+    const durationMs = Math.round(recording.duration * 1000)
     const messageResponse = await MessageApi.sendMessage({
       groupId: selectedChat.value.id,
-      content: '', // 语音消息通常不包含文字内容
+      content: '',
       parts: [{
         type: 'audio',
         key,
-        name: `voice_${recording.id}.webm`,
-        mime: 'audio/webm',
-        durationMs: Math.round(recording.duration),
+        name: `voice_${recording.id}.wav`,
+        mime: 'audio/wav',
+        durationMs,
       }],
     })
 
@@ -9542,7 +9592,6 @@ const handleVoiceSend = async (recording: any) => {
     })
 
     if (messageResponse.success && messageResponse.data) {
-      console.log('[handleVoiceSend] 语音消息发送成功')
       toast.success('语音消息发送成功')
       // 关闭录音弹窗
       closeVoiceRecorder()
@@ -9551,8 +9600,7 @@ const handleVoiceSend = async (recording: any) => {
     }
   } catch (error: any) {
     console.error('[handleVoiceSend] 发送失败:', error)
-    // 优先使用 API 返回的错误消息
-    const errorMessage = error?.response?.message || error?.message || '网络错误';
+    const errorMessage = error?.response?.message || error?.message || '网络错误'
     toast.error('发送失败: ' + errorMessage)
   }
 }
