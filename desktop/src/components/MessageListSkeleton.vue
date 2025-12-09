@@ -58,7 +58,7 @@ withDefaults(defineProps<Props>(), {
 }
 
 .message-skeleton-line {
-  height: 10px;
+  height: 16px;
   border-radius: 999px;
   margin-bottom: 8px;
   background: linear-gradient(
@@ -72,11 +72,12 @@ withDefaults(defineProps<Props>(), {
 }
 
 .message-skeleton-line--short {
-  width: 40%;
+  width: 60px;
+  height: 12px;
 }
 
 .message-skeleton-line--long {
-  width: 80%;
+  width: 65%;
 }
 
 @keyframes skeleton-loading {
