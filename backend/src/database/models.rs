@@ -1105,6 +1105,8 @@ pub struct EmojiPack {
     pub id: Uuid,
     pub name: String,
     pub icon_url: Option<String>,
+    /// COS 对象键（用于生成临时下载地址）
+    pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: EmojiPackStatus,
     pub pack_type: EmojiPackType,
@@ -1119,6 +1121,8 @@ pub struct EmojiItem {
     pub id: Uuid,
     pub pack_id: Uuid,
     pub image_url: String,
+    /// COS 对象键（用于生成临时下载地址）
+    pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
@@ -1137,6 +1141,8 @@ pub struct UserEmojiPack {
 pub struct CreateEmojiPackRequest {
     pub name: String,
     pub icon_url: Option<String>,
+    /// COS 对象键（可选，若传入则优先作为下载地址生成依据）
+    pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
     pub pack_type: Option<i16>,    // 0=单个, 1=套件
@@ -1148,6 +1154,8 @@ pub struct CreateEmojiPackRequest {
 pub struct UpdateEmojiPackRequest {
     pub name: Option<String>,
     pub icon_url: Option<String>,
+    /// COS 对象键（可选）
+    pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
     pub pack_type: Option<i16>,
@@ -1159,6 +1167,8 @@ pub struct UpdateEmojiPackRequest {
 pub struct CreateEmojiItemRequest {
     pub pack_id: String,
     pub image_url: String,
+    /// COS 对象键（可选）
+    pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: Option<i32>,
 }
@@ -1167,6 +1177,8 @@ pub struct CreateEmojiItemRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateEmojiItemRequest {
     pub image_url: Option<String>,
+    /// COS 对象键（可选）
+    pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: Option<i32>,
 }

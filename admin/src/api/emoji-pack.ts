@@ -6,6 +6,8 @@ export interface EmojiPack {
   id: string;
   name: string;
   icon_url?: string | null;
+  // COS 对象键，用于生成临时下载地址
+  icon_object_key?: string | null;
   description?: string | null;
   is_active: boolean;
   pack_type: number; // 0=单个, 1=套件
@@ -18,6 +20,8 @@ export interface EmojiItem {
   id: string;
   pack_id: string;
   image_url: string;
+  // COS 对象键，用于生成临时下载地址
+  image_object_key?: string | null;
   name?: string | null;
   sort_order: number;
   created_at: string;
@@ -30,6 +34,7 @@ export interface EmojiPackWithItems extends EmojiPack {
 export interface CreateEmojiPackPayload {
   name: string;
   icon_url?: string;
+  icon_object_key?: string;
   description?: string;
   is_active?: boolean;
   pack_type?: number; // 0=单个, 1=套件
@@ -39,6 +44,7 @@ export interface CreateEmojiPackPayload {
 export interface UpdateEmojiPackPayload {
   name?: string;
   icon_url?: string;
+  icon_object_key?: string;
   description?: string;
   is_active?: boolean;
   pack_type?: number;
@@ -48,12 +54,14 @@ export interface UpdateEmojiPackPayload {
 export interface CreateEmojiItemPayload {
   pack_id: string;
   image_url: string;
+  image_object_key?: string;
   name?: string;
   sort_order?: number;
 }
 
 export interface UpdateEmojiItemPayload {
   image_url?: string;
+  image_object_key?: string;
   name?: string;
   sort_order?: number;
 }

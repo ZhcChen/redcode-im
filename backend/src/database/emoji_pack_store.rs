@@ -44,14 +44,15 @@ impl EmojiPackStore {
 
         let pack = query_as::<_, EmojiPack>(
             r#"
-            INSERT INTO emoji_packs (id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-            RETURNING id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            INSERT INTO emoji_packs (id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+            RETURNING id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             "#,
         )
         .bind(pack_id)
         .bind(&request.name)
         .bind(&request.icon_url)
+        .bind(&request.icon_object_key)
         .bind(&request.description)
         .bind(is_active)
         .bind(pack_type)
@@ -67,7 +68,7 @@ impl EmojiPackStore {
     pub async fn list_all_packs(&self) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
-            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            SELECT id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             ORDER BY created_at DESC
             "#,
@@ -82,7 +83,7 @@ impl EmojiPackStore {
     pub async fn list_active_packs(&self) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
-            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            SELECT id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             WHERE is_active = $1 AND parent_id IS NULL
             ORDER BY created_at DESC
@@ -99,7 +100,7 @@ impl EmojiPackStore {
     pub async fn list_packs_by_parent(&self, parent_id: Uuid) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
-            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            SELECT id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             WHERE parent_id = $1
             ORDER BY created_at DESC
@@ -117,7 +118,7 @@ impl EmojiPackStore {
         let search_pattern = format!("%{}%", keyword);
         let packs = query_as::<_, EmojiPack>(
             r#"
-            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            SELECT id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             WHERE is_active = $1 
               AND parent_id IS NULL
@@ -139,7 +140,7 @@ impl EmojiPackStore {
         let search_pattern = format!("%{}%", keyword);
         let packs = query_as::<_, EmojiPack>(
             r#"
-            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            SELECT id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             WHERE parent_id IS NULL
               AND (LOWER(name) LIKE LOWER($1) OR LOWER(description) LIKE LOWER($1))
@@ -158,7 +159,7 @@ impl EmojiPackStore {
     pub async fn get_pack_by_id(&self, pack_id: Uuid) -> Result<Option<EmojiPack>, Error> {
         let pack = query_as::<_, EmojiPack>(
             r#"
-            SELECT id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            SELECT id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             FROM emoji_packs
             WHERE id = $1
             "#,
@@ -184,6 +185,10 @@ impl EmojiPackStore {
 
         let name = request.name.as_ref().unwrap_or(&existing.name);
         let icon_url = request.icon_url.as_ref().or(existing.icon_url.as_ref());
+        let icon_object_key = request
+            .icon_object_key
+            .as_ref()
+            .or(existing.icon_object_key.as_ref());
         let description = request
             .description
             .as_ref()
@@ -218,13 +223,14 @@ impl EmojiPackStore {
         let pack = query_as::<_, EmojiPack>(
             r#"
             UPDATE emoji_packs
-            SET name = $1, icon_url = $2, description = $3, is_active = $4, pack_type = $5, parent_id = $6, updated_at = $7
+            SET name = $1, icon_url = $2, icon_object_key = $3, description = $4, is_active = $5, pack_type = $6, parent_id = $7, updated_at = $8
             WHERE id = $8
-            RETURNING id, name, icon_url, description, is_active, pack_type, parent_id, created_at, updated_at
+            RETURNING id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             "#,
         )
         .bind(name)
         .bind(icon_url)
+        .bind(icon_object_key)
         .bind(description)
         .bind(is_active)
         .bind(pack_type)
@@ -264,14 +270,15 @@ impl EmojiPackStore {
 
         let item = query_as::<_, EmojiItem>(
             r#"
-            INSERT INTO emoji_items (id, pack_id, image_url, name, sort_order, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, pack_id, image_url, name, sort_order, created_at
+            INSERT INTO emoji_items (id, pack_id, image_url, image_object_key, name, sort_order, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, pack_id, image_url, image_object_key, name, sort_order, created_at
             "#,
         )
         .bind(item_id)
         .bind(pack_id)
         .bind(&request.image_url)
+        .bind(&request.image_object_key)
         .bind(&request.name)
         .bind(sort_order)
         .bind(now)
@@ -286,7 +293,7 @@ impl EmojiPackStore {
         tracing::debug!("查询表情项: pack_id={}", pack_id);
         let items = query_as::<_, EmojiItem>(
             r#"
-            SELECT id, pack_id, image_url, name, sort_order, created_at
+            SELECT id, pack_id, image_url, image_object_key, name, sort_order, created_at
             FROM emoji_items
             WHERE pack_id = $1
             ORDER BY sort_order ASC, created_at ASC
@@ -304,7 +311,7 @@ impl EmojiPackStore {
     pub async fn get_item_by_id(&self, item_id: Uuid) -> Result<Option<EmojiItem>, Error> {
         let item = query_as::<_, EmojiItem>(
             r#"
-            SELECT id, pack_id, image_url, name, sort_order, created_at
+            SELECT id, pack_id, image_url, image_object_key, name, sort_order, created_at
             FROM emoji_items
             WHERE id = $1
             "#,
@@ -329,18 +336,23 @@ impl EmojiPackStore {
         };
 
         let image_url = request.image_url.as_ref().unwrap_or(&existing.image_url);
+        let image_object_key = request
+            .image_object_key
+            .as_ref()
+            .or(existing.image_object_key.as_ref());
         let name = request.name.as_ref().or(existing.name.as_ref());
         let sort_order = request.sort_order.unwrap_or(existing.sort_order);
 
         let item = query_as::<_, EmojiItem>(
             r#"
             UPDATE emoji_items
-            SET image_url = $1, name = $2, sort_order = $3
-            WHERE id = $4
-            RETURNING id, pack_id, image_url, name, sort_order, created_at
+            SET image_url = $1, image_object_key = $2, name = $3, sort_order = $4
+            WHERE id = $5
+            RETURNING id, pack_id, image_url, image_object_key, name, sort_order, created_at
             "#,
         )
         .bind(image_url)
+        .bind(image_object_key)
         .bind(name)
         .bind(sort_order)
         .bind(item_id)
@@ -371,7 +383,7 @@ impl EmojiPackStore {
     pub async fn list_user_packs(&self, user_id: Uuid) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
-            SELECT p.id, p.name, p.icon_url, p.description, p.is_active, p.pack_type, p.parent_id, p.created_at, p.updated_at
+            SELECT p.id, p.name, p.icon_url, p.icon_object_key, p.description, p.is_active, p.pack_type, p.parent_id, p.created_at, p.updated_at
             FROM emoji_packs p
             INNER JOIN user_emoji_packs uep ON p.id = uep.pack_id
             WHERE uep.user_id = $1 AND p.is_active = $2

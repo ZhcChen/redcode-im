@@ -26,8 +26,7 @@ const MIGRATIONS_TABLE: &str = "db_migrations";
 
 /// 基础初始化脚本（原 all.sql，重命名为 base.sql）
 const BASE_MIGRATION_NAME: &str = "base.sql";
-const BASE_MIGRATION_SQL: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/base.sql"));
+const BASE_MIGRATION_SQL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/base.sql"));
 
 /// 按执行顺序写死的迁移脚本列表
 ///
@@ -43,6 +42,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251207120000_friend_ws_placeholder.sql"
+        )),
+    ),
+    // 2025-12-09：为表情包与表情项增加 COS 对象键字段
+    (
+        "20251209123000_add_emoji_object_keys.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251209123000_add_emoji_object_keys.sql"
         )),
     ),
 ];
@@ -198,7 +205,10 @@ impl Database {
             "INSERT INTO {} (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;",
             MIGRATIONS_TABLE
         );
-        sqlx::query(&insert_sql).bind(name).execute(&self.pool).await?;
+        sqlx::query(&insert_sql)
+            .bind(name)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 

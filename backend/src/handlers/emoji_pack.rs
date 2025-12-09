@@ -4,10 +4,18 @@ use crate::database::models::{
     UpdateEmojiPackRequest,
 };
 use crate::error::AppError;
+use crate::handlers::user::load_default_storage_provider;
 use crate::models::Claims;
+use crate::redis::cache::CacheManager;
+use crate::redis::models::CacheKeys;
+use crate::storage;
 use crate::AppState;
-use axum::{extract::Path, extract::State, Extension, Json};
-use serde::Serialize;
+use axum::{
+    extract::{Path, Query, State},
+    Extension, Json,
+};
+use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 // ===== API 响应模型 =====
@@ -17,6 +25,8 @@ pub struct EmojiPackResponse {
     pub id: String,
     pub name: String,
     pub icon_url: Option<String>,
+    /// COS 对象键（用于生成临时下载地址）
+    pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: bool,
     pub pack_type: i16, // 0=单个, 1=套件
@@ -30,6 +40,8 @@ pub struct EmojiItemResponse {
     pub id: String,
     pub pack_id: String,
     pub image_url: String,
+    /// COS 对象键（用于生成临时下载地址）
+    pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: i32,
     pub created_at: String,
@@ -48,6 +60,7 @@ fn db_pack_to_api(pack: &EmojiPack) -> EmojiPackResponse {
         id: pack.id.to_string(),
         name: pack.name.clone(),
         icon_url: pack.icon_url.clone(),
+        icon_object_key: pack.icon_object_key.clone(),
         description: pack.description.clone(),
         is_active: matches!(
             pack.is_active,
@@ -68,6 +81,7 @@ fn db_item_to_api(item: &EmojiItem) -> EmojiItemResponse {
         id: item.id.to_string(),
         pack_id: item.pack_id.to_string(),
         image_url: item.image_url.clone(),
+        image_object_key: item.image_object_key.clone(),
         name: item.name.clone(),
         sort_order: item.sort_order,
         created_at: item.created_at.to_rfc3339(),
@@ -504,4 +518,89 @@ pub async fn list_user_suite_packs(
     }
 
     Ok(Json(result))
+}
+
+// ===== 表情图片下载 URL（用户 API）=====
+
+#[derive(Debug, Deserialize)]
+pub struct EmojiDownloadUrlQuery {
+    /// COS 对象键，例如 emoji-items/xxx.gif 或 emoji-packs/icons/xxx.png
+    pub object_key: String,
+    /// 有效期（秒），默认 3600，范围 [60, 86400]
+    pub expires_in_seconds: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EmojiDownloadUrlResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+}
+
+/// 根据 COS 对象键生成表情图片的临时下载地址
+pub async fn get_emoji_download_url(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(query): Query<EmojiDownloadUrlQuery>,
+) -> Result<Json<EmojiDownloadUrlResponse>, AppError> {
+    let mut key_raw = query.object_key.trim().to_string();
+    if key_raw.is_empty() {
+        return Ok(Json(EmojiDownloadUrlResponse {
+            success: false,
+            message: "object_key 不能为空".to_string(),
+            download_url: None,
+        }));
+    }
+
+    // 兼容历史上存储为 URL 编码形式的对象键（例如 emoji-packs%2Ficons%2Fxxx.gif）
+    if key_raw.contains('%') {
+        if let Ok(decoded) = urlencoding::decode(&key_raw) {
+            key_raw = decoded.into_owned();
+        }
+    }
+
+    // 仅允许访问表情相关前缀，避免被滥用为通用下载接口
+    if !key_raw.starts_with("emoji-items/") && !key_raw.starts_with("emoji-packs/") {
+        return Err(AppError::ValidationError(
+            "不合法的表情对象 key".to_string(),
+        ));
+    }
+
+    let expires = query.expires_in_seconds.unwrap_or(3600).clamp(60, 86_400);
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    let cache_key = CacheKeys::download_url_cache(&key_raw, &provider.id.to_string(), expires);
+    let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
+
+    // 优先从缓存读取
+    let download_url =
+        if let Ok(Some(cached)) = cache_manager.get_cached_download_url(&cache_key).await {
+            info!("命中表情下载 URL 缓存: key={}", key_raw);
+            cached
+        } else {
+            let url = storage_service
+                .generate_download_url(&key_raw, Some(expires))
+                .await?;
+
+            let cache_ttl = (expires as f64 * 0.9) as u64;
+            if let Err(e) = cache_manager
+                .cache_download_url(&cache_key, &url, cache_ttl)
+                .await
+            {
+                warn!("缓存表情下载 URL 失败: {:?}", e);
+            } else {
+                info!("缓存表情下载 URL 成功: key={}, ttl={}s", key_raw, cache_ttl);
+            }
+
+            url
+        };
+
+    Ok(Json(EmojiDownloadUrlResponse {
+        success: true,
+        message: "生成表情下载链接成功".to_string(),
+        download_url: Some(download_url),
+    }))
 }

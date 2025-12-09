@@ -24,12 +24,35 @@ export class EmojiItemApi {
       return cached.webPath
     }
 
+    const extractCosObjectKeyFromUrl = (url: string): string | null => {
+      try {
+        const parsed = new URL(url)
+        const host = parsed.hostname || ''
+        // 仅在典型 COS 域名下尝试提取对象键，避免误处理非 COS URL
+        if (!host.includes('cos.') && !host.includes('myqcloud.com')) {
+          return null
+        }
+        const pathname = parsed.pathname || ''
+        const key = pathname.startsWith('/') ? pathname.slice(1) : pathname
+        return key || null
+      } catch {
+        return null
+      }
+    }
+
     try {
       // 获取下载地址：优先使用 objectKey 获取临时下载地址
       let downloadUrl = imageUrl
-      if (objectKey) {
-        console.log('使用 objectKey 获取表情临时下载地址:', objectKey)
-        const tempUrl = await EmojiPackApi.getEmojiDownloadUrl(objectKey)
+      let resolvedObjectKey: string | null = objectKey || null
+
+      // 若未显式提供 objectKey，尝试从 URL 中解析（兼容旧数据）
+      if (!resolvedObjectKey) {
+        resolvedObjectKey = extractCosObjectKeyFromUrl(imageUrl)
+      }
+
+      if (resolvedObjectKey) {
+        console.log('使用 objectKey 获取表情临时下载地址:', resolvedObjectKey)
+        const tempUrl = await EmojiPackApi.getEmojiDownloadUrl(resolvedObjectKey)
         if (tempUrl) {
           downloadUrl = tempUrl
           console.log('获取到表情临时下载地址:', tempUrl)
@@ -71,4 +94,3 @@ export class EmojiItemApi {
     }
   }
 }
-

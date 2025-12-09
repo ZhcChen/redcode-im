@@ -486,6 +486,7 @@
   const packFormData = reactive({
     name: '',
     icon_url: '',
+    icon_object_key: '',
     description: '',
     is_active: true,
     pack_type: 0, // 0=单个, 1=套件
@@ -588,6 +589,7 @@
   const itemFormRef = ref();
   const itemFormData = reactive({
     image_url: '',
+    image_object_key: '',
     name: '',
     sort_order: 0,
   });
@@ -662,6 +664,7 @@
     packModalTitle.value = '新增表情包';
     packFormData.name = '';
     packFormData.icon_url = '';
+    packFormData.icon_object_key = '';
     packFormData.description = '';
     packFormData.is_active = true;
     packFormData.pack_type = 0;
@@ -675,6 +678,7 @@
     packModalTitle.value = '编辑表情包';
     packFormData.name = pack.name;
     packFormData.icon_url = pack.icon_url || '';
+    packFormData.icon_object_key = pack.icon_object_key || '';
     packFormData.description = pack.description || '';
     packFormData.is_active = pack.is_active;
     packFormData.pack_type = pack.pack_type;
@@ -733,6 +737,7 @@
         await updateEmojiPack(editingPackId.value, {
           name: packFormData.name,
           icon_url: packFormData.icon_url || undefined,
+          icon_object_key: packFormData.icon_object_key || undefined,
           description: packFormData.description || undefined,
           is_active: packFormData.is_active,
           pack_type: packFormData.pack_type,
@@ -743,6 +748,7 @@
         await createEmojiPack({
           name: packFormData.name,
           icon_url: packFormData.icon_url || undefined,
+          icon_object_key: packFormData.icon_object_key || undefined,
           description: packFormData.description || undefined,
           is_active: packFormData.is_active,
           pack_type: packFormData.pack_type,
@@ -802,6 +808,7 @@
     editingItemId.value = null;
     itemModalTitle.value = '新增表情';
     itemFormData.image_url = '';
+    itemFormData.image_object_key = '';
     itemFormData.name = '';
     itemFormData.sort_order = 0;
     itemFormModalVisible.value = true;
@@ -812,6 +819,7 @@
     editingItemId.value = item.id;
     itemModalTitle.value = '编辑表情';
     itemFormData.image_url = item.image_url;
+    itemFormData.image_object_key = item.image_object_key || '';
     itemFormData.name = item.name || '';
     itemFormData.sort_order = item.sort_order;
     itemFormModalVisible.value = true;
@@ -850,6 +858,7 @@
       if (editingItemId.value) {
         await updateEmojiItem(editingItemId.value, {
           image_url: itemFormData.image_url,
+          image_object_key: itemFormData.image_object_key || undefined,
           name: itemFormData.name || undefined,
           sort_order: itemFormData.sort_order,
         });
@@ -858,6 +867,7 @@
         await createEmojiItem({
           pack_id: currentPack.value.id,
           image_url: itemFormData.image_url,
+          image_object_key: itemFormData.image_object_key || undefined,
           name: itemFormData.name || undefined,
           sort_order: itemFormData.sort_order,
         });
@@ -1011,6 +1021,8 @@
 
       // 保存URL到表单
       packFormData.icon_url = urlData.url;
+      // 同步保存对象键，供前端通过 object_key 获取临时下载地址
+      packFormData.icon_object_key = key;
       Message.success('图标上传成功');
     } catch (error: any) {
       const errorMsg =
@@ -1101,6 +1113,8 @@
 
       // 保存URL到表单
       itemFormData.image_url = urlData.url;
+      // 同步保存对象键
+      itemFormData.image_object_key = key;
       Message.success('图片上传成功');
     } catch (error: any) {
       const errorMsg =

@@ -347,10 +347,7 @@ pub fn create_routes() -> Router<AppState> {
             "/friends/{friend_user_id}/remark",
             patch(friend::update_friend_remark),
         )
-        .route(
-            "/friends/{friend_user_id}",
-            delete(friend::delete_friend),
-        )
+        .route("/friends/{friend_user_id}", delete(friend::delete_friend))
         // chats
         .route("/chats", get(room::list_chat_summaries))
         .route("/chats/{room_id}", delete(room::delete_chat))
@@ -534,6 +531,10 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/emoji-packs/search", get(emoji_pack::search_packs))
         .route("/emoji-packs/my", get(emoji_pack::list_user_packs))
+        .route(
+            "/emoji-packs/download-url",
+            get(emoji_pack::get_emoji_download_url),
+        )
         .route(
             "/emoji-packs/{pack_id}/add",
             post(emoji_pack::add_user_pack),
