@@ -147,14 +147,9 @@
           @mousemove="handleMouseMoveOnMessages"
           @mouseup="handleMouseUpOnMessages"
         >
-          <!-- TODO: 临时强制显示骨架屏，测试完成后恢复原逻辑 -->
           <MessageListSkeleton
-            v-if="true"
-          />
-          <!-- 原逻辑注释掉 -->
-          <!-- <MessageListSkeleton
             v-if="messagesLoading && messages.length === 0"
-          /> -->
+          />
           <div
             v-else-if="messages.length === 0"
             class="empty-container"
