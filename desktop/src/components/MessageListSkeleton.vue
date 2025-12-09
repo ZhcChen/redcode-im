@@ -44,9 +44,9 @@ withDefaults(defineProps<Props>(), {
   border-radius: 50%;
   background: linear-gradient(
     90deg,
-    $bg-light-gray 0%,
-    color.adjust($bg-light-gray, $lightness: 6%) 50%,
-    $bg-light-gray 100%
+    #e5e7eb 0%,
+    #d1d5db 50%,
+    #e5e7eb 100%
   );
   background-size: 200% 100%;
   animation: skeleton-loading 2s ease-in-out infinite;
@@ -63,9 +63,9 @@ withDefaults(defineProps<Props>(), {
   margin-bottom: 8px;
   background: linear-gradient(
     90deg,
-    $bg-light-gray 0%,
-    color.adjust($bg-light-gray, $lightness: 6%) 50%,
-    $bg-light-gray 100%
+    #e5e7eb 0%,
+    #d1d5db 50%,
+    #e5e7eb 100%
   );
   background-size: 200% 100%;
   animation: skeleton-loading 2s ease-in-out infinite;
@@ -94,9 +94,9 @@ withDefaults(defineProps<Props>(), {
   .message-skeleton-line {
     background: linear-gradient(
       90deg,
-      #2c2d3a 0%,
-      color.adjust(#2c2d3a, $lightness: 8%) 50%,
-      #2c2d3a 100%
+      #3f4451 0%,
+      #4b5261 50%,
+      #3f4451 100%
     );
     background-size: 200% 100%;
   }

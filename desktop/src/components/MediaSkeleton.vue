@@ -93,7 +93,7 @@ const skeletonStyle = computed(() => {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.4) 50%,
+    rgba(0, 0, 0, 0.08) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
@@ -132,7 +132,7 @@ const skeletonStyle = computed(() => {
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.05) 50%,
       transparent 100%
     );
     background-size: 200% 100%;
