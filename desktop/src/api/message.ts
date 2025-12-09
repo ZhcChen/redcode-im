@@ -840,30 +840,19 @@ export class MessageApi {
   }
 
   static async forwardMessage(params: {
-    groupId: string;
-    messageId: string;
-    targetRoomIds: string[];
-  }): Promise<ApiResponse<ForwardInfo[]>> {
-    const response = await post<BackendForwardMessage[]>(
-      `/rooms/${params.groupId}/messages/forward`,
+    targetRoomId: string;
+    originalMessageId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await post<{ message: BackendMessageInfo }>(
+      `/rooms/${params.targetRoomId}/messages/forward`,
       {
-        message_id: params.messageId,
-        target_room_ids: params.targetRoomIds,
+        original_message_id: params.originalMessageId,
       },
     );
 
-    if (!response.success || !response.data) {
-      return {
-        ...response,
-        data: null,
-      };
-    }
-
     return {
       ...response,
-      data: response.data
-        .map((item) => mapForwardMessage(item))
-        .filter((item): item is ForwardInfo => Boolean(item)),
+      data: null,
     };
   }
 
