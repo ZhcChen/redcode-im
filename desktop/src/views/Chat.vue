@@ -6199,11 +6199,15 @@ const sendEmojiMessage = async (emoji: string) => {
   if (isImageUrl) {
     // 图片表情：使用 Rust HTTP 客户端下载图片（绕过 CORS）并作为图片消息发送
     try {
+      // 判断是否为后端 API 代理路径（需要 token 授权）
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const isApiProxy = apiBaseUrl && emoji.startsWith(apiBaseUrl)
+
       const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
         path: emoji,
         method: 'GET',
         responseType: 'binary',
-        injectToken: false // 表情 URL 是公开的，不需要 token
+        injectToken: isApiProxy // 只有后端 API 代理路径才需要 token
       })
 
       if (!response.success || !response.data || !response.data.base64) {

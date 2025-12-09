@@ -28,7 +28,7 @@ export class EmojiItemApi {
         path: imageUrl,
         method: 'GET',
         responseType: 'binary',
-        injectToken: false // 表情 URL 是公开的，不需要 token
+        injectToken: false // 表情 URL 通常是公开的 COS 链接，不需要 token
       })
 
       if (!response.success || !response.data || !response.data.base64) {
