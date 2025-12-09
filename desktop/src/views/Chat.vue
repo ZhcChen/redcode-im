@@ -2232,6 +2232,7 @@ const uploadWithSignature = async (
 
 const downloadAttachmentToLocalUrl = async (
   downloadUrl: string,
+  attachmentKey: string,
   mime?: string | null,
   onProgress?: (progress: number) => void
 ): Promise<{ localPath: string; fromBlob: boolean }> => {
@@ -2241,41 +2242,58 @@ const downloadAttachmentToLocalUrl = async (
       onProgress(0);
     }
 
-    const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
-      path: downloadUrl,
-      method: 'GET',
-      responseType: 'binary',
-      injectToken: false
-    });
+    // 根据 mime 类型确定文件扩展名
+    const getExtFromMime = (mimeType: string | null | undefined): string => {
+      if (!mimeType) return '';
+      const mimeToExt: Record<string, string> = {
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'image/bmp': '.bmp',
+        'video/mp4': '.mp4',
+        'video/webm': '.webm',
+        'video/quicktime': '.mov',
+        'audio/mpeg': '.mp3',
+        'audio/wav': '.wav',
+        'audio/ogg': '.ogg',
+        'audio/aac': '.aac',
+        'application/pdf': '.pdf',
+      };
+      return mimeToExt[mimeType] || '';
+    };
 
-    if (!response.success || !response.data || !response.data.base64) {
-      throw new Error(`下载失败，状态码 ${response.code}`);
+    const ext = getExtFromMime(mime);
+    const filename = `attachment_${attachmentKey}${ext}`;
+
+    // 生成下载 ID（用于进度回调）
+    const downloadId = onProgress ? `dl_${attachmentKey}_${Date.now()}` : undefined;
+
+    console.log('[downloadAttachmentToLocalUrl] 使用 rustHttp.download 下载到本地:', { filename, downloadUrl });
+
+    // 使用 rustHttp.download 下载文件到本地文件系统
+    const downloadResult = await rustHttp.download(
+      downloadUrl,
+      filename,
+      downloadId,
+      onProgress
+    );
+
+    console.log('[downloadAttachmentToLocalUrl] 下载结果:', downloadResult);
+
+    if (!downloadResult.success || !downloadResult.path) {
+      throw new Error(downloadResult.message || '下载失败');
     }
 
-    // 模拟进度更新（因为 rustHttp.requestRaw 可能不支持进度回调）
-    if (onProgress) {
-      onProgress(0.5);
-    }
-
-    const bytes = base64ToUint8Array(response.data.base64);
-    const contentType = mime || response.data.headers?.['content-type'] || undefined;
-    const arrayBuffer = new ArrayBuffer(bytes.byteLength);
-    const view = new Uint8Array(arrayBuffer);
-    view.set(bytes);
-    const blob = new Blob([arrayBuffer], { type: contentType });
-    const objectUrl = URL.createObjectURL(blob);
-    
-    // 下载完成，设置进度为 1
-    if (onProgress) {
-      onProgress(1);
-    }
-    
-    return { localPath: objectUrl, fromBlob: true };
-  } catch (error) {
+    // 返回真实的本地文件路径，fromBlob: false 表示是本地文件
+    return { localPath: downloadResult.path, fromBlob: false };
+  } catch (error: any) {
+    console.error('[downloadAttachmentToLocalUrl] 下载失败:', error);
     // 下载失败，清除进度
     if (onProgress) {
       onProgress(0);
     }
+    // 失败时返回原始 URL 作为降级方案
     return { localPath: downloadUrl, fromBlob: false };
   }
 };
@@ -2428,6 +2446,7 @@ const ensureAttachmentLocalPath = async (message: Message, part: MessagePart) =>
         console.log('[ensureAttachmentLocalPath] 开始下载文件:', payload.downloadUrl)
         const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(
           payload.downloadUrl,
+          key,
           attachment.mime ?? null,
           part.type === MessagePartType.FILE ? (progress) => {
             updateFileDownloadProgress(message.id, key, progress);
@@ -4539,7 +4558,7 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
             throw new Error(payload?.message || response.message || '获取缩略图下载链接失败')
           }
 
-          const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, 'image/jpeg')
+          const { localPath, fromBlob } = await downloadAttachmentToLocalUrl(payload.downloadUrl, thumbnailKey, 'image/jpeg')
           console.log('缩略图下载完成:', { localPath, fromBlob, thumbnailKey })
           if (fromBlob) {
             registerBlobUrl(localPath)
