@@ -49,7 +49,7 @@ withDefaults(defineProps<Props>(), {
     $bg-light-gray 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-loading 1.2s ease-in-out infinite;
+  animation: skeleton-loading 2s ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -68,7 +68,7 @@ withDefaults(defineProps<Props>(), {
     $bg-light-gray 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-loading 1.2s ease-in-out infinite;
+  animation: skeleton-loading 2s ease-in-out infinite;
 }
 
 .message-skeleton-line--short {

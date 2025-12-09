@@ -97,7 +97,7 @@ const skeletonStyle = computed(() => {
     transparent 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  animation: skeleton-shimmer 2s ease-in-out infinite;
 }
 
 .media-skeleton-icon {
