@@ -1020,6 +1020,7 @@ const CachedEmojiImage = defineComponent({
   min-width: 0;
   width: 100%;
   user-select: none;
+  cursor: default;
 
   &:hover {
     background-color: #f5f5f5;
@@ -1032,6 +1033,8 @@ const CachedEmojiImage = defineComponent({
   .emoji-text {
     font-size: 24px;
     line-height: 1;
+    user-select: none;
+    cursor: default;
   }
 
   .emoji-image {
@@ -1039,6 +1042,9 @@ const CachedEmojiImage = defineComponent({
     height: 100%;
     object-fit: contain; // 保持原始宽高比，缩放以适应容器
     display: block;
+    user-select: none;
+    cursor: default;
+    pointer-events: none;
   }
 
   .emoji-loading {
@@ -1049,6 +1055,8 @@ const CachedEmojiImage = defineComponent({
     justify-content: center;
     font-size: 12px;
     color: #86909c;
+    user-select: none;
+    cursor: default;
   }
 }
 
