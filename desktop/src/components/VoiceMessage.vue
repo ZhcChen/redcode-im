@@ -64,10 +64,10 @@
         </div>
         <div class="waveform">
           <div
-            v-for="(height, index) in waveHeights"
+            v-for="(height, index) in previewWaveHeights"
             :key="index"
             class="wave-bar"
-            :style="{ height: (16 * height * 0.5) + 'px' }"
+            :style="{ height: (16 * height) + 'px' }"
           ></div>
         </div>
         <div class="duration">{{ VoiceUtils.formatDuration(previewRecording.duration) }}</div>
@@ -88,7 +88,6 @@
         class="control-btn record-btn"
         :class="{ recording: isRecording }"
         @click="toggleRecord"
-        :disabled="!isSupported"
       >
         <svg v-if="isRecording" viewBox="0 0 24 24" fill="currentColor">
           <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -156,9 +155,9 @@ const playProgress = ref(0) // 播放进度 0.0 - 1.0
 const effectiveDuration = ref(props.duration || 0) // 毫秒，优先用元数据兜底
 const playableUrl = ref(props.voiceUrl || '')
 
-// 波形基础高度（12条波形）
-const baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5]
-const barCount = baseHeights.length
+// 默认波形基础高度（12条波形），用于无实际波形数据时的占位
+const defaultBaseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5]
+const barCount = defaultBaseHeights.length
 
 // 实例
 const voicePlayer = new VoicePlayer()
@@ -203,7 +202,16 @@ const containerWidth = computed(() => {
   return Math.max(100, Math.min(200, width))
 })
 
-const waveHeights = computed(() => baseHeights)
+// 播放模式下使用固定波形
+const waveHeights = computed(() => defaultBaseHeights)
+
+// 录音预览波形：优先使用录音结果中携带的 waveform 数据，否则按默认占位波形生成
+const previewWaveHeights = computed(() => {
+  if (previewRecording.value?.waveform && previewRecording.value.waveform.length > 0) {
+    return previewRecording.value.waveform.map((v) => Math.max(0.2, Math.min(1, v)))
+  }
+  return defaultBaseHeights
+})
 
 const getBarHeight = (baseHeight: number): number => {
   const maxHeight = 16
