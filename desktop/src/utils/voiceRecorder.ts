@@ -8,6 +8,10 @@ export interface VoiceRecording {
   url: string;
   duration: number; // 录制时长（秒）
   timestamp: number;
+  /**
+   * 可选的波形采样数据（0-1 之间的归一化振幅数组）
+   */
+  waveform?: number[];
 }
 
 export class VoiceRecorder {
@@ -26,13 +30,26 @@ export class VoiceRecorder {
   /**
    * 请求麦克风权限
    */
-  public static async requestPermission(): Promise<boolean> {
+  public static async requestPermission(): Promise<void> {
+    if (!VoiceRecorder.isSupported()) {
+      throw new Error('当前环境不支持语音录制功能');
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
-      return true;
-    } catch (error) {
-      return false;
+    } catch (error: any) {
+      const name = error?.name;
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        throw new Error('麦克风权限被拒绝，请在系统设置或浏览器设置中开启麦克风权限后重试');
+      }
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        throw new Error('未检测到可用的麦克风设备，请检查设备连接');
+      }
+      if (name === 'NotReadableError') {
+        throw new Error('麦克风设备正被其他应用占用，请关闭其他应用后重试');
+      }
+      throw new Error('无法访问麦克风，请检查系统权限或设备设置');
     }
   }
 
@@ -77,17 +94,27 @@ export class VoiceRecorder {
         return;
       }
 
-      this.mediaRecorder.onstop = () => {
+      this.mediaRecorder.onstop = async () => {
         try {
           const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
           const duration = (Date.now() - this.startTime) / 1000;
           const url = URL.createObjectURL(audioBlob);
+
+          // 尝试生成简单的波形采样数据（使用 Web Audio API，失败时静默降级）
+          let waveform: number[] | undefined = undefined;
+          try {
+            waveform = await VoiceUtils.createWaveformFromBlob(audioBlob, 32);
+          } catch (_err) {
+            waveform = undefined;
+          }
+
           const recording: VoiceRecording = {
             id: Date.now().toString(),
             blob: audioBlob,
             url,
             duration,
             timestamp: Date.now(),
+            waveform,
           };
           this.cleanup();
           resolve(recording);
@@ -426,9 +453,54 @@ export class VoiceUtils {
   }
 
   /**
-   * 创建音频波形可视化（预留接口）
+   * 从 AudioBuffer 生成简单的波形采样数据（0-1）
    */
-  public static createWaveform(canvas: HTMLCanvasElement, audioBuffer: AudioBuffer): void {
-    // TODO: 实现音频波形可视化
+  public static createWaveformData(audioBuffer: AudioBuffer, samples: number = 32): number[] {
+    const channelData = audioBuffer.getChannelData(0);
+    const blockSize = Math.floor(channelData.length / samples);
+    const waveform: number[] = [];
+
+    for (let i = 0; i < samples; i++) {
+      const blockStart = i * blockSize;
+      let sum = 0;
+
+      for (let j = 0; j < blockSize; j++) {
+        const sample = channelData[blockStart + j] || 0;
+        sum += Math.abs(sample);
+      }
+
+      const avg = blockSize > 0 ? sum / blockSize : 0;
+      waveform.push(Math.max(0, Math.min(1, avg * 4))); // 简单放大一点振幅
+    }
+
+    return waveform;
+   }
+
+  /**
+   * 从 Blob 生成波形采样数据（若环境不支持 Web Audio，则抛出错误由调用方处理）
+   */
+  public static async createWaveformFromBlob(blob: Blob, samples: number = 32): Promise<number[]> {
+    if (typeof window === 'undefined') {
+      throw new Error('Window is not available for Web Audio');
+    }
+
+    const AudioContextCtor =
+      (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextCtor) {
+      throw new Error('Web Audio API is not supported');
+    }
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioContext = new AudioContextCtor();
+    try {
+      // decodeAudioData 在现代浏览器中返回 Promise<AudioBuffer>
+      const audioBuffer: AudioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      const waveform = VoiceUtils.createWaveformData(audioBuffer, samples);
+      await audioContext.close();
+      return waveform;
+    } catch (error) {
+      await audioContext.close();
+      throw error;
+    }
   }
 }

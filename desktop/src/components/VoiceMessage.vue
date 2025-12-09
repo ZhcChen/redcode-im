@@ -350,12 +350,8 @@ const toggleRecord = async () => {
         recordingTimer = null
       }
     } else {
-      // 开始录音
-      const hasPermission = await VoiceRecorder.requestPermission()
-      if (!hasPermission) {
-        throw new Error('无法获取麦克风权限')
-      }
-
+      // 开始录音：先请求权限，再启动录音
+      await VoiceRecorder.requestPermission()
       await voiceRecorder.startRecording()
       isRecording.value = true
       recordingStartTime.value = Date.now()
