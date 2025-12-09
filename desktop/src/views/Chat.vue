@@ -5099,19 +5099,45 @@ const canDownloadMessage = (message: Message | null): boolean => {
 
 const canForwardMessage = (message: Message | null): boolean => {
   if (!message || message.isDeleted) return false
-  // 仅文本支持转发（与移动端保持一致）
-  if (message.contentType && message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE) {
+
+  // 允许转发的内容类型
+  const forwardableContentTypes = [
+    MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE,      // 文本
+    MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE,       // 图片
+    MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,     // 视频
+    MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE,     // 语音
+    MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE,      // 文件
+    MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_TEXT_COM_CONTENT_TYPE,    // 图文组合
+    MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_TEXT_COM_CONTENT_TYPE,  // 视频图文组合
+  ]
+
+  // 检查 contentType 是否在允许转发的列表中
+  if (message.contentType && !forwardableContentTypes.includes(message.contentType)) {
     return false
   }
+
+  // 文本消息：检查是否有文本内容
   if (typeof message.content === 'string' && message.content.trim()) return true
-  if (Array.isArray(message.parts)) {
-    const textPart = message.parts.find((p) => p.type === MessagePartType.TEXT && p.text?.trim())
-    return Boolean(textPart?.text)
+
+  // 带附件的消息：检查是否有 parts（图片、视频、文件等）
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    // 有任意有效 part 即可转发
+    const hasValidPart = message.parts.some((p) => {
+      if (p.type === MessagePartType.TEXT) {
+        return Boolean(p.text?.trim())
+      }
+      // 图片、视频、音频、文件等需要有 attachment
+      return Boolean(p.attachment?.key)
+    })
+    if (hasValidPart) return true
   }
+
+  // 对象类型内容
   if (typeof message.content === 'object' && message.content) {
     const text = (message.content as any).text
     return Boolean(text && text.trim())
   }
+
   return false
 }
 
