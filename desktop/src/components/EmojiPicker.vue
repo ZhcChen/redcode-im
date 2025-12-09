@@ -43,13 +43,14 @@
             class="search-result-item"
             @click="handleSearchResultClick(result)"
           >
-            <img
-              v-if="result.icon_url"
-              :src="result.icon_url"
-              alt=""
-              class="result-icon"
-            />
-            <span v-else class="result-icon-placeholder">📦</span>
+            <div class="result-icon-wrapper">
+              <CachedEmojiImage
+                v-if="result.icon_url"
+                :image-url="result.icon_url"
+                :object-key="result.icon_object_key || null"
+              />
+              <span v-else class="result-icon-placeholder">📦</span>
+            </div>
             <div class="result-info">
               <div class="result-name">
                 {{ result.name }}
@@ -86,11 +87,20 @@
             @click="selectEmoji(item)"
             :title="item.name || ''"
           >
-            <CachedEmojiImage
-              v-if="item.type === 'image'"
-              :image-url="item.value"
-              :object-key="item.objectKey"
-            />
+            <div class="emoji-image-wrapper" v-if="item.type === 'image'">
+              <CachedEmojiImage
+                :image-url="item.value"
+                :object-key="item.objectKey"
+              />
+              <button
+                v-if="tabs[selectedTabIndex]?.type === 'custom' && item.packId"
+                class="emoji-remove-btn"
+                title="移除收藏"
+                @click.stop="handleRemoveFavorite(item)"
+              >
+                <span class="emoji-remove-icon">×</span>
+              </button>
+            </div>
             <span v-else class="emoji-text">{{ item.value }}</span>
           </div>
           <div
@@ -164,6 +174,8 @@ interface EmojiDisplayItem {
   value: string
   name?: string
   objectKey?: string | null  // COS 对象键，用于获取临时下载地址
+  // 归属的表情包 ID（用于删除收藏）
+  packId?: string
 }
 
 // Props
@@ -413,7 +425,8 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
                   type: 'image',
                   value: item.image_url,
                   name: item.name || undefined,
-                  objectKey: item.image_object_key || null
+                  objectKey: item.image_object_key || null,
+                  packId: pack.id
                 })
               }
             }
@@ -424,7 +437,8 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
               type: 'image',
               value: pack.icon_url,
               name: pack.name || undefined,
-              objectKey: pack.icon_object_key || null
+              objectKey: pack.icon_object_key || null,
+              packId: pack.id
             })
           }
         }
@@ -448,7 +462,8 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
               type: 'image' as const,
               value: pack.icon_url,
               name: pack.name || undefined,
-              objectKey: pack.icon_object_key || null
+              objectKey: pack.icon_object_key || null,
+              packId: pack.id
             })
           } else {
             console.warn('子表情包没有 icon_url:', pack)
@@ -666,6 +681,18 @@ const selectEmoji = (item: EmojiDisplayItem) => {
     objectKey: item.objectKey
   })
   emit('close')
+}
+
+// 移除收藏表情（仅自定义 tab）
+const handleRemoveFavorite = async (item: EmojiDisplayItem) => {
+  if (!item.packId) return
+  try {
+    await api.emojiPack.removeUserPack(item.packId)
+    await loadUserPacks()
+  } catch (error: any) {
+    console.error('移除收藏表情失败:', error)
+    toast.error(error?.message || '移除失败，请重试')
+  }
 }
 
 // 监听 show 变化，显示时加载表情包
@@ -951,6 +978,8 @@ const CachedEmojiImage = defineComponent({
   padding: 8px;
   border-radius: 8px;
   transition: background-color 0.2s;
+   cursor: default;
+   user-select: none;
 
   &:hover {
     background-color: #f5f5f5;
@@ -962,6 +991,24 @@ const CachedEmojiImage = defineComponent({
     object-fit: contain;
     border-radius: 4px;
     flex-shrink: 0;
+  }
+
+  .result-icon-wrapper {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    overflow: hidden;
+  }
+
+  .result-icon-wrapper .emoji-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .result-icon-placeholder {
@@ -1078,6 +1125,39 @@ const CachedEmojiImage = defineComponent({
     user-select: none;
     cursor: default;
   }
+}
+
+.emoji-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.emoji-remove-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.emoji-item:hover .emoji-remove-btn {
+  opacity: 1;
+}
+
+.emoji-remove-icon {
+  font-size: 12px;
+  line-height: 1;
+  color: #fff;
 }
 
 .empty-state {
