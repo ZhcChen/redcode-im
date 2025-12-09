@@ -147,9 +147,14 @@
           @mousemove="handleMouseMoveOnMessages"
           @mouseup="handleMouseUpOnMessages"
         >
+          <!-- TODO: 临时强制显示骨架屏，测试完成后恢复原逻辑 -->
           <MessageListSkeleton
-            v-if="messagesLoading && messages.length === 0"
+            v-if="true"
           />
+          <!-- 原逻辑注释掉 -->
+          <!-- <MessageListSkeleton
+            v-if="messagesLoading && messages.length === 0"
+          /> -->
           <div
             v-else-if="messages.length === 0"
             class="empty-container"
@@ -4222,9 +4227,6 @@ const loadMessages = async (groupId: string) => {
     if (!usedCache) {
       messagesLoading.value = true
     }
-
-    // TODO: 临时延迟，用于测试骨架屏效果，测试完成后删除
-    await new Promise(resolve => setTimeout(resolve, 5000))
 
     const response = await MessageApi.getMessageListByChatGroupId({
       groupId,
