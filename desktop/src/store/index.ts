@@ -108,6 +108,15 @@ export interface ChatItem {
     extra?: Record<string, unknown> | null
 }
 
+// 全局用户资料结构（用于统一管理昵称 / 头像等）
+export interface UserProfile {
+    userId: string
+    username?: string | null
+    nickname?: string | null
+    avatarUrl?: string | null
+    avatarObjectKey?: string | null
+}
+
 const sortChatItems = (list: ChatItem[], currentChatGroupId?: string | null) => {
     list.sort((a, b) => {
         const aIsFavorite = a.groupType === 2
@@ -134,6 +143,8 @@ const sortChatItems = (list: ChatItem[], currentChatGroupId?: string | null) => 
 // 定义状态接口
 export interface State {
     token: string | null,
+    // 刷新令牌：用于在访问令牌过期后无感刷新
+    refreshToken: string | null,
     user: {
         id: string | null
         username: string | null
@@ -208,6 +219,8 @@ export interface State {
         error: string | null
         lastUpdateTime: number | null
     }
+    // 全局用户资料映射：key 为 userId
+    userProfiles: Record<string, UserProfile>
     // 应用名称（从服务器加载）
     appName: string
 }
@@ -219,6 +232,7 @@ export const store = createStore<State>({
     },
     state: {
         token: null,
+        refreshToken: null,
         user: {
             id: null,
             username: null,
@@ -286,14 +300,19 @@ export const store = createStore<State>({
             error: null,
             lastUpdateTime: null
         },
+        userProfiles: {},
         appName: 'Chatly' // 默认应用名称，启动时从服务器加载
     },
 
     mutations: {
         // 授权 Token
         SET_TOKEN(state: State, token: string) {
-            const mutationId = `MUTATION_${Date.now()}`;
             state.token = token
+        },
+
+        // 刷新 Token
+        SET_REFRESH_TOKEN(state: State, refreshToken: string | null) {
+            state.refreshToken = refreshToken
         },
 
         // 用户相关
@@ -368,6 +387,38 @@ export const store = createStore<State>({
             // 创建新对象引用，触发响应式更新
             state.user = Object.assign({}, state.user, updates)
 
+        },
+
+        // 写入或更新单个用户资料（用于好友资料变更等场景）
+        UPSERT_USER_PROFILE(state: State, payload: UserProfile) {
+            if (!payload || !payload.userId) return
+            const userId = String(payload.userId)
+            const existing = state.userProfiles[userId] || { userId }
+            state.userProfiles = {
+                ...state.userProfiles,
+                [userId]: {
+                    ...existing,
+                    ...payload,
+                    userId
+                }
+            }
+        },
+
+        // 批量写入或更新用户资料（例如加载联系人列表时）
+        UPSERT_USER_PROFILES(state: State, profiles: UserProfile[]) {
+            if (!Array.isArray(profiles) || profiles.length === 0) return
+            const next = { ...state.userProfiles }
+            for (const profile of profiles) {
+                if (!profile || !profile.userId) continue
+                const userId = String(profile.userId)
+                const existing = next[userId] || { userId }
+                next[userId] = {
+                    ...existing,
+                    ...profile,
+                    userId
+                }
+            }
+            state.userProfiles = next
         },
 
         SET_VERSION_CHECKING(state: State, checking: boolean) {
@@ -807,6 +858,7 @@ export const store = createStore<State>({
         // 登录
         async login({ commit, state, getters, dispatch }: { commit: any; state: any; getters: any; dispatch: any }, loginData: {
             token: string;
+            refreshToken?: string | null;
             userInfo: {
                 id: string;
                 username: string;
@@ -856,6 +908,12 @@ export const store = createStore<State>({
                     commit('SET_TOKEN', loginData.token);
                 } catch (tokenError) {
                     throw tokenError;
+                }
+
+                // 保存刷新令牌（如果后端已返回）
+                try {
+                    commit('SET_REFRESH_TOKEN', loginData.refreshToken ?? null);
+                } catch (e) {
                 }
 
                 try {
@@ -950,6 +1008,7 @@ export const store = createStore<State>({
                 // 强制清除认证状态的函数
                 const forceLogout = async () => {
                     commit('SET_TOKEN', null)
+                    commit('SET_REFRESH_TOKEN', null)
                     commit('LOGOUT_USER')
 
                     // 重置登出状态，允许用户重新登录
@@ -1181,6 +1240,27 @@ export const store = createStore<State>({
                             updateTime: createdAtIso.toISOString()
                         }
                     })
+
+                    // 同步联系人对应的用户资料到全局 userProfiles 映射
+                    const profiles: UserProfile[] = response.data
+                        .map((friend: any) => {
+                            const user = friend.user || {}
+                            const rawId = user.id ?? friend.id
+                            if (!rawId) return null
+                            const userId = rawId.toString()
+                            return {
+                                userId,
+                                username: user.username || null,
+                                nickname: user.nickname || null,
+                                avatarUrl: user.avatarUrl || null,
+                                avatarObjectKey: user.avatarObjectKey || null
+                            } as UserProfile
+                        })
+                        .filter((item: UserProfile | null): item is UserProfile => !!item)
+
+                    if (profiles.length > 0) {
+                        commit('UPSERT_USER_PROFILES', profiles)
+                    }
 
                     // 智能同步用户头像缓存:
                     // 1. 优先从本地缓存读取(基于 objectKey 检查)
@@ -1972,6 +2052,14 @@ export const store = createStore<State>({
         // 根据发送者ID获取好友申请
         getFriendRequestByFromUserId: (state: State) => (fromUserId: string) => {
             return state.friendRequests.list.find(request => request.fromUserId === fromUserId)
+        },
+
+        // 全局用户资料相关 getters
+        userProfiles: (state: State) => state.userProfiles,
+        getUserProfileById: (state: State) => (userId: string | number | null | undefined) => {
+            if (!userId && userId !== 0) return null
+            const key = String(userId)
+            return state.userProfiles[key] || null
         }
     }
 })

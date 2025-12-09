@@ -52,6 +52,9 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub token: String,
     pub user: UserInfo,
+    /// 刷新令牌（用于在访问令牌过期后无感刷新）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

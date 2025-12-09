@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { RouteRecordNormalized } from 'vue-router';
+import { setToken, setRefreshToken } from '@/utils/auth';
 
 export interface LoginData {
   username: string;
@@ -21,10 +22,18 @@ export interface BackendUserInfo {
 export interface LoginRes {
   token: string;
   user: BackendUserInfo;
+  refresh_token?: string | null;
 }
 
 export function login(data: LoginData) {
-  return axios.post<LoginRes>('/auth/admin/login', data);
+  return axios.post<LoginRes>('/auth/admin/login', data).then((res) => {
+    const body = res.data;
+    if (body?.token) {
+      setToken(body.token);
+      setRefreshToken(body.refresh_token ?? null);
+    }
+    return res;
+  });
 }
 
 export function logout(): Promise<void> {

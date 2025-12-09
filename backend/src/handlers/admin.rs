@@ -971,6 +971,7 @@ pub async fn create_admin_user(
 /// 更新管理员用户状态
 pub async fn update_admin_user_status(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(admin_user_id): Path<String>,
     Json(request): Json<UpdateAdminUserStatusRequest>,
 ) -> Result<Json<AdminOperationResponse>, AppError> {
@@ -1003,11 +1004,12 @@ pub async fn update_admin_user_status(
     .await
     .map_err(|e| AppError::DatabaseError(e))?;
 
-    // 记录操作日志（需要从JWT中获取当前操作者ID）
-    // TODO: 从JWT claims中获取操作者ID
+    // 记录操作日志（从 JWT Claims 中解析当前管理员用户 ID）
+    let operator_id = crate::models::convert::string_to_uuid(&claims.sub).ok();
+
     if let Err(e) = record_admin_operation(
         &state.database,
-        None, // TODO: 获取当前管理员用户ID
+        operator_id,
         "update_admin_user_status",
         Some("admin_user"),
         Some(admin_user_uuid),

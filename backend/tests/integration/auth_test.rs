@@ -1,5 +1,5 @@
 use axum::http::{HeaderValue, Method, StatusCode};
-use axum_test::{TestServer, TestServerConfig};
+use axum_test::TestServer;
 use redcode_im_backend::*;
 use serde_json::json;
 
@@ -7,10 +7,7 @@ use serde_json::json;
 async fn test_register_user() {
     // 设置测试服务器
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     // 测试注册数据
     let register_data = json!({
@@ -26,17 +23,14 @@ async fn test_register_user() {
 
     // 验证响应
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     assert!(body.get("success").is_some());
 }
 
 #[tokio::test]
 async fn test_login_success() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     // 首先注册用户
     let register_data = json!({
@@ -59,7 +53,7 @@ async fn test_login_success() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     assert!(body.get("success").is_some());
     assert!(body.get("data").get("token").is_some());
 }
@@ -67,10 +61,7 @@ async fn test_login_success() {
 #[tokio::test]
 async fn test_login_invalid_credentials() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     // 尝试使用错误的凭证登录
     let login_data = json!({
@@ -88,10 +79,7 @@ async fn test_login_invalid_credentials() {
 #[tokio::test]
 async fn test_auth_middleware_protects_route() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     // 在没有token的情况下尝试访问受保护的路由
     let response = server.get("/api/v1/user/profile")
@@ -103,10 +91,7 @@ async fn test_auth_middleware_protects_route() {
 #[tokio::test]
 async fn test_invalid_token() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     // 尝试使用无效token访问受保护的路由
     let response = server.get("/api/v1/user/profile")
@@ -115,3 +100,4 @@ async fn test_invalid_token() {
 
     assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
 }
+#![cfg(feature = "with_axum_test")]

@@ -81,6 +81,7 @@ class AuthRepository {
         }
 
         final token = payload['token'] as String?;
+        final refreshToken = payload['refresh_token'] as String?;
         final userJson = payload['user'];
 
         if (kDebugMode) {
@@ -111,7 +112,11 @@ class AuthRepository {
 
         user = await _attachAvatarCache(token, user);
 
-        final session = AuthSession(token: token, user: user);
+        final session = AuthSession(
+          token: token,
+          user: user,
+          refreshToken: refreshToken,
+        );
         if (kDebugMode) {
           debugPrint('[Auth] 开始保存 session...');
         }
@@ -276,13 +281,14 @@ class AuthRepository {
     if (response.statusCode == 200) {
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       final token = payload['token'] as String?;
+      final refreshToken = payload['refresh_token'] as String?;
       final userJson = payload['user'];
       if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
         throw const AuthException('登录响应异常');
       }
 
       final user = AuthUser.fromJson(userJson);
-      final session = AuthSession(token: token, user: user);
+      final session = AuthSession(token: token, user: user, refreshToken: refreshToken);
       await _storage.saveSession(session);
       try {
         await WebSocketService.instance.disconnect();
@@ -598,6 +604,15 @@ class AuthRepository {
       return null;
     }
 
+    // 优先尝试使用刷新令牌续签 token（无感刷新）
+    if (session.refreshToken != null && session.refreshToken!.isNotEmpty) {
+      final refreshed = await _tryRefreshToken(session.refreshToken!);
+      if (refreshed != null) {
+        // 刷新成功后使用新 token 调用 /auth/me
+        return refreshed;
+      }
+    }
+
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/me');
     final response = await _makeRequest(
       () => http.get(
@@ -618,6 +633,7 @@ class AuthRepository {
     }
 
     if (response.statusCode == 401) {
+      // 如果 /auth/me 返回 401，且前面刷新也失败，则清理本地会话
       await _storage.clear();
       AuthStateBus.emit(AuthState.unauthenticated);
       return null;
@@ -636,6 +652,45 @@ class AuthRepository {
 
     await _storage.clear();
     AuthStateBus.emit(AuthState.unauthenticated);
+  }
+
+  /// 内部使用刷新令牌尝试续签访问令牌
+  /// 刷新成功时更新本地存储并返回最新用户信息，否则返回 null
+  Future<AuthUser?> _tryRefreshToken(String refreshToken) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/refresh');
+    try {
+      final response = await _makeRequest(
+        () => http.post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refresh_token': refreshToken}),
+        ),
+        uri: uri,
+      );
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final token = payload['token'] as String?;
+      final userJson = payload['user'];
+      final newRefreshToken = payload['refresh_token'] as String? ?? refreshToken;
+
+      if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
+        return null;
+      }
+
+      var user = AuthUser.fromJson(userJson);
+      user = await _attachAvatarCache(token, user);
+
+      final session = AuthSession(token: token, user: user, refreshToken: newRefreshToken);
+      await _storage.saveSession(session);
+
+      return user;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<AuthUser> _attachAvatarCache(String token, AuthUser user) async {

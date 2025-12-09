@@ -16,6 +16,7 @@ interface BackendUserInfo {
 interface BackendLoginResponse {
   token: string;
   user: BackendUserInfo;
+  refresh_token?: string | null;
 }
 
 export interface LoginParams {
@@ -34,6 +35,7 @@ export interface SmsLoginParams {
 export interface LoginResponse {
   token: string;
   userInfo: LegacyUserInfo;
+  refreshToken?: string | null;
 }
 
 export interface LegacyUserInfo {
@@ -112,7 +114,8 @@ const wrapLoginResponse = (
     ...response,
     data: {
       token: response.data.token,
-      userInfo: mappedUser
+      userInfo: mappedUser,
+      refreshToken: response.data.refresh_token ?? null
     }
   };
 };

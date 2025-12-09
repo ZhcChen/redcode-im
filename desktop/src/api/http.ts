@@ -10,6 +10,12 @@ import type { HttpRequestParams } from './rust-http';
 import { store } from '../store';
 import { arrayBufferToBase64, blobToBase64 } from '../utils/binary';
 
+// 扩展后的登录/刷新响应数据结构（仅用于内部刷新逻辑）
+interface LoginResponseExtended {
+  token: string;
+  refreshToken?: string | null;
+}
+
 export type { ApiResponse } from './http.types';
 
 const rustEnvValue = import.meta.env.VITE_USE_RUST_BACKEND;
@@ -153,6 +159,7 @@ class HttpClient {
   private pendingRequests: Map<string, AbortController> = new Map();
   private isLoggingOut: boolean = false;
   private lastLoginTime: number | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
@@ -232,6 +239,60 @@ class HttpClient {
       // 登出时取消所有pending请求
       this.cancelAllPendingRequests();
     }
+  }
+
+  /**
+   * 使用刷新令牌续签访问令牌
+   * 返回 true 表示刷新成功，false 表示刷新失败（需要登出）
+   */
+  private async tryRefreshToken(): Promise<boolean> {
+    // 避免并发重复刷新
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const state: any = store.state;
+        const refreshToken = state.refreshToken as string | null;
+        if (!refreshToken) {
+          return false;
+        }
+
+        // 调用后端刷新接口
+        const response = await this.requestWithRetry<LoginResponseExtended>('/auth/refresh', {
+          method: 'POST',
+          body: { refresh_token: refreshToken },
+          // 刷新接口本身不再嵌套触发刷新逻辑
+          retry: false,
+        });
+
+        if (!response.success || !response.data?.token) {
+          return false;
+        }
+
+        // 更新全局 token / refreshToken
+        try {
+          store.commit('SET_TOKEN', response.data.token);
+          store.commit('SET_REFRESH_TOKEN', response.data.refreshToken ?? refreshToken);
+        } catch (e) {
+        }
+
+        // 同步到 Rust HTTP 客户端
+        try {
+          await syncRustBackendToken(response.data.token);
+        } catch (e) {
+        }
+
+        return true;
+      } catch (error) {
+        return false;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   private supportsRustBridge(): boolean {
@@ -413,7 +474,35 @@ class HttpClient {
       throw new Error('Rust HTTP 客户端初始化失败');
     }
 
-    return this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
+    const response = await this.executeRustRequest<T>(requestId, url, fullUrl, normalizedOptions, { ...requestHeaders });
+
+    // 对于 401 错误，需要区分是登录接口还是需要认证的接口
+    // 登录接口返回 401 时，应该直接返回错误消息，而不是触发登出流程
+    if (response.code === 401) {
+      const isLoginApi = !checkApiNeedsToken(url);
+      if (isLoginApi) {
+        return this.executeResponseInterceptors<T>(response);
+      }
+
+      // 尝试使用刷新令牌续签访问令牌，再重试原始请求
+      const refreshed = await this.tryRefreshToken();
+      if (!refreshed) {
+        // 刷新失败，执行统一登出流程
+        this.handleUnauthorizedResponse(requestId, fullUrl, method, requestHeaders, response.message);
+      }
+
+      // 刷新成功后，重新执行一次请求（不再递归刷新）
+      const retriedResponse = await this.executeRustRequest<T>(
+        requestId,
+        url,
+        fullUrl,
+        normalizedOptions,
+        { ...requestHeaders },
+      );
+      return this.executeResponseInterceptors<T>(retriedResponse);
+    }
+
+    return this.executeResponseInterceptors<T>(response);
   }
 
   private async executeRustRequest<T>(
@@ -441,20 +530,6 @@ class HttpClient {
       injectToken: options.injectToken !== false,
       forceStreaming: options.forceStreaming === true
     });
-
-    // 对于 401 错误，需要区分是登录接口还是需要认证的接口
-    // 登录接口返回 401 时，应该直接返回错误消息，而不是触发登出流程
-    if (response.code === 401) {
-      // 检查是否是登录相关的接口（白名单接口）
-      const isLoginApi = !checkApiNeedsToken(originalUrl);
-      if (isLoginApi) {
-        // 登录接口返回 401，直接返回响应，让调用方处理错误消息
-        return this.executeResponseInterceptors<T>(response);
-      } else {
-        // 需要认证的接口返回 401，触发登出流程
-        this.handleUnauthorizedResponse(requestId, fullUrl, method, headers, response.message);
-      }
-    }
 
     return this.executeResponseInterceptors<T>(response);
   }
@@ -753,3 +828,6 @@ export const setLoginTime = (time?: number) => {
 export const clearLoginTime = () => {
   (httpClient as any).lastLoginTime = null;
 };
+
+// 导出刷新状态（仅用于调试/测试）
+export const _getRefreshPromise = () => (httpClient as any).refreshPromise as Promise<boolean> | null;

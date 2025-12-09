@@ -20,6 +20,55 @@ use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+/// 刷新令牌在 Redis 中的存储前缀
+const REFRESH_TOKEN_PREFIX: &str = "auth:refresh:";
+/// 刷新令牌的滑动有效期（30 天）
+const REFRESH_TOKEN_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
+
+/// 刷新令牌在 Redis 中存储的内容
+#[derive(Debug, Serialize, Deserialize)]
+struct RefreshTokenPayload {
+    user_id: String,
+    is_admin: bool,
+}
+
+/// 生成刷新令牌并写入 Redis，返回明文刷新令牌
+async fn generate_and_store_refresh_token(
+    state: &AppState,
+    user_id: &str,
+    is_admin: bool,
+) -> Result<String, AppError> {
+    let refresh_token = uuid::Uuid::new_v4().to_string();
+    let key = format!("{}{}", REFRESH_TOKEN_PREFIX, refresh_token);
+
+    let payload = RefreshTokenPayload {
+        user_id: user_id.to_string(),
+        is_admin,
+    };
+    let value = serde_json::to_string(&payload)
+        .map_err(|_| AppError::InternalError("刷新令牌序列化失败".to_string()))?;
+
+    let mut conn = state
+        .redis
+        .get_cache_client()
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+
+    // 设置 30 天 TTL，实现“30 天未使用自动过期”
+    conn.set_ex::<_, _, ()>(&key, value, REFRESH_TOKEN_TTL_SECONDS as u64)
+        .await
+        .map_err(|_| AppError::CacheError("刷新令牌写入失败".to_string()))?;
+
+    Ok(refresh_token)
+}
+
+/// 刷新令牌请求体
+#[derive(Debug, Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
 pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<CreateUserRequest>,
@@ -147,7 +196,7 @@ pub async fn login(
 
     info!("User logged in successfully: {}", db_user.username);
 
-    // 生成 JWT token
+    // 生成 JWT 访问令牌
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
@@ -158,9 +207,104 @@ pub async fn login(
     let token =
         generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
+    // 生成刷新令牌并存入 Redis（30 天滑动过期）
+    let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
+        .await
+        .map_err(|e| {
+            tracing::warn!("生成刷新令牌失败: {:?}", e);
+            AppError::InternalError("生成刷新令牌失败".to_string())
+        })?;
+
     let response = LoginResponse {
         token,
         user: db_user_to_api_user_info(&db_user),
+        refresh_token: Some(refresh_token),
+    };
+
+    Ok(Json(response))
+}
+
+/// 使用刷新令牌为普通用户续签访问令牌（30 天内无感刷新）
+pub async fn refresh_token(
+    State(state): State<AppState>,
+    Json(payload): Json<RefreshTokenRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    let token = payload.refresh_token.trim();
+    if token.is_empty() {
+        return Err(AppError::ValidationError(
+            "refresh_token 不能为空".to_string(),
+        ));
+    }
+
+    let key = format!("{}{}", REFRESH_TOKEN_PREFIX, token);
+
+    let mut conn = state
+        .redis
+        .get_cache_client()
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+
+    let stored: Option<String> = conn
+        .get(&key)
+        .await
+        .map_err(|_| AppError::CacheError("获取刷新令牌失败".to_string()))?;
+
+    let stored = match stored {
+        Some(v) => v,
+        None => {
+            // 超过 30 天未使用或无效
+            return Err(AppError::InvalidToken(
+                "刷新令牌已过期，请重新登录".to_string(),
+            ));
+        }
+    };
+
+    let payload: RefreshTokenPayload = serde_json::from_str(&stored)
+        .map_err(|_| AppError::InvalidToken("刷新令牌无效，请重新登录".to_string()))?;
+
+    if payload.is_admin {
+        return Err(AppError::InvalidToken(
+            "刷新令牌类型不匹配，请使用管理员刷新接口".to_string(),
+        ));
+    }
+
+    // 查找用户并校验状态
+    let user_id = string_to_uuid(&payload.user_id)
+        .map_err(|e| AppError::InvalidToken(format!("无效的用户ID: {}", e)))?;
+
+    let store = UserStore::new(state.database.clone());
+    let db_user = store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("用户不存在或已被删除".to_string()))?;
+
+    if db_user.status == crate::database::models::UserStatus::Banned {
+        return Err(AppError::Forbidden(
+            "账户已被封禁，无法登录".to_string(),
+        ));
+    }
+
+    // 生成新的访问令牌
+    let claims = Claims {
+        sub: db_user.id.to_string(),
+        username: db_user.username.clone(),
+        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
+        iat: chrono::Utc::now().timestamp() as usize,
+    };
+
+    let new_token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+
+    // 续期刷新令牌 TTL，实现滑动过期
+    conn.expire::<_, ()>(&key, REFRESH_TOKEN_TTL_SECONDS as i64)
+        .await
+        .map_err(|_| AppError::CacheError("刷新令牌续期失败".to_string()))?;
+
+    let response = LoginResponse {
+        token: new_token,
+        user: db_user_to_api_user_info(&db_user),
+        refresh_token: Some(token.to_string()),
     };
 
     Ok(Json(response))
@@ -357,9 +501,18 @@ pub async fn login_with_sms(
     let token =
         generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
+    // 生成刷新令牌并存入 Redis（30 天滑动过期）
+    let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
+        .await
+        .map_err(|e| {
+            tracing::warn!("生成刷新令牌失败: {:?}", e);
+            AppError::InternalError("生成刷新令牌失败".to_string())
+        })?;
+
     let response = LoginResponse {
         token,
         user: db_user_to_api_user_info(&db_user),
+        refresh_token: Some(refresh_token),
     };
 
     Ok(Json(response))
@@ -591,6 +744,15 @@ pub async fn admin_login(
     let token =
         generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
+    // 生成管理员刷新令牌
+    let refresh_token =
+        generate_and_store_refresh_token(&state, &db_admin_user.id.to_string(), true)
+            .await
+            .map_err(|e| {
+                tracing::warn!("生成管理员刷新令牌失败: {:?}", e);
+                AppError::InternalError("生成刷新令牌失败".to_string())
+            })?;
+
     let response = LoginResponse {
         token,
         user: UserInfo {
@@ -607,6 +769,7 @@ pub async fn admin_login(
                 AdminUserStatus::Locked => UserStatus::Banned,
             },
         },
+        refresh_token: Some(refresh_token),
     };
 
     Ok(Json(response))
@@ -645,6 +808,104 @@ pub async fn get_current_admin_user(
         updated_at: db_admin_user.updated_at.to_rfc3339(),
     };
     Ok(Json(admin_user_info))
+}
+
+/// 管理后台刷新令牌接口
+pub async fn admin_refresh_token(
+    State(state): State<AppState>,
+    Json(payload): Json<RefreshTokenRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    let token = payload.refresh_token.trim();
+    if token.is_empty() {
+        return Err(AppError::ValidationError(
+            "refresh_token 不能为空".to_string(),
+        ));
+    }
+
+    let key = format!("{}{}", REFRESH_TOKEN_PREFIX, token);
+
+    let mut conn = state
+        .redis
+        .get_cache_client()
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+
+    let stored: Option<String> = conn
+        .get(&key)
+        .await
+        .map_err(|_| AppError::CacheError("获取刷新令牌失败".to_string()))?;
+
+    let stored = match stored {
+        Some(v) => v,
+        None => {
+            return Err(AppError::InvalidToken(
+                "刷新令牌已过期，请重新登录".to_string(),
+            ));
+        }
+    };
+
+    let payload: RefreshTokenPayload = serde_json::from_str(&stored)
+        .map_err(|_| AppError::InvalidToken("刷新令牌无效，请重新登录".to_string()))?;
+
+    if !payload.is_admin {
+        return Err(AppError::InvalidToken(
+            "刷新令牌类型不匹配，请使用用户刷新接口".to_string(),
+        ));
+    }
+
+    let admin_user_id = string_to_uuid(&payload.user_id)
+        .map_err(|e| AppError::InvalidToken(format!("无效的管理员用户ID: {}", e)))?;
+
+    let store = admin::AdminUserStore::new(state.database.clone());
+
+    let db_admin_user = store
+        .find_by_id(&admin_user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("管理员用户不存在或已被删除".to_string()))?;
+
+    if db_admin_user.status == AdminUserStatus::Banned || db_admin_user.status == AdminUserStatus::Locked {
+        return Err(AppError::Forbidden(
+            "管理员账户已被封禁，无法登录".to_string(),
+        ));
+    }
+
+    // 生成新的管理员访问令牌（8 小时有效）
+    let claims = Claims {
+        sub: db_admin_user.id.to_string(),
+        username: db_admin_user.username.clone(),
+        exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize,
+        iat: chrono::Utc::now().timestamp() as usize,
+    };
+
+    let new_token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+
+    // 续期刷新令牌 TTL
+    conn.expire::<_, ()>(&key, REFRESH_TOKEN_TTL_SECONDS as i64)
+        .await
+        .map_err(|_| AppError::CacheError("刷新令牌续期失败".to_string()))?;
+
+    let response = LoginResponse {
+        token: new_token,
+        user: UserInfo {
+            id: db_admin_user.id.to_string(),
+            username: db_admin_user.username.clone(),
+            email: db_admin_user.email.clone(),
+            nickname: db_admin_user.nickname.clone(),
+            avatar_url: db_admin_user.avatar_url.clone(),
+            avatar_object_key: None,
+            status: match db_admin_user.status {
+                AdminUserStatus::Active => UserStatus::Active,
+                AdminUserStatus::Inactive => UserStatus::Inactive,
+                AdminUserStatus::Banned => UserStatus::Banned,
+                AdminUserStatus::Locked => UserStatus::Banned,
+            },
+        },
+        refresh_token: Some(token.to_string()),
+    };
+
+    Ok(Json(response))
 }
 
 /// 更新当前管理员用户信息

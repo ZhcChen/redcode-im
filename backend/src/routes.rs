@@ -35,8 +35,10 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/login/sms", post(auth::login_with_sms))
+        .route("/auth/refresh", post(auth::refresh_token))
         .route("/auth/sms/send", post(auth::send_login_sms))
         .route("/auth/admin/login", post(auth::admin_login))
+        .route("/auth/admin/refresh", post(auth::admin_refresh_token))
         .route(
             "/auth/admin/me",
             get(auth::get_current_admin_user)

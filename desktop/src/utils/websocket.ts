@@ -312,8 +312,8 @@ class WebSocketManager {
           });
 
           // 刷新联系人和聊天列表
-          this.refreshContacts(true);
-          this.refreshChatList(true);
+          this.refreshContacts();
+          this.refreshChatList();
         }
         break;
       }
@@ -325,13 +325,14 @@ class WebSocketManager {
         // 仅当前活跃账号需要刷新本地联系人/会话列表
         if (isCurrentUser) {
           const detail = ((payload as any)?.payload ?? payload) || {};
+          const userId = detail.user_id ?? detail.userId;
 
           // 向上层派发统一的好友变更事件，沿用 legacy 约定：
           // type: 'updated', payload: 好友最新资料
           this.dispatchDomEvent('websocket-friend-change', {
             type: 'updated',
             payload: {
-              user_id: detail.user_id ?? detail.userId,
+              user_id: userId,
               username: detail.username,
               nickname: detail.nickname,
               avatar_url: detail.avatar_url ?? detail.avatarUrl,
@@ -339,8 +340,21 @@ class WebSocketManager {
             },
           });
 
-          // 刷新联系人列表，保证 UI 与后端资料一致
-          this.refreshContacts(true);
+          // 更新全局用户资料映射，保证昵称 / 头像在所有视图中保持一致
+          if (userId) {
+            store.commit('UPSERT_USER_PROFILE', {
+              userId: String(userId),
+              username: detail.username ?? null,
+              nickname: detail.nickname ?? null,
+              avatarUrl: (detail.avatar_url ?? detail.avatarUrl) || null,
+              avatarObjectKey: (detail.avatar_object_key ?? detail.avatarObjectKey) || null,
+            });
+          }
+
+          // 静默刷新联系人列表，保证与后端数据完全对齐
+          this.refreshContacts();
+          // 同步刷新聊天列表，确保单聊会话名称 / 头像及时更新
+          this.refreshChatList();
         }
         break;
       }
@@ -364,7 +378,15 @@ class WebSocketManager {
         const data = payload.payload as { message: string };
         // 只显示当前账号的错误
         if (isCurrentUser) {
-          toast.error(data.message || '消息服务错误');
+          const rawMessage = data.message || '';
+          const normalized = rawMessage.trim().toLowerCase();
+          // 后端在 WebSocket 鉴权失败时会返回 "unauthorized"
+          // 这类错误前端已经通过 HTTP 401 处理登录态，这里不再额外弹 toast
+          if (normalized === 'unauthorized') {
+            // 静默处理，避免在进入主界面时出现多余的错误提示
+          } else {
+            toast.error(rawMessage || '消息服务错误');
+          }
         }
         break;
       }
@@ -597,6 +619,7 @@ class WebSocketManager {
    * 认证后刷新数据
    */
   private refreshAfterAuthenticated(): void {
+    // 启动阶段：走一次完整数据刷新，但保持静默（使用骨架屏由视图决定）
     this.refreshChatList(true);
     this.refreshContacts(true);
     void store
@@ -612,8 +635,13 @@ class WebSocketManager {
       return;
     }
     this.lastChatListRefreshAt = now;
-    void store
-      .dispatch('loadChatList', { forceRefresh: true })
+    // WebSocket 触发的刷新统一采用静默模式：
+    // - 有现有列表时不再切换到 loading，仅做智能合并
+    // - 列表为空时由视图自行决定是否展示骨架屏
+    void store.dispatch('loadChatList', {
+      forceRefresh: false,
+      compareWithStore: true,
+    });
   }
 
   /**
@@ -625,8 +653,11 @@ class WebSocketManager {
       return;
     }
     this.lastContactRefreshAt = now;
-    void store
-      .dispatch('loadContacts', { forceRefresh: true })
+    // 同聊天列表，联系人列表也采用静默刷新策略
+    void store.dispatch('loadContacts', {
+      forceRefresh: false,
+      compareWithStore: true,
+    });
   }
 
   /**

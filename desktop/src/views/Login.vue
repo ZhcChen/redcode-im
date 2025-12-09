@@ -406,6 +406,7 @@ async function handleRegister() {
 
         await store.dispatch("login", {
           token: loginResponse.data.token,
+          refreshToken: loginResponse.data.refreshToken ?? null,
           userInfo: mappedUserInfo,
         });
 
@@ -612,6 +613,7 @@ async function handleLogin() {
 
       await store.dispatch("login", {
         token: response.data.token,
+        refreshToken: response.data.refreshToken ?? null,
         userInfo: mappedUserInfo,
       });
 

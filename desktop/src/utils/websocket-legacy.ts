@@ -745,6 +745,7 @@ class WebSocketManager {
   }
 
   private refreshAfterAuthenticated(): void {
+    // 旧版 WebSocket 同样在认证后执行一次静默刷新
     this.refreshChatList(true);
     this.refreshContacts(true);
     void store
@@ -757,8 +758,11 @@ class WebSocketManager {
       return;
     }
     this.lastChatListRefreshAt = now;
-    void store
-      .dispatch('loadChatList', { forceRefresh: true })
+    // 统一采用静默刷新：仅在列表为空时交由视图决定是否展示骨架屏
+    void store.dispatch('loadChatList', {
+      forceRefresh: false,
+      compareWithStore: true,
+    });
   }
 
   private refreshContacts(force = false): void {
@@ -767,8 +771,11 @@ class WebSocketManager {
       return;
     }
     this.lastContactRefreshAt = now;
-    void store
-      .dispatch('loadContacts', { forceRefresh: true })
+    // 联系人列表同样使用静默刷新策略
+    void store.dispatch('loadContacts', {
+      forceRefresh: false,
+      compareWithStore: true,
+    });
   }
 
   private onRoomJoined(roomId: string): void {
