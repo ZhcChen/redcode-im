@@ -89,6 +89,7 @@
             <CachedEmojiImage
               v-if="item.type === 'image'"
               :image-url="item.value"
+              :object-key="item.objectKey"
             />
             <span v-else class="emoji-text">{{ item.value }}</span>
           </div>
@@ -162,6 +163,7 @@ interface EmojiDisplayItem {
   type: 'emoji' | 'image'
   value: string
   name?: string
+  objectKey?: string | null  // COS 对象键，用于获取临时下载地址
 }
 
 // Props
@@ -169,9 +171,16 @@ const props = defineProps<{
   show: boolean
 }>()
 
+// 表情选择事件数据
+export interface EmojiSelectData {
+  value: string           // 表情值（emoji 字符或图片 URL）
+  type: 'emoji' | 'image' // 表情类型
+  objectKey?: string | null // COS 对象键（仅图片类型）
+}
+
 // Emits
 const emit = defineEmits<{
-  select: [emoji: string]
+  select: [data: EmojiSelectData]
   close: []
 }>()
 
@@ -403,17 +412,19 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
                 allItems.push({
                   type: 'image',
                   value: item.image_url,
-                  name: item.name || undefined
+                  name: item.name || undefined,
+                  objectKey: item.image_object_key || null
                 })
               }
             }
-          } 
+          }
           // 如果表情包没有 items 但有 icon_url，使用 icon_url 作为单个表情
           else if (pack.icon_url) {
             allItems.push({
               type: 'image',
               value: pack.icon_url,
-              name: pack.name || undefined
+              name: pack.name || undefined,
+              objectKey: pack.icon_object_key || null
             })
           }
         }
@@ -436,7 +447,8 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
             suiteItems.push({
               type: 'image' as const,
               value: pack.icon_url,
-              name: pack.name || undefined
+              name: pack.name || undefined,
+              objectKey: pack.icon_object_key || null
             })
           } else {
             console.warn('子表情包没有 icon_url:', pack)
@@ -648,7 +660,11 @@ const loadUserPacks = async () => {
 
 // 选择表情
 const selectEmoji = (item: EmojiDisplayItem) => {
-  emit('select', item.value)
+  emit('select', {
+    value: item.value,
+    type: item.type,
+    objectKey: item.objectKey
+  })
   emit('close')
 }
 
@@ -734,6 +750,10 @@ const CachedEmojiImage = defineComponent({
     imageUrl: {
       type: String,
       required: true
+    },
+    objectKey: {
+      type: String,
+      default: null
     }
   },
   setup(props) {
@@ -748,7 +768,7 @@ const CachedEmojiImage = defineComponent({
       error.value = false
 
       try {
-        const url = await EmojiItemApi.loadAndCacheEmoji(props.imageUrl)
+        const url = await EmojiItemApi.loadAndCacheEmoji(props.imageUrl, props.objectKey)
         if (url) {
           cachedUrl.value = url
         } else {
@@ -762,7 +782,7 @@ const CachedEmojiImage = defineComponent({
       }
     }
 
-    watch(() => props.imageUrl, loadEmoji, { immediate: true })
+    watch(() => [props.imageUrl, props.objectKey], loadEmoji, { immediate: true })
 
     return () => {
       if (loading.value) {

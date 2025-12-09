@@ -1317,7 +1317,8 @@ import SearchInput from '../components/SearchInput.vue'
 import Popover from '../components/Popover.vue'
 import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
-import EmojiPicker from '../components/EmojiPicker.vue'
+import EmojiPicker, { type EmojiSelectData } from '../components/EmojiPicker.vue'
+import { EmojiPackApi } from '../api/emoji-pack'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
 import CreateGroupDialog from '../components/CreateGroupDialog.vue'
 import RemoveGroupMemberDialog from '../components/RemoveGroupMemberDialog.vue'
@@ -6187,27 +6188,36 @@ const handleEmojiClick = () => {
 
 // 处理表情选择
 // 发送表情消息
-const sendEmojiMessage = async (emoji: string) => {
+const sendEmojiMessage = async (data: EmojiSelectData) => {
   if (!selectedChat.value) {
     toast.error('请先选择聊天对象')
     return
   }
 
-  // 判断是图片 URL 还是 emoji 字符
-  const isImageUrl = emoji.startsWith('http://') || emoji.startsWith('https://')
+  const { value: emoji, type, objectKey } = data
 
-  if (isImageUrl) {
-    // 图片表情：使用 Rust HTTP 客户端下载图片（绕过 CORS）并作为图片消息发送
+  // 图片表情
+  if (type === 'image') {
     try {
-      // 判断是否为后端 API 代理路径（需要 token 授权）
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
-      const isApiProxy = apiBaseUrl && emoji.startsWith(apiBaseUrl)
+      // 获取下载地址：优先使用 objectKey 获取临时下载地址
+      let downloadUrl = emoji
+      if (objectKey) {
+        console.log('使用 objectKey 获取临时下载地址:', objectKey)
+        const tempUrl = await EmojiPackApi.getEmojiDownloadUrl(objectKey)
+        if (tempUrl) {
+          downloadUrl = tempUrl
+          console.log('获取到临时下载地址:', tempUrl)
+        } else {
+          console.warn('获取临时下载地址失败，尝试使用原始 URL')
+        }
+      }
 
+      // 使用 Rust HTTP 客户端下载图片（绕过 CORS）
       const response = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
-        path: emoji,
+        path: downloadUrl,
         method: 'GET',
         responseType: 'binary',
-        injectToken: isApiProxy // 只有后端 API 代理路径才需要 token
+        injectToken: false // 临时下载地址已包含签名，不需要 token
       })
 
       if (!response.success || !response.data || !response.data.base64) {
@@ -6216,14 +6226,14 @@ const sendEmojiMessage = async (emoji: string) => {
 
       // 将 base64 转换为 Uint8Array
       const bytes = base64ToUint8Array(response.data.base64)
-      
+
       // 获取 content type，默认为 image/png
       const contentType = response.data.headers?.['content-type'] || response.data.headers?.['Content-Type'] || 'image/png'
-      
+
       // 从 URL 推断文件扩展名
       let fileName = 'emoji.png'
       try {
-        const url = new URL(emoji)
+        const url = new URL(downloadUrl)
         const pathname = url.pathname
         const match = pathname.match(/\.(gif|jpg|jpeg|png|webp)$/i)
         if (match) {
@@ -6236,7 +6246,7 @@ const sendEmojiMessage = async (emoji: string) => {
       // 创建 Blob 和 File
       const blob = new Blob([bytes], { type: contentType })
       const file = new File([blob], fileName, { type: contentType })
-      
+
       await uploadAndSendFile(file)
     } catch (error: any) {
       console.error('发送表情图片失败:', error)
@@ -6321,9 +6331,9 @@ const sendEmojiMessage = async (emoji: string) => {
   }
 }
 
-const handleEmojiSelect = (emoji: string) => {
+const handleEmojiSelect = (data: EmojiSelectData) => {
   // 直接发送表情消息，而不是插入到输入框
-  sendEmojiMessage(emoji)
+  sendEmojiMessage(data)
   // 关闭表情选择器
   showEmojiPicker.value = false
 }

@@ -4,6 +4,7 @@ export interface EmojiPack {
   id: string;
   name: string;
   icon_url?: string | null;
+  icon_object_key?: string | null;  // COS 对象键，用于获取临时下载地址
   description?: string | null;
   is_active: boolean;
   pack_type: number; // 0=单个, 1=套件
@@ -17,6 +18,7 @@ export interface EmojiItem {
   id: string;
   pack_id: string;
   image_url: string;
+  image_object_key?: string | null;  // COS 对象键，用于获取临时下载地址
   name?: string | null;
   sort_order: number;
   created_at: string;
@@ -103,6 +105,34 @@ export class EmojiPackApi {
       `/emoji-packs/suites/${suiteId}/packs`
     );
     return response.data || [];
+  }
+
+  /**
+   * 获取表情图片临时下载地址
+   * @param objectKey COS 对象键
+   * @param expiresInSeconds 有效期（秒），默认 3600
+   * @returns 临时下载 URL
+   */
+  static async getEmojiDownloadUrl(objectKey: string, expiresInSeconds = 3600): Promise<string | null> {
+    try {
+      const response = await httpClient.get<{ success?: boolean; download_url?: string }>(
+        '/emoji-packs/download-url',
+        {
+          object_key: objectKey,
+          expires_in_seconds: expiresInSeconds
+        }
+      );
+
+      if (response.success && response.data?.download_url) {
+        return response.data.download_url;
+      }
+
+      console.warn('获取表情下载地址失败:', response.message);
+      return null;
+    } catch (error) {
+      console.error('获取表情下载地址异常:', error);
+      return null;
+    }
   }
 }
 
