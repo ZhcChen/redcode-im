@@ -9506,12 +9506,11 @@ const handleVoiceSend = async (recording: any) => {
   try {
     // 1. 获取语音上传签名（使用 WAV 格式，由 Rust 原生录音生成）
     console.log('[handleVoiceSend] 1. 获取上传签名...')
-    const signatureResponse = await MessageApi.generateMessageAttachmentSignature({
-      roomId: selectedChat.value.id,
-      partType: 4, // AUDIO_CONTENT_TYPE
-      filename: `voice_${recording.id}.wav`,
+    const signatureResponse = await MessageApi.requestAttachmentSignature({
+      groupId: selectedChat.value.id,
+      partType: 'audio',
+      fileName: `voice_${recording.id}.wav`,
       contentType: 'audio/wav',
-      fileSize: recording.blob.size,
     })
 
     console.log('[handleVoiceSend] 签名响应:', {
