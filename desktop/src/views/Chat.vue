@@ -1266,33 +1266,24 @@
     </div>
   </Dialog>
 
-  <!-- 转发选择对话框 -->
-  <Dialog
-    :visible="showForwardDialog"
+  <!-- 转发选择对话框，复用可选列表弹窗组件（使用默认行样式，与添加成员一致） -->
+  <SelectableListDialog
+    v-model:visible="showForwardDialog"
     title="选择转发会话"
+    :items="forwardableChats"
+    :item-key="(chat) => chat.groupId"
+    :get-label="(chat) => getChatDisplayName(chat)"
+    :get-description="(chat) => chat.lastMessage || '暂无消息'"
+    :get-avatar-src="(chat) => chat.avatarLocalPath || ''"
+    :get-avatar-text="(chat) => getChatDisplayName(chat)"
+    :enable-search="true"
+    search-placeholder="搜索会话..."
+    confirm-text="立即转发"
+    empty-text="暂无可转发会话"
+    empty-text-when-search="未找到匹配的会话"
+    @confirm="handleForwardConfirm"
     @close="showForwardDialog = false"
-  >
-    <div class="forward-dialog">
-      <ScrollContainer class="forward-list">
-        <label
-          v-for="chat in forwardableChats"
-          :key="chat.id"
-          class="forward-item"
-        >
-          <input
-            type="checkbox"
-            :value="chat.groupId"
-            v-model="forwardTargetIds"
-          />
-          <span class="forward-name">{{ chat.name }}</span>
-        </label>
-      </ScrollContainer>
-      <div class="forward-actions">
-        <button class="btn" @click="showForwardDialog = false">取消</button>
-        <button class="btn primary" @click="confirmForward">确认转发</button>
-      </div>
-    </div>
-  </Dialog>
+  />
 </div>
 </template>
 
@@ -1332,6 +1323,7 @@ import ChatContextMenu from '../components/ChatContextMenu.vue'
 import MessageContextMenu from '../components/MessageContextMenu.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PinnedMessageBanner from '../components/PinnedMessageBanner.vue'
+import SelectableListDialog from '../components/SelectableListDialog.vue'
 import { api, MessageApi } from '../api'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
@@ -6188,6 +6180,23 @@ const handleEmojiClick = () => {
 
 // 处理表情选择
 // 发送表情消息
+const extractCosObjectKeyFromUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname || ''
+    // 仅在典型 COS 域名下尝试提取对象键，避免误处理非 COS URL
+    if (!host.includes('cos.') && !host.includes('myqcloud.com')) {
+      return null
+    }
+    const pathname = parsed.pathname || ''
+    const key = pathname.startsWith('/') ? pathname.slice(1) : pathname
+    return key || null
+  } catch {
+    return null
+  }
+}
+
 const sendEmojiMessage = async (data: EmojiSelectData) => {
   if (!selectedChat.value) {
     toast.error('请先选择聊天对象')
@@ -6199,17 +6208,28 @@ const sendEmojiMessage = async (data: EmojiSelectData) => {
   // 图片表情
   if (type === 'image') {
     try {
-      // 获取下载地址：优先使用 objectKey 获取临时下载地址
+      // 获取下载地址：优先使用 COS objectKey 获取临时下载地址
       let downloadUrl = emoji
-      if (objectKey) {
-        console.log('使用 objectKey 获取临时下载地址:', objectKey)
-        const tempUrl = await EmojiPackApi.getEmojiDownloadUrl(objectKey)
+
+      // 1. 优先使用显式传入的 objectKey
+      let resolvedObjectKey: string | null = objectKey || null
+
+      // 2. 如果没有显式 objectKey，尝试从 URL 中解析出 COS 对象键
+      if (!resolvedObjectKey) {
+        resolvedObjectKey = extractCosObjectKeyFromUrl(emoji)
+      }
+
+      if (resolvedObjectKey) {
+        console.log('使用 objectKey 获取表情临时下载地址:', resolvedObjectKey)
+        const tempUrl = await EmojiPackApi.getEmojiDownloadUrl(resolvedObjectKey)
         if (tempUrl) {
           downloadUrl = tempUrl
-          console.log('获取到临时下载地址:', tempUrl)
+          console.log('获取到表情临时下载地址:', tempUrl)
         } else {
-          console.warn('获取临时下载地址失败，尝试使用原始 URL')
+          console.warn('获取表情临时下载地址失败，回退使用原始 URL')
         }
+      } else {
+        console.warn('未找到有效的 objectKey，将直接使用原始 URL 下载表情')
       }
 
       // 使用 Rust HTTP 客户端下载图片（绕过 CORS）
@@ -7162,16 +7182,16 @@ const confirmForward = async () => {
 
   try {
     for (const source of sources) {
-      const res = await MessageApi.forwardMessage({
-        groupId: source.roomId || selectedChat.value?.groupId || '',
-        messageId: source.id,
-        targetRoomIds: forwardTargetIds.value,
-      })
-      if (!res.success) {
-        throw new Error(res.message || '转发失败')
+      for (const targetId of forwardTargetIds.value) {
+        const res = await MessageApi.forwardMessage({
+          targetRoomId: targetId,
+          originalMessageId: source.id,
+        })
+        if (!res.success) {
+          throw new Error(res.message || '转发失败')
+        }
       }
     }
-    toast.success('已转发')
     if (multiSelectMode.value) {
       exitMultiSelect()
     }
@@ -7182,6 +7202,11 @@ const confirmForward = async () => {
     showForwardDialog.value = false
     forwardSourceMessage.value = null
   }
+}
+
+const handleForwardConfirm = (ids: string[]) => {
+  forwardTargetIds.value = ids
+  confirmForward()
 }
 
 const handleMessageMenuPin = async () => {
@@ -11541,67 +11566,4 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-.forward-dialog {
-  min-width: 320px;
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  .forward-list {
-    max-height: 280px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .forward-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    transition: border-color 0.2s ease, background 0.2s ease;
-
-    &:hover {
-      border-color: var(--primary-color, #4ecdc4);
-      background: #f7fffd;
-    }
-
-    input[type='radio'] {
-    }
-
-    .forward-name {
-      font-size: 14px;
-      color: #1f2937;
-      flex: 1;
-    }
-  }
-
-  .forward-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-
-    .btn {
-      min-width: 88px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid #d1d5db;
-      background: white;
-      transition: all 0.2s ease;
-
-      &.primary {
-        background: linear-gradient(135deg, #36d1dc, #5b86e5);
-        border-color: transparent;
-        color: white;
-      }
-
-      &:hover {
-        opacity: 0.9;
-      }
-    }
-  }
-}
 </style>
