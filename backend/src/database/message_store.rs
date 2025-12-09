@@ -420,6 +420,7 @@ impl<'a> MessageStore<'a> {
         target_room_id: Uuid,
         sender_id: Uuid,
         original: &MessageWithSender,
+        original_parts: &[MessagePart],
     ) -> Result<Message, sqlx::Error> {
         let message_id = crate::id::generate();
 
@@ -476,20 +477,43 @@ impl<'a> MessageStore<'a> {
         .fetch_one(&mut *tx)
         .await?;
 
-        let parts = [NewMessagePart {
-            position: 0,
-            part_type: MessagePartType::Text,
-            text_content: Some(original.content.clone()),
-            attachment_key: None,
-            attachment_name: None,
-            attachment_mime: None,
-            attachment_size: None,
-            width: None,
-            height: None,
-            duration_ms: None,
-            thumbnail_key: None,
-            extra: None,
-        }];
+        // 复制原消息的所有 parts（包括图片、视频、文件等附件）
+        let parts: Vec<NewMessagePart> = if original_parts.is_empty() {
+            // 如果没有 parts，创建一个文本 part
+            vec![NewMessagePart {
+                position: 0,
+                part_type: MessagePartType::Text,
+                text_content: Some(original.content.clone()),
+                attachment_key: None,
+                attachment_name: None,
+                attachment_mime: None,
+                attachment_size: None,
+                width: None,
+                height: None,
+                duration_ms: None,
+                thumbnail_key: None,
+                extra: None,
+            }]
+        } else {
+            // 复制原消息的所有 parts
+            original_parts
+                .iter()
+                .map(|p| NewMessagePart {
+                    position: p.position,
+                    part_type: p.part_type,
+                    text_content: p.text_content.clone(),
+                    attachment_key: p.attachment_key.clone(),
+                    attachment_name: p.attachment_name.clone(),
+                    attachment_mime: p.attachment_mime.clone(),
+                    attachment_size: p.attachment_size,
+                    width: p.width,
+                    height: p.height,
+                    duration_ms: p.duration_ms,
+                    thumbnail_key: p.thumbnail_key.clone(),
+                    extra: p.extra.clone(),
+                })
+                .collect()
+        };
 
         insert_message_parts(&mut tx, message_id, &parts).await?;
 

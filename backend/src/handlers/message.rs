@@ -673,14 +673,22 @@ pub async fn forward_message(
         return Err(AppError::Forbidden("用户无权转发该消息".to_string()));
     }
 
-    if original.message_type != MessageType::Text {
+    // 禁止转发系统消息
+    if original.message_type == MessageType::System {
         return Err(AppError::ValidationError(
-            "当前仅支持转发文本消息".to_string(),
+            "系统消息不支持转发".to_string(),
         ));
     }
 
+    // 获取原消息的 parts
+    let original_parts = store
+        .get_message_parts_map(&[original.id])
+        .await?
+        .remove(&original.id)
+        .unwrap_or_default();
+
     let created = store
-        .create_forward_message(room_id, sender_id, &original)
+        .create_forward_message(room_id, sender_id, &original, &original_parts)
         .await?;
 
     let enriched = store
