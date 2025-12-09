@@ -1175,6 +1175,7 @@
     <Dialog
       :visible="showVoiceRecorder"
       title="语音消息"
+      :show-footer="false"
       @close="closeVoiceRecorder"
     >
       <VoiceMessage
