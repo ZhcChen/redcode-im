@@ -144,7 +144,7 @@
               loading="lazy"
             />
           </div>
-          <div class="video-placeholder">
+          <div v-else class="video-placeholder">
             <div class="video-placeholder-inner">
               <!-- 使用视频资源渲染首帧（如可用） -->
               <video
@@ -154,7 +154,7 @@
                 preload="metadata"
                 muted
                 playsinline
-                @loadeddata="scrollToBottomAfterImageLoad"
+                @loadeddata="handleVideoFirstFrameLoaded"
                 @error="handleVideoThumbnailError"
               ></video>
               <!-- 居中覆盖的占位内容 -->
@@ -484,7 +484,7 @@
               loading="lazy"
             />
           </div>
-          <div class="video-placeholder">
+          <div v-else class="video-placeholder">
             <div class="video-placeholder-inner">
               <!-- 使用视频资源渲染首帧（如可用） -->
               <video
@@ -494,7 +494,7 @@
                 preload="metadata"
                 muted
                 playsinline
-                @loadeddata="scrollToBottomAfterImageLoad"
+                @loadeddata="handleVideoFirstFrameLoaded"
                 @error="handleVideoThumbnailError"
               ></video>
               <!-- 居中覆盖的占位内容 -->
@@ -749,6 +749,7 @@ interface MessageBubbleContext {
   parseVideoSrc: (m: Message) => string
   handleVideoPlay: (m: Message) => void
   handleVideoThumbnailError: (e: Event) => void
+  handleVideoFirstFrameLoaded: (e: Event) => void
   isFileDownloading: (m: Message) => boolean
   getFileIconType: (m: Message) => string
   getFileIconClass: (m: Message) => string
@@ -789,6 +790,7 @@ const {
   parseVideoSrc,
   handleVideoPlay,
   handleVideoThumbnailError,
+  handleVideoFirstFrameLoaded,
   isFileDownloading,
   getFileIconType,
   getFileIconClass,

@@ -352,7 +352,7 @@
                           loading="lazy"
                         />
                       </div>
-                      <div class="video-placeholder">
+                      <div v-else class="video-placeholder">
                         <div class="video-placeholder-inner">
                           <!-- 使用视频资源渲染首帧（如可用） -->
                           <video
@@ -362,7 +362,7 @@
                             preload="metadata"
                             muted
                             playsinline
-                            @loadeddata="scrollToBottomAfterImageLoad"
+                            @loadeddata="handleVideoFirstFrameLoaded"
                             @error="handleVideoThumbnailError"
                           ></video>
                           <!-- 居中覆盖的占位内容 -->
@@ -667,7 +667,7 @@
                         loading="lazy"
                       />
                     </div>
-                    <div class="video-placeholder">
+                    <div v-else class="video-placeholder">
                       <div class="video-placeholder-inner">
                         <!-- 使用视频资源渲染首帧（如可用） -->
                         <video
@@ -677,7 +677,7 @@
                           preload="metadata"
                           muted
                           playsinline
-                          @loadeddata="scrollToBottomAfterImageLoad"
+                          @loadeddata="handleVideoFirstFrameLoaded"
                           @error="handleVideoThumbnailError"
                         ></video>
                         <!-- 居中覆盖的占位内容 -->
@@ -6471,6 +6471,17 @@ const handleVideoThumbnailError = (event: Event) => {
   }
 }
 
+// 处理视频首帧加载成功
+const handleVideoFirstFrameLoaded = (event: Event) => {
+  const video = event.target as HTMLVideoElement
+  // 隐藏占位符 overlay，显示视频首帧
+  const overlay = video.closest('.video-placeholder-inner')?.querySelector('.video-placeholder-overlay') as HTMLElement
+  if (overlay) {
+    overlay.style.display = 'none'
+  }
+  scrollToBottomAfterImageLoad()
+}
+
 // 格式化文件大小
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes'
@@ -6591,6 +6602,7 @@ const messageBubbleContext = {
   parseVideoSrc,
   handleVideoPlay,
   handleVideoThumbnailError,
+  handleVideoFirstFrameLoaded,
   isFileDownloading,
   getFileIconType,
   getFileIconClass,
