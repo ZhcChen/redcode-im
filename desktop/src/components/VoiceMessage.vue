@@ -116,6 +116,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { VoiceRecorder, VoicePlayer, VoiceUtils, type VoiceRecording } from '../utils/voiceRecorder'
+import { toast } from '@/utils/toast'
 
 // Props
 interface Props {
@@ -368,6 +369,8 @@ const toggleRecord = async () => {
   } catch (err: any) {
     console.error('录音失败:', err)
     isRecording.value = false
+    const message = err?.message || '录音失败，请检查麦克风权限或设备设置'
+    toast.error(message)
   }
 }
 
