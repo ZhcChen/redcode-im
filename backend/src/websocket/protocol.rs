@@ -133,7 +133,7 @@ pub enum ServerPush {
         cleared_by: Option<Uuid>,
         cleared_at: String,
     },
-     /// 好友关系删除
+    /// 好友关系删除
     FriendshipDeleted {
         /// 被删除的好友用户ID（对事件接收方而言，对方的 user_id）
         user_id: String,

@@ -316,9 +316,7 @@ impl FriendStore {
         friend_user_id: Uuid,
     ) -> Result<bool, AppError> {
         if user_id == friend_user_id {
-            return Err(AppError::ValidationError(
-                "不能删除自己为好友".to_string(),
-            ));
+            return Err(AppError::ValidationError("不能删除自己为好友".to_string()));
         }
 
         let (first, second) = sort_user_pair(user_id, friend_user_id);

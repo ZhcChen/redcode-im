@@ -427,9 +427,7 @@ pub async fn delete_friend(
         .map_err(|e| AppError::ValidationError(format!("无效的好友ID: {}", e)))?;
 
     if current_user_id == friend_user_id {
-        return Err(AppError::ValidationError(
-            "不能删除自己为好友".to_string(),
-        ));
+        return Err(AppError::ValidationError("不能删除自己为好友".to_string()));
     }
 
     let friend_store = FriendStore::new(state.database.clone());

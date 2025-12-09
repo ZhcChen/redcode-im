@@ -280,9 +280,7 @@ pub async fn refresh_token(
         .ok_or_else(|| AppError::NotFound("用户不存在或已被删除".to_string()))?;
 
     if db_user.status == crate::database::models::UserStatus::Banned {
-        return Err(AppError::Forbidden(
-            "账户已被封禁，无法登录".to_string(),
-        ));
+        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
     }
 
     // 生成新的访问令牌
@@ -864,7 +862,9 @@ pub async fn admin_refresh_token(
         .await?
         .ok_or_else(|| AppError::NotFound("管理员用户不存在或已被删除".to_string()))?;
 
-    if db_admin_user.status == AdminUserStatus::Banned || db_admin_user.status == AdminUserStatus::Locked {
+    if db_admin_user.status == AdminUserStatus::Banned
+        || db_admin_user.status == AdminUserStatus::Locked
+    {
         return Err(AppError::Forbidden(
             "管理员账户已被封禁，无法登录".to_string(),
         ));
