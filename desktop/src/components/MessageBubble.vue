@@ -69,9 +69,7 @@
             @error="handleImageError"
             loading="lazy"
           />
-          <div v-else class="image-loading-placeholder">
-            <div class="loading-text">图片加载中...</div>
-          </div>
+          <MediaSkeleton v-else type="image" :width="200" :height="150" />
 
           <div
             v-if="isMessageUploading(message)"
@@ -144,28 +142,30 @@
               loading="lazy"
             />
           </div>
-          <div v-else class="video-placeholder">
-            <div class="video-placeholder-inner">
-              <!-- 使用视频资源渲染首帧（如可用） -->
-              <video
-                v-if="parseVideoSrc(message)"
-                class="video-placeholder-video"
-                :src="parseVideoSrc(message)"
-                preload="metadata"
-                muted
-                playsinline
-                @loadeddata="handleVideoFirstFrameLoaded"
-                @error="handleVideoThumbnailError"
-              ></video>
-              <!-- 居中覆盖的占位内容 -->
-              <div class="video-placeholder-overlay">
-                <div class="video-icon">🎬</div>
-                <div class="video-placeholder-text">
-                  {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
+          <template v-else>
+            <!-- 有视频源时尝试加载首帧 -->
+            <div v-if="parseVideoSrc(message)" class="video-placeholder">
+              <div class="video-placeholder-inner">
+                <video
+                  class="video-placeholder-video"
+                  :src="parseVideoSrc(message)"
+                  preload="metadata"
+                  muted
+                  playsinline
+                  @loadeddata="handleVideoFirstFrameLoaded"
+                  @error="handleVideoThumbnailError"
+                ></video>
+                <div class="video-placeholder-overlay">
+                  <div class="video-icon">🎬</div>
+                  <div class="video-placeholder-text">
+                    {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+            <!-- 没有视频源时显示骨架屏 -->
+            <MediaSkeleton v-else type="video" :width="300" :height="180" />
+          </template>
           <div class="video-play-overlay">
             <div class="play-icon">▶</div>
           </div>
@@ -409,9 +409,7 @@
             @error="handleImageError"
             loading="lazy"
           />
-          <div v-else class="image-loading-placeholder">
-            <div class="loading-text">图片加载中...</div>
-          </div>
+          <MediaSkeleton v-else type="image" :width="200" :height="150" />
 
           <div
             v-if="isMessageUploading(message)"
@@ -484,28 +482,30 @@
               loading="lazy"
             />
           </div>
-          <div v-else class="video-placeholder">
-            <div class="video-placeholder-inner">
-              <!-- 使用视频资源渲染首帧（如可用） -->
-              <video
-                v-if="parseVideoSrc(message)"
-                class="video-placeholder-video"
-                :src="parseVideoSrc(message)"
-                preload="metadata"
-                muted
-                playsinline
-                @loadeddata="handleVideoFirstFrameLoaded"
-                @error="handleVideoThumbnailError"
-              ></video>
-              <!-- 居中覆盖的占位内容 -->
-              <div class="video-placeholder-overlay">
-                <div class="video-icon">🎬</div>
-                <div class="video-placeholder-text">
-                  {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
+          <template v-else>
+            <!-- 有视频源时尝试加载首帧 -->
+            <div v-if="parseVideoSrc(message)" class="video-placeholder">
+              <div class="video-placeholder-inner">
+                <video
+                  class="video-placeholder-video"
+                  :src="parseVideoSrc(message)"
+                  preload="metadata"
+                  muted
+                  playsinline
+                  @loadeddata="handleVideoFirstFrameLoaded"
+                  @error="handleVideoThumbnailError"
+                ></video>
+                <div class="video-placeholder-overlay">
+                  <div class="video-icon">🎬</div>
+                  <div class="video-placeholder-text">
+                    {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+            <!-- 没有视频源时显示骨架屏 -->
+            <MediaSkeleton v-else type="video" :width="300" :height="180" />
+          </template>
           <div class="video-play-overlay">
             <div class="play-icon">▶</div>
           </div>
@@ -724,6 +724,7 @@
 import { toRefs } from 'vue'
 import Avatar from './Avatar.vue'
 import VoiceMessage from './VoiceMessage.vue'
+import MediaSkeleton from './MediaSkeleton.vue'
 import type { Message, QuotedMessage } from '@/types/models'
 
 interface Props {
