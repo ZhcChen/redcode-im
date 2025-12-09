@@ -1,10 +1,12 @@
 use crate::auth::{hash_password, verify_password};
 use crate::database::friend_store::FriendStore;
 use crate::database::models::{
-    StorageProvider, StorageProviderType, UpdateUserRequest as DbUpdateUserRequest,
+    RoomType, StorageProvider, StorageProviderType, UpdateUserRequest as DbUpdateUserRequest,
 };
+use crate::database::room_store::RoomStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
+use std::collections::HashSet;
 use crate::error::AppError;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo};
@@ -82,10 +84,65 @@ pub async fn update_me(
     // 转换为数据库层请求
     let db_req = api_update_user_to_db(&payload);
 
+    // 检查是否有需要推送的字段变更（昵称）
+    let should_notify = payload.nickname.is_some();
+
     let updated = store.update_user(&user_id, db_req).await?;
 
     match updated {
         Some(u) => {
+            // 如果有可见字段变更，通知好友和关联群成员
+            if should_notify {
+                let push_payload = ServerPush::FriendProfileUpdated {
+                    user_id: user_id.to_string(),
+                    username: Some(u.username.clone()),
+                    nickname: u.nickname.clone(),
+                    avatar_url: u.avatar_url.clone(),
+                    avatar_object_key: u.avatar_object_key.clone(),
+                };
+
+                // 收集需要通知的用户 ID（去重）
+                let mut notified_users: HashSet<Uuid> = HashSet::new();
+
+                // 1. 通知好友
+                let friend_store = FriendStore::new(state.database.clone());
+                if let Ok(friendships) = friend_store.list_friendships(user_id).await {
+                    for friendship in &friendships {
+                        notified_users.insert(friendship.friend_user_id);
+                    }
+                }
+
+                // 2. 通知关联群的所有成员（仅群聊，不包括私聊）
+                let room_store = RoomStore::new(state.database.pool());
+                if let Ok(rooms) = room_store.list_user_rooms(user_id).await {
+                    for room in rooms {
+                        if room.room_type == RoomType::Group {
+                            if let Ok(member_ids) = room_store.list_member_ids(room.id).await {
+                                for member_id in member_ids {
+                                    if member_id != user_id {
+                                        notified_users.insert(member_id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. 批量推送
+                let notified_count = notified_users.len();
+                for target_user_id in notified_users {
+                    state
+                        .connection_manager
+                        .send_to_user(&target_user_id.to_string(), push_payload.clone())
+                        .await;
+                }
+
+                info!(
+                    "用户 {} 资料更新，已通知 {} 个关联用户（好友+群成员）",
+                    user_id, notified_count
+                );
+            }
+
             let user_info = db_user_to_api_user_info(&u);
             Ok(Json(user_info))
         }
@@ -211,36 +268,61 @@ pub async fn commit_avatar_upload(
         .generate_download_url(key, req.expires_in_seconds)
         .await?;
 
-    // 通知所有好友：用户资料已更新
+    // 通知所有好友和关联群成员：用户资料已更新
+    let updated_user = user_store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| AppError::InternalError("用户信息加载失败".to_string()))?;
+
+    let payload = ServerPush::FriendProfileUpdated {
+        user_id: user_id.to_string(),
+        username: Some(updated_user.username.clone()),
+        nickname: updated_user.nickname.clone(),
+        avatar_url: updated_user.avatar_url.clone(),
+        avatar_object_key: Some(key.to_string()),
+    };
+
+    // 收集需要通知的用户 ID（去重）
+    let mut notified_users: HashSet<Uuid> = HashSet::new();
+
+    // 1. 通知好友
     let friend_store = FriendStore::new(state.database.clone());
     if let Ok(friendships) = friend_store.list_friendships(user_id).await {
-        let updated_user = user_store
-            .find_by_id(&user_id)
-            .await?
-            .ok_or_else(|| AppError::InternalError("用户信息加载失败".to_string()))?;
-
-        let payload = ServerPush::FriendProfileUpdated {
-            user_id: user_id.to_string(),
-            username: Some(updated_user.username.clone()),
-            nickname: updated_user.nickname.clone(),
-            avatar_url: updated_user.avatar_url.clone(),
-            avatar_object_key: Some(key.to_string()),
-        };
-
         for friendship in &friendships {
-            let friend_id = friendship.friend_user_id.to_string();
-            state
-                .connection_manager
-                .send_to_user(&friend_id, payload.clone())
-                .await;
+            notified_users.insert(friendship.friend_user_id);
         }
-
-        info!(
-            "用户 {} 头像更新，已通知 {} 个好友",
-            user_id,
-            friendships.len()
-        );
     }
+
+    // 2. 通知关联群的所有成员（仅群聊，不包括私聊）
+    let room_store = RoomStore::new(state.database.pool());
+    if let Ok(rooms) = room_store.list_user_rooms(user_id).await {
+        for room in rooms {
+            // 只处理群聊类型的房间
+            if room.room_type == RoomType::Group {
+                if let Ok(member_ids) = room_store.list_member_ids(room.id).await {
+                    for member_id in member_ids {
+                        if member_id != user_id {
+                            notified_users.insert(member_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. 批量推送
+    let notified_count = notified_users.len();
+    for target_user_id in notified_users {
+        state
+            .connection_manager
+            .send_to_user(&target_user_id.to_string(), payload.clone())
+            .await;
+    }
+
+    info!(
+        "用户 {} 头像更新，已通知 {} 个关联用户（好友+群成员）",
+        user_id, notified_count
+    );
 
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,
