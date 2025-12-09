@@ -9,7 +9,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { VoiceRecording } from './voiceRecorder';
+import type { VoiceRecording } from './voiceRecorder';
 
 /** 权限状态 */
 export type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'restricted';
