@@ -311,4 +311,14 @@ export class FriendApi {
 
     return response;
   }
+
+  static async deleteFriend(params: {
+    friendId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del(`/friends/${params.friendId}`);
+    return {
+      ...response,
+      data: null,
+    };
+  }
 }

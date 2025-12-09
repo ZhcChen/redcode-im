@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use axum_test::{TestServer, TestServerConfig};
+use axum_test::TestServer;
 use redcode_im_backend::*;
 use serde_json::json;
 use uuid::Uuid;
@@ -58,10 +58,7 @@ async fn create_test_user_and_room(server: &TestServer) -> (String, String, Stri
 #[tokio::test]
 async fn test_search_messages() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, room_id) = create_test_user_and_room(&server).await;
 
@@ -97,7 +94,7 @@ async fn test_search_messages() {
             .await;
 
         assert_eq!(response.status_code(), StatusCode::OK);
-        let body = response.json::<serde_json::Value>().await;
+        let body = response.json::<serde_json::Value>();
         let results = body["results"].as_array().unwrap();
         assert_eq!(results.len(), expected_count, "Query: {}", query);
     }
@@ -106,10 +103,7 @@ async fn test_search_messages() {
 #[tokio::test]
 async fn test_search_messages_with_filters() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, room_id) = create_test_user_and_room(&server).await;
 
@@ -138,7 +132,7 @@ async fn test_search_messages_with_filters() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     let results = body["results"].as_array().unwrap();
     assert_eq!(results.len(), 3);
 
@@ -151,10 +145,7 @@ async fn test_search_messages_with_filters() {
 #[tokio::test]
 async fn test_search_messages_date_filter() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, room_id) = create_test_user_and_room(&server).await;
 
@@ -181,7 +172,7 @@ async fn test_search_messages_date_filter() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     let results = body["results"].as_array().unwrap();
     assert!(results.len() >= 1);
 }
@@ -189,10 +180,7 @@ async fn test_search_messages_date_filter() {
 #[tokio::test]
 async fn test_search_messages_empty_query() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, _) = create_test_user_and_room(&server).await;
 
@@ -208,10 +196,7 @@ async fn test_search_messages_empty_query() {
 #[tokio::test]
 async fn test_search_messages_long_query() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, _) = create_test_user_and_room(&server).await;
 
@@ -228,10 +213,7 @@ async fn test_search_messages_long_query() {
 #[tokio::test]
 async fn test_search_suggestions() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, room_id) = create_test_user_and_room(&server).await;
 
@@ -258,7 +240,7 @@ async fn test_search_suggestions() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     let suggestions = body.as_array().unwrap();
     assert!(suggestions.len() > 0);
 }
@@ -266,10 +248,7 @@ async fn test_search_suggestions() {
 #[tokio::test]
 async fn test_search_suggestions_empty_prefix() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, _) = create_test_user_and_room(&server).await;
 
@@ -280,7 +259,7 @@ async fn test_search_suggestions_empty_prefix() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     let suggestions = body.as_array().unwrap();
     assert_eq!(suggestions.len(), 0);
 }
@@ -288,10 +267,7 @@ async fn test_search_suggestions_empty_prefix() {
 #[tokio::test]
 async fn test_get_trending_keywords() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, room_id) = create_test_user_and_room(&server).await;
 
@@ -311,7 +287,7 @@ async fn test_get_trending_keywords() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     let keywords = body.as_array().unwrap();
     assert!(keywords.len() > 0);
 
@@ -325,10 +301,7 @@ async fn test_get_trending_keywords() {
 #[tokio::test]
 async fn test_search_results_pagination() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token, room_id) = create_test_user_and_room(&server).await;
 
@@ -352,7 +325,7 @@ async fn test_search_results_pagination() {
         .await;
 
     assert_eq!(response1.status_code(), StatusCode::OK);
-    let body1 = response1.json::<serde_json::Value>().await;
+    let body1 = response1.json::<serde_json::Value>();
     let results1 = body1["results"].as_array().unwrap();
     assert_eq!(results1.len(), 10);
 
@@ -367,7 +340,7 @@ async fn test_search_results_pagination() {
         .await;
 
     assert_eq!(response2.status_code(), StatusCode::OK);
-    let body2 = response2.json::<serde_json::Value>().await;
+    let body2 = response2.json::<serde_json::Value>();
     let results2 = body2["results"].as_array().unwrap();
     assert_eq!(results2.len(), 10);
 
@@ -376,3 +349,4 @@ async fn test_search_results_pagination() {
     let ids2: Vec<&str> = results2.iter().map(|r| r["id"].as_str().unwrap()).collect();
     assert!(!ids1.iter().any(|id| ids2.contains(id)));
 }
+#![cfg(feature = "with_axum_test")]

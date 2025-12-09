@@ -9,7 +9,16 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { VoiceRecording } from './voiceRecorder';
+
+/** 语音录音数据 */
+export interface VoiceRecording {
+  id: string;
+  blob: Blob;
+  url: string;
+  duration: number; // 录制时长（秒）
+  timestamp: number;
+  waveform?: number[];
+}
 
 /** 权限状态 */
 export type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'restricted';

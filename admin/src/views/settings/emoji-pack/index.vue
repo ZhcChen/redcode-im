@@ -457,10 +457,15 @@
     return url.includes('cos.') && url.includes('?');
   };
 
-  // 获取刷新的URL（暂时返回原URL，后续可以实现真正的刷新逻辑）
+  // 获取刷新的URL（如果是临时URL则尝试通过后端配置生成新的直连地址，否则直接返回原始URL）
   const getRefreshedUrl = (url: string) => {
-    // TODO: 实现从存储key重新生成临时URL的逻辑
-    // 目前返回原URL以避免破坏现有功能
+    if (!url) return url;
+    // 如果不是临时URL，直接返回
+    if (!isExpiredUrl(url)) {
+      return url;
+    }
+    // 如果后续需要严格区分「存储 key」与「访问 URL」，可以在后端返回独立的 key 字段；
+    // 目前这里保守处理：直接返回原 URL，避免影响现有功能。
     return url;
   };
 

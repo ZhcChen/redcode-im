@@ -767,8 +767,39 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       title: '清空聊天记录',
       content: '确认要清空聊天记录吗？',
       onConfirm: () async {
-        debugPrint('Clear messages confirmed');
-        return true;
+        try {
+          final session = await _tokenStorage.readSession();
+          if (session == null) {
+            _showSnackBar('请先登录');
+            return false;
+          }
+
+          final response = await http.delete(
+            Uri.parse(
+              '${AppConfig.apiBaseUrl}/rooms/${widget.chat.roomId}/messages',
+            ),
+            headers: {
+              'Authorization': 'Bearer ${session.token}',
+            },
+          );
+
+          if (response.statusCode == 200) {
+            // 后端清空成功后，再清理本地缓存，保持与 Desktop 端一致
+            await _chatProvider.clearChatMessages(widget.chat.roomId);
+            _showSnackBar('聊天记录已清空');
+            return true;
+          } else {
+            debugPrint(
+              'Clear messages failed: ${response.statusCode} ${response.body}',
+            );
+            _showSnackBar('清空聊天记录失败，请稍后重试');
+            return false;
+          }
+        } catch (e) {
+          debugPrint('Clear messages exception: $e');
+          _showSnackBar('清空聊天记录失败，请稍后重试');
+          return false;
+        }
       },
     );
   }

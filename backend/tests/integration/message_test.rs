@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use axum_test::{TestServer, TestServerConfig};
+use axum_test::TestServer;
 use redcode_im_backend::*;
 use serde_json::json;
 use uuid::Uuid;
@@ -39,10 +39,7 @@ async fn create_test_user_and_token(server: &TestServer) -> (String, String) {
 #[tokio::test]
 async fn test_send_message() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (username, token) = create_test_user_and_token(&server).await;
 
@@ -59,7 +56,7 @@ async fn test_send_message() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 发送消息
@@ -73,17 +70,14 @@ async fn test_send_message() {
         .await;
 
     assert_eq!(message_response.status_code(), StatusCode::OK);
-    let message_body = message_response.json::<serde_json::Value>().await;
+    let message_body = message_response.json::<serde_json::Value>();
     assert!(message_body["data"].get("content").is_some());
 }
 
 #[tokio::test]
 async fn test_get_messages() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (username, token) = create_test_user_and_token(&server).await;
 
@@ -100,7 +94,7 @@ async fn test_get_messages() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 发送几条消息
@@ -121,7 +115,7 @@ async fn test_get_messages() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     let messages = body["data"].as_array().unwrap();
     assert_eq!(messages.len(), 5);
 }
@@ -129,10 +123,7 @@ async fn test_get_messages() {
 #[tokio::test]
 async fn test_delete_message() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (username, token) = create_test_user_and_token(&server).await;
 
@@ -149,7 +140,7 @@ async fn test_delete_message() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 发送消息
@@ -163,7 +154,7 @@ async fn test_delete_message() {
         .await;
 
     assert_eq!(message_response.status_code(), StatusCode::OK);
-    let message_body = message_response.json::<serde_json::Value>().await;
+    let message_body = message_response.json::<serde_json::Value>();
     let message_id = message_body["data"]["id"].as_str().unwrap();
 
     // 删除消息
@@ -177,10 +168,7 @@ async fn test_delete_message() {
 #[tokio::test]
 async fn test_mark_message_as_read() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (username, token) = create_test_user_and_token(&server).await;
 
@@ -197,7 +185,7 @@ async fn test_mark_message_as_read() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 发送消息
@@ -211,7 +199,7 @@ async fn test_mark_message_as_read() {
         .await;
 
     assert_eq!(message_response.status_code(), StatusCode::OK);
-    let message_body = message_response.json::<serde_json::Value>().await;
+    let message_body = message_response.json::<serde_json::Value>();
     let message_id = message_body["data"]["id"].as_str().unwrap();
 
     // 标记为已读
@@ -225,10 +213,7 @@ async fn test_mark_message_as_read() {
 #[tokio::test]
 async fn test_pin_unpin_message() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (username, token) = create_test_user_and_token(&server).await;
 
@@ -245,7 +230,7 @@ async fn test_pin_unpin_message() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 发送消息
@@ -259,7 +244,7 @@ async fn test_pin_unpin_message() {
         .await;
 
     assert_eq!(message_response.status_code(), StatusCode::OK);
-    let message_body = message_response.json::<serde_json::Value>().await;
+    let message_body = message_response.json::<serde_json::Value>();
     let message_id = message_body["data"]["id"].as_str().unwrap();
 
     // 置顶消息
@@ -278,3 +263,4 @@ async fn test_pin_unpin_message() {
 
     assert_eq!(unpin_response.status_code(), StatusCode::OK);
 }
+#![cfg(feature = "with_axum_test")]

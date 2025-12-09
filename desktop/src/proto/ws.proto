@@ -46,6 +46,7 @@ message ServerEvent {
     ServerGroupMemberChanged group_member_changed = 17;
     ServerFriendProfileUpdated friend_profile_updated = 18;
     ServerRoomHistoryCleared room_history_cleared = 19;
+    ServerFriendshipDeleted friendship_deleted = 20;
   }
 }
 
@@ -181,6 +182,10 @@ message ServerRoomHistoryCleared {
   string room_id = 1;
   string cleared_by = 2;
   string cleared_at = 3;
+}
+
+message ServerFriendshipDeleted {
+  string user_id = 1;
 }
 
 message ServerGroupSettingsUpdated {

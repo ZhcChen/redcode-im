@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-
-import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
+import '../../core/widgets/tip_dialog.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../auth/models/auth_user.dart';
 import '../chat/chat_detail_page_v2.dart';
@@ -22,6 +20,7 @@ class ContactDetailPage extends StatefulWidget {
 class _ContactDetailPageState extends State<ContactDetailPage> {
   final FriendService _friendService = FriendService();
   bool _creatingChat = false;
+  bool _deletingFriend = false;
 
   Future<void> _handleSendMessage() async {
     if (_creatingChat) return;
@@ -69,6 +68,45 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
     }
   }
 
+  Future<void> _handleDeleteFriend() async {
+    if (_deletingFriend) return;
+
+    final confirmed = await TipDialog.showConfirm(
+      context,
+      title: '删除好友',
+      content:
+          '确定要删除好友「${widget.friend.user.displayName}」吗？删除后双方将不再出现在彼此的联系人列表中，此操作不可撤销。',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmDanger: true,
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _deletingFriend = true);
+    try {
+      await _friendService.deleteFriend(widget.friend.user.id);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } on FriendServiceException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('删除好友失败，请稍后再试')));
+    } finally {
+      if (mounted) {
+        setState(() => _deletingFriend = false);
+      } else {
+        _deletingFriend = false;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.friend.user;
@@ -110,6 +148,32 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
                     )
                   : const Icon(Icons.chat_bubble_outline_rounded),
               label: Text(_creatingChat ? '正在创建聊天…' : '发送消息'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _deletingFriend ? null : _handleDeleteFriend,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              icon: _deletingFriend
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.red,
+                      ),
+                    )
+                  : const Icon(Icons.person_remove_alt_1_outlined),
+              label: Text(_deletingFriend ? '正在删除…' : '删除好友'),
             ),
           ),
         ],

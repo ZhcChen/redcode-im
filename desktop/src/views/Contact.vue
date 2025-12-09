@@ -55,10 +55,11 @@
           
           <!-- 好友申请列表 -->
           <ScrollContainer class="friend-requests-list">
-            <!-- 只有在初始加载且没有缓存数据时才显示loading -->
-            <div v-if="isLoadingFriendRequests && friendRequests.length === 0" class="loading-state">
-              <div class="loading-text">正在获取好友申请...</div>
-            </div>
+            <!-- 只有在初始加载且没有缓存数据时才显示骨架屏 -->
+            <MessageListSkeleton
+              v-if="isLoadingFriendRequests && friendRequests.length === 0"
+              :rows="6"
+            />
 
             <!-- 空状态 -->
             <div v-else-if="!isLoadingFriendRequests && friendRequests.length === 0" class="empty-state">
@@ -121,9 +122,10 @@
           <!-- 联系人列表 -->
           <div class="alphabet-list">
             <!-- 加载状态 -->
-            <div v-if="contactsLoading && contacts.length === 0" class="loading-state">
-              <div class="loading-text">正在加载联系人...</div>
-            </div>
+            <MessageListSkeleton
+              v-if="contactsLoading && contacts.length === 0"
+              :rows="7"
+            />
             
             <!-- 错误状态 -->
             <div v-else-if="contactsError" class="error-state">
@@ -245,6 +247,7 @@
           <div class="contact-action-section">
             <div class="contact-actions">
               <button @click="startChat(selectedContact)" class="chat-btn">发消息</button>
+              <button @click="() => (showDeleteFriendConfirm = true)" class="delete-btn">删除好友</button>
             </div>
           </div>
         </div>
@@ -256,6 +259,19 @@
       </div>
     </div>
     
+    <!-- 删除好友确认对话框 -->
+    <ConfirmDialog
+      v-model:visible="showDeleteFriendConfirm"
+      title="删除好友"
+      :message="`确定要删除好友「${selectedContact?.name || ''}」吗？`"
+      description="删除好友不会删除历史聊天记录，但双方将不再出现在彼此的联系人列表中。此操作不可撤销。"
+      confirm-text="删除"
+      cancel-text="取消"
+      type="danger"
+      @confirm="confirmDeleteFriend"
+      @cancel="cancelDeleteFriend"
+    />
+
     <!-- 添加联系人对话框 -->
     <Dialog 
       v-model="showAddDialog" 
@@ -361,6 +377,8 @@ import Popover from '../components/Popover.vue'
 import Dialog from '../components/Dialog.vue'
 import DialogInput from '../components/DialogInput.vue'
 import Badge from '../components/Badge.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import MessageListSkeleton from '../components/MessageListSkeleton.vue'
 import { UserApi, type UserInfo } from '../api/user'
 import { FriendApi } from '../api/friend'
 import { toast } from '../utils/toast'
@@ -401,6 +419,8 @@ const menuPopoverRef = ref()
 const showFriendRequests = ref(false)
 // 选中的好友申请用户详情
 const selectedFriendRequest = ref<FriendRequest | null>(null)
+// 删除好友确认对话框状态
+const showDeleteFriendConfirm = ref(false)
 
 // 最小和最大宽度限制
 const minWidth = 300
@@ -582,6 +602,32 @@ const viewProfile = (contact: Contact) => {
 const makeCall = (contact: Contact) => {
   // 发起语音通话逻辑
   selectedContact.value = null
+}
+
+const confirmDeleteFriend = async () => {
+  if (!selectedContact.value) {
+    return
+  }
+
+  try {
+    const response = await FriendApi.deleteFriend({
+      friendId: String(selectedContact.value.id)
+    })
+
+    if (!response.success) {
+      throw new Error(response.message || '删除好友失败')
+    }
+
+    selectedContact.value = null
+    showDeleteFriendConfirm.value = false
+  } catch (error: any) {
+    const errorMessage = error?.response?.message || error?.message || '删除好友失败'
+    toast.error(errorMessage)
+  }
+}
+
+const cancelDeleteFriend = () => {
+  showDeleteFriendConfirm.value = false
 }
 
 const handleSearch = async (value: string) => {
@@ -1372,6 +1418,22 @@ onUnmounted(() => {
     
     &:hover {
       background-color: $primary-dark;
+    }
+  }
+
+  .delete-btn {
+    margin-top: 16px;
+    height: 40px;
+    width: 160px;
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    border: 1px solid #ff4d4f;
+    background-color: transparent;
+    color: #ff4d4f;
+    
+    &:hover {
+      background-color: rgba(255, 77, 79, 0.08);
     }
   }
 }

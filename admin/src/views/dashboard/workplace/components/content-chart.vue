@@ -84,8 +84,9 @@
   ]);
   let timer: number | null = null;
 
-  const { chartOption } = useChartOption(() => {
+  const { chartOption } = useChartOption((isDark, theme) => {
     return {
+      backgroundColor: theme.backgroundColor,
       grid: {
         left: '2.6%',
         right: '0',
@@ -98,7 +99,7 @@
         data: xAxis.value,
         boundaryGap: false,
         axisLabel: {
-          color: '#4E5969',
+          color: theme.textColorPrimary,
           formatter(value: number, idx: number) {
             if (idx === 0) return '';
             if (idx === xAxis.value.length - 1) return '';
@@ -119,13 +120,13 @@
             return true;
           },
           lineStyle: {
-            color: '#E5E8EF',
+            color: theme.axisSplitLineColor,
           },
         },
         axisPointer: {
           show: true,
           lineStyle: {
-            color: '#23ADFF',
+            color: theme.primaryGradientMid,
             width: 2,
           },
         },
@@ -140,12 +141,13 @@
             if (idx === 0) return value;
             return `${value}k`;
           },
+          color: theme.textColorSecondary,
         },
         splitLine: {
           show: true,
           lineStyle: {
             type: 'dashed',
-            color: '#E5E8EF',
+            color: theme.axisSplitLineColor,
           },
         },
       },
@@ -183,15 +185,15 @@
             color: new graphic.LinearGradient(0, 0, 1, 0, [
               {
                 offset: 0,
-                color: 'rgba(30, 231, 255, 1)',
+                color: theme.primaryGradientFrom,
               },
               {
                 offset: 0.5,
-                color: 'rgba(36, 154, 255, 1)',
+                color: theme.primaryGradientMid,
               },
               {
                 offset: 1,
-                color: 'rgba(111, 66, 251, 1)',
+                color: theme.primaryGradientTo,
               },
             ]),
           },
@@ -201,11 +203,11 @@
             color: new graphic.LinearGradient(0, 0, 0, 1, [
               {
                 offset: 0,
-                color: 'rgba(17, 126, 255, 0.16)',
+                color: theme.areaGradientFrom,
               },
               {
                 offset: 1,
-                color: 'rgba(17, 128, 255, 0)',
+                color: theme.areaGradientTo,
               },
             ]),
           },

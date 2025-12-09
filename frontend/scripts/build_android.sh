@@ -44,10 +44,22 @@ case "$ENV_ARG" in
         ;;
 esac
 
+# 读取 Android 配置文件中的 Application ID（如存在）
+ANDROID_CONFIG_FILE="config/android/app_config.properties"
+APP_ID="com.chatlyme.app"
+
+if [ -f "$ANDROID_CONFIG_FILE" ]; then
+    PARSED_APP_ID=$(grep -E '^APPLICATION_ID=' "$ANDROID_CONFIG_FILE" | tail -n 1 | cut -d'=' -f2- | tr -d '[:space:]')
+    if [ -n "$PARSED_APP_ID" ]; then
+        APP_ID="$PARSED_APP_ID"
+    fi
+fi
+
 # dart-define 参数
 DART_DEFINES="--dart-define=ENV=$ENV"
 
 echo -e "${BLUE}🌍 构建环境: $ENV_NAME ($ENV)${NC}"
+echo -e "${BLUE}📱 当前 Application ID: $APP_ID${NC}"
 echo ""
 
 # 显示菜单
@@ -88,7 +100,7 @@ build_apk() {
         echo -e "${GREEN}✅ APK 构建成功！${NC}"
         echo -e "${GREEN}📍 文件位置: $APK_FILE${NC}"
         echo -e "${GREEN}📏 文件大小: $APK_SIZE${NC}"
-        echo -e "${GREEN}📱 包名: com.chatlyme.app${NC}"
+        echo -e "${GREEN}📱 包名: $APP_ID${NC}"
         echo ""
         echo -e "${YELLOW}📤 可以将此 APK 文件直接安装到 Android 设备${NC}"
         echo -e "${YELLOW}📋 安装命令: adb install $APK_FILE${NC}"
@@ -125,7 +137,7 @@ build_aab() {
         echo -e "${GREEN}✅ AAB 构建成功！${NC}"
         echo -e "${GREEN}📍 文件位置: $AAB_FILE${NC}"
         echo -e "${GREEN}📏 文件大小: $AAB_SIZE${NC}"
-        echo -e "${GREEN}📱 包名: com.chatlyme.app${NC}"
+        echo -e "${GREEN}📱 包名: $APP_ID${NC}"
         echo ""
         echo -e "${YELLOW}📤 可以将此 AAB 文件上传到 Google Play Console${NC}"
     else
@@ -176,7 +188,7 @@ build_both() {
     fi
     
     echo ""
-    echo -e "${GREEN}📱 包名: com.chatlyme.app${NC}"
+    echo -e "${GREEN}📱 包名: $APP_ID${NC}"
     echo -e "${YELLOW}📤 APK 可直接安装，AAB 可上传到 Google Play${NC}"
 }
 

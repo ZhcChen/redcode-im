@@ -160,6 +160,20 @@ class FriendService {
     );
   }
 
+  Future<void> deleteFriend(String friendUserId) async {
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/friends/$friendUserId');
+    final response = await http.delete(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw FriendServiceException(
+      _extractErrorMessage(response.body) ?? '删除好友失败',
+    );
+  }
+
   Future<EnsureChatResult> ensurePrivateChat(String friendUserId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/friends/$friendUserId/chat');

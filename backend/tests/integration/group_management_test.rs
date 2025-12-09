@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use axum_test::{TestServer, TestServerConfig};
+use axum_test::TestServer;
 use redcode_im_backend::*;
 use serde_json::json;
 use uuid::Uuid;
@@ -41,10 +41,7 @@ async fn create_test_user(server: &TestServer) -> (String, String, String) {
 #[tokio::test]
 async fn test_create_room() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -60,7 +57,7 @@ async fn test_create_room() {
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    let body = response.json::<serde_json::Value>().await;
+    let body = response.json::<serde_json::Value>();
     assert_eq!(body["room"]["name"], "Test Group");
     assert_eq!(body["room"]["description"], "A test group for testing");
 }
@@ -68,10 +65,7 @@ async fn test_create_room() {
 #[tokio::test]
 async fn test_join_and_leave_room() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap;
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -88,7 +82,7 @@ async fn test_join_and_leave_room() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 离开聊天室
@@ -102,10 +96,7 @@ async fn test_join_and_leave_room() {
 #[tokio::test]
 async fn test_list_room_members() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -122,7 +113,7 @@ async fn test_list_room_members() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 获取成员列表
@@ -131,7 +122,7 @@ async fn test_list_room_members() {
         .await;
 
     assert_eq!(members_response.status_code(), StatusCode::OK);
-    let members_body = members_response.json::<serde_json::Value>().await;
+    let members_body = members_response.json::<serde_json::Value>();
     let members = members_body.as_array().unwrap();
     assert_eq!(members.len(), 1); // 只有创建者
 }
@@ -139,10 +130,7 @@ async fn test_list_room_members() {
 #[tokio::test]
 async fn test_group_settings() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -159,7 +147,7 @@ async fn test_group_settings() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 获取群设置
@@ -186,10 +174,7 @@ async fn test_group_settings() {
 #[tokio::test]
 async fn test_group_rules() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -206,7 +191,7 @@ async fn test_group_rules() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 创建群规
@@ -228,7 +213,7 @@ async fn test_group_rules() {
         .await;
 
     assert_eq!(list_response.status_code(), StatusCode::OK);
-    let list_body = list_response.json::<serde_json::Value>().await;
+    let list_body = list_response.json::<serde_json::Value>();
     let rules = list_body["rules"].as_array().unwrap();
     assert_eq!(rules.len(), 1);
 }
@@ -236,10 +221,7 @@ async fn test_group_rules() {
 #[tokio::test]
 async fn test_join_request() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -256,7 +238,7 @@ async fn test_join_request() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 创建入群申请
@@ -275,10 +257,7 @@ async fn test_join_request() {
 #[tokio::test]
 async fn test_group_admin_management() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -295,7 +274,7 @@ async fn test_group_admin_management() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 获取管理员列表
@@ -309,10 +288,7 @@ async fn test_group_admin_management() {
 #[tokio::test]
 async fn test_mute_user() {
     let app = create_routes();
-    let config = TestServerConfig::builder()
-        .expect_failure_handlers()
-        .test_config();
-    let server = TestServer::new_with_config(app, config).unwrap();
+    let server = TestServer::new(app).unwrap();
 
     let (_, _, token) = create_test_user(&server).await;
 
@@ -329,7 +305,7 @@ async fn test_mute_user() {
         .await;
 
     assert_eq!(room_response.status_code(), StatusCode::OK);
-    let room_body = room_response.json::<serde_json::Value>().await;
+    let room_body = room_response.json::<serde_json::Value>();
     let room_id = room_body["room"]["id"].as_str().unwrap();
 
     // 获取禁言列表
@@ -339,3 +315,4 @@ async fn test_mute_user() {
 
     assert_eq!(mutes_response.status_code(), StatusCode::OK);
 }
+#![cfg(feature = "with_axum_test")]

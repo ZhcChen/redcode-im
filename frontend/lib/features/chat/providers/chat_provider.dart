@@ -687,8 +687,8 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  /// 清空聊天消息（仅本地缓存）
-  /// 注意：后端暂无批量清空消息接口，此操作仅清除本地缓存
+  /// 清空单个房间的聊天消息（仅本地缓存）
+  /// 调用方如需同时清空服务器端历史记录，应先调用后端清空接口，再调用此方法同步本地状态。
   Future<void> clearChatMessages(String roomId) async {
     if (roomId == _currentRoomId) {
       _messages = [];

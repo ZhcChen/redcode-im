@@ -115,8 +115,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { VoicePlayer, VoiceUtils, type VoiceRecording } from '../utils/voiceRecorder'
-import { NativeVoiceRecorder, isNativeRecordingSupported } from '../utils/nativeVoiceRecorder'
+import { VoicePlayer, VoiceUtils } from '../utils/voiceRecorder'
+import { NativeVoiceRecorder, isNativeRecordingSupported, type VoiceRecording } from '../utils/nativeVoiceRecorder'
 import { toast } from '@/utils/toast'
 
 // Props
