@@ -2144,6 +2144,7 @@ const buildPlaceholderPart = (
   key: string,
   file: File,
   localUrl: string,
+  thumbnailLocalPath?: string | null,
 ): MessagePart => ({
   position: 0,
   type: partTypeEnumMap[meta.partType],
@@ -2156,6 +2157,7 @@ const buildPlaceholderPart = (
     height: meta.height ?? null,
     durationMs: meta.durationMs ?? null,
     thumbnailKey: null,
+    thumbnailLocalPath: thumbnailLocalPath ?? null,
     localPath: localUrl,
     uploadProgress: 0,
   },
@@ -4505,7 +4507,7 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
       if (cached.localPath && cached.localPath.startsWith('blob:')) {
         registerBlobUrl(cached.localPath)
       }
-      // 更新视频 part 的缩略图 localPath（使用响应式更新）
+      // 更新视频 part 的缩略图 thumbnailLocalPath（使用响应式更新）
       const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
       if (index !== -1) {
         const msg = messages.value[index]
@@ -4518,14 +4520,14 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
               ...updatedParts[partIndex],
               attachment: {
                 ...updatedParts[partIndex].attachment!,
-                localPath: cached.localPath
+                thumbnailLocalPath: cached.localPath
               }
             }
             messages.value[index] = {
               ...msg,
               parts: updatedParts
             }
-            console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（从缓存）')
+            console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 thumbnailLocalPath（从缓存）')
           }
         }
       }
@@ -4570,7 +4572,7 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
             downloadUrl: payload.downloadUrl,
           })
 
-          // 更新视频 part 的缩略图 localPath（使用响应式更新）
+          // 更新视频 part 的缩略图 thumbnailLocalPath（使用响应式更新）
           const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
           if (index !== -1) {
             const msg = messages.value[index]
@@ -4583,14 +4585,14 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
                   ...updatedParts[partIndex],
                   attachment: {
                     ...updatedParts[partIndex].attachment!,
-                    localPath: localPath
+                    thumbnailLocalPath: localPath
                   }
                 }
                 messages.value[index] = {
                   ...msg,
                   parts: updatedParts
                 }
-                console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 localPath（下载后）')
+                console.log('ensureVideoThumbnailLocalPath: 已更新消息的缩略图 thumbnailLocalPath（下载后）')
               }
             }
           }
@@ -4618,8 +4620,14 @@ const parseVideoScreenShotSrc = (message: Message): string => {
     const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
     if (videoPart?.attachment) {
       const attachment = videoPart.attachment
-      
-      // 优先处理缩略图
+
+      // 1. 最优先：使用本地首帧路径（发送者本地生成的首帧）
+      if (attachment.thumbnailLocalPath) {
+        console.log('使用本地首帧路径:', attachment.thumbnailLocalPath)
+        return convertLocalPathToUrlSync(attachment.thumbnailLocalPath)
+      }
+
+      // 2. 次优先：使用 thumbnailKey 获取缩略图
       if (attachment.thumbnailKey) {
         console.log('解析视频缩略图:', {
           messageId: message.id,
@@ -4627,7 +4635,7 @@ const parseVideoScreenShotSrc = (message: Message): string => {
           hasLocalPath: !!attachment.localPath,
           localPath: attachment.localPath
         })
-        
+
         // 先检查缓存中是否有缩略图的 localPath
         const thumbnailCached = attachmentUrlCache.get(attachment.thumbnailKey)
         console.log('缩略图缓存检查:', {
@@ -4637,11 +4645,11 @@ const parseVideoScreenShotSrc = (message: Message): string => {
           expiresAt: thumbnailCached?.expiresAt,
           isExpired: thumbnailCached ? thumbnailCached.expiresAt <= Date.now() : false
         })
-        
+
         if (thumbnailCached && thumbnailCached.expiresAt > Date.now() && thumbnailCached.localPath) {
           console.log('使用缓存的缩略图:', thumbnailCached.localPath)
-          // 如果缓存中有缩略图，更新 attachment.localPath（用于显示）
-          if (attachment.localPath !== thumbnailCached.localPath) {
+          // 如果缓存中有缩略图，更新 attachment.thumbnailLocalPath（用于显示）
+          if (attachment.thumbnailLocalPath !== thumbnailCached.localPath) {
             const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
             if (index !== -1) {
               const msg = messages.value[index]
@@ -4653,14 +4661,14 @@ const parseVideoScreenShotSrc = (message: Message): string => {
                     ...updatedParts[partIndex],
                     attachment: {
                       ...updatedParts[partIndex].attachment!,
-                      localPath: thumbnailCached.localPath
+                      thumbnailLocalPath: thumbnailCached.localPath
                     }
                   }
                   messages.value[index] = {
                     ...msg,
                     parts: updatedParts
                   }
-                  console.log('已更新消息的缩略图 localPath')
+                  console.log('已更新消息的缩略图 thumbnailLocalPath')
                 }
               }
             }
@@ -4668,11 +4676,11 @@ const parseVideoScreenShotSrc = (message: Message): string => {
           // 转换为 asset 协议 URL 以便在 WebView 中显示
           return convertLocalPathToUrlSync(thumbnailCached.localPath)
         }
-        
+
         // 如果缓存中没有，异步预加载缩略图（类似图片的预加载逻辑）
         console.log('缓存中没有缩略图，开始预加载:', attachment.thumbnailKey)
         void ensureVideoThumbnailLocalPath(message, videoPart)
-        
+
         // 返回缩略图的 URL（在下载完成前先显示服务器 URL）
         const url = resolveAttachmentUrl(attachment.thumbnailKey)
         console.log('返回缩略图 URL:', url)
@@ -4683,10 +4691,11 @@ const parseVideoScreenShotSrc = (message: Message): string => {
         console.log('视频没有缩略图 key:', {
           messageId: message.id,
           hasThumbnailKey: !!attachment.thumbnailKey,
+          hasThumbnailLocalPath: !!attachment.thumbnailLocalPath,
           hasKey: !!attachment.key
         })
       }
-      
+
       // 如果没有缩略图但有本地路径（可能是视频本身），不用于缩略图显示
       // 返回空，让模板显示默认占位符
     }
@@ -4694,6 +4703,12 @@ const parseVideoScreenShotSrc = (message: Message): string => {
 
   if (typeof message.content === 'object' && message.content) {
     const content = message.content as any
+
+    // 优先使用 content 中的 thumbnailLocalPath
+    if (content.thumbnailLocalPath) {
+      console.log('使用 content 中的本地首帧路径:', content.thumbnailLocalPath)
+      return convertLocalPathToUrlSync(content.thumbnailLocalPath)
+    }
 
     // 只处理专门的缩略图字段，不使用视频文件本身
     if (content.screenShot) {
@@ -6755,12 +6770,81 @@ const uploadAndSendFile = async (file: File) => {
     console.log('上传签名获取成功，开始上传文件')
 
     attachmentKey = signatureResponse.data.key
-    localUrl = URL.createObjectURL(file)
-    registerBlobUrl(localUrl)
     const timestamp = Date.now()
     tempId = `${timestamp}`
+
+    // 视频文件需要特殊处理：先拷贝到缓存目录，生成首帧，然后创建临时消息
+    let videoCachePath: string | null = null
+    let thumbnailLocalPath: string | null = null
+
+    if (meta.partType === 'video') {
+      try {
+        console.log('视频发送前处理: 拷贝视频到缓存目录并生成首帧')
+        const tauri = (window as any).__TAURI__
+        const isTauri = !!tauri?.core?.invoke
+
+        if (isTauri) {
+          const [{ invoke }, { join, appDataDir }, { mkdir, writeFile, exists }] = await Promise.all([
+            import('@tauri-apps/api/core'),
+            import('@tauri-apps/api/path'),
+            import('@tauri-apps/plugin-fs')
+          ])
+
+          const appDir = await appDataDir()
+
+          // 1. 先将视频拷贝到视频缓存目录（下载缓存目录）
+          const videosCacheDir = `${appDir}videos`
+          const videosDirExists = await exists(videosCacheDir)
+          if (!videosDirExists) {
+            await mkdir(videosCacheDir, { recursive: true })
+          }
+
+          const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')
+          const videoExt = file.name.split('.').pop() || 'mp4'
+          const videoFileName = `${timestamp}_${safeName}.${videoExt}`
+          videoCachePath = await join(videosCacheDir, videoFileName)
+
+          // 读取 File 为 ArrayBuffer 并写入本地缓存目录
+          const arrayBuffer = await file.arrayBuffer()
+          await writeFile(videoCachePath, new Uint8Array(arrayBuffer))
+          console.log('视频已拷贝到缓存目录:', videoCachePath)
+
+          // 2. 确保首帧缓存目录存在
+          const thumbnailsDir = `${appDir}thumbnails`
+          const thumbnailsDirExists = await exists(thumbnailsDir)
+          if (!thumbnailsDirExists) {
+            await mkdir(thumbnailsDir, { recursive: true })
+          }
+
+          // 3. 从缓存目录的视频生成首帧
+          const thumbnailFileName = `${timestamp}_${safeName}.jpg`
+          const thumbnailPath = await join(thumbnailsDir, thumbnailFileName)
+
+          try {
+            const generatedPath = await invoke<string>('generate_video_thumbnail', {
+              videoPath: videoCachePath,
+              outputPath: thumbnailPath,
+              timeSec: 0.5
+            })
+            thumbnailLocalPath = generatedPath
+            console.log('首帧生成完成，本地路径:', thumbnailLocalPath)
+          } catch (thumbnailErr: any) {
+            console.warn('首帧生成失败:', thumbnailErr?.message || thumbnailErr)
+          }
+        }
+      } catch (videoPrepareErr: any) {
+        console.warn('视频预处理失败:', videoPrepareErr?.message || videoPrepareErr)
+      }
+    }
+
+    // 对于视频，优先使用本地缓存路径；否则使用 blob URL
+    localUrl = videoCachePath || URL.createObjectURL(file)
+    if (!videoCachePath) {
+      registerBlobUrl(localUrl)
+    }
+
     const user = store.getters.currentUser
-    const placeholderPart = buildPlaceholderPart(meta, attachmentKey, file, localUrl)
+    const placeholderPart = buildPlaceholderPart(meta, attachmentKey, file, localUrl, thumbnailLocalPath)
     const contentTypeCode = partTypeContentMap[meta.partType as keyof typeof partTypeContentMap] ?? MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
 
     const placeholderContent = {
@@ -6772,6 +6856,7 @@ const uploadAndSendFile = async (file: File) => {
       uploadProgress: 0,
       key: attachmentKey,
       thumbnailKey: placeholderPart.attachment?.thumbnailKey ?? null,
+      thumbnailLocalPath: thumbnailLocalPath,
       mime: meta.mime,
     };
 
@@ -6806,99 +6891,48 @@ const uploadAndSendFile = async (file: File) => {
     })
     console.log('文件上传完成:', file.name)
 
-    // 如果是视频文件，上传完成后生成并上传首帧缩略图，并更新临时消息中的 thumbnailKey
-    if (meta.partType === 'video') {
+    // 如果是视频文件且已生成首帧，上传首帧缩略图并更新临时消息中的 thumbnailKey
+    if (meta.partType === 'video' && thumbnailLocalPath) {
       try {
-        console.log('开始为视频生成首帧缩略图:', file.name)
-        // 仅在桌面端环境下调用 Tauri 命令
-        const tauri = (window as any).__TAURI__
-        const isTauri = !!tauri?.core?.invoke
-        if (isTauri) {
-          const [{ invoke }, { join, appDataDir }, { mkdir, writeFile, remove, exists }] = await Promise.all([
-            import('@tauri-apps/api/core'),
-            import('@tauri-apps/api/path'),
-            import('@tauri-apps/plugin-fs')
-          ])
+        console.log('开始上传视频首帧缩略图:', thumbnailLocalPath)
 
-          const appDir = await appDataDir()
-          const thumbnailsDir = `${appDir}thumbnails`
-          const dirExists = await exists(thumbnailsDir)
-          if (!dirExists) {
-            await mkdir(thumbnailsDir, { recursive: true })
-          }
+        if (isRustEnabled('RUST_FILE_UPLOAD')) {
+          const uploadPath = '/files/upload'
+          const uploadResult = await rustHttp.upload<{ key: string }>(uploadPath, thumbnailLocalPath)
+          if (uploadResult.success && uploadResult.data?.key) {
+            videoThumbnailKey = uploadResult.data.key
+            console.log('缩略图上传完成，object key:', videoThumbnailKey)
 
-          const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')
-          const timestamp = Date.now()
-          const thumbnailFileName = `${timestamp}_${safeName}.jpg`
-          const thumbnailPath = await join(thumbnailsDir, thumbnailFileName)
-
-          // 将视频 File 对象写入本地临时文件，供 FFmpeg 读取
-          const tempVideoFileName = `${timestamp}_${safeName}_temp.${file.name.split('.').pop() || 'mp4'}`
-          const tempVideoPath = await join(thumbnailsDir, tempVideoFileName)
-
-          // 读取 File 为 ArrayBuffer 并写入本地文件
-          const arrayBuffer = await file.arrayBuffer()
-          await writeFile(tempVideoPath, new Uint8Array(arrayBuffer))
-          console.log('视频临时文件写入完成:', tempVideoPath)
-
-          const generatedPath = await invoke<string>('generate_video_thumbnail', {
-            videoPath: tempVideoPath,
-            outputPath: thumbnailPath,
-            timeSec: 0.5
-          })
-
-          // 删除临时视频文件，节省空间
-          try {
-            await remove(tempVideoPath)
-            console.log('临时视频文件已删除:', tempVideoPath)
-          } catch (removeErr) {
-            console.warn('删除临时视频文件失败:', removeErr)
-          }
-
-          console.log('首帧缩略图生成完成，本地路径:', generatedPath)
-
-          // 使用文件上传（通过 Rust 侧 http_upload，将缩略图作为 image/jpeg 上传到后端文件服务）
-          // 这里复用 rust-http.upload，要求后端提供统一文件上传路径（例如 /files/upload）
-          if (isRustEnabled('RUST_FILE_UPLOAD')) {
-            const uploadPath = '/files/upload'
-            const uploadResult = await rustHttp.upload<{ key: string }>(uploadPath, generatedPath)
-            if (uploadResult.success && uploadResult.data?.key) {
-              videoThumbnailKey = uploadResult.data.key
-              console.log('缩略图上传完成，object key:', videoThumbnailKey)
-
-              // 更新临时消息中的 thumbnailKey，用于本地展示
-              if (tempId) {
-                const msgIndex = messages.value.findIndex((msg) => msg.id === tempId)
-                if (msgIndex !== -1 && Array.isArray(messages.value[msgIndex].parts)) {
-                  const updatedParts = messages.value[msgIndex].parts!.map((part) => {
-                    if (part.attachment?.key === attachmentKey && part.type === MessagePartType.VIDEO) {
-                      return {
-                        ...part,
-                        attachment: {
-                          ...part.attachment,
-                          thumbnailKey: videoThumbnailKey,
-                        }
+            // 更新临时消息中的 thumbnailKey（保留 thumbnailLocalPath）
+            if (tempId) {
+              const msgIndex = messages.value.findIndex((msg) => msg.id === tempId)
+              if (msgIndex !== -1 && Array.isArray(messages.value[msgIndex].parts)) {
+                const updatedParts = messages.value[msgIndex].parts!.map((part) => {
+                  if (part.attachment?.key === attachmentKey && part.type === MessagePartType.VIDEO) {
+                    return {
+                      ...part,
+                      attachment: {
+                        ...part.attachment,
+                        thumbnailKey: videoThumbnailKey,
                       }
                     }
-                    return part
-                  })
-                  messages.value[msgIndex] = {
-                    ...messages.value[msgIndex],
-                    parts: updatedParts,
                   }
+                  return part
+                })
+                messages.value[msgIndex] = {
+                  ...messages.value[msgIndex],
+                  parts: updatedParts,
                 }
               }
-            } else {
-              console.warn('缩略图上传失败:', uploadResult.message)
             }
           } else {
-            console.warn('RUST_FILE_UPLOAD 未启用，跳过缩略图上传')
+            console.warn('缩略图上传失败:', uploadResult.message)
           }
         } else {
-          console.log('当前环境不是 Tauri，跳过视频首帧缩略图生成')
+          console.warn('RUST_FILE_UPLOAD 未启用，跳过缩略图上传')
         }
       } catch (thumbnailError: any) {
-        console.warn('生成或上传视频首帧缩略图失败:', thumbnailError?.message || thumbnailError)
+        console.warn('上传视频首帧缩略图失败:', thumbnailError?.message || thumbnailError)
       }
     }
 
