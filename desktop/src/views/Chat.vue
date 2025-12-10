@@ -6813,7 +6813,7 @@ const uploadAndSendFile = async (file: File) => {
         // 仅在桌面端环境下调用 Tauri 命令
         const isTauri = typeof (window as any).__TAURI_IPC__ !== 'undefined'
         if (isTauri) {
-          const [{ invoke }, { join, appDataDir }, { mkdir, writeTextFile, exists }] = await Promise.all([
+          const [{ invoke }, { join, appDataDir }, { mkdir, writeFile, remove, exists }] = await Promise.all([
             import('@tauri-apps/api/core'),
             import('@tauri-apps/api/path'),
             import('@tauri-apps/plugin-fs')
@@ -6831,22 +6831,28 @@ const uploadAndSendFile = async (file: File) => {
           const thumbnailFileName = `${timestamp}_${safeName}.jpg`
           const thumbnailPath = await join(thumbnailsDir, thumbnailFileName)
 
-          // 先将原始文件保存到本地再传给 Rust 侧（目前 rust-http.upload 仅支持路径）
-          const tempVideoPath = await join(thumbnailsDir, `${timestamp}_${safeName}.video_path`)
-          // 为了避免大文件写入两次，这里只把路径传给 Rust，实际视频文件由原始上传路径承担；
-          // 如果后续需要从 COS 再下载再截帧，可调整为先下载本地再调用。
-          // 当前实现仅示意如何调用 generate_video_thumbnail。
+          // 将视频 File 对象写入本地临时文件，供 FFmpeg 读取
+          const tempVideoFileName = `${timestamp}_${safeName}_temp.${file.name.split('.').pop() || 'mp4'}`
+          const tempVideoPath = await join(thumbnailsDir, tempVideoFileName)
 
-          // 由于 uploadWithSignature 目前直接走 COS，不经过本地文件，这里暂时跳过本地写入，
-          // 假设 video_path 已经是本地路径（后续可扩展）。
-
-          await writeTextFile(tempVideoPath, attachmentKey)
+          // 读取 File 为 ArrayBuffer 并写入本地文件
+          const arrayBuffer = await file.arrayBuffer()
+          await writeFile(tempVideoPath, new Uint8Array(arrayBuffer))
+          console.log('视频临时文件写入完成:', tempVideoPath)
 
           const generatedPath = await invoke<string>('generate_video_thumbnail', {
             videoPath: tempVideoPath,
             outputPath: thumbnailPath,
             timeSec: 0.5
           })
+
+          // 删除临时视频文件，节省空间
+          try {
+            await remove(tempVideoPath)
+            console.log('临时视频文件已删除:', tempVideoPath)
+          } catch (removeErr) {
+            console.warn('删除临时视频文件失败:', removeErr)
+          }
 
           console.log('首帧缩略图生成完成，本地路径:', generatedPath)
 
