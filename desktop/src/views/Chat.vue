@@ -1396,48 +1396,41 @@ const blobUrlRegistry = new Set<string>();
 // 将本地文件路径转换为可在 WebView 中加载的 URL（同步版本）
 // 对于 blob: URL 直接返回，对于本地路径使用 Tauri asset 协议
 const convertLocalPathToUrlSync = (localPath: string): string => {
-  console.log('[convertLocalPathToUrlSync] 输入:', localPath);
   if (!localPath) {
-    console.log('[convertLocalPathToUrlSync] 空路径，返回空字符串');
+    logDebug('PathConvert', '空路径，返回空字符串')
     return '';
   }
   // blob: URL 可以直接使用
   if (localPath.startsWith('blob:')) {
-    console.log('[convertLocalPathToUrlSync] blob URL，直接返回');
     return localPath;
   }
   // http/https URL 直接使用
   if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
-    console.log('[convertLocalPathToUrlSync] http(s) URL，直接返回');
     return localPath;
   }
   // asset: 协议 URL 直接使用（已经转换过）
   if (localPath.startsWith('asset:') || localPath.startsWith('http://asset.localhost')) {
-    console.log('[convertLocalPathToUrlSync] asset URL，直接返回');
     return localPath;
   }
   // file:// URL 需要提取路径并转换
   if (localPath.startsWith('file://')) {
-    console.log('[convertLocalPathToUrlSync] file:// URL，提取路径并转换');
     const extractedPath = decodeURIComponent(localPath.replace('file://', ''));
-    console.log('[convertLocalPathToUrlSync] 提取的路径:', extractedPath);
     localPath = extractedPath;
   }
   // 本地文件路径需要转换为 asset 协议
   try {
     // 使用全局 Tauri API（需要在 tauri.conf.json 中设置 withGlobalTauri: true）
     const tauri = (window as any).__TAURI__;
-    console.log('[convertLocalPathToUrlSync] Tauri API 可用:', !!tauri?.core?.convertFileSrc);
     if (tauri?.core?.convertFileSrc) {
       const result = tauri.core.convertFileSrc(localPath);
-      console.log('[convertLocalPathToUrlSync] 转换结果:', result);
+      logDebug('PathConvert', '路径转换成功', { input: localPath, output: result })
       return result;
     }
     // 如果全局 API 不可用，返回原路径（会导致加载失败，但这种情况不应该发生）
-    console.warn('[convertLocalPathToUrlSync] Tauri global API not available for convertFileSrc');
+    logWarn('PathConvert', 'Tauri convertFileSrc API 不可用', { localPath })
     return localPath;
   } catch (error) {
-    console.error('[convertLocalPathToUrlSync] 转换失败:', error);
+    logWarn('PathConvert', '路径转换失败', { localPath, error })
     return localPath;
   }
 };
@@ -4616,38 +4609,52 @@ const ensureVideoThumbnailLocalPath = async (message: Message, videoPart: Messag
 }
 
 const parseVideoScreenShotSrc = (message: Message): string => {
+  logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 开始解析', {
+    messageId: message.id,
+    hasParts: Array.isArray(message.parts),
+    partsCount: message.parts?.length
+  })
+
   if (Array.isArray(message.parts)) {
     const videoPart = message.parts.find((part) => part.type === MessagePartType.VIDEO)
     if (videoPart?.attachment) {
       const attachment = videoPart.attachment
+      logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 找到视频 part', {
+        messageId: message.id,
+        hasThumbnailLocalPath: !!attachment.thumbnailLocalPath,
+        thumbnailLocalPath: attachment.thumbnailLocalPath,
+        hasThumbnailKey: !!attachment.thumbnailKey,
+        thumbnailKey: attachment.thumbnailKey
+      })
 
       // 1. 最优先：使用本地首帧路径（发送者本地生成的首帧）
       if (attachment.thumbnailLocalPath) {
-        console.log('使用本地首帧路径:', attachment.thumbnailLocalPath)
-        return convertLocalPathToUrlSync(attachment.thumbnailLocalPath)
+        logInfo('VideoThumbnail', '[parseVideoScreenShotSrc] 使用本地首帧路径', {
+          messageId: message.id,
+          thumbnailLocalPath: attachment.thumbnailLocalPath
+        })
+        const convertedUrl = convertLocalPathToUrlSync(attachment.thumbnailLocalPath)
+        logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 路径转换结果', {
+          input: attachment.thumbnailLocalPath,
+          output: convertedUrl
+        })
+        return convertedUrl
       }
 
       // 2. 次优先：使用 thumbnailKey 获取缩略图
       if (attachment.thumbnailKey) {
-        console.log('解析视频缩略图:', {
+        logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 使用 thumbnailKey', {
           messageId: message.id,
-          thumbnailKey: attachment.thumbnailKey,
-          hasLocalPath: !!attachment.localPath,
-          localPath: attachment.localPath
+          thumbnailKey: attachment.thumbnailKey
         })
 
         // 先检查缓存中是否有缩略图的 localPath
         const thumbnailCached = attachmentUrlCache.get(attachment.thumbnailKey)
-        console.log('缩略图缓存检查:', {
-          thumbnailKey: attachment.thumbnailKey,
-          cached: !!thumbnailCached,
-          cachedLocalPath: thumbnailCached?.localPath,
-          expiresAt: thumbnailCached?.expiresAt,
-          isExpired: thumbnailCached ? thumbnailCached.expiresAt <= Date.now() : false
-        })
 
         if (thumbnailCached && thumbnailCached.expiresAt > Date.now() && thumbnailCached.localPath) {
-          console.log('使用缓存的缩略图:', thumbnailCached.localPath)
+          logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 使用缓存的缩略图', {
+            cachedLocalPath: thumbnailCached.localPath
+          })
           // 如果缓存中有缩略图，更新 attachment.thumbnailLocalPath（用于显示）
           if (attachment.thumbnailLocalPath !== thumbnailCached.localPath) {
             const index = messages.value.findIndex((msg: Message) => msg.id === message.id)
@@ -4668,7 +4675,7 @@ const parseVideoScreenShotSrc = (message: Message): string => {
                     ...msg,
                     parts: updatedParts
                   }
-                  console.log('已更新消息的缩略图 thumbnailLocalPath')
+                  logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 已更新消息的 thumbnailLocalPath')
                 }
               }
             }
@@ -4678,21 +4685,20 @@ const parseVideoScreenShotSrc = (message: Message): string => {
         }
 
         // 如果缓存中没有，异步预加载缩略图（类似图片的预加载逻辑）
-        console.log('缓存中没有缩略图，开始预加载:', attachment.thumbnailKey)
+        logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 缓存中没有缩略图，开始预加载', {
+          thumbnailKey: attachment.thumbnailKey
+        })
         void ensureVideoThumbnailLocalPath(message, videoPart)
 
         // 返回缩略图的 URL（在下载完成前先显示服务器 URL）
         const url = resolveAttachmentUrl(attachment.thumbnailKey)
-        console.log('返回缩略图 URL:', url)
+        logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 返回服务器缩略图 URL', { url })
         if (url) {
           return url
         }
       } else {
-        console.log('视频没有缩略图 key:', {
-          messageId: message.id,
-          hasThumbnailKey: !!attachment.thumbnailKey,
-          hasThumbnailLocalPath: !!attachment.thumbnailLocalPath,
-          hasKey: !!attachment.key
+        logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 视频没有 thumbnailKey 和 thumbnailLocalPath', {
+          messageId: message.id
         })
       }
 
@@ -4706,8 +4712,16 @@ const parseVideoScreenShotSrc = (message: Message): string => {
 
     // 优先使用 content 中的 thumbnailLocalPath
     if (content.thumbnailLocalPath) {
-      console.log('使用 content 中的本地首帧路径:', content.thumbnailLocalPath)
-      return convertLocalPathToUrlSync(content.thumbnailLocalPath)
+      logInfo('VideoThumbnail', '[parseVideoScreenShotSrc] 使用 content 中的 thumbnailLocalPath', {
+        messageId: message.id,
+        thumbnailLocalPath: content.thumbnailLocalPath
+      })
+      const convertedUrl = convertLocalPathToUrlSync(content.thumbnailLocalPath)
+      logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] content 路径转换结果', {
+        input: content.thumbnailLocalPath,
+        output: convertedUrl
+      })
+      return convertedUrl
     }
 
     // 只处理专门的缩略图字段，不使用视频文件本身
@@ -4720,9 +4734,15 @@ const parseVideoScreenShotSrc = (message: Message): string => {
     }
 
     // 对于没有缩略图的视频，返回空字符串，让模板显示默认占位符
+    logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] 没有找到可用的缩略图，返回空', {
+      messageId: message.id
+    })
     return ''
   }
 
+  logDebug('VideoThumbnail', '[parseVideoScreenShotSrc] message.content 不是对象，返回空', {
+    messageId: message.id
+  })
   return ''
 }
 
@@ -6806,9 +6826,15 @@ const uploadAndSendFile = async (file: File) => {
 
     if (meta.partType === 'video') {
       try {
-        console.log('视频发送前处理: 拷贝视频到缓存目录并生成首帧')
+        logInfo('VideoThumbnail', '[1/6] 开始视频预处理', { fileName: file.name, fileSize: file.size })
         const tauri = (window as any).__TAURI__
         const isTauri = !!tauri?.core?.invoke
+        logDebug('VideoThumbnail', '[2/6] Tauri 环境检测', {
+          hasTauri: !!tauri,
+          hasCore: !!tauri?.core,
+          hasInvoke: !!tauri?.core?.invoke,
+          isTauri
+        })
 
         if (isTauri) {
           const [{ invoke }, { join, appDataDir }, { mkdir, writeFile, exists }] = await Promise.all([
@@ -6834,7 +6860,7 @@ const uploadAndSendFile = async (file: File) => {
           // 读取 File 为 ArrayBuffer 并写入本地缓存目录
           const arrayBuffer = await file.arrayBuffer()
           await writeFile(videoCachePath, new Uint8Array(arrayBuffer))
-          console.log('视频已拷贝到缓存目录:', videoCachePath)
+          logInfo('VideoThumbnail', '[3/6] 视频已拷贝到缓存目录', { videoCachePath })
 
           // 2. 确保首帧缓存目录存在
           const thumbnailsDir = `${appDir}thumbnails`
@@ -6846,6 +6872,11 @@ const uploadAndSendFile = async (file: File) => {
           // 3. 从缓存目录的视频生成首帧
           const thumbnailFileName = `${timestamp}_${safeName}.jpg`
           const thumbnailPath = await join(thumbnailsDir, thumbnailFileName)
+          logDebug('VideoThumbnail', '[4/6] 准备生成首帧', {
+            videoPath: videoCachePath,
+            outputPath: thumbnailPath,
+            timeSec: 0.5
+          })
 
           try {
             const generatedPath = await invoke<string>('generate_video_thumbnail', {
@@ -6854,13 +6885,15 @@ const uploadAndSendFile = async (file: File) => {
               timeSec: 0.5
             })
             thumbnailLocalPath = generatedPath
-            console.log('首帧生成完成，本地路径:', thumbnailLocalPath)
+            logInfo('VideoThumbnail', '[5/6] 首帧生成成功', { thumbnailLocalPath })
           } catch (thumbnailErr: any) {
-            console.warn('首帧生成失败:', thumbnailErr?.message || thumbnailErr)
+            logWarn('VideoThumbnail', '[5/6] 首帧生成失败', { error: thumbnailErr?.message || thumbnailErr })
           }
+        } else {
+          logWarn('VideoThumbnail', '[2/6] 非 Tauri 环境，跳过首帧生成')
         }
       } catch (videoPrepareErr: any) {
-        console.warn('视频预处理失败:', videoPrepareErr?.message || videoPrepareErr)
+        logWarn('VideoThumbnail', '视频预处理失败', { error: videoPrepareErr?.message || videoPrepareErr })
       }
     }
 
@@ -6873,6 +6906,16 @@ const uploadAndSendFile = async (file: File) => {
     const user = store.getters.currentUser
     const placeholderPart = buildPlaceholderPart(meta, attachmentKey, file, localUrl, thumbnailLocalPath)
     const contentTypeCode = partTypeContentMap[meta.partType as keyof typeof partTypeContentMap] ?? MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
+
+    // 视频发送时记录 thumbnailLocalPath 状态
+    if (meta.partType === 'video') {
+      logInfo('VideoThumbnail', '[6/6] 创建临时消息', {
+        tempId,
+        thumbnailLocalPath,
+        partThumbnailLocalPath: placeholderPart.attachment?.thumbnailLocalPath,
+        localUrl
+      })
+    }
 
     const placeholderContent = {
       name: file.name,
@@ -8426,7 +8469,7 @@ const isContentMatch = (content1: any, content2: any): boolean => {
   return false
 }
 
-import { logDebug, logWarn } from '@/utils/frontendLogger';
+import { logDebug, logInfo, logWarn } from '@/utils/frontendLogger';
 
 // WebSocket消息监听
 const handleWebSocketMessage = (event: CustomEvent) => {
