@@ -360,8 +360,7 @@
                               preload="metadata"
                               muted
                               playsinline
-                              @loadedmetadata="handleVideoMetadataLoaded"
-                              @seeked="handleVideoFirstFrameLoaded"
+                              @loadeddata="handleVideoFirstFrameLoaded"
                               @error="handleVideoThumbnailError"
                             ></video>
                             <div class="video-placeholder-overlay">
@@ -676,8 +675,7 @@
                             preload="metadata"
                             muted
                             playsinline
-                            @loadedmetadata="handleVideoMetadataLoaded"
-                            @seeked="handleVideoFirstFrameLoaded"
+                            @loadeddata="handleVideoFirstFrameLoaded"
                             @error="handleVideoThumbnailError"
                           ></video>
                           <div class="video-placeholder-overlay">
@@ -6474,32 +6472,14 @@ const handleVideoThumbnailError = (event: Event) => {
   }
 }
 
-// 处理视频元数据加载完成，触发首帧加载
-const handleVideoMetadataLoaded = (event: Event) => {
-  const video = event.target as HTMLVideoElement
-  if (video) {
-    // 设置 currentTime 触发 seeked 事件以加载首帧
-    video.currentTime = 0.01
-  }
-}
-
-// 处理视频首帧加载成功（seeked 事件）
+// 处理视频首帧加载成功
 const handleVideoFirstFrameLoaded = (event: Event) => {
   const video = event.target as HTMLVideoElement
-  const placeholder = video.closest('.video-placeholder') as HTMLElement
+  // 隐藏占位符 overlay，显示视频首帧
   const overlay = video.closest('.video-placeholder-inner')?.querySelector('.video-placeholder-overlay') as HTMLElement
-
-  // 隐藏占位符 overlay
   if (overlay) {
     overlay.style.display = 'none'
   }
-
-  // 移除灰色背景和虚线边框，让视频首帧显示出来
-  if (placeholder) {
-    placeholder.style.backgroundColor = 'transparent'
-    placeholder.style.border = 'none'
-  }
-
   scrollToBottomAfterImageLoad()
 }
 
@@ -6623,7 +6603,6 @@ const messageBubbleContext = {
   parseVideoSrc,
   handleVideoPlay,
   handleVideoThumbnailError,
-  handleVideoMetadataLoaded,
   handleVideoFirstFrameLoaded,
   isFileDownloading,
   getFileIconType,

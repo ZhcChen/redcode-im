@@ -152,8 +152,7 @@
                   preload="metadata"
                   muted
                   playsinline
-                  @loadedmetadata="handleVideoMetadataLoaded"
-                  @seeked="handleVideoFirstFrameLoaded"
+                  @loadeddata="handleVideoFirstFrameLoaded"
                   @error="handleVideoThumbnailError"
                 ></video>
                 <div class="video-placeholder-overlay">
@@ -493,8 +492,7 @@
                   preload="metadata"
                   muted
                   playsinline
-                  @loadedmetadata="handleVideoMetadataLoaded"
-                  @seeked="handleVideoFirstFrameLoaded"
+                  @loadeddata="handleVideoFirstFrameLoaded"
                   @error="handleVideoThumbnailError"
                 ></video>
                 <div class="video-placeholder-overlay">
@@ -752,7 +750,6 @@ interface MessageBubbleContext {
   parseVideoSrc: (m: Message) => string
   handleVideoPlay: (m: Message) => void
   handleVideoThumbnailError: (e: Event) => void
-  handleVideoMetadataLoaded: (e: Event) => void
   handleVideoFirstFrameLoaded: (e: Event) => void
   isFileDownloading: (m: Message) => boolean
   getFileIconType: (m: Message) => string
@@ -794,7 +791,6 @@ const {
   parseVideoSrc,
   handleVideoPlay,
   handleVideoThumbnailError,
-  handleVideoMetadataLoaded,
   handleVideoFirstFrameLoaded,
   isFileDownloading,
   getFileIconType,
