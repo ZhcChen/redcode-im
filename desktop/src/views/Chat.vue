@@ -6811,7 +6811,8 @@ const uploadAndSendFile = async (file: File) => {
       try {
         console.log('开始为视频生成首帧缩略图:', file.name)
         // 仅在桌面端环境下调用 Tauri 命令
-        const isTauri = typeof (window as any).__TAURI_IPC__ !== 'undefined'
+        const tauri = (window as any).__TAURI__
+        const isTauri = !!tauri?.core?.invoke
         if (isTauri) {
           const [{ invoke }, { join, appDataDir }, { mkdir, writeFile, remove, exists }] = await Promise.all([
             import('@tauri-apps/api/core'),
