@@ -6641,22 +6641,49 @@ const messageBubbleContext = {
 
 // 处理上传点击
 const handleUploadClick = () => {
-  
+  console.log('[文件上传] handleUploadClick 被调用')
+
   // 检查是否有选中的聊天
   if (!selectedChat.value || !selectedChat.value.groupId) {
+    console.log('[文件上传] 没有选中聊天对象')
     toast.error('请先选择聊天对象')
     return
   }
-  
+
+  console.log('[文件上传] 准备创建文件选择器')
+
   // 创建文件输入元素
   const input = document.createElement('input')
   input.type = 'file'
   // 移除 accept 限制，允许选择所有文件类型
   input.multiple = true
-  
+  // 设置样式隐藏 input 元素
+  input.style.display = 'none'
+
+  // 将 input 添加到 DOM 中（某些 WebView 需要）
+  document.body.appendChild(input)
+
+  // 清理函数
+  const cleanup = () => {
+    if (input.parentNode) {
+      document.body.removeChild(input)
+    }
+  }
+
   // 使用 addEventListener 而不是 onchange，确保事件正确绑定
-  input.addEventListener('change', handleFileUpload, { once: true })
-  
+  input.addEventListener('change', (event) => {
+    console.log('[文件上传] change 事件触发')
+    handleFileUpload(event)
+    cleanup()
+  }, { once: true })
+
+  // 处理用户取消选择的情况（现代浏览器支持 cancel 事件）
+  input.addEventListener('cancel', () => {
+    console.log('[文件上传] 用户取消选择')
+    cleanup()
+  }, { once: true })
+
+  console.log('[文件上传] 触发 input.click()')
   input.click()
 }
 
