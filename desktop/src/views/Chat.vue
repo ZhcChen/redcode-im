@@ -1326,6 +1326,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PinnedMessageBanner from '../components/PinnedMessageBanner.vue'
 import SelectableListDialog from '../components/SelectableListDialog.vue'
 import { api, MessageApi } from '../api'
+import { logDebug, logInfo, logWarn } from '@/utils/frontendLogger'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
 import type { GroupSettings } from '../api/group'
@@ -8468,8 +8469,6 @@ const isContentMatch = (content1: any, content2: any): boolean => {
   // 默认不匹配
   return false
 }
-
-import { logDebug, logInfo, logWarn } from '@/utils/frontendLogger';
 
 // WebSocket消息监听
 const handleWebSocketMessage = (event: CustomEvent) => {
