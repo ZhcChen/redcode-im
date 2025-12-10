@@ -6847,7 +6847,7 @@ const uploadAndSendFile = async (file: File) => {
           const appDir = await appDataDir()
 
           // 1. 先将视频拷贝到视频缓存目录（下载缓存目录）
-          const videosCacheDir = `${appDir}videos`
+          const videosCacheDir = await join(appDir, 'videos')
           const videosDirExists = await exists(videosCacheDir)
           if (!videosDirExists) {
             await mkdir(videosCacheDir, { recursive: true })
@@ -6864,7 +6864,7 @@ const uploadAndSendFile = async (file: File) => {
           logInfo('VideoThumbnail', '[3/6] 视频已拷贝到缓存目录', { videoCachePath })
 
           // 2. 确保首帧缓存目录存在
-          const thumbnailsDir = `${appDir}thumbnails`
+          const thumbnailsDir = await join(appDir, 'thumbnails')
           const thumbnailsDirExists = await exists(thumbnailsDir)
           if (!thumbnailsDirExists) {
             await mkdir(thumbnailsDir, { recursive: true })
