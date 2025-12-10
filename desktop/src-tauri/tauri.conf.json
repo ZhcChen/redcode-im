@@ -95,7 +95,8 @@
       }
     },
     "externalBin": [
-      "resources/updater"
+      "resources/updater",
+      "binaries/ffmpeg"
     ]
   },
   "plugins": {

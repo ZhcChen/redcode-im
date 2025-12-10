@@ -82,7 +82,7 @@
             @error="handleVideoError"
             @stalled="handleVideoStalled"
             @waiting="handleVideoWaiting"
-            @contextmenu.stop
+            @contextmenu.prevent="showContextMenu"
             preload="auto"
             :loop="false"
           >
@@ -699,9 +699,8 @@ watch(() => props.visible, (newVisible) => {
 }
 
 .toolbar-buttons {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  align-self: flex-end;
+  margin-bottom: 12px;
   display: flex;
   gap: 8px;
   z-index: 10001;

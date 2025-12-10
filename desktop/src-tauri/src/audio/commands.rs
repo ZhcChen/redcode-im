@@ -27,7 +27,9 @@ pub async fn start_recording(state: State<'_, AudioRecorderState>) -> Result<(),
 
 /// 停止录音并返回录音数据
 #[tauri::command]
-pub async fn stop_recording(state: State<'_, AudioRecorderState>) -> Result<RecordingResult, String> {
+pub async fn stop_recording(
+    state: State<'_, AudioRecorderState>,
+) -> Result<RecordingResult, String> {
     let recorder = state.recorder.lock().map_err(|e| e.to_string())?;
     recorder.stop()
 }
@@ -41,7 +43,9 @@ pub async fn cancel_recording(state: State<'_, AudioRecorderState>) -> Result<()
 
 /// 获取录音状态
 #[tauri::command]
-pub async fn get_recording_status(state: State<'_, AudioRecorderState>) -> Result<RecordingStatus, String> {
+pub async fn get_recording_status(
+    state: State<'_, AudioRecorderState>,
+) -> Result<RecordingStatus, String> {
     let recorder = state.recorder.lock().map_err(|e| e.to_string())?;
     Ok(recorder.status())
 }

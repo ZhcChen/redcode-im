@@ -5443,6 +5443,16 @@ const mergeMessagePreservingLocalData = (existing: Message, incoming: Message): 
           ?? part.attachment.uploadProgress
           ?? null
 
+        const thumbnailLocalPath = existingAttachment?.thumbnailLocalPath
+          ?? incomingAttachment?.thumbnailLocalPath
+          ?? part.attachment.thumbnailLocalPath
+          ?? null
+
+        const thumbnailKey = incomingAttachment?.thumbnailKey
+          ?? existingAttachment?.thumbnailKey
+          ?? part.attachment.thumbnailKey
+          ?? null
+
         return {
           ...part,
           attachment: {
@@ -5450,6 +5460,8 @@ const mergeMessagePreservingLocalData = (existing: Message, incoming: Message): 
             localPath,
             downloadUrl,
             uploadProgress,
+            thumbnailLocalPath,
+            thumbnailKey,
           },
         }
       })
@@ -6888,7 +6900,31 @@ const uploadAndSendFile = async (file: File) => {
             thumbnailLocalPath = generatedPath
             logInfo('VideoThumbnail', '[5/6] 首帧生成成功', { thumbnailLocalPath })
           } catch (thumbnailErr: any) {
-            logWarn('VideoThumbnail', '[5/6] 首帧生成失败', { error: thumbnailErr?.message || thumbnailErr })
+            const rawError = thumbnailErr?.message || String(thumbnailErr)
+
+            // 根据后端返回的错误前缀做简单分类，便于排查
+            let category = 'unknown'
+            if (rawError.includes('VideoThumbnail(SIDECAR_CREATE)')) {
+              category = 'sidecar_create'
+            } else if (rawError.includes('VideoThumbnail(SPAWN)')) {
+              category = 'spawn'
+            } else if (rawError.includes('VideoThumbnail(FFMPEG_ERROR)')) {
+              if (rawError.includes('kind=input_not_found')) {
+                category = 'ffmpeg_input_not_found'
+              } else if (rawError.includes('kind=invalid_input')) {
+                category = 'ffmpeg_invalid_input'
+              } else if (rawError.includes('kind=permission_denied')) {
+                category = 'ffmpeg_permission_denied'
+              } else {
+                category = 'ffmpeg_unknown'
+              }
+            }
+
+            logWarn('VideoThumbnail', '[5/6] 首帧生成失败', {
+              error: rawError,
+              category,
+              raw: thumbnailErr
+            })
           }
         } else {
           logWarn('VideoThumbnail', '[2/6] 非 Tauri 环境，跳过首帧生成')

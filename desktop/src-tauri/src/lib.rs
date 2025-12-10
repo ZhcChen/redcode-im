@@ -206,88 +206,163 @@ async fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
     Ok(())
 }
 
-// 自定义命令：生成视频首帧缩略图（使用 ffmpeg-sidecar 自动管理 ffmpeg）
+// 自定义命令：生成视频首帧缩略图（通过 Tauri sidecar 调用本地 ffmpeg）
 #[tauri::command]
 async fn generate_video_thumbnail(
+    app: AppHandle,
     video_path: String,
     output_path: String,
     time_sec: f64,
 ) -> Result<String, String> {
-    use ffmpeg_sidecar::command::FfmpegCommand;
-    use ffmpeg_sidecar::download;
-    use std::fs::File;
-    use std::io::Write;
+    use std::path::PathBuf;
     use tauri::async_runtime::spawn_blocking;
 
+    use std::path::Path;
+
+    logger::log_message(format!(
+        "[VideoThumbnail] 开始生成缩略图, video_path={}, output_path={}, time_sec={}",
+        video_path, output_path, time_sec
+    ));
+
+    // 确保输出目录存在
+    if let Some(parent) = Path::new(&output_path).parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建缩略图目录失败: {e}"))?;
+        }
+    }
+
+    let time_arg = time_sec.to_string();
+
+    // 根据平台确定 ffmpeg 二进制文件名
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    const FFMPEG_BIN: &str = "ffmpeg-aarch64-apple-darwin";
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    const FFMPEG_BIN: &str = "ffmpeg-x86_64-apple-darwin";
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    const FFMPEG_BIN: &str = "ffmpeg-x86_64-pc-windows-msvc.exe";
+    #[cfg(not(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "x86_64"),
+        all(target_os = "windows", target_arch = "x86_64")
+    )))]
+    const FFMPEG_BIN: &str = "";
+
+    if FFMPEG_BIN.is_empty() {
+        let msg =
+            "VideoThumbnail(FFMPEG_UNSUPPORTED): 当前平台暂不支持 ffmpeg 缩略图生成".to_string();
+        logger::log_message(&msg);
+        return Err(msg);
+    }
+
+    // 1. 优先尝试从 resource 目录查找（打包后场景）
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(mut res_dir) = app.path().resource_dir() {
+        res_dir.push("binaries");
+        res_dir.push(FFMPEG_BIN);
+        candidates.push(res_dir);
+    }
+
+    // 2. 开发环境下，直接使用 CARGO_MANIFEST_DIR 下的 binaries 目录
+    let mut dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    dev_path.push("binaries");
+    dev_path.push(FFMPEG_BIN);
+    candidates.push(dev_path);
+
+    let ffmpeg_path = match candidates.iter().find(|p| p.exists()) {
+        Some(p) => p.clone(),
+        None => {
+            let msg = format!(
+                "VideoThumbnail(FFMPEG_NOT_FOUND): 未找到 ffmpeg 二进制, candidates={:?}",
+                candidates
+            );
+            logger::log_message(&msg);
+            return Err(msg);
+        }
+    };
+
+    // 在线程池中执行阻塞的 ffmpeg 调用
+    let video_path_cloned = video_path.clone();
+    let output_path_cloned = output_path.clone();
+
     let handle = spawn_blocking(move || -> Result<String, String> {
-        // 自动下载/准备 ffmpeg 二进制（首次运行可能稍慢）
-        download::auto_download().map_err(|e| format!("下载 ffmpeg 失败: {e}"))?;
+        use std::process::Command;
 
-        let mut command = FfmpegCommand::new();
+        let output = Command::new(&ffmpeg_path)
+            .args([
+                "-y",
+                "-ss",
+                &time_arg,
+                "-i",
+                &video_path_cloned,
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale=320:-1",
+                "-vcodec",
+                "mjpeg",
+                "-q:v",
+                "2",
+                &output_path_cloned,
+            ])
+            .output()
+            .map_err(|e| {
+                let msg = format!("VideoThumbnail(SPAWN): 启动 ffmpeg 失败: {e}");
+                logger::log_message(&msg);
+                msg
+            })?;
 
-        // 通过 stdout 输出 JPEG 缩略图
-        command
-            .arg("-y")
-            .arg("-ss")
-            .arg(time_sec.to_string())
-            .arg("-i")
-            .arg(&video_path)
-            .arg("-frames:v")
-            .arg("1")
-            .arg("-vf")
-            .arg("scale=320:-1")
-            .arg("-f")
-            .arg("image2")
-            .arg("-vcodec")
-            .arg("mjpeg")
-            .arg("-q:v")
-            .arg("2")
-            .arg("pipe:1")
-            .pipe_stdout();
-
-        let mut child = command
-            .spawn()
-            .map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
-
-        let mut stdout = child
-            .take_stdout()
-            .ok_or_else(|| "无法获取 ffmpeg 输出流".to_string())?;
-
-        let mut buffer = Vec::new();
-        std::io::Read::read_to_end(&mut stdout, &mut buffer)
-            .map_err(|e| format!("读取 ffmpeg 输出失败: {e}"))?;
-
-        let status = child
-            .wait()
-            .map_err(|e| format!("等待 ffmpeg 退出失败: {e}"))?;
-
-        if !status.success() {
-            return Err(format!("ffmpeg 生成缩略图失败，退出码: {:?}", status.code()));
-        }
-
-        if buffer.is_empty() {
-            return Err("ffmpeg 未产生任何缩略图数据".to_string());
-        }
-
-        // 写入到目标文件
-        if let Some(parent) = std::path::Path::new(&output_path).parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("创建缩略图目录失败: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // 提取前几行 stderr 作为摘要，避免日志过长
+            let mut summary_lines = Vec::new();
+            for line in stderr.lines().take(6) {
+                summary_lines.push(line.trim());
             }
+            let mut stderr_summary = summary_lines.join(" | ");
+            if stderr_summary.len() > 800 {
+                stderr_summary.truncate(800);
+                stderr_summary.push_str("...<truncated>");
+            }
+
+            // 简单分类 ffmpeg 错误类型，便于排查
+            let kind = if stderr.contains("No such file or directory")
+                || stderr.contains("Error opening input")
+            {
+                "input_not_found"
+            } else if stderr.contains("Invalid data found when processing input") {
+                "invalid_input"
+            } else if stderr.contains("Permission denied") {
+                "permission_denied"
+            } else {
+                "unknown"
+            };
+
+            let code = output.status.code();
+
+            logger::log_message(format!(
+                "[VideoThumbnail] ffmpeg 执行失败 kind={}, exit_code={:?}, stderr={}",
+                kind, code, stderr_summary
+            ));
+
+            return Err(format!(
+                "VideoThumbnail(FFMPEG_ERROR): kind={}, exit_code={:?}, stderr={}",
+                kind, code, stderr_summary
+            ));
         }
 
-        let mut file =
-            File::create(&output_path).map_err(|e| format!("创建缩略图文件失败: {e}"))?;
-        file.write_all(&buffer)
-            .map_err(|e| format!("写入缩略图文件失败: {e}"))?;
-
-        Ok(output_path)
+        Ok(output_path_cloned)
     });
 
-    handle
+    let generated_path = handle
         .await
-        .map_err(|e| format!("执行缩略图任务失败: {e}"))?
+        .map_err(|e| format!("执行缩略图任务失败: {e}"))??;
+
+    logger::log_message(format!(
+        "[VideoThumbnail] 缩略图生成成功, output_path={}",
+        generated_path
+    ));
+
+    Ok(generated_path)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

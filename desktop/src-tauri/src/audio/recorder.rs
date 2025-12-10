@@ -359,8 +359,10 @@ fn run_recording_thread(
             // 编码为 WAV
             match encode_wav(&rec_data.samples, rec_data.sample_rate, rec_data.channels) {
                 Ok(wav_data) => {
-                    let data =
-                        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &wav_data);
+                    let data = base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        &wav_data,
+                    );
                     let _ = result_tx.send(RecorderResult::Success(RecordingResult {
                         data,
                         duration_ms,

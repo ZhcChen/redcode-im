@@ -40,6 +40,15 @@
     "fs:allow-mkdir",
     "fs:allow-write-file",
     "fs:allow-appdata-write",
-    "fs:allow-appdata-write-recursive"
+    "fs:allow-appdata-write-recursive",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/ffmpeg",
+          "sidecar": true
+        }
+      ]
+    }
   ]
 }
