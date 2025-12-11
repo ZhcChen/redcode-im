@@ -10657,7 +10657,7 @@ const loadMessageList = async (groupId: string) => {
       font-size: 13px;
       color: #1f2937;
       line-height: 1.4;
-      max-height: 2.8em;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
