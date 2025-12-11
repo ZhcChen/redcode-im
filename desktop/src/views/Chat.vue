@@ -853,6 +853,7 @@
         <button
           v-if="showScrollToBottom"
           class="scroll-to-bottom-btn"
+          :class="{ 'scroll-to-bottom-elevated': hasInputTopBar }"
           @click="handleScrollToBottomClick"
           aria-label="回到最新消息"
         >
@@ -3215,6 +3216,7 @@ const showDissolveGroupConfirm = ref<boolean>(false)
 
 // 回复消息状态
 const replyingMessage = ref<Message | null>(null)
+const hasInputTopBar = computed(() => !!replyingMessage.value || multiSelectMode.value)
 
 // 群设置抽屉状态
 const showGroupSettings = ref<boolean>(false)
@@ -10368,6 +10370,10 @@ const loadMessageList = async (groupId: string) => {
   .scroll-to-bottom-icon {
     color: #1f1f1f;
   }
+}
+
+.scroll-to-bottom-btn.scroll-to-bottom-elevated {
+  bottom: 161px;
 }
 
 .message {
