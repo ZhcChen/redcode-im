@@ -52,6 +52,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20251209123000_add_emoji_object_keys.sql"
         )),
     ),
+    // 2025-12-11：创建统一文件上传记录表，用于管理 COS 直传文件及去重
+    (
+        "20251211120000_create_file_upload_records.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251211120000_create_file_upload_records.sql"
+        )),
+    ),
 ];
 
 impl Database {
