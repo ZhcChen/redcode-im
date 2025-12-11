@@ -193,6 +193,16 @@ pub async fn create_app_version(
     let insert = api_create_version_to_db(&req, operator)?;
     let created = store.create_version(&insert).await?;
 
+    // 标记安装包文件已上传完成（如果之前通过直传签名创建了记录）
+    if !req.download_key.trim().is_empty() {
+        let provider = load_default_storage_provider(&state).await?;
+        let upload_store = FileUploadStore::new(state.database.clone());
+        let _ = upload_store
+            .mark_completed_by_key(&provider.id, req.download_key.trim())
+            .await
+            .map_err(AppError::from)?;
+    }
+
     Ok(Json(db_app_version_to_api(&created)))
 }
 
@@ -456,6 +466,16 @@ pub async fn create_hot_update(
     insert.platform = platform;
     insert.app_version_id = base_version.id;
     let created = store.create_hot_update(&insert).await?;
+
+    // 标记热更新补丁文件已上传完成（如果之前通过直传签名创建了记录）
+    if !req.download_key.trim().is_empty() {
+        let provider = load_default_storage_provider(&state).await?;
+        let upload_store = FileUploadStore::new(state.database.clone());
+        let _ = upload_store
+            .mark_completed_by_key(&provider.id, req.download_key.trim())
+            .await
+            .map_err(AppError::from)?;
+    }
 
     Ok(Json(db_hot_update_to_api(&created)))
 }

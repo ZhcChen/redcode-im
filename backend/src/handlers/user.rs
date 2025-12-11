@@ -384,6 +384,14 @@ pub async fn commit_avatar_upload(
         user_id, notified_count
     );
 
+    // 标记文件上传完成（如果之前通过直传签名创建了记录）
+    let upload_store =
+        crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+    let _ = upload_store
+        .mark_completed_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,
         message: "头像更新成功".to_string(),

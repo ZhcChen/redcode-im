@@ -405,6 +405,10 @@ pub fn create_routes() -> Router<AppState> {
             post(message::generate_message_attachment_signature),
         )
         .route(
+            "/rooms/{room_id}/messages/attachments/commit",
+            post(message::commit_message_attachment_upload),
+        )
+        .route(
             "/rooms/{room_id}/messages/attachments/download",
             get(message::generate_message_attachment_download_url),
         )

@@ -129,5 +129,34 @@ impl FileUploadStore {
         .fetch_one(pool)
         .await
     }
-}
 
+    /// 将指定 object_key 标记为“上传完成”（status = 1）
+    ///
+    /// 返回值表示是否有记录被更新（若不存在记录则返回 false，不视为致命错误）
+    pub async fn mark_completed_by_key(
+        &self,
+        storage_provider_id: &Uuid,
+        object_key: &str,
+    ) -> Result<bool, Error> {
+        let pool = &self.database.pool;
+
+        let result = sqlx::query(
+            r#"
+            UPDATE file_upload_records
+            SET status = 1,
+                uploaded_at = COALESCE(uploaded_at, NOW()),
+                updated_at = NOW(),
+                last_error = NULL
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+              AND status <> 3
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+}

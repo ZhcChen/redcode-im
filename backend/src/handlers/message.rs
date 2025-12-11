@@ -1112,6 +1112,20 @@ pub struct MessageAttachmentDownloadResponse {
     pub download_url: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct MessageAttachmentUploadCommitRequest {
+    pub key: String,
+    pub hash_value: Option<String>,
+    pub hash_alg: Option<i16>,
+    pub file_size: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MessageAttachmentUploadCommitResponse {
+    pub success: bool,
+    pub message: String,
+}
+
 pub async fn generate_message_attachment_signature(
     State(state): State<AppState>,
     Path(room_id): Path<Uuid>,
@@ -1301,6 +1315,57 @@ pub async fn generate_message_attachment_download_url(
         success: true,
         message: "生成附件下载链接成功".to_string(),
         download_url: Some(download_url),
+    }))
+}
+
+/// 消息附件上传完成回调：在前端成功上传 COS 之后调用
+pub async fn commit_message_attachment_upload(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<crate::models::Claims>,
+    Json(req): Json<MessageAttachmentUploadCommitRequest>,
+) -> Result<Json<MessageAttachmentUploadCommitResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = MessageStore::new(state.database.pool());
+    if !store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法提交附件上传结果".to_string(),
+        ));
+    }
+
+    let key = req.key.trim();
+    if key.is_empty() {
+        return Err(AppError::ValidationError("附件 key 不能为空".to_string()));
+    }
+
+    let expected_prefix = format!("messages/{}/", room_id);
+    if !key.starts_with(&expected_prefix) {
+        return Err(AppError::ValidationError("附件 key 不合法".to_string()));
+    }
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    // 确认 COS 中对象存在，避免提前标记完成
+    if !storage_service.file_exists(key).await? {
+        return Err(AppError::ValidationError(
+            "COS 中尚未找到该附件，请稍后重试".to_string(),
+        ));
+    }
+
+    let upload_store = FileUploadStore::new(state.database.clone());
+
+    // 尝试将已有记录标记为完成；如果不存在记录，暂时忽略（说明生成签名时可能未带 hash）
+    let _ = upload_store
+        .mark_completed_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(Json(MessageAttachmentUploadCommitResponse {
+        success: true,
+        message: "附件上传完成".to_string(),
     }))
 }
 
