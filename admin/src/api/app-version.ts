@@ -108,6 +108,9 @@ export interface VersionUploadSignatureRequest {
   platform: AppPlatform;
   channel: string;
   filename?: string;
+  file_size?: number;
+  hash_value?: string;
+  hash_alg?: number;
 }
 
 export interface DirectUploadSignature {

@@ -1344,6 +1344,7 @@ import { loadCache, saveCache, removeCache, CACHE_KEYS } from '../utils/cache'
 import { rustHttp } from '../api/rust-http'
 import type { HttpRequestParams } from '../api/rust-http'
 import { base64ToUint8Array } from '../utils/binary'
+import { computeFileHash } from '../utils/fileHash'
 
 // 消息常量定义 - 与bear-chat-uniapp保持一致
 const MESSAGE_CONSTANTS = {
@@ -6790,6 +6791,8 @@ const uploadAndSendFile = async (file: File) => {
   let attachmentKey = ''
   let localUrl: string | null = null
   let videoThumbnailKey: string | null = null
+  let fileHashValue: string | null = null
+  let fileHashAlg: number | null = null
 
   try {
     console.log('开始处理文件:', file.name, '类型:', file.type, '大小:', file.size)
@@ -6813,25 +6816,56 @@ const uploadAndSendFile = async (file: File) => {
       return
     }
 
+    // 计算文件哈希（用于后端去重）
+    try {
+      const hashResult = await computeFileHash(file)
+      fileHashValue = hashResult.hashValue
+      fileHashAlg = hashResult.hashAlg
+      if (fileHashValue) {
+        console.log('文件哈希计算完成:', {
+          alg: fileHashAlg,
+          value: fileHashValue,
+          size: file.size,
+        })
+      } else {
+        console.log('文件哈希未计算或不可用，将不参与去重')
+      }
+    } catch (hashError: any) {
+      console.warn('计算文件哈希失败，将跳过哈希上报:', hashError)
+      fileHashValue = null
+      fileHashAlg = null
+    }
+
     console.log('请求上传签名:', {
       groupId: selectedChat.value.groupId,
       partType: meta.partType,
       fileName: file.name,
-      contentType: meta.mime
+      contentType: meta.mime,
+      fileSize: file.size,
+      hashValue: fileHashValue,
+      hashAlg: fileHashAlg,
     })
     const signatureResponse = await MessageApi.requestAttachmentSignature({
       groupId: selectedChat.value.groupId,
       partType: meta.partType,
       fileName: file.name,
       contentType: meta.mime,
+      fileSize: file.size,
+      hashValue: fileHashValue ?? undefined,
+      hashAlg: fileHashAlg ?? undefined,
     })
 
     if (!signatureResponse.success || !signatureResponse.data) {
       throw new Error(signatureResponse.message || '获取上传签名失败')
     }
-    console.log('上传签名获取成功，开始上传文件')
-
     attachmentKey = signatureResponse.data.key
+    const directUploadSignature = signatureResponse.data.signature
+
+    if (directUploadSignature) {
+      console.log('上传签名获取成功，准备执行直传')
+    } else {
+      console.log('未返回上传签名，命中哈希去重逻辑，复用现有附件 key')
+    }
     const timestamp = Date.now()
     tempId = `${timestamp}`
 
@@ -6991,14 +7025,38 @@ const uploadAndSendFile = async (file: File) => {
     recentSentMessages.value.add(tempId)
     scrollToBottom(false, true)
 
-    console.log('开始上传文件到COS:', file.name)
-    await uploadWithSignature(signatureResponse.data.signature, file, (progress) => {
-      console.log('上传进度:', progress, file.name)
-      if (tempId) {
-        updateAttachmentProgress(tempId, attachmentKey, progress)
+    // 只有在需要直传到 COS 时才执行上传和 commit
+    if (directUploadSignature) {
+      console.log('开始上传文件到COS:', file.name)
+      await uploadWithSignature(directUploadSignature, file, (progress) => {
+        console.log('上传进度:', progress, file.name)
+        if (tempId) {
+          updateAttachmentProgress(tempId, attachmentKey, progress)
+        }
+      })
+      console.log('文件上传完成:', file.name)
+
+      // 上传完成后通知后端，标记附件已完成上传，参与后续哈希去重
+      try {
+        const commitRes = await MessageApi.commitAttachmentUpload({
+          roomId: selectedChat.value.groupId,
+          key: attachmentKey,
+          fileSize: file.size,
+          hashValue: fileHashValue ?? undefined,
+          hashAlg: fileHashAlg ?? undefined,
+        })
+        if (!commitRes.success) {
+          console.warn('附件上传完成通知失败:', commitRes.message)
+        } else {
+          console.log('附件上传完成已通知后端:', commitRes.message)
+        }
+      } catch (commitError: any) {
+        console.warn('调用附件上传完成通知接口异常:', commitError?.message || commitError)
       }
-    })
-    console.log('文件上传完成:', file.name)
+    } else {
+      // 复用已有附件，无需上传与 commit
+      console.log('跳过附件上传与 commit，直接发送消息')
+    }
 
     // 如果是视频文件且已生成首帧，上传首帧缩略图并更新临时消息中的 thumbnailKey
     if (meta.partType === 'video' && thumbnailLocalPath) {
@@ -9750,13 +9808,41 @@ const handleVoiceSend = async (recording: any) => {
   })
 
   try {
+    const voiceBlob: Blob = recording.blob
+    const voiceFileName = `voice_${recording.id}.wav`
+
+    // 计算语音文件哈希，参与后端去重
+    let voiceHashValue: string | null = null
+    let voiceHashAlg: number | null = null
+    try {
+      const hashResult = await computeFileHash(voiceBlob)
+      voiceHashValue = hashResult.hashValue
+      voiceHashAlg = hashResult.hashAlg
+      if (voiceHashValue) {
+        console.log('[handleVoiceSend] 语音哈希计算完成:', {
+          alg: voiceHashAlg,
+          value: voiceHashValue,
+          size: voiceBlob.size
+        })
+      } else {
+        console.log('[handleVoiceSend] 语音哈希未计算或不可用，将不参与去重')
+      }
+    } catch (hashError: any) {
+      console.warn('[handleVoiceSend] 计算语音哈希失败，将跳过哈希上报:', hashError)
+      voiceHashValue = null
+      voiceHashAlg = null
+    }
+
     // 1. 获取语音上传签名（使用 WAV 格式，由 Rust 原生录音生成）
     console.log('[handleVoiceSend] 1. 获取上传签名...')
     const signatureResponse = await MessageApi.requestAttachmentSignature({
       groupId: selectedChat.value.id,
       partType: 'audio',
-      fileName: `voice_${recording.id}.wav`,
+      fileName: voiceFileName,
       contentType: 'audio/wav',
+      fileSize: voiceBlob.size,
+      hashValue: voiceHashValue ?? undefined,
+      hashAlg: voiceHashAlg ?? undefined,
     })
 
     console.log('[handleVoiceSend] 签名响应:', {
@@ -9770,48 +9856,71 @@ const handleVoiceSend = async (recording: any) => {
       throw new Error(signatureResponse.message || '获取上传签名失败')
     }
 
-    // 2. 直接上传到 COS
-    console.log('[handleVoiceSend] 2. 开始上传到 COS...')
     const { key, signature } = signatureResponse.data
-    const headersObj: Record<string, string> = {}
+    if (signature) {
+      // 2. 需要直传到 COS 的情况
+      console.log('[handleVoiceSend] 2. 开始上传到 COS...')
+      const headersObj: Record<string, string> = {}
 
-    // 将 Headers 转换为普通对象
-    if (signature.headers) {
-      Object.entries(signature.headers).forEach(([headerKey, value]) => {
-        headersObj[headerKey] = String(value)
+      // 将 Headers 转换为普通对象
+      if (signature.headers) {
+        Object.entries(signature.headers).forEach(([headerKey, value]) => {
+          headersObj[headerKey] = String(value)
+        })
+      }
+      headersObj['Content-Type'] = 'audio/wav'
+      if (!headersObj['Content-Length']) {
+        headersObj['Content-Length'] = String(voiceBlob.size)
+      }
+
+      console.log('[handleVoiceSend] 上传参数:', {
+        url: signature.url,
+        method: signature.method,
+        headers: headersObj
       })
-    }
-    headersObj['Content-Type'] = 'audio/wav'
-    if (!headersObj['Content-Length']) {
-      headersObj['Content-Length'] = String(recording.blob.size)
-    }
 
-    console.log('[handleVoiceSend] 上传参数:', {
-      url: signature.url,
-      method: signature.method,
-      headers: headersObj
-    })
+      const voiceBuffer = new Uint8Array(await voiceBlob.arrayBuffer())
+      console.log('[handleVoiceSend] voiceBuffer 大小:', voiceBuffer.length)
 
-    const voiceBuffer = new Uint8Array(await recording.blob.arrayBuffer())
-    console.log('[handleVoiceSend] voiceBuffer 大小:', voiceBuffer.length)
+      const uploadResponse = await rustHttp.requestRaw({
+        path: signature.url,
+        method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
+        headers: headersObj,
+        binaryBody: voiceBuffer,
+        injectToken: false,
+        forceStreaming: true
+      })
 
-    const uploadResponse = await rustHttp.requestRaw({
-      path: signature.url,
-      method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
-      headers: headersObj,
-      binaryBody: voiceBuffer,
-      injectToken: false,
-      forceStreaming: true
-    })
+      console.log('[handleVoiceSend] 上传响应:', {
+        success: uploadResponse.success,
+        message: uploadResponse.message,
+        statusCode: uploadResponse.statusCode
+      })
 
-    console.log('[handleVoiceSend] 上传响应:', {
-      success: uploadResponse.success,
-      message: uploadResponse.message,
-      statusCode: uploadResponse.statusCode
-    })
+      if (!uploadResponse.success) {
+        throw new Error(uploadResponse.message || '文件上传失败')
+      }
 
-    if (!uploadResponse.success) {
-      throw new Error(uploadResponse.message || '文件上传失败')
+      // 上传完成后通知后端，标记附件上传完成，参与后续哈希去重
+      try {
+        const commitRes = await MessageApi.commitAttachmentUpload({
+          roomId: selectedChat.value.id,
+          key,
+          fileSize: voiceBlob.size,
+          hashValue: voiceHashValue ?? undefined,
+          hashAlg: voiceHashAlg ?? undefined,
+        })
+        if (!commitRes.success) {
+          console.warn('[handleVoiceSend] 语音附件上传完成通知失败:', commitRes.message)
+        } else {
+          console.log('[handleVoiceSend] 语音附件上传完成已通知后端:', commitRes.message)
+        }
+      } catch (commitError: any) {
+        console.warn('[handleVoiceSend] 调用语音附件上传完成通知接口异常:', commitError?.message || commitError)
+      }
+    } else {
+      // 命中哈希去重，复用已有语音附件 key
+      console.log('[handleVoiceSend] 未返回上传签名，命中哈希去重逻辑，复用已有语音附件 key:', key)
     }
 
     // 3. 创建语音消息
@@ -9824,7 +9933,7 @@ const handleVoiceSend = async (recording: any) => {
       parts: [{
         type: 'audio',
         key,
-        name: `voice_${recording.id}.wav`,
+        name: voiceFileName,
         mime: 'audio/wav',
         durationMs,
       }],

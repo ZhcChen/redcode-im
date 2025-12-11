@@ -72,7 +72,7 @@ export interface DirectUploadSignatureInfo {
 
 export interface AttachmentSignatureResult {
   key: string;
-  signature: DirectUploadSignatureInfo;
+  signature: DirectUploadSignatureInfo | null;
   message?: string;
 }
 
@@ -644,6 +644,9 @@ export class MessageApi {
     partType: MessagePartTypeLiteral;
     fileName?: string;
     contentType?: string;
+    fileSize?: number;
+    hashValue?: string;
+    hashAlg?: number;
   }): Promise<ApiResponse<AttachmentSignatureResult>> {
     const payload: Record<string, unknown> = {
       part_type: params.partType,
@@ -654,6 +657,15 @@ export class MessageApi {
     }
     if (params.contentType) {
       payload.content_type = params.contentType;
+    }
+    if (typeof params.fileSize === "number" && params.fileSize > 0) {
+      payload.file_size = params.fileSize;
+    }
+    if (params.hashValue) {
+      payload.hash_value = params.hashValue;
+    }
+    if (typeof params.hashAlg === "number") {
+      payload.hash_alg = params.hashAlg;
     }
 
     const response = await post<Record<string, unknown>>(
@@ -683,42 +695,45 @@ export class MessageApi {
       };
     }
 
-    const signaturePayload = rawData?.signature;
-    const key = rawData?.key ?? signaturePayload?.key;
+    const rawSignature = rawData?.signature ?? null;
+    const key = rawData?.key ?? rawSignature?.key ?? null;
 
-    if (
-      !signaturePayload ||
-      typeof signaturePayload !== "object" ||
-      !signaturePayload.url ||
-      !key
-    ) {
+    if (!key || typeof key !== "string") {
       return {
         code: response.code,
         success: false,
-        message: "上传签名响应不完整",
+        message: "上传签名响应不包含有效的 key",
         data: null,
       };
     }
 
-    const headers: Record<string, string> = {};
-    if (signaturePayload.headers && typeof signaturePayload.headers === "object") {
-      Object.entries(signaturePayload.headers).forEach(([headerKey, headerValue]) => {
-        if (typeof headerKey === "string" && typeof headerValue === "string") {
-          headers[headerKey] = headerValue;
-        }
-      });
+    let signature: DirectUploadSignatureInfo | null = null;
+    if (
+      rawSignature &&
+      typeof rawSignature === "object" &&
+      typeof rawSignature.url === "string" &&
+      rawSignature.url.length > 0
+    ) {
+      const headers: Record<string, string> = {};
+      if (rawSignature.headers && typeof rawSignature.headers === "object") {
+        Object.entries(rawSignature.headers).forEach(([headerKey, headerValue]) => {
+          if (typeof headerKey === "string" && typeof headerValue === "string") {
+            headers[headerKey] = headerValue;
+          }
+        });
+      }
+
+      const methodRaw = typeof rawSignature.method === "string"
+        ? rawSignature.method.trim().toUpperCase()
+        : "PUT";
+
+      signature = {
+        url: rawSignature.url,
+        method: methodRaw || "PUT",
+        headers,
+        key: rawSignature.key ?? key,
+      };
     }
-
-    const methodRaw = typeof signaturePayload.method === "string"
-      ? signaturePayload.method.trim().toUpperCase()
-      : "PUT";
-
-    const signature: DirectUploadSignatureInfo = {
-      url: signaturePayload.url,
-      method: methodRaw || "PUT",
-      headers,
-      key: signaturePayload.key ?? key,
-    };
 
     return {
       code: response.code,
@@ -786,6 +801,60 @@ export class MessageApi {
         success: true,
         message,
         downloadUrl,
+      },
+    };
+  }
+
+  static async commitAttachmentUpload(params: {
+    roomId: string;
+    key: string;
+    hashValue?: string;
+    hashAlg?: number;
+    fileSize?: number;
+  }): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    const payload: Record<string, unknown> = {
+      key: params.key,
+    };
+
+    if (params.hashValue) {
+      payload.hash_value = params.hashValue;
+    }
+    if (typeof params.hashAlg === "number") {
+      payload.hash_alg = params.hashAlg;
+    }
+    if (typeof params.fileSize === "number" && params.fileSize > 0) {
+      payload.file_size = params.fileSize;
+    }
+
+    const response = await post<Record<string, unknown>>(
+      `/rooms/${params.roomId}/messages/attachments/commit`,
+      payload,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        code: response.code,
+        success: false,
+        message: response.message || "标记附件上传完成失败",
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag = typeof rawData?.success === "boolean"
+      ? rawData.success
+      : response.success;
+    const message = typeof rawData?.message === "string"
+      ? rawData.message
+      : response.message || "";
+
+    return {
+      code: response.code,
+      success: successFlag,
+      message,
+      data: {
+        success: successFlag,
+        message,
       },
     };
   }

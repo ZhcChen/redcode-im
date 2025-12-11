@@ -266,6 +266,7 @@
     PlatformLabels,
   } from '@/api/app-version';
   import { uploadWithSignature } from '@/utils/direct-upload';
+  import { computeFileHash } from '@/utils/fileHash';
 
   const channelOptions = [
     'stable',
@@ -652,23 +653,62 @@
     }
     uploadLoading.value = true;
     try {
+      // 先计算文件哈希，用于后端去重
+      let hashValue: string | null = null;
+      let hashAlg: number | null = null;
+      try {
+        const hashResult = await computeFileHash(file);
+        hashValue = hashResult.hashValue;
+        hashAlg = hashResult.hashAlg;
+        if (hashValue) {
+          // eslint-disable-next-line no-console
+          console.log('[HotUpdateUpload] 文件哈希计算完成:', {
+            alg: hashAlg,
+            value: hashValue,
+            size: file.size,
+          });
+        } else {
+          // eslint-disable-next-line no-console
+          console.log('[HotUpdateUpload] 文件哈希未计算或不可用，将不参与去重');
+        }
+      } catch (hashError: any) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[HotUpdateUpload] 计算文件哈希失败，将跳过哈希上报:',
+          hashError
+        );
+        hashValue = null;
+        hashAlg = null;
+      }
+
       const { data } = await generateVersionUploadSignature({
         platform: formState.platform,
         channel: formState.channel.trim(),
         filename: file.name,
+        file_size: file.size,
+        hash_value: hashValue ?? undefined,
+        hash_alg: hashAlg ?? undefined,
       });
-      if (!data.success || !data.signature || !data.key) {
+      if (!data.success || !data.key) {
         throw new Error(data.message || '获取直传签名失败');
       }
-      const response = await uploadWithSignature(file, data.signature);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || '上传失败');
+
+      if (data.signature) {
+        const response = await uploadWithSignature(file, data.signature);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || '上传失败');
+        }
+        formState.file_size = file.size;
+        Message.success('补丁上传成功');
+      } else {
+        // 命中哈希去重，复用已上传的补丁包
+        formState.file_size = file.size;
+        Message.success(data.message || '复用已上传的补丁包，无需重新上传');
       }
+
       formState.download_key = data.key;
-      formState.file_size = file.size;
       uploadedFileInfo.value = `${file.name} · ${formatFileSize(file.size)}`;
-      Message.success('补丁上传成功');
     } catch (error: any) {
       const errorMsg =
         error?.message || error?.response?.data?.message || '上传补丁失败';
