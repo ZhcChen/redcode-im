@@ -17,7 +17,10 @@
 {
   "platform": "desktop",
   "channel": "stable",
-  "filename": "bear-chat-setup.dmg"
+  "filename": "bear-chat-setup.dmg",
+  "file_size": 194585600,
+  "hash_value": "d41d8cd98f00b204e9800998ecf8427e",
+  "hash_alg": 1
 }
 ```
 
@@ -39,6 +42,17 @@
   }
 }
 ```
+
+> 如果提供了 `hash_value + file_size` 且后端已经记录过相同文件，则可能返回：
+> ```json
+> {
+>   "success": true,
+>   "message": "复用已上传的安装包，未生成新的直传签名",
+>   "key": "releases/desktop/stable/20251104160502-3a9b4f21.dmg",
+>   "signature": null
+> }
+> ```
+> 此时 Admin 端无需再次上传 COS，只需在创建/更新版本时引用该 `download_key` 即可。
 
 上传完成后，应携带 `key` 调用新增/更新接口。
 
@@ -209,4 +223,3 @@
 3. **文件校验**：若提供 `checksum` (如 SHA256)，客户端可在下载后比对以验证完整性。
 4. **强制更新**：当 `mandatory=true` 时，客户端可据此决定是否允许跳过升级。
 5. **权限控制**：Admin API 仅后台控制台调用，勿向前台用户暴露。
-

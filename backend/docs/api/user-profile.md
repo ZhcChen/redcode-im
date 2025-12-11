@@ -98,7 +98,10 @@
 
 ```json
 {
-  "content_type": "image/png"
+  "content_type": "image/png",
+  "file_size": 123456,
+  "hash_value": "d41d8cd98f00b204e9800998ecf8427e",
+  "hash_alg": 1
 }
 ```
 
@@ -121,7 +124,18 @@
 }
 ```
 
-前端需使用返回的 `url`、`method`、`headers` 直接请求 COS（通常通过 `fetch`/`axios`/`http` 上传二进制文件）。
+> 如果提供了 `hash_value + file_size` 且后端已记录相同文件的上传记录，可能返回：
+> ```json
+> {
+>   "success": true,
+>   "message": "复用已上传的头像，未生成新的直传签名",
+>   "key": "avatars/{user-id}/20251104160135-8fd3aa12.png",
+>   "signature": null
+> }
+> ```
+> 此时前端无需再次上传 COS，只需直接调用 `/users/me/avatar/commit` 绑定该 key 即可。
+
+前端在 `signature` 非空时，需使用返回的 `url`、`method`、`headers` 直接请求 COS（通常通过 `fetch`/`axios`/`http` 上传二进制文件）。
 
 ### 4.2 提交上传结果
 

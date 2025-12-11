@@ -13,6 +13,9 @@
 | provider_id | string | 否 | 指定存储提供商 ID，不填时使用默认提供商 |
 | key | string | 是 | 对象在 COS 中的存储路径，例如 `test/hello.png` |
 | content_type | string | 否 | 传入浏览器实际上传时使用的 `Content-Type` |
+| file_size | number | 否 | 文件大小（字节），用于哈希去重 |
+| hash_value | string | 否 | 文件哈希值（十六进制字符串），例如 MD5 |
+| hash_alg | number | 否 | 哈希算法，当前约定：1=md5，2=sha256（默认 1） |
 
 示例：
 ```json
@@ -29,6 +32,7 @@
 {
   "success": true,
   "message": "生成直传签名成功",
+  "key": "test/20251104-hello.png",
   "signature": {
     "url": "https://bucket-123.cos.ap-guangzhou.myqcloud.com/test/20251104-hello.png",
     "method": "PUT",
@@ -40,6 +44,17 @@
   }
 }
 ```
+
+> 如果请求中提供了 `hash_value + file_size` 且命中已上传完成的文件，接口会返回：
+> ```json
+> {
+>   "success": true,
+>   "message": "复用已上传的测试文件，未生成新的直传签名",
+>   "key": "test/20251104-hello.png",
+>   "signature": null
+> }
+> ```
+> 此时前端只需复用返回的 `key`，无需再执行 COS 上传。
 
 失败时 `success=false`，`message` 包含错误说明。
 
