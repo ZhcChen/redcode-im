@@ -10342,7 +10342,7 @@ const loadMessageList = async (groupId: string) => {
   position: absolute;
   left: 0;
   right: 0;
-  height: 20px;
+  height: 30px;
   pointer-events: none;
   z-index: 1;
 }
