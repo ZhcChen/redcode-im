@@ -450,6 +450,7 @@
     type StorageProvider,
   } from '@/api/settings';
   import { uploadWithSignature } from '@/utils/direct-upload';
+  import { computeFileHash } from '@/utils/fileHash';
 
   // 检查URL是否可能是过期的临时URL
   const isExpiredUrl = (url: string) => {
@@ -990,22 +991,48 @@
       const fileExt = file.name.split('.').pop() || 'jpg';
       const key = `emoji-packs/icons/${timestamp}.${fileExt}`;
 
+      // 计算文件哈希
+      let hashValue: string | undefined;
+      let hashAlg: number | undefined;
+      try {
+        const hash = await computeFileHash(file);
+        if (hash.hashValue) {
+          hashValue = hash.hashValue;
+          hashAlg = hash.hashAlg ?? 2;
+        }
+      } catch (error) {
+        console.warn('[EmojiPack] 计算图标哈希失败，将跳过哈希上报', error);
+      }
+
       // 获取上传签名
       const { data: signatureData } = await testCosUploadSignature({
         provider_id: defaultStorageProvider.value.id,
         key,
         content_type: file.type,
+        file_size: file.size,
+        hash_value: hashValue,
+        hash_alg: hashAlg,
       });
 
-      if (!signatureData.success || !signatureData.signature) {
+      if (!signatureData.success) {
         throw new Error(signatureData.message || '获取上传签名失败');
       }
 
-      // 上传文件
-      const response = await uploadWithSignature(file, signatureData.signature);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || '上传失败');
+      // 命中哈希去重：无需上传
+      if (!signatureData.signature) {
+        Message.success(
+          signatureData.message || '复用已上传的图标，无需重新上传'
+        );
+      } else {
+        // 上传文件
+        const response = await uploadWithSignature(
+          file,
+          signatureData.signature
+        );
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || '上传失败');
+        }
       }
 
       // 获取下载URL
@@ -1082,22 +1109,51 @@
       const fileExt = file.name.split('.').pop() || 'jpg';
       const key = `emoji-items/${timestamp}.${fileExt}`;
 
+      // 计算文件哈希
+      let hashValue: string | undefined;
+      let hashAlg: number | undefined;
+      try {
+        const hash = await computeFileHash(file);
+        if (hash.hashValue) {
+          hashValue = hash.hashValue;
+          hashAlg = hash.hashAlg ?? 2;
+        }
+      } catch (error) {
+        console.warn(
+          '[EmojiPack] 计算表情项图片哈希失败，将跳过哈希上报',
+          error
+        );
+      }
+
       // 获取上传签名
       const { data: signatureData } = await testCosUploadSignature({
         provider_id: defaultStorageProvider.value.id,
         key,
         content_type: file.type,
+        file_size: file.size,
+        hash_value: hashValue,
+        hash_alg: hashAlg,
       });
 
-      if (!signatureData.success || !signatureData.signature) {
+      if (!signatureData.success) {
         throw new Error(signatureData.message || '获取上传签名失败');
       }
 
-      // 上传文件
-      const response = await uploadWithSignature(file, signatureData.signature);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || '上传失败');
+      // 命中哈希去重：无需上传
+      if (!signatureData.signature) {
+        Message.success(
+          signatureData.message || '复用已上传的图片，无需重新上传'
+        );
+      } else {
+        // 上传文件
+        const response = await uploadWithSignature(
+          file,
+          signatureData.signature
+        );
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || '上传失败');
+        }
       }
 
       // 获取下载URL

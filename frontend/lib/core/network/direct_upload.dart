@@ -7,8 +7,8 @@ class DirectUploadSignature {
     required this.method,
     required Map<String, String> headers,
   }) : headers = Map.unmodifiable(
-         headers.map((key, value) => MapEntry(key, value)),
-       );
+          headers.map((key, value) => MapEntry(key, value)),
+        );
 
   final String url;
   final String method;

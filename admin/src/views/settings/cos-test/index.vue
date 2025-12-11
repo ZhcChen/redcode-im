@@ -280,6 +280,7 @@
     type DirectUploadSignature,
     type SetCosCorsRulePayload,
   } from '@/api/settings';
+  import { computeFileHash } from '@/utils/fileHash';
 
   type UploadTestResult = {
     success: boolean;
@@ -514,18 +515,45 @@
 
   const requestUploadSignature = async (
     key: string,
-    contentType?: string
-  ): Promise<DirectUploadSignature> => {
+    contentType: string | undefined,
+    file?: File
+  ): Promise<{
+    key: string;
+    signature: DirectUploadSignature | null;
+    message: string;
+  }> => {
+    let hashValue: string | undefined;
+    let hashAlg: number | undefined;
+
+    if (file) {
+      try {
+        const hash = await computeFileHash(file);
+        if (hash.hashValue) {
+          hashValue = hash.hashValue;
+          hashAlg = hash.hashAlg ?? 2;
+        }
+      } catch (error) {
+        console.warn('[COS Test] 计算文件哈希失败，将跳过哈希上报', error);
+      }
+    }
+
     const response = await testCosUploadSignature({
       provider_id: formData.provider_id,
       key,
       content_type: contentType?.trim() || undefined,
+      file_size: file?.size,
+      hash_value: hashValue,
+      hash_alg: hashAlg,
     });
     const { data } = response;
-    if (!data.success || !data.signature) {
+    if (!data.success) {
       throw new Error(data.message || '生成直传签名失败');
     }
-    return data.signature;
+    return {
+      key,
+      signature: data.signature ?? null,
+      message: data.message,
+    };
   };
 
   const performDirectUpload = async (
@@ -537,10 +565,26 @@
       loadingRef.value = true;
       uploadResult.value = null;
 
-      const signature = await requestUploadSignature(
+      const selected = selectedFile.value ?? null;
+      const signatureResult = await requestUploadSignature(
         uploadForm.key.trim(),
-        contentType
+        contentType,
+        selected || undefined
       );
+
+      // 命中哈希去重：无需上传
+      if (!signatureResult.signature) {
+        uploadResult.value = {
+          success: true,
+          message: signatureResult.message || '复用已上传的对象，无需重新上传',
+          url: undefined,
+        };
+        lastUploadedKey.value = signatureResult.key;
+        Message.success(uploadResult.value.message);
+        return true;
+      }
+
+      const { signature } = signatureResult;
 
       const headers = new Headers();
       Object.entries(signature.headers || {}).forEach(

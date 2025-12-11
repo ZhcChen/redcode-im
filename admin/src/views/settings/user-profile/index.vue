@@ -153,6 +153,7 @@
     getDefaultStorageProvider,
     getCosDownloadUrl,
   } from '@/api/settings';
+  import { computeFileHash } from '@/utils/fileHash';
 
   const userStore = useUserStore();
 
@@ -301,54 +302,69 @@
         .toString(36)
         .substring(2)}.${fileExt}`;
 
-      // 3. 请求COS上传签名
+      // 3. 计算文件哈希
+      let hashValue: string | undefined;
+      let hashAlg: number | undefined;
+      try {
+        const hash = await computeFileHash(file);
+        if (hash.hashValue) {
+          hashValue = hash.hashValue;
+          hashAlg = hash.hashAlg ?? 2;
+        }
+      } catch (error) {
+        console.warn('[UserProfile] 计算头像哈希失败，将跳过哈希上报', error);
+      }
+
+      // 4. 请求COS上传签名
       const signatureResponse = await testCosUploadSignature({
         provider_id: provider.id,
         key: fileKey,
         content_type: file.type,
+        file_size: file.size,
+        hash_value: hashValue,
+        hash_alg: hashAlg,
       });
-      const { signature } = signatureResponse.data;
+      const { signature, message } = signatureResponse.data;
 
-      if (!signature) {
-        Message.error('获取上传签名失败');
-        return;
-      }
-
-      // 4. 前端直传COS
-      const headers = new Headers();
-      Object.entries(signature.headers || {}).forEach(([key, value]) => {
-        if (key.toLowerCase() !== 'host') {
-          headers.set(key, value);
+      // 5. 如有签名则直传 COS；否则认为命中哈希去重，跳过上传
+      if (signature) {
+        const headers = new Headers();
+        Object.entries(signature.headers || {}).forEach(([key, value]) => {
+          if (key.toLowerCase() !== 'host') {
+            headers.set(key, value);
+          }
+        });
+        if (file.type && !headers.has('Content-Type')) {
+          headers.set('Content-Type', file.type);
         }
-      });
-      if (file.type && !headers.has('Content-Type')) {
-        headers.set('Content-Type', file.type);
+
+        const uploadResponse = await fetch(signature.url, {
+          method: signature.method || 'PUT',
+          headers,
+          body: file,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error('上传失败:', errorText);
+          Message.error(
+            `上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`
+          );
+          return;
+        }
+      } else if (message) {
+        console.info('[UserProfile] 头像命中哈希去重:', message);
       }
 
-      const uploadResponse = await fetch(signature.url, {
-        method: signature.method || 'PUT',
-        headers,
-        body: file,
-      });
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('上传失败:', errorText);
-        Message.error(
-          `上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`
-        );
-        return;
-      }
-
-      // 5. 获取临时下载URL（用于前端渲染）
+      // 6. 获取临时下载URL（用于前端渲染）
       const downloadUrlResponse = await getCosDownloadUrl({
         provider_id: provider.id,
-        key: signature.key,
+        key: fileKey,
       });
       const avatarUrl = downloadUrlResponse.data.url;
 
-      // 6. 保存 key 到数据库（不是 URL）
-      const updateResponse = await updateUserAvatar(signature.key);
+      // 7. 保存 key 到数据库（不是 URL）
+      const updateResponse = await updateUserAvatar(fileKey);
       if (updateResponse.data && updateResponse.data.success) {
         Message.success('头像上传成功');
         // 更新本地状态使用临时URL

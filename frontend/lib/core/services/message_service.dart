@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart' as uuid_pkg;
 import '../constants/app_assets.dart';
 import '../constants/app_config.dart';
 import '../network/direct_upload.dart';
+import '../utils/file_hash.dart';
 import '../storage/attachment_cache.dart';
 import '../storage/avatar_cache.dart';
 import '../storage/token_storage.dart';
@@ -1717,14 +1718,6 @@ class MessageService with ChangeNotifier {
       if (!_isMimeAllowed(draft.type, contentType)) {
         throw StateError('暂不支持发送该文件类型 ($contentType)');
       }
-      final fileName = draft.displayName ?? p.basename(draft.file.path);
-      final signatureResult = await _requestAttachmentSignature(
-        roomId: roomId,
-        type: draft.type,
-        fileName: fileName,
-        contentType: contentType,
-        token: token,
-      );
       final size = await draft.file.length();
       final perFileLimitBytes = (AppConfig.maxAttachmentSizeMb * 1024 * 1024)
           .toInt();
@@ -1733,6 +1726,28 @@ class MessageService with ChangeNotifier {
           '附件 "${draft.displayName ?? draft.file.path}" 超过 ${AppConfig.maxAttachmentSizeMb.toStringAsFixed(0)} MB 限制',
         );
       }
+
+      final fileName = draft.displayName ?? p.basename(draft.file.path);
+
+      // 计算文件哈希（用于后端去重）
+      FileHashResult? hashResult;
+      try {
+        final bytes = await draft.file.readAsBytes();
+        hashResult = await computeFileHash(bytes);
+      } catch (_) {
+        hashResult = const FileHashResult(hashValue: null, hashAlg: null);
+      }
+
+      final signatureResult = await _requestAttachmentSignature(
+        roomId: roomId,
+        type: draft.type,
+        fileName: fileName,
+        contentType: contentType,
+        fileSize: size,
+        hashValue: hashResult?.hashValue,
+        hashAlg: hashResult?.hashAlg,
+        token: token,
+      );
 
       plans.add(
         _AttachmentUploadPlan(
@@ -1939,11 +1954,34 @@ class MessageService with ChangeNotifier {
   }
 
   Future<void> _executeAttachmentUpload(_AttachmentUploadPlan plan) async {
+    // 若命中哈希去重（后端未返回签名），无需上传，仅更新本地状态
+    if (plan.signature == null) {
+      final savedPath = await AttachmentCache.instance.saveFile(
+        objectKey: plan.key,
+        source: plan.file,
+      );
+
+      await _updateAttachmentLocalPath(
+        roomId: plan.roomId,
+        messageId: plan.messageId,
+        key: plan.key,
+        localPath: savedPath,
+      );
+      await _updateAttachmentUploadProgress(
+        roomId: plan.roomId,
+        messageId: plan.messageId,
+        key: plan.key,
+        progress: null,
+      );
+      return;
+    }
+
+    final sig = plan.signature;
     final request = http.StreamedRequest(
-      plan.signature.method,
-      Uri.parse(plan.signature.url),
+      sig.method,
+      Uri.parse(sig.url),
     );
-    plan.signature.applyHeaders(request, defaultContentType: plan.contentType);
+    sig.applyHeaders(request, defaultContentType: plan.contentType);
 
     final total = plan.size.toDouble().clamp(1, double.infinity);
     double uploaded = 0;
@@ -2096,6 +2134,9 @@ class MessageService with ChangeNotifier {
     required MessagePartType type,
     required String fileName,
     required String contentType,
+    required int fileSize,
+    required String? hashValue,
+    required int? hashAlg,
     required String token,
   }) async {
     final uri = Uri.parse(
@@ -2107,10 +2148,13 @@ class MessageService with ChangeNotifier {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
+      body: jsonEncode(<String, dynamic>{
         'part_type': _mapPartTypeName(type),
         'filename': fileName,
         'content_type': contentType,
+        'file_size': fileSize,
+        if (hashValue != null && hashValue.isNotEmpty) 'hash_value': hashValue,
+        if (hashAlg != null) 'hash_alg': hashAlg,
       }),
     );
 
@@ -2126,14 +2170,23 @@ class MessageService with ChangeNotifier {
     }
 
     final key = payload['key'] as String?;
-    final signatureMap = payload['signature'] as Map<String, dynamic>?;
-    if (key == null || signatureMap == null) {
-      throw Exception('上传签名响应不完整');
+    if (key == null || key.isEmpty) {
+      throw Exception('上传签名响应不包含有效的 key');
+    }
+
+    final rawSignature = payload['signature'];
+    DirectUploadSignature? signature;
+    if (rawSignature is Map<String, dynamic>) {
+      try {
+        signature = DirectUploadSignature.fromJson(rawSignature);
+      } catch (_) {
+        signature = null;
+      }
     }
 
     return _AttachmentSignatureResult(
       key: key,
-      signature: DirectUploadSignature.fromJson(signatureMap),
+      signature: signature,
     );
   }
 
@@ -3560,7 +3613,7 @@ class _AttachmentSignatureResult {
   });
 
   final String key;
-  final DirectUploadSignature signature;
+  final DirectUploadSignature? signature;
 }
 
 class _AttachmentUploadPlan {
@@ -3584,7 +3637,7 @@ class _AttachmentUploadPlan {
   final String roomId;
   final MessageAttachmentDraft draft;
   final String key;
-  final DirectUploadSignature signature;
+  final DirectUploadSignature? signature;
   final String contentType;
   final File file;
   final int size;

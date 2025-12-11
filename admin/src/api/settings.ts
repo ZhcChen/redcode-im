@@ -172,6 +172,9 @@ export interface TestCosUploadSignatureRequest {
   provider_id?: string;
   key: string;
   content_type?: string;
+  file_size?: number;
+  hash_value?: string;
+  hash_alg?: number;
 }
 
 export interface TestCosUploadSignatureResponse {
