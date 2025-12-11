@@ -829,6 +829,23 @@ pub struct StorageProvider {
     pub updated_by: Option<Uuid>,
 }
 
+/// 文件上传记录（统一管理通过对象存储直传的文件）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FileUploadRecord {
+    pub id: Uuid,
+    pub storage_provider_id: Uuid,
+    pub object_key: String,
+    pub hash_alg: i16,
+    pub hash_value: String,
+    pub file_size: Option<i64>,
+    pub content_type: Option<String>,
+    pub status: i16,
+    pub uploaded_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub last_error: Option<String>,
+}
+
 // ===== 群聊管理相关模型 =====
 
 /// 群聊设置

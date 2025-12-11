@@ -652,6 +652,12 @@ pub struct RoomAvatarDirectUploadRequest {
     pub content_type: String,
     #[serde(default)]
     pub file_size: Option<i64>,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    #[serde(default)]
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    #[serde(default)]
+    pub hash_alg: Option<i16>,
 }
 
 #[derive(Serialize)]
@@ -715,6 +721,39 @@ pub async fn generate_room_avatar_direct_upload(
     let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
     let storage_service = crate::storage::create_storage_service(&provider)?;
 
+    // 如果提供了 hash，则在当前房间前缀下尝试复用
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+            let prefix = format!("room_avatars/{}/", room_id);
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(
+                    &provider.id,
+                    hash_alg,
+                    hash_value,
+                    file_size,
+                    Some(&prefix),
+                )
+                .await
+                .map_err(crate::error::AppError::from)?
+            {
+                info!(
+                    "复用已上传的群头像: key={}, hash_alg={}, hash_value={}",
+                    existing.object_key, hash_alg, hash_value
+                );
+
+                return Ok(Json(RoomAvatarDirectUploadResponse {
+                    success: true,
+                    message: "复用已上传的群头像，未生成新的直传签名".to_string(),
+                    key: Some(existing.object_key),
+                    signature: None,
+                }));
+            }
+        }
+    }
+
     // 生成唯一的对象键
     let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
     let ext = req.filename.rsplit('.').next().unwrap_or("png");
@@ -725,6 +764,26 @@ pub async fn generate_room_avatar_direct_upload(
         uuid::Uuid::new_v4().to_string()[..8].to_string(),
         ext
     );
+
+    // 记录“上传中”的文件记录
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    &key,
+                    hash_alg,
+                    hash_value,
+                    Some(file_size),
+                    Some(&req.content_type),
+                )
+                .await
+                .map_err(crate::error::AppError::from)?;
+        }
+    }
 
     // 生成直传签名
     let signature = storage_service

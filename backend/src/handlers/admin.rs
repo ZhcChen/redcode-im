@@ -2608,6 +2608,12 @@ pub struct TestCosUploadSignatureRequest {
     pub provider_id: Option<String>,
     pub key: String,
     pub content_type: Option<String>,
+    /// 文件大小（字节，可选）
+    pub file_size: Option<i64>,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    pub hash_alg: Option<i16>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2811,6 +2817,57 @@ pub async fn test_cos_upload_signature(
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
+
+    // 如果提供了 hash 和 size，这里也尝试走一遍统一的去重逻辑，便于调试
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(
+                    &provider.id,
+                    hash_alg,
+                    hash_value,
+                    file_size,
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?
+            {
+                info!(
+                    "[Admin] 复用已上传的测试文件: key={}, hash_alg={}, hash_value={}",
+                    existing.object_key, hash_alg, hash_value
+                );
+
+                return Ok(Json(TestCosUploadSignatureResponse {
+                    success: true,
+                    signature: None,
+                    message: "复用已上传的测试文件，未生成新的直传签名".to_string(),
+                }));
+            }
+        }
+    }
+
+    // 新的上传，则记录一条“上传中”的文件记录
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    &req.key,
+                    hash_alg,
+                    hash_value,
+                    Some(file_size),
+                    req.content_type.as_deref(),
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
 
     match storage_service
         .generate_direct_upload_signature(&req.key, req.content_type.as_deref())

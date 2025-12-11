@@ -9,6 +9,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::database::{
+    file_upload_store::FileUploadStore,
     group_management_store::GroupManagementStore,
     message_read_store::MessageReadStore,
     message_store::{MessageStore, NewMessagePart},
@@ -1028,6 +1029,10 @@ pub struct MessageAttachmentSignatureRequest {
     pub filename: Option<String>,
     pub content_type: Option<String>,
     pub file_size: Option<usize>,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    pub hash_alg: Option<i16>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1158,12 +1163,63 @@ pub async fn generate_message_attachment_signature(
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
 
+    // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的 object_key
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(
+                    &provider.id,
+                    hash_alg,
+                    hash_value,
+                    file_size as i64,
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?
+            {
+                info!(
+                    "复用已上传的消息附件: key={}, hash_alg={}, hash_value={}",
+                    existing.object_key, hash_alg, hash_value
+                );
+
+                return Ok(Json(MessageAttachmentSignatureResponse {
+                    success: true,
+                    message: "复用已上传的附件，未生成新的直传签名".to_string(),
+                    key: Some(existing.object_key),
+                    signature: None,
+                }));
+            }
+        }
+    }
+
+    // 未命中可复用记录时，生成新的 object_key 和直传签名
     let key = build_message_attachment_key(
         &room_id,
         &req.part_type,
         req.filename.as_deref(),
         req.content_type.as_deref(),
     );
+
+    // 如果有 hash 信息，则记录一条“上传中”的文件记录
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    &key,
+                    hash_alg,
+                    hash_value,
+                    Some(file_size as i64),
+                    req.content_type.as_deref(),
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
 
     let signature = storage_service
         .generate_direct_upload_signature(&key, req.content_type.as_deref())

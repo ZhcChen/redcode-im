@@ -29,6 +29,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use tracing::info;
 use uuid::Uuid;
+use crate::database::file_upload_store::FileUploadStore;
 
 #[derive(Debug, Deserialize)]
 pub struct VersionUploadSignatureRequest {
@@ -36,6 +37,15 @@ pub struct VersionUploadSignatureRequest {
     #[serde(default = "default_channel")]
     pub channel: String,
     pub filename: Option<String>,
+    /// 文件大小（字节，可选，便于后续按 hash + size 去重）
+    #[serde(default)]
+    pub file_size: Option<i64>,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    #[serde(default)]
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    #[serde(default)]
+    pub hash_alg: Option<i16>,
 }
 
 #[derive(Debug, Serialize)]
@@ -84,11 +94,63 @@ pub async fn generate_version_upload_signature(
     Json(req): Json<VersionUploadSignatureRequest>,
 ) -> Result<Json<VersionUploadSignatureResponse>, AppError> {
     let _ = claims; // currently no role check
-    let key =
-        build_release_object_key(&req.platform, req.channel.as_str(), req.filename.as_deref());
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
+
+    // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的安装包
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(
+                    &provider.id,
+                    hash_alg,
+                    hash_value,
+                    file_size,
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?
+            {
+                info!(
+                    "复用已上传的安装包: key={}, hash_alg={}, hash_value={}",
+                    existing.object_key, hash_alg, hash_value
+                );
+
+                return Ok(Json(VersionUploadSignatureResponse {
+                    success: true,
+                    message: "复用已上传的安装包，未生成新的直传签名".to_string(),
+                    key: Some(existing.object_key),
+                    signature: None,
+                }));
+            }
+        }
+    }
+
+    let key =
+        build_release_object_key(&req.platform, req.channel.as_str(), req.filename.as_deref());
+
+    // 记录“上传中”的文件记录
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        if file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    &key,
+                    hash_alg,
+                    hash_value,
+                    Some(file_size),
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
+
     let signature = storage_service
         .generate_direct_upload_signature(&key, None)
         .await?;
