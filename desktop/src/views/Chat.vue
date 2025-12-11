@@ -10312,6 +10312,7 @@ const loadMessageList = async (groupId: string) => {
   padding: 24px 12px; /* 上下 24px，左右 12px */
   display: flex;
   flex-direction: column;
+  position: relative;
   user-select: none; /* 默认禁用文本选中 */
 
   .message-content,
@@ -10334,6 +10335,35 @@ const loadMessageList = async (groupId: string) => {
   &.drag-selecting {
     user-select: none;
   }
+}
+
+.chat-messages::before,
+.chat-messages::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.chat-messages::before {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    $bg-chat 0%,
+    rgba($bg-chat, 0) 100%
+  );
+}
+
+.chat-messages::after {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    $bg-chat 0%,
+    rgba($bg-chat, 0) 100%
+  );
 }
 
 .scroll-to-bottom-btn {
