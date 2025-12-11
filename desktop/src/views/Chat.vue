@@ -10337,7 +10337,6 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
-.chat-messages::before,
 .chat-messages::after {
   content: '';
   position: absolute;
@@ -10346,15 +10345,6 @@ const loadMessageList = async (groupId: string) => {
   height: 20px;
   pointer-events: none;
   z-index: 1;
-}
-
-.chat-messages::before {
-  top: 0;
-  background: linear-gradient(
-    to bottom,
-    $bg-chat 0%,
-    rgba($bg-chat, 0) 100%
-  );
 }
 
 .chat-messages::after {
