@@ -65,3 +65,18 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Result<Respons
 
     Err(StatusCode::UNAUTHORIZED)
 }
+
+/// 管理后台路由鉴权中间件（要求 is_admin=true）
+pub async fn admin_only_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
+    let is_admin = request
+        .extensions()
+        .get::<Claims>()
+        .map(|claims| claims.is_admin)
+        .unwrap_or(false);
+
+    if !is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(next.run(request).await)
+}

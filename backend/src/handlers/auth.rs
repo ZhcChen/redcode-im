@@ -200,6 +200,7 @@ pub async fn login(
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
+        is_admin: false,
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -287,6 +288,7 @@ pub async fn refresh_token(
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
+        is_admin: false,
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -492,6 +494,7 @@ pub async fn login_with_sms(
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
+        is_admin: false,
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -735,6 +738,7 @@ pub async fn admin_login(
     let claims = Claims {
         sub: db_admin_user.id.to_string(),
         username: db_admin_user.username.clone(),
+        is_admin: true,
         exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize, // 8小时过期
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -874,6 +878,7 @@ pub async fn admin_refresh_token(
     let claims = Claims {
         sub: db_admin_user.id.to_string(),
         username: db_admin_user.username.clone(),
+        is_admin: true,
         exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };

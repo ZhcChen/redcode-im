@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 
-use crate::auth::auth_middleware;
+use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
     healthz, message, message_read, message_search, room, root, settings, user, version, ws,
@@ -40,17 +40,6 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/admin/login", post(auth::admin_login))
         .route("/auth/admin/refresh", post(auth::admin_refresh_token))
         .route(
-            "/auth/admin/me",
-            get(auth::get_current_admin_user)
-                .patch(auth::update_current_admin_user)
-                .route_layer(middleware::from_fn(auth_middleware)),
-        )
-        .route(
-            "/auth/admin/me/password",
-            post(auth::change_current_admin_password)
-                .route_layer(middleware::from_fn(auth_middleware)),
-        )
-        .route(
             "/settings/privacy-policy",
             get(settings::get_privacy_policy),
         )
@@ -80,10 +69,19 @@ pub fn create_routes() -> Router<AppState> {
             post(admin::reset_admin_password),
         );
 
-    // 需要认证的路由
-    let protected_routes = Router::new()
-        .route("/auth/me", get(auth::get_current_user))
-        .route("/auth/password/reset", post(auth::reset_password_with_sms))
+    // 需要认证且必须是管理员 Token 的路由
+    //
+    // 注意：layer 的调用顺序是“后调用的在最外层”，所以这里把 auth_middleware 放在最后，
+    // 以确保先完成鉴权并注入 Claims，再由 admin_only_middleware 校验 is_admin。
+    let admin_routes = Router::new()
+        .route(
+            "/auth/admin/me",
+            get(auth::get_current_admin_user).patch(auth::update_current_admin_user),
+        )
+        .route(
+            "/auth/admin/me/password",
+            post(auth::change_current_admin_password),
+        )
         // admin APIs
         .route("/api/dashboard/stats", get(admin::get_dashboard_stats))
         .route("/api/dashboard/monitor", get(admin::get_system_monitor))
@@ -284,6 +282,35 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/rooms/{room_id}/chat-history",
             get(chat_history::get_room_chat_history),
         )
+        .route(
+            "/api/admin/users/geolocation/distribution",
+            get(activity_logs::get_global_user_distribution),
+        )
+        // 表情包管理 API（管理员）
+        .route(
+            "/api/admin/emoji-packs",
+            get(emoji_pack::list_all_packs).post(emoji_pack::create_pack),
+        )
+        .route(
+            "/api/admin/emoji-packs/{pack_id}",
+            get(emoji_pack::get_pack)
+                .patch(emoji_pack::update_pack)
+                .delete(emoji_pack::delete_pack),
+        )
+        .route("/api/admin/emoji-items", post(emoji_pack::create_item))
+        .route(
+            "/api/admin/emoji-items/{item_id}",
+            get(emoji_pack::get_item)
+                .patch(emoji_pack::update_item)
+                .delete(emoji_pack::delete_item),
+        )
+        .layer(middleware::from_fn(admin_only_middleware))
+        .layer(middleware::from_fn(auth_middleware));
+
+    // 需要认证的路由（普通用户）
+    let user_routes = Router::new()
+        .route("/auth/me", get(auth::get_current_user))
+        .route("/auth/password/reset", post(auth::reset_password_with_sms))
         .route("/feedbacks", post(feedback::submit_feedback))
         // activity logs
         .route(
@@ -306,10 +333,6 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/users/{user_id}/geolocation",
             get(activity_logs::get_user_geolocation),
-        )
-        .route(
-            "/api/admin/users/geolocation/distribution",
-            get(activity_logs::get_global_user_distribution),
         )
         // users
         .route("/users/search", get(user::search_users))
@@ -510,24 +533,6 @@ pub fn create_routes() -> Router<AppState> {
             "/rooms/{room_id}/detail",
             get(group_management::get_group_detail),
         )
-        // 表情包管理 API（管理员）
-        .route(
-            "/api/admin/emoji-packs",
-            get(emoji_pack::list_all_packs).post(emoji_pack::create_pack),
-        )
-        .route(
-            "/api/admin/emoji-packs/{pack_id}",
-            get(emoji_pack::get_pack)
-                .patch(emoji_pack::update_pack)
-                .delete(emoji_pack::delete_pack),
-        )
-        .route("/api/admin/emoji-items", post(emoji_pack::create_item))
-        .route(
-            "/api/admin/emoji-items/{item_id}",
-            get(emoji_pack::get_item)
-                .patch(emoji_pack::update_item)
-                .delete(emoji_pack::delete_item),
-        )
         // 表情包用户 API
         .route(
             "/emoji-packs/available",
@@ -558,5 +563,5 @@ pub fn create_routes() -> Router<AppState> {
         .layer(middleware::from_fn(auth_middleware));
 
     // 合并所有路由
-    public_routes.merge(protected_routes)
+    public_routes.merge(user_routes).merge(admin_routes)
 }

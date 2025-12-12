@@ -364,6 +364,9 @@ pub struct HotUpdateEventInfo {
 pub struct Claims {
     pub sub: String, // 用户ID（String 格式）
     pub username: String,
+    /// 是否为管理员 Token（用于区分 admin/user 路由权限）
+    #[serde(default)]
+    pub is_admin: bool,
     pub exp: usize, // 过期时间戳
     pub iat: usize, // 签发时间戳
 }

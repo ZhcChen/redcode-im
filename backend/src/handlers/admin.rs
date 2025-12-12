@@ -1032,10 +1032,27 @@ pub async fn update_admin_user_status(
     }))
 }
 
+fn insecure_admin_bootstrap_enabled() -> bool {
+    let value = std::env::var("ALLOW_INSECURE_ADMIN_BOOTSTRAP").unwrap_or_default();
+    matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes")
+}
+
+fn ensure_insecure_admin_bootstrap_enabled() -> Result<(), AppError> {
+    if insecure_admin_bootstrap_enabled() {
+        return Ok(());
+    }
+
+    Err(AppError::Forbidden(
+        "该接口仅用于初始化/调试，默认已禁用。如需启用，请设置环境变量 ALLOW_INSECURE_ADMIN_BOOTSTRAP=true。"
+            .to_string(),
+    ))
+}
+
 /// 创建默认管理员用户（临时API，仅用于初始化）
 pub async fn create_default_admin_user(
     State(state): State<AppState>,
 ) -> Result<Json<AdminOperationResponse>, AppError> {
+    ensure_insecure_admin_bootstrap_enabled()?;
     tracing::info!("开始创建默认管理员用户");
 
     let store = AdminUserStore::new(state.database.clone());
@@ -1086,6 +1103,7 @@ pub async fn create_default_admin_user(
 pub async fn check_admin_users(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    ensure_insecure_admin_bootstrap_enabled()?;
     let store = AdminUserStore::new(state.database.clone());
 
     match store.list_admin_users(1, 10, None, None).await {
@@ -1120,6 +1138,8 @@ pub async fn reset_admin_password(
     State(state): State<AppState>,
 ) -> Result<Json<AdminOperationResponse>, AppError> {
     use crate::auth::hash_password;
+
+    ensure_insecure_admin_bootstrap_enabled()?;
 
     let new_password = "admin123";
     let hashed_password = hash_password(new_password)
@@ -2825,13 +2845,7 @@ pub async fn test_cos_upload_signature(
             let upload_store =
                 crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
             if let Some(existing) = upload_store
-                .find_completed_by_hash(
-                    &provider.id,
-                    hash_alg,
-                    hash_value,
-                    file_size,
-                    None,
-                )
+                .find_completed_by_hash(&provider.id, hash_alg, hash_value, file_size, None)
                 .await
                 .map_err(AppError::from)?
             {
