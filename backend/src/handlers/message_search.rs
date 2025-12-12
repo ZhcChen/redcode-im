@@ -1,11 +1,15 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::{Postgres, QueryBuilder};
 use uuid::Uuid;
 
+use crate::database::models::MessageType as DbMessageType;
 use crate::error::AppError;
+use crate::models::convert::db_message_type_to_api;
+use crate::models::{Claims, MessageType as ApiMessageType};
 use crate::AppState;
 
 // 搜索参数
@@ -30,7 +34,7 @@ pub struct MessageSearchResult {
     pub sender_id: Uuid,
     pub sender_name: String,
     pub content: String,
-    pub message_type: String,
+    pub message_type: ApiMessageType,
     pub timestamp: String,
     pub matched_text: Option<String>, // 匹配的文本片段
     pub relevance_score: f64,         // 相关性评分
@@ -52,11 +56,31 @@ pub struct MessageSearchResponse {
     pub has_more: bool,
 }
 
+fn parse_message_type_filter(raw: &str) -> Result<DbMessageType, AppError> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "text" => Ok(DbMessageType::Text),
+        "image" => Ok(DbMessageType::Image),
+        "file" => Ok(DbMessageType::File),
+        "system" => Ok(DbMessageType::System),
+        "video" => Ok(DbMessageType::Video),
+        "audio" => Ok(DbMessageType::Audio),
+        "mixed" => Ok(DbMessageType::Mixed),
+        _ => Err(AppError::ValidationError(format!(
+            "无效的 message_type: {}",
+            raw
+        ))),
+    }
+}
+
 pub async fn search_messages(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(params): Query<MessageSearchParams>,
 ) -> Result<Json<MessageSearchResponse>, AppError> {
     let start_time = std::time::Instant::now();
+
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
     // 验证搜索查询
     if params.query.trim().is_empty() {
@@ -69,115 +93,133 @@ pub async fn search_messages(
         ));
     }
 
-    // 构建SQL查询
-    let mut query_conditions: Vec<String> = vec!["m.deleted_at IS NULL".to_string()];
-    let mut bind_params: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send>> = Vec::new();
+    // 设置分页
+    let limit = params.limit.unwrap_or(50).min(100); // 最大100条
+    let offset = params.offset.unwrap_or(0).max(0);
+    let query_pattern = format!("%{}%", params.query.trim());
 
-    // 添加搜索条件（使用全文搜索）
-    if !params.query.trim().is_empty() {
-        query_conditions
-            .push("(m.content ILIKE $1 OR u.username ILIKE $1 OR u.nickname ILIKE $1)".to_string());
-        bind_params.push(Box::new(format!("%{}%", params.query.trim())));
-    }
+    // 必须按“用户在房间内的成员关系”过滤，避免越权读取
+    let mut builder = QueryBuilder::<Postgres>::new(
+        "SELECT m.id, m.room_id, r.name AS room_name, m.sender_id, u.username AS sender_username, u.nickname AS sender_nickname, m.content, m.message_type, m.created_at, ",
+    );
+    builder.push("CASE WHEN m.content ILIKE ");
+    builder.push_bind(&query_pattern);
+    builder.push(" THEN 1.0 WHEN u.username ILIKE ");
+    builder.push_bind(&query_pattern);
+    builder.push(" OR u.nickname ILIKE ");
+    builder.push_bind(&query_pattern);
+    builder.push(" THEN 0.8 ELSE 0.5 END::float8 AS relevance_score ");
+    builder.push(
+        "FROM messages m \
+         JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = ",
+    );
+    builder.push_bind(user_id);
+    builder.push(
+        " AND rm.deleted_at IS NULL \
+         JOIN users u ON m.sender_id = u.id \
+         JOIN rooms r ON m.room_id = r.id \
+         WHERE m.deleted_at IS NULL AND r.deleted_at IS NULL AND (m.content ILIKE ",
+    );
+    builder.push_bind(&query_pattern);
+    builder.push(" OR u.username ILIKE ");
+    builder.push_bind(&query_pattern);
+    builder.push(" OR u.nickname ILIKE ");
+    builder.push_bind(&query_pattern);
+    builder.push(")");
 
-    // 添加房间过滤
     if let Some(room_id) = params.room_id {
-        query_conditions.push("m.room_id = $".to_string() + &(bind_params.len() + 1).to_string());
-        bind_params.push(Box::new(room_id));
+        builder.push(" AND m.room_id = ");
+        builder.push_bind(room_id);
     }
 
-    // 添加发送者过滤
     if let Some(sender_id) = params.sender_id {
-        query_conditions.push("m.sender_id = $".to_string() + &(bind_params.len() + 1).to_string());
-        bind_params.push(Box::new(sender_id));
+        builder.push(" AND m.sender_id = ");
+        builder.push_bind(sender_id);
     }
 
-    // 添加消息类型过滤
-    if let Some(message_type) = &params.message_type {
-        query_conditions
-            .push("m.message_type = $".to_string() + &(bind_params.len() + 1).to_string());
-        bind_params.push(Box::new(message_type.clone()));
+    if let Some(message_type) = params.message_type.as_deref() {
+        let db_message_type = parse_message_type_filter(message_type)?;
+        builder.push(" AND m.message_type = ");
+        builder.push_bind(db_message_type);
     }
 
-    // 添加日期范围过滤
     if let Some(date_from) = params.date_from {
         let from_date = chrono::DateTime::from_timestamp(date_from, 0)
             .ok_or_else(|| AppError::ValidationError("无效的开始时间".to_string()))?;
-        query_conditions
-            .push("m.created_at >= $".to_string() + &(bind_params.len() + 1).to_string());
-        bind_params.push(Box::new(from_date));
+        builder.push(" AND m.created_at >= ");
+        builder.push_bind(from_date);
     }
 
     if let Some(date_to) = params.date_to {
         let to_date = chrono::DateTime::from_timestamp(date_to, 0)
             .ok_or_else(|| AppError::ValidationError("无效的结束时间".to_string()))?;
-        query_conditions
-            .push("m.created_at <= $".to_string() + &(bind_params.len() + 1).to_string());
-        bind_params.push(Box::new(to_date));
+        builder.push(" AND m.created_at <= ");
+        builder.push_bind(to_date);
     }
 
-    // 设置分页
-    let limit = params.limit.unwrap_or(50).min(100); // 最大100条
-    let offset = params.offset.unwrap_or(0);
-
-    let where_clause = query_conditions.join(" AND ");
-
-    // 执行搜索查询
-    let search_sql = format!(
-        r#"
-        SELECT
-            m.id,
-            m.room_id,
-            r.name as room_name,
-            m.sender_id,
-            u.username as sender_username,
-            u.nickname as sender_nickname,
-            m.content,
-            m.message_type,
-            m.created_at,
-            -- 简单的相关性评分
-            CASE
-                WHEN m.content ILIKE $1 THEN 1.0
-                WHEN u.username ILIKE $1 OR u.nickname ILIKE $1 THEN 0.8
-                ELSE 0.5
-            END as relevance_score
-        FROM messages m
-        JOIN users u ON m.sender_id = u.id
-        JOIN rooms r ON m.room_id = r.id
-        WHERE {}
-        ORDER BY relevance_score DESC, m.created_at DESC
-        LIMIT {} OFFSET {}
-        "#,
-        where_clause, limit, offset
-    );
-
-    // 获取总数查询
-    let count_sql = format!(
-        r#"
-        SELECT COUNT(*) as total
-        FROM messages m
-        JOIN users u ON m.sender_id = u.id
-        JOIN rooms r ON m.room_id = r.id
-        WHERE {}
-        "#,
-        where_clause
-    );
+    builder.push(" ORDER BY relevance_score DESC, m.created_at DESC LIMIT ");
+    builder.push_bind(limit);
+    builder.push(" OFFSET ");
+    builder.push_bind(offset);
 
     let pool = &state.database.pool;
 
-    // 执行搜索
-    let search_query = sqlx::query_as::<_, MessageSearchRow>(&search_sql);
-
-    // 绑定参数（这里需要根据实际的SQL库调整）
-    // 注意：这是一个简化的实现，实际使用时需要正确处理参数绑定
-
-    let search_results = search_query
+    let search_results: Vec<MessageSearchRow> = builder
+        .build_query_as()
         .fetch_all(pool)
         .await
         .map_err(|e| AppError::InternalError(format!("搜索失败: {}", e)))?;
 
-    // 获取总数
-    let total_count: i64 = sqlx::query_scalar(&count_sql)
+    // 获取总数（与搜索条件保持一致）
+    let mut count_builder = QueryBuilder::<Postgres>::new(
+        "SELECT COUNT(*) FROM messages m JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = ",
+    );
+    count_builder.push_bind(user_id);
+    count_builder.push(
+        " AND rm.deleted_at IS NULL \
+         JOIN users u ON m.sender_id = u.id \
+         JOIN rooms r ON m.room_id = r.id \
+         WHERE m.deleted_at IS NULL AND r.deleted_at IS NULL AND (m.content ILIKE ",
+    );
+    count_builder.push_bind(&query_pattern);
+    count_builder.push(" OR u.username ILIKE ");
+    count_builder.push_bind(&query_pattern);
+    count_builder.push(" OR u.nickname ILIKE ");
+    count_builder.push_bind(&query_pattern);
+    count_builder.push(")");
+
+    if let Some(room_id) = params.room_id {
+        count_builder.push(" AND m.room_id = ");
+        count_builder.push_bind(room_id);
+    }
+
+    if let Some(sender_id) = params.sender_id {
+        count_builder.push(" AND m.sender_id = ");
+        count_builder.push_bind(sender_id);
+    }
+
+    if let Some(message_type) = params.message_type.as_deref() {
+        let db_message_type = parse_message_type_filter(message_type)?;
+        count_builder.push(" AND m.message_type = ");
+        count_builder.push_bind(db_message_type);
+    }
+
+    if let Some(date_from) = params.date_from {
+        let from_date = chrono::DateTime::from_timestamp(date_from, 0)
+            .ok_or_else(|| AppError::ValidationError("无效的开始时间".to_string()))?;
+        count_builder.push(" AND m.created_at >= ");
+        count_builder.push_bind(from_date);
+    }
+
+    if let Some(date_to) = params.date_to {
+        let to_date = chrono::DateTime::from_timestamp(date_to, 0)
+            .ok_or_else(|| AppError::ValidationError("无效的结束时间".to_string()))?;
+        count_builder.push(" AND m.created_at <= ");
+        count_builder.push_bind(to_date);
+    }
+
+    let total_count: i64 = count_builder
+        .build_query_scalar()
         .fetch_one(pool)
         .await
         .map_err(|e| AppError::InternalError(format!("获取总数失败: {}", e)))?;
@@ -198,7 +240,7 @@ pub async fn search_messages(
                 sender_id: row.sender_id,
                 sender_name,
                 content: row.content,
-                message_type: row.message_type,
+                message_type: db_message_type_to_api(&row.message_type),
                 timestamp: row.created_at.to_rfc3339(),
                 matched_text: None, // 后端不提供高亮，由前端处理
                 relevance_score: row.relevance_score,
@@ -232,7 +274,7 @@ struct MessageSearchRow {
     sender_username: String,
     sender_nickname: Option<String>,
     content: String,
-    message_type: String,
+    message_type: DbMessageType,
     created_at: chrono::DateTime<chrono::Utc>,
     relevance_score: f64,
 }
@@ -240,8 +282,12 @@ struct MessageSearchRow {
 // 获取搜索建议
 pub async fn get_search_suggestions(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(params): Query<SearchSuggestionsParams>,
 ) -> Result<Json<Vec<String>>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
     if params.prefix.trim().is_empty() || params.prefix.trim().len() < 2 {
         return Ok(Json(Vec::new()));
     }
@@ -249,17 +295,27 @@ pub async fn get_search_suggestions(
     let limit = params.limit.unwrap_or(10).min(20);
 
     let sql = r#"
-        SELECT DISTINCT LEFT(m.content, 50) as suggestion
-        FROM messages m
-        WHERE m.content ILIKE $1
-        AND m.deleted_at IS NULL
-        ORDER BY m.created_at DESC
-        LIMIT $2
+        SELECT suggestion
+        FROM (
+            SELECT LEFT(m.content, 50) AS suggestion, MAX(m.created_at) AS last_at
+            FROM messages m
+            JOIN room_members rm ON rm.room_id = m.room_id
+                AND rm.user_id = $1
+                AND rm.deleted_at IS NULL
+            JOIN rooms r ON r.id = m.room_id
+            WHERE m.content ILIKE $2
+            AND m.deleted_at IS NULL
+            AND r.deleted_at IS NULL
+            GROUP BY suggestion
+        ) t
+        ORDER BY last_at DESC
+        LIMIT $3
     "#;
 
     let suggestions = sqlx::query_scalar::<_, String>(sql)
+        .bind(user_id)
         .bind(format!("{}%", params.prefix.trim()))
-        .bind(limit as i64)
+        .bind(limit)
         .fetch_all(&state.database.pool)
         .await
         .map_err(|e| AppError::InternalError(format!("获取建议失败: {}", e)))?;
@@ -277,25 +333,35 @@ pub struct SearchSuggestionsParams {
 // 获取热门搜索关键词
 pub async fn get_trending_keywords(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TrendingKeyword>>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
     let sql = r#"
         SELECT
             word,
             COUNT(*) as frequency
         FROM (
             SELECT regexp_split_to_table(content, '\s+') as word
-            FROM messages
-            WHERE created_at > NOW() - INTERVAL '7 days'
-            AND deleted_at IS NULL
-            AND length(word) >= 2
+            FROM messages m
+            JOIN room_members rm ON rm.room_id = m.room_id
+                AND rm.user_id = $1
+                AND rm.deleted_at IS NULL
+            JOIN rooms r ON r.id = m.room_id
+            WHERE m.created_at > NOW() - INTERVAL '7 days'
+            AND m.deleted_at IS NULL
+            AND r.deleted_at IS NULL
         ) as words
-        WHERE word !~ '^[^\w]+$'  -- 过滤掉纯符号
+        WHERE length(word) >= 2
+        AND word !~ '^[^\w]+$'  -- 过滤掉纯符号
         GROUP BY word
         ORDER BY frequency DESC
         LIMIT 10
     "#;
 
     let keywords = sqlx::query_as::<_, TrendingKeywordRow>(sql)
+        .bind(user_id)
         .fetch_all(&state.database.pool)
         .await
         .map_err(|e| AppError::InternalError(format!("获取热门关键词失败: {}", e)))?;
