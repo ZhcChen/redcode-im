@@ -1,6 +1,6 @@
 # RedCode IM Backend API 完整参考文档
 
-> 本文档由代码自动生成，涵盖所有已实现的 REST API 和 WebSocket 接口
+> 本文档用于记录当前已实现的 REST API 与 WebSocket 接口入口；若与代码不一致，以 `backend/src/routes.rs` 为准。
 
 ## 📋 目录
 
@@ -35,7 +35,16 @@ Authorization: Bearer <your-jwt-token>
 ```
 
 ### 响应格式
-所有 API 返回统一的 JSON 格式
+成功响应的结构**不强制统一**（部分接口返回 `{success,message,...}`，部分接口直接返回业务对象），建议以 **HTTP 状态码** 为第一判断依据。
+
+当接口返回非 2xx 时，响应体遵循统一结构（见 `backend/src/error.rs`）：
+```json
+{
+  "code": 40001,
+  "message": "错误信息",
+  "details": "可选的详细信息"
+}
+```
 
 ---
 
@@ -122,25 +131,19 @@ Authorization: Bearer <your-jwt-token>
 
 ### 头像管理
 
-#### 6. 上传头像（直接上传）
-- **接口**: `POST /users/me/avatar`
-- **权限**: 需要认证
-- **功能**: 直接上传头像文件
-- **Handler**: `user::upload_avatar`
-
-#### 7. 生成头像直传签名
+#### 6. 生成头像直传签名
 - **接口**: `POST /users/me/avatar/direct-upload`
 - **权限**: 需要认证
 - **功能**: 生成第三方存储的直传签名（腾讯COS等）
 - **Handler**: `user::generate_avatar_direct_upload`
 
-#### 8. 提交头像上传
+#### 7. 提交头像上传
 - **接口**: `POST /users/me/avatar/commit`
 - **权限**: 需要认证
 - **功能**: 确认头像上传完成
 - **Handler**: `user::commit_avatar_upload`
 
-#### 9. 获取头像下载链接
+#### 8. 获取头像下载链接
 - **接口**: `GET /users/me/avatar/url`
 - **权限**: 需要认证
 - **功能**: 获取头像的临时下载链接

@@ -16,4 +16,6 @@
 - 测试排查
   - [WebSocket 实时分发测试](./testing/websocket-test.md)
 - 项目规划
-  - [Roadmap](./project/roadmap.md)
+  - [Roadmap（历史，可能过期）](./project/roadmap.md)
+  - [项目任务清单（最新）](../../docs/报告/任务清单.md)
+  - [项目现状评估报告 (2025-11-08)](../../docs/报告/项目现状评估报告_2025-11-08.md)

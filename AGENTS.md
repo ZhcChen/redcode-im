@@ -99,7 +99,7 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 
 ### 3.2 开发过程中
 1. **代码定位**：
-   - 后端代码：`backend/backend/src/`
+   - 后端代码：`backend/src/`
    - 桌面端：`desktop/src/`
    - 移动端：`frontend/lib/`
    - 管理后台：`admin/src/`
