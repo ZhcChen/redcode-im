@@ -1976,7 +1976,7 @@ class MessageService with ChangeNotifier {
       return;
     }
 
-    final sig = plan.signature;
+    final sig = plan.signature!;
     final request = http.StreamedRequest(
       sig.method,
       Uri.parse(sig.url),
