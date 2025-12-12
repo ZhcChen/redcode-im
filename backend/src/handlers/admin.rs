@@ -99,6 +99,26 @@ pub struct SystemStats {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardStorageStats {
+    pub total_files: i64,
+    /// 统一按字节返回（前端自行格式化）
+    pub total_size: i64,
+    pub today_uploads: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardEmojiStats {
+    /// emoji_items 总数
+    pub total_emojis: i64,
+    /// 今日使用次数（按 message_parts 统计）
+    pub today_usage: i64,
+    /// 近 7 天内被使用过的表情数量（去重）
+    pub popular_count: i64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct SystemMonitor {
     pub cpu: f64,
     pub memory: f64,
@@ -447,6 +467,93 @@ pub async fn get_dashboard_stats(
     };
 
     Ok(Json(stats))
+}
+
+pub async fn get_dashboard_storage_stats(
+    State(state): State<AppState>,
+) -> Result<Json<DashboardStorageStats>, AppError> {
+    let pool = &state.database.pool;
+
+    // 以 file_upload_records 为准：覆盖头像/消息附件/表情/版本包等直传文件，并天然去重
+    let total_files: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM file_upload_records WHERE status = 1")
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::DatabaseError)?;
+
+    let total_size: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(file_size), 0) FROM file_upload_records WHERE status = 1",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    let today_uploads: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM file_upload_records
+         WHERE status = 1
+           AND COALESCE(uploaded_at, created_at) >= date_trunc('day', NOW())",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    Ok(Json(DashboardStorageStats {
+        total_files,
+        total_size,
+        today_uploads,
+    }))
+}
+
+pub async fn get_dashboard_emoji_stats(
+    State(state): State<AppState>,
+) -> Result<Json<DashboardEmojiStats>, AppError> {
+    let pool = &state.database.pool;
+
+    let total_emojis: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM emoji_items")
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::DatabaseError)?;
+
+    // 统计“emoji 被使用次数”：以 message_parts 里的图片分片为准，
+    // 通过 attachment_key / image_url 与 emoji_items 关联。
+    let today_usage: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM message_parts mp
+        JOIN messages m ON m.id = mp.message_id AND m.deleted_at IS NULL
+        JOIN emoji_items ei
+          ON (ei.image_object_key IS NOT NULL AND mp.attachment_key = ei.image_object_key)
+          OR (mp.attachment_key = ei.image_url)
+        WHERE mp.part_type = 1
+          AND mp.created_at >= date_trunc('day', NOW())
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    let popular_count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT ei.id)
+        FROM message_parts mp
+        JOIN messages m ON m.id = mp.message_id AND m.deleted_at IS NULL
+        JOIN emoji_items ei
+          ON (ei.image_object_key IS NOT NULL AND mp.attachment_key = ei.image_object_key)
+          OR (mp.attachment_key = ei.image_url)
+        WHERE mp.part_type = 1
+          AND mp.created_at > NOW() - INTERVAL '7 days'
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    Ok(Json(DashboardEmojiStats {
+        total_emojis,
+        today_usage,
+        popular_count,
+    }))
 }
 
 async fn get_online_users_count(state: &AppState) -> Result<i64, AppError> {

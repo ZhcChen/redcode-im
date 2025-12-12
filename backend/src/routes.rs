@@ -84,6 +84,14 @@ pub fn create_routes() -> Router<AppState> {
         )
         // admin APIs
         .route("/api/dashboard/stats", get(admin::get_dashboard_stats))
+        .route(
+            "/api/dashboard/storage-stats",
+            get(admin::get_dashboard_storage_stats),
+        )
+        .route(
+            "/api/dashboard/emoji-stats",
+            get(admin::get_dashboard_emoji_stats),
+        )
         .route("/api/dashboard/monitor", get(admin::get_system_monitor))
         .route("/api/dashboard/statistics", get(admin::get_data_statistics))
         .route("/api/admin/users", get(admin::get_user_list))
