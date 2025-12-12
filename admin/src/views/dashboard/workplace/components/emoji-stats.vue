@@ -4,55 +4,57 @@
       <a-tag color="orange">表情</a-tag>
     </template>
 
-    <div class="stats-grid">
-      <div class="stat-item">
-        <div class="stat-icon emoji-icon"> 😊 </div>
-        <div class="stat-content">
-          <div class="stat-value">{{
-            formatNumber(emojiStats?.totalEmojis || 0)
-          }}</div>
-          <div class="stat-label">表情包总数</div>
+    <a-spin :loading="loading" style="width: 100%">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-icon emoji-icon"> 😊 </div>
+          <div class="stat-content">
+            <div class="stat-value">{{
+              formatNumber(emojiStats?.totalEmojis || 0)
+            }}</div>
+            <div class="stat-label">表情包总数</div>
+          </div>
         </div>
-      </div>
 
-      <div class="stat-item">
-        <div class="stat-icon emoji-icon"> 🔥 </div>
-        <div class="stat-content">
-          <div class="stat-value">{{
-            formatNumber(emojiStats?.todayUsage || 0)
-          }}</div>
-          <div class="stat-label">今日使用</div>
+        <div class="stat-item">
+          <div class="stat-icon emoji-icon"> 🔥 </div>
+          <div class="stat-content">
+            <div class="stat-value">{{
+              formatNumber(emojiStats?.todayUsage || 0)
+            }}</div>
+            <div class="stat-label">今日使用</div>
+          </div>
         </div>
-      </div>
 
-      <div class="stat-item">
-        <div class="stat-icon emoji-icon"> ⭐ </div>
-        <div class="stat-content">
-          <div class="stat-value">{{
-            formatNumber(emojiStats?.popularCount || 0)
-          }}</div>
-          <div class="stat-label">热门表情</div>
+        <div class="stat-item">
+          <div class="stat-icon emoji-icon"> ⭐ </div>
+          <div class="stat-content">
+            <div class="stat-value">{{
+              formatNumber(emojiStats?.popularCount || 0)
+            }}</div>
+            <div class="stat-label">热门表情</div>
+          </div>
         </div>
       </div>
-    </div>
+    </a-spin>
   </StatisticCard>
 </template>
 
 <script setup lang="ts">
   import { ref, onMounted, onUnmounted } from 'vue';
   import StatisticCard from '@/components/statistic-card/index.vue';
+  import useLoading from '@/hooks/loading';
+  import {
+    getDashboardEmojiStats,
+    type DashboardEmojiStats,
+  } from '@/api/dashboard';
 
   defineOptions({
     name: 'EmojiStats',
   });
 
-  interface EmojiStats {
-    totalEmojis: number;
-    todayUsage: number;
-    popularCount: number;
-  }
-
-  const emojiStats = ref<EmojiStats>();
+  const { loading, setLoading } = useLoading(true);
+  const emojiStats = ref<DashboardEmojiStats>();
   let timer: number | null = null;
 
   const formatNumber = (num: number): string => {
@@ -64,19 +66,13 @@
 
   const fetchEmojiStats = async () => {
     try {
-      // TODO: 调用实际的API
-      // const { data } = await getEmojiStats();
-      // emojiStats.value = data;
-
-      // 模拟数据
-      emojiStats.value = {
-        totalEmojis: 568,
-        todayUsage: 2341,
-        popularCount: 28,
-      };
+      setLoading(true);
+      const { data } = await getDashboardEmojiStats();
+      emojiStats.value = data;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('获取表情包统计失败:', error);
+      // 错误提示由全局拦截器统一处理
+    } finally {
+      setLoading(false);
     }
   };
 

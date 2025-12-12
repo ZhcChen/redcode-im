@@ -54,6 +54,26 @@ export function getDataStatistics() {
   return axios.get<DataStatistics>('/api/dashboard/statistics');
 }
 
+export interface DashboardStorageStats {
+  totalFiles: number;
+  totalSize: number;
+  todayUploads: number;
+}
+
+export function getDashboardStorageStats() {
+  return axios.get<DashboardStorageStats>('/api/dashboard/storage-stats');
+}
+
+export interface DashboardEmojiStats {
+  totalEmojis: number;
+  todayUsage: number;
+  popularCount: number;
+}
+
+export function getDashboardEmojiStats() {
+  return axios.get<DashboardEmojiStats>('/api/dashboard/emoji-stats');
+}
+
 export interface PopularContentItem {
   id: string;
   title: string;

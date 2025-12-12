@@ -4,61 +4,63 @@
       <a-tag color="green">存储</a-tag>
     </template>
 
-    <div class="stats-grid">
-      <div class="stat-item">
-        <div class="stat-icon">
-          <icon-cloud />
+    <a-spin :loading="loading" style="width: 100%">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-icon">
+            <icon-cloud />
+          </div>
+          <div class="stat-content">
+            <div class="stat-value">{{
+              formatNumber(storageStats?.totalFiles || 0)
+            }}</div>
+            <div class="stat-label">文件总数</div>
+          </div>
         </div>
-        <div class="stat-content">
-          <div class="stat-value">{{
-            formatNumber(storageStats?.totalFiles || 0)
-          }}</div>
-          <div class="stat-label">文件总数</div>
-        </div>
-      </div>
 
-      <div class="stat-item">
-        <div class="stat-icon">
-          <icon-storage />
+        <div class="stat-item">
+          <div class="stat-icon">
+            <icon-storage />
+          </div>
+          <div class="stat-content">
+            <div class="stat-value">{{
+              formatSize(storageStats?.totalSize || 0)
+            }}</div>
+            <div class="stat-label">存储总大小</div>
+          </div>
         </div>
-        <div class="stat-content">
-          <div class="stat-value">{{
-            formatSize(storageStats?.totalSize || 0)
-          }}</div>
-          <div class="stat-label">存储总大小</div>
-        </div>
-      </div>
 
-      <div class="stat-item">
-        <div class="stat-icon">
-          <icon-upload />
-        </div>
-        <div class="stat-content">
-          <div class="stat-value">{{
-            formatNumber(storageStats?.todayUploads || 0)
-          }}</div>
-          <div class="stat-label">今日上传</div>
+        <div class="stat-item">
+          <div class="stat-icon">
+            <icon-upload />
+          </div>
+          <div class="stat-content">
+            <div class="stat-value">{{
+              formatNumber(storageStats?.todayUploads || 0)
+            }}</div>
+            <div class="stat-label">今日上传</div>
+          </div>
         </div>
       </div>
-    </div>
+    </a-spin>
   </StatisticCard>
 </template>
 
 <script setup lang="ts">
   import { ref, onMounted, onUnmounted } from 'vue';
   import StatisticCard from '@/components/statistic-card/index.vue';
+  import useLoading from '@/hooks/loading';
+  import {
+    getDashboardStorageStats,
+    type DashboardStorageStats,
+  } from '@/api/dashboard';
 
   defineOptions({
     name: 'StorageStats',
   });
 
-  interface StorageStats {
-    totalFiles: number;
-    totalSize: number;
-    todayUploads: number;
-  }
-
-  const storageStats = ref<StorageStats>();
+  const { loading, setLoading } = useLoading(true);
+  const storageStats = ref<DashboardStorageStats>();
   let timer: number | null = null;
 
   const formatNumber = (num: number): string => {
@@ -83,19 +85,13 @@
 
   const fetchStorageStats = async () => {
     try {
-      // TODO: 调用实际的API
-      // const { data } = await getStorageStats();
-      // storageStats.value = data;
-
-      // 模拟数据
-      storageStats.value = {
-        totalFiles: 15234,
-        totalSize: 1024 * 1024 * 1024 * 2.5, // 2.5GB
-        todayUploads: 89,
-      };
+      setLoading(true);
+      const { data } = await getDashboardStorageStats();
+      storageStats.value = data;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('获取存储统计失败:', error);
+      // 错误提示由全局拦截器统一处理
+    } finally {
+      setLoading(false);
     }
   };
 
