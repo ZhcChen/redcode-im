@@ -20,6 +20,10 @@ tests/go/desktop_add_member/
     users.json          # 预置用户/密码/角色
 ```
 
+## 现有 Go 集成测试目录
+- `tests/go/desktop_add_member/`：群聊“添加成员”核心流程。
+- `tests/go/backend_message_search/`：消息搜索权限边界（避免越权读取）。
+
 ## 前置依赖
 - 后端服务已运行，默认基准地址 `http://localhost:8010`（可通过环境变量 `API_BASE_URL` 覆盖）。
 - 具备一个可登录的管理员账号或有群管理权限的测试账号；如无，测试夹具使用注册接口创建。
