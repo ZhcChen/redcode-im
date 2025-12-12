@@ -98,6 +98,24 @@ curl -sS -X POST "http://localhost:8010/rooms/<ROOM_UUID>/messages" \
 {"type":"pong"}
 ```
 
+## 可选：一键脚本（Node）
+
+> 适合做“连通性 + auth + join + ping/pong”快速验证。
+
+```bash
+cd backend
+USERNAME="15300000000" PASSWORD="Passw0rd!" ROOM_ID="<ROOM_UUID>" npm run test:ws
+```
+
+如需自定义地址：
+```bash
+cd backend
+API_BASE_URL="http://localhost:8010" \
+WS_URL="ws://localhost:8010/ws?format=json" \
+USERNAME="15300000000" PASSWORD="Passw0rd!" ROOM_ID="<ROOM_UUID>" \
+npm run test:ws
+```
+
 ## 常见问题
 
 ### 1) 收不到 joined / message
