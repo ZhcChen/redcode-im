@@ -75,6 +75,33 @@ impl<'a> MessageStore<'a> {
         Self { pool }
     }
 
+    /// 校验某个 object_key 是否已被该房间内的消息引用（附件或缩略图）。
+    ///
+    /// 用途：生成附件下载链接时做访问控制，避免仅凭 object_key 即可下载任意文件。
+    pub async fn room_has_message_object_key(
+        &self,
+        room_id: Uuid,
+        object_key: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let exists: Option<(i32,)> = sqlx::query_as(
+            r#"
+            SELECT 1
+            FROM messages m
+            JOIN message_parts p ON p.message_id = m.id
+            WHERE m.room_id = $1
+              AND m.deleted_at IS NULL
+              AND (p.attachment_key = $2 OR p.thumbnail_key = $2)
+            LIMIT 1
+            "#,
+        )
+        .bind(room_id)
+        .bind(object_key)
+        .fetch_optional(self.pool)
+        .await?;
+
+        Ok(exists.is_some())
+    }
+
     pub async fn create_message_with_parts(
         &self,
         room_id: Uuid,

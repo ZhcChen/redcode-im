@@ -426,6 +426,45 @@ fn build_message_attachment_key(
     )
 }
 
+fn is_valid_message_attachment_object_key(key: &str) -> bool {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    // 防御性校验：避免明显的路径穿越/奇怪分隔符
+    if trimmed.contains("..") || trimmed.contains('\\') {
+        return false;
+    }
+
+    // 消息附件统一放在 messages/ 命名空间下（支持跨房间复用历史附件）
+    trimmed.starts_with("messages/")
+}
+
+#[cfg(test)]
+mod message_attachment_key_tests {
+    use super::is_valid_message_attachment_object_key;
+
+    #[test]
+    fn accepts_messages_namespace_keys() {
+        assert!(is_valid_message_attachment_object_key(
+            "messages/room/images_20251213/abcdef01.png"
+        ));
+        assert!(is_valid_message_attachment_object_key(
+            "  messages/anything/files_20251213/abcdef01.bin  "
+        ));
+    }
+
+    #[test]
+    fn rejects_empty_or_suspicious_keys() {
+        assert!(!is_valid_message_attachment_object_key(""));
+        assert!(!is_valid_message_attachment_object_key("   "));
+        assert!(!is_valid_message_attachment_object_key("avatars/u/a.png"));
+        assert!(!is_valid_message_attachment_object_key("messages/../a.png"));
+        assert!(!is_valid_message_attachment_object_key("messages\\a.png"));
+    }
+}
+
 fn infer_attachment_extension(
     filename: Option<&str>,
     content_type: Option<&str>,
@@ -567,15 +606,14 @@ pub async fn send_message(
         })
         .collect();
 
-    let expected_prefix = format!("messages/{}/", room_id);
     for part in &db_parts {
         if part.part_type == MessagePartType::Text {
             continue;
         }
         if let Some(key) = &part.attachment_key {
-            if !key.starts_with(&expected_prefix) {
+            if !is_valid_message_attachment_object_key(key) {
                 return Err(AppError::ValidationError(
-                    "附件 key 与房间不匹配，请重新获取上传签名".to_string(),
+                    "附件 key 不合法，请重新获取上传签名".to_string(),
                 ));
             }
         }
@@ -676,9 +714,7 @@ pub async fn forward_message(
 
     // 禁止转发系统消息
     if original.message_type == MessageType::System {
-        return Err(AppError::ValidationError(
-            "系统消息不支持转发".to_string(),
-        ));
+        return Err(AppError::ValidationError("系统消息不支持转发".to_string()));
     }
 
     // 获取原消息的 parts
@@ -1188,7 +1224,7 @@ pub async fn generate_message_attachment_signature(
                     hash_alg,
                     hash_value,
                     file_size as i64,
-                    None,
+                    Some("messages/"),
                 )
                 .await
                 .map_err(AppError::from)?
@@ -1270,9 +1306,17 @@ pub async fn generate_message_attachment_download_url(
         return Err(AppError::ValidationError("附件 key 不能为空".to_string()));
     }
 
-    let expected_prefix = format!("messages/{}/", room_id);
-    if !key.starts_with(&expected_prefix) {
+    if !is_valid_message_attachment_object_key(key) {
         return Err(AppError::ValidationError("附件 key 不合法".to_string()));
+    }
+
+    // 访问控制：必须是当前房间的消息已引用过的 object_key（附件或缩略图）
+    if !store
+        .room_has_message_object_key(room_id, key)
+        .await
+        .map_err(AppError::from)?
+    {
+        return Err(AppError::NotFound("附件不存在".to_string()));
     }
 
     let expires = query.expires_in_seconds.unwrap_or(600).clamp(60, 86_400);
@@ -1340,8 +1384,7 @@ pub async fn commit_message_attachment_upload(
         return Err(AppError::ValidationError("附件 key 不能为空".to_string()));
     }
 
-    let expected_prefix = format!("messages/{}/", room_id);
-    if !key.starts_with(&expected_prefix) {
+    if !is_valid_message_attachment_object_key(key) {
         return Err(AppError::ValidationError("附件 key 不合法".to_string()));
     }
 
@@ -1356,6 +1399,26 @@ pub async fn commit_message_attachment_upload(
     }
 
     let upload_store = FileUploadStore::new(state.database.clone());
+
+    // 兼容：若生成签名阶段未写入 hash 记录，但 commit 阶段上报了 hash，则补写一条 pending 记录，
+    // 这样后续才能按 hash + size 复用（秒传/去重）。
+    if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
+        let hash_value = hash_value.trim();
+        if !hash_value.is_empty() && file_size > 0 {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    key,
+                    hash_alg,
+                    hash_value,
+                    Some(file_size as i64),
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
 
     // 尝试将已有记录标记为完成；如果不存在记录，暂时忽略（说明生成签名时可能未带 hash）
     let _ = upload_store

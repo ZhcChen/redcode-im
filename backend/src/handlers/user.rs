@@ -6,7 +6,6 @@ use crate::database::models::{
 use crate::database::room_store::RoomStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
-use std::collections::HashSet;
 use crate::error::AppError;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo};
@@ -23,6 +22,7 @@ use axum::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashSet;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -197,9 +197,8 @@ pub async fn generate_avatar_direct_upload(
     if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
         if file_size > 0 {
             let hash_alg = req.hash_alg.unwrap_or(1);
-            let upload_store = crate::database::file_upload_store::FileUploadStore::new(
-                state.database.clone(),
-            );
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
             let prefix = format!("avatars/{}/", user_id);
             if let Some(existing) = upload_store
                 .find_completed_by_hash(

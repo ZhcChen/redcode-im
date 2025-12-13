@@ -4,6 +4,7 @@ use std::env;
 pub mod account_store;
 pub mod document_store;
 pub mod emoji_pack_store;
+pub mod file_upload_store;
 pub mod friend_store;
 pub mod group_management_store;
 pub mod member_with_user_info;
@@ -13,7 +14,6 @@ pub mod models;
 pub mod room_store;
 pub mod settings_store;
 pub mod storage_provider_store;
-pub mod file_upload_store;
 pub mod user_store;
 
 /// 数据库连接池

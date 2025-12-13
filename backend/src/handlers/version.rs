@@ -1,3 +1,4 @@
+use crate::database::file_upload_store::FileUploadStore;
 use crate::database::models::{Platform, StorageProviderType};
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::version_store::{
@@ -29,7 +30,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use tracing::info;
 use uuid::Uuid;
-use crate::database::file_upload_store::FileUploadStore;
 
 #[derive(Debug, Deserialize)]
 pub struct VersionUploadSignatureRequest {
@@ -104,13 +104,7 @@ pub async fn generate_version_upload_signature(
             let hash_alg = req.hash_alg.unwrap_or(1);
             let upload_store = FileUploadStore::new(state.database.clone());
             if let Some(existing) = upload_store
-                .find_completed_by_hash(
-                    &provider.id,
-                    hash_alg,
-                    hash_value,
-                    file_size,
-                    None,
-                )
+                .find_completed_by_hash(&provider.id, hash_alg, hash_value, file_size, None)
                 .await
                 .map_err(AppError::from)?
             {
