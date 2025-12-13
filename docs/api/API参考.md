@@ -289,6 +289,38 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 需要认证
 - **功能**: 生成消息附件的直传签名（图片、文件等）
 - **Handler**: `message::generate_message_attachment_signature`
+- **说明**：
+  - 推荐上报 `file_size + hash_value + hash_alg` 以启用秒传/去重；
+  - 若响应中 `signature` 为空，表示命中去重逻辑：直接复用返回的 `key`，无需再上传与 commit。
+
+**请求示例**：
+```json
+{
+  "part_type": "image",
+  "filename": "demo.png",
+  "content_type": "image/png",
+  "file_size": 12345,
+  "hash_value": "e3b0c44298fc1c149afbf4c8996fb924",
+  "hash_alg": 1
+}
+```
+
+#### 8. 提交附件上传完成
+- **接口**: `POST /rooms/:room_id/messages/attachments/commit`
+- **权限**: 需要认证
+- **功能**: 确认附件已上传到对象存储，并写入去重记录
+- **Handler**: `message::commit_message_attachment_upload`
+- **说明**：后端会通过对象存储 `HEAD` 校验对象存在性，并校验 `file_size`；对 `md5` 且 `ETag` 可判定为单文件 MD5 时会做哈希校验。
+
+**请求示例**：
+```json
+{
+  "key": "messages/{room-id}/images_20251213/abcdef01.png",
+  "file_size": 12345,
+  "hash_value": "e3b0c44298fc1c149afbf4c8996fb924",
+  "hash_alg": 1
+}
+```
 
 #### 8. 获取附件下载链接
 - **接口**: `GET /rooms/:room_id/messages/attachments/download`
@@ -296,6 +328,7 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 获取消息附件的临时下载链接
 - **Handler**: `message::generate_message_attachment_download_url`
 - **查询参数**: `?key=xxx`
+- **说明**：后端会校验该 `key` 必须已被当前房间的消息引用（附件或缩略图），否则返回 404。
 
 ---
 
