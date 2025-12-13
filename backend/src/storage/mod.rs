@@ -24,6 +24,15 @@ pub struct DirectUploadSignature {
     pub key: String,
 }
 
+/// 对象基础元数据（用于上传完成校验与清理任务）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectHead {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_length: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
+}
+
 /// CORS 规则
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorsRule {
@@ -52,6 +61,13 @@ pub trait StorageService: Send + Sync {
 
     /// 检查文件是否存在
     async fn file_exists(&self, key: &str) -> Result<bool, AppError>;
+
+    /// 获取对象基础元数据（默认不支持）
+    async fn head_object(&self, _key: &str) -> Result<ObjectHead, AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持对象元数据查询".to_string(),
+        ))
+    }
 
     /// 获取文件访问 URL
     fn get_file_url(&self, key: &str) -> String;

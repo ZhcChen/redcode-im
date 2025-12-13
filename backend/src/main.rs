@@ -62,7 +62,7 @@ async fn main() {
     info!("地理位置服务初始化完成!");
 
     // 启动后台任务
-    let node_id = start_background_tasks(redis_manager.clone()).await;
+    let node_id = start_background_tasks(database.clone(), redis_manager.clone()).await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -153,7 +153,10 @@ pub struct AppState {
 }
 
 /// 启动后台任务
-async fn start_background_tasks(redis_manager: redis::RedisManager) -> String {
+async fn start_background_tasks(
+    database: database::Database,
+    redis_manager: redis::RedisManager,
+) -> String {
     let node_id = generate_node_id();
 
     // 启动节点心跳任务
@@ -177,6 +180,28 @@ async fn start_background_tasks(redis_manager: redis::RedisManager) -> String {
                 error!("会话清理失败: {:?}", e);
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(300)).await; // 5分钟
+        }
+    });
+
+    // 启动直传文件清理任务（回收 COS 空间，修正脏数据）
+    let cleanup_db = database.clone();
+    let cleanup_cfg = services::file_upload_cleanup::FileUploadCleanupConfig::from_env();
+    let cleanup_interval_seconds = env::var("FILE_UPLOAD_CLEANUP_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(3600);
+    tokio::spawn(async move {
+        loop {
+            if let Err(e) = services::file_upload_cleanup::run_file_upload_cleanup(
+                cleanup_db.clone(),
+                &cleanup_cfg,
+            )
+            .await
+            {
+                error!("文件上传清理任务失败: {:?}", e);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(cleanup_interval_seconds)).await;
         }
     });
 

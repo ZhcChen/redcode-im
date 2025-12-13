@@ -739,17 +739,27 @@ pub async fn generate_room_avatar_direct_upload(
                 .await
                 .map_err(crate::error::AppError::from)?
             {
-                info!(
-                    "复用已上传的群头像: key={}, hash_alg={}, hash_value={}",
-                    existing.object_key, hash_alg, hash_value
-                );
+                if !storage_service.file_exists(&existing.object_key).await? {
+                    let _ = upload_store
+                        .mark_deleted_by_key(
+                            &provider.id,
+                            &existing.object_key,
+                            Some("对象不存在，已标记为删除"),
+                        )
+                        .await;
+                } else {
+                    info!(
+                        "复用已上传的群头像: key={}, hash_alg={}, hash_value={}",
+                        existing.object_key, hash_alg, hash_value
+                    );
 
-                return Ok(Json(RoomAvatarDirectUploadResponse {
-                    success: true,
-                    message: "复用已上传的群头像，未生成新的直传签名".to_string(),
-                    key: Some(existing.object_key),
-                    signature: None,
-                }));
+                    return Ok(Json(RoomAvatarDirectUploadResponse {
+                        success: true,
+                        message: "复用已上传的群头像，未生成新的直传签名".to_string(),
+                        key: Some(existing.object_key),
+                        signature: None,
+                    }));
+                }
             }
         }
     }
@@ -853,6 +863,59 @@ pub async fn commit_room_avatar_upload(
     // 加载存储服务并获取文件URL
     let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
     let storage_service = crate::storage::create_storage_service(&provider)?;
+    let upload_store =
+        crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+
+    // 上传完成校验：确认对象存在，并在可用时校验 file_size/hash（取自 file_upload_records）
+    let record = upload_store
+        .get_by_key(&provider.id, key)
+        .await
+        .map_err(crate::error::AppError::from)?;
+    match storage_service.head_object(key).await {
+        Ok(head) => {
+            if let Some(expected_size) = record.as_ref().and_then(|r| r.file_size) {
+                if let Some(actual_size) = head.content_length {
+                    if actual_size != expected_size as u64 {
+                        return Err(crate::error::AppError::ValidationError(format!(
+                            "群头像大小校验失败：期望 {} 字节，实际 {} 字节",
+                            expected_size, actual_size
+                        )));
+                    }
+                }
+            }
+
+            if let Some(r) = record.as_ref() {
+                if r.hash_alg == 1 {
+                    if let Some(etag) = head.etag.as_deref() {
+                        if !etag.contains('-')
+                            && etag.len() == 32
+                            && r.hash_value.trim().len() == 32
+                            && etag.chars().all(|c| c.is_ascii_hexdigit())
+                            && r.hash_value.chars().all(|c| c.is_ascii_hexdigit())
+                            && etag.to_ascii_lowercase() != r.hash_value.trim().to_ascii_lowercase()
+                        {
+                            return Err(crate::error::AppError::ValidationError(
+                                "群头像哈希校验失败，请重新上传".to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        Err(crate::error::AppError::NotFound(_)) => {
+            return Err(crate::error::AppError::ValidationError(
+                "COS 中尚未找到该群头像，请稍后重试".to_string(),
+            ));
+        }
+        Err(crate::error::AppError::ValidationError(_)) => {
+            if !storage_service.file_exists(key).await? {
+                return Err(crate::error::AppError::ValidationError(
+                    "COS 中尚未找到该群头像，请稍后重试".to_string(),
+                ));
+            }
+        }
+        Err(e) => return Err(e),
+    }
     let avatar_url = storage_service.get_file_url(key);
 
     // 更新房间头像：存储 object_key 和 url
@@ -898,8 +961,6 @@ pub async fn commit_room_avatar_upload(
     }
 
     // 标记文件上传完成（如果之前通过直传签名创建了记录）
-    let upload_store =
-        crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
     let _ = upload_store
         .mark_completed_by_key(&provider.id, key)
         .await

@@ -108,17 +108,27 @@ pub async fn generate_version_upload_signature(
                 .await
                 .map_err(AppError::from)?
             {
-                info!(
-                    "复用已上传的安装包: key={}, hash_alg={}, hash_value={}",
-                    existing.object_key, hash_alg, hash_value
-                );
+                if !storage_service.file_exists(&existing.object_key).await? {
+                    let _ = upload_store
+                        .mark_deleted_by_key(
+                            &provider.id,
+                            &existing.object_key,
+                            Some("对象不存在，已标记为删除"),
+                        )
+                        .await;
+                } else {
+                    info!(
+                        "复用已上传的安装包: key={}, hash_alg={}, hash_value={}",
+                        existing.object_key, hash_alg, hash_value
+                    );
 
-                return Ok(Json(VersionUploadSignatureResponse {
-                    success: true,
-                    message: "复用已上传的安装包，未生成新的直传签名".to_string(),
-                    key: Some(existing.object_key),
-                    signature: None,
-                }));
+                    return Ok(Json(VersionUploadSignatureResponse {
+                        success: true,
+                        message: "复用已上传的安装包，未生成新的直传签名".to_string(),
+                        key: Some(existing.object_key),
+                        signature: None,
+                    }));
+                }
             }
         }
     }
@@ -190,6 +200,34 @@ pub async fn create_app_version(
     // 标记安装包文件已上传完成（如果之前通过直传签名创建了记录）
     if !req.download_key.trim().is_empty() {
         let provider = load_default_storage_provider(&state).await?;
+        let storage_service = storage::create_storage_service(&provider)?;
+        match storage_service.head_object(req.download_key.trim()).await {
+            Ok(head) => {
+                if let Some(expected_size) = req.file_size {
+                    if let Some(actual_size) = head.content_length {
+                        if actual_size != expected_size as u64 {
+                            return Err(AppError::ValidationError(format!(
+                                "安装包大小校验失败：期望 {} 字节，实际 {} 字节",
+                                expected_size, actual_size
+                            )));
+                        }
+                    }
+                }
+            }
+            Err(AppError::NotFound(_)) => {
+                return Err(AppError::ValidationError(
+                    "对象存储中未找到安装包，请先完成上传".to_string(),
+                ));
+            }
+            Err(AppError::ValidationError(_)) => {
+                if !storage_service.file_exists(req.download_key.trim()).await? {
+                    return Err(AppError::ValidationError(
+                        "对象存储中未找到安装包，请先完成上传".to_string(),
+                    ));
+                }
+            }
+            Err(e) => return Err(e),
+        }
         let upload_store = FileUploadStore::new(state.database.clone());
         let _ = upload_store
             .mark_completed_by_key(&provider.id, req.download_key.trim())
@@ -464,6 +502,34 @@ pub async fn create_hot_update(
     // 标记热更新补丁文件已上传完成（如果之前通过直传签名创建了记录）
     if !req.download_key.trim().is_empty() {
         let provider = load_default_storage_provider(&state).await?;
+        let storage_service = storage::create_storage_service(&provider)?;
+        match storage_service.head_object(req.download_key.trim()).await {
+            Ok(head) => {
+                if let Some(expected_size) = req.file_size {
+                    if let Some(actual_size) = head.content_length {
+                        if actual_size != expected_size as u64 {
+                            return Err(AppError::ValidationError(format!(
+                                "补丁大小校验失败：期望 {} 字节，实际 {} 字节",
+                                expected_size, actual_size
+                            )));
+                        }
+                    }
+                }
+            }
+            Err(AppError::NotFound(_)) => {
+                return Err(AppError::ValidationError(
+                    "对象存储中未找到补丁，请先完成上传".to_string(),
+                ));
+            }
+            Err(AppError::ValidationError(_)) => {
+                if !storage_service.file_exists(req.download_key.trim()).await? {
+                    return Err(AppError::ValidationError(
+                        "对象存储中未找到补丁，请先完成上传".to_string(),
+                    ));
+                }
+            }
+            Err(e) => return Err(e),
+        }
         let upload_store = FileUploadStore::new(state.database.clone());
         let _ = upload_store
             .mark_completed_by_key(&provider.id, req.download_key.trim())

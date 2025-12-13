@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::storage::{BucketInfo, CorsRule, DirectUploadSignature, StorageService};
+use crate::storage::{BucketInfo, CorsRule, DirectUploadSignature, ObjectHead, StorageService};
 use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
@@ -15,6 +15,10 @@ type HmacSha1 = Hmac<Sha1>;
 
 const DEFAULT_SIGNATURE_TTL: i64 = 3600;
 const MAX_SIGNATURE_TTL: i64 = 24 * 3600;
+
+fn normalize_etag(value: &str) -> String {
+    value.trim().trim_matches('"').to_string()
+}
 
 /// 腾讯云 COS 服务实现
 pub struct TencentCosService {
@@ -332,6 +336,56 @@ impl StorageService for TencentCosService {
         let exists = response.status().is_success();
         debug!("文件存在性检查完成: key={}, exists={}", key, exists);
         Ok(exists)
+    }
+
+    async fn head_object(&self, key: &str) -> Result<ObjectHead, AppError> {
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+
+        debug!("获取 COS 对象元数据: key={}", key);
+
+        let path = build_uri_pathname(key);
+        let headers_map = BTreeMap::new();
+        let authorization = self.generate_signature_v1("HEAD", &path, &headers_map, timestamp);
+
+        let url = self.get_full_url(key);
+        let response = self
+            .client
+            .head(&url)
+            .header("Authorization", authorization)
+            .header("Host", self.resolve_object_host())
+            .send()
+            .await
+            .map_err(|e| {
+                error!("获取 COS 对象元数据失败: key={}, error={}", key, e);
+                AppError::InternalError(format!("获取对象元数据失败: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            warn!(
+                "获取对象元数据失败: key={}, status={}, body={}",
+                key, status, body
+            );
+            return Err(AppError::NotFound("对象不存在".to_string()));
+        }
+
+        let headers = response.headers();
+        let content_length = headers
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok());
+
+        let etag = headers
+            .get(reqwest::header::ETAG)
+            .and_then(|v| v.to_str().ok())
+            .map(normalize_etag);
+
+        Ok(ObjectHead {
+            content_length,
+            etag,
+        })
     }
 
     fn get_file_url(&self, key: &str) -> String {

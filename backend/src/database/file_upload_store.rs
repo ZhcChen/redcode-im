@@ -18,6 +18,33 @@ impl FileUploadStore {
         Self { database }
     }
 
+    pub fn pool(&self) -> &sqlx::PgPool {
+        &self.database.pool
+    }
+
+    /// 根据 object_key 获取记录（不限定状态）
+    pub async fn get_by_key(
+        &self,
+        storage_provider_id: &Uuid,
+        object_key: &str,
+    ) -> Result<Option<FileUploadRecord>, Error> {
+        query_as::<_, FileUploadRecord>(
+            r#"
+            SELECT id, storage_provider_id, object_key, hash_alg, hash_value,
+                   file_size, content_type, status, uploaded_at,
+                   updated_at, created_at, last_error
+            FROM file_upload_records
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .fetch_optional(self.pool())
+        .await
+    }
+
     /// 查找已完成上传、且匹配指定 hash 和文件大小的记录
     ///
     /// 如果提供前缀，则仅匹配 object_key 以该前缀开头的记录
@@ -138,8 +165,6 @@ impl FileUploadStore {
         storage_provider_id: &Uuid,
         object_key: &str,
     ) -> Result<bool, Error> {
-        let pool = &self.database.pool;
-
         let result = sqlx::query(
             r#"
             UPDATE file_upload_records
@@ -154,9 +179,140 @@ impl FileUploadStore {
         )
         .bind(storage_provider_id)
         .bind(object_key)
-        .execute(pool)
+        .execute(self.pool())
         .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    /// 将指定 object_key 标记为“上传失败”（status = 2）
+    pub async fn mark_failed_by_key(
+        &self,
+        storage_provider_id: &Uuid,
+        object_key: &str,
+        last_error: Option<&str>,
+    ) -> Result<bool, Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE file_upload_records
+            SET status = 2,
+                updated_at = NOW(),
+                last_error = $3
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+              AND status <> 3
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .bind(last_error)
+        .execute(self.pool())
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// 将指定 object_key 标记为“已删除”（status = 3）
+    pub async fn mark_deleted_by_key(
+        &self,
+        storage_provider_id: &Uuid,
+        object_key: &str,
+        last_error: Option<&str>,
+    ) -> Result<bool, Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE file_upload_records
+            SET status = 3,
+                updated_at = NOW(),
+                last_error = $3
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .bind(last_error)
+        .execute(self.pool())
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// 判断 object_key 是否仍被业务数据引用
+    pub async fn is_object_key_referenced(&self, object_key: &str) -> Result<bool, Error> {
+        let exists: Option<(i32,)> = sqlx::query_as(
+            r#"
+            SELECT 1
+            WHERE
+                EXISTS (SELECT 1 FROM users WHERE avatar_object_key = $1 LIMIT 1)
+                OR EXISTS (SELECT 1 FROM rooms WHERE avatar_object_key = $1 LIMIT 1)
+                OR EXISTS (SELECT 1 FROM emoji_packs WHERE icon_object_key = $1 LIMIT 1)
+                OR EXISTS (SELECT 1 FROM emoji_items WHERE image_object_key = $1 LIMIT 1)
+                OR EXISTS (SELECT 1 FROM app_versions WHERE download_key = $1 LIMIT 1)
+                OR EXISTS (SELECT 1 FROM hot_updates WHERE download_key = $1 LIMIT 1)
+                OR EXISTS (
+                    SELECT 1
+                    FROM message_parts mp
+                    JOIN messages m ON m.id = mp.message_id
+                    WHERE m.deleted_at IS NULL
+                      AND (mp.attachment_key = $1 OR mp.thumbnail_key = $1)
+                    LIMIT 1
+                )
+            LIMIT 1
+            "#,
+        )
+        .bind(object_key)
+        .fetch_optional(self.pool())
+        .await?;
+
+        Ok(exists.is_some())
+    }
+
+    /// 批量拉取“上传中且已超时”的记录（status=0）
+    pub async fn list_stale_pending_records(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+        limit: i64,
+    ) -> Result<Vec<FileUploadRecord>, Error> {
+        query_as::<_, FileUploadRecord>(
+            r#"
+            SELECT id, storage_provider_id, object_key, hash_alg, hash_value,
+                   file_size, content_type, status, uploaded_at,
+                   updated_at, created_at, last_error
+            FROM file_upload_records
+            WHERE status = 0
+              AND created_at < $1
+            ORDER BY created_at ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(cutoff)
+        .bind(limit)
+        .fetch_all(self.pool())
+        .await
+    }
+
+    /// 批量拉取“已完成但可能已无引用”的旧记录（status=1）
+    pub async fn list_old_completed_records(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+        limit: i64,
+    ) -> Result<Vec<FileUploadRecord>, Error> {
+        query_as::<_, FileUploadRecord>(
+            r#"
+            SELECT id, storage_provider_id, object_key, hash_alg, hash_value,
+                   file_size, content_type, status, uploaded_at,
+                   updated_at, created_at, last_error
+            FROM file_upload_records
+            WHERE status = 1
+              AND COALESCE(uploaded_at, created_at) < $1
+            ORDER BY COALESCE(uploaded_at, created_at) ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(cutoff)
+        .bind(limit)
+        .fetch_all(self.pool())
+        .await
     }
 }

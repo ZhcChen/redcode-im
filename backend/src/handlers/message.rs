@@ -441,6 +441,18 @@ fn is_valid_message_attachment_object_key(key: &str) -> bool {
     trimmed.starts_with("messages/")
 }
 
+fn is_hex_32(value: &str) -> bool {
+    let v = value.trim();
+    if v.len() != 32 {
+        return false;
+    }
+    v.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn normalize_hash_hex(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
 #[cfg(test)]
 mod message_attachment_key_tests {
     use super::is_valid_message_attachment_object_key;
@@ -1229,17 +1241,28 @@ pub async fn generate_message_attachment_signature(
                 .await
                 .map_err(AppError::from)?
             {
-                info!(
-                    "复用已上传的消息附件: key={}, hash_alg={}, hash_value={}",
-                    existing.object_key, hash_alg, hash_value
-                );
+                // 防御：记录为 completed 但对象已不存在时，避免返回“秒传 key”导致后续发送失败
+                if !storage_service.file_exists(&existing.object_key).await? {
+                    let _ = upload_store
+                        .mark_deleted_by_key(
+                            &provider.id,
+                            &existing.object_key,
+                            Some("对象不存在，已标记为删除"),
+                        )
+                        .await;
+                } else {
+                    info!(
+                        "复用已上传的消息附件: key={}, hash_alg={}, hash_value={}",
+                        existing.object_key, hash_alg, hash_value
+                    );
 
-                return Ok(Json(MessageAttachmentSignatureResponse {
-                    success: true,
-                    message: "复用已上传的附件，未生成新的直传签名".to_string(),
-                    key: Some(existing.object_key),
-                    signature: None,
-                }));
+                    return Ok(Json(MessageAttachmentSignatureResponse {
+                        success: true,
+                        message: "复用已上传的附件，未生成新的直传签名".to_string(),
+                        key: Some(existing.object_key),
+                        signature: None,
+                    }));
+                }
             }
         }
     }
@@ -1391,11 +1414,50 @@ pub async fn commit_message_attachment_upload(
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
 
-    // 确认 COS 中对象存在，避免提前标记完成
-    if !storage_service.file_exists(key).await? {
-        return Err(AppError::ValidationError(
-            "COS 中尚未找到该附件，请稍后重试".to_string(),
-        ));
+    // 上传完成校验：确认对象存在，并尽量校验 size/hash，避免误报完成或引用错误文件
+    match storage_service.head_object(key).await {
+        Ok(head) => {
+            if let Some(expected_size) = req.file_size {
+                if let Some(actual_size) = head.content_length {
+                    if actual_size != expected_size as u64 {
+                        return Err(AppError::ValidationError(format!(
+                            "附件大小校验失败：期望 {} 字节，实际 {} 字节",
+                            expected_size, actual_size
+                        )));
+                    }
+                }
+            }
+
+            if let Some(ref hash_value) = req.hash_value {
+                let hash_value = hash_value.trim();
+                if !hash_value.is_empty() && req.hash_alg.unwrap_or(1) == 1 {
+                    if let Some(etag) = head.etag.as_deref() {
+                        // COS 的 ETag 对于非分块上传通常等价于 MD5；分块上传会带 '-'，不做严格校验
+                        if !etag.contains('-') && is_hex_32(etag) && is_hex_32(hash_value) {
+                            if normalize_hash_hex(etag) != normalize_hash_hex(hash_value) {
+                                return Err(AppError::ValidationError(
+                                    "附件哈希校验失败，请重新上传".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Err(AppError::NotFound(_)) => {
+            return Err(AppError::ValidationError(
+                "COS 中尚未找到该附件，请稍后重试".to_string(),
+            ));
+        }
+        Err(AppError::ValidationError(_)) => {
+            // 不支持 head_object 的提供商：退化为存在性检查
+            if !storage_service.file_exists(key).await? {
+                return Err(AppError::ValidationError(
+                    "COS 中尚未找到该附件，请稍后重试".to_string(),
+                ));
+            }
+        }
+        Err(e) => return Err(e),
     }
 
     let upload_store = FileUploadStore::new(state.database.clone());
