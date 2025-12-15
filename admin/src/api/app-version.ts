@@ -27,6 +27,7 @@ export interface AppVersionInfo {
   channel: string;
   download_key: string;
   download_url?: string | null;
+  app_store_url?: string | null;
   file_size?: number | null;
   checksum?: string | null;
   signature?: string | null;
@@ -63,6 +64,7 @@ export interface CreateAppVersionPayload {
   channel: string;
   download_key: string;
   download_url?: string | null;
+  app_store_url?: string | null;
   file_size?: number | null;
   checksum?: string | null;
   signature?: string | null;
@@ -79,6 +81,7 @@ export function createAppVersion(payload: CreateAppVersionPayload) {
 export interface UpdateAppVersionPayload {
   download_key?: string | null;
   download_url?: string | null;
+  app_store_url?: string | null;
   file_size?: number | null;
   checksum?: string | null;
   signature?: string | null;

@@ -199,10 +199,20 @@
             文件将直接上传到默认存储提供商，完成后自动填充下载 Key。
           </template>
         </a-form-item>
-        <a-form-item field="download_url" label="备用下载地址">
+        <a-form-item field="download_url" :label="downloadUrlLabel">
           <a-input
             v-model="formState.download_url"
             placeholder="可选：填写备用 CDN 或下载地址"
+          />
+        </a-form-item>
+        <a-form-item
+          v-if="showAppStoreUrlField"
+          field="app_store_url"
+          :label="appStoreUrlLabel"
+        >
+          <a-input
+            v-model="formState.app_store_url"
+            placeholder="例如：https://apps.apple.com/app/id1234567890"
           />
         </a-form-item>
         <a-form-item field="release_notes" label="更新说明">
@@ -293,6 +303,7 @@
     channel: string;
     download_key: string;
     download_url?: string;
+    app_store_url?: string;
     release_notes?: string;
     checksum?: string;
     signature?: string;
@@ -337,6 +348,7 @@
     channel: 'stable',
     download_key: '',
     download_url: '',
+    app_store_url: '',
     release_notes: '',
     checksum: '',
     signature: '',
@@ -349,7 +361,6 @@
     version: [{ required: true, message: '请输入版本号' }],
     build_number: [{ required: true, type: 'number', message: '请输入构建号' }],
     channel: [{ required: true, message: '请输入渠道标识' }],
-    download_key: [{ required: true, message: '请上传安装包或填写下载 Key' }],
   };
 
   const columns = [
@@ -364,6 +375,13 @@
     {
       title: '下载 Key',
       dataIndex: 'download_key',
+      ellipsis: true,
+      tooltip: true,
+      width: 220,
+    },
+    {
+      title: 'App Store',
+      dataIndex: 'app_store_url',
       ellipsis: true,
       tooltip: true,
       width: 220,
@@ -421,6 +439,28 @@
   );
 
   const isEditing = computed(() => !!editingVersion.value);
+
+  const showAppStoreUrlField = computed(
+    () =>
+      selectedPlatform.value === AppPlatform.IOS ||
+      selectedPlatform.value === AppPlatform.MacOS
+  );
+
+  const appStoreUrlLabel = computed(() =>
+    selectedPlatform.value === AppPlatform.MacOS
+      ? 'Mac App Store 链接'
+      : 'App Store 链接'
+  );
+
+  const downloadUrlLabel = computed(() => {
+    if (selectedPlatform.value === AppPlatform.IOS) {
+      return '在线安装地址（超级签）';
+    }
+    if (selectedPlatform.value === AppPlatform.MacOS) {
+      return '在线安装包地址（DMG 外链）';
+    }
+    return '备用下载地址';
+  });
 
   const availableChannels = computed(() => {
     const set = new Set<string>();
@@ -486,6 +526,7 @@
       : channelFilter.value || 'stable';
     formState.download_key = '';
     formState.download_url = '';
+    formState.app_store_url = '';
     formState.release_notes = '';
     formState.checksum = '';
     formState.signature = '';
@@ -540,6 +581,7 @@
     formState.channel = record.channel;
     formState.download_key = record.download_key;
     formState.download_url = record.download_url ?? '';
+    formState.app_store_url = record.app_store_url ?? '';
     formState.release_notes = record.release_notes ?? '';
     formState.checksum = record.checksum ?? '';
     formState.signature = record.signature ?? '';
@@ -585,8 +627,11 @@
     if (errors) {
       return false;
     }
-    if (!formState.download_key) {
-      Message.error('请上传安装包或填写下载 Key');
+    const downloadKeyTrimmed = formState.download_key.trim();
+    const downloadUrlTrimmed = (formState.download_url || '').trim();
+    const appStoreUrlTrimmed = (formState.app_store_url || '').trim();
+    if (!downloadKeyTrimmed && !downloadUrlTrimmed && !appStoreUrlTrimmed) {
+      Message.error('请至少填写一个：下载 Key / 在线安装地址 / App Store 链接');
       return false;
     }
 
@@ -597,8 +642,9 @@
         : undefined;
       if (editingVersion.value) {
         const payload: UpdateAppVersionPayload = {
-          download_key: formState.download_key.trim(),
+          download_key: downloadKeyTrimmed,
           download_url: normalizeOptionalString(formState.download_url),
+          app_store_url: normalizeOptionalString(formState.app_store_url),
           file_size: formState.file_size ?? undefined,
           checksum: normalizeOptionalString(formState.checksum),
           signature: normalizeOptionalString(formState.signature),
@@ -615,9 +661,11 @@
           version: formState.version.trim(),
           build_number: formState.build_number,
           channel: formState.channel.trim(),
-          download_key: formState.download_key.trim(),
+          download_key: downloadKeyTrimmed,
           download_url:
             normalizeOptionalString(formState.download_url) ?? undefined,
+          app_store_url:
+            normalizeOptionalString(formState.app_store_url) ?? undefined,
           file_size: formState.file_size ?? undefined,
           checksum: normalizeOptionalString(formState.checksum) ?? undefined,
           signature: normalizeOptionalString(formState.signature) ?? undefined,
