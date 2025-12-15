@@ -16,7 +16,7 @@ impl VersionStore {
 
     pub async fn get_version(&self, id: Uuid) -> Result<Option<AppVersion>, Error> {
         let record = query_as::<_, AppVersion>(
-            "SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE id = $1",
+            "SELECT id, platform, version, build_number, channel, download_key, download_url, app_store_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&self.database.pool)
@@ -30,18 +30,18 @@ impl VersionStore {
             r#"
             INSERT INTO app_versions (
                 platform, version, build_number, channel,
-                download_key, download_url, file_size, checksum, signature,
+                download_key, download_url, app_store_url, file_size, checksum, signature,
                 release_notes, mandatory, is_active, released_at,
                 created_at, updated_at, created_by, updated_by
             )
             VALUES (
                 $1, $2, $3, $4,
-                $5, $6, $7, $8, $9,
-                $10, $11, $12, $13,
-                NOW(), NOW(), $14, $14
+                $5, $6, $7, $8, $9, $10,
+                $11, $12, $13, $14,
+                NOW(), NOW(), $15, $15
             )
             RETURNING id, platform, version, build_number, channel,
-                      download_key, download_url, file_size, checksum, signature,
+                      download_key, download_url, app_store_url, file_size, checksum, signature,
                       release_notes, mandatory, is_active,
                       created_at, updated_at, released_at, created_by, updated_by
             "#,
@@ -52,6 +52,7 @@ impl VersionStore {
         .bind(&version.channel)
         .bind(&version.download_key)
         .bind(&version.download_url)
+        .bind(&version.app_store_url)
         .bind(version.file_size)
         .bind(&version.checksum)
         .bind(&version.signature)
@@ -76,18 +77,19 @@ impl VersionStore {
             UPDATE app_versions SET
                 download_key = COALESCE($2, download_key),
                 download_url = COALESCE($3, download_url),
-                file_size = COALESCE($4, file_size),
-                checksum = COALESCE($5, checksum),
-                signature = COALESCE($6, signature),
-                release_notes = COALESCE($7, release_notes),
-                mandatory = COALESCE($8, mandatory),
-                is_active = COALESCE($9, is_active),
-                released_at = COALESCE($10, released_at),
+                app_store_url = COALESCE($4, app_store_url),
+                file_size = COALESCE($5, file_size),
+                checksum = COALESCE($6, checksum),
+                signature = COALESCE($7, signature),
+                release_notes = COALESCE($8, release_notes),
+                mandatory = COALESCE($9, mandatory),
+                is_active = COALESCE($10, is_active),
+                released_at = COALESCE($11, released_at),
                 updated_at = NOW(),
-                updated_by = $11
+                updated_by = $12
             WHERE id = $1
             RETURNING id, platform, version, build_number, channel,
-                      download_key, download_url, file_size, checksum, signature,
+                      download_key, download_url, app_store_url, file_size, checksum, signature,
                       release_notes, mandatory, is_active,
                       created_at, updated_at, released_at, created_by, updated_by
             "#,
@@ -95,6 +97,7 @@ impl VersionStore {
         .bind(id)
         .bind(update.download_key.as_ref())
         .bind(update.download_url.as_ref())
+        .bind(update.app_store_url.as_ref())
         .bind(update.file_size)
         .bind(update.checksum.as_ref())
         .bind(update.signature.as_ref())
@@ -117,7 +120,7 @@ impl VersionStore {
         offset: i64,
     ) -> Result<Vec<AppVersion>, Error> {
         let mut builder = QueryBuilder::new(
-            "SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE platform = ",
+            "SELECT id, platform, version, build_number, channel, download_key, download_url, app_store_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by FROM app_versions WHERE platform = ",
         );
         builder.push_bind(platform.as_str());
         if let Some(channel) = channel {
@@ -141,7 +144,7 @@ impl VersionStore {
     ) -> Result<Option<AppVersion>, Error> {
         let record = query_as::<_, AppVersion>(
             r#"
-            SELECT id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by
+            SELECT id, platform, version, build_number, channel, download_key, download_url, app_store_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by
             FROM app_versions
             WHERE platform = $1 AND channel = $2 AND is_active = TRUE
             ORDER BY released_at DESC NULLS LAST, created_at DESC
@@ -168,7 +171,7 @@ impl VersionStore {
                 updated_at = NOW(),
                 updated_by = $2
             WHERE id = $1
-            RETURNING id, platform, version, build_number, channel, download_key, download_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by
+            RETURNING id, platform, version, build_number, channel, download_key, download_url, app_store_url, file_size, checksum, signature, release_notes, mandatory, is_active, created_at, updated_at, released_at, created_by, updated_by
             "#,
         )
         .bind(id)
@@ -218,6 +221,7 @@ pub struct AppVersionInsert {
     pub channel: String,
     pub download_key: String,
     pub download_url: Option<String>,
+    pub app_store_url: Option<String>,
     pub file_size: Option<i64>,
     pub checksum: Option<String>,
     pub signature: Option<String>,
@@ -232,6 +236,7 @@ pub struct AppVersionInsert {
 pub struct AppVersionUpdate {
     pub download_key: Option<String>,
     pub download_url: Option<String>,
+    pub app_store_url: Option<String>,
     pub file_size: Option<i64>,
     pub checksum: Option<String>,
     pub signature: Option<String>,

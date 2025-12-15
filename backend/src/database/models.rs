@@ -297,6 +297,7 @@ pub struct AppVersion {
     pub channel: String,
     pub download_key: String,
     pub download_url: Option<String>,
+    pub app_store_url: Option<String>,
     pub file_size: Option<i64>,
     pub checksum: Option<String>,
     pub signature: Option<String>,

@@ -84,6 +84,7 @@ pub struct AppVersionInfo {
     pub channel: String,
     pub download_key: String,
     pub download_url: Option<String>,
+    pub app_store_url: Option<String>,
     pub file_size: Option<i64>,
     pub checksum: Option<String>,
     pub signature: Option<String>,
@@ -102,8 +103,11 @@ pub struct CreateAppVersionRequest {
     pub build_number: i32,
     #[serde(default = "CreateAppVersionRequest::default_channel")]
     pub channel: String,
+    #[serde(default)]
     pub download_key: String,
     pub download_url: Option<String>,
+    #[serde(default)]
+    pub app_store_url: Option<String>,
     pub file_size: Option<i64>,
     pub checksum: Option<String>,
     pub signature: Option<String>,
@@ -129,6 +133,7 @@ impl CreateAppVersionRequest {
 pub struct UpdateAppVersionRequest {
     pub download_key: Option<String>,
     pub download_url: Option<String>,
+    pub app_store_url: Option<String>,
     pub file_size: Option<i64>,
     pub checksum: Option<String>,
     pub signature: Option<String>,

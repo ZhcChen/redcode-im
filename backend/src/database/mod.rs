@@ -61,6 +61,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20251211120000_create_file_upload_records.sql"
         )),
     ),
+    // 2025-12-15：为版本管理增加 App Store 链接字段（iOS/macOS 两种发布入口）
+    (
+        "20251215120000_add_app_store_url_to_app_versions.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251215120000_add_app_store_url_to_app_versions.sql"
+        )),
+    ),
 ];
 
 impl Database {

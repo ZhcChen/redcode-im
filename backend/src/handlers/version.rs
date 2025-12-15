@@ -894,9 +894,19 @@ fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppErro
     if req.version.trim().is_empty() {
         return Err(AppError::ValidationError("version 不能为空".to_string()));
     }
-    if req.download_key.trim().is_empty() {
+    let has_download_key = !req.download_key.trim().is_empty();
+    let has_download_url = req
+        .download_url
+        .as_ref()
+        .is_some_and(|v| !v.trim().is_empty());
+    let has_app_store_url = req
+        .app_store_url
+        .as_ref()
+        .is_some_and(|v| !v.trim().is_empty());
+
+    if !has_download_key && !has_download_url && !has_app_store_url {
         return Err(AppError::ValidationError(
-            "download_key 不能为空".to_string(),
+            "download_key、download_url、app_store_url 至少填写一个".to_string(),
         ));
     }
     Ok(())
@@ -948,6 +958,12 @@ async fn resolve_download_url(
 ) -> Result<String, AppError> {
     if let Some(url) = explicit_download_url {
         return Ok(url.clone());
+    }
+
+    if download_key.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "该版本未配置安装包下载信息（download_key/download_url）".to_string(),
+        ));
     }
 
     let provider = load_default_storage_provider(state).await?;

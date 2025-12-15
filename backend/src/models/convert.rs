@@ -522,6 +522,7 @@ pub fn db_app_version_to_api(
         channel: model.channel.clone(),
         download_key: model.download_key.clone(),
         download_url: model.download_url.clone(),
+        app_store_url: model.app_store_url.clone(),
         file_size: model.file_size,
         checksum: model.checksum.clone(),
         signature: model.signature.clone(),
@@ -628,6 +629,7 @@ pub fn api_create_version_to_db(
         channel: req.channel.trim().to_string(),
         download_key: req.download_key.trim().to_string(),
         download_url: req.download_url.clone(),
+        app_store_url: req.app_store_url.clone(),
         file_size: req.file_size,
         checksum: req.checksum.clone(),
         signature: req.signature.clone(),
@@ -654,6 +656,7 @@ pub fn api_update_version_to_db(
     crate::database::version_store::AppVersionUpdate {
         download_key: req.download_key.clone(),
         download_url: req.download_url.clone(),
+        app_store_url: req.app_store_url.clone(),
         file_size: req.file_size,
         checksum: req.checksum.clone(),
         signature: req.signature.clone(),
