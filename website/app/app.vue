@@ -314,21 +314,36 @@ const apiBase = runtimeConfig.public.apiBase
 
 const mobileDownloads = ref([
   {
-    key: 'ios',
-    label: '下载 iOS 版',
-    subLabel: 'App Store 安装',
+    key: 'iosStore',
+    kind: 'store',
+    label: 'App Store（iOS）',
+    subLabel: '商店安装',
     platform: 'ios',
     channel: 'stable',
     href: '',
+    versionText: '',
+    unavailable: false
+  },
+  {
+    key: 'iosOnline',
+    kind: 'package',
+    label: '在线安装（iOS）',
+    subLabel: '超级签 / 企业签（如有）',
+    platform: 'ios',
+    channel: 'stable',
+    href: '',
+    versionText: '',
     unavailable: false
   },
   {
     key: 'android',
+    kind: 'package',
     label: '下载 Android 版',
-    subLabel: '应用商店 / APK 包',
+    subLabel: '安装包 / 分发链接',
     platform: 'android',
     channel: 'stable',
     href: '',
+    versionText: '',
     unavailable: false
   }
 ])
@@ -336,43 +351,61 @@ const mobileDownloads = ref([
 const desktopDownloads = ref([
   {
     key: 'windows',
+    kind: 'package',
     label: '下载 Windows 版',
     subLabel: '适配 Windows 7 及以上',
     platform: 'windows',
     channel: 'stable',
     href: '',
+    versionText: '',
+    unavailable: false
+  },
+  {
+    key: 'macosStore',
+    kind: 'store',
+    label: 'Mac App Store',
+    subLabel: '商店安装（通用）',
+    platform: 'macos',
+    channelCandidates: ['stable-macos-arm64', 'stable-macos-intel'],
+    href: '',
+    versionText: '',
     unavailable: false
   },
   {
     key: 'macosIntel',
+    kind: 'package',
     label: '下载 macOS 版 (Intel)',
     subLabel: 'x64 处理器专用安装包',
     platform: 'macos',
     channel: 'stable-macos-intel',
     href: '',
+    versionText: '',
     unavailable: false
   },
   {
     key: 'macosArm',
+    kind: 'package',
     label: '下载 macOS 版 (Apple 芯片)',
     subLabel: '适配 Apple Silicon (M 系列)',
     platform: 'macos',
     channel: 'stable-macos-arm64',
     href: '',
+    versionText: '',
     unavailable: false
   },
   {
     key: 'linux',
+    kind: 'package',
     label: '下载 Linux 版',
     subLabel: 'AppImage / deb',
     platform: 'linux',
     channel: 'stable',
     href: '',
+    versionText: '',
     unavailable: false
   }
 ])
 
-const downloadLinkMap = ref({})
 const isFetching = ref(false)
 
 const allDownloadItems = computed(() => [
@@ -380,53 +413,112 @@ const allDownloadItems = computed(() => [
   ...desktopDownloads.value
 ])
 
-const markUnavailable = (item, reason = '暂无可用安装包') => {
+const formatVersionText = (version) => {
+  if (!version?.version) return ''
+  const build = version?.build_number
+  return build ? `v${version.version} (build ${build})` : `v${version.version}`
+}
+
+const markUnavailable = (item, reason = '暂无可用版本') => {
   item.href = ''
   item.versionText = reason
   item.unavailable = true
 }
 
-const fetchDownloadUrl = async (item) => {
+const fetchLatestVersionForItem = async (item) => {
   if (!apiBase) {
-    markUnavailable(item)
+    markUnavailable(item, '未配置 API 地址')
     return
   }
-  try {
-    const data = await $fetch(`${apiBase}/versions/latest/download-url`, {
-      params: {
-        platform: item.platform,
-        channel: item.channel,
-        expires_in_seconds: 900
-      }
-    })
 
-    if (data?.success && data.download_url) {
-      item.href = data.download_url
-      item.unavailable = false
-      downloadLinkMap.value[item.key] = data.download_url
-      if (data.version?.version) {
-        const build = data.version?.build_number
-        item.versionText = build
-          ? `v${data.version.version} (build ${build})`
-          : `v${data.version.version}`
+  const channels =
+    item.channelCandidates && item.channelCandidates.length > 0
+      ? item.channelCandidates
+      : [item.channel]
+
+  for (const channel of channels) {
+    try {
+      const data = await $fetch(`${apiBase}/versions/latest`, {
+        params: {
+          platform: item.platform,
+          channel
+        }
+      })
+      const version = data?.version
+      if (!version) {
+        continue
       }
+
+      item.resolvedChannel = channel
+      item.href = ''
+      item.versionText = formatVersionText(version)
+
+      if (item.kind === 'store') {
+        const storeUrl = version.app_store_url
+        if (storeUrl) {
+          item.unavailable = false
+          item.href = storeUrl
+        } else {
+          markUnavailable(item, '未配置商店链接')
+        }
+      } else {
+        const hasDownloadKey =
+          version.download_key && version.download_key.trim().length > 0
+        const hasDownloadUrl =
+          version.download_url && version.download_url.trim().length > 0
+        if (!hasDownloadKey && !hasDownloadUrl) {
+          markUnavailable(item, '未配置安装包')
+        } else {
+          item.unavailable = false
+        }
+      }
+
       return
+    } catch (error) {
+      console.error(
+        `获取 ${item.label} 最新版本失败（platform=${item.platform}, channel=${channel}）`,
+        error
+      )
     }
-    markUnavailable(item)
-  } catch (error) {
-    console.error(`获取 ${item.label} 下载链接失败`, error)
-    markUnavailable(item)
   }
+
+  markUnavailable(item)
 }
 
-const refreshDownloadLinks = async () => {
+const refreshLatestVersions = async () => {
   if (!process.client || isFetching.value) return
   isFetching.value = true
   try {
-    await Promise.all(allDownloadItems.value.map((item) => fetchDownloadUrl(item)))
+    await Promise.all(
+      allDownloadItems.value.map((item) => fetchLatestVersionForItem(item))
+    )
   } finally {
     isFetching.value = false
   }
+}
+
+const fetchLatestDownloadUrl = async (item) => {
+  if (!apiBase) {
+    throw new Error('未配置 API 地址')
+  }
+
+  const channel = item.resolvedChannel || item.channel
+  const data = await $fetch(`${apiBase}/versions/latest/download-url`, {
+    params: {
+      platform: item.platform,
+      channel,
+      expires_in_seconds: 900
+    }
+  })
+
+  if (data?.success && data.download_url) {
+    if (data.version) {
+      item.versionText = formatVersionText(data.version) || item.versionText
+    }
+    return data.download_url
+  }
+
+  throw new Error(data?.message || '暂无可用安装包')
 }
 
 const detectPlatformKey = () => {
@@ -448,58 +540,90 @@ const detectPlatformKey = () => {
   return 'windows'
 }
 
-const primaryDownloadUrl = computed(() => {
-  const order = Array.from(
-    new Set([
-      detectPlatformKey(),
-      'windows',
-      'macosArm',
-      'macosIntel',
-      'linux',
-      'android',
-      'ios'
-    ])
-  )
-
-  for (const key of order) {
-    const url = downloadLinkMap.value[key]
-    if (url) {
-      return url
-    }
+const primaryDownloadKeys = computed(() => {
+  const detected = detectPlatformKey()
+  if (detected === 'ios') {
+    return ['iosStore', 'iosOnline', 'android', 'windows', 'macosArm', 'macosIntel', 'linux']
   }
-  return ''
+  if (detected === 'macosArm') {
+    return ['macosArm', 'macosStore', 'macosIntel', 'windows', 'linux']
+  }
+  if (detected === 'macosIntel') {
+    return ['macosIntel', 'macosStore', 'macosArm', 'windows', 'linux']
+  }
+  if (detected === 'android') {
+    return ['android', 'windows', 'macosArm', 'macosIntel', 'linux']
+  }
+  return [detected, 'windows', 'macosArm', 'macosIntel', 'linux', 'android', 'iosStore', 'iosOnline']
 })
+
+const findItemByKey = (key) =>
+  allDownloadItems.value.find((item) => item.key === key)
 
 const handlePrimaryDownload = async () => {
   if (!process.client) return
-  if (!Object.keys(downloadLinkMap.value).length) {
-    await refreshDownloadLinks()
+
+  if (!allDownloadItems.value.length) {
+    window.alert('暂无可用安装包，请稍后重试')
+    return
   }
 
-  const url = primaryDownloadUrl.value
-  if (url) {
-    window.open(url, '_blank')
-  } else {
-    window.alert('暂无可用安装包，请稍后重试')
+  if (!isFetching.value) {
+    await refreshLatestVersions()
   }
+
+  for (const key of primaryDownloadKeys.value) {
+    const item = findItemByKey(key)
+    if (!item || item.unavailable) continue
+
+    if (item.kind === 'store') {
+      if (item.href) {
+        window.open(item.href, '_blank')
+        return
+      }
+      continue
+    }
+
+    try {
+      const url = await fetchLatestDownloadUrl(item)
+      window.open(url, '_blank')
+      return
+    } catch (error) {
+      console.error(`获取 ${item.label} 下载链接失败`, error)
+    }
+  }
+
+  window.alert('暂无可用安装包，请稍后重试')
 }
 
 const handleDownloadClick = async (item) => {
   if (!process.client) return
 
-  if (!item.href && !item.unavailable) {
-    await fetchDownloadUrl(item)
+  if (item.unavailable) {
+    window.alert(item.versionText || '暂无可用安装包，请稍后重试')
+    return
   }
 
-  if (item.href) {
-    window.open(item.href, '_blank')
-  } else {
+  if (item.kind === 'store') {
+    if (item.href) {
+      window.open(item.href, '_blank')
+    } else {
+      window.alert('暂无可用安装包，请稍后重试')
+    }
+    return
+  }
+
+  try {
+    const url = await fetchLatestDownloadUrl(item)
+    window.open(url, '_blank')
+  } catch (error) {
+    console.error(`获取 ${item.label} 下载链接失败`, error)
     window.alert('暂无可用安装包，请稍后重试')
   }
 }
 
 onMounted(() => {
-  refreshDownloadLinks()
+  refreshLatestVersions()
 })
 
 useHead({
