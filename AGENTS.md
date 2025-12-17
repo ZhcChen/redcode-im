@@ -36,7 +36,7 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
    - chore: 构建/工具变更
 
    示例：
-   feat(desktop-chat): 实现消息撤回功能
+   feat(desktop-chat): 实现删除消息（对所有人）功能
    fix(backend-auth): 修复 token 过期判断逻辑
    docs(api): 更新用户管理接口文档
    ```
