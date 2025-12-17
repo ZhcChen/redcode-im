@@ -322,7 +322,7 @@ pub async fn get_cached_signature(key: &str) -> Option<String> {
 
 - **一键复现**：设置 `VITE_AUTO_UPLOAD_TEST=true` 并运行 `bun run tauri dev`，桌面端会自动登录账号 `alice`（验证码 `666666`）、触发头像上传、30 秒后自动退出，日志写入 `~/Library/Application Support/com.chen.bear-chat-tauri/logs/app.log`。
 - **关键日志标签**：`avatarUploadPrepared`（检查 `injectToken/forceStreaming/Content-Length`）、`HTTP_REQUEST`（确认参数未被覆盖）、`avatarUploadRawResponse`（记录 COS PUT 返回码）。
-- **常见后端报错**：如果 `app.log` 或后端输出 `ColumnNotFound("avatar_object_key")`、`ColumnNotFound("status")`，请确认已执行最新 `backend/sql/all.sql` 并确保 `UserStore::update_user` 的 `RETURNING` 列包含对应字段。
+- **常见后端报错**：如果 `app.log` 或后端输出 `ColumnNotFound("avatar_object_key")`、`ColumnNotFound("status")`，请确认数据库已完成迁移（启动 backend 执行 `Database::migrate`，或按 `MIGRATIONS` 顺序执行 `base.sql` + `migrations/*.sql`），并确保 `UserStore::update_user` 的 `RETURNING` 列包含对应字段。
 - **日志轮转**：桌面端启动时会自动归档旧 `app.log`，无需手动清理即可获取最近一次上传流程。
 
 ## 监控和报警

@@ -1,6 +1,6 @@
 # RedCode IM
 
-项目文档入口：`docs/文档索引.md`。
+项目文档入口：`docs/README.md`。
 
 ## 快速开始
 
@@ -46,4 +46,4 @@ bun install
 bun run dev
 ```
 
-更多文档与规范请从 `docs/文档索引.md` 开始阅读。
+更多文档与规范请从 `docs/README.md` 开始阅读。

@@ -3,7 +3,7 @@
 > 本文档用于“快速查找接口入口”。接口实现以 `backend/src/routes.rs` 为准。
 >
 > 详细参数与响应请参考：
-> - `docs/api/API参考.md`（全量路由清单）
+> - `docs/api/api-reference.md`（全量路由清单）
 > - `backend/docs/api/README.md`（后端专题文档索引）
 
 ## 基础信息
@@ -133,4 +133,4 @@
 
 ### 管理后台（需管理员 Token）
 
-管理后台 API 主要位于 `/api/admin/*`，另包含 `/api/dashboard/*` 等路由；完整列表请查看 `docs/api/API参考.md` 的“管理后台 API”章节。
+管理后台 API 主要位于 `/api/admin/*`，另包含 `/api/dashboard/*` 等路由；完整列表请查看 `docs/api/api-reference.md` 的“管理后台 API”章节。

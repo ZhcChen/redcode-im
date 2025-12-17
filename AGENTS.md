@@ -7,9 +7,9 @@
 RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平台前端（Vue/Tauri 桌面端、Flutter 移动端、Nuxt 官网、Vue 管理后台）的架构。项目代码量约 50,000+ 行，已完成核心功能开发，处于功能完善和优化阶段。
 
 **核心文档入口**：
-- 📚 项目文档索引：`docs/文档索引.md`
-- 📋 代理指南：`docs/手册/代理指南.md`
-- 📊 项目现状评估：`docs/报告/项目现状评估报告_2025-11-08.md`
+- 📚 项目文档索引：`docs/README.md`
+- 📋 代理指南：`docs/handbook/agent-guide.md`
+- 📊 项目现状评估：`docs/reports/project-status-assessment-report-2025-11-08.md`
 - 🗃️ 数据库迁移指南：`backend/sql/README.md`（涵盖基础初始化脚本 `sql/base.sql` 及增量迁移规则）
 
 ## 测试约定
@@ -91,8 +91,8 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 ### 3.1 接收任务后
 1. **理解需求**：仔细阅读任务描述，明确目标和验收标准
 2. **查阅文档**：
-   - 查看 `docs/文档索引.md` 了解项目整体情况
-   - 查看 `docs/手册/代理指南.md` 了解具体操作规范
+   - 查看 `docs/README.md` 了解项目整体情况
+   - 查看 `docs/handbook/agent-guide.md` 了解具体操作规范
    - 查看相关 API 文档（`docs/api/`）了解接口细节
 3. **规划任务**：将大任务拆解为可执行的小步骤
 4. **评估影响**：判断改动会影响哪些模块，是否需要同步修改前后端
@@ -223,12 +223,12 @@ RedCode IM 是一个现代化的即时通讯系统，采用 Rust 后端 + 多平
 
 ## 八、资源链接
 
-- 📖 [项目文档索引](docs/文档索引.md)
-- 🔧 [API 概览](docs/api/API概览.md)
-- 📋 [待完成任务清单](docs/报告/任务清单.md)
-- 🎯 [桌面端剩余工作](docs/桌面端/桌面端剩余工作.md)
-- 🔒 [安全说明](docs/安全/安全说明.md)
-- 📁 [文件上传排障](docs/文件上传/文件上传排障.md)
+- 📖 [项目文档索引](docs/README.md)
+- 🔧 [API 概览](docs/api/api-overview.md)
+- 📋 [待完成任务清单](docs/reports/task-list.md)
+- 🎯 [桌面端剩余工作](docs/desktop/desktop-remaining-tasks.md)
+- 🔒 [安全说明](docs/security/security-overview.md)
+- 📁 [文件上传排障](docs/file-upload/file-upload-troubleshooting.md)
 
 ## 九、疑问处理
 

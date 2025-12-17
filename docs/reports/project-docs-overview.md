@@ -1,6 +1,6 @@
 # 项目文档概览说明
 
-> 本文档用于承载原先 `docs/文档索引.md` 中的项目介绍、进度与架构概览内容，文档索引文件仅保留目录导航职责。
+> 本文档用于承载原先 `docs/README.md` 中的项目介绍、进度与架构概览内容，文档索引文件仅保留目录导航职责。
 
 ## 项目简介
 
@@ -12,7 +12,7 @@ RedCode IM 是一个现代化的即时通讯系统，采用微服务架构设计
   - 解决多个终端窗口闪烁问题，提供友好的安装界面  
   - 支持 Windows/macOS 静默安装，自动请求管理员权限  
   - 增量构建优化，只在源码变更时重新编译 updater  
-  - 详见《[桌面端剩余工作 - 版本更新策略](../桌面端/桌面端剩余工作.md#版本更新策略)》
+  - 详见《[桌面端剩余工作 - 版本更新策略](../desktop/desktop-remaining-tasks.md#版本更新策略)》
 
 - **跨平台构建优化** ✅：完善构建流程和脚本  
   - 新增完整的 Windows 构建脚本  
@@ -23,22 +23,22 @@ RedCode IM 是一个现代化的即时通讯系统，采用微服务架构设计
   - Axum 0.7 → 0.8.6  
   - SQLx 0.7 → 0.8.6  
   - Redis 0.24 → 0.32.7  
-  - 详见《[后端依赖升级记录](后端依赖升级_2025-11-08.md)》
+  - 详见《[后端依赖升级记录](backend-dependency-upgrade-2025-11-08.md)》
 
 - **桌面端头像直传稳定**：  
   - TypeScript 端补充 `client_debug` 日志、Rust HTTP 透传 `injectToken/forceStreaming`  
   - 内置 `VITE_AUTO_UPLOAD_TEST` 自动化脚本，可在 30s 内完成登录 + 上传 + 日志采集  
-  - 详见《[文件上传排障](../文件上传/文件上传排障.md)》
+  - 详见《[文件上传排障](../file-upload/file-upload-troubleshooting.md)》
 
 - **数据库结构统一**：  
-  - `backend/sql/all.sql` 合并所有迁移脚本，一次执行即可创建全部表结构  
+  - 通过 `backend/sql/base.sql`（v1 基线）+ `backend/sql/migrations/`（增量）管理结构变更，启动 backend 会自动执行并记录迁移  
   - 修复 `UserStore::update_user` 返回列缺失导致的 SQLx `ColumnNotFound`
 
 - **日志与排障策略**：  
   - 桌面端启动时轮换 `app.log`，头像上传失败可直接比对 `avatarUploadPrepared` 与 `HTTP_REQUEST` 段落，降低排障成本
 
 - **项目评估完成**：  
-  - 已完成全面分析与评估，详见《[项目现状评估报告](项目现状评估报告_2025-11-08.md)》
+  - 已完成全面分析与评估，详见《[项目现状评估报告](project-status-assessment-report-2025-11-08.md)》
 
 ## 特性概览
 
@@ -65,4 +65,4 @@ RedCode IM 是一个现代化的即时通讯系统，采用微服务架构设计
   - 移动端：⭐⭐⭐⭐（约 90%）  
   - 管理后台：⭐⭐⭐⭐⭐（约 100%）
 
-> 更详细的评估与任务拆解请参见：《[项目现状评估报告](项目现状评估报告_2025-11-08.md)》与《[任务清单](任务清单.md)》。
+> 更详细的评估与任务拆解请参见：《[项目现状评估报告](project-status-assessment-report-2025-11-08.md)》与《[任务清单](task-list.md)》。

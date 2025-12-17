@@ -7,13 +7,13 @@
 项目已经具备较为完整的腾讯COS文件上传和下载相关文档：
 
 1. **架构文档**
-   - `docs/文件上传/文件上传架构.md` - 详细说明了文件上传的整体架构、核心组件、API接口、前端实现等
+   - `docs/file-upload/file-upload-architecture.md` - 详细说明了文件上传的整体架构、核心组件、API接口、前端实现等
 
 2. **配置文档**
-   - `docs/文件上传/文件上传配置.md` - 完整的配置指南，包括COS配置、后端配置、前端配置、环境变量等
+   - `docs/file-upload/file-upload-configuration.md` - 完整的配置指南，包括COS配置、后端配置、前端配置、环境变量等
 
 3. **排障文档**
-   - `docs/文件上传/文件上传排障.md` - 详细的错误排查指南，包括常见错误、调试工具、解决方案等
+   - `docs/file-upload/file-upload-troubleshooting.md` - 详细的错误排查指南，包括常见错误、调试工具、解决方案等
 
 4. **私有读访问说明**
    - `desktop/docs/TENCENT_COS_PRIVATE_READ.md` - 详细说明了COS私有读文件的访问机制、数据库字段、访问流程等
@@ -22,7 +22,7 @@
    - `backend/docs/infrastructure/cos-integration.md` - COS在Rust项目中的集成方案分析
 
 6. **上传限制文档**
-   - `docs/文件上传/聊天上传限制.md` - 消息附件的上传约束和限制说明
+   - `docs/file-upload/chat-upload-limits.md` - 消息附件的上传约束和限制说明
 
 ### 📊 文档完整性评估
 
@@ -554,7 +554,7 @@ return filePath;
 ### 3. 文档组织建议
 
 1. **创建文档索引**
-   - 在`docs/文件上传/`目录下创建索引文件
+   - 在`docs/file-upload/`目录下创建索引文件
    - 方便快速查找相关文档
 
 2. **统一文档格式**
@@ -592,4 +592,3 @@ return filePath;
 **文档版本**: v1.0  
 **分析时间**: 2025-01-XX  
 **分析人**: AI Assistant
-

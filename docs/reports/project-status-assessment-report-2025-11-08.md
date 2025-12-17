@@ -102,12 +102,12 @@ redcode-im/
 │
 └── docs/                   # 完整项目文档
     ├── api/                # API 文档
-    ├── 文件上传/           # 文件上传架构与排障
-    ├── 设计/               # 系统设计方案
-    ├── 安全/               # 安全说明与检查清单
-    ├── 报告/               # 项目报告与分析
-    ├── 桌面端/             # 桌面端任务清单
-    ├── 手册/               # 团队规范
+    ├── file-upload/        # 文件上传架构与排障
+    ├── design/             # 系统设计方案
+    ├── security/           # 安全说明与检查清单
+    ├── reports/            # 项目报告与分析
+    ├── desktop/            # 桌面端任务清单
+    ├── handbook/           # 团队规范
     └── notion/             # Notion 同步资料
 ```
 
@@ -207,7 +207,7 @@ redcode-im/
    - 可在 30 秒内完成登录+上传+日志采集
 
 2. **数据库结构统一** ✅
-   - 合并所有迁移脚本到 `backend/sql/all.sql`
+   - 通过 `backend/sql/base.sql`（v1 基线）+ `backend/sql/migrations/`（增量）统一数据库结构（启动 backend 会自动执行并记录迁移）
    - 一次执行即可创建 26 张表
    - 修复 `UserStore::update_user` 返回列缺失问题
 
@@ -265,7 +265,7 @@ redcode-im/
 | 视频通话 | ❌ 未启动 | 需要 WebRTC 集成 |
 | 端到端加密 | ❌ 未启动 | 需要密钥交换和加密算法实现 |
 | 消息撤回/编辑 | ❌ 未启动 | 前后端均需实现 |
-| 表情包系统 | ❌ 未启动 | 需要设计和实现 |
+| 贴纸系统 | ❌ 未启动 | 需要设计和实现 |
 | 机器人集成 | ❌ 未启动 | 需要 API 和 SDK |
 
 ---
@@ -354,33 +354,33 @@ redcode-im/
 
 ```
 docs/
-├── 文档索引.md                    # ✅ 主索引清晰
+├── README.md                      # ✅ 主索引清晰
 ├── api/
-│   ├── API概览.md                 # ✅ API 分类概览
-│   └── API参考.md                 # ✅ 详细接口文档
-├── 文件上传/
-│   ├── 聊天上传限制.md            # ✅ 上传规则说明
-│   ├── 文件上传架构.md            # ✅ 架构设计文档
-│   ├── 文件上传配置.md            # ✅ 配置指南
-│   └── 文件上传排障.md            # ✅ 问题排查手册
-├── 设计/
-│   ├── 消息搜索设计.md            # ✅ 搜索方案设计
-│   └── 端到端加密设计.md          # ✅ 加密方案设计
-├── 桌面端/
-│   └── 桌面端剩余工作.md          # ✅ 任务清单详细
-├── 安全/
-│   ├── 安全说明.md                # ✅ 安全措施说明
-│   └── 安全检查清单.md            # ✅ 检查项完整
-├── 手册/
-│   └── 代理指南.md                # ✅ 团队协作规范
-├── 报告/
-│   ├── 项目分析报告.md            # ✅ 深入分析报告
-│   └── 任务清单.md                # ✅ 待办事项清单
+│   ├── api-overview.md            # ✅ API 分类概览
+│   └── api-reference.md           # ✅ 详细接口文档
+├── file-upload/
+│   ├── chat-upload-limits.md      # ✅ 上传规则说明
+│   ├── file-upload-architecture.md # ✅ 架构设计文档
+│   ├── file-upload-configuration.md # ✅ 配置指南
+│   └── file-upload-troubleshooting.md # ✅ 问题排查手册
+├── design/
+│   ├── message-search-design.md   # ✅ 搜索方案设计
+│   └── end-to-end-encryption-design.md # ✅ 加密方案设计
+├── desktop/
+│   └── desktop-remaining-tasks.md # ✅ 任务清单详细
+├── security/
+│   ├── security-overview.md       # ✅ 安全措施说明
+│   └── security-checklist.md      # ✅ 检查项完整
+├── handbook/
+│   └── agent-guide.md             # ✅ 团队协作规范
+├── reports/
+│   ├── project-analysis-report.md # ✅ 深入分析报告
+│   └── task-list.md               # ✅ 待办事项清单
 └── notion/
-    ├── Notion导入准备.md          # ✅ 导入指南
-    ├── API导入汇总.md             # ✅ API 映射表
-    ├── NotionAPI更新指南.md       # ✅ 更新流程
-    └── Notion交付报告.md          # ✅ 交付总结
+    ├── notion-import-preparation.md # ✅ 导入指南
+    ├── notion-api-import-summary.md # ✅ API 映射表
+    ├── notion-api-update-guide.md # ✅ 更新流程
+    └── notion-delivery-report.md  # ✅ 交付总结
 ```
 
 ### 8.2 文档质量评估
@@ -505,7 +505,7 @@ docs/
    - [ ] 音视频通话 (需要架构评审,2-4 周)
    - [ ] 端到端加密 (需要设计评审,2-3 周)
    - [ ] 消息撤回/编辑 (1-2 周)
-   - [ ] 表情包系统 (1-2 周)
+   - [ ] 贴纸系统 (1-2 周)
 
 ---
 

@@ -3,7 +3,7 @@
 ## 项目结构与模块组织
 本仓库包含多套应用：Rust API 位于 `backend/src`，Flutter 客户端位于 `frontend/lib`，Vue 3 管理端位于 `admin/src`，Nuxt.js 官网页面位于 `website/app`。
 
-- 数据库初始化与增量迁移脚本位于 `backend/sql`（基础快照为 `backend/sql/base.sql`，增量脚本位于 `backend/sql/migrations/`，并需同步追加到 `backend/src/database/mod.rs` 的 `MIGRATIONS` 列表中）。
+- 数据库初始化与增量迁移脚本位于 `backend/sql`（`backend/sql/base.sql` 为数据库 v1 基线脚本；后续结构演进全部通过 `backend/sql/migrations/` 下的增量脚本完成，并需同步追加到 `backend/src/database/mod.rs` 的 `MIGRATIONS` 列表中；空库场景推荐直接启动 backend 执行 `Database::migrate` 完成初始化与迁移）。
 - 后端辅助脚本位于 `backend/scripts/`（如清库、SQL 校验等）。
 - Flutter 资源位于 `frontend/assets`，测试位于 `frontend/test`；管理后台的 Vite 配置在 `admin/config`。
 - 本仓库的 Docker/Compose 编排主要位于 `backend/docker-compose*.yml`（包含 PostgreSQL/Redis/后端容器等）；根目录的 `nginx/` 为部署相关配置。
@@ -43,6 +43,6 @@ Rust 模块遵循 `cargo fmt --all` 与 `cargo clippy --all-targets -- -D warnin
 
 ## 相关任务文档
 
-- [桌面端：对齐清单与任务拆解](../桌面端/桌面端剩余工作.md)
-- [项目任务清单](../报告/任务清单.md)
-- [API 概览](../api/API概览.md) / [API 参考](../api/API参考.md)
+- [桌面端：对齐清单与任务拆解](../desktop/desktop-remaining-tasks.md)
+- [项目任务清单](../reports/task-list.md)
+- [API 概览](../api/api-overview.md) / [API 参考](../api/api-reference.md)

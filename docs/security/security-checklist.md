@@ -286,12 +286,12 @@
 
 ## 🔗 相关文档
 
-- [安全说明](安全说明.md)
-- [API 概览](../api/API概览.md)
-- [API 参考](../api/API参考.md)
-- [代理指南](../手册/代理指南.md)
-- 运维手册：待补充（建议新增 `docs/运维/`）
-- 事件响应流程：待补充（建议新增 `docs/安全/事件响应流程.md`）
+- [安全说明](security-overview.md)
+- [API 概览](../api/api-overview.md)
+- [API 参考](../api/api-reference.md)
+- [代理指南](../handbook/agent-guide.md)
+- 运维手册：待补充（建议新增 `docs/operations/`）
+- 事件响应流程：待补充（建议新增 `docs/security/incident-response.md`）
 
 ## 📞 安全联系方式
 
