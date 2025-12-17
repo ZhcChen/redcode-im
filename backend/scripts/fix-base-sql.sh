@@ -1,17 +1,17 @@
 #!/bin/bash
-# 修复 sql/all.sql 中的表顺序问题
+# 修复 sql/base.sql 中的表顺序问题
 # 确保被引用的表在被引用之前定义
 
 set -e
 
-echo "正在修复 sql/all.sql 的表顺序..."
+echo "正在修复 sql/base.sql 的表顺序..."
 
 # 创建临时文件
-TEMP_FILE="/tmp/all.sql.fixed"
-BACKUP_FILE="sql/all.sql.backup.$(date +%Y%m%d_%H%M%S)"
+TEMP_FILE="/tmp/base.sql.fixed"
+BACKUP_FILE="sql/base.sql.backup.$(date +%Y%m%d_%H%M%S)"
 
 # 备份原文件
-cp "sql/all.sql" "$BACKUP_FILE"
+cp "sql/base.sql" "$BACKUP_FILE"
 echo "已备份原文件到: $BACKUP_FILE"
 
 # 开始重写文件
@@ -684,8 +684,8 @@ SELECT 'Database initialization completed successfully!' AS status;
 EOF
 
 # 替换原文件
-mv "$TEMP_FILE" "sql/all.sql"
-echo "✅ 已修复 sql/all.sql 文件"
+mv "$TEMP_FILE" "sql/base.sql"
+echo "✅ 已修复 sql/base.sql 文件"
 echo ""
 echo "主要修复："
 echo "1. 将 admin_users 表移到文件开头（被引用的表必须先定义）"
@@ -694,4 +694,4 @@ echo "3. 修复了 updated_by 外键约束引用 admin_users 表的问题"
 echo "4. 添加了基础数据插入（权限、角色）"
 echo ""
 echo "现在您可以使用以下命令重新初始化数据库："
-echo "  psql -h localhost -U postgres -d redcode_im -f sql/all.sql"
+echo "  psql -h localhost -U postgres -d redcode_im -f sql/base.sql"

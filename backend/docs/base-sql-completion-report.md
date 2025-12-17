@@ -1,13 +1,18 @@
-# sql/base.sql（原 sql/all.sql）完整化修复报告
+# sql/base.sql 完整化修复报告
+
+> ⚠️ 重要说明（策略变更）：
+> - 本报告产生于“希望将初始化脚本做成可独立初始化完整数据库的全量快照”的阶段。
+> - 当前项目已调整为 **v1 基线 + 增量迁移** 的维护方式：`sql/base.sql` 作为 v1 基线脚本，后续变更通过 `sql/migrations/` 增量脚本维护，并由 `Database::migrate` 按 `MIGRATIONS` 顺序执行。
+> - 因此，请勿再据本文档的历史结论认为“单独执行 base.sql 就等于最新结构”；新环境以 `base.sql + migrations` 为准。
 
 ## 问题描述
 
-用户发现 `sql/all.sql` 文件**不完整**，缺少大量迁移文件中的表定义和初始数据（现该文件已重命名为 `sql/base.sql`，作为基础初始化脚本使用）。
+用户发现当时的初始化脚本**不完整**，缺少大量迁移文件中的表定义和初始数据（现该脚本为 `sql/base.sql`，作为数据库 v1 基线脚本使用）。
 
 ## 问题分析
 
 ### 缺失的迁移内容
-经过检查，发现 `sql/all.sql` 缺少以下迁移文件中的内容：
+经过检查，发现初始化脚本缺少以下迁移文件中的内容：
 
 | 序号 | 迁移文件 | 缺失内容 |
 |------|----------|----------|
@@ -18,9 +23,9 @@
 | 5 | `20251120105305_migrate_admin_users.sql` | 默认管理员账号插入 |
 
 ### 影响
-- ❌ 无法使用 `sql/all.sql` 独立初始化完整数据库
+- ❌ 无法仅通过基线脚本独立初始化完整数据库
 - ❌ 缺少管理员账号，无法登录管理后台
-- ❌ 缺少关键功能表（地理位置、登录历史、表情包等）
+- ❌ 缺少关键功能表（地理位置、登录历史、贴纸等）
 - ❌ 数据库不完整，功能受限
 
 ## 修复方案
@@ -54,9 +59,9 @@ ON CONFLICT (admin_user_id, role_id) DO NOTHING;
 2. **`user_geolocations`** - 用户地理位置信息
 3. **`user_login_history`** - 用户登录历史
 4. **`user_heartbeat_logs`** - 用户心跳记录
-5. **`emoji_packs`** - 表情包表
+5. **`emoji_packs`** - 贴纸表
 6. **`emoji_items`** - 表情项表
-7. **`user_emoji_packs`** - 用户表情包关联
+7. **`user_emoji_packs`** - 用户贴纸关联
 8. **`hot_update_events`** - 热更新事件表
 
 ### 3. 添加数据库函数
@@ -103,7 +108,7 @@ ON CONFLICT (admin_user_id, role_id) DO NOTHING;
 
 ## 验证结果
 
-运行 `./scripts/verify-sql-all.sh` 验证结果：
+运行 `./scripts/verify-base-sql.sh` 验证结果：
 
 ```
 ✅ admin_users
@@ -222,39 +227,39 @@ psql -h localhost -U postgres -d redcode_im -f sql/base.sql
 
 ### 自动备份
 修复过程中会自动创建备份：
-- **文件**：`sql/all.sql.backup.20251201_151535`
+- **文件**：`sql/base.sql.backup.20251201_151535`
 - **内容**：修复前的版本（708行）
 
 ### 手动备份
 ```bash
-cp sql/all.sql sql/all.sql.backup.$(date +%Y%m%d_%H%M%S)
+cp sql/base.sql sql/base.sql.backup.$(date +%Y%m%d_%H%M%S)
 ```
 
 ### 恢复方法
 ```bash
 # 如果需要恢复
-cp sql/all.sql.backup.20251201_151535 sql/all.sql
+cp sql/base.sql.backup.20251201_151535 sql/base.sql
 ```
 
 ## 相关文件
 
 ### 核心文件
-- **📄 sql/base.sql** - 完整的数据库初始化脚本（由原 `sql/all.sql` 重命名而来）
+- **📄 sql/base.sql** - 数据库 v1 基线脚本（空库初始化用）
 - **📁 sql/migrations_legacy_20251207/** - 历史迁移文件归档目录（已合并进 base.sql）
 
-### 验证脚本（仅供历史参考，如需使用请先将脚本中的 all.sql 修改为 base.sql）
-- **🔧 scripts/verify-sql-all.sh** - 验证文件完整性
+### 验证脚本（仅供历史参考）
+- **🔧 scripts/verify-base-sql.sh** - 验证文件完整性
 
 ### 文档
-- **📚 docs/数据库初始化验证报告.md** - 详细验证报告
-- **📚 docs/all-sql完整化报告.md** - 本文档
+- **📚 backend/docs/数据库初始化验证报告.md** - 详细验证报告
+- **📚 backend/docs/base-sql-completion-report.md** - 本文档
 
 ## 测试验证
 
 ### 验证步骤
 ```bash
 # 1. 运行验证脚本
-./scripts/verify-sql-all.sh
+./scripts/verify-base-sql.sh
 
 # 2. 检查文件完整性（如已将脚本更新为 base.sql）
 wc -l sql/base.sql  # 行数仅供参考
@@ -292,10 +297,9 @@ psql -h localhost -U postgres -d postgres -c "SELECT 1" 2>/dev/null || echo "需
 - **文件大小**：从708行增加到870行
 
 ### 🎯 最终状态
-- ✅ **sql/all.sql 现在是完全独立的** - 包含所有必要的表、数据和函数
-- ✅ **可以直接用于初始化数据库** - 不需要额外的迁移
-- ✅ **包含默认管理员账号** - 可以立即登录使用
-- ✅ **功能完整** - 支持所有特性（地理位置、表情包、登录历史等）
+- ✅ **base.sql 可作为 v1 基线脚本执行** - 用于初始化第一版结构与基础数据
+- ✅ **最新结构由 base.sql + migrations 共同组成** - 由 `Database::migrate` 按 `MIGRATIONS` 顺序执行并记录
+- ✅ **可通过增量迁移持续演进** - 新增脚本后仅需追加到 `MIGRATIONS` 并重启 backend 应用
 
 ---
 
@@ -303,4 +307,4 @@ psql -h localhost -U postgres -d postgres -c "SELECT 1" 2>/dev/null || echo "需
 **修复状态**：✅ 完全修复
 **可用性**：✅ 可用于生产环境部署
 
-**现在 sql/all.sql 文件是完整的、独立、可直接使用的数据库初始化脚本！** 🎉
+**当前建议：使用 `Database::migrate` 执行初始化与迁移（base.sql + migrations）。**

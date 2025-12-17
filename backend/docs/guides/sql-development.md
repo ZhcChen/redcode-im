@@ -4,7 +4,7 @@
 
 ## 基本原则
 
-1. **基础脚本保持最新**：`backend/sql/base.sql` 必须始终包含当前系统所需的全部表结构、索引以及基础数据。此脚本用于初始化全新数据库实例（空库）。
+1. **基础脚本作为 v1 基线**：`backend/sql/base.sql` 作为数据库初始化的基线脚本（v1 baseline），用于在空库上创建第一版表结构与基础数据；后续结构演进全部通过增量脚本完成。
 2. **增量脚本记录变更**：每次结构调整时，需要新增一份增量脚本到 `backend/sql/migrations/`，由后端在启动时通过迁移记录表自动执行。
 3. **脚本幂等**：无论基础脚本还是增量脚本，尽量使用 `CREATE TABLE IF NOT EXISTS`、`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`、`CREATE INDEX IF NOT EXISTS` 等写法，保证重复执行不会出错。
 
@@ -17,9 +17,8 @@
 
 ## 更新流程
 
-1. 在 `backend/sql/base.sql` 中合并新的表结构或数据调整（保持全量快照始终最新，以便新环境初始化）。
-2. 将相同的变更复制到新的增量脚本文件（放在 `backend/sql/migrations/`）。
-3. 在 `backend/src/database/mod.rs` 的 `MIGRATIONS` 常量数组中追加对应脚本条目，写死执行顺序。
+1. 在 `backend/sql/migrations/` 新增一份增量脚本文件，记录本次结构或基础数据变更。
+2. 在 `backend/src/database/mod.rs` 的 `MIGRATIONS` 常量数组中追加对应脚本条目，写死执行顺序。
 4. 更新本规范（必要时）或在相关需求文档中标记变更。
 5. 通知运维或执行迁移的同事增量脚本文件名（通常只需重启 backend 即可应用未执行的脚本）。
 

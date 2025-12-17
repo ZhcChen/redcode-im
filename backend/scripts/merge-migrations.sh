@@ -48,25 +48,25 @@ for file in sql/migrations/*.sql; do
 
     # 跳过已知的全表重建迁移
     if [[ "$filename" == *"20251120105305_migrate_admin_users"* ]]; then
-        echo "    ⏭️  跳过（已在all.sql中）"
+        echo "    ⏭️  跳过（已在base.sql中）"
         continue
     fi
 
-    # 跳过外键修复迁移（已在all.sql中）
+    # 跳过外键修复迁移（已在base.sql中）
     if [[ "$filename" == *"20251201123000_fix_storage_providers"* ]]; then
-        echo "    ⏭️  跳过（已在all.sql中）"
+        echo "    ⏭️  跳过（已在base.sql中）"
         continue
     fi
 
     # 跳过表结构修复迁移
     if [[ "$filename" == *"20251127125035_fix_group_settings"* ]]; then
-        echo "    ⏭️  跳过（已在all.sql中）"
+        echo "    ⏭️  跳过（已在base.sql中）"
         continue
     fi
 
     # 跳过已包含的迁移
     if [[ "$filename" == *"20251120105125_create_admin_users_table"* ]]; then
-        echo "    ⏭️  跳过（已在all.sql中）"
+        echo "    ⏭️  跳过（已在base.sql中）"
         continue
     fi
 

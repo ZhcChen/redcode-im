@@ -3,23 +3,35 @@
 ## 数据库初始化
 
 ### base.sql
-基础数据库初始化脚本，包含**当前版本的所有表结构、索引、视图、触发器和初始数据**。
+数据库 **v1 基线（baseline）** 初始化脚本，用于在空库上创建第一版表结构与基础数据。
+
+> 说明：
+> - `base.sql` 不再追求“始终等于当前最新结构”；最新结构由 `base.sql` + `backend/sql/migrations/` 下的增量脚本共同组成。
+> - 推荐通过启动 backend 执行 `Database::migrate` 完成初始化与增量迁移；手工执行仅用于排障或特殊场景。
 
 **执行方式（新项目首次部署必须执行一次）：**
 
-如果 PostgreSQL 在 Docker 容器中运行（可选，通常只在手工初始化时使用）：
+✅ 推荐方式：启动 backend（会自动按顺序执行 `base.sql` + `MIGRATIONS` 中声明的增量脚本，并在 `db_migrations` 中记录）
+
+⚠️ 手工方式（通常只在排障或特殊场景下使用）：
+
+1) 执行 `base.sql`
+
+如果 PostgreSQL 在 Docker 容器中运行：
 ```bash
 docker exec -i postgres psql -U postgres -d redcode_im < sql/base.sql
 ```
 
-如果 PostgreSQL 直接安装在本地（可选）：
+如果 PostgreSQL 直接安装在本地：
 ```bash
 psql -h localhost -U postgres -d redcode_im < sql/base.sql
 ```
 
+2) 按 `backend/src/database/mod.rs` 的 `MIGRATIONS` 顺序依次执行 `backend/sql/migrations/*.sql`
+
 > 说明：
-> - 线上已有环境已视为执行过原 `all.sql`（现更名为 `base.sql`），不需要也不允许重复执行；
-> - 在全新环境（数据库为空库，无任何业务表）下，可以通过启动 backend，让 `Database::migrate` 自动执行 `base.sql` 并记录迁移；
+> - 线上已有环境已视为执行过初始基线，不需要也不允许重复执行 `base.sql`；
+> - 在全新环境（数据库为空库，无任何业务表）下，可以通过启动 backend，让 `Database::migrate` 自动执行 `base.sql` + 增量迁移并记录；
 > - 之后的结构演进全部通过 `backend/sql/migrations/` 下的增量脚本 + 迁移记录表 `db_migrations` 管理，`Database::migrate` 会在启动时自动按顺序执行未记录的脚本。
 
 ## 数据库迁移规则

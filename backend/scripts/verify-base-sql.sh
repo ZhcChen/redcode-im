@@ -96,7 +96,7 @@ echo ""
 # 检查备份文件
 echo "📋 相关文件："
 echo "  📄 sql/base.sql - 主文件"
-echo "  📄 sql/all.sql.backup.20251201_151535 - 历史备份文件"
+echo "  📄 sql/base.sql.backup.20251201_151535 - 历史备份文件"
 echo ""
 
 # 总结
