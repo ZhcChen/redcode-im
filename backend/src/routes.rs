@@ -294,7 +294,7 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/users/geolocation/distribution",
             get(activity_logs::get_global_user_distribution),
         )
-        // 表情包管理 API（管理员）
+        // 贴纸管理 API（管理员）
         .route(
             "/api/admin/emoji-packs",
             get(emoji_pack::list_all_packs).post(emoji_pack::create_pack),
@@ -541,7 +541,7 @@ pub fn create_routes() -> Router<AppState> {
             "/rooms/{room_id}/detail",
             get(group_management::get_group_detail),
         )
-        // 表情包用户 API
+        // 贴纸用户 API
         .route(
             "/emoji-packs/available",
             get(emoji_pack::list_available_packs),

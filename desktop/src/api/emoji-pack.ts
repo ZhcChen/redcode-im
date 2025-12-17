@@ -7,7 +7,7 @@ export interface EmojiPack {
   icon_object_key?: string | null;  // COS 对象键，用于获取临时下载地址
   description?: string | null;
   is_active: boolean;
-  pack_type: number; // 0=单个, 1=套件
+  pack_type: number; // 0=单个, 1=贴纸包
   parent_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -25,11 +25,11 @@ export interface EmojiItem {
 }
 
 /**
- * 表情包相关 API
+ * 贴纸相关 API
  */
 export class EmojiPackApi {
   /**
-   * 获取用户的表情包列表（包含表情项）
+   * 获取用户的贴纸列表（包含表情项）
    */
   static async getUserPacks(): Promise<Array<{ pack: EmojiPack; items: EmojiItem[] }>> {
     const response = await httpClient.get<Array<{ pack: EmojiPack; items: EmojiItem[] }>>('/emoji-packs/my');
@@ -37,7 +37,7 @@ export class EmojiPackApi {
   }
 
   /**
-   * 获取所有可用的表情包（用于用户选择添加）
+   * 获取所有可用的贴纸（用于用户选择添加）
    */
   static async getAvailablePacks(): Promise<EmojiPack[]> {
     const response = await httpClient.get<EmojiPack[]>('/emoji-packs/available');
@@ -45,17 +45,17 @@ export class EmojiPackApi {
   }
 
   /**
-   * 获取表情包详情（包含表情项）- 用户 API
-   * 注意：用户只能获取自己已添加的表情包详情
+   * 获取贴纸详情（包含表情项）- 用户 API
+   * 注意：用户只能获取自己已添加的贴纸详情
    */
   static async getPack(packId: string): Promise<EmojiPack & { items: EmojiItem[] }> {
-    // 从用户表情包列表中查找
+    // 从用户贴纸列表中查找
     const userPacks = await this.getUserPacks()
     const packData = userPacks.find(p => p.pack.id === packId)
     if (!packData) {
-      throw new Error('表情包不存在或未添加')
+      throw new Error('贴纸不存在或未添加')
     }
-    // 返回表情包和表情项
+    // 返回贴纸和表情项
     return {
       ...packData.pack,
       items: packData.items || []
@@ -63,21 +63,21 @@ export class EmojiPackApi {
   }
 
   /**
-   * 添加用户表情包
+   * 添加用户贴纸
    */
   static async addUserPack(packId: string): Promise<void> {
     await httpClient.post(`/emoji-packs/${packId}/add`);
   }
 
   /**
-   * 删除用户表情包
+   * 删除用户贴纸
    */
   static async removeUserPack(packId: string): Promise<void> {
     await httpClient.delete(`/emoji-packs/${packId}/remove`);
   }
 
   /**
-   * 搜索表情包和套件
+   * 搜索贴纸和贴纸包
    */
   static async searchPacks(keyword: string): Promise<EmojiPack[]> {
     const response = await httpClient.get<EmojiPack[]>(
@@ -87,7 +87,7 @@ export class EmojiPackApi {
   }
 
   /**
-   * 添加表情包套件（添加套件下的所有表情包）
+   * 添加贴纸包（添加贴纸包下的所有贴纸）
    */
   static async addUserSuite(suiteId: string): Promise<{ count: number }> {
     const response = await httpClient.post<{ success: boolean; message: string; count: number }>(
@@ -97,8 +97,8 @@ export class EmojiPackApi {
   }
 
   /**
-   * 获取套件下的表情包列表（包含表情项）
-   * 只返回用户已添加的表情包
+   * 获取贴纸包下的贴纸列表（包含表情项）
+   * 只返回用户已添加的贴纸
    */
   static async getSuitePacks(suiteId: string): Promise<Array<{ pack: EmojiPack; items: EmojiItem[] }>> {
     const response = await httpClient.get<Array<{ pack: EmojiPack; items: EmojiItem[] }>>(

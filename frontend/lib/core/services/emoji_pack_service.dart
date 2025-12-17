@@ -33,7 +33,7 @@ class EmojiPackService {
     };
   }
 
-  /// 获取用户的表情包列表（包含表情项）
+  /// 获取用户的贴纸列表（包含表情项）
   /// 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
   Future<List<EmojiPack>> getUserPacks() async {
     final headers = await _authHeaders();
@@ -49,7 +49,7 @@ class EmojiPackService {
           final itemsJson = item['items'] as List<dynamic>?;
 
           if (packJson == null) {
-            throw EmojiPackServiceException('表情包数据格式错误：缺少 pack 字段');
+            throw EmojiPackServiceException('贴纸数据格式错误：缺少 pack 字段');
           }
 
           final pack = EmojiPack.fromJson(packJson);
@@ -86,11 +86,11 @@ class EmojiPackService {
     }
 
     throw EmojiPackServiceException(
-      _extractErrorMessage(response.body) ?? '获取表情包列表失败',
+      _extractErrorMessage(response.body) ?? '获取贴纸列表失败',
     );
   }
 
-  /// 获取所有可用的表情包（用于用户选择添加）
+  /// 获取所有可用的贴纸（用于用户选择添加）
   Future<List<EmojiPack>> getAvailablePacks() async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/emoji-packs/available');
@@ -108,11 +108,11 @@ class EmojiPackService {
     }
 
     throw EmojiPackServiceException(
-      _extractErrorMessage(response.body) ?? '获取可用表情包列表失败',
+      _extractErrorMessage(response.body) ?? '获取可用贴纸列表失败',
     );
   }
 
-  /// 添加用户表情包
+  /// 添加用户贴纸
   Future<void> addUserPack(String packId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/emoji-packs/$packId/add');
@@ -120,12 +120,12 @@ class EmojiPackService {
     final response = await http.post(uri, headers: headers);
     if (response.statusCode != 200) {
       throw EmojiPackServiceException(
-        _extractErrorMessage(response.body) ?? '添加表情包失败',
+        _extractErrorMessage(response.body) ?? '添加贴纸失败',
       );
     }
   }
 
-  /// 删除用户表情包
+  /// 删除用户贴纸
   Future<void> removeUserPack(String packId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/emoji-packs/$packId/remove');
@@ -133,12 +133,12 @@ class EmojiPackService {
     final response = await http.delete(uri, headers: headers);
     if (response.statusCode != 200) {
       throw EmojiPackServiceException(
-        _extractErrorMessage(response.body) ?? '删除表情包失败',
+        _extractErrorMessage(response.body) ?? '删除贴纸失败',
       );
     }
   }
 
-  /// 搜索表情包
+  /// 搜索贴纸
   Future<List<EmojiPack>> searchPacks(String keyword) async {
     final headers = await _authHeaders();
     final uri = Uri.parse(
@@ -158,11 +158,11 @@ class EmojiPackService {
     }
 
     throw EmojiPackServiceException(
-      _extractErrorMessage(response.body) ?? '搜索表情包失败',
+      _extractErrorMessage(response.body) ?? '搜索贴纸失败',
     );
   }
 
-  /// 添加表情包套件（添加套件下的所有表情包）
+  /// 添加贴纸包（添加贴纸包下的所有贴纸）
   Future<Map<String, dynamic>> addUserSuite(String suiteId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse(
@@ -176,12 +176,12 @@ class EmojiPackService {
     }
 
     throw EmojiPackServiceException(
-      _extractErrorMessage(response.body) ?? '添加表情包套件失败',
+      _extractErrorMessage(response.body) ?? '添加贴纸包失败',
     );
   }
 
-  /// 获取套件下的表情包列表（包含表情项）
-  /// 只返回用户已添加的表情包
+  /// 获取贴纸包下的贴纸列表（包含表情项）
+  /// 只返回用户已添加的贴纸
   /// 返回格式：Array<{ pack: EmojiPack; items: EmojiItem[] }>
   Future<List<EmojiPack>> getSuitePacks(String suiteId) async {
     final headers = await _authHeaders();
@@ -199,7 +199,7 @@ class EmojiPackService {
           final itemsJson = item['items'] as List<dynamic>?;
 
           if (packJson == null) {
-            throw EmojiPackServiceException('表情包数据格式错误：缺少 pack 字段');
+            throw EmojiPackServiceException('贴纸数据格式错误：缺少 pack 字段');
           }
 
           final pack = EmojiPack.fromJson(packJson);
@@ -235,7 +235,7 @@ class EmojiPackService {
     }
 
     throw EmojiPackServiceException(
-      _extractErrorMessage(response.body) ?? '获取套件表情包列表失败',
+      _extractErrorMessage(response.body) ?? '获取贴纸包贴纸列表失败',
     );
   }
 

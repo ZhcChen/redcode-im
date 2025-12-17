@@ -1081,9 +1081,9 @@ pub struct GroupDetailInfo {
     pub pending_request_count: i64,
 }
 
-// ===== 表情包相关模型 =====
+// ===== 贴纸相关模型 =====
 
-/// 表情包状态枚举
+/// 贴纸状态枚举
 #[derive(
     Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
 )]
@@ -1100,15 +1100,15 @@ impl Default for EmojiPackStatus {
     }
 }
 
-/// 表情包类型枚举
+/// 贴纸类型枚举
 #[derive(
     Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,
 )]
 #[repr(i16)]
 #[sqlx(type_name = "int2")]
 pub enum EmojiPackType {
-    Single = 0, // 单个表情包
-    Suite = 1,  // 表情包套件（系列）
+    Single = 0, // 单个贴纸
+    Suite = 1,  // 贴纸包（系列）
 }
 
 impl Default for EmojiPackType {
@@ -1117,7 +1117,7 @@ impl Default for EmojiPackType {
     }
 }
 
-/// 表情包表模型
+/// 贴纸表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct EmojiPack {
     pub id: Uuid,
@@ -1146,7 +1146,7 @@ pub struct EmojiItem {
     pub created_at: DateTime<Utc>,
 }
 
-/// 用户表情包关联表模型
+/// 用户贴纸关联表模型
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct UserEmojiPack {
     pub user_id: Uuid,
@@ -1154,7 +1154,7 @@ pub struct UserEmojiPack {
     pub created_at: DateTime<Utc>,
 }
 
-/// 创建表情包请求
+/// 创建贴纸请求
 #[derive(Debug, Deserialize)]
 pub struct CreateEmojiPackRequest {
     pub name: String,
@@ -1163,11 +1163,11 @@ pub struct CreateEmojiPackRequest {
     pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
-    pub pack_type: Option<i16>,    // 0=单个, 1=套件
-    pub parent_id: Option<String>, // 套件下的表情包需要指定父套件ID
+    pub pack_type: Option<i16>,    // 0=单个, 1=贴纸包
+    pub parent_id: Option<String>, // 贴纸包下的贴纸需要指定父贴纸包ID
 }
 
-/// 更新表情包请求
+/// 更新贴纸请求
 #[derive(Debug, Deserialize)]
 pub struct UpdateEmojiPackRequest {
     pub name: Option<String>,

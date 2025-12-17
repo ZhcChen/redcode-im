@@ -30,7 +30,7 @@ export default {
   'menu.settings.storageProvider': '文件上传提供商',
   'menu.settings.cosTest': 'COS 测试',
   'menu.settings.general': '通用设置',
-  'menu.settings.emojiPack': '表情包设置',
+  'menu.settings.emojiPack': '贴纸设置',
   'menu.settings.ipinfoToken': 'IP地理位置Token',
   'menu.settings.userProfile': '个人设置',
   'menu.settings.dataCleanup': '数据清理',

@@ -28,13 +28,13 @@
             v-model="searchKeyword"
             type="text"
             class="search-input"
-            placeholder="搜索表情包或套件..."
+            placeholder="搜索贴纸或贴纸包..."
             @input="handleSearch"
           />
         </div>
         <div v-if="searchLoading" class="loading">搜索中...</div>
         <div v-else-if="searchResults.length === 0 && searchKeyword" class="empty-state">
-          未找到相关表情包
+          未找到相关贴纸
         </div>
         <div v-else-if="searchResults.length > 0" class="search-results">
           <div
@@ -55,7 +55,7 @@
               <div class="result-name">
                 {{ result.name }}
                 <span class="result-type">
-                  {{ result.pack_type === 1 ? '套件' : '表情包' }}
+                  {{ result.pack_type === 1 ? '贴纸包' : '贴纸' }}
                 </span>
               </div>
               <div v-if="result.description" class="result-desc">
@@ -64,7 +64,7 @@
             </div>
           </div>
         </div>
-        <div v-else class="empty-state">输入关键词搜索表情包或套件</div>
+        <div v-else class="empty-state">输入关键词搜索贴纸或贴纸包</div>
       </div>
       <!-- 其他 tab -->
       <div v-else>
@@ -107,7 +107,7 @@
             v-if="currentItems.length === 0 && selectedTabIndex === 1"
             class="empty-state"
           >
-            暂无自定义表情<br />请在设置中添加表情包
+            暂无自定义表情<br />请在设置中添加贴纸
           </div>
           <div
             v-else-if="
@@ -116,7 +116,7 @@
             "
             class="empty-state"
           >
-            该套件暂无表情<br />请先添加表情包到套件
+            该贴纸包暂无表情<br />请先添加贴纸到贴纸包
           </div>
           <div
             v-else-if="
@@ -125,7 +125,7 @@
             "
             class="empty-state"
           >
-            暂无自定义表情<br />请在设置中添加表情包
+            暂无自定义表情<br />请在设置中添加贴纸
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@ interface EmojiDisplayItem {
   value: string
   name?: string
   objectKey?: string | null  // COS 对象键，用于获取临时下载地址
-  // 归属的表情包 ID（用于删除收藏）
+  // 归属的贴纸 ID（用于删除收藏）
   packId?: string
 }
 
@@ -197,10 +197,10 @@ const emit = defineEmits<{
 }>()
 
 const selectedTabIndex = ref(0)
-const userPacks = ref<EmojiPack[]>([]) // 所有用户表情包（包括单个和套件）
-const suitePacksCache = ref<Record<string, Array<{ pack: EmojiPack; items: EmojiItem[] }>>>({}) // 套件下的表情包缓存
+const userPacks = ref<EmojiPack[]>([]) // 所有用户贴纸（包括单个和贴纸包）
+const suitePacksCache = ref<Record<string, Array<{ pack: EmojiPack; items: EmojiItem[] }>>>({}) // 贴纸包下的贴纸缓存
 const loadingPacks = ref(false)
-const loadingSuitePacks = ref<Record<string, boolean>>({}) // 套件加载状态
+const loadingSuitePacks = ref<Record<string, boolean>>({}) // 贴纸包加载状态
 
 // 搜索相关
 const searchKeyword = ref('')
@@ -379,7 +379,7 @@ const tabs = computed<TabItem[]>(() => {
     }
   ]
 
-  // 只添加套件（pack_type === 1）作为动态 tab
+  // 只添加贴纸包（pack_type === 1）作为动态 tab
   for (const pack of userPacks.value) {
     if (pack.pack_type === 1) {
       result.push({
@@ -409,15 +409,15 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
         name: e.name
       }))
     case 'custom':
-      // 收集所有独立的单个表情包（pack_type === 0 且 parent_id === null）中的表情项
-      // 排除套件（pack_type === 1）和套件下的子表情包（pack_type === 0 但有 parent_id）
+      // 收集所有独立的单个贴纸（pack_type === 0 且 parent_id === null）中的表情项
+      // 排除贴纸包（pack_type === 1）和贴纸包下的子贴纸（pack_type === 0 但有 parent_id）
       const allItems: EmojiDisplayItem[] = []
       console.log('计算自定义 tab 的表情项，userPacks 数量:', userPacks.value.length)
       for (const pack of userPacks.value) {
-        console.log(`检查表情包: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, parent_id=${pack.parent_id || 'null'}, items数量=${pack.items?.length || 0}, icon_url=${pack.icon_url || '无'}`)
-        // 只包含独立的单个表情包：pack_type === 0 且 parent_id === null/undefined
+        console.log(`检查贴纸: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, parent_id=${pack.parent_id || 'null'}, items数量=${pack.items?.length || 0}, icon_url=${pack.icon_url || '无'}`)
+        // 只包含独立的单个贴纸：pack_type === 0 且 parent_id === null/undefined
         if (pack.pack_type === 0 && !pack.parent_id) {
-          // 如果表情包有 items，使用 items
+          // 如果贴纸有 items，使用 items
           if (pack.items && pack.items.length > 0) {
             for (const item of pack.items) {
               if (item.image_url) {
@@ -431,7 +431,7 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
               }
             }
           }
-          // 如果表情包没有 items 但有 icon_url，使用 icon_url 作为单个表情
+          // 如果贴纸没有 items 但有 icon_url，使用 icon_url 作为单个表情
           else if (pack.icon_url) {
             allItems.push({
               type: 'image',
@@ -446,18 +446,18 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
       console.log('自定义 tab 的表情项总数:', allItems.length)
       return allItems
     case 'pack':
-      // 套件 tab：显示套件下所有子表情包的 icon_url（不是子表情包下的 items）
+      // 贴纸包 tab：显示贴纸包下所有子贴纸的 icon_url（不是子贴纸下的 items）
       if (!tab.pack) return []
       const suiteId = tab.pack.id
       const suitePacks = suitePacksCache.value[suiteId]
-      console.log('套件 tab 计算，suiteId:', suiteId, '缓存:', suitePacks)
+      console.log('贴纸包 tab 计算，suiteId:', suiteId, '缓存:', suitePacks)
       if (suitePacks && suitePacks.length > 0) {
         const suiteItems: EmojiDisplayItem[] = []
-        console.log('开始处理套件表情包，数量:', suitePacks.length)
+        console.log('开始处理贴纸包贴纸，数量:', suitePacks.length)
         for (const suitePack of suitePacks) {
           const pack = suitePack.pack
           if (pack && pack.icon_url) {
-            console.log('处理子表情包:', pack.name, 'icon_url:', pack.icon_url)
+            console.log('处理子贴纸:', pack.name, 'icon_url:', pack.icon_url)
             suiteItems.push({
               type: 'image' as const,
               value: pack.icon_url,
@@ -466,10 +466,10 @@ const currentItems = computed<EmojiDisplayItem[]>(() => {
               packId: pack.id
             })
           } else {
-            console.warn('子表情包没有 icon_url:', pack)
+            console.warn('子贴纸没有 icon_url:', pack)
           }
         }
-        console.log('套件表情项列表:', suiteItems)
+        console.log('贴纸包表情项列表:', suiteItems)
         return suiteItems
       }
       // 如果缓存中没有且未在加载中，异步加载
@@ -518,15 +518,15 @@ const handleSearch = () => {
 const handleSearchResultClick = (pack: EmojiPack) => {
   pendingAddPack.value = pack
   if (pack.pack_type === 1) {
-    // 套件
+    // 贴纸包
     pendingAddType.value = 'suite'
-    addConfirmTitle.value = '添加表情包套件'
-    addConfirmMessage.value = `确定要添加套件"${pack.name}"吗？这将添加套件下的所有表情包。`
+    addConfirmTitle.value = '添加贴纸包'
+    addConfirmMessage.value = `确定要添加贴纸包"${pack.name}"吗？这将添加贴纸包下的所有贴纸。`
   } else {
-    // 单个表情包
+    // 单个贴纸
     pendingAddType.value = 'pack'
-    addConfirmTitle.value = '添加表情包'
-    addConfirmMessage.value = `确定要添加表情包"${pack.name}"到自定义表情吗？`
+    addConfirmTitle.value = '添加贴纸'
+    addConfirmMessage.value = `确定要添加贴纸"${pack.name}"到自定义表情吗？`
   }
   showAddConfirm.value = true
 }
@@ -542,22 +542,22 @@ const handleConfirmAdd = async () => {
   try {
     if (addType === 'suite') {
       const result = await api.emojiPack.addUserSuite(packId)
-      toast.success(`成功添加 ${result.count} 个表情包`)
+      toast.success(`成功添加 ${result.count} 个贴纸`)
     } else {
       await api.emojiPack.addUserPack(packId)
       toast.success('添加成功')
     }
     showAddConfirm.value = false
-    // 重新加载用户表情包
+    // 重新加载用户贴纸
     await loadUserPacks()
     
     // 添加调试日志
-    console.log('添加表情包后，userPacks 数据:', userPacks.value)
+    console.log('添加贴纸后，userPacks 数据:', userPacks.value)
     const addedPack = userPacks.value.find((p: EmojiPack) => p.id === packId)
-    console.log('新添加的表情包:', addedPack)
+    console.log('新添加的贴纸:', addedPack)
     if (addedPack) {
-      console.log('表情包的 items:', addedPack.items)
-      console.log('表情包的 items 数量:', addedPack.items?.length || 0)
+      console.log('贴纸的 items:', addedPack.items)
+      console.log('贴纸的 items 数量:', addedPack.items?.length || 0)
     }
     
     // 等待 Vue 响应式更新完成
@@ -565,7 +565,7 @@ const handleConfirmAdd = async () => {
     
     // 根据添加类型切换到对应 tab
     if (addType === 'suite') {
-      // 套件：切换到新添加的套件 tab
+      // 贴纸包：切换到新添加的贴纸包 tab
       // 需要等待 tabs 更新后再查找
       await new Promise(resolve => setTimeout(resolve, 100))
       const suiteTabIndex = tabs.value.findIndex((t: TabItem) => t.type === 'pack' && t.pack?.id === packId)
@@ -573,7 +573,7 @@ const handleConfirmAdd = async () => {
         selectedTabIndex.value = suiteTabIndex
       }
     } else {
-      // 单个表情包：切换到自定义 tab
+      // 单个贴纸：切换到自定义 tab
       const customTabIndex = tabs.value.findIndex((t: TabItem) => t.type === 'custom')
       if (customTabIndex >= 0) {
         selectedTabIndex.value = customTabIndex
@@ -593,26 +593,26 @@ const handleConfirmAdd = async () => {
   }
 }
 
-// 加载套件下的表情包
+// 加载贴纸包下的贴纸
 const loadSuitePacks = async (suiteId: string) => {
   if (suitePacksCache.value[suiteId]) {
-    console.log('套件已缓存，跳过加载:', suiteId)
+    console.log('贴纸包已缓存，跳过加载:', suiteId)
     return // 已缓存，不需要重新加载
   }
   if (loadingSuitePacks.value[suiteId]) {
-    console.log('套件正在加载中，跳过重复加载:', suiteId)
+    console.log('贴纸包正在加载中，跳过重复加载:', suiteId)
     return // 正在加载中，避免重复加载
   }
   try {
-    console.log('开始加载套件表情包:', suiteId)
+    console.log('开始加载贴纸包贴纸:', suiteId)
     // 使用响应式方式更新加载状态
     loadingSuitePacks.value[suiteId] = true
     loadingSuitePacks.value = { ...loadingSuitePacks.value }
     const suitePacks = await api.emojiPack.getSuitePacks(suiteId)
-    console.log('套件表情包加载成功（原始数据）:', suiteId, JSON.stringify(suitePacks, null, 2))
-    // 详细打印每个表情包的数据结构
+    console.log('贴纸包贴纸加载成功（原始数据）:', suiteId, JSON.stringify(suitePacks, null, 2))
+    // 详细打印每个贴纸的数据结构
     suitePacks.forEach((pack, index) => {
-      console.log(`表情包 ${index} 详细信息:`, {
+      console.log(`贴纸 ${index} 详细信息:`, {
         packId: pack.pack?.id,
         packName: pack.pack?.name,
         itemsType: typeof pack.items,
@@ -626,10 +626,10 @@ const loadSuitePacks = async (suiteId: string) => {
     suitePacksCache.value[suiteId] = suitePacks
     // 触发响应式更新 - 通过重新赋值整个对象
     suitePacksCache.value = { ...suitePacksCache.value }
-    console.log('套件缓存已更新:', suitePacksCache.value)
-    console.log('验证缓存中的套件数据:', suitePacksCache.value[suiteId])
+    console.log('贴纸包缓存已更新:', suitePacksCache.value)
+    console.log('验证缓存中的贴纸包数据:', suitePacksCache.value[suiteId])
   } catch (error) {
-    console.error('加载套件表情包失败:', suiteId, error)
+    console.error('加载贴纸包贴纸失败:', suiteId, error)
     suitePacksCache.value[suiteId] = []
     // 触发响应式更新
     suitePacksCache.value = { ...suitePacksCache.value }
@@ -640,7 +640,7 @@ const loadSuitePacks = async (suiteId: string) => {
   }
 }
 
-// 加载用户表情包
+// 加载用户贴纸
 const loadUserPacks = async () => {
   loadingPacks.value = true
   try {
@@ -652,21 +652,21 @@ const loadUserPacks = async () => {
       items: item.items || []
     }))
     console.log('loadUserPacks: 处理后的 userPacks:', userPacks.value)
-    // 打印每个表情包的 items 信息
+    // 打印每个贴纸的 items 信息
     userPacks.value.forEach((pack: EmojiPack, index: number) => {
-      console.log(`表情包 ${index}: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}`)
+      console.log(`贴纸 ${index}: id=${pack.id}, name=${pack.name}, pack_type=${pack.pack_type}, items数量=${pack.items?.length || 0}`)
       if (pack.items && pack.items.length > 0) {
         console.log(`  表情项:`, pack.items.map((i: EmojiItem) => ({ id: i.id, name: i.name, image_url: i.image_url })))
       }
     })
-    // 不清空套件缓存，保留已加载的套件数据
-    // 只在需要时重新加载特定套件
+    // 不清空贴纸包缓存，保留已加载的贴纸包数据
+    // 只在需要时重新加载特定贴纸包
     // suitePacksCache.value = {}
     // loadingSuitePacks.value = {}
-    // 不预加载套件，改为按需加载（点击 tab 时再加载）
+    // 不预加载贴纸包，改为按需加载（点击 tab 时再加载）
     // 这样可以避免预加载失败导致的问题，并且提升初始加载速度
   } catch (error) {
-    console.error('加载表情包失败:', error)
+    console.error('加载贴纸失败:', error)
     userPacks.value = []
   } finally {
     loadingPacks.value = false
@@ -695,7 +695,7 @@ const handleRemoveFavorite = async (item: EmojiDisplayItem) => {
   }
 }
 
-// 监听 show 变化，显示时加载表情包
+// 监听 show 变化，显示时加载贴纸
 watch(() => props.show, (newVal) => {
   if (newVal) {
     loadUserPacks()
@@ -705,16 +705,16 @@ watch(() => props.show, (newVal) => {
   }
 })
 
-// 监听 tab 切换，切换到套件 tab 时确保加载数据
+// 监听 tab 切换，切换到贴纸包 tab 时确保加载数据
 watch(selectedTabIndex, (newIndex) => {
   const tab = tabs.value[newIndex]
   console.log('Tab 切换:', newIndex, tab)
   if (tab?.type === 'pack' && tab.pack) {
-    // 切换到套件 tab 时，如果缓存中没有数据，主动加载
+    // 切换到贴纸包 tab 时，如果缓存中没有数据，主动加载
     const suiteId = tab.pack.id
-    console.log('切换到套件 tab，suiteId:', suiteId, '缓存状态:', suitePacksCache.value[suiteId], '加载状态:', loadingSuitePacks.value[suiteId])
+    console.log('切换到贴纸包 tab，suiteId:', suiteId, '缓存状态:', suitePacksCache.value[suiteId], '加载状态:', loadingSuitePacks.value[suiteId])
     if (!suitePacksCache.value[suiteId] && !loadingSuitePacks.value[suiteId]) {
-      console.log('触发套件加载:', suiteId)
+      console.log('触发贴纸包加载:', suiteId)
       loadSuitePacks(suiteId)
     }
   }

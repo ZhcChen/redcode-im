@@ -1,7 +1,7 @@
 <template>
-  <StatisticCard title="表情包统计">
+  <StatisticCard title="贴纸统计">
     <template #extra>
-      <a-tag color="orange">表情</a-tag>
+      <a-tag color="orange">贴纸</a-tag>
     </template>
 
     <a-spin :loading="loading" style="width: 100%">
@@ -12,7 +12,7 @@
             <div class="stat-value">{{
               formatNumber(emojiStats?.totalEmojis || 0)
             }}</div>
-            <div class="stat-label">表情包总数</div>
+            <div class="stat-label">贴纸总数</div>
           </div>
         </div>
 
@@ -32,7 +32,7 @@
             <div class="stat-value">{{
               formatNumber(emojiStats?.popularCount || 0)
             }}</div>
-            <div class="stat-label">热门表情</div>
+            <div class="stat-label">热门贴纸</div>
           </div>
         </div>
       </div>

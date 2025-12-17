@@ -4139,7 +4139,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   bool _searchLoading = false;
   Timer? _searchTimer;
 
-  // 套件相关
+  // 贴纸包相关
   final Map<String, List<EmojiPack>> _suitePacksCache = {};
   final Map<String, bool> _loadingSuitePacks = {};
 
@@ -4190,7 +4190,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
         });
       }
     } catch (e) {
-      debugPrint('搜索表情包失败: $e');
+      debugPrint('搜索贴纸失败: $e');
       if (mounted) {
         setState(() {
           _searchResults = [];
@@ -4207,10 +4207,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     try {
       final service = EmojiPackService();
       final packs = await service.getUserPacks();
-      debugPrint('_loadUserPacks: 加载到 ${packs.length} 个表情包');
+      debugPrint('_loadUserPacks: 加载到 ${packs.length} 个贴纸');
       for (final pack in packs) {
         debugPrint(
-          '  表情包: id=${pack.id}, name=${pack.name}, packType=${pack.packType}, items数量=${pack.items.length}',
+          '  贴纸: id=${pack.id}, name=${pack.name}, packType=${pack.packType}, items数量=${pack.items.length}',
         );
       }
       setState(() {
@@ -4218,7 +4218,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       });
     } catch (e) {
       // 静默失败，不影响表情面板显示
-      debugPrint('加载表情包失败: $e');
+      debugPrint('加载贴纸失败: $e');
     } finally {
       setState(() {
         _loadingPacks = false;
@@ -4238,7 +4238,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     // 自定义表情 tab
     tabs.add(_TabItem(type: _TabType.custom, icon: 'custom', label: '自定义'));
 
-    // 只添加套件（packType === 1）作为动态 tab
+    // 只添加贴纸包（packType === 1）作为动态 tab
     for (final pack in _userPacks) {
       if (pack.packType == 1) {
         tabs.add(
@@ -4346,7 +4346,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // 切换到套件 tab 时，如果缓存中没有数据，主动加载
+    // 切换到贴纸包 tab 时，如果缓存中没有数据，主动加载
     if (tab.type == _TabType.pack && tab.pack != null) {
       final suiteId = tab.pack!.id;
       if (tab.pack!.packType == 1 &&
@@ -4395,7 +4395,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: '搜索表情包或套件...',
+              hintText: '搜索贴纸或贴纸包...',
               prefixIcon: const Icon(Icons.search),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -4422,14 +4422,14 @@ class _EmojiPanelState extends State<_EmojiPanel> {
               : _searchController.text.trim().isEmpty
               ? const Center(
                   child: Text(
-                    '输入关键词搜索表情包或套件',
+                    '输入关键词搜索贴纸或贴纸包',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
               : _searchResults.isEmpty
               ? const Center(
                   child: Text(
-                    '未找到相关表情包',
+                    '未找到相关贴纸',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
@@ -4453,7 +4453,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                           ? Text(pack.description!)
                           : null,
                       trailing: Text(
-                        pack.packType == 1 ? '套件' : '表情包',
+                        pack.packType == 1 ? '贴纸包' : '贴纸',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -4463,10 +4463,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                         // 显示确认对话框
                         final confirmed = await TipDialog.showConfirm(
                           context,
-                          title: pack.packType == 1 ? '添加表情包套件' : '添加表情包',
+                          title: pack.packType == 1 ? '添加贴纸包' : '添加贴纸',
                           content: pack.packType == 1
-                              ? '确定要添加套件"${pack.name}"吗？这将添加套件下的所有表情包。'
-                              : '确定要添加表情包"${pack.name}"到自定义表情吗？',
+                              ? '确定要添加贴纸包"${pack.name}"吗？这将添加贴纸包下的所有贴纸。'
+                              : '确定要添加贴纸"${pack.name}"到自定义表情吗？',
                           confirmText: '确定',
                           cancelText: '取消',
                         );
@@ -4476,18 +4476,18 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                         try {
                           final service = EmojiPackService();
                           if (pack.packType == 1) {
-                            // 套件：使用 addUserSuite
+                            // 贴纸包：使用 addUserSuite
                             final result = await service.addUserSuite(pack.id);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('成功添加 ${result['count']} 个表情包'),
+                                  content: Text('成功添加 ${result['count']} 个贴纸'),
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
                             }
                           } else {
-                            // 单个表情包：使用 addUserPack
+                            // 单个贴纸：使用 addUserPack
                             await service.addUserPack(pack.id);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -4499,10 +4499,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                             }
                           }
 
-                          // 重新加载用户表情包
+                          // 重新加载用户贴纸
                           await _loadUserPacks();
 
-                          // 如果是套件，清除套件缓存以便重新加载
+                          // 如果是贴纸包，清除贴纸包缓存以便重新加载
                           if (pack.packType == 1) {
                             _suitePacksCache.remove(pack.id);
                           }
@@ -4515,7 +4515,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                           // 切换到对应的 tab
                           if (mounted) {
                             if (pack.packType == 1) {
-                              // 套件：切换到套件 tab
+                              // 贴纸包：切换到贴纸包 tab
                               // 需要等待 tabs 更新后再查找
                               await Future.delayed(
                                 const Duration(milliseconds: 100),
@@ -4532,7 +4532,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                                 });
                               }
                             } else {
-                              // 单个表情包：切换到自定义 tab
+                              // 单个贴纸：切换到自定义 tab
                               final tabs = _buildTabs();
                               final customIndex = tabs.indexWhere(
                                 (t) => t.type == _TabType.custom,
@@ -4555,7 +4555,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                             }
                           }
                         } catch (e) {
-                          debugPrint('添加表情包失败: $e');
+                          debugPrint('添加贴纸失败: $e');
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -4603,8 +4603,8 @@ class _EmojiPanelState extends State<_EmojiPanel> {
   }
 
   Widget _buildCustomEmojiGrid() {
-    // 收集所有独立的单个表情包（packType === 0）中的表情项
-    // 排除套件（packType === 1）
+    // 收集所有独立的单个贴纸（packType === 0）中的表情项
+    // 排除贴纸包（packType === 1）
     final allItems = <EmojiItem>[];
     for (final pack in _userPacks) {
       if (pack.packType == 0) {
@@ -4615,7 +4615,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     if (allItems.isEmpty) {
       return const Center(
         child: Text(
-          '暂无自定义表情\n请在设置中添加表情包',
+          '暂无自定义表情\n请在设置中添加贴纸',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textSecondary),
         ),
@@ -4645,14 +4645,14 @@ class _EmojiPanelState extends State<_EmojiPanel> {
 
   Widget _buildPackGrid(EmojiPack pack) {
     if (pack.packType == 1) {
-      // 套件：显示套件下所有子表情包的 icon_url
+      // 贴纸包：显示贴纸包下所有子贴纸的 icon_url
       return _buildSuiteGrid(pack);
     } else {
-      // 单个表情包：显示 pack.items
+      // 单个贴纸：显示 pack.items
       if (pack.items.isEmpty) {
         return const Center(
           child: Text(
-            '此表情包暂无表情',
+            '此贴纸暂无表情',
             style: TextStyle(color: AppColors.textSecondary),
           ),
         );
@@ -4695,14 +4695,14 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     if (suitePacks == null || suitePacks.isEmpty) {
       return const Center(
         child: Text(
-          '该套件暂无表情包\n请先添加表情包到套件',
+          '该贴纸包暂无贴纸\n请先添加贴纸到贴纸包',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textSecondary),
         ),
       );
     }
 
-    // 显示子表情包的 icon_url
+    // 显示子贴纸的 icon_url
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -4727,11 +4727,11 @@ class _EmojiPanelState extends State<_EmojiPanel> {
 
   Future<void> _loadSuitePacks(String suiteId) async {
     if (_suitePacksCache.containsKey(suiteId)) {
-      debugPrint('套件已缓存，跳过加载: $suiteId');
+      debugPrint('贴纸包已缓存，跳过加载: $suiteId');
       return;
     }
     if (_loadingSuitePacks[suiteId] == true) {
-      debugPrint('套件正在加载中，跳过重复加载: $suiteId');
+      debugPrint('贴纸包正在加载中，跳过重复加载: $suiteId');
       return;
     }
 
@@ -4740,10 +4740,10 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     });
 
     try {
-      debugPrint('开始加载套件表情包: $suiteId');
+      debugPrint('开始加载贴纸包贴纸: $suiteId');
       final service = EmojiPackService();
       final suitePacks = await service.getSuitePacks(suiteId);
-      debugPrint('套件表情包加载成功: $suiteId, 数量: ${suitePacks.length}');
+      debugPrint('贴纸包贴纸加载成功: $suiteId, 数量: ${suitePacks.length}');
       if (mounted) {
         setState(() {
           _suitePacksCache[suiteId] = suitePacks;
@@ -4751,7 +4751,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
         });
       }
     } catch (e) {
-      debugPrint('加载套件表情包失败: $suiteId, 错误: $e');
+      debugPrint('加载贴纸包贴纸失败: $suiteId, 错误: $e');
       if (mounted) {
         setState(() {
           _suitePacksCache[suiteId] = [];

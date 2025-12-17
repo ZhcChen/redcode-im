@@ -1,12 +1,12 @@
 <template>
   <div class="emoji-pack-settings-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.emojiPack']" />
-    <a-card class="general-card" title="表情包设置" :bordered="false">
+    <a-card class="general-card" title="贴纸设置" :bordered="false">
       <div class="actions">
         <a-space>
           <a-input-search
             v-model="searchKeyword"
-            placeholder="搜索表情包名称或描述"
+            placeholder="搜索贴纸名称或描述"
             style="width: 300px"
             allow-clear
             @search="handleSearch"
@@ -20,7 +20,7 @@
             <template #icon>
               <icon-plus />
             </template>
-            新增表情包
+            新增贴纸
           </a-button>
           <a-button :loading="listLoading" @click="handleRefresh">
             <template #icon>
@@ -43,13 +43,13 @@
           <img
             v-if="record.icon_url && !isExpiredUrl(record.icon_url)"
             :src="record.icon_url"
-            alt="表情包图标"
+            alt="贴纸图标"
             class="pack-icon"
           />
           <img
             v-else-if="record.icon_url && isExpiredUrl(record.icon_url)"
             :src="getRefreshedUrl(record.icon_url)"
-            alt="表情包图标"
+            alt="贴纸图标"
             class="pack-icon"
           />
           <span v-else class="pack-icon-placeholder">无图标</span>
@@ -57,7 +57,7 @@
 
         <template #pack_type="{ record }">
           <a-tag :color="record.pack_type === 1 ? 'blue' : 'gray'">
-            {{ record.pack_type === 1 ? '套件' : '单个' }}
+            {{ record.pack_type === 1 ? '贴纸包' : '单个' }}
           </a-tag>
         </template>
 
@@ -83,13 +83,13 @@
               size="small"
               @click="handleManageSuitePacks(record)"
             >
-              管理表情包
+              管理贴纸
             </a-button>
             <a-button type="text" size="small" @click="handleEditPack(record)">
               编辑
             </a-button>
             <a-popconfirm
-              content="确定要删除这个表情包吗？删除后所有表情项也会被删除。"
+              content="确定要删除这个贴纸吗？删除后所有表情项也会被删除。"
               @ok="handleDeletePack(record.id)"
             >
               <a-button type="text" size="small" status="danger">
@@ -100,7 +100,7 @@
         </template>
       </a-table>
 
-      <!-- 表情包创建/编辑对话框 -->
+      <!-- 贴纸创建/编辑对话框 -->
       <a-modal
         :visible="packModalVisible"
         :title="packModalTitle"
@@ -118,11 +118,8 @@
           :label-col-props="{ span: 6 }"
           :wrapper-col-props="{ span: 18 }"
         >
-          <a-form-item field="name" label="表情包名称">
-            <a-input
-              v-model="packFormData.name"
-              placeholder="请输入表情包名称"
-            />
+          <a-form-item field="name" label="贴纸名称">
+            <a-input v-model="packFormData.name" placeholder="请输入贴纸名称" />
           </a-form-item>
 
           <a-form-item field="icon_url" label="图标">
@@ -165,35 +162,35 @@
                 >
               </div>
             </div>
-            <template #help> 表情包图标，用于在客户端显示表情包标签 </template>
+            <template #help> 贴纸图标，用于在客户端显示贴纸标签 </template>
           </a-form-item>
 
           <a-form-item field="description" label="描述">
             <a-textarea
               v-model="packFormData.description"
-              placeholder="请输入表情包描述（可选）"
+              placeholder="请输入贴纸描述（可选）"
               :auto-size="{ minRows: 2, maxRows: 4 }"
             />
           </a-form-item>
 
           <a-form-item field="pack_type" label="类型">
             <a-radio-group v-model="packFormData.pack_type">
-              <a-radio :value="0">单个表情包</a-radio>
-              <a-radio :value="1">表情包套件</a-radio>
+              <a-radio :value="0">单个贴纸</a-radio>
+              <a-radio :value="1">贴纸包</a-radio>
             </a-radio-group>
             <template #help>
-              套件可以包含多个表情包，用户添加套件时会添加套件下的所有表情包
+              贴纸包可以包含多个贴纸，用户添加贴纸包时会添加贴纸包下的所有贴纸
             </template>
           </a-form-item>
 
           <a-form-item
             v-if="packFormData.pack_type === 0"
             field="parent_id"
-            label="所属套件"
+            label="所属贴纸包"
           >
             <a-select
               v-model="packFormData.parent_id"
-              placeholder="选择所属套件（可选）"
+              placeholder="选择所属贴纸包（可选）"
               allow-clear
             >
               <a-option
@@ -204,20 +201,20 @@
                 {{ suite.name }}
               </a-option>
             </a-select>
-            <template #help> 如果选择套件，此表情包将归属于该套件 </template>
+            <template #help> 如果选择贴纸包，此贴纸将归属于该贴纸包 </template>
           </a-form-item>
 
           <a-form-item field="is_active" label="状态">
             <a-switch v-model="packFormData.is_active" />
-            <template #help> 启用后用户才能添加此表情包 </template>
+            <template #help> 启用后用户才能添加此贴纸 </template>
           </a-form-item>
         </a-form>
       </a-modal>
 
-      <!-- 套件表情包管理对话框 -->
+      <!-- 贴纸包贴纸管理对话框 -->
       <a-modal
         v-model:visible="suitePackModalVisible"
-        title="管理套件表情包"
+        title="管理贴纸包贴纸"
         :width="900"
         :footer="false"
         @cancel="handleSuitePackModalCancel"
@@ -229,7 +226,7 @@
               <template #icon>
                 <icon-plus />
               </template>
-              添加表情包
+              添加贴纸
             </a-button>
           </div>
 
@@ -244,13 +241,13 @@
               <img
                 v-if="record.icon_url && !isExpiredUrl(record.icon_url)"
                 :src="record.icon_url"
-                alt="表情包图标"
+                alt="贴纸图标"
                 class="pack-icon"
               />
               <img
                 v-else-if="record.icon_url && isExpiredUrl(record.icon_url)"
                 :src="getRefreshedUrl(record.icon_url)"
-                alt="表情包图标"
+                alt="贴纸图标"
                 class="pack-icon"
               />
               <span v-else class="pack-icon-placeholder">无图标</span>
@@ -279,7 +276,7 @@
                   编辑
                 </a-button>
                 <a-popconfirm
-                  content="确定要从套件中移除这个表情包吗？"
+                  content="确定要从贴纸包中移除这个贴纸吗？"
                   @ok="handleRemoveFromSuite(record.id)"
                 >
                   <a-button type="text" size="small" status="danger">
@@ -482,7 +479,7 @@
   const packs = ref<EmojiPack[]>([]);
   const searchKeyword = ref('');
   const packModalVisible = ref(false);
-  const packModalTitle = ref('新增表情包');
+  const packModalTitle = ref('新增贴纸');
   const packFormRef = ref();
   const packFormData = reactive({
     name: '',
@@ -490,13 +487,13 @@
     icon_object_key: '',
     description: '',
     is_active: true,
-    pack_type: 0, // 0=单个, 1=套件
+    pack_type: 0, // 0=单个, 1=贴纸包
     parent_id: undefined as string | undefined,
   });
   const editingPackId = ref<string | null>(null);
 
   const packFormRules = {
-    name: [{ required: true, message: '请输入表情包名称' }],
+    name: [{ required: true, message: '请输入贴纸名称' }],
   };
 
   const suites = computed(() => {
@@ -545,7 +542,7 @@
     },
   ];
 
-  // 套件管理相关
+  // 贴纸包管理相关
   const currentSuite = ref<EmojiPack | null>(null);
   const currentSuitePacks = ref<EmojiPack[]>([]);
   const suitePackModalVisible = ref(false);
@@ -634,15 +631,15 @@
     },
   ];
 
-  // 获取表情包列表（只显示顶层的单个表情包和套件，不显示套件的子表情包）
+  // 获取贴纸列表（只显示顶层的单个贴纸和贴纸包，不显示贴纸包的子贴纸）
   const fetchPacks = async (keyword?: string) => {
     try {
       setListLoading(true);
       const { data } = await listAllEmojiPacks(keyword);
-      // 过滤掉有 parent_id 的表情包（套件的子表情包）
+      // 过滤掉有 parent_id 的贴纸（贴纸包的子贴纸）
       packs.value = data.filter((p) => !p.parent_id);
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '获取表情包列表失败');
+      Message.error(error?.response?.data?.message || '获取贴纸列表失败');
     } finally {
       setListLoading(false);
     }
@@ -659,10 +656,10 @@
     fetchPacks();
   };
 
-  // 创建表情包
+  // 创建贴纸
   const handleCreatePack = () => {
     editingPackId.value = null;
-    packModalTitle.value = '新增表情包';
+    packModalTitle.value = '新增贴纸';
     packFormData.name = '';
     packFormData.icon_url = '';
     packFormData.icon_object_key = '';
@@ -673,10 +670,10 @@
     packModalVisible.value = true;
   };
 
-  // 编辑表情包
+  // 编辑贴纸
   const handleEditPack = (pack: EmojiPack) => {
     editingPackId.value = pack.id;
-    packModalTitle.value = '编辑表情包';
+    packModalTitle.value = '编辑贴纸';
     packFormData.name = pack.name;
     packFormData.icon_url = pack.icon_url || '';
     packFormData.icon_object_key = pack.icon_object_key || '';
@@ -687,7 +684,7 @@
     packModalVisible.value = true;
   };
 
-  // 删除表情包
+  // 删除贴纸
   const handleDeletePack = async (packId: string) => {
     try {
       setActionLoading(true);
@@ -701,20 +698,20 @@
     }
   };
 
-  // 获取套件下的表情包列表
+  // 获取贴纸包下的贴纸列表
   const fetchSuitePacks = async (suiteId: string) => {
     try {
       suitePackLoading.value = true;
       const { data } = await getSuitePacks(suiteId);
       currentSuitePacks.value = data;
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '获取套件表情包列表失败');
+      Message.error(error?.response?.data?.message || '获取贴纸包贴纸列表失败');
     } finally {
       suitePackLoading.value = false;
     }
   };
 
-  // 表情包表单提交
+  // 贴纸表单提交
   const handlePackBeforeOk = async (done: (closed: boolean) => void) => {
     if (!packFormRef.value) {
       done(false);
@@ -758,7 +755,7 @@
         Message.success('创建成功');
       }
       await fetchPacks();
-      // 如果是在套件管理弹窗中添加的表情包，需要刷新套件列表
+      // 如果是在贴纸包管理弹窗中添加的贴纸，需要刷新贴纸包列表
       if (
         packFormData.parent_id &&
         currentSuite.value?.id === packFormData.parent_id
@@ -850,7 +847,7 @@
     }
 
     if (!currentPack.value) {
-      Message.error('请先选择表情包');
+      Message.error('请先选择贴纸');
       return false;
     }
 
@@ -896,18 +893,18 @@
     currentPackItems.value = [];
   };
 
-  // 管理套件下的表情包
+  // 管理贴纸包下的贴纸
   const handleManageSuitePacks = async (suite: EmojiPack) => {
     currentSuite.value = suite;
     suitePackModalVisible.value = true;
     await fetchSuitePacks(suite.id);
   };
 
-  // 创建套件下的表情包
+  // 创建贴纸包下的贴纸
   const handleCreateSuitePack = () => {
     if (!currentSuite.value) return;
     editingPackId.value = null;
-    packModalTitle.value = '添加表情包到套件';
+    packModalTitle.value = '添加贴纸到贴纸包';
     packFormData.name = '';
     packFormData.icon_url = '';
     packFormData.description = '';
@@ -917,7 +914,7 @@
     packModalVisible.value = true;
   };
 
-  // 从套件中移除表情包
+  // 从贴纸包中移除贴纸
   const handleRemoveFromSuite = async (packId: string) => {
     try {
       setActionLoading(true);

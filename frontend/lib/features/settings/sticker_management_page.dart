@@ -30,7 +30,7 @@ class _StickerManagementPageState extends State<StickerManagementPage>
   }
 
   Future<void> _loadStickers() async {
-    // 模拟加载表情包数据
+    // 模拟加载贴纸数据
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) {
       setState(() {
@@ -88,7 +88,7 @@ class _StickerManagementPageState extends State<StickerManagementPage>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('默认表情包不可删除')));
+        ).showSnackBar(const SnackBar(content: Text('默认贴纸不可删除')));
       }
       return;
     }
@@ -96,7 +96,7 @@ class _StickerManagementPageState extends State<StickerManagementPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除表情包'),
+        title: const Text('删除贴纸'),
         content: Text('确定要删除"${pack.name}"吗？'),
         actions: [
           TextButton(
@@ -177,7 +177,7 @@ class _StickerManagementPageState extends State<StickerManagementPage>
             ),
             const SizedBox(height: 16),
             const Text(
-              '暂无表情包',
+              '暂无贴纸',
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
@@ -233,7 +233,7 @@ class _StickerManagementPageState extends State<StickerManagementPage>
             Icon(Icons.store_outlined, size: 64, color: Colors.grey.shade300),
             const SizedBox(height: 16),
             const Text(
-              '暂无更多表情包',
+              '暂无更多贴纸',
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
           ],
@@ -296,7 +296,7 @@ class _StickerPackCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 表情包封面
+          // 贴纸封面
           Container(
             width: 48,
             height: 48,
@@ -311,7 +311,7 @@ class _StickerPackCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // 表情包信息
+          // 贴纸信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

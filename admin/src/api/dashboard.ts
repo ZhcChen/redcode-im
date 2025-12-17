@@ -138,7 +138,7 @@ export function getPopularContent(): Promise<{ data: PopularContentData }> {
       },
       {
         id: '3',
-        title: '表情包使用情况',
+        title: '贴纸使用情况',
         clickNumber: '521',
         increases: 7,
       },

@@ -18,9 +18,9 @@ impl EmojiPackStore {
         Self { database }
     }
 
-    // ===== 表情包相关方法 =====
+    // ===== 贴纸相关方法 =====
 
-    /// 创建表情包
+    /// 创建贴纸
     pub async fn create_pack(&self, request: CreateEmojiPackRequest) -> Result<EmojiPack, Error> {
         let pack_id = generate();
         let now = Utc::now();
@@ -64,7 +64,7 @@ impl EmojiPackStore {
         Ok(pack)
     }
 
-    /// 获取所有表情包（管理员用）
+    /// 获取所有贴纸（管理员用）
     pub async fn list_all_packs(&self) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
@@ -79,7 +79,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 获取激活的表情包列表（只返回单个表情包和套件，不返回套件下的子表情包）
+    /// 获取激活的贴纸列表（只返回单个贴纸和贴纸包，不返回贴纸包下的子贴纸）
     pub async fn list_active_packs(&self) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
@@ -96,7 +96,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 获取套件下的所有表情包（管理员用，包括未激活的）
+    /// 获取贴纸包下的所有贴纸（管理员用，包括未激活的）
     pub async fn list_packs_by_parent(&self, parent_id: Uuid) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
@@ -113,7 +113,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 搜索表情包和套件（用户用，只搜索激活的）
+    /// 搜索贴纸和贴纸包（用户用，只搜索激活的）
     pub async fn search_packs(&self, keyword: &str) -> Result<Vec<EmojiPack>, Error> {
         let search_pattern = format!("%{}%", keyword);
         let packs = query_as::<_, EmojiPack>(
@@ -135,7 +135,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 搜索所有表情包和套件（管理员用，包括未激活的）
+    /// 搜索所有贴纸和贴纸包（管理员用，包括未激活的）
     pub async fn search_all_packs(&self, keyword: &str) -> Result<Vec<EmojiPack>, Error> {
         let search_pattern = format!("%{}%", keyword);
         let packs = query_as::<_, EmojiPack>(
@@ -155,7 +155,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 根据 ID 获取表情包
+    /// 根据 ID 获取贴纸
     pub async fn get_pack_by_id(&self, pack_id: Uuid) -> Result<Option<EmojiPack>, Error> {
         let pack = query_as::<_, EmojiPack>(
             r#"
@@ -171,7 +171,7 @@ impl EmojiPackStore {
         Ok(pack)
     }
 
-    /// 更新表情包
+    /// 更新贴纸
     pub async fn update_pack(
         &self,
         pack_id: Uuid,
@@ -243,7 +243,7 @@ impl EmojiPackStore {
         Ok(pack)
     }
 
-    /// 删除表情包
+    /// 删除贴纸
     pub async fn delete_pack(&self, pack_id: Uuid) -> Result<bool, Error> {
         let result = sqlx::query(
             r#"
@@ -288,7 +288,7 @@ impl EmojiPackStore {
         Ok(item)
     }
 
-    /// 获取表情包的所有表情项
+    /// 获取贴纸的所有表情项
     pub async fn list_items_by_pack(&self, pack_id: Uuid) -> Result<Vec<EmojiItem>, Error> {
         tracing::debug!("查询表情项: pack_id={}", pack_id);
         let items = query_as::<_, EmojiItem>(
@@ -377,9 +377,9 @@ impl EmojiPackStore {
         Ok(result.rows_affected() > 0)
     }
 
-    // ===== 用户表情包关联相关方法 =====
+    // ===== 用户贴纸关联相关方法 =====
 
-    /// 获取用户的表情包列表（返回单个表情包和套件）
+    /// 获取用户的贴纸列表（返回单个贴纸和贴纸包）
     pub async fn list_user_packs(&self, user_id: Uuid) -> Result<Vec<EmojiPack>, Error> {
         let packs = query_as::<_, EmojiPack>(
             r#"
@@ -398,7 +398,7 @@ impl EmojiPackStore {
         Ok(packs)
     }
 
-    /// 添加套件下的所有表情包到用户
+    /// 添加贴纸包下的所有贴纸到用户
     pub async fn add_suite_packs_to_user(
         &self,
         user_id: Uuid,
@@ -407,7 +407,7 @@ impl EmojiPackStore {
         let now = Utc::now();
         let mut count = 0;
 
-        // 首先添加套件本身到用户表情包列表
+        // 首先添加贴纸包本身到用户贴纸列表
         let suite_exists = self.has_user_pack(user_id, suite_id).await?;
         if !suite_exists {
             sqlx::query(
@@ -424,20 +424,20 @@ impl EmojiPackStore {
             .await?;
         }
 
-        // 获取套件下的所有表情包（只添加激活的）
+        // 获取贴纸包下的所有贴纸（只添加激活的）
         let child_packs = self.list_packs_by_parent(suite_id).await?;
         tracing::info!(
-            "套件下找到表情包数量: {}, suite_id={}, user_id={}",
+            "贴纸包下找到贴纸数量: {}, suite_id={}, user_id={}",
             child_packs.len(),
             suite_id,
             user_id
         );
 
         for pack in child_packs {
-            // 只添加激活的表情包
+            // 只添加激活的贴纸
             if pack.is_active != EmojiPackStatus::Active {
                 tracing::debug!(
-                    "跳过未激活的表情包: pack_id={}, pack_name={}",
+                    "跳过未激活的贴纸: pack_id={}, pack_name={}",
                     pack.id,
                     pack.name
                 );
@@ -460,14 +460,14 @@ impl EmojiPackStore {
                 .await?;
                 count += 1;
                 tracing::info!(
-                    "添加表情包到用户: pack_id={}, pack_name={}, user_id={}",
+                    "添加贴纸到用户: pack_id={}, pack_name={}, user_id={}",
                     pack.id,
                     pack.name,
                     user_id
                 );
             } else {
                 tracing::debug!(
-                    "表情包已存在，跳过: pack_id={}, pack_name={}, user_id={}",
+                    "贴纸已存在，跳过: pack_id={}, pack_name={}, user_id={}",
                     pack.id,
                     pack.name,
                     user_id
@@ -476,7 +476,7 @@ impl EmojiPackStore {
         }
 
         tracing::info!(
-            "添加套件完成: suite_id={}, user_id={}, 新增表情包数量={}",
+            "添加贴纸包完成: suite_id={}, user_id={}, 新增贴纸数量={}",
             suite_id,
             user_id,
             count
@@ -484,7 +484,7 @@ impl EmojiPackStore {
         Ok(count)
     }
 
-    /// 添加用户表情包
+    /// 添加用户贴纸
     pub async fn add_user_pack(
         &self,
         user_id: Uuid,
@@ -525,7 +525,7 @@ impl EmojiPackStore {
         }
     }
 
-    /// 删除用户表情包
+    /// 删除用户贴纸
     pub async fn remove_user_pack(&self, user_id: Uuid, pack_id: Uuid) -> Result<bool, Error> {
         let result = sqlx::query(
             r#"
@@ -541,7 +541,7 @@ impl EmojiPackStore {
         Ok(result.rows_affected() > 0)
     }
 
-    /// 检查用户是否已添加表情包
+    /// 检查用户是否已添加贴纸
     pub async fn has_user_pack(&self, user_id: Uuid, pack_id: Uuid) -> Result<bool, Error> {
         let result = sqlx::query(
             r#"

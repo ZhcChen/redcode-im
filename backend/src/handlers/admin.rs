@@ -4518,7 +4518,7 @@ pub async fn cleanup_all_app_data(
 
     // ⚠️  以下表被故意排除在清理列表之外（系统配置/管理数据）：
     // 1. storage_providers - 文件上传提供商配置（保留系统存储配置）
-    // 2. emoji_packs, emoji_pack_items, user_emoji_packs - 表情包相关（系统资源）
+    // 2. emoji_packs, emoji_pack_items, user_emoji_packs - 贴纸相关（系统资源）
     // 3. ipinfo_tokens, user_geolocations - IP地理位置Token管理（系统服务配置）
     // 4. privacy_policies, user_agreements - 隐私协议和用户协议（法律文档）
     // 5. captcha_settings - 验证码设置（系统安全配置）

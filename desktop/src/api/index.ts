@@ -77,7 +77,7 @@ export const api = {
   // 系统设置相关接口
   settings: SettingsApi,
 
-  // 表情包相关接口
+  // 贴纸相关接口
   emojiPack: EmojiPackApi,
 
   // 通知相关接口

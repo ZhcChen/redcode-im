@@ -27,7 +27,7 @@
  * 3. 服务器推送 → WebSocket 通知
  * 4. 客户端接收 → 更新UI状态
  *
- * @see docs/桌面端/桌面端剩余工作.md - WebSocket 能力
+ * @see docs/desktop/desktop-remaining-tasks.md - WebSocket 能力
  */
 
 import { apiConfig } from '@/api/config';

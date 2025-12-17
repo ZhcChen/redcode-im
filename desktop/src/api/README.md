@@ -18,7 +18,7 @@ api/
 ├── search.ts           # 消息搜索
 ├── version.ts          # 版本检查/下载链接
 ├── settings.ts         # 隐私政策/用户协议/通用设置
-├── emoji-pack.ts       # 表情包
+├── emoji-pack.ts       # 贴纸
 ├── emoji-item.ts       # 表情项
 ├── notification.ts     # 桌面通知（Tauri commands）
 ├── rust-http.ts        # Rust HTTP bridge（Tauri）

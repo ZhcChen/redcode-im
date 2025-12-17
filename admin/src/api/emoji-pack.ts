@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// ========== 表情包相关类型 ==========
+// ========== 贴纸相关类型 ==========
 
 export interface EmojiPack {
   id: string;
@@ -10,7 +10,7 @@ export interface EmojiPack {
   icon_object_key?: string | null;
   description?: string | null;
   is_active: boolean;
-  pack_type: number; // 0=单个, 1=套件
+  pack_type: number; // 0=单个, 1=贴纸包
   parent_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -37,8 +37,8 @@ export interface CreateEmojiPackPayload {
   icon_object_key?: string;
   description?: string;
   is_active?: boolean;
-  pack_type?: number; // 0=单个, 1=套件
-  parent_id?: string; // 套件下的表情包需要指定父套件ID
+  pack_type?: number; // 0=单个, 1=贴纸包
+  parent_id?: string; // 贴纸包下的贴纸需要指定父贴纸包ID
 }
 
 export interface UpdateEmojiPackPayload {
@@ -66,7 +66,7 @@ export interface UpdateEmojiItemPayload {
   sort_order?: number;
 }
 
-// ========== 表情包管理 API ==========
+// ========== 贴纸管理 API ==========
 
 export function listAllEmojiPacks(keyword?: string) {
   const params = keyword ? { keyword } : {};
@@ -113,7 +113,7 @@ export function deleteEmojiItem(itemId: string) {
   return axios.delete(`/api/admin/emoji-items/${itemId}`);
 }
 
-// ========== 套件相关 API ==========
+// ========== 贴纸包相关 API ==========
 
 export function getSuitePacks(suiteId: string) {
   return axios.get<EmojiPack[]>(`/api/admin/emoji-packs?parent_id=${suiteId}`);

@@ -7,7 +7,7 @@ class EmojiPack {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<EmojiItem> items;
-  final int packType; // 0=单个, 1=套件
+  final int packType; // 0=单个, 1=贴纸包
 
   EmojiPack({
     required this.id,
