@@ -418,53 +418,27 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 获取群组的完整详情信息
 - **Handler**: `group_management::get_group_detail`
 
-### 群公告管理
-
-#### 4. 获取公告列表
-- **接口**: `GET /rooms/:room_id/announcements`
-- **权限**: 需要认证
-- **功能**: 获取群组的所有公告
-- **Handler**: `group_management::list_announcements`
-
-#### 5. 创建公告
-- **接口**: `POST /rooms/:room_id/announcements`
-- **权限**: 需要认证（需要管理员权限）
-- **功能**: 发布新的群公告
-- **Handler**: `group_management::create_announcement`
-
-#### 6. 更新公告
-- **接口**: `PATCH /rooms/:room_id/announcements/:announcement_id`
-- **权限**: 需要认证（需要管理员权限）
-- **功能**: 修改群公告内容
-- **Handler**: `group_management::update_announcement`
-
-#### 7. 删除公告
-- **接口**: `DELETE /rooms/:room_id/announcements/:announcement_id`
-- **权限**: 需要认证（需要管理员权限）
-- **功能**: 删除群公告
-- **Handler**: `group_management::delete_announcement`
-
 ### 群规则管理
 
-#### 8. 获取群规则列表
+#### 4. 获取群规则列表
 - **接口**: `GET /rooms/:room_id/rules`
 - **权限**: 需要认证
 - **功能**: 获取群组的所有规则
 - **Handler**: `group_management::list_rules`
 
-#### 9. 创建群规则
+#### 5. 创建群规则
 - **接口**: `POST /rooms/:room_id/rules`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 添加新的群规则
 - **Handler**: `group_management::create_rule`
 
-#### 10. 更新群规则
+#### 6. 更新群规则
 - **接口**: `PATCH /rooms/:room_id/rules/:rule_id`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 修改群规则
 - **Handler**: `group_management::update_rule`
 
-#### 11. 删除群规则
+#### 7. 删除群规则
 - **接口**: `DELETE /rooms/:room_id/rules/:rule_id`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 删除群规则
@@ -472,19 +446,19 @@ Authorization: Bearer <your-jwt-token>
 
 ### 入群申请管理
 
-#### 12. 获取入群申请列表
+#### 8. 获取入群申请列表
 - **接口**: `GET /rooms/:room_id/join-requests`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 获取所有入群申请
 - **Handler**: `group_management::list_join_requests`
 
-#### 13. 创建入群申请
+#### 9. 创建入群申请
 - **接口**: `POST /rooms/:room_id/join-requests`
 - **权限**: 需要认证
 - **功能**: 申请加入群组
 - **Handler**: `group_management::create_join_request`
 
-#### 14. 审核入群申请
+#### 10. 审核入群申请
 - **接口**: `PATCH /rooms/:room_id/join-requests/:request_id/review`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 批准或拒绝入群申请
@@ -492,13 +466,13 @@ Authorization: Bearer <your-jwt-token>
 
 ### 群邀请管理
 
-#### 15. 创建群邀请
+#### 11. 创建群邀请
 - **接口**: `POST /rooms/:room_id/invitations`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 邀请用户加入群组
 - **Handler**: `group_management::create_invitations`
 
-#### 16. 响应群邀请
+#### 12. 响应群邀请
 - **接口**: `PATCH /rooms/:room_id/invitations/:invitation_id/respond`
 - **权限**: 需要认证
 - **功能**: 接受或拒绝群邀请
@@ -506,19 +480,19 @@ Authorization: Bearer <your-jwt-token>
 
 ### 管理员管理
 
-#### 17. 获取管理员列表
+#### 13. 获取管理员列表
 - **接口**: `GET /rooms/:room_id/admins`
 - **权限**: 需要认证
 - **功能**: 获取群组的所有管理员
 - **Handler**: `group_management::list_admins`
 
-#### 18. 任命管理员
+#### 14. 任命管理员
 - **接口**: `POST /rooms/:room_id/admins`
 - **权限**: 需要认证（需要群主权限）
 - **功能**: 将成员设置为管理员
 - **Handler**: `group_management::appoint_admin`
 
-#### 19. 移除管理员
+#### 15. 移除管理员
 - **接口**: `DELETE /rooms/:room_id/admins/:admin_id`
 - **权限**: 需要认证（需要群主权限）
 - **功能**: 取消成员的管理员身份
@@ -526,19 +500,19 @@ Authorization: Bearer <your-jwt-token>
 
 ### 禁言管理
 
-#### 20. 禁言用户
+#### 16. 禁言用户
 - **接口**: `POST /rooms/:room_id/mutes`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 禁言指定用户
 - **Handler**: `group_management::mute_user`
 
-#### 21. 获取禁言列表
+#### 17. 获取禁言列表
 - **接口**: `GET /rooms/:room_id/mutes`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 获取所有被禁言的用户
 - **Handler**: `group_management::list_muted_users`
 
-#### 22. 解除禁言
+#### 18. 解除禁言
 - **接口**: `DELETE /rooms/:room_id/mutes/:muted_user_id`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 解除用户禁言
@@ -546,7 +520,7 @@ Authorization: Bearer <your-jwt-token>
 
 ### 操作日志
 
-#### 23. 获取操作日志
+#### 19. 获取操作日志
 - **接口**: `GET /rooms/:room_id/operation-logs`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 获取群组的管理操作记录
