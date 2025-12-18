@@ -7,7 +7,8 @@ use axum::{
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
-    healthz, message, message_read, message_search, room, root, settings, user, version, ws,
+    healthz, message, message_read, message_search, report, room, root, settings, user, version,
+    ws,
 };
 use crate::AppState;
 
@@ -30,6 +31,11 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/versions/hot-update/report",
+            post(version::report_hot_update_event),
+        )
+        // 兼容旧客户端（桌面端/移动端）上报路径
+        .route(
+            "/versions/hot-update-events",
             post(version::report_hot_update_event),
         )
         .route("/auth/register", post(auth::register))
@@ -111,6 +117,7 @@ pub fn create_routes() -> Router<AppState> {
             patch(admin::update_user_status),
         )
         .route("/api/admin/feedbacks", get(admin::list_feedbacks))
+        .route("/api/admin/reports", get(report::list_reports_admin))
         // 权限管理API
         .route("/api/admin/permissions", get(admin::get_permissions))
         .route("/api/admin/roles", get(admin::get_roles))
@@ -320,6 +327,16 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/me", get(auth::get_current_user))
         .route("/auth/password/reset", post(auth::reset_password_with_sms))
         .route("/feedbacks", post(feedback::submit_feedback))
+        // 举报（群聊/用户）
+        .route(
+            "/reports/attachments/signature",
+            post(report::generate_report_attachment_signature),
+        )
+        .route(
+            "/reports/attachments/commit",
+            post(report::commit_report_attachment_upload),
+        )
+        .route("/reports", post(report::create_report))
         // activity logs
         .route(
             "/activity/heartbeat",

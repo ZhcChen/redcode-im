@@ -242,18 +242,19 @@ impl FileUploadStore {
     pub async fn is_object_key_referenced(&self, object_key: &str) -> Result<bool, Error> {
         let exists: Option<(i32,)> = sqlx::query_as(
             r#"
-            SELECT 1
-            WHERE
-                EXISTS (SELECT 1 FROM users WHERE avatar_object_key = $1 LIMIT 1)
-                OR EXISTS (SELECT 1 FROM rooms WHERE avatar_object_key = $1 LIMIT 1)
-                OR EXISTS (SELECT 1 FROM emoji_packs WHERE icon_object_key = $1 LIMIT 1)
-                OR EXISTS (SELECT 1 FROM emoji_items WHERE image_object_key = $1 LIMIT 1)
-                OR EXISTS (SELECT 1 FROM app_versions WHERE download_key = $1 LIMIT 1)
-                OR EXISTS (SELECT 1 FROM hot_updates WHERE download_key = $1 LIMIT 1)
-                OR EXISTS (
-                    SELECT 1
-                    FROM message_parts mp
-                    JOIN messages m ON m.id = mp.message_id
+	            SELECT 1
+	            WHERE
+	                EXISTS (SELECT 1 FROM users WHERE avatar_object_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM rooms WHERE avatar_object_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM emoji_packs WHERE icon_object_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM emoji_items WHERE image_object_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM app_versions WHERE download_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM hot_updates WHERE download_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM report_attachments WHERE object_key = $1 LIMIT 1)
+	                OR EXISTS (
+	                    SELECT 1
+	                    FROM message_parts mp
+	                    JOIN messages m ON m.id = mp.message_id
                     WHERE m.deleted_at IS NULL
                       AND (mp.attachment_key = $1 OR mp.thumbnail_key = $1)
                     LIMIT 1

@@ -9,6 +9,7 @@ pub mod group_management;
 pub mod message;
 pub mod message_read;
 pub mod message_search;
+pub mod report;
 pub mod room;
 pub mod settings;
 pub mod user;

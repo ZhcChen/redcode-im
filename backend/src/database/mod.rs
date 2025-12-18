@@ -11,6 +11,7 @@ pub mod member_with_user_info;
 pub mod message_read_store;
 pub mod message_store;
 pub mod models;
+pub mod report_store;
 pub mod room_store;
 pub mod settings_store;
 pub mod storage_provider_store;
@@ -72,6 +73,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251215120000_add_app_store_url_to_app_versions.sql"
+        )),
+    ),
+    // 2025-12-18：举报（群聊/用户）与截图附件记录表
+    (
+        "20251218120000_create_reports.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251218120000_create_reports.sql"
         )),
     ),
 ];
