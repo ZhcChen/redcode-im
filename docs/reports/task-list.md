@@ -75,8 +75,8 @@
 - 逻辑: `handleConfirmRemoveMembers` 使用 `Promise.allSettled` 批量调用 `MessageApi.removeGroupMember({ roomId, userId })`，统计成功/失败并刷新群成员
 
 #### 4.3 举报功能
-- UI: `GroupSettingsDrawer.vue` 触发 `@report-group` 事件，`Chat.vue::handleReportGroup` 打开 `ReportDialog`
-- 逻辑: `handleConfirmReport` 校验原因后调用 `MessageApi.reportGroup({ roomId, reason })`，成功后关闭对话框并提示
+- UI: `GroupSettingsDrawer.vue` 触发 `@report-group` 事件（群聊/单聊共用），`Chat.vue::handleReportGroup` 打开 `ReportDialog`
+- 逻辑: `handleConfirmReport` 要求“内容 + 至少 1 张截图”必填；截图走 `POST /reports/attachments/signature` 直传 + `POST /reports/attachments/commit`，最后调用 `POST /reports` 提交举报（`target_type=room/user`）
 
 #### 4.4 其他群管理能力
 - 退出群聊: `handleLeaveGroup` 调用 `MessageApi.leaveGroup` 并从聊天列表移除当前群
