@@ -1,0 +1,18 @@
+export default {
+  'report.reporter': '举报人',
+  'report.reporterId': '举报人ID',
+  'report.reporterId.placeholder': '支持粘贴用户ID精确筛选',
+  'report.targetType': '举报类型',
+  'report.targetType.placeholder': '选择 room/user（可不选）',
+  'report.targetId': '举报对象ID',
+  'report.targetId.placeholder': '群聊ID或用户ID（可不选）',
+  'report.keyword': '关键词',
+  'report.keyword.placeholder': '举报内容、举报人/目标名称',
+  'report.content': '举报内容',
+  'report.attachments': '截图',
+  'report.createdAt': '提交时间',
+  'report.search': '搜索',
+  'report.reset': '重置',
+  'report.target.room': '群聊',
+  'report.target.user': '用户',
+};

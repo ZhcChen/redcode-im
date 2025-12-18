@@ -33,6 +33,16 @@ const USER_MANAGEMENT: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'reports',
+      name: 'UserReports',
+      component: () => import('@/views/report/list/index.vue'),
+      meta: {
+        locale: 'menu.userManagement.reports',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
+    {
       path: 'chat-history',
       name: 'UserChatHistoryList',
       component: () => import('@/views/chat-history/list/index.vue'),

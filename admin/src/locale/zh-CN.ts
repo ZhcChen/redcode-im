@@ -9,6 +9,7 @@ import localeUserManagement from '@/views/user-management/list/locale/zh-CN';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/zh-CN';
 import localeChatHistory from '@/views/chat-history/locale/zh-CN';
 import localeFeedback from '@/views/feedback/list/locale/zh-CN';
+import localeReport from '@/views/report/list/locale/zh-CN';
 /** simple end */
 import localeSettings from './zh-CN/settings';
 
@@ -20,6 +21,7 @@ export default {
   'menu.userManagement': '用户管理',
   'menu.userManagement.list': '用户列表',
   'menu.userManagement.feedback': '用户反馈',
+  'menu.userManagement.reports': '举报记录',
   'menu.userManagement.chatHistory': '用户聊天记录',
   'menu.chatHistory.room': '房间聊天记录',
   'menu.chatHistory.user': '用户聊天记录',
@@ -58,5 +60,6 @@ export default {
   ...localeCaptchaSettings,
   ...localeChatHistory,
   ...localeFeedback,
+  ...localeReport,
   /** simple end */
 };
