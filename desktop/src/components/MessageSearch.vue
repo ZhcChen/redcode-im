@@ -195,6 +195,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { SearchApi, SearchUtils, type MessageSearchResult, type SearchParams, type SearchStats } from '@/api/search';
+import { searchMessagesFromServer } from '@/api/message-search';
 import ScrollContainer from './ScrollContainer.vue';
 
 // Props
@@ -223,6 +224,10 @@ const searchStats = ref<SearchStats | null>(null);
 const isLoadingMore = ref(false);
 const hasMoreResults = ref(false);
 const currentOffset = ref(0);
+const serverOffset = ref(0);
+const hasMoreLocalResults = ref(false);
+const hasMoreServerResults = ref(false);
+const searchSequence = ref(0);
 
 // 过滤器
 const showFilters = ref(false);
@@ -256,6 +261,55 @@ const groupedResults = computed(() => {
   return SearchResultsUtils.groupResultsByDate(searchResults.value);
 });
 
+const mergeResults = (incoming: MessageSearchResult[]) => {
+  if (!incoming.length) return;
+  const exists = new Set(searchResults.value.map((item) => item.id));
+  const toAppend = incoming.filter((item) => !exists.has(item.id));
+  if (toAppend.length) {
+    searchResults.value.push(...toAppend);
+  }
+};
+
+const refreshHasMore = () => {
+  hasMoreResults.value = hasMoreLocalResults.value || hasMoreServerResults.value;
+};
+
+const syncServerResults = async (
+  baseParams: SearchParams,
+  offset: number,
+  seq: number,
+) => {
+  try {
+    const params: SearchParams = {
+      ...baseParams,
+      offset,
+    };
+    const { results, stats, hasMore } = await searchMessagesFromServer(params);
+
+    if (seq !== searchSequence.value) {
+      return;
+    }
+
+    mergeResults(results);
+
+    // 服务端 total 更接近真实全量结果数，优先用它更新 totalResults（不影响本地秒开体验）
+    if (searchStats.value) {
+      searchStats.value = {
+        ...searchStats.value,
+        totalResults: Math.max(searchStats.value.totalResults, stats.totalResults),
+      };
+    } else {
+      searchStats.value = stats;
+    }
+
+    hasMoreServerResults.value = hasMore;
+    serverOffset.value = offset + results.length;
+    refreshHasMore();
+  } catch (error) {
+    // 静默失败：本地索引结果仍可用
+  }
+};
+
 // 方法
 const handleSearchInput = () => {
   selectedIndex.value = -1;
@@ -275,6 +329,12 @@ const handleSearch = async () => {
   isSearching.value = true;
   searchResults.value = [];
   currentOffset.value = 0;
+  serverOffset.value = 0;
+  hasMoreLocalResults.value = false;
+  hasMoreServerResults.value = false;
+  hasMoreResults.value = false;
+  searchSequence.value += 1;
+  const seq = searchSequence.value;
 
   try {
     const params = SearchUtils.buildSearchQuery(searchQuery.value, filters.value);
@@ -282,8 +342,12 @@ const handleSearch = async () => {
 
     searchResults.value = results;
     searchStats.value = stats;
-    hasMoreResults.value = results.length === params.limit;
+    hasMoreLocalResults.value = results.length === params.limit;
     currentOffset.value = results.length;
+    refreshHasMore();
+
+    // 静默融合服务端搜索：本地结果先展示，服务端结果随后补全
+    void syncServerResults(params, 0, seq);
   } catch (error) {
   } finally {
     isSearching.value = false;
@@ -297,13 +361,23 @@ const loadMoreResults = async () => {
 
   try {
     const params = SearchUtils.buildSearchQuery(searchQuery.value, filters.value);
-    params.offset = currentOffset.value;
+    const seq = searchSequence.value;
 
-    const [results] = await SearchApi.searchMessages(params);
+    // 1) 优先加载本地索引
+    if (hasMoreLocalResults.value) {
+      params.offset = currentOffset.value;
+      const [results] = await SearchApi.searchMessages(params);
+      mergeResults(results);
+      currentOffset.value += results.length;
+      hasMoreLocalResults.value = results.length === params.limit;
+      refreshHasMore();
+      return;
+    }
 
-    searchResults.value.push(...results);
-    currentOffset.value += results.length;
-    hasMoreResults.value = results.length === params.limit;
+    // 2) 本地无更多时，继续从服务端拉取（静默补全更多历史）
+    if (hasMoreServerResults.value) {
+      await syncServerResults(params, serverOffset.value, seq);
+    }
   } catch (error) {
   } finally {
     isLoadingMore.value = false;
