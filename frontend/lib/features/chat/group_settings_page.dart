@@ -996,26 +996,365 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   void _showReportDialog(BuildContext context) {
     final controller = TextEditingController();
+    final picker = ImagePicker();
+    final maxAttachments = 3;
+
+    final attachments = <XFile>[];
+    bool submitting = false;
+    StateSetter? setDialogState;
+
+    final isGroup = widget.chat.type == ChatType.group;
+
     TipDialog.showConfirm(
       context,
-      title: '确定要举报他吗？',
-      contentWidget: TextField(
-        controller: controller,
-        maxLines: 4,
-        maxLength: 500,
-        decoration: const InputDecoration(
-          hintText: '请输入举报内容',
-          border: OutlineInputBorder(),
-        ),
+      title: isGroup ? '确定要举报该群聊吗？' : '确定要举报该用户吗？',
+      contentWidget: StatefulBuilder(
+        builder: (context, setState) {
+          setDialogState = setState;
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '恶意举报将受到处罚，请谨慎操作',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 4,
+                maxLength: 500,
+                enabled: !submitting,
+                decoration: const InputDecoration(
+                  hintText: '请输入举报内容（必填）',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: submitting || attachments.length >= maxAttachments
+                          ? null
+                          : () async {
+                              try {
+                                final files = await picker.pickMultiImage(
+                                  imageQuality: 85,
+                                );
+                                if (files.isEmpty) return;
+                                setState(() {
+                                  final remaining =
+                                      maxAttachments - attachments.length;
+                                  attachments.addAll(files.take(remaining));
+                                });
+                              } catch (error) {
+                                if (!mounted) return;
+                                _showSnackBar('打开相册失败: $error');
+                              }
+                            },
+                      icon: const Icon(Icons.photo_library),
+                      label: const Text('选择截图'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: submitting || attachments.length >= maxAttachments
+                          ? null
+                          : () async {
+                              try {
+                                final picked = await picker.pickImage(
+                                  source: ImageSource.camera,
+                                  imageQuality: 85,
+                                );
+                                if (picked == null) return;
+                                setState(() {
+                                  if (attachments.length < maxAttachments) {
+                                    attachments.add(picked);
+                                  }
+                                });
+                              } catch (error) {
+                                if (!mounted) return;
+                                _showSnackBar('打开相机失败: $error');
+                              }
+                            },
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('拍照'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '已选择 ${attachments.length}/$maxAttachments 张（必填）',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              if (attachments.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: attachments.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final file = entry.value;
+                    return Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(file.path),
+                            width: 64,
+                            height: 64,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 24,
+                              minHeight: 24,
+                            ),
+                            icon: const Icon(Icons.cancel, size: 18, color: Colors.red),
+                            onPressed: submitting
+                                ? null
+                                : () {
+                                    setState(() {
+                                      attachments.removeAt(index);
+                                    });
+                                  },
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ],
+              if (submitting) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: const [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '提交中...',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          );
+        },
       ),
-      confirmText: '确定',
+      confirmText: '提交举报',
       cancelText: '再想想',
       confirmDanger: true,
+      barrierDismissible: !submitting,
       onConfirm: () async {
-        debugPrint('Report submitted: ${controller.text}');
-        return true;
+        if (submitting) {
+          return false;
+        }
+
+        final content = controller.text.trim();
+        if (content.isEmpty) {
+          _showSnackBar('请输入举报内容');
+          return false;
+        }
+
+        if (attachments.isEmpty) {
+          _showSnackBar('请至少上传 1 张截图');
+          return false;
+        }
+
+        setDialogState?.call(() => submitting = true);
+        try {
+          await _submitReport(content: content, attachments: attachments);
+          if (!mounted) return false;
+          _showSnackBar('举报已提交，感谢你的反馈');
+          return true;
+        } catch (error) {
+          if (!mounted) return false;
+          _showSnackBar('举报失败: $error');
+          return false;
+        } finally {
+          setDialogState?.call(() => submitting = false);
+        }
       },
     );
+  }
+
+  String? _extractReportTargetUserId() {
+    if (widget.chat.type != ChatType.single) return null;
+    final extra = widget.chat.extra ?? const <String, dynamic>{};
+
+    final candidates = [
+      extra['friend_id'],
+      extra['friendId'],
+      extra['friend_user_id'],
+      extra['friendUserId'],
+      extra['target_user_id'],
+      extra['targetUserId'],
+      extra['peer_user_id'],
+      extra['peerUserId'],
+      extra['user_id'],
+      extra['userId'],
+    ];
+
+    for (final candidate in candidates) {
+      final value = candidate == null ? null : candidate.toString().trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  Future<String> _uploadReportAttachment({
+    required String token,
+    required File file,
+  }) async {
+    if (!await file.exists()) {
+      throw Exception('未找到截图文件');
+    }
+
+    final contentType = lookupMimeType(file.path) ?? 'application/octet-stream';
+    final fileSize = await file.length();
+    final filename = p.basename(file.path);
+
+    // 1) 获取直传签名
+    final directUri =
+        Uri.parse('${AppConfig.apiBaseUrl}/reports/attachments/signature');
+    final directResponse = await http.post(
+      directUri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'filename': filename,
+        'content_type': contentType,
+        'file_size': fileSize,
+      }),
+    );
+
+    if (directResponse.statusCode != 200) {
+      throw Exception(
+        '获取上传签名失败 (HTTP ${directResponse.statusCode}): ${directResponse.body}',
+      );
+    }
+
+    final directPayload = jsonDecode(directResponse.body) as Map<String, dynamic>;
+    final directSuccess = directPayload['success'] as bool? ?? false;
+    if (!directSuccess) {
+      throw Exception(directPayload['message'] as String? ?? '获取上传签名失败');
+    }
+
+    final key = directPayload['key'] as String?;
+    final signatureMap =
+        directPayload['signature'] as Map<String, dynamic>? ?? {};
+    if (key == null || signatureMap.isEmpty) {
+      throw Exception('上传签名响应不完整');
+    }
+
+    // 2) 直传到 COS
+    final signature = DirectUploadSignature.fromJson(signatureMap);
+    final uploadRequest = http.Request(signature.method, Uri.parse(signature.url));
+    signature.applyHeaders(uploadRequest, defaultContentType: contentType);
+    uploadRequest.bodyBytes = await file.readAsBytes();
+
+    final uploadResponse = await uploadRequest.send();
+    if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
+      final body = await uploadResponse.stream.bytesToString();
+      throw Exception(
+        body.isNotEmpty
+            ? '上传失败: $body'
+            : '上传失败，状态码 ${uploadResponse.statusCode}',
+      );
+    }
+
+    // 3) commit
+    final commitUri = Uri.parse('${AppConfig.apiBaseUrl}/reports/attachments/commit');
+    final commitResponse = await http.post(
+      commitUri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'key': key, 'file_size': fileSize}),
+    );
+
+    if (commitResponse.statusCode != 200) {
+      throw Exception('提交截图信息失败: ${commitResponse.body}');
+    }
+
+    final commitPayload = jsonDecode(commitResponse.body) as Map<String, dynamic>;
+    final commitSuccess = commitPayload['success'] as bool? ?? false;
+    if (!commitSuccess) {
+      throw Exception(commitPayload['message'] as String? ?? '提交截图信息失败');
+    }
+
+    return key;
+  }
+
+  Future<void> _submitReport({
+    required String content,
+    required List<XFile> attachments,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('请先登录');
+    }
+
+    final targetType = widget.chat.type == ChatType.group ? 'room' : 'user';
+    final targetId = targetType == 'room' ? widget.chat.roomId : _extractReportTargetUserId();
+    if (targetId == null || targetId.isEmpty) {
+      throw Exception('无法获取被举报对象 ID');
+    }
+
+    final keys = <String>[];
+    for (final item in attachments) {
+      final file = File(item.path);
+      final key = await _uploadReportAttachment(token: session.token, file: file);
+      keys.add(key);
+    }
+
+    if (keys.isEmpty) {
+      throw Exception('截图上传失败');
+    }
+
+    final reportUri = Uri.parse('${AppConfig.apiBaseUrl}/reports');
+    final reportResponse = await http.post(
+      reportUri,
+      headers: {
+        'Authorization': 'Bearer ${session.token}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'target_type': targetType,
+        'target_id': targetId,
+        'content': content,
+        'attachment_keys': keys,
+      }),
+    );
+
+    if (reportResponse.statusCode != 200) {
+      throw Exception('提交举报失败: ${reportResponse.body}');
+    }
+
+    final reportPayload = jsonDecode(reportResponse.body) as Map<String, dynamic>;
+    final reportSuccess = reportPayload['success'] as bool? ?? false;
+    if (!reportSuccess) {
+      throw Exception(reportPayload['message'] as String? ?? '提交举报失败');
+    }
   }
 
   void _showPickGroupAvatarDialog(BuildContext context) {
