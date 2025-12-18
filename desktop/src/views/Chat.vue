@@ -1094,6 +1094,8 @@
     <!-- 举报群聊对话框 -->
     <ReportDialog
       v-model:visible="showReportDialog"
+      :title="reportDialogTitle"
+      :submitting="isReportingGroup"
       @confirm="handleConfirmReport"
       @close="showReportDialog = false"
     />
@@ -1327,6 +1329,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PinnedMessageBanner from '../components/PinnedMessageBanner.vue'
 import SelectableListDialog from '../components/SelectableListDialog.vue'
 import { api, MessageApi } from '../api'
+import { ReportApi } from '../api/report'
 import { logDebug, logInfo, logWarn } from '@/utils/frontendLogger'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
 import { GroupApi } from '../api/group'
@@ -9418,6 +9421,14 @@ const isRemovingMembers = ref(false)
 const showReportDialog = ref(false)
 const isReportingGroup = ref(false)
 
+const reportDialogTitle = computed(() => {
+  const chat = selectedChat.value
+  if (!chat) return '举报'
+  if (chat.groupType === 1) return '举报群聊'
+  if (chat.groupType === 0) return '举报用户'
+  return '举报'
+})
+
 const handleAddMember = async () => {
   if (!selectedChat.value || selectedChat.value.groupType !== 1) {
     toast.error('请先选择一个群聊')
@@ -9601,43 +9612,103 @@ const confirmClearHistory = async () => {
 }
 
 const handleReportGroup = () => {
-  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
-    toast.error('请先选择一个群聊')
+  if (!selectedChat.value) {
+    toast.error('请先选择一个会话')
+    return
+  }
+  if (selectedChat.value.groupType === 2) {
+    toast.error('收藏夹不支持举报')
     return
   }
   showReportDialog.value = true
 }
 
-// 确认举报群聊
-const handleConfirmReport = async (reason: string) => {
-  if (!selectedChat.value || selectedChat.value.groupType !== 1) {
-    toast.error('请先选择一个群聊')
+// 确认举报（群聊/用户）
+const handleConfirmReport = async (payload: { content: string; attachments: File[] }) => {
+  if (!selectedChat.value) {
+    toast.error('请先选择一个会话')
+    return
+  }
+  if (selectedChat.value.groupType === 2) {
+    toast.error('收藏夹不支持举报')
     return
   }
 
-  if (!reason || !reason.trim()) {
+  const content = payload.content?.trim() || ''
+  if (!content) {
     toast.error('请输入举报原因')
     return
   }
 
+  const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
+  if (attachments.length === 0) {
+    toast.error('请至少上传 1 张截图')
+    return
+  }
+
+  const targetType = selectedChat.value.groupType === 1 ? 'room' : 'user'
+  const targetId =
+    targetType === 'room'
+      ? (selectedChat.value.groupId || selectedChat.value.roomId || selectedChat.value.id)
+      : getPrivateChatPeerId(selectedChat.value)
+
+  if (!targetId) {
+    toast.error('无法获取被举报对象 ID')
+    return
+  }
 
   try {
     isReportingGroup.value = true
 
-    // 调用举报 API
-    const response = await MessageApi.reportGroup({
-      roomId: selectedChat.value.id,
-      reason: reason.trim()
+    const attachmentKeys: string[] = []
+    for (const file of attachments) {
+      const contentType = file.type || 'application/octet-stream'
+      const hashResult = await computeFileHash(file)
+
+      const sigRes = await ReportApi.requestAttachmentSignature({
+        filename: file.name,
+        contentType,
+        fileSize: file.size,
+        hashValue: hashResult.hashValue ?? undefined,
+        hashAlg: hashResult.hashAlg ?? undefined
+      })
+
+      if (!sigRes.success || !sigRes.data) {
+        throw new Error(sigRes.message || '获取截图上传签名失败')
+      }
+      if (!sigRes.data.signature) {
+        throw new Error(sigRes.data.message || '直传签名为空')
+      }
+
+      await uploadWithSignature(sigRes.data.signature, file)
+
+      const commitRes = await ReportApi.commitAttachmentUpload({
+        key: sigRes.data.key,
+        fileSize: file.size,
+        hashValue: hashResult.hashValue ?? undefined,
+        hashAlg: hashResult.hashAlg ?? undefined
+      })
+
+      if (!commitRes.success) {
+        logWarn('Report', '举报截图 commit 失败', { key: sigRes.data.key, message: commitRes.message })
+      }
+
+      attachmentKeys.push(sigRes.data.key)
+    }
+
+    const response = await ReportApi.createReport({
+      targetType,
+      targetId,
+      content,
+      attachmentKeys
     })
 
-    if (response.success) {
-      toast.success('举报已提交，感谢您的反馈')
-
-      // 关闭对话框
-      showReportDialog.value = false
-    } else {
+    if (!response.success) {
       throw new Error(response.message || '举报失败')
     }
+
+    toast.success('举报已提交，感谢你的反馈')
+    showReportDialog.value = false
   } catch (error: any) {
     // 优先使用 API 返回的错误消息
     const errorMessage = error?.response?.message || error?.message || '网络错误';

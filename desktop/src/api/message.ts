@@ -1076,17 +1076,4 @@ export class MessageApi {
       data: null,
     };
   }
-
-  static async reportGroup(params: {
-    roomId: string;
-    reason: string;
-  }): Promise<ApiResponse<null>> {
-    const response = await post(`/rooms/${params.roomId}/report`, {
-      reason: params.reason,
-    });
-    return {
-      ...response,
-      data: null,
-    };
-  }
 }

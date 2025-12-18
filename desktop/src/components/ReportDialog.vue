@@ -1,11 +1,11 @@
 <template>
   <Dialog
     v-model="isVisible"
-    title="举报群聊"
+    :title="title"
     @confirm="handleConfirm"
     @cancel="handleCancel"
-    :confirm-text="isReporting ? '提交中...' : '提交举报'"
-    :confirm-disabled="isReporting || !selectedReason || (selectedReason === 'other' && !customReason.trim())"
+    :confirm-text="submitting ? '提交中...' : '提交举报'"
+    :confirm-disabled="submitting || !selectedReason || (selectedReason === 'other' && !customReason.trim()) || attachments.length === 0"
   >
     <div class="report-content">
       <!-- 警告提示 -->
@@ -44,9 +44,45 @@
           placeholder="请详细描述您的举报原因..."
           maxlength="200"
           rows="4"
-          :disabled="isReporting"
+          :disabled="submitting"
         ></textarea>
         <div class="char-count">{{ customReason.length }}/200</div>
+      </div>
+
+      <!-- 截图（必填） -->
+      <div class="report-section">
+        <div class="section-title">请上传截图（必填）</div>
+        <div class="attachment-actions">
+          <button
+            type="button"
+            class="attachment-add-btn"
+            :disabled="submitting || attachments.length >= maxAttachments"
+            @click="handlePickAttachments"
+          >
+            选择截图
+          </button>
+          <div class="attachment-hint">
+            已选择 {{ attachments.length }}/{{ maxAttachments }} 张
+          </div>
+        </div>
+
+        <div v-if="attachments.length" class="attachment-grid">
+          <div
+            v-for="(item, index) in attachments"
+            :key="item.url"
+            class="attachment-item"
+          >
+            <img class="attachment-thumb" :src="item.url" alt="截图预览" />
+            <button
+              type="button"
+              class="attachment-remove-btn"
+              :disabled="submitting"
+              @click="removeAttachment(index)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- 错误提示 -->
@@ -58,21 +94,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import Dialog from './Dialog.vue'
 
 interface Props {
   visible: boolean
+  title?: string
+  submitting?: boolean
+  maxAttachments?: number
 }
 
 interface Emits {
   (e: 'update:visible', value: boolean): void
-  (e: 'confirm', reason: string): void
+  (e: 'confirm', payload: { content: string; attachments: File[] }): void
   (e: 'close'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  visible: false
+  visible: false,
+  title: '举报',
+  submitting: false,
+  maxAttachments: 3
 })
 
 const emit = defineEmits<Emits>()
@@ -96,8 +138,16 @@ const reportReasons = [
 // 状态
 const selectedReason = ref<string>('')
 const customReason = ref('')
-const isReporting = ref(false)
 const errorMessage = ref('')
+
+type AttachmentPreview = {
+  file: File
+  url: string
+}
+
+const attachments = ref<AttachmentPreview[]>([])
+
+const maxAttachments = computed(() => Math.max(1, props.maxAttachments || 1))
 
 // 选择举报原因
 const handleSelectReason = (value: string) => {
@@ -108,6 +158,73 @@ const handleSelectReason = (value: string) => {
   if (value !== 'other') {
     customReason.value = ''
   }
+}
+
+const handlePickAttachments = () => {
+  if (props.submitting) return
+  if (attachments.value.length >= maxAttachments.value) return
+
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.multiple = true
+  input.style.display = 'none'
+
+  document.body.appendChild(input)
+
+  const cleanup = () => {
+    if (input.parentNode) {
+      document.body.removeChild(input)
+    }
+  }
+
+  input.addEventListener(
+    'change',
+    () => {
+      const files = input.files ? Array.from(input.files) : []
+      addAttachments(files)
+      cleanup()
+    },
+    { once: true }
+  )
+
+  input.addEventListener(
+    'cancel',
+    () => {
+      cleanup()
+    },
+    { once: true }
+  )
+
+  input.click()
+}
+
+const addAttachments = (files: File[]) => {
+  if (!files.length) return
+
+  const remaining = maxAttachments.value - attachments.value.length
+  const candidateFiles = files.slice(0, remaining)
+
+  for (const file of candidateFiles) {
+    if (!file || typeof file.type !== 'string' || !file.type.startsWith('image/')) {
+      continue
+    }
+    const url = URL.createObjectURL(file)
+    attachments.value.push({ file, url })
+  }
+
+  errorMessage.value = ''
+}
+
+const removeAttachment = (index: number) => {
+  const item = attachments.value[index]
+  if (!item) return
+  try {
+    URL.revokeObjectURL(item.url)
+  } catch (_) {
+    // ignore
+  }
+  attachments.value.splice(index, 1)
 }
 
 // 确认举报
@@ -123,6 +240,11 @@ const handleConfirm = () => {
     return
   }
 
+  if (!attachments.value.length) {
+    errorMessage.value = '请至少上传 1 张截图'
+    return
+  }
+
   // 构建举报原因文本
   let reason = ''
   if (selectedReason.value === 'other') {
@@ -132,8 +254,10 @@ const handleConfirm = () => {
     reason = selectedItem?.label || selectedReason.value
   }
 
-  emit('confirm', reason)
-  handleReset()
+  emit('confirm', {
+    content: reason,
+    attachments: attachments.value.map((item) => item.file)
+  })
 }
 
 // 取消
@@ -147,7 +271,16 @@ const handleReset = () => {
   selectedReason.value = ''
   customReason.value = ''
   errorMessage.value = ''
-  isReporting.value = false
+
+  // 清理截图预览 URL
+  for (const item of attachments.value) {
+    try {
+      URL.revokeObjectURL(item.url)
+    } catch (_) {
+      // ignore
+    }
+  }
+  attachments.value = []
 }
 
 // 当对话框关闭时重置状态
@@ -155,6 +288,10 @@ watch(() => props.visible, (newVal) => {
   if (!newVal) {
     handleReset()
   }
+})
+
+onBeforeUnmount(() => {
+  handleReset()
 })
 </script>
 
@@ -289,6 +426,79 @@ watch(() => props.visible, (newVal) => {
   text-align: right;
   font-size: 12px;
   color: #999;
+}
+
+.attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.attachment-add-btn {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  color: #2C2D3A;
+  cursor: pointer;
+  font-size: 14px;
+
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    color: #999;
+  }
+}
+
+.attachment-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+.attachment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.attachment-item {
+  position: relative;
+  width: 100%;
+  padding-top: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+}
+
+.attachment-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  line-height: 22px;
+  text-align: center;
+  font-size: 16px;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
 }
 
 .error-message {
