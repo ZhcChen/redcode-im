@@ -18,6 +18,21 @@ class MessageStorage {
 
   static Future<Database>? _databaseFuture;
 
+  Future<List<String>> listRoomIds() async {
+    final db = await _openDatabase();
+    final rows = await db.rawQuery(
+      'SELECT DISTINCT room_id FROM $_messageTable',
+    );
+    final roomIds = <String>[];
+    for (final row in rows) {
+      final roomId = row['room_id'];
+      if (roomId is String && roomId.isNotEmpty) {
+        roomIds.add(roomId);
+      }
+    }
+    return roomIds;
+  }
+
   Future<List<Message>> loadMessages(String roomId) async {
     if (roomId.isEmpty) {
       return const [];

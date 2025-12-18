@@ -27,6 +27,7 @@ import '../../core/services/emoji_item_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/storage/message_search_storage.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'constants/emoji_list.dart';
@@ -36,6 +37,7 @@ import 'models/message_model.dart';
 import 'models/message_reader.dart';
 import 'group_settings_page.dart';
 import 'pinned_messages_page.dart';
+import 'message_search_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
@@ -49,6 +51,7 @@ class ChatDetailPageV2 extends StatefulWidget {
     this.chatAvatar,
     this.chatType = ChatType.single,
     this.chatProvider,
+    this.initialMessageId,
   });
 
   final String roomId;
@@ -56,6 +59,7 @@ class ChatDetailPageV2 extends StatefulWidget {
   final String? chatAvatar;
   final ChatType chatType;
   final ChatProvider? chatProvider;
+  final String? initialMessageId;
 
   @override
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
@@ -253,6 +257,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       await _loadMemberCount();
       // 加载禁言状态（不使用 await，避免阻塞页面初始化）
       unawaited(_loadMuteStatus());
+    }
+
+    final initialMessageId = widget.initialMessageId?.trim();
+    if (initialMessageId != null && initialMessageId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToMessage(initialMessageId);
+      });
     }
   }
 
@@ -574,7 +586,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 Consumer<ChatProvider>(
                   builder: (context, provider, child) {
                     final pinnedMessage = provider.pinnedMessage;
-                    if (pinnedMessage == null || !provider.messages.contains(pinnedMessage)) {
+                    if (pinnedMessage == null ||
+                        !provider.messages.contains(pinnedMessage)) {
                       return const SizedBox.shrink();
                     }
                     return RepaintBoundary(
@@ -582,7 +595,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       child: _PinnedMessageBanner(
                         message: pinnedMessage,
                         onTap: () => _scrollToMessage(pinnedMessage.id),
-                        onUnpin: () => unawaited(_togglePinMessage(pinnedMessage)),
+                        onUnpin: () =>
+                            unawaited(_togglePinMessage(pinnedMessage)),
                         onIconTap: () => _showPinnedMessagesPanel(),
                       ),
                     );
@@ -722,6 +736,24 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       ),
               ),
 
+              // 搜索按钮
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: _openMessageSearch,
+                  child: const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.search_rounded,
+                      size: 24,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+
               // 更多按钮
               Material(
                 color: Colors.transparent,
@@ -743,6 +775,46 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openMessageSearch() async {
+    final result = await Navigator.of(context).push<MessageSearchResult>(
+      MaterialPageRoute(
+        builder: (_) => MessageSearchPage(initialRoomId: widget.roomId),
+      ),
+    );
+    if (!mounted || result == null) return;
+
+    if (result.roomId == widget.roomId) {
+      _scrollToMessage(result.id);
+      return;
+    }
+
+    Chat? targetChat;
+    try {
+      targetChat = _chatProvider.chats.firstWhere(
+        (c) => c.roomId == result.roomId,
+      );
+    } catch (_) {
+      targetChat = null;
+    }
+
+    if (targetChat == null) {
+      _showErrorSnack('未找到对应会话');
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatDetailPageV2(
+          roomId: targetChat!.roomId,
+          chatName: targetChat.name,
+          chatAvatar: targetChat.avatar,
+          chatType: targetChat.type,
+          initialMessageId: result.id,
+        ),
+      ),
     );
   }
 
@@ -3254,11 +3326,7 @@ class _PinnedMessageBanner extends StatelessWidget {
                 child: const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.push_pin,
-                      size: 18,
-                      color: AppColors.primary,
-                    ),
+                    Icon(Icons.push_pin, size: 18, color: AppColors.primary),
                   ],
                 ),
               ),
