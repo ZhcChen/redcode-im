@@ -481,8 +481,11 @@ pub async fn get_dashboard_storage_stats(
             .fetch_one(pool)
             .await?;
 
+    // Postgres 中 SUM(bigint) 返回 NUMERIC，这里显式 cast 回 BIGINT，确保可解码为 i64。
     let total_size: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(file_size), 0) FROM file_upload_records WHERE status = 1",
+        "SELECT COALESCE(SUM(file_size)::BIGINT, 0::BIGINT)
+         FROM file_upload_records
+         WHERE status = 1",
     )
     .fetch_one(pool)
     .await?;
