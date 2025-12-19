@@ -139,6 +139,34 @@ export function generateVersionUploadSignature(
   );
 }
 
+export interface VersionMultipartInitiateRequest {
+  platform: AppPlatform;
+  channel: string;
+  filename?: string;
+  file_size: number;
+  hash_value?: string;
+  hash_alg?: number;
+  content_type?: string;
+}
+
+export interface VersionMultipartInitiateResponse {
+  success: boolean;
+  message: string;
+  key?: string;
+  session_id?: string;
+  part_size?: number;
+  total_parts?: number;
+}
+
+export function initiateVersionMultipartUpload(
+  payload: VersionMultipartInitiateRequest
+) {
+  return axios.post<VersionMultipartInitiateResponse>(
+    '/api/admin/app-versions/upload/multipart/initiate',
+    payload
+  );
+}
+
 export interface DownloadVersionParams {
   id: string;
   expires_in_seconds?: number;

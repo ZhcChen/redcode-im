@@ -273,6 +273,7 @@
     deleteAppVersion,
     deactivateAppVersion,
     generateVersionUploadSignature,
+    initiateVersionMultipartUpload,
     generateVersionDownloadUrl,
     type AppVersionInfo,
     type CreateAppVersionPayload,
@@ -282,11 +283,14 @@
     PlatformLabels,
   } from '@/api/app-version';
   import { uploadWithSignature } from '@/utils/direct-upload';
+  import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
   import { computeFileHash } from '@/utils/fileHash';
 
   const props = defineProps<{
     platform: 'frontend' | 'desktop';
   }>();
+
+  const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
 
   const platformPresets: Record<'frontend' | 'desktop', AppPlatform[]> = {
     frontend: [AppPlatform.Android, AppPlatform.IOS],
@@ -758,33 +762,81 @@
         hashAlg = null;
       }
 
-      const { data } = await generateVersionUploadSignature({
-        platform: selectedPlatform.value,
-        channel: formState.channel.trim(),
-        filename: file.name,
-        file_size: file.size,
-        hash_value: hashValue ?? undefined,
-        hash_alg: hashAlg ?? undefined,
-      });
-      if (!data.success || !data.key) {
-        throw new Error(data.message || '获取直传签名失败');
-      }
-
-      if (data.signature) {
-        const response = await uploadWithSignature(file, data.signature);
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || '上传失败');
+      if (file.size > MULTIPART_THRESHOLD_BYTES) {
+        const { data } = await initiateVersionMultipartUpload({
+          platform: selectedPlatform.value,
+          channel: formState.channel.trim(),
+          filename: file.name,
+          file_size: file.size,
+          hash_value: hashValue ?? undefined,
+          hash_alg: hashAlg ?? undefined,
+          content_type: file.type || undefined,
+        });
+        if (!data.success || !data.key) {
+          throw new Error(data.message || '初始化分片上传失败');
         }
-        formState.file_size = file.size;
-        Message.success('安装包上传成功');
-      } else {
-        // 命中哈希去重，复用已上传的安装包
-        formState.file_size = file.size;
-        Message.success(data.message || '复用已上传的安装包，无需重新上传');
-      }
 
-      formState.download_key = data.key;
+        if (!data.session_id) {
+          // 命中哈希去重，复用已上传的安装包
+          formState.file_size = file.size;
+          Message.success(data.message || '复用已上传的安装包，无需重新上传');
+          formState.download_key = data.key;
+        } else {
+          if (!data.part_size || !data.total_parts) {
+            throw new Error(
+              '分片上传初始化结果不完整（缺少 part_size/total_parts）'
+            );
+          }
+
+          uploadedFileInfo.value = `${file.name} · ${formatFileSize(
+            file.size
+          )} · 0/${data.total_parts}`;
+          await uploadFileByMultipartAndComplete({
+            file,
+            sessionId: data.session_id,
+            partSize: data.part_size,
+            totalParts: data.total_parts,
+            onProgress: (uploadedParts, totalParts) => {
+              uploadedFileInfo.value = `${file.name} · ${formatFileSize(
+                file.size
+              )} · ${uploadedParts}/${totalParts}`;
+            },
+            autoAbortOnError: true,
+          });
+
+          formState.file_size = file.size;
+          formState.download_key = data.key;
+          Message.success('安装包上传成功（分片直传）');
+        }
+      } else {
+        const { data } = await generateVersionUploadSignature({
+          platform: selectedPlatform.value,
+          channel: formState.channel.trim(),
+          filename: file.name,
+          file_size: file.size,
+          hash_value: hashValue ?? undefined,
+          hash_alg: hashAlg ?? undefined,
+        });
+        if (!data.success || !data.key) {
+          throw new Error(data.message || '获取直传签名失败');
+        }
+
+        if (data.signature) {
+          const response = await uploadWithSignature(file, data.signature);
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || '上传失败');
+          }
+          formState.file_size = file.size;
+          Message.success('安装包上传成功');
+        } else {
+          // 命中哈希去重，复用已上传的安装包
+          formState.file_size = file.size;
+          Message.success(data.message || '复用已上传的安装包，无需重新上传');
+        }
+
+        formState.download_key = data.key;
+      }
       uploadedFileInfo.value = `${file.name} · ${formatFileSize(file.size)}`;
     } catch (error: any) {
       const errorMsg =

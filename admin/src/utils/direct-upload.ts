@@ -6,7 +6,7 @@ export interface DirectUploadSignature {
 }
 
 export async function uploadWithSignature(
-  file: File,
+  file: Blob,
   signature: DirectUploadSignature
 ): Promise<Response> {
   const headers = new Headers(signature.headers || {});
