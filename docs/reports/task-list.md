@@ -131,9 +131,51 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
+### 6. Push 通知集成（backend + frontend）
+**目标**: App 不在前台时也能收到通知（新消息/好友请求等），并与“会话免打扰/仅@通知/完全静音”等设置保持一致。
+
+#### 6.1 产品与策略对齐
+- 通知类型：新消息、@提醒、好友请求、群管理事件（被踢/解散/转让等）等（按产品最终取舍）
+- 通知过滤：
+  - 不给发送者自己推送
+  - 按 `room_members.notification_settings`（0=全部通知，1=仅@通知，2=完全静音）过滤
+  - 支持全局免打扰/时段免打扰（如需）
+- 通知载荷（用于点击跳转）：至少包含 `room_id`、可选 `message_id`（用于定位消息）与展示用的 `sender_name/message_preview`
+
+#### 6.2 后端（接口 + 存储）
+- 设备标识与 token 存储：新增 `push_devices`（或同等表）记录 `user_id/platform/device_token/channel/device_id/last_seen/is_active` 等
+- Token 注册接口：
+  - `POST /push/devices`：上报/更新 token（支持 token 刷新）
+  - `DELETE /push/devices/{device_id}`（或按 token 注销）
+- 推送触发点：
+  - 消息落库成功后，对房间成员进行过滤并异步发送 push
+  - 好友请求、群解散/踢人等事件同理
+- 异步化：推送发送必须走后台任务（避免阻塞发消息接口）；支持失败重试与退避
+- Provider 集成：
+  - Android：FCM HTTP v1（Service Account JSON）
+  - iOS：APNs（Auth Key `.p8` + Key ID + Team ID）
+- 可观测性：记录发送结果、错误码、可追踪的 `push_id`（便于排障）
+
+#### 6.3 Flutter（移动端）
+- 集成推送 SDK：
+  - Android：Firebase Messaging（获取 FCM token）
+  - iOS：APNs 权限 + FCM（或直接 APNs，根据最终选型）
+- Token 生命周期：首次登录上报、token 刷新回调更新、登出时解绑
+- 通知点击跳转：解析 payload → 打开对应会话 →（有 `message_id` 则）定位到目标消息
+
+#### 6.4 配置与材料清单（落地前准备）
+- iOS：Bundle ID、开启 Push capability、APNs `.p8` / Key ID / Team ID
+- Android：Firebase 项目、`google-services.json`、Service Account JSON
+
+**影响**: 移动端离线可达性与提醒体验显著提升；涉及安全凭据与服务稳定性，需要完整的环境配置与灰度策略
+**状态**: ❌ 未完成
+**优先级**: 🟠 中（文档先行，后续按里程碑实现）
+
+---
+
 ## 🟡 低优先级 (体验优化)
 
-### 6. 前端 - 音频波形可视化 (desktop)
+### 7. 前端 - 音频波形可视化 (desktop)
 **位置**: `desktop/src/utils/voiceRecorder.ts:332`
 ```typescript
 // VoiceUtils.createWaveformData / createWaveformFromBlob
@@ -144,7 +186,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 7. 后端 - 测试用例待完善
+### 8. 后端 - 测试用例待完善
 **位置**: `backend/tests/file_upload_test.rs`
 ```rust
 // 覆盖头像/附件的类型白名单与大小限制逻辑
@@ -155,7 +197,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 8. 前端 (Flutter) - Android 构建配置
+### 9. 前端 (Flutter) - Android 构建配置
 **位置**: `frontend/android/app/build.gradle.kts`
 
 #### 8.1 应用 ID 配置 (第23行)
@@ -174,7 +216,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 9. 管理后台 - ECharts 主题 (admin)
+### 10. 管理后台 - ECharts 主题 (admin)
 **位置**: `admin/src/hooks/chart-option.ts:20`
 ```typescript
 // useChartOption(sourceOption: (isDark, theme) => option)
@@ -190,9 +232,9 @@ await _chatProvider.sendVoiceMessage(...);
 | 优先级 | 数量 | 模块分布 |
 |--------|------|----------|
 | 🔴 高优先级 | 3 | 后端(2，含 2 个已完成) + 前端桌面端(1，已完成) |
-| 🟠 中优先级 | 2 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) |
+| 🟠 中优先级 | 3 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) + Push 通知(1，未完成) |
 | 🟡 低优先级 | 4 | 后端测试(1，已完成基础单测) + 桌面端(1，已完成) + 移动端(1，未完成) + 管理后台(1，已完成基础主题结构) |
-| **总计** | **9** | - |
+| **总计** | **10** | - |
 
 ---
 
@@ -212,8 +254,9 @@ await _chatProvider.sendVoiceMessage(...);
 7. ✅ 测试用例补充（文件上传相关逻辑的基础单元测试）
 8. ❌ Android 发布配置（集中配置 Application ID 与签名）
 9. ✅ 图表主题优化（admin 基础主题结构与示例接入）
+10. ❌ Push 通知集成（先按文档准备环境与凭据，再按里程碑实现）
 
 ---
 
-**最后更新**: 2025-12-12
-**总完成度**: 8/9 (88.9%)
+**最后更新**: 2025-12-19
+**总完成度**: 8/10 (80%)
