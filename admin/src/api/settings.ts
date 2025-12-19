@@ -183,6 +183,24 @@ export interface TestCosUploadSignatureResponse {
   message: string;
 }
 
+export interface TestCosMultipartUploadInitiateRequest {
+  provider_id?: string;
+  key: string;
+  content_type?: string;
+  file_size: number;
+  hash_value?: string;
+  hash_alg?: number;
+}
+
+export interface TestCosMultipartUploadInitiateResponse {
+  success: boolean;
+  message: string;
+  key?: string;
+  session_id?: string;
+  part_size?: number;
+  total_parts?: number;
+}
+
 export interface TestCosDownloadUrlRequest {
   provider_id?: string;
   key: string;
@@ -252,6 +270,15 @@ export function testCosUpload(payload: TestCosUploadRequest) {
 export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
   return axios.post<TestCosUploadSignatureResponse>(
     '/api/admin/storage-providers/test/upload/signature',
+    payload
+  );
+}
+
+export function testCosMultipartUploadInitiate(
+  payload: TestCosMultipartUploadInitiateRequest
+) {
+  return axios.post<TestCosMultipartUploadInitiateResponse>(
+    '/api/admin/storage-providers/test/upload/multipart/initiate',
     payload
   );
 }

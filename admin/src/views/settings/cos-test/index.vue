@@ -189,6 +189,19 @@
               </a-space>
             </a-form-item>
             <a-form-item>
+              <a-alert
+                type="warning"
+                show-icon
+                style="margin-bottom: 12px"
+                title="大于 5MB 会自动使用分片直传；请确保 COS 跨域规则的 ExposeHeaders 包含 ETag"
+              />
+              <a-progress
+                v-if="multipartUploadProgress !== null"
+                :percent="multipartUploadPercent"
+                size="small"
+                :show-text="true"
+                style="margin-bottom: 12px"
+              />
               <a-button
                 type="primary"
                 status="success"
@@ -273,6 +286,7 @@
     listStorageProviders,
     testCosListBuckets,
     testCosUploadSignature,
+    testCosMultipartUploadInitiate,
     testCosDownloadUrl,
     getCosCors,
     setCosCors,
@@ -281,6 +295,7 @@
     type SetCosCorsRulePayload,
   } from '@/api/settings';
   import { computeFileHash } from '@/utils/fileHash';
+  import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
 
   type UploadTestResult = {
     success: boolean;
@@ -337,9 +352,19 @@
     content_type: '',
   });
 
+  const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
+
   const uploadLoading = ref(false);
   const uploadResult = ref<UploadTestResult | null>(null);
   const lastUploadedKey = ref('');
+  const multipartUploadProgress = ref<number | null>(null);
+  const multipartUploadPercent = computed(() => {
+    if (multipartUploadProgress.value === null) return 0;
+    return Math.min(
+      100,
+      Math.max(0, Math.round(multipartUploadProgress.value * 100))
+    );
+  });
 
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedFile = ref<File | null>(null);
@@ -513,6 +538,27 @@
     }
   };
 
+  const computeHashForFile = async (
+    file?: File
+  ): Promise<{
+    hashValue?: string;
+    hashAlg?: number;
+  }> => {
+    if (!file) return {};
+    try {
+      const hash = await computeFileHash(file);
+      if (!hash.hashValue) return {};
+      return {
+        hashValue: hash.hashValue,
+        hashAlg: hash.hashAlg ?? 2,
+      };
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[COS Test] 计算文件哈希失败，将跳过哈希上报', error);
+      return {};
+    }
+  };
+
   const requestUploadSignature = async (
     key: string,
     contentType: string | undefined,
@@ -522,20 +568,9 @@
     signature: DirectUploadSignature | null;
     message: string;
   }> => {
-    let hashValue: string | undefined;
-    let hashAlg: number | undefined;
-
-    if (file) {
-      try {
-        const hash = await computeFileHash(file);
-        if (hash.hashValue) {
-          hashValue = hash.hashValue;
-          hashAlg = hash.hashAlg ?? 2;
-        }
-      } catch (error) {
-        console.warn('[COS Test] 计算文件哈希失败，将跳过哈希上报', error);
-      }
-    }
+    const hash = await computeHashForFile(file);
+    const { hashValue } = hash;
+    const { hashAlg } = hash;
 
     const response = await testCosUploadSignature({
       provider_id: formData.provider_id,
@@ -556,6 +591,87 @@
     };
   };
 
+  const performMultipartUpload = async (
+    file: File,
+    contentType: string | undefined,
+    loadingRef: typeof uploadLoading
+  ): Promise<boolean> => {
+    try {
+      loadingRef.value = true;
+      uploadResult.value = null;
+      multipartUploadProgress.value = 0;
+
+      const key = uploadForm.key.trim();
+      const hash = await computeHashForFile(file);
+
+      const { data } = await testCosMultipartUploadInitiate({
+        provider_id: formData.provider_id,
+        key,
+        content_type: contentType?.trim() || undefined,
+        file_size: file.size,
+        hash_value: hash.hashValue,
+        hash_alg: hash.hashAlg,
+      });
+
+      if (!data.success) {
+        throw new Error(data.message || '初始化分片上传失败');
+      }
+
+      const finalKey = data.key || key;
+
+      // 命中哈希去重：无需上传
+      if (!data.session_id) {
+        multipartUploadProgress.value = null;
+        uploadResult.value = {
+          success: true,
+          message: data.message || '复用已上传的对象，无需重新上传',
+          url: undefined,
+        };
+        lastUploadedKey.value = finalKey;
+        Message.success(uploadResult.value.message);
+        return true;
+      }
+
+      if (!data.part_size || !data.total_parts) {
+        throw new Error(
+          '分片上传初始化结果不完整（缺少 part_size/total_parts）'
+        );
+      }
+
+      await uploadFileByMultipartAndComplete({
+        file,
+        sessionId: data.session_id,
+        partSize: data.part_size,
+        totalParts: data.total_parts,
+        onProgress: (uploadedParts, totalParts) => {
+          multipartUploadProgress.value =
+            totalParts > 0 ? uploadedParts / totalParts : 0;
+        },
+        autoAbortOnError: true,
+      });
+
+      multipartUploadProgress.value = 1;
+      uploadResult.value = {
+        success: true,
+        message: '上传成功（分片直传）',
+        url: undefined,
+      };
+      lastUploadedKey.value = finalKey;
+      Message.success(uploadResult.value.message);
+      return true;
+    } catch (error: any) {
+      const errorMsg = error?.message || '上传失败';
+      uploadResult.value = {
+        success: false,
+        message: errorMsg,
+      };
+      Message.error(errorMsg);
+      return false;
+    } finally {
+      loadingRef.value = false;
+    }
+  };
+
   const performDirectUpload = async (
     blob: Blob,
     contentType: string | undefined,
@@ -564,6 +680,7 @@
     try {
       loadingRef.value = true;
       uploadResult.value = null;
+      multipartUploadProgress.value = null;
 
       const selected = selectedFile.value ?? null;
       const signatureResult = await requestUploadSignature(
@@ -662,6 +779,7 @@
 
   const resetFileSelection = () => {
     selectedFile.value = null;
+    multipartUploadProgress.value = null;
     if (fileInputRef.value) {
       fileInputRef.value.value = '';
     }
@@ -682,11 +800,19 @@
       uploadForm.content_type?.trim() ||
       'application/octet-stream';
 
-    const success = await performDirectUpload(
-      selectedFile.value,
-      contentType,
-      uploadLoading
-    );
+    const shouldUseMultipart =
+      selectedFile.value.size > MULTIPART_THRESHOLD_BYTES;
+    const success = shouldUseMultipart
+      ? await performMultipartUpload(
+          selectedFile.value,
+          contentType,
+          uploadLoading
+        )
+      : await performDirectUpload(
+          selectedFile.value,
+          contentType,
+          uploadLoading
+        );
 
     if (success) {
       resetFileSelection();
