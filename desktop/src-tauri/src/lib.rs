@@ -4,6 +4,7 @@ use tauri::{AppHandle, Manager, Window, WindowEvent};
 mod account;
 mod audio;
 mod cache;
+mod clipboard;
 mod http;
 mod logger;
 mod message_search;
@@ -16,6 +17,7 @@ use account::commands::*;
 use account::AccountManager;
 use audio::commands::*;
 use audio::recorder::AudioRecorderState;
+use clipboard::commands::clipboard_get_files;
 use http::client::create_http_client;
 use http::commands::*;
 use http::types::HttpClientConfig;
@@ -422,6 +424,8 @@ pub fn run() {
             cache::cache_save_value,
             cache::cache_load_value,
             cache::cache_clear_value,
+            // 系统剪贴板相关命令
+            clipboard_get_files,
             // 消息搜索相关命令
             message_search::index_message,
             message_search::index_messages,

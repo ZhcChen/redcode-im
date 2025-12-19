@@ -6066,86 +6066,108 @@ const handleInputKeydown = (event: KeyboardEvent) => {
   }
 }
 
-const getPastedFileName = (file: File, index: number): string => {
-  const originalName = file.name?.trim()
-  if (originalName) {
-    return originalName
+const insertTextAtCursor = async (text: string) => {
+  if (!text) {
+    return
   }
 
-  const rawMime = file.type?.trim().toLowerCase()
-  const ext =
-    rawMime && rawMime.includes('/') ? rawMime.split('/').pop() || 'bin' : 'bin'
+  const inputEl = messageInput.value
+  if (!inputEl) {
+    newMessage.value = `${newMessage.value}${text}`
+    return
+  }
 
-  return `clipboard-${Date.now()}-${index + 1}.${ext}`
+  const current = newMessage.value || ''
+  const start = Number.isFinite(inputEl.selectionStart)
+    ? (inputEl.selectionStart as number)
+    : current.length
+  const end = Number.isFinite(inputEl.selectionEnd)
+    ? (inputEl.selectionEnd as number)
+    : start
+
+  newMessage.value = `${current.slice(0, start)}${text}${current.slice(end)}`
+  await nextTick()
+  try {
+    const caret = start + text.length
+    inputEl.setSelectionRange(caret, caret)
+  } catch {
+    // ignore
+  }
+  setTimeout(adjustTextareaHeight, 0)
 }
 
-// 处理输入框粘贴（支持粘贴截图/图片等文件）
+const getFileNameFromPath = (path: string): string => {
+  const normalized = (path || '').replace(/\\/g, '/')
+  const idx = normalized.lastIndexOf('/')
+  const name = idx >= 0 ? normalized.slice(idx + 1) : normalized
+  return name || `clipboard-${Date.now()}`
+}
+
+// 处理输入框粘贴：走 Rust 读取系统剪贴板文件列表（QQ/微信式：复制文件 -> 粘贴发送）
 const handleInputPaste = async (event: ClipboardEvent) => {
+  if (isInputDisabled.value) {
+    return
+  }
+
+  // 统一接管粘贴，避免复制文件时把路径/文件名插入到输入框
+  event.preventDefault()
+
+  const plainText = event.clipboardData?.getData('text/plain') || ''
+
   try {
-    if (isInputDisabled.value) {
+    const tauri = (window as any).__TAURI__
+    const isTauri = !!tauri?.core?.invoke
+    if (!isTauri) {
+      await insertTextAtCursor(plainText)
       return
     }
 
-    const clipboard = event.clipboardData
-    if (!clipboard) {
-      return
-    }
+    const [{ invoke }, { readFile }] = await Promise.all([
+      import('@tauri-apps/api/core'),
+      import('@tauri-apps/plugin-fs'),
+    ])
 
-    const files: File[] = []
+    const files = await invoke<
+      Array<{
+        path: string
+        name: string
+        size: number
+        mime: string
+      }>
+    >('clipboard_get_files')
 
-    if (clipboard.files && clipboard.files.length > 0) {
-      files.push(...Array.from(clipboard.files))
-    } else if (clipboard.items && clipboard.items.length > 0) {
-      for (const item of Array.from(clipboard.items)) {
-        if (item.kind !== 'file') continue
-        const file = item.getAsFile()
-        if (file) {
-          files.push(file)
+    if (Array.isArray(files) && files.length > 0) {
+      if (!selectedChat.value || !selectedChat.value.groupId) {
+        toast.error('请先选择聊天对象')
+        return
+      }
+
+      if (files.length > 1) {
+        toast.info(`检测到 ${files.length} 个文件，开始发送...`)
+      }
+
+      for (const item of files) {
+        const filePath = item?.path || ''
+        const fileName =
+          item?.name?.trim() || getFileNameFromPath(filePath)
+        const mime = item?.mime?.trim() || 'application/octet-stream'
+
+        try {
+          const bytes = await readFile(filePath)
+          const file = new File([bytes], fileName, { type: mime })
+          await uploadAndSendFile(file)
+        } catch (error: any) {
+          toast.error(`粘贴文件发送失败: ${fileName} ${error?.message ? `(${error.message})` : ''}`)
         }
       }
-    }
 
-    // 没有文件则保持默认粘贴行为（粘贴文本等）
-    if (files.length === 0) {
       return
     }
 
-    // 有文件则拦截默认行为，避免粘贴出文件名/乱码等
-    event.preventDefault()
-
-    if (!selectedChat.value || !selectedChat.value.groupId) {
-      toast.error('请先选择聊天对象')
-      return
-    }
-
-    if (files.length > 1) {
-      toast.info(`检测到 ${files.length} 个文件，开始发送...`)
-    }
-
-    for (let index = 0; index < files.length; index += 1) {
-      const file = files[index]
-      const safeName = getPastedFileName(file, index)
-      const normalizedFile =
-        file.name?.trim() === safeName
-          ? file
-          : new File([file], safeName, {
-              type: file.type || 'application/octet-stream',
-              lastModified: file.lastModified,
-            })
-
-      try {
-        await uploadAndSendFile(normalizedFile)
-      } catch (error: any) {
-        toast.error(
-          `粘贴文件发送失败: ${safeName} ${
-            error?.message ? `(${error.message})` : ''
-          }`
-        )
-      }
-    }
+    await insertTextAtCursor(plainText)
   } catch (error: any) {
     console.error('处理粘贴失败:', error)
-    toast.error('粘贴文件处理失败')
+    await insertTextAtCursor(plainText)
   }
 }
 

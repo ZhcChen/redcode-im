@@ -44,6 +44,7 @@ bytes = "1"
 prost = "0.13"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+mime_guess = "2"
 
 # 音频录制相关
 cpal = "0.15"

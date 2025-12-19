@@ -4460,6 +4460,7 @@ dependencies = [
  "futures-util",
  "hound",
  "hyper 0.14.32",
+ "mime_guess",
  "objc",
  "once_cell",
  "prost 0.13.5",
