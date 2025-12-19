@@ -20,6 +20,7 @@ use crate::models::Claims;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
 use crate::services::geolocation;
+use crate::services::multipart_upload;
 use crate::storage;
 use crate::AppState;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -2751,6 +2752,29 @@ pub struct TestCosUploadSignatureResponse {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct TestCosUploadMultipartInitiateRequest {
+    pub provider_id: Option<String>,
+    pub key: String,
+    pub content_type: Option<String>,
+    /// 文件大小（字节，必填）
+    pub file_size: i64,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    pub hash_alg: Option<i16>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TestCosUploadMultipartInitiateResponse {
+    pub success: bool,
+    pub message: String,
+    pub key: Option<String>,
+    pub session_id: Option<String>,
+    pub part_size: Option<i32>,
+    pub total_parts: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct TestCosDownloadUrlRequest {
     pub provider_id: Option<String>,
     pub key: String,
@@ -3008,6 +3032,224 @@ pub async fn test_cos_upload_signature(
             message: format!("生成直传签名失败: {}", e),
         })),
     }
+}
+
+/// 初始化 COS 分片上传（Multipart Upload）并创建后端会话（仅用于测试页面）
+pub async fn test_cos_upload_multipart_initiate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<TestCosUploadMultipartInitiateRequest>,
+) -> Result<Json<TestCosUploadMultipartInitiateResponse>, AppError> {
+    let key = req.key.trim();
+    if key.is_empty() {
+        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            success: false,
+            message: "文件路径不能为空".to_string(),
+            key: None,
+            session_id: None,
+            part_size: None,
+            total_parts: None,
+        }));
+    }
+
+    if req.file_size <= 0 {
+        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            success: false,
+            message: "file_size 必填且必须大于 0".to_string(),
+            key: Some(key.to_string()),
+            session_id: None,
+            part_size: None,
+            total_parts: None,
+        }));
+    }
+
+    let (part_size, total_parts) = match multipart_upload::plan_multipart_upload(req.file_size) {
+        Ok(plan) => plan,
+        Err(e) => {
+            return Ok(Json(TestCosUploadMultipartInitiateResponse {
+                success: false,
+                message: format!("{}", e),
+                key: Some(key.to_string()),
+                session_id: None,
+                part_size: None,
+                total_parts: None,
+            }));
+        }
+    };
+
+    let store = StorageProviderStore::new(state.database.clone());
+    let provider = if let Some(provider_id) = req.provider_id.clone() {
+        let provider_uuid = Uuid::parse_str(provider_id.trim())
+            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        store
+            .get_provider_by_id(&provider_uuid)
+            .await?
+            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+    } else {
+        store
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+    };
+
+    if !provider.is_active {
+        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            success: false,
+            message: "提供商未启用".to_string(),
+            key: Some(key.to_string()),
+            session_id: None,
+            part_size: None,
+            total_parts: None,
+        }));
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            success: false,
+            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
+            key: Some(key.to_string()),
+            session_id: None,
+            part_size: None,
+            total_parts: None,
+        }));
+    }
+
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    // 如果提供了 hash 和 size，优先复用已上传完成的对象（与测试直传签名保持一致）
+    if let Some(ref hash_value) = req.hash_value {
+        let hash_value_trimmed = hash_value.trim();
+        if !hash_value_trimmed.is_empty() {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(
+                    &provider.id,
+                    hash_alg,
+                    hash_value_trimmed,
+                    req.file_size,
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?
+            {
+                // 防御：记录为 completed 但对象已不存在时，避免返回“秒传 key”
+                if !storage_service.file_exists(&existing.object_key).await? {
+                    let _ = upload_store
+                        .mark_deleted_by_key(
+                            &provider.id,
+                            &existing.object_key,
+                            Some("对象不存在，已标记为删除"),
+                        )
+                        .await;
+                } else {
+                    info!(
+                        "[Admin] 复用已上传的测试文件（分片直传 initiate）: key={}, hash_alg={}, hash_value={}",
+                        existing.object_key, hash_alg, hash_value_trimmed
+                    );
+
+                    return Ok(Json(TestCosUploadMultipartInitiateResponse {
+                        success: true,
+                        message: "复用已上传的对象，无需重新上传".to_string(),
+                        key: Some(existing.object_key),
+                        session_id: None,
+                        part_size: None,
+                        total_parts: None,
+                    }));
+                }
+            }
+        }
+    }
+
+    // 新的上传，则记录一条“上传中”的文件记录（仅在提供 hash 时）
+    if let Some(ref hash_value) = req.hash_value {
+        let hash_value_trimmed = hash_value.trim();
+        if !hash_value_trimmed.is_empty() {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store =
+                crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    key,
+                    hash_alg,
+                    hash_value_trimmed,
+                    Some(req.file_size),
+                    req.content_type.as_deref(),
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
+
+    let content_type = req
+        .content_type
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty());
+
+    let upload_id = match storage_service
+        .initiate_multipart_upload(key, content_type)
+        .await
+    {
+        Ok(upload_id) => upload_id,
+        Err(e) => {
+            return Ok(Json(TestCosUploadMultipartInitiateResponse {
+                success: false,
+                message: format!("初始化分片上传失败: {}", e),
+                key: Some(key.to_string()),
+                session_id: None,
+                part_size: None,
+                total_parts: None,
+            }));
+        }
+    };
+
+    let creator_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let session_store = crate::database::file_upload_multipart_store::FileUploadMultipartStore::new(
+        state.database.clone(),
+    );
+    let session = match session_store
+        .create_session(
+            &provider.id,
+            key,
+            &upload_id,
+            &creator_id,
+            claims.is_admin,
+            Some(req.file_size),
+            content_type,
+            part_size,
+            total_parts,
+        )
+        .await
+    {
+        Ok(session) => session,
+        Err(e) => {
+            let _ = storage_service
+                .abort_multipart_upload(key, &upload_id)
+                .await;
+            return Ok(Json(TestCosUploadMultipartInitiateResponse {
+                success: false,
+                message: format!("创建分片会话失败: {}", e),
+                key: Some(key.to_string()),
+                session_id: None,
+                part_size: None,
+                total_parts: None,
+            }));
+        }
+    };
+
+    Ok(Json(TestCosUploadMultipartInitiateResponse {
+        success: true,
+        message: "初始化分片上传会话成功".to_string(),
+        key: Some(key.to_string()),
+        session_id: Some(session.id.to_string()),
+        part_size: Some(part_size),
+        total_parts: Some(total_parts),
+    }))
 }
 
 /// 生成可访问的下载链接

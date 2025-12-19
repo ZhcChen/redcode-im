@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::database::file_upload_multipart_store::FileUploadMultipartStore;
 use crate::database::file_upload_store::FileUploadStore;
+use crate::database::storage_provider_store::StorageProviderStore;
 use crate::error::AppError;
 use crate::models::Claims;
 use crate::storage;
@@ -122,14 +123,18 @@ pub async fn generate_multipart_part_signature(
         )));
     }
 
-    let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
-
-    if provider.id != session.storage_provider_id {
+    let provider_store = StorageProviderStore::new(state.database.clone());
+    let provider = provider_store
+        .get_provider_by_id(&session.storage_provider_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+    if !provider.is_active {
         return Err(AppError::ValidationError(
-            "分片会话的存储提供商与当前默认提供商不一致".to_string(),
+            "存储提供商未启用，无法继续分片上传".to_string(),
         ));
     }
+
+    let storage_service = storage::create_storage_service(&provider)?;
 
     let signature = storage_service
         .generate_multipart_upload_part_signature(
@@ -301,14 +306,18 @@ pub async fn complete_multipart_upload(
         }
     }
 
-    let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
-
-    if provider.id != session.storage_provider_id {
+    let provider_store = StorageProviderStore::new(state.database.clone());
+    let provider = provider_store
+        .get_provider_by_id(&session.storage_provider_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+    if !provider.is_active {
         return Err(AppError::ValidationError(
-            "分片会话的存储提供商与当前默认提供商不一致".to_string(),
+            "存储提供商未启用，无法完成分片上传".to_string(),
         ));
     }
+
+    let storage_service = storage::create_storage_service(&provider)?;
 
     storage_service
         .complete_multipart_upload(&session.object_key, &session.upload_id, &parts)
@@ -371,14 +380,18 @@ pub async fn abort_multipart_upload(
         }));
     }
 
-    let provider = crate::handlers::user::load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
-
-    if provider.id != session.storage_provider_id {
+    let provider_store = StorageProviderStore::new(state.database.clone());
+    let provider = provider_store
+        .get_provider_by_id(&session.storage_provider_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+    if !provider.is_active {
         return Err(AppError::ValidationError(
-            "分片会话的存储提供商与当前默认提供商不一致".to_string(),
+            "存储提供商未启用，无法中止分片上传".to_string(),
         ));
     }
+
+    let storage_service = storage::create_storage_service(&provider)?;
 
     let _ = storage_service
         .abort_multipart_upload(&session.object_key, &session.upload_id)

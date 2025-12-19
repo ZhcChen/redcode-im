@@ -190,6 +190,10 @@ pub fn create_routes() -> Router<AppState> {
             post(admin::test_cos_upload_signature),
         )
         .route(
+            "/api/admin/storage-providers/test/upload/multipart/initiate",
+            post(admin::test_cos_upload_multipart_initiate),
+        )
+        .route(
             "/api/admin/storage-providers/test/download-url",
             post(admin::test_cos_download_url),
         )
