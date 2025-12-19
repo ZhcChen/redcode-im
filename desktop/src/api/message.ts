@@ -76,6 +76,19 @@ export interface AttachmentSignatureResult {
   message?: string;
 }
 
+export interface AttachmentMultipartInitiateResult {
+  key: string;
+  sessionId: string | null;
+  partSize?: number;
+  totalParts?: number;
+  message?: string;
+}
+
+export interface MultipartCompletedPart {
+  partNumber: number;
+  etag: string;
+}
+
 export interface AttachmentDownloadResult {
   success: boolean;
   message: string;
@@ -744,6 +757,273 @@ export class MessageApi {
         signature,
         message: typeof rawData?.message === "string" ? rawData.message : undefined,
       },
+    };
+  }
+
+  static async initiateAttachmentMultipartUpload(params: {
+    groupId: string;
+    partType: MessagePartTypeLiteral;
+    fileName?: string;
+    contentType?: string;
+    fileSize: number;
+    hashValue?: string;
+    hashAlg?: number;
+  }): Promise<ApiResponse<AttachmentMultipartInitiateResult>> {
+    const payload: Record<string, unknown> = {
+      part_type: params.partType,
+      file_size: params.fileSize,
+    };
+
+    if (params.fileName) {
+      payload.filename = params.fileName;
+    }
+    if (params.contentType) {
+      payload.content_type = params.contentType;
+    }
+    if (params.hashValue) {
+      payload.hash_value = params.hashValue;
+    }
+    if (typeof params.hashAlg === "number") {
+      payload.hash_alg = params.hashAlg;
+    }
+
+    const response = await post<Record<string, unknown>>(
+      `/rooms/${params.groupId}/messages/attachments/multipart/initiate`,
+      payload,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+
+    if (!successFlag) {
+      return {
+        code: response.code,
+        success: false,
+        message:
+          typeof rawData?.message === "string"
+            ? rawData.message
+            : response.message || "初始化分片上传失败",
+        data: null,
+      };
+    }
+
+    const key = rawData?.key ?? null;
+    if (!key || typeof key !== "string") {
+      return {
+        code: response.code,
+        success: false,
+        message: "分片上传初始化响应不包含有效的 key",
+        data: null,
+      };
+    }
+
+    const sessionIdRaw = rawData?.session_id ?? rawData?.sessionId ?? null;
+    const sessionId =
+      typeof sessionIdRaw === "string" && sessionIdRaw.length > 0
+        ? sessionIdRaw
+        : null;
+
+    const partSizeRaw = rawData?.part_size ?? rawData?.partSize ?? null;
+    const totalPartsRaw = rawData?.total_parts ?? rawData?.totalParts ?? null;
+
+    const partSize =
+      typeof partSizeRaw === "number" && partSizeRaw > 0 ? partSizeRaw : undefined;
+    const totalParts =
+      typeof totalPartsRaw === "number" && totalPartsRaw > 0
+        ? totalPartsRaw
+        : undefined;
+
+    const message =
+      typeof rawData?.message === "string" ? rawData.message : response.message || "";
+
+    return {
+      code: response.code,
+      success: true,
+      message,
+      data: {
+        key,
+        sessionId,
+        partSize,
+        totalParts,
+        message,
+      },
+    };
+  }
+
+  static async generateMultipartPartSignature(params: {
+    sessionId: string;
+    partNumber: number;
+  }): Promise<ApiResponse<{ signature: DirectUploadSignatureInfo }>> {
+    const response = await post<Record<string, unknown>>(
+      `/uploads/multipart/sessions/${params.sessionId}/parts/signature`,
+      { part_number: params.partNumber },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        code: response.code,
+        success: false,
+        message: response.message || "获取分片上传签名失败",
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+
+    if (!successFlag) {
+      return {
+        code: response.code,
+        success: false,
+        message:
+          typeof rawData?.message === "string"
+            ? rawData.message
+            : response.message || "获取分片上传签名失败",
+        data: null,
+      };
+    }
+
+    const rawSignature = rawData?.signature ?? null;
+    if (!rawSignature || typeof rawSignature !== "object") {
+      return {
+        code: response.code,
+        success: false,
+        message: "分片上传签名响应不包含有效的 signature",
+        data: null,
+      };
+    }
+
+    const headers: Record<string, string> = {};
+    if (rawSignature.headers && typeof rawSignature.headers === "object") {
+      Object.entries(rawSignature.headers).forEach(([headerKey, headerValue]) => {
+        if (typeof headerKey === "string" && typeof headerValue === "string") {
+          headers[headerKey] = headerValue;
+        }
+      });
+    }
+
+    const signature: DirectUploadSignatureInfo = {
+      url: rawSignature.url,
+      method: typeof rawSignature.method === "string" ? rawSignature.method : "PUT",
+      headers,
+      key: rawSignature.key,
+    };
+
+    return {
+      code: response.code,
+      success: true,
+      message: typeof rawData?.message === "string" ? rawData.message : response.message || "",
+      data: { signature },
+    };
+  }
+
+  static async commitMultipartPart(params: {
+    sessionId: string;
+    partNumber: number;
+    etag: string;
+  }): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    const response = await post<Record<string, unknown>>(
+      `/uploads/multipart/sessions/${params.sessionId}/parts/commit`,
+      { part_number: params.partNumber, etag: params.etag },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        code: response.code,
+        success: false,
+        message: response.message || "提交分片进度失败",
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+    const message =
+      typeof rawData?.message === "string" ? rawData.message : response.message || "";
+
+    return {
+      code: response.code,
+      success: successFlag,
+      message,
+      data: { success: successFlag, message },
+    };
+  }
+
+  static async completeMultipartUpload(params: {
+    sessionId: string;
+    parts: MultipartCompletedPart[];
+  }): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    const response = await post<Record<string, unknown>>(
+      `/uploads/multipart/sessions/${params.sessionId}/complete`,
+      {
+        parts: params.parts.map((part) => ({
+          part_number: part.partNumber,
+          etag: part.etag,
+        })),
+      },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        code: response.code,
+        success: false,
+        message: response.message || "完成分片上传失败",
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+    const message =
+      typeof rawData?.message === "string" ? rawData.message : response.message || "";
+
+    return {
+      code: response.code,
+      success: successFlag,
+      message,
+      data: { success: successFlag, message },
+    };
+  }
+
+  static async abortMultipartUpload(params: {
+    sessionId: string;
+  }): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    const response = await post<Record<string, unknown>>(
+      `/uploads/multipart/sessions/${params.sessionId}/abort`,
+      {},
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        code: response.code,
+        success: false,
+        message: response.message || "中止分片上传失败",
+        data: null,
+      };
+    }
+
+    const rawData: any = response.data;
+    const successFlag =
+      typeof rawData?.success === "boolean" ? rawData.success : response.success;
+    const message =
+      typeof rawData?.message === "string" ? rawData.message : response.message || "";
+
+    return {
+      code: response.code,
+      success: successFlag,
+      message,
+      data: { success: successFlag, message },
     };
   }
 

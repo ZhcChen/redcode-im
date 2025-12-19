@@ -2172,7 +2172,22 @@ const forbiddenDirectUploadHeaders = new Set([
   'connection',
 ]);
 
-const buildDirectUploadHeaders = (signatureHeaders: Record<string, string> | undefined, file: File) => {
+const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
+
+const normalizeEtag = (etag: string) => etag.trim().replace(/"/g, '');
+
+const getHeaderIgnoreCase = (headers: Record<string, string> | undefined, name: string): string | null => {
+  if (!headers) return null;
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowerName) {
+      return value;
+    }
+  }
+  return null;
+};
+
+const buildDirectUploadHeaders = (signatureHeaders: Record<string, string> | undefined, file: Blob) => {
   const normalizedHeaders: Record<string, string> = {};
   let hasContentTypeHeader = false;
 
@@ -2203,7 +2218,7 @@ const buildDirectUploadHeaders = (signatureHeaders: Record<string, string> | und
 
 const uploadWithSignature = async (
   signature: DirectUploadSignatureInfo,
-  file: File,
+  file: Blob,
   onProgress?: (progress: number) => void,
 ) => {
   const headers = buildDirectUploadHeaders(signature.headers, file);
@@ -2229,6 +2244,89 @@ const uploadWithSignature = async (
 
   if (onProgress) {
     onProgress(1);
+  }
+};
+
+const uploadMultipartWithSession = async (
+  sessionId: string,
+  file: Blob,
+  partSize: number,
+  totalParts: number,
+  onProgress?: (progress: number) => void,
+) => {
+  const parts: { partNumber: number; etag: string }[] = [];
+
+  try {
+    /* eslint-disable no-await-in-loop */
+    for (let partNumber = 1; partNumber <= totalParts; partNumber += 1) {
+      const start = (partNumber - 1) * partSize;
+      const end = Math.min(file.size, partNumber * partSize);
+      const chunk = file.slice(start, end);
+
+      const signatureResp = await MessageApi.generateMultipartPartSignature({
+        sessionId,
+        partNumber
+      });
+      if (!signatureResp.success || !signatureResp.data?.signature) {
+        throw new Error(signatureResp.message || '获取分片上传签名失败');
+      }
+
+      const signature = signatureResp.data.signature;
+      const headers = buildDirectUploadHeaders(signature.headers, chunk);
+      const method = (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'];
+      if (!headers['Content-Length']) {
+        headers['Content-Length'] = String(chunk.size);
+      }
+
+      const chunkBuffer = new Uint8Array(await chunk.arrayBuffer());
+      const uploadResp = await rustHttp.requestRaw<{ base64?: string; headers?: Record<string, string> }>({
+        path: signature.url,
+        method,
+        headers,
+        binaryBody: chunkBuffer,
+        injectToken: false,
+        forceStreaming: true,
+        responseType: 'binary'
+      });
+
+      if (!uploadResp.success) {
+        throw new Error(uploadResp.message || `上传分片失败（part ${partNumber}）`);
+      }
+
+      const responseHeaders = uploadResp.data?.headers;
+      const etagRaw = getHeaderIgnoreCase(responseHeaders, 'etag');
+      if (!etagRaw) {
+        throw new Error(`上传分片成功但未获取到 ETag（part ${partNumber}）`);
+      }
+      const etag = normalizeEtag(etagRaw);
+
+      const commitResp = await MessageApi.commitMultipartPart({
+        sessionId,
+        partNumber,
+        etag
+      });
+      if (!commitResp.success) {
+        throw new Error(commitResp.message || `提交分片进度失败（part ${partNumber}）`);
+      }
+
+      parts.push({ partNumber, etag });
+      if (onProgress) {
+        onProgress(partNumber / totalParts);
+      }
+    }
+    /* eslint-enable no-await-in-loop */
+
+    const completeResp = await MessageApi.completeMultipartUpload({ sessionId, parts });
+    if (!completeResp.success) {
+      throw new Error(completeResp.message || '完成分片上传失败');
+    }
+  } catch (error) {
+    try {
+      await MessageApi.abortMultipartUpload({ sessionId });
+    } catch {
+      // ignore
+    }
+    throw error;
   }
 };
 
@@ -6839,35 +6937,77 @@ const uploadAndSendFile = async (file: File) => {
       fileHashAlg = null
     }
 
-    console.log('请求上传签名:', {
-      groupId: selectedChat.value.groupId,
-      partType: meta.partType,
-      fileName: file.name,
-      contentType: meta.mime,
-      fileSize: file.size,
-      hashValue: fileHashValue,
-      hashAlg: fileHashAlg,
-    })
-    const signatureResponse = await MessageApi.requestAttachmentSignature({
-      groupId: selectedChat.value.groupId,
-      partType: meta.partType,
-      fileName: file.name,
-      contentType: meta.mime,
-      fileSize: file.size,
-      hashValue: fileHashValue ?? undefined,
-      hashAlg: fileHashAlg ?? undefined,
-    })
+    const shouldUseMultipartUpload = file.size > MULTIPART_THRESHOLD_BYTES
+    let directUploadSignature: DirectUploadSignatureInfo | null = null
+    let multipartSession: { sessionId: string; partSize: number; totalParts: number } | null = null
 
-    if (!signatureResponse.success || !signatureResponse.data) {
-      throw new Error(signatureResponse.message || '获取上传签名失败')
-    }
-    attachmentKey = signatureResponse.data.key
-    const directUploadSignature = signatureResponse.data.signature
+    if (shouldUseMultipartUpload) {
+      console.log('请求分片上传初始化:', {
+        groupId: selectedChat.value.groupId,
+        partType: meta.partType,
+        fileName: file.name,
+        contentType: meta.mime,
+        fileSize: file.size,
+        hashValue: fileHashValue,
+        hashAlg: fileHashAlg,
+      })
+      const initResp = await MessageApi.initiateAttachmentMultipartUpload({
+        groupId: selectedChat.value.groupId,
+        partType: meta.partType,
+        fileName: file.name,
+        contentType: meta.mime,
+        fileSize: file.size,
+        hashValue: fileHashValue ?? undefined,
+        hashAlg: fileHashAlg ?? undefined,
+      })
 
-    if (directUploadSignature) {
-      console.log('上传签名获取成功，准备执行直传')
+      if (!initResp.success || !initResp.data) {
+        throw new Error(initResp.message || '初始化分片上传失败')
+      }
+
+      attachmentKey = initResp.data.key
+      if (initResp.data.sessionId && initResp.data.partSize && initResp.data.totalParts) {
+        multipartSession = {
+          sessionId: initResp.data.sessionId,
+          partSize: initResp.data.partSize,
+          totalParts: initResp.data.totalParts
+        }
+        console.log('分片上传会话初始化成功:', multipartSession)
+      } else {
+        console.log('未返回分片会话信息，命中哈希去重逻辑，复用现有附件 key')
+      }
     } else {
-      console.log('未返回上传签名，命中哈希去重逻辑，复用现有附件 key')
+      console.log('请求上传签名:', {
+        groupId: selectedChat.value.groupId,
+        partType: meta.partType,
+        fileName: file.name,
+        contentType: meta.mime,
+        fileSize: file.size,
+        hashValue: fileHashValue,
+        hashAlg: fileHashAlg,
+      })
+      const signatureResponse = await MessageApi.requestAttachmentSignature({
+        groupId: selectedChat.value.groupId,
+        partType: meta.partType,
+        fileName: file.name,
+        contentType: meta.mime,
+        fileSize: file.size,
+        hashValue: fileHashValue ?? undefined,
+        hashAlg: fileHashAlg ?? undefined,
+      })
+
+      if (!signatureResponse.success || !signatureResponse.data) {
+        throw new Error(signatureResponse.message || '获取上传签名失败')
+      }
+
+      attachmentKey = signatureResponse.data.key
+      directUploadSignature = signatureResponse.data.signature
+
+      if (directUploadSignature) {
+        console.log('上传签名获取成功，准备执行直传')
+      } else {
+        console.log('未返回上传签名，命中哈希去重逻辑，复用现有附件 key')
+      }
     }
     const timestamp = Date.now()
     tempId = `${timestamp}`
@@ -7028,8 +7168,39 @@ const uploadAndSendFile = async (file: File) => {
     recentSentMessages.value.add(tempId)
     scrollToBottom(false, true)
 
-    // 只有在需要直传到 COS 时才执行上传和 commit
-    if (directUploadSignature) {
+    if (multipartSession) {
+      console.log('开始分片上传文件到 COS:', file.name, multipartSession)
+      await uploadMultipartWithSession(
+        multipartSession.sessionId,
+        file,
+        multipartSession.partSize,
+        multipartSession.totalParts,
+        (progress) => {
+          if (tempId) {
+            updateAttachmentProgress(tempId, attachmentKey, progress)
+          }
+        }
+      )
+      console.log('文件分片上传完成:', file.name)
+
+      // 上传完成后通知后端，标记附件已完成上传，参与后续哈希去重
+      try {
+        const commitRes = await MessageApi.commitAttachmentUpload({
+          roomId: selectedChat.value.groupId,
+          key: attachmentKey,
+          fileSize: file.size,
+          hashValue: fileHashValue ?? undefined,
+          hashAlg: fileHashAlg ?? undefined,
+        })
+        if (!commitRes.success) {
+          console.warn('附件上传完成通知失败:', commitRes.message)
+        } else {
+          console.log('附件上传完成已通知后端:', commitRes.message)
+        }
+      } catch (commitError: any) {
+        console.warn('调用附件上传完成通知接口异常:', commitError?.message || commitError)
+      }
+    } else if (directUploadSignature) {
       console.log('开始上传文件到COS:', file.name)
       await uploadWithSignature(directUploadSignature, file, (progress) => {
         console.log('上传进度:', progress, file.name)
@@ -9904,38 +10075,98 @@ const handleVoiceSend = async (recording: any) => {
       voiceHashAlg = null
     }
 
-    // 1. 获取语音上传签名（使用 WAV 格式，由 Rust 原生录音生成）
-    console.log('[handleVoiceSend] 1. 获取上传签名...')
-    const signatureResponse = await MessageApi.requestAttachmentSignature({
-      groupId: selectedChat.value.id,
-      partType: 'audio',
-      fileName: voiceFileName,
-      contentType: 'audio/wav',
-      fileSize: voiceBlob.size,
-      hashValue: voiceHashValue ?? undefined,
-      hashAlg: voiceHashAlg ?? undefined,
-    })
+    const shouldUseMultipartUpload = voiceBlob.size > MULTIPART_THRESHOLD_BYTES
+    let key = ''
+    let directUploadSignature: DirectUploadSignatureInfo | null = null
+    let multipartSession: { sessionId: string; partSize: number; totalParts: number } | null = null
 
-    console.log('[handleVoiceSend] 签名响应:', {
-      success: signatureResponse.success,
-      message: signatureResponse.message,
-      hasData: !!signatureResponse.data,
-      key: signatureResponse.data?.key
-    })
+    if (shouldUseMultipartUpload) {
+      console.log('[handleVoiceSend] 1. 初始化分片上传...')
+      const initResp = await MessageApi.initiateAttachmentMultipartUpload({
+        groupId: selectedChat.value.id,
+        partType: 'audio',
+        fileName: voiceFileName,
+        contentType: 'audio/wav',
+        fileSize: voiceBlob.size,
+        hashValue: voiceHashValue ?? undefined,
+        hashAlg: voiceHashAlg ?? undefined,
+      })
 
-    if (!signatureResponse.success || !signatureResponse.data) {
-      throw new Error(signatureResponse.message || '获取上传签名失败')
+      if (!initResp.success || !initResp.data) {
+        throw new Error(initResp.message || '初始化分片上传失败')
+      }
+
+      key = initResp.data.key
+      if (initResp.data.sessionId && initResp.data.partSize && initResp.data.totalParts) {
+        multipartSession = {
+          sessionId: initResp.data.sessionId,
+          partSize: initResp.data.partSize,
+          totalParts: initResp.data.totalParts
+        }
+      } else {
+        console.log('[handleVoiceSend] 未返回分片会话信息，命中哈希去重逻辑，复用已有语音附件 key:', key)
+      }
+    } else {
+      // 1. 获取语音上传签名（使用 WAV 格式，由 Rust 原生录音生成）
+      console.log('[handleVoiceSend] 1. 获取上传签名...')
+      const signatureResponse = await MessageApi.requestAttachmentSignature({
+        groupId: selectedChat.value.id,
+        partType: 'audio',
+        fileName: voiceFileName,
+        contentType: 'audio/wav',
+        fileSize: voiceBlob.size,
+        hashValue: voiceHashValue ?? undefined,
+        hashAlg: voiceHashAlg ?? undefined,
+      })
+
+      console.log('[handleVoiceSend] 签名响应:', {
+        success: signatureResponse.success,
+        message: signatureResponse.message,
+        hasData: !!signatureResponse.data,
+        key: signatureResponse.data?.key
+      })
+
+      if (!signatureResponse.success || !signatureResponse.data) {
+        throw new Error(signatureResponse.message || '获取上传签名失败')
+      }
+
+      key = signatureResponse.data.key
+      directUploadSignature = signatureResponse.data.signature
     }
 
-    const { key, signature } = signatureResponse.data
-    if (signature) {
+    if (multipartSession) {
+      console.log('[handleVoiceSend] 2. 开始分片上传到 COS...', multipartSession)
+      await uploadMultipartWithSession(
+        multipartSession.sessionId,
+        voiceBlob,
+        multipartSession.partSize,
+        multipartSession.totalParts,
+      )
+
+      try {
+        const commitRes = await MessageApi.commitAttachmentUpload({
+          roomId: selectedChat.value.id,
+          key,
+          fileSize: voiceBlob.size,
+          hashValue: voiceHashValue ?? undefined,
+          hashAlg: voiceHashAlg ?? undefined,
+        })
+        if (!commitRes.success) {
+          console.warn('[handleVoiceSend] 语音附件上传完成通知失败:', commitRes.message)
+        } else {
+          console.log('[handleVoiceSend] 语音附件上传完成已通知后端:', commitRes.message)
+        }
+      } catch (commitError: any) {
+        console.warn('[handleVoiceSend] 调用语音附件上传完成通知接口异常:', commitError?.message || commitError)
+      }
+    } else if (directUploadSignature) {
       // 2. 需要直传到 COS 的情况
       console.log('[handleVoiceSend] 2. 开始上传到 COS...')
       const headersObj: Record<string, string> = {}
 
       // 将 Headers 转换为普通对象
-      if (signature.headers) {
-        Object.entries(signature.headers).forEach(([headerKey, value]) => {
+      if (directUploadSignature.headers) {
+        Object.entries(directUploadSignature.headers).forEach(([headerKey, value]) => {
           headersObj[headerKey] = String(value)
         })
       }
@@ -9945,8 +10176,8 @@ const handleVoiceSend = async (recording: any) => {
       }
 
       console.log('[handleVoiceSend] 上传参数:', {
-        url: signature.url,
-        method: signature.method,
+        url: directUploadSignature.url,
+        method: directUploadSignature.method,
         headers: headersObj
       })
 
@@ -9954,8 +10185,8 @@ const handleVoiceSend = async (recording: any) => {
       console.log('[handleVoiceSend] voiceBuffer 大小:', voiceBuffer.length)
 
       const uploadResponse = await rustHttp.requestRaw({
-        path: signature.url,
-        method: (signature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
+        path: directUploadSignature.url,
+        method: (directUploadSignature.method || 'PUT').toUpperCase() as HttpRequestParams['method'],
         headers: headersObj,
         binaryBody: voiceBuffer,
         injectToken: false,
@@ -9990,7 +10221,6 @@ const handleVoiceSend = async (recording: any) => {
         console.warn('[handleVoiceSend] 调用语音附件上传完成通知接口异常:', commitError?.message || commitError)
       }
     } else {
-      // 命中哈希去重，复用已有语音附件 key
       console.log('[handleVoiceSend] 未返回上传签名，命中哈希去重逻辑，复用已有语音附件 key:', key)
     }
 
