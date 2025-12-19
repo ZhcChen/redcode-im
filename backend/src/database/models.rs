@@ -847,6 +847,26 @@ pub struct FileUploadRecord {
     pub last_error: Option<String>,
 }
 
+/// 大文件分片直传会话（COS Multipart Upload）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FileUploadMultipartSession {
+    pub id: Uuid,
+    pub storage_provider_id: Uuid,
+    pub object_key: String,
+    pub upload_id: String,
+    pub creator_id: Uuid,
+    pub creator_is_admin: bool,
+    pub file_size: Option<i64>,
+    pub content_type: Option<String>,
+    pub part_size: i32,
+    pub total_parts: i32,
+    pub uploaded_parts: Value,
+    pub status: i16,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
 // ===== 群聊管理相关模型 =====
 
 /// 群聊设置

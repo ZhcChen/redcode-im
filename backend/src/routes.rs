@@ -7,8 +7,8 @@ use axum::{
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
-    healthz, message, message_read, message_search, report, room, root, settings, user, version,
-    ws,
+    healthz, message, message_read, message_search, multipart_upload, report, room, root, settings,
+    user, version, ws,
 };
 use crate::AppState;
 
@@ -222,6 +222,31 @@ pub fn create_routes() -> Router<AppState> {
             post(version::generate_version_upload_signature),
         )
         .route(
+            "/api/admin/app-versions/upload/multipart/initiate",
+            post(version::initiate_version_multipart_upload),
+        )
+        // COS 大文件分片直传（管理员）
+        .route(
+            "/api/admin/uploads/multipart/sessions/{session_id}",
+            get(multipart_upload::get_multipart_session),
+        )
+        .route(
+            "/api/admin/uploads/multipart/sessions/{session_id}/parts/signature",
+            post(multipart_upload::generate_multipart_part_signature),
+        )
+        .route(
+            "/api/admin/uploads/multipart/sessions/{session_id}/parts/commit",
+            post(multipart_upload::commit_multipart_part),
+        )
+        .route(
+            "/api/admin/uploads/multipart/sessions/{session_id}/complete",
+            post(multipart_upload::complete_multipart_upload),
+        )
+        .route(
+            "/api/admin/uploads/multipart/sessions/{session_id}/abort",
+            post(multipart_upload::abort_multipart_upload),
+        )
+        .route(
             "/api/admin/app-versions",
             get(version::list_app_versions).post(version::create_app_version),
         )
@@ -335,6 +360,27 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/reports/attachments/commit",
             post(report::commit_report_attachment_upload),
+        )
+        // COS 大文件分片直传（普通用户）
+        .route(
+            "/uploads/multipart/sessions/{session_id}",
+            get(multipart_upload::get_multipart_session),
+        )
+        .route(
+            "/uploads/multipart/sessions/{session_id}/parts/signature",
+            post(multipart_upload::generate_multipart_part_signature),
+        )
+        .route(
+            "/uploads/multipart/sessions/{session_id}/parts/commit",
+            post(multipart_upload::commit_multipart_part),
+        )
+        .route(
+            "/uploads/multipart/sessions/{session_id}/complete",
+            post(multipart_upload::complete_multipart_upload),
+        )
+        .route(
+            "/uploads/multipart/sessions/{session_id}/abort",
+            post(multipart_upload::abort_multipart_upload),
         )
         .route("/reports", post(report::create_report))
         // activity logs
@@ -451,6 +497,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/{room_id}/messages/attachments/signature",
             post(message::generate_message_attachment_signature),
+        )
+        .route(
+            "/rooms/{room_id}/messages/attachments/multipart/initiate",
+            post(message::initiate_message_attachment_multipart_upload),
         )
         .route(
             "/rooms/{room_id}/messages/attachments/commit",

@@ -1,3 +1,4 @@
+use crate::database::file_upload_multipart_store::FileUploadMultipartStore;
 use crate::database::file_upload_store::FileUploadStore;
 use crate::database::models::{Platform, StorageProviderType};
 use crate::database::storage_provider_store::StorageProviderStore;
@@ -16,6 +17,7 @@ use crate::models::{
     LatestVersionQuery, LatestVersionResponse, ListAppVersionsQuery, ListHotUpdatesQuery,
     UpdateAppVersionRequest, UpdateHotUpdateRequest,
 };
+use crate::services::multipart_upload;
 use crate::storage;
 use crate::storage::DirectUploadSignature;
 use crate::AppState;
@@ -54,6 +56,35 @@ pub struct VersionUploadSignatureResponse {
     pub message: String,
     pub key: Option<String>,
     pub signature: Option<DirectUploadSignature>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VersionMultipartInitiateRequest {
+    pub platform: String,
+    #[serde(default = "default_channel")]
+    pub channel: String,
+    pub filename: Option<String>,
+    /// 文件大小（字节，必填；用于分片规划与校验）
+    pub file_size: i64,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    #[serde(default)]
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    #[serde(default)]
+    pub hash_alg: Option<i16>,
+    /// 可选：内容类型（用于初始化分片会话时写入 Content-Type）
+    #[serde(default)]
+    pub content_type: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VersionMultipartInitiateResponse {
+    pub success: bool,
+    pub message: String,
+    pub key: Option<String>,
+    pub session_id: Option<String>,
+    pub part_size: Option<i32>,
+    pub total_parts: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -166,6 +197,127 @@ pub async fn generate_version_upload_signature(
         message: "生成安装包直传签名成功".to_string(),
         key: Some(key),
         signature: Some(signature),
+    }))
+}
+
+/// 初始化安装包大文件分片直传会话（COS Multipart Upload）
+pub async fn initiate_version_multipart_upload(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<VersionMultipartInitiateRequest>,
+) -> Result<Json<VersionMultipartInitiateResponse>, AppError> {
+    let file_size = req.file_size;
+    let (part_size, total_parts) = multipart_upload::plan_multipart_upload(file_size)?;
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的安装包
+    if let Some(ref hash_value) = req.hash_value {
+        let hash_value_trimmed = hash_value.trim();
+        if !hash_value_trimmed.is_empty() {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(&provider.id, hash_alg, hash_value_trimmed, file_size, None)
+                .await
+                .map_err(AppError::from)?
+            {
+                if !storage_service.file_exists(&existing.object_key).await? {
+                    let _ = upload_store
+                        .mark_deleted_by_key(
+                            &provider.id,
+                            &existing.object_key,
+                            Some("对象不存在，已标记为删除"),
+                        )
+                        .await;
+                } else {
+                    info!(
+                        "复用已上传的安装包（分片直传 initiate）：key={}, hash_alg={}, hash_value={}",
+                        existing.object_key, hash_alg, hash_value_trimmed
+                    );
+
+                    return Ok(Json(VersionMultipartInitiateResponse {
+                        success: true,
+                        message: "复用已上传的安装包，无需重新上传".to_string(),
+                        key: Some(existing.object_key),
+                        session_id: None,
+                        part_size: None,
+                        total_parts: None,
+                    }));
+                }
+            }
+        }
+    }
+
+    let key =
+        build_release_object_key(&req.platform, req.channel.as_str(), req.filename.as_deref());
+
+    // 如果有 hash 信息，则记录一条“上传中”的文件记录
+    if let Some(ref hash_value) = req.hash_value {
+        let hash_value_trimmed = hash_value.trim();
+        if !hash_value_trimmed.is_empty() {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    &key,
+                    hash_alg,
+                    hash_value_trimmed,
+                    Some(file_size),
+                    None,
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
+
+    let content_type = req
+        .content_type
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty());
+
+    let upload_id = storage_service
+        .initiate_multipart_upload(&key, content_type)
+        .await?;
+
+    let store = FileUploadMultipartStore::new(state.database.clone());
+    let creator_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let session = match store
+        .create_session(
+            &provider.id,
+            &key,
+            &upload_id,
+            &creator_id,
+            claims.is_admin,
+            Some(file_size),
+            content_type,
+            part_size,
+            total_parts,
+        )
+        .await
+    {
+        Ok(session) => session,
+        Err(e) => {
+            // 尝试回滚 COS multipart 会话，避免遗留分片
+            let _ = storage_service
+                .abort_multipart_upload(&key, &upload_id)
+                .await;
+            return Err(AppError::InternalError(format!("创建分片会话失败: {}", e)));
+        }
+    };
+
+    Ok(Json(VersionMultipartInitiateResponse {
+        success: true,
+        message: "初始化分片上传会话成功".to_string(),
+        key: Some(key),
+        session_id: Some(session.id.to_string()),
+        part_size: Some(part_size),
+        total_parts: Some(total_parts),
     }))
 }
 

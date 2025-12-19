@@ -4,6 +4,7 @@ use std::env;
 pub mod account_store;
 pub mod document_store;
 pub mod emoji_pack_store;
+pub mod file_upload_multipart_store;
 pub mod file_upload_store;
 pub mod friend_store;
 pub mod group_management_store;
@@ -81,6 +82,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251218120000_create_reports.sql"
+        )),
+    ),
+    // 2025-12-19：大文件分片直传会话表（COS Multipart Upload）
+    (
+        "20251219120000_create_file_upload_multipart_sessions.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251219120000_create_file_upload_multipart_sessions.sql"
         )),
     ),
 ];

@@ -661,6 +661,274 @@ impl StorageService for TencentCosService {
         })
     }
 
+    async fn initiate_multipart_upload(
+        &self,
+        key: &str,
+        content_type: Option<&str>,
+    ) -> Result<String, AppError> {
+        if self.bucket_name.is_empty() {
+            return Err(AppError::ValidationError(
+                "未配置 bucket 名称，无法初始化分片上传".to_string(),
+            ));
+        }
+
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+        let path = build_uri_pathname(key);
+
+        let mut headers_map = BTreeMap::new();
+        if let Some(ct) = content_type {
+            if !ct.trim().is_empty() {
+                headers_map.insert("Content-Type".to_string(), ct.trim().to_string());
+            }
+        }
+
+        let mut query_params = BTreeMap::new();
+        query_params.insert("uploads".to_string(), String::new());
+
+        let host = self.resolve_object_host();
+        let authorization = self.generate_signature_v1_with_host(
+            "POST",
+            &path,
+            &headers_map,
+            timestamp,
+            &host,
+            Some(&query_params),
+        );
+
+        let encoded_key = encode_object_key(key);
+        let url = format!("https://{}/{}?uploads", host, encoded_key);
+
+        let mut request = self
+            .client
+            .post(&url)
+            .header("Authorization", authorization);
+        request = request.header("Host", &host);
+        if let Some(ct) = headers_map.get("Content-Type") {
+            request = request.header("Content-Type", ct);
+        }
+
+        let response = request
+            .body(Vec::new())
+            .send()
+            .await
+            .map_err(|e| AppError::InternalError(format!("初始化分片上传失败: {}", e)))?;
+
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        if !status.is_success() {
+            error!(
+                "初始化分片上传失败: status={}, key={}, body={}",
+                status, key, body
+            );
+            return Err(AppError::InternalError(format!(
+                "初始化分片上传失败: {} - {}",
+                status, body
+            )));
+        }
+
+        let upload_id = extract_xml_value(&body, "UploadId").ok_or_else(|| {
+            AppError::InternalError("初始化分片上传成功但未获取到 UploadId".to_string())
+        })?;
+
+        Ok(upload_id)
+    }
+
+    async fn generate_multipart_upload_part_signature(
+        &self,
+        key: &str,
+        upload_id: &str,
+        part_number: i32,
+        content_type: Option<&str>,
+    ) -> Result<DirectUploadSignature, AppError> {
+        if part_number <= 0 {
+            return Err(AppError::ValidationError(
+                "part_number 必须大于 0".to_string(),
+            ));
+        }
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+        let path = build_uri_pathname(key);
+
+        let mut headers_map = BTreeMap::new();
+        if let Some(ct) = content_type {
+            if !ct.trim().is_empty() {
+                headers_map.insert("Content-Type".to_string(), ct.trim().to_string());
+            }
+        }
+
+        let mut query_params = BTreeMap::new();
+        query_params.insert("partNumber".to_string(), part_number.to_string());
+        query_params.insert("uploadId".to_string(), upload_id.to_string());
+
+        let host = self.resolve_object_host();
+        let authorization = self.generate_signature_v1_with_host(
+            "PUT",
+            &path,
+            &headers_map,
+            timestamp,
+            &host,
+            Some(&query_params),
+        );
+
+        let encoded_key = encode_object_key(key);
+        let url = format!(
+            "https://{}/{}?partNumber={}&uploadId={}",
+            host,
+            encoded_key,
+            part_number,
+            urlencoding::encode(upload_id)
+        );
+
+        let mut response_headers = BTreeMap::new();
+        response_headers.insert("Authorization".to_string(), authorization);
+        if let Some(ct) = content_type {
+            if !ct.trim().is_empty() {
+                response_headers.insert("Content-Type".to_string(), ct.trim().to_string());
+            }
+        }
+
+        Ok(DirectUploadSignature {
+            url,
+            method: "PUT".to_string(),
+            headers: response_headers,
+            key: key.to_string(),
+        })
+    }
+
+    async fn complete_multipart_upload(
+        &self,
+        key: &str,
+        upload_id: &str,
+        parts: &[(i32, String)],
+    ) -> Result<(), AppError> {
+        if self.bucket_name.is_empty() {
+            return Err(AppError::ValidationError(
+                "未配置 bucket 名称，无法完成分片上传".to_string(),
+            ));
+        }
+
+        if parts.is_empty() {
+            return Err(AppError::ValidationError(
+                "完成分片上传时 parts 不能为空".to_string(),
+            ));
+        }
+
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+        let path = build_uri_pathname(key);
+
+        let mut headers_map = BTreeMap::new();
+        headers_map.insert("Content-Type".to_string(), "application/xml".to_string());
+
+        let mut query_params = BTreeMap::new();
+        query_params.insert("uploadId".to_string(), upload_id.to_string());
+
+        let host = self.resolve_object_host();
+        let authorization = self.generate_signature_v1_with_host(
+            "POST",
+            &path,
+            &headers_map,
+            timestamp,
+            &host,
+            Some(&query_params),
+        );
+
+        let encoded_key = encode_object_key(key);
+        let url = format!(
+            "https://{}/{}?uploadId={}",
+            host,
+            encoded_key,
+            urlencoding::encode(upload_id)
+        );
+
+        let body = build_complete_multipart_upload_xml(parts);
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", authorization)
+            .header("Host", &host)
+            .header("Content-Type", "application/xml")
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| AppError::InternalError(format!("完成分片上传失败: {}", e)))?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            error!(
+                "完成分片上传失败: status={}, key={}, upload_id={}, body={}",
+                status, key, upload_id, body
+            );
+            Err(AppError::InternalError(format!(
+                "完成分片上传失败: {} - {}",
+                status, body
+            )))
+        }
+    }
+
+    async fn abort_multipart_upload(&self, key: &str, upload_id: &str) -> Result<(), AppError> {
+        if self.bucket_name.is_empty() {
+            return Err(AppError::ValidationError(
+                "未配置 bucket 名称，无法中止分片上传".to_string(),
+            ));
+        }
+
+        let now = OffsetDateTime::now_utc();
+        let timestamp = now.unix_timestamp();
+        let path = build_uri_pathname(key);
+
+        let headers_map = BTreeMap::new();
+        let mut query_params = BTreeMap::new();
+        query_params.insert("uploadId".to_string(), upload_id.to_string());
+
+        let host = self.resolve_object_host();
+        let authorization = self.generate_signature_v1_with_host(
+            "DELETE",
+            &path,
+            &headers_map,
+            timestamp,
+            &host,
+            Some(&query_params),
+        );
+
+        let encoded_key = encode_object_key(key);
+        let url = format!(
+            "https://{}/{}?uploadId={}",
+            host,
+            encoded_key,
+            urlencoding::encode(upload_id)
+        );
+
+        let response = self
+            .client
+            .delete(&url)
+            .header("Authorization", authorization)
+            .header("Host", &host)
+            .send()
+            .await
+            .map_err(|e| AppError::InternalError(format!("中止分片上传失败: {}", e)))?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            error!(
+                "中止分片上传失败: status={}, key={}, upload_id={}, body={}",
+                status, key, upload_id, body
+            );
+            Err(AppError::InternalError(format!(
+                "中止分片上传失败: {} - {}",
+                status, body
+            )))
+        }
+    }
+
     async fn generate_download_url(
         &self,
         key: &str,
@@ -749,6 +1017,24 @@ fn extract_xml_value(block: &str, tag: &str) -> Option<String> {
     regex
         .captures(block)
         .map(|cap| xml_unescape(cap.get(1).map(|m| m.as_str()).unwrap_or_default().trim()))
+}
+
+fn build_complete_multipart_upload_xml(parts: &[(i32, String)]) -> String {
+    let mut buf = String::from("<CompleteMultipartUpload>");
+    for (part_number, etag) in parts {
+        let normalized = normalize_etag(etag);
+        let quoted = format!("\"{}\"", normalized);
+        buf.push_str("<Part>");
+        buf.push_str("<PartNumber>");
+        buf.push_str(&part_number.to_string());
+        buf.push_str("</PartNumber>");
+        buf.push_str("<ETag>");
+        buf.push_str(&quoted);
+        buf.push_str("</ETag>");
+        buf.push_str("</Part>");
+    }
+    buf.push_str("</CompleteMultipartUpload>");
+    buf
 }
 
 /// 解析 ListBuckets 响应 XML

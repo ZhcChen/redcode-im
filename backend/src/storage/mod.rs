@@ -103,6 +103,49 @@ pub trait StorageService: Send + Sync {
         ))
     }
 
+    /// 初始化 Multipart Upload 会话（用于大文件分片直传）
+    async fn initiate_multipart_upload(
+        &self,
+        _key: &str,
+        _content_type: Option<&str>,
+    ) -> Result<String, AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持大文件分片直传".to_string(),
+        ))
+    }
+
+    /// 生成 Upload Part 的直传签名（PUT partNumber + uploadId）
+    async fn generate_multipart_upload_part_signature(
+        &self,
+        _key: &str,
+        _upload_id: &str,
+        _part_number: i32,
+        _content_type: Option<&str>,
+    ) -> Result<DirectUploadSignature, AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持大文件分片直传".to_string(),
+        ))
+    }
+
+    /// 完成 Multipart Upload（合并分片）
+    async fn complete_multipart_upload(
+        &self,
+        _key: &str,
+        _upload_id: &str,
+        _parts: &[(i32, String)],
+    ) -> Result<(), AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持大文件分片直传".to_string(),
+        ))
+    }
+
+    /// 中止 Multipart Upload（清理分片会话）
+    async fn abort_multipart_upload(&self, _key: &str, _upload_id: &str) -> Result<(), AppError> {
+        Err(AppError::ValidationError(
+            "当前存储提供商不支持大文件分片直传".to_string(),
+        ))
+    }
+
     /// 生成带过期时间的下载 URL
     async fn generate_download_url(
         &self,

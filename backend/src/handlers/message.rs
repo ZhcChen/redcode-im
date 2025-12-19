@@ -9,6 +9,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::database::{
+    file_upload_multipart_store::FileUploadMultipartStore,
     file_upload_store::FileUploadStore,
     group_management_store::GroupManagementStore,
     message_read_store::MessageReadStore,
@@ -31,6 +32,7 @@ use crate::redis::models::{
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
     RoomHistoryClearedPayload,
 };
+use crate::services::multipart_upload;
 use crate::storage;
 use crate::storage::DirectUploadSignature;
 use crate::AppState;
@@ -1094,6 +1096,33 @@ pub struct MessageAttachmentSignatureResponse {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct MessageAttachmentMultipartInitiateRequest {
+    pub part_type: ApiMessagePartType,
+    pub filename: Option<String>,
+    pub content_type: Option<String>,
+    /// 文件大小（字节，必填；用于分片规划与校验）
+    pub file_size: usize,
+    /// 文件哈希值（由前端计算并上报，十六进制字符串）
+    pub hash_value: Option<String>,
+    /// 哈希算法：1=md5, 2=sha256；缺省视为 1
+    pub hash_alg: Option<i16>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MessageAttachmentMultipartInitiateResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub part_size: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_parts: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct MessageAttachmentDownloadQuery {
     pub key: String,
     pub expires_in_seconds: Option<u32>,
@@ -1305,6 +1334,178 @@ pub async fn generate_message_attachment_signature(
         message: "生成消息附件直传签名成功".to_string(),
         key: Some(key),
         signature: Some(signature),
+    }))
+}
+
+/// 初始化消息附件大文件分片直传会话（COS Multipart Upload）
+pub async fn initiate_message_attachment_multipart_upload(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<crate::models::Claims>,
+    Json(req): Json<MessageAttachmentMultipartInitiateRequest>,
+) -> Result<Json<MessageAttachmentMultipartInitiateResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = MessageStore::new(state.database.pool());
+    if !store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法上传附件".to_string(),
+        ));
+    }
+
+    if matches!(req.part_type, ApiMessagePartType::Text) {
+        return Err(AppError::ValidationError(
+            "纯文本内容无需分片上传".to_string(),
+        ));
+    }
+
+    if req.file_size == 0 {
+        return Err(AppError::ValidationError(
+            "file_size 必填且必须大于 0".to_string(),
+        ));
+    }
+
+    // 验证文件类型
+    if let Some(content_type) = &req.content_type {
+        if !crate::constants::is_content_type_allowed(content_type) {
+            return Err(AppError::ValidationError(format!(
+                "不支持的文件类型: {}",
+                content_type
+            )));
+        }
+    }
+
+    // 验证文件大小
+    let max_size = if let Some(content_type) = &req.content_type {
+        crate::constants::get_max_size_by_content_type(content_type)
+    } else {
+        crate::constants::FILE_MAX_SIZE_BYTES
+    };
+    if req.file_size > max_size {
+        return Err(AppError::ValidationError(format!(
+            "文件大小超过限制: {} bytes（最大允许 {} bytes）",
+            req.file_size, max_size
+        )));
+    }
+
+    let (part_size, total_parts) = multipart_upload::plan_multipart_upload(req.file_size as i64)?;
+
+    let provider = load_default_storage_provider(&state).await?;
+    let storage_service = storage::create_storage_service(&provider)?;
+
+    // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的附件
+    if let Some(ref hash_value) = req.hash_value {
+        let hash_value_trimmed = hash_value.trim();
+        if !hash_value_trimmed.is_empty() {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            if let Some(existing) = upload_store
+                .find_completed_by_hash(
+                    &provider.id,
+                    hash_alg,
+                    hash_value_trimmed,
+                    req.file_size as i64,
+                    Some("messages/"),
+                )
+                .await
+                .map_err(AppError::from)?
+            {
+                if !storage_service.file_exists(&existing.object_key).await? {
+                    let _ = upload_store
+                        .mark_deleted_by_key(
+                            &provider.id,
+                            &existing.object_key,
+                            Some("对象不存在，已标记为删除"),
+                        )
+                        .await;
+                } else {
+                    info!(
+                        "复用已上传的消息附件（分片直传 initiate）：key={}, hash_alg={}, hash_value={}",
+                        existing.object_key, hash_alg, hash_value_trimmed
+                    );
+
+                    return Ok(Json(MessageAttachmentMultipartInitiateResponse {
+                        success: true,
+                        message: "复用已上传的附件，无需重新上传".to_string(),
+                        key: Some(existing.object_key),
+                        session_id: None,
+                        part_size: None,
+                        total_parts: None,
+                    }));
+                }
+            }
+        }
+    }
+
+    let key = build_message_attachment_key(
+        &room_id,
+        &req.part_type,
+        req.filename.as_deref(),
+        req.content_type.as_deref(),
+    );
+
+    // 如果有 hash 信息，则记录一条“上传中”的文件记录
+    if let Some(ref hash_value) = req.hash_value {
+        let hash_value_trimmed = hash_value.trim();
+        if !hash_value_trimmed.is_empty() {
+            let hash_alg = req.hash_alg.unwrap_or(1);
+            let upload_store = FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .create_pending_record(
+                    &provider.id,
+                    &key,
+                    hash_alg,
+                    hash_value_trimmed,
+                    Some(req.file_size as i64),
+                    req.content_type.as_deref(),
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
+
+    let content_type = req
+        .content_type
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty());
+
+    let upload_id = storage_service
+        .initiate_multipart_upload(&key, content_type)
+        .await?;
+
+    let multipart_store = FileUploadMultipartStore::new(state.database.clone());
+    let session = match multipart_store
+        .create_session(
+            &provider.id,
+            &key,
+            &upload_id,
+            &user_id,
+            claims.is_admin,
+            Some(req.file_size as i64),
+            content_type,
+            part_size,
+            total_parts,
+        )
+        .await
+    {
+        Ok(session) => session,
+        Err(e) => {
+            let _ = storage_service
+                .abort_multipart_upload(&key, &upload_id)
+                .await;
+            return Err(AppError::InternalError(format!("创建分片会话失败: {}", e)));
+        }
+    };
+
+    Ok(Json(MessageAttachmentMultipartInitiateResponse {
+        success: true,
+        message: "初始化分片上传会话成功".to_string(),
+        key: Some(key),
+        session_id: Some(session.id.to_string()),
+        part_size: Some(part_size),
+        total_parts: Some(total_parts),
     }))
 }
 
