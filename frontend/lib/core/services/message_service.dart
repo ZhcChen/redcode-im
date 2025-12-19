@@ -62,6 +62,8 @@ class MessageAttachmentDraft {
 
 /// 消息服务 - 管理消息的发送、接收和存储
 class MessageService with ChangeNotifier {
+  static const int _multipartThresholdBytes = 5 * 1024 * 1024;
+
   MessageService({
     TokenStorage? tokenStorage,
     MessageStorage? messageStorage,
@@ -1738,16 +1740,38 @@ class MessageService with ChangeNotifier {
         hashResult = const FileHashResult(hashValue: null, hashAlg: null);
       }
 
-      final signatureResult = await _requestAttachmentSignature(
-        roomId: roomId,
-        type: draft.type,
-        fileName: fileName,
-        contentType: contentType,
-        fileSize: size,
-        hashValue: hashResult?.hashValue,
-        hashAlg: hashResult?.hashAlg,
-        token: token,
-      );
+      final hashValue = hashResult?.hashValue;
+      final hashAlg = hashResult?.hashAlg;
+
+      final bool shouldUseMultipart = size > _multipartThresholdBytes;
+      final _AttachmentSignatureResult? signatureResult;
+      final _AttachmentMultipartInitiateResult? multipartResult;
+
+      if (shouldUseMultipart) {
+        multipartResult = await _requestAttachmentMultipartInitiate(
+          roomId: roomId,
+          type: draft.type,
+          fileName: fileName,
+          contentType: contentType,
+          fileSize: size,
+          hashValue: hashValue,
+          hashAlg: hashAlg,
+          token: token,
+        );
+        signatureResult = null;
+      } else {
+        signatureResult = await _requestAttachmentSignature(
+          roomId: roomId,
+          type: draft.type,
+          fileName: fileName,
+          contentType: contentType,
+          fileSize: size,
+          hashValue: hashValue,
+          hashAlg: hashAlg,
+          token: token,
+        );
+        multipartResult = null;
+      }
 
       plans.add(
         _AttachmentUploadPlan(
@@ -1755,8 +1779,13 @@ class MessageService with ChangeNotifier {
           messageId: messageId,
           roomId: roomId,
           draft: draft,
-          key: signatureResult.key,
-          signature: signatureResult.signature,
+          key: signatureResult?.key ?? multipartResult!.key,
+          signature: signatureResult?.signature,
+          multipartSessionId: multipartResult?.sessionId,
+          multipartPartSize: multipartResult?.partSize,
+          multipartTotalParts: multipartResult?.totalParts,
+          hashValue: hashValue,
+          hashAlg: hashAlg,
           contentType: contentType,
           file: draft.file,
           size: size,
@@ -1954,7 +1983,40 @@ class MessageService with ChangeNotifier {
   }
 
   Future<void> _executeAttachmentUpload(_AttachmentUploadPlan plan) async {
-    // 若命中哈希去重（后端未返回签名），无需上传，仅更新本地状态
+    // 分片上传：使用 COS Multipart Upload（> 5MB）
+    if (plan.multipartSessionId != null) {
+      await _executeAttachmentMultipartUpload(plan);
+
+      await _commitAttachmentUpload(
+        roomId: plan.roomId,
+        key: plan.key,
+        fileSize: plan.size,
+        hashValue: plan.hashValue,
+        hashAlg: plan.hashAlg,
+      );
+
+      await _updateAttachmentUploadProgress(
+        roomId: plan.roomId,
+        messageId: plan.messageId,
+        key: plan.key,
+        progress: null,
+      );
+
+      final savedPath = await AttachmentCache.instance.saveFile(
+        objectKey: plan.key,
+        source: plan.file,
+      );
+
+      await _updateAttachmentLocalPath(
+        roomId: plan.roomId,
+        messageId: plan.messageId,
+        key: plan.key,
+        localPath: savedPath,
+      );
+      return;
+    }
+
+    // 若命中哈希去重（后端未返回签名/会话），无需上传，仅更新本地状态
     if (plan.signature == null) {
       final savedPath = await AttachmentCache.instance.saveFile(
         objectKey: plan.key,
@@ -2014,6 +2076,14 @@ class MessageService with ChangeNotifier {
       throw Exception('上传附件失败: $message');
     }
 
+    await _commitAttachmentUpload(
+      roomId: plan.roomId,
+      key: plan.key,
+      fileSize: plan.size,
+      hashValue: plan.hashValue,
+      hashAlg: plan.hashAlg,
+    );
+
     await _updateAttachmentUploadProgress(
       roomId: plan.roomId,
       messageId: plan.messageId,
@@ -2032,6 +2102,92 @@ class MessageService with ChangeNotifier {
       key: plan.key,
       localPath: savedPath,
     );
+  }
+
+  Future<void> _executeAttachmentMultipartUpload(_AttachmentUploadPlan plan) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final sessionId = plan.multipartSessionId;
+    final partSize = plan.multipartPartSize;
+    final totalParts = plan.multipartTotalParts;
+    if (sessionId == null || sessionId.isEmpty || partSize == null || totalParts == null) {
+      throw Exception('分片上传会话信息不完整');
+    }
+
+    final total = plan.size.toDouble().clamp(1, double.infinity);
+    double uploaded = 0;
+    final parts = <_MultipartCompletedPart>[];
+
+    try {
+      for (var partNumber = 1; partNumber <= totalParts; partNumber++) {
+        final signature = await _requestMultipartPartSignature(
+          sessionId: sessionId,
+          partNumber: partNumber,
+          token: session.token,
+        );
+
+        final start = (partNumber - 1) * partSize;
+        final endExclusive = (start + partSize) <= plan.size
+            ? (start + partSize)
+            : plan.size;
+        final request = http.StreamedRequest(
+          signature.method,
+          Uri.parse(signature.url),
+        );
+        signature.applyHeaders(request, defaultContentType: plan.contentType);
+
+        final responseFuture = request.send();
+
+        await for (final chunk in plan.file.openRead(start, endExclusive)) {
+          request.sink.add(chunk);
+          uploaded += chunk.length;
+          final progress = (uploaded / total).clamp(0.0, 1.0);
+          await _updateAttachmentUploadProgress(
+            roomId: plan.roomId,
+            messageId: plan.messageId,
+            key: plan.key,
+            progress: progress.toDouble(),
+          );
+        }
+        await request.sink.close();
+
+        final response = await responseFuture;
+        final responseBody = await response.stream.bytesToString();
+        if (!_isSuccessStatus(response.statusCode)) {
+          final message = responseBody.isNotEmpty
+              ? responseBody
+              : '状态码 ${response.statusCode}';
+          throw Exception('上传分片失败（part $partNumber）: $message');
+        }
+
+        final etagRaw = response.headers['etag'];
+        if (etagRaw == null || etagRaw.isEmpty) {
+          throw Exception('上传分片成功但未获取到 ETag（part $partNumber）');
+        }
+        final etag = etagRaw.replaceAll('"', '').trim();
+
+        await _commitMultipartPart(
+          sessionId: sessionId,
+          partNumber: partNumber,
+          etag: etag,
+          token: session.token,
+        );
+
+        parts.add(_MultipartCompletedPart(partNumber: partNumber, etag: etag));
+      }
+
+      await _completeMultipartUpload(
+        sessionId: sessionId,
+        parts: parts,
+        token: session.token,
+      );
+    } catch (error) {
+      await _abortMultipartUpload(sessionId: sessionId, token: session.token);
+      rethrow;
+    }
   }
 
   Future<void> _updateAttachmentUploadProgress({
@@ -2188,6 +2344,246 @@ class MessageService with ChangeNotifier {
       key: key,
       signature: signature,
     );
+  }
+
+  Future<_AttachmentMultipartInitiateResult> _requestAttachmentMultipartInitiate({
+    required String roomId,
+    required MessagePartType type,
+    required String fileName,
+    required String contentType,
+    required int fileSize,
+    required String? hashValue,
+    required int? hashAlg,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/attachments/multipart/initiate',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'part_type': _mapPartTypeName(type),
+        'filename': fileName,
+        'content_type': contentType,
+        'file_size': fileSize,
+        if (hashValue != null && hashValue.isNotEmpty) 'hash_value': hashValue,
+        if (hashAlg != null) 'hash_alg': hashAlg,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('初始化附件分片上传失败: ${response.body}');
+    }
+
+    int? parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final success = payload['success'] as bool? ?? false;
+    if (!success) {
+      final message = payload['message'] as String? ?? '未知错误';
+      throw Exception('初始化附件分片上传失败: $message');
+    }
+
+    final key = payload['key'] as String?;
+    if (key == null || key.isEmpty) {
+      throw Exception('分片上传初始化响应不包含有效的 key');
+    }
+
+    final sessionId = payload['session_id'] as String?;
+    final partSize = parseInt(payload['part_size']);
+    final totalParts = parseInt(payload['total_parts']);
+
+    return _AttachmentMultipartInitiateResult(
+      key: key,
+      sessionId: sessionId,
+      partSize: partSize,
+      totalParts: totalParts,
+    );
+  }
+
+  Future<DirectUploadSignature> _requestMultipartPartSignature({
+    required String sessionId,
+    required int partNumber,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/uploads/multipart/sessions/$sessionId/parts/signature',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{'part_number': partNumber}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('获取分片上传签名失败: ${response.body}');
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final success = payload['success'] as bool? ?? false;
+    if (!success) {
+      final message = payload['message'] as String? ?? '未知错误';
+      throw Exception('获取分片上传签名失败: $message');
+    }
+
+    final rawSignature = payload['signature'];
+    if (rawSignature is! Map<String, dynamic>) {
+      throw Exception('分片上传签名响应不完整');
+    }
+    return DirectUploadSignature.fromJson(rawSignature);
+  }
+
+  Future<void> _commitMultipartPart({
+    required String sessionId,
+    required int partNumber,
+    required String etag,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/uploads/multipart/sessions/$sessionId/parts/commit',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'part_number': partNumber,
+        'etag': etag,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('提交分片进度失败: ${response.body}');
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final success = payload['success'] as bool? ?? false;
+    if (!success) {
+      final message = payload['message'] as String? ?? '未知错误';
+      throw Exception('提交分片进度失败: $message');
+    }
+  }
+
+  Future<void> _completeMultipartUpload({
+    required String sessionId,
+    required List<_MultipartCompletedPart> parts,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/uploads/multipart/sessions/$sessionId/complete',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'parts': parts
+            .map((part) => {
+                  'part_number': part.partNumber,
+                  'etag': part.etag,
+                })
+            .toList(),
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('完成分片上传失败: ${response.body}');
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final success = payload['success'] as bool? ?? false;
+    if (!success) {
+      final message = payload['message'] as String? ?? '未知错误';
+      throw Exception('完成分片上传失败: $message');
+    }
+  }
+
+  Future<void> _abortMultipartUpload({
+    required String sessionId,
+    required String token,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '${AppConfig.apiBaseUrl}/uploads/multipart/sessions/$sessionId/abort',
+      );
+      final response = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(<String, dynamic>{}),
+      );
+
+      if (response.statusCode != 200) {
+        return;
+      }
+
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final success = payload['success'] as bool? ?? false;
+      if (!success) {
+        return;
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _commitAttachmentUpload({
+    required String roomId,
+    required String key,
+    required int fileSize,
+    required String? hashValue,
+    required int? hashAlg,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/attachments/commit',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${session.token}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'key': key,
+        'file_size': fileSize,
+        if (hashValue != null && hashValue.isNotEmpty) 'hash_value': hashValue,
+        if (hashAlg != null) 'hash_alg': hashAlg,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('标记附件上传完成失败: ${response.body}');
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final success = payload['success'] as bool? ?? false;
+    if (!success) {
+      final message = payload['message'] as String? ?? '未知错误';
+      throw Exception('标记附件上传完成失败: $message');
+    }
   }
 
   String _mapPartTypeName(MessagePartType type) {
@@ -3616,6 +4012,30 @@ class _AttachmentSignatureResult {
   final DirectUploadSignature? signature;
 }
 
+class _AttachmentMultipartInitiateResult {
+  const _AttachmentMultipartInitiateResult({
+    required this.key,
+    required this.sessionId,
+    required this.partSize,
+    required this.totalParts,
+  });
+
+  final String key;
+  final String? sessionId;
+  final int? partSize;
+  final int? totalParts;
+}
+
+class _MultipartCompletedPart {
+  const _MultipartCompletedPart({
+    required this.partNumber,
+    required this.etag,
+  });
+
+  final int partNumber;
+  final String etag;
+}
+
 class _AttachmentUploadPlan {
   _AttachmentUploadPlan({
     required this.index,
@@ -3624,6 +4044,11 @@ class _AttachmentUploadPlan {
     required this.draft,
     required this.key,
     required this.signature,
+    required this.multipartSessionId,
+    required this.multipartPartSize,
+    required this.multipartTotalParts,
+    required this.hashValue,
+    required this.hashAlg,
     required this.contentType,
     required this.file,
     required this.size,
@@ -3638,6 +4063,11 @@ class _AttachmentUploadPlan {
   final MessageAttachmentDraft draft;
   final String key;
   final DirectUploadSignature? signature;
+  final String? multipartSessionId;
+  final int? multipartPartSize;
+  final int? multipartTotalParts;
+  final String? hashValue;
+  final int? hashAlg;
   final String contentType;
   final File file;
   final int size;
