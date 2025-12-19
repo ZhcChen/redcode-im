@@ -899,6 +899,7 @@
             <textarea
               v-model="newMessage"
               @keydown="handleInputKeydown"
+              @paste="handleInputPaste"
               :placeholder="inputPlaceholder"
               :disabled="isInputDisabled"
               rows="1"
@@ -6062,6 +6063,89 @@ const handleInputKeydown = (event: KeyboardEvent) => {
       event.preventDefault()
       sendMessage()
     }
+  }
+}
+
+const getPastedFileName = (file: File, index: number): string => {
+  const originalName = file.name?.trim()
+  if (originalName) {
+    return originalName
+  }
+
+  const rawMime = file.type?.trim().toLowerCase()
+  const ext =
+    rawMime && rawMime.includes('/') ? rawMime.split('/').pop() || 'bin' : 'bin'
+
+  return `clipboard-${Date.now()}-${index + 1}.${ext}`
+}
+
+// 处理输入框粘贴（支持粘贴截图/图片等文件）
+const handleInputPaste = async (event: ClipboardEvent) => {
+  try {
+    if (isInputDisabled.value) {
+      return
+    }
+
+    const clipboard = event.clipboardData
+    if (!clipboard) {
+      return
+    }
+
+    const files: File[] = []
+
+    if (clipboard.files && clipboard.files.length > 0) {
+      files.push(...Array.from(clipboard.files))
+    } else if (clipboard.items && clipboard.items.length > 0) {
+      for (const item of Array.from(clipboard.items)) {
+        if (item.kind !== 'file') continue
+        const file = item.getAsFile()
+        if (file) {
+          files.push(file)
+        }
+      }
+    }
+
+    // 没有文件则保持默认粘贴行为（粘贴文本等）
+    if (files.length === 0) {
+      return
+    }
+
+    // 有文件则拦截默认行为，避免粘贴出文件名/乱码等
+    event.preventDefault()
+
+    if (!selectedChat.value || !selectedChat.value.groupId) {
+      toast.error('请先选择聊天对象')
+      return
+    }
+
+    if (files.length > 1) {
+      toast.info(`检测到 ${files.length} 个文件，开始发送...`)
+    }
+
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]
+      const safeName = getPastedFileName(file, index)
+      const normalizedFile =
+        file.name?.trim() === safeName
+          ? file
+          : new File([file], safeName, {
+              type: file.type || 'application/octet-stream',
+              lastModified: file.lastModified,
+            })
+
+      try {
+        await uploadAndSendFile(normalizedFile)
+      } catch (error: any) {
+        toast.error(
+          `粘贴文件发送失败: ${safeName} ${
+            error?.message ? `(${error.message})` : ''
+          }`
+        )
+      }
+    }
+  } catch (error: any) {
+    console.error('处理粘贴失败:', error)
+    toast.error('粘贴文件处理失败')
   }
 }
 
