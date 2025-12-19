@@ -131,10 +131,120 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 6. Push 通知集成（backend + frontend）
+### 6. 消息编辑 / Reactions / Typing（backend + desktop + frontend）
+**目标**: 桌面端与移动端能力对齐，实现“消息编辑 / 消息反应（reactions）/ 正在输入（typing）”并通过 WebSocket 保障多端实时一致。
+
+#### 6.1 消息编辑（edit）
+- **现状**:
+  - 后端仅支持删除消息：`DELETE /rooms/{room_id}/messages/{message_id}`（无编辑接口）
+  - WebSocket `message_update` 载荷目前只覆盖“删除”（`is_deleted/deleted_at`）
+  - 桌面端存在“（已编辑）”展示占位，但缺少可用的编辑链路与可用推送载荷
+- **需求边界（先固定最小可用）**:
+  - 仅允许编辑“自己发送的消息”
+  - 仅支持 `text` 消息（后续再扩展 `mixed` 中的文本 part）
+  - 编辑对所有人可见；编辑后会更新会话 lastMessage 预览
+- **后端（API + 数据）**:
+  - 新增接口：`PATCH /rooms/{room_id}/messages/{message_id}`（body：`content`）
+  - DB：新增 `messages.edited_at`（TIMESTAMPTZ，可空）或等价字段；编辑时同步更新 `updated_at`
+  - 广播：扩展 `message_update`（JSON/Protobuf）支持 `update_type=edited` 并携带 `message`（至少包含 id/room_id/content/message_type/parts/edited_at）
+  - 校验：仅房间成员、仅 sender 本人、消息未删除、内容长度限制与敏感字符处理
+- **Desktop**:
+  - 消息气泡长按/右键菜单新增“编辑”（仅自己文本消息）
+  - 提交编辑后本地立即更新，并等待 WS 回流做最终一致（失败回滚 + toast）
+  - 收到 `edited` 推送时：更新消息内容、标记“已编辑”、更新本地搜索索引（`messageSearchService.updateMessageIndex`）
+- **Flutter**:
+  - 长按菜单新增“编辑”（仅自己文本消息），输入框进入编辑态（可取消/确认）
+  - 收到 `edited` 推送时：更新消息内容、标记“已编辑”；同时刷新本地搜索索引（可先按房间重建索引，后续再做增量更新）
+
+#### 6.2 消息反应（reactions）
+> reactions 不是“发一条表情/贴纸消息”，而是给“某一条已存在消息”追加一个可聚合的小标签（例如：👍×3、😂×1），用于快速反馈且不刷屏。
+
+- **需求边界（先固定最小可用）**:
+  - 每个用户对同一条消息、同一种 reaction 只能有 0/1（点击即 toggle）
+  - reaction 类型先固定集合（例如：👍 ❤️ 😂 🎉 😮 😢），避免自定义导致兼容成本
+- **后端（DB + API）**:
+  - 新增表：`message_reactions`（message_id/user_id/reaction_key/created_at/deleted_at），唯一约束 `(message_id, user_id, reaction_key)`
+  - 新增接口：
+    - `POST /rooms/{room_id}/messages/{message_id}/reactions`（body：`reaction_key`）→ 添加/恢复
+    - `DELETE /rooms/{room_id}/messages/{message_id}/reactions`（body：`reaction_key`）→ 取消
+    - `GET /rooms/{room_id}/messages/{message_id}/reactions`（可选：返回聚合结果 + self 状态）
+  - 广播：新增 WS 推送 `message_reaction_update`（delta：message_id/reaction_key/user_id/action=add|remove），客户端按 delta 维护聚合计数
+  - 权限：仅房间成员可操作；消息已删除则不可加 reaction（可选：保留但不展示）
+- **Desktop/Flutter UI**:
+  - 交互：长按消息弹出 reaction bar；点某个 reaction toggle；消息下方展示聚合标签（可点开查看详情或二次 toggle）
+  - 同步：本地乐观更新（先加/减 UI），失败回滚；收到 WS delta 做最终收敛
+
+#### 6.3 正在输入（typing）
+- **定位**: 纯临时态（不落库），用于提升会话实时感知；必须节流与超时，避免频繁广播。
+- **后端（WebSocket）**:
+  - 新增客户端上行事件：`typing`（room_id + is_typing），同一用户同一房间 1~2s 节流
+  - 新增服务端下行推送：`typing_update`（room_id/user_id/is_typing/expires_in_ms）
+  - 规则：发送消息时强制清理 typing 状态；离开房间/断线时清理
+- **客户端**:
+  - 输入框内容变化触发 `typing=true`（节流）；停止输入/输入框失焦触发 `typing=false`
+  - UI：单聊显示“对方正在输入…”；群聊显示“某某正在输入…”（或多人时折叠）
+
+**影响**: 多端核心聊天体验对齐（编辑/反应/输入态）；涉及 WS 协议与 DB 变更，需要统一灰度与兼容策略
+**状态**: ❌ 未完成
+**优先级**: 🟠 中（建议先做编辑 → reactions → typing）
+
+---
+
+### 7. COS 大文件分片前端直传（backend + desktop + frontend + admin）
+**目标**: 扩展现有“单文件直传”能力，支持大文件（例如视频/安装包）走 COS Multipart Upload（分片直传），文件数据始终由前端上传到 COS，后端仅负责分片会话与最终合并（Complete）。
+
+#### 7.1 现状
+- 已支持单文件直传：后端生成 `DirectUploadSignature(url/method/headers/key)`，前端 `PUT` 上传后再 `commit`（如消息附件、头像、版本包等）
+- 后端 `commit` 阶段已对 COS ETag 做了分块兼容：ETag 带 `-` 时不做 MD5 严格校验（适配 multipart）
+
+#### 7.2 改造原则（约束）
+- 文件内容 **不经过后端**（避免带宽/成本与服务端压力）
+- 后端负责：
+  - Initiate：向 COS 发起 multipart 会话并返回 `upload_id`
+  - Part 签名：为每个 part 生成直传签名（Authorization/header/URL）
+  - Progress：记录/查询分片进度（用于断点续传与排障）
+  - Complete：收到前端汇总的 `part_number + etag` 列表后调用 COS Complete，并落库/复用
+  - Abort：取消/失败时终止会话并清理记录
+
+#### 7.3 后端（接口 + 存储 + COS 适配）
+- 存储层：扩展 `backend/src/storage/cos.rs` 增加 multipart 所需能力（init/list/complete/abort + part PUT 签名）
+- DB：新增 `file_upload_multipart_sessions`（或等价结构），记录：
+  - provider_id/object_key/upload_id/status/part_size/total_parts
+  - uploaded_parts（part_number/etag，可 JSONB）与更新时间（用于续传）
+- 通用接口（建议做成统一上传模块，供消息附件/版本包/举报附件等复用）：
+  - `POST /uploads/multipart/initiate`（输入：object_key/content_type/file_size/hash）→ 输出：upload_id/part_size/total_parts/session_id
+  - `POST /uploads/multipart/part-signature`（session_id + part_number）→ 输出：DirectUploadSignature（用于 PUT part）
+  - `POST /uploads/multipart/complete`（session_id + parts[{part_number, etag}]）→ 后端请求 COS Complete → 标记 file_upload_records=completed
+  - `POST /uploads/multipart/abort`（session_id）→ 后端请求 COS Abort → 标记失败/清理
+  - `GET /uploads/multipart/{session_id}`（可选：返回已上传 parts，用于断点续传）
+- 校验：
+  - object_key 前缀白名单（messages/avatars/reports/versions 等），避免越权写任意 key
+  - part_number 范围与 total_parts 一致；complete 时 parts 必须齐全且 etag 不为空
+
+#### 7.4 前端（Desktop/Flutter/Admin）
+- 统一抽象“上传策略”：
+  - 小文件：沿用单文件直传（现有 uploadWithSignature/DirectUploadSignature）
+  - 大文件：multipart（init → 并发 PUT part → complete）
+- 关键能力：
+  - 分片大小策略（如 8MB/16MB，可配置）
+  - 并发上传与重试（失败重传单个 part）
+  - 断点续传：启动时从后端查询已上传 parts，跳过已完成 part
+  - 进度汇总：按已上传 bytes 计算总进度，并上报 UI（含速度/剩余时间可选）
+- 对接点：
+  - Desktop：消息附件上传、版本包上传（如有）
+  - Flutter：消息附件上传（视频/文件），尽量复用现有直传流程的 commit 语义
+  - Admin：版本管理上传（安装包通常体积较大，优先改造）
+
+**影响**: 大文件上传稳定性与体验显著提升；改动涉及 COS 签名/状态机/多端上传实现与兼容策略
+**状态**: ❌ 未完成
+**优先级**: 🟠 中（建议先在 Admin 版本包落地，再复用到聊天附件）
+
+---
+
+### 8. Push 通知集成（backend + frontend）
 **目标**: App 不在前台时也能收到通知（新消息/好友请求等），并与“会话免打扰/仅@通知/完全静音”等设置保持一致。
 
-#### 6.1 产品与策略对齐
+#### 8.1 产品与策略对齐
 - 通知类型：新消息、@提醒、好友请求、群管理事件（被踢/解散/转让等）等（按产品最终取舍）
 - 通知过滤：
   - 不给发送者自己推送
@@ -142,7 +252,7 @@ await _chatProvider.sendVoiceMessage(...);
   - 支持全局免打扰/时段免打扰（如需）
 - 通知载荷（用于点击跳转）：至少包含 `room_id`、可选 `message_id`（用于定位消息）与展示用的 `sender_name/message_preview`
 
-#### 6.2 后端（接口 + 存储）
+#### 8.2 后端（接口 + 存储）
 - 设备标识与 token 存储：新增 `push_devices`（或同等表）记录 `user_id/platform/device_token/channel/device_id/last_seen/is_active` 等
 - Token 注册接口：
   - `POST /push/devices`：上报/更新 token（支持 token 刷新）
@@ -156,14 +266,14 @@ await _chatProvider.sendVoiceMessage(...);
   - iOS：APNs（Auth Key `.p8` + Key ID + Team ID）
 - 可观测性：记录发送结果、错误码、可追踪的 `push_id`（便于排障）
 
-#### 6.3 Flutter（移动端）
+#### 8.3 Flutter（移动端）
 - 集成推送 SDK：
   - Android：Firebase Messaging（获取 FCM token）
   - iOS：APNs 权限 + FCM（或直接 APNs，根据最终选型）
 - Token 生命周期：首次登录上报、token 刷新回调更新、登出时解绑
 - 通知点击跳转：解析 payload → 打开对应会话 →（有 `message_id` 则）定位到目标消息
 
-#### 6.4 配置与材料清单（落地前准备）
+#### 8.4 配置与材料清单（落地前准备）
 - iOS：Bundle ID、开启 Push capability、APNs `.p8` / Key ID / Team ID
 - Android：Firebase 项目、`google-services.json`、Service Account JSON
 
@@ -175,7 +285,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ## 🟡 低优先级 (体验优化)
 
-### 7. 前端 - 音频波形可视化 (desktop)
+### 9. 前端 - 音频波形可视化 (desktop)
 **位置**: `desktop/src/utils/voiceRecorder.ts:332`
 ```typescript
 // VoiceUtils.createWaveformData / createWaveformFromBlob
@@ -186,7 +296,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 8. 后端 - 测试用例待完善
+### 10. 后端 - 测试用例待完善
 **位置**: `backend/tests/file_upload_test.rs`
 ```rust
 // 覆盖头像/附件的类型白名单与大小限制逻辑
@@ -197,7 +307,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 9. 前端 (Flutter) - Android 构建配置
+### 11. 前端 (Flutter) - Android 构建配置
 **位置**: `frontend/android/app/build.gradle.kts`
 
 #### 8.1 应用 ID 配置 (第23行)
@@ -216,7 +326,7 @@ await _chatProvider.sendVoiceMessage(...);
 
 ---
 
-### 10. 管理后台 - ECharts 主题 (admin)
+### 12. 管理后台 - ECharts 主题 (admin)
 **位置**: `admin/src/hooks/chart-option.ts:20`
 ```typescript
 // useChartOption(sourceOption: (isDark, theme) => option)
@@ -232,9 +342,9 @@ await _chatProvider.sendVoiceMessage(...);
 | 优先级 | 数量 | 模块分布 |
 |--------|------|----------|
 | 🔴 高优先级 | 3 | 后端(2，含 2 个已完成) + 前端桌面端(1，已完成) |
-| 🟠 中优先级 | 3 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) + Push 通知(1，未完成) |
+| 🟠 中优先级 | 5 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) + 消息编辑/反应/输入态(1，未完成) + COS 分片直传(1，未完成) + Push 通知(1，未完成) |
 | 🟡 低优先级 | 4 | 后端测试(1，已完成基础单测) + 桌面端(1，已完成) + 移动端(1，未完成) + 管理后台(1，已完成基础主题结构) |
-| **总计** | **10** | - |
+| **总计** | **12** | - |
 
 ---
 
@@ -255,8 +365,10 @@ await _chatProvider.sendVoiceMessage(...);
 8. ❌ Android 发布配置（集中配置 Application ID 与签名）
 9. ✅ 图表主题优化（admin 基础主题结构与示例接入）
 10. ❌ Push 通知集成（先按文档准备环境与凭据，再按里程碑实现）
+11. ❌ 消息编辑 / Reactions / Typing（先编辑 → reactions → typing）
+12. ❌ COS 大文件分片前端直传（先 Admin 版本包 → 再聊天附件复用）
 
 ---
 
 **最后更新**: 2025-12-19
-**总完成度**: 8/10 (80%)
+**总完成度**: 8/12 (66.7%)
