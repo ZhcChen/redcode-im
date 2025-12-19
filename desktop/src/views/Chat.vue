@@ -6151,6 +6151,19 @@ const handleInputPaste = async (event: ClipboardEvent) => {
         const fileName =
           item?.name?.trim() || getFileNameFromPath(filePath)
         const mime = item?.mime?.trim() || 'application/octet-stream'
+        const fileSize = typeof item?.size === 'number' ? item.size : 0
+
+        const sizeLimitBytes = (() => {
+          if (mime.startsWith('image/')) return 5 * 1024 * 1024
+          if (mime.startsWith('video/')) return 50 * 1024 * 1024
+          if (mime.startsWith('audio/')) return 50 * 1024 * 1024
+          return 100 * 1024 * 1024
+        })()
+
+        if (fileSize > 0 && fileSize > sizeLimitBytes) {
+          toast.error(`文件大小超出限制，无法发送: ${fileName}`)
+          continue
+        }
 
         try {
           const bytes = await readFile(filePath)
