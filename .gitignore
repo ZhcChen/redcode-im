@@ -9,6 +9,7 @@
 
 # Misc
 .tmp/
+tmp/
 logs/
 
 bear-chat-uniapp
