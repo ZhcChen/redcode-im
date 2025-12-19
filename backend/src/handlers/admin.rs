@@ -475,61 +475,32 @@ pub async fn get_dashboard_storage_stats(
 ) -> Result<Json<DashboardStorageStats>, AppError> {
     let pool = &state.database.pool;
 
-    #[derive(Debug, FromRow)]
-    struct StorageStatsRow {
-        total_files: i64,
-        total_size: i64,
-        today_uploads: i64,
-    }
-
     // 以 file_upload_records 为准：覆盖头像/消息附件/贴纸/版本包等直传文件，并天然去重
-    // 注意：老环境若尚未完成迁移（缺表/缺字段），这里需要降级返回 0，避免后台首页直接报错。
-    let stats = sqlx::query_as::<_, StorageStatsRow>(
-        r#"
-        SELECT
-          COUNT(*) AS total_files,
-          COALESCE(SUM(file_size), 0) AS total_size,
-          COUNT(*) FILTER (
-            WHERE COALESCE(uploaded_at, created_at) >= date_trunc('day', NOW())
-          ) AS today_uploads
-        FROM file_upload_records
-        WHERE status = 1
-        "#,
+    let total_files: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM file_upload_records WHERE status = 1")
+            .fetch_one(pool)
+            .await?;
+
+    let total_size: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(file_size), 0) FROM file_upload_records WHERE status = 1",
     )
     .fetch_one(pool)
-    .await;
+    .await?;
 
-    match stats {
-        Ok(row) => Ok(Json(DashboardStorageStats {
-            total_files: row.total_files,
-            total_size: row.total_size,
-            today_uploads: row.today_uploads,
-        })),
-        Err(err) if is_storage_stats_schema_not_ready_error(&err) => {
-            tracing::warn!(
-                "dashboard storage-stats: file_upload_records schema not ready, return zeros: {:?}",
-                err
-            );
-            Ok(Json(DashboardStorageStats {
-                total_files: 0,
-                total_size: 0,
-                today_uploads: 0,
-            }))
-        }
-        Err(err) => Err(AppError::DatabaseError(err)),
-    }
-}
+    let today_uploads: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM file_upload_records
+         WHERE status = 1
+           AND COALESCE(uploaded_at, created_at) >= date_trunc('day', NOW())",
+    )
+    .fetch_one(pool)
+    .await?;
 
-fn is_storage_stats_schema_not_ready_error(err: &sqlx::Error) -> bool {
-    match err {
-        // 42P01: undefined_table
-        // 42703: undefined_column
-        // 42883: undefined_function / undefined_operator（例如老表字段类型不匹配导致的比较失败）
-        sqlx::Error::Database(db_err) => db_err
-            .code()
-            .is_some_and(|code| matches!(code.as_ref(), "42P01" | "42703" | "42883")),
-        _ => false,
-    }
+    Ok(Json(DashboardStorageStats {
+        total_files,
+        total_size,
+        today_uploads,
+    }))
 }
 
 pub async fn get_dashboard_emoji_stats(
