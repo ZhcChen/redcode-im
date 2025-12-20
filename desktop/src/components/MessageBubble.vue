@@ -10,6 +10,7 @@
 	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
 	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
 	        ),
+        'is-mixed-mode': isMixed,
 	      'is-self': isSelf
 	    }"
 	  >
@@ -44,8 +45,8 @@
 
     <!-- 混合消息 / 多部分消息 -->
     <template v-if="isMixed">
-      <div class="message-bubble-mixed">
-        <!-- 1. 媒体网格 (图片/视频) -->
+      <div class="mixed-stack">
+        <!-- 1) 媒体网格 (图片/视频) -->
         <div v-if="mediaParts.length > 0" class="media-grid" :class="gridClass">
           <div v-for="(part, mIdx) in mediaParts" :key="mIdx" class="grid-item">
             <!-- 图片部分 -->
@@ -75,9 +76,16 @@
               </div>
             </template>
           </div>
+
+          <!-- 时间角标：混合多媒体同单图 -->
+          <div class="media-time-badge">
+            <span class="media-time-text">
+              {{ formatMessageTime(message.createTime || message.time) }}
+            </span>
+          </div>
         </div>
 
-        <!-- 2. 文件列表 -->
+        <!-- 2) 文件列表 -->
         <div v-if="fileParts.length > 0" class="file-parts-list">
           <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
             <div class="file-icon-wrapper">
@@ -94,14 +102,14 @@
           </div>
         </div>
 
-        <!-- 3. 文本内容 -->
-        <div v-if="textPart" class="text-content-mixed">
+        <!-- 3) 文本内容（作为说明/caption） -->
+        <div v-if="textPart" class="mixed-text">
           {{ textPart.text }}
         </div>
 
-        <!-- 4. 底部栏 (时间 + 状态) -->
-        <div class="bubble-footer">
-          <span class="message-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
+        <!-- 4) 仅文件/无媒体时：时间行 -->
+        <div v-if="mediaParts.length === 0" class="mixed-footer">
+          <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
         </div>
       </div>
     </template>
@@ -233,6 +241,7 @@
 	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
 	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
 	        ),
+        'is-mixed-mode': isMixed,
 	      'is-self': isSelf
 	    }"
 	  >
@@ -266,8 +275,8 @@
 
     <!-- 混合消息 / 多部分消息 -->
     <template v-if="isMixed">
-      <div class="message-bubble-mixed">
-        <!-- 1. 媒体网格 (图片/视频) -->
+      <div class="mixed-stack">
+        <!-- 1) 媒体网格 (图片/视频) -->
         <div v-if="mediaParts.length > 0" class="media-grid" :class="gridClass">
           <div v-for="(part, mIdx) in mediaParts" :key="mIdx" class="grid-item">
             <!-- 图片部分 -->
@@ -297,39 +306,17 @@
               </div>
             </template>
           </div>
-        </div>
 
-        <!-- 2. 文件列表 -->
-        <div v-if="fileParts.length > 0" class="file-parts-list">
-          <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
-            <div class="file-icon-wrapper">
-              <div class="file-icon" :class="getPartFileIconClass(part)">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
-                  <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-                </svg>
-              </div>
-            </div>
-            <div class="file-info">
-              <div class="file-size" v-if="getPartFileSize(part)">{{ formatFileSize(getPartFileSize(part)!) }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. 文本内容 -->
-        <div v-if="textPart" class="text-content-mixed">
-          {{ textPart.text }}
-        </div>
-
-        <!-- 4. 底部栏 (时间 + 状态) -->
-        <div class="bubble-footer">
-          <span class="message-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
-          <div v-if="isSelf" class="message-status">
+          <!-- 时间 + 状态角标：混合多媒体同单图 -->
+          <div class="media-time-badge">
+            <span class="media-time-text">
+              {{ formatMessageTime(message.createTime || message.time) }}
+            </span>
             <svg
-              v-if="message.status === 2"
-              class="status-icon sent"
-              width="16"
-              height="16"
+              v-if="message.isSelf && message.status === 2"
+              class="media-status-icon sent"
+              width="14"
+              height="14"
               viewBox="0 0 14 14"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -342,10 +329,10 @@
               />
             </svg>
             <svg
-              v-if="message.status === 4"
-              class="status-icon read"
-              width="16"
-              height="16"
+              v-if="message.isSelf && message.status === 4"
+              class="media-status-icon read"
+              width="14"
+              height="14"
               viewBox="0 0 14 14"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -364,6 +351,71 @@
               />
             </svg>
           </div>
+        </div>
+
+        <!-- 2) 文件列表 -->
+        <div v-if="fileParts.length > 0" class="file-parts-list">
+          <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
+            <div class="file-icon-wrapper">
+              <div class="file-icon" :class="getPartFileIconClass(part)">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
+                  <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                </svg>
+              </div>
+            </div>
+            <div class="file-info">
+              <div class="file-size" v-if="getPartFileSize(part)">{{ formatFileSize(getPartFileSize(part)!) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3) 文本内容（作为说明/caption） -->
+        <div v-if="textPart" class="mixed-text">
+          {{ textPart.text }}
+        </div>
+
+        <!-- 4) 仅文件/无媒体时：时间 + 状态 -->
+        <div v-if="mediaParts.length === 0" class="mixed-footer">
+          <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
+          <svg
+            v-if="message.status === 2"
+            class="mixed-status-icon sent"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+              fill="currentColor"
+            />
+          </svg>
+          <svg
+            v-if="message.status === 4"
+            class="mixed-status-icon read"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+              fill="currentColor"
+            />
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+              fill="currentColor"
+            />
+          </svg>
         </div>
       </div>
     </template>
@@ -989,128 +1041,96 @@ const gridClass = computed(() => {
   border-radius: 0 !important;
   box-shadow: none !important;
   min-width: 0;
+  color: #262626 !important;
 }
 
-.message-bubble-mixed {
-  background-color: #ffffff;
-  color: #1f1f1f;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.mixed-stack {
   max-width: 320px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
   position: relative;
-  border: 1px solid rgba(0, 0, 0, 0.05);
 
-  .media-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    background: #f0f0f0;
+  .grid-item {
+    flex: 1 1 auto;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
 
-    .grid-item {
-      flex: 1 1 auto;
-      min-width: 0;
-      position: relative;
-      overflow: hidden;
-
-      .grid-media {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-        cursor: pointer;
-        min-height: 150px;
-        max-height: 300px;
-      }
-    }
-
-    &.grid-2 .grid-item {
-      flex-basis: calc(50% - 1px);
-    }
-
-    &.grid-3 .grid-item:first-child {
-      flex-basis: 100%;
-    }
-    &.grid-3 .grid-item:not(:first-child) {
-      flex-basis: calc(50% - 1px);
-    }
-
-    &.grid-4 .grid-item {
-      flex-basis: calc(50% - 1px);
-    }
-  }
-
-  .file-parts-list {
-    padding: 8px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-
-    .file-message {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px;
-      border-radius: 8px;
-      background: #f8f9fa;
+    .grid-media {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
       cursor: pointer;
-
-      &:hover {
-        background: #f0f2f5;
-      }
-
-      .file-icon-wrapper {
-        flex-shrink: 0;
-      }
-
-      .file-info {
-        flex: 1;
-        min-width: 0;
-        
-        .file-size {
-          font-size: 11px;
-          color: #8c8c8c;
-        }
-      }
+      min-height: 150px;
+      max-height: 300px;
     }
   }
 
-  .text-content-mixed {
-    padding: 8px 12px 24px 12px;
-    font-size: 15px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
+  &.grid-2 .grid-item {
+    flex-basis: calc(50% - 1px);
   }
 
-  .bubble-footer {
-    position: absolute;
-    right: 8px;
-    bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(255, 255, 255, 0.7);
-    padding: 2px 4px;
-    border-radius: 4px;
-    pointer-events: none;
+  &.grid-3 .grid-item:first-child {
+    flex-basis: 100%;
+  }
+  &.grid-3 .grid-item:not(:first-child) {
+    flex-basis: calc(50% - 1px);
+  }
 
-    .message-time {
-      font-size: 11px;
-      color: #8c8c8c;
-    }
+  &.grid-4 .grid-item {
+    flex-basis: calc(50% - 1px);
+  }
+}
 
-    .message-status {
-      display: flex;
-      align-items: center;
+.file-parts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-      .status-icon {
-        &.sent { color: #8c8c8c; }
-        &.read { color: #40a9ff; }
-      }
-    }
+.mixed-text {
+  padding: 0 4px;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mixed-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8c8c8c;
+  line-height: 1;
+}
+
+.message-content.is-self .mixed-footer {
+  justify-content: flex-end;
+}
+
+.mixed-status-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+
+  &.sent {
+    color: #8c8c8c;
+  }
+
+  &.read {
+    color: #40a9ff;
   }
 }
 
@@ -1148,12 +1168,45 @@ const gridClass = computed(() => {
   }
 }
 
-// 引用块在 Mixed 模式下也应该是亮色
-.message-bubble-mixed .quoted-block {
-  margin: 4px;
-  background: rgba(0, 0, 0, 0.05);
-  border-left: 3px solid #00c2b3;
-  border-radius: 4px;
+.quoted-block {
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: #f9fcfd;
+  border-radius: 16px;
+
+  .quoted-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .quoted-sender {
+    font-size: 12px;
+    font-weight: 600;
+    color: #9a9bb1;
+  }
+
+  .quoted-text {
+    font-size: 16px;
+    color: #2c2d3a;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .quoted-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .quoted-image {
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
 }
 // --- 标准消息样式 (从 Chat.vue 迁移以恢复样式) ---
 .message-content {
@@ -1216,6 +1269,7 @@ const gridClass = computed(() => {
   margin: -4px -4px 4px -4px;
   border-radius: 8px;
   overflow: hidden;
+  display: inline-block;
 
   .message-image {
     max-width: 300px;
@@ -1229,6 +1283,339 @@ const gridClass = computed(() => {
 
 .media-only-content .media-message {
   margin: 0;
+}
+
+.loading-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.media-main {
+  position: relative;
+  display: inline-block;
+}
+
+.media-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.media-loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+
+  .loading-spinner {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.4);
+    border-top-color: #ffffff;
+  }
+}
+
+.media-time-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+}
+
+.media-time-text {
+  white-space: nowrap;
+}
+
+.media-status-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+
+  &.sent,
+  &.read {
+    color: #ffffff;
+  }
+}
+
+// 文件消息（含上传/下载进度）
+.file-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+  max-width: 300px;
+  border-radius: 8px;
+  user-select: none;
+  cursor: pointer;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  .file-icon-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .file-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background-color: #f5f5f5;
+      color: #666;
+
+      svg {
+        width: 32px;
+        height: 32px;
+      }
+
+      &.file-icon-archive {
+        background-color: #fff3e0;
+        color: #f57c00;
+      }
+
+      &.file-icon-text {
+        background-color: #e3f2fd;
+        color: #1976d2;
+      }
+
+      &.file-icon-other {
+        background-color: #f5f5f5;
+        color: #999;
+      }
+    }
+
+    .file-progress-circle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .progress-svg {
+        width: 48px;
+        height: 48px;
+        transform: rotate(-90deg);
+
+        .progress-background {
+          stroke: rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-bar {
+          transition: stroke-dashoffset 0.3s ease;
+        }
+      }
+
+      .progress-text {
+        position: absolute;
+        font-size: 10px;
+        font-weight: 600;
+        color: #666;
+      }
+    }
+
+    .file-download-icon {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      width: 20px;
+      height: 20px;
+      background-color: #007AFF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+  }
+
+  .file-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .file-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #262626;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-size {
+      font-size: 12px;
+      color: #8c8c8c;
+    }
+  }
+}
+
+.message-content.is-self:not(.is-mixed-mode) {
+  .file-message {
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .file-icon-wrapper {
+      .file-progress-circle {
+        .progress-text {
+          color: #fff;
+        }
+      }
+
+      .file-download-icon {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: #007AFF;
+      }
+    }
+
+    .file-info {
+      .file-name {
+        color: #fff;
+      }
+
+      .file-size {
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+  }
+}
+
+// 视频相关样式
+.video-container {
+  position: relative;
+  display: inline-block;
+  border-radius: 8px;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+
+  &:hover .video-play-overlay {
+    opacity: 0.9;
+  }
+}
+
+.video-container .video-thumbnail-wrapper {
+  display: block;
+}
+
+.video-container .video-thumbnail {
+  max-width: 300px;
+  max-height: 300px;
+  border-radius: 8px;
+  display: block;
+  transition: opacity 0.2s;
+}
+
+.video-container .video-play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+
+  .play-icon {
+    color: white;
+    font-size: 24px;
+    margin-left: 3px;
+  }
+}
+
+.video-container .video-placeholder {
+  position: relative;
+  width: 300px;
+  height: 180px;
+  background-color: #e5e7eb;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+
+  .video-placeholder-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  .video-icon {
+    font-size: 28px;
+  }
+
+  .video-placeholder-text {
+    font-size: 12px;
+    color: #6b7280;
+  }
+}
+
+.video-container .video-placeholder-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.video-container .video-placeholder-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
 }
 </style>
 ```

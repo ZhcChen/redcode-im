@@ -5145,7 +5145,7 @@ const scrollToBottom = (force = false, instant = true) => {
       // 使用 scrollTo 方法，支持无动画模式
       vp.scrollTo({
         top: vp.scrollHeight,
-        behavior: instant ? 'instant' : 'smooth'
+        behavior: instant ? 'auto' : 'smooth'
       })
       return true // 返回 true 表示成功滚动
     }
@@ -5200,7 +5200,7 @@ const scrollToBottomOnLoad = () => {
       // 尝试多种滚动方式
       vp.scrollTo({
         top: vp.scrollHeight,
-        behavior: 'instant'
+        behavior: 'auto'
       })
       vp.scrollTop = vp.scrollHeight
 
@@ -5234,12 +5234,15 @@ const scrollToBottomAfterImageLoad = () => {
   scrollToBottom(true)
 }
 
+// 发送消息触发的下一次自动滚动使用 smooth（避免 watch 覆盖为无动画）
+let nextAutoScrollToBottomSmooth = false
+
 // 监听消息变化，自动滚动到底部
 watch(messages, (newMessages, oldMessages) => {
   // 当首次加载消息或消息数量增加时，滚动到底部
   if (!oldMessages || oldMessages.length === 0 || newMessages.length > oldMessages.length) {
-    // 使用无动画模式滚动
-    scrollToBottom(false, true)
+    scrollToBottom(false, !nextAutoScrollToBottomSmooth)
+    nextAutoScrollToBottomSmooth = false
   }
 
   // 加载音频消息的 URL
@@ -5845,6 +5848,7 @@ const sendMessage = async () => {
     roomId: groupId,
   }
 
+  nextAutoScrollToBottomSmooth = true
   messages.value.push(tempMessage)
   recentSentMessages.value.add(tempId)
   
@@ -5861,8 +5865,6 @@ const sendMessage = async () => {
   if (replyingMessage.value) {
     clearReplyingMessage()
   }
-
-  scrollToBottom(false, true)
 
   try {
     const apiMessage = await webSocketManager.sendMessage({
@@ -6227,7 +6229,7 @@ const sendEmojiMessage = async (data: EmojiSelectData) => {
 
     messages.value.push(tempMessage)
     recentSentMessages.value.add(tempId)
-    scrollToBottom(false, true)
+    nextAutoScrollToBottomSmooth = true
 
     try {
       const apiMessage = await webSocketManager.sendMessage({
@@ -6264,7 +6266,7 @@ const sendEmojiMessage = async (data: EmojiSelectData) => {
           recentSentMessages.value.delete(apiMessage.id)
         }, 10000)
       }
-      scrollToBottom(false, true)
+      scrollToBottom(false, false)
     } catch (error: any) {
       console.error('发送表情消息失败:', error)
       // 保持 sending 状态，添加到待重试队列
@@ -6981,10 +6983,10 @@ const uploadAndSendFile = async (file: File) => {
       roomId: selectedChat.value.groupId,
     }
 
+    nextAutoScrollToBottomSmooth = true
     messages.value.push(tempMessage)
     // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
     recentSentMessages.value.add(tempId)
-    scrollToBottom(false, true)
 
     if (multipartSession) {
       console.log('开始分片上传文件到 COS:', file.name, multipartSession)
@@ -7159,7 +7161,7 @@ const uploadAndSendFile = async (file: File) => {
       }, 10000)
     }
 
-    scrollToBottom(false, true)
+    scrollToBottom(false, false)
   } catch (error: any) {
     console.error('文件上传失败:', error, {
       fileName: file.name,
