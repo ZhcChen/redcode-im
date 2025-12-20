@@ -6,8 +6,10 @@
 	    class="message-content"
 	    :class="{
 	      'media-only-content':
-	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
+	        !isMixed && (
+	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
+	        ),
 	      'is-self': isSelf
 	    }"
 	  >
@@ -227,8 +229,10 @@
 	    class="message-content"
 	    :class="{
 	      'media-only-content':
-	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
+	        !isMixed && (
+	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+	          resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
+	        ),
 	      'is-self': isSelf
 	    }"
 	  >
@@ -839,31 +843,37 @@ const isAttachmentPlaceholderText = (text: string) => {
   )
 }
 
+const getAttachmentNames = (parts: MessagePart[]) => (
+  parts
+    .filter((part) =>
+      part.type !== 'text'
+      && Boolean(part.attachment?.name && String(part.attachment.name).trim()),
+    )
+    .map((part) => String(part.attachment!.name).trim())
+)
+
 const textPart = computed(() => {
   if (!props.message.parts) return null
   const parts = props.message.parts
   const hasAttachment = parts.some((part) =>
     part.type !== 'text' && Boolean(part.attachment?.key || part.attachment?.localPath || part.attachment?.downloadUrl),
   )
+  const attachmentNames = hasAttachment ? getAttachmentNames(parts) : []
 
   return (
     parts.find((part) =>
       part.type === 'text'
       && Boolean(part.text && String(part.text).trim())
-      && (!hasAttachment || !isAttachmentPlaceholderText(String(part.text))),
+      && (!hasAttachment || (
+        !isAttachmentPlaceholderText(String(part.text))
+        && !attachmentNames.includes(String(part.text).trim())
+      )),
     ) ?? null
   )
 })
 
 const isMixed = computed(() => {
   const explicitType = (props.message as any)?.type
-  if (explicitType === MessageType.MIXED || explicitType === 'mixed') {
-    return true
-  }
-  if (explicitType) {
-    return false
-  }
-
   const parts = Array.isArray(props.message.parts) ? props.message.parts : []
   if (parts.length === 0) {
     return false
@@ -878,19 +888,29 @@ const isMixed = computed(() => {
     return false
   }
 
+  const attachmentNames = getAttachmentNames(parts)
   const meaningfulTextParts = parts.filter((part) =>
     part.type === 'text'
     && Boolean(part.text && String(part.text).trim())
     && !isAttachmentPlaceholderText(String(part.text)),
+  ).filter((part) =>
+    !attachmentNames.includes(String(part.text).trim()),
   )
 
   // 1) 多个附件（同类型也算，例如多图/多文件）
-  if (attachmentParts.length > 1) {
-    return true
+  const computedMixed =
+    attachmentParts.length > 1
+    || meaningfulTextParts.length > 0
+
+  // 兼容历史数据：后端可能把“占位文本 + 单附件”误判为 mixed
+  if (explicitType === MessageType.MIXED || explicitType === 'mixed') {
+    return computedMixed
+  }
+  if (explicitType) {
+    return false
   }
 
-  // 2) 文本 + 单个附件
-  return meaningfulTextParts.length > 0
+  return computedMixed
 })
 
 const resolvedContentType = computed(() => {
