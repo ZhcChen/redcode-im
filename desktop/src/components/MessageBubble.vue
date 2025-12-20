@@ -77,11 +77,49 @@
             </template>
           </div>
 
-          <!-- 时间角标：混合多媒体同单图 -->
-          <div class="media-time-badge">
+          <!-- 纯媒体混合：时间/状态角标叠加在媒体上；若存在文字说明则放到文字容器内 -->
+          <div v-if="!textPart" class="media-time-badge">
             <span class="media-time-text">
               {{ formatMessageTime(message.createTime || message.time) }}
             </span>
+            <svg
+              v-if="message.isSelf && message.status === 2"
+              class="media-status-icon sent"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                fill="currentColor"
+              />
+            </svg>
+            <svg
+              v-if="message.isSelf && message.status === 4"
+              class="media-status-icon read"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                fill="currentColor"
+              />
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                fill="currentColor"
+              />
+            </svg>
           </div>
         </div>
 
@@ -105,10 +143,51 @@
         <!-- 3) 文本内容（作为说明/caption） -->
         <div v-if="textPart" class="mixed-text">
           {{ textPart.text }}
+          <div class="mixed-text-meta">
+            <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
+            <svg
+              v-if="message.isSelf && message.status === 2"
+              class="mixed-status-icon sent"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                fill="currentColor"
+              />
+            </svg>
+            <svg
+              v-if="message.isSelf && message.status === 4"
+              class="mixed-status-icon read"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                fill="currentColor"
+              />
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
         </div>
 
         <!-- 4) 仅文件/无媒体时：时间行 -->
-        <div v-if="mediaParts.length === 0" class="mixed-footer">
+        <div v-if="mediaParts.length === 0 && !textPart" class="mixed-footer">
           <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
         </div>
       </div>
@@ -307,8 +386,8 @@
             </template>
           </div>
 
-          <!-- 时间 + 状态角标：混合多媒体同单图 -->
-          <div class="media-time-badge">
+          <!-- 纯媒体混合：时间/状态角标叠加在媒体上；若存在文字说明则放到文字容器内 -->
+          <div v-if="!textPart" class="media-time-badge">
             <span class="media-time-text">
               {{ formatMessageTime(message.createTime || message.time) }}
             </span>
@@ -373,10 +452,51 @@
         <!-- 3) 文本内容（作为说明/caption） -->
         <div v-if="textPart" class="mixed-text">
           {{ textPart.text }}
+          <div class="mixed-text-meta">
+            <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
+            <svg
+              v-if="message.status === 2"
+              class="mixed-status-icon sent"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                fill="currentColor"
+              />
+            </svg>
+            <svg
+              v-if="message.status === 4"
+              class="mixed-status-icon read"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                fill="currentColor"
+              />
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
         </div>
 
         <!-- 4) 仅文件/无媒体时：时间 + 状态 -->
-        <div v-if="mediaParts.length === 0" class="mixed-footer">
+        <div v-if="mediaParts.length === 0 && !textPart" class="mixed-footer">
           <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
           <svg
             v-if="message.status === 2"
@@ -1100,11 +1220,31 @@ const gridClass = computed(() => {
 }
 
 .mixed-text {
-  padding: 0 4px;
+  position: relative;
+  padding: 8px 10px 24px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.03);
   font-size: 15px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-content.is-self .mixed-text {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.mixed-text-meta {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8c8c8c;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .mixed-footer {
