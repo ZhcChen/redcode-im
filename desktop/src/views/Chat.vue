@@ -212,312 +212,11 @@
               <div class="message-sender-name">
                 {{ getMessageSenderName(message) }}
               </div>
-              <div
-                class="message-content"
-                :class="{
-                  'media-only-content':
-                    message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-                    message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
-                }"
-              >
-                <!-- 引用消息预览 -->
-                <template v-if="message.quotedMessage">
-                  <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
-                    <div class="quoted-header">
-                      <Avatar
-                        :src="getQuotedAvatar(message.quotedMessage)
-                          || getSenderAvatarById(message.quotedMessage.senderId)
-                          || undefined"
-                        :text="getQuotedInitial(message.quotedMessage)"
-                        :color-seed="message.quotedMessage?.senderId || message.quotedMessage?.senderUsername || message.quotedMessage?.senderName"
-                        :size="24"
-                      />
-                      <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
-                    </div>
-                    <div class="quoted-content">
-                      <div v-if="getQuotedMediaType(message.quotedMessage) !== 'image'" class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
-                      <img
-                        v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
-                        :src="getQuotedImageSrc(message.quotedMessage)"
-                        class="quoted-image"
-                        alt="引用图片"
-                        @load="scrollToBottomAfterImageLoad"
-                      />
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 文本消息 -->
-                <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
-                  {{ getTextContent(message) }}
-                </template>
-
-                <!-- 音频消息 -->
-                <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
-                  <VoiceMessage
-                    :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
-                    :duration="getAudioDuration(message)"
-                    :is-mine="message.isSelf"
-                    :message-id="message.id"
-                  />
-                </template>
-
-                <!-- 图片消息 -->
-                <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
-                  <div class="media-message image-message">
-                    <div class="media-main">
-                      <img
-                        v-if="parseImageSrc(message)"
-                        :src="parseImageSrc(message)"
-                        :alt="getImageAlt(message)"
-                        class="message-image"
-                        :class="{ uploading: isMessageUploading(message) }"
-                        @click="handleImagePreview(parseImageSrc(message), message)"
-                        @load="scrollToBottomAfterImageLoad"
-                        @error="handleImageError"
-                        loading="lazy"
-                      />
-                      <MediaSkeleton v-else type="image" :width="200" :height="150" />
-
-                      <div
-                        v-if="isMessageUploading(message)"
-                        class="media-loading-overlay"
-                      >
-                        <div class="media-loading-spinner">
-                          <div class="loading-spinner"></div>
-                        </div>
-                      </div>
-
-                      <div class="media-time-badge">
-                        <span class="media-time-text">
-                          {{ formatMessageTime(message.createTime || message.time) }}
-                        </span>
-                        <svg
-                          v-if="message.isSelf && message.status === 2"
-                          class="media-status-icon sent"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
-                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                        <svg
-                          v-if="message.isSelf && message.status === 4"
-                          class="media-status-icon read"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
-                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                            fill="currentColor"
-                          />
-                          <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
-                            d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 视频消息 -->
-                <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
-                  <div class="media-message video-message">
-                    <div class="video-container" @click="handleVideoPlay(message)">
-                      <!-- 如果有视频缩略图则显示，否则显示默认占位 UI -->
-                      <div v-if="parseVideoScreenShotSrc(message)" class="video-thumbnail-wrapper">
-                        <img
-                          :src="parseVideoScreenShotSrc(message)"
-                          :alt="(typeof message.content === 'object' && message.content.name) || '视频'"
-                          class="video-thumbnail"
-                          @load="scrollToBottomAfterImageLoad"
-                          @error="handleVideoThumbnailError"
-                          loading="lazy"
-                        />
-                      </div>
-                      <template v-else>
-                        <!-- 有视频源时尝试加载首帧 -->
-                        <div v-if="parseVideoSrc(message)" class="video-placeholder">
-                          <div class="video-placeholder-inner">
-                            <video
-                              class="video-placeholder-video"
-                              :src="parseVideoSrc(message)"
-                              preload="metadata"
-                              muted
-                              playsinline
-                              @loadeddata="handleVideoFirstFrameLoaded"
-                              @error="handleVideoThumbnailError"
-                            ></video>
-                            <div class="video-placeholder-overlay">
-                              <div class="video-icon">🎬</div>
-                              <div class="video-placeholder-text">
-                                {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <!-- 没有视频源时显示骨架屏 -->
-                        <MediaSkeleton v-else type="video" :width="300" :height="180" />
-                      </template>
-                      <div class="video-play-overlay">
-                        <div class="play-icon">▶</div>
-                      </div>
-
-                      <div
-                        v-if="isMessageUploading(message)"
-                        class="media-loading-overlay"
-                      >
-                        <div class="media-loading-spinner">
-                          <div class="loading-spinner"></div>
-                        </div>
-                      </div>
-
-                      <div class="media-time-badge">
-                        <span class="media-time-text">
-                          {{ formatMessageTime(message.createTime || message.time) }}
-                        </span>
-                        <svg
-                          v-if="message.isSelf && message.status === 2"
-                          class="media-status-icon sent"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
-                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                        <svg
-                          v-if="message.isSelf && message.status === 4"
-                          class="media-status-icon read"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
-                            d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                            fill="currentColor"
-                          />
-                          <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
-                            d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 文件消息 -->
-                <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
-                  <div class="file-message" @click="handleFileDownload(message)">
-                    <div class="file-icon-wrapper">
-                      <div class="file-icon" :class="getFileIconClass(message)">
-                        <!-- 压缩包图标 -->
-                        <svg v-if="getFileIconType(message) === 'archive'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M4 6h16v2H4V6zm0 4h16v10H4V10zm2 2v6h12v-6H6z" fill="currentColor"/>
-                          <path d="M6 8h12v2H6V8z" fill="currentColor" opacity="0.5"/>
-                        </svg>
-                        <!-- 文本文件图标 -->
-                        <svg v-else-if="getFileIconType(message) === 'text'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M5 4v3h5.5v12h3V7H19V4H5zm-1-2h16a1 1 0 011 1v19a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" fill="currentColor"/>
-                          <path d="M7 9h10v1.5H7V9zm0 3h10v1.5H7V12zm0 3h7v1.5H7V15z" fill="currentColor" opacity="0.3"/>
-                        </svg>
-                        <!-- 其他文件图标（问号） -->
-                        <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-                          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                        </svg>
-                      </div>
-                      <!-- 下载进度圆圈 -->
-                      <div v-if="isFileDownloading(message) || isMessageUploading(message)" class="file-progress-circle">
-                        <svg class="progress-svg" width="48" height="48">
-                          <circle
-                            class="progress-background"
-                            cx="24"
-                            cy="24"
-                            r="20"
-                            fill="none"
-                            stroke="rgba(0,0,0,0.1)"
-                            stroke-width="3"
-                          />
-                          <circle
-                            class="progress-bar"
-                            cx="24"
-                            cy="24"
-                            r="20"
-                            fill="none"
-                            :stroke="message.isSelf ? '#fff' : '#007AFF'"
-                            stroke-width="3"
-                            stroke-linecap="round"
-                            :stroke-dasharray="2 * Math.PI * 20"
-                            :stroke-dashoffset="2 * Math.PI * 20 * (1 - getFileProgress(message))"
-                            transform="rotate(-90 24 24)"
-                          />
-                        </svg>
-                        <div class="progress-text">{{ Math.round(getFileProgress(message) * 100) }}%</div>
-                      </div>
-                      <!-- 下载图标 -->
-                      <div v-else-if="shouldShowDownloadIcon(message)" class="file-download-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 15.577l-3.539-3.538 1.414-1.414L11 12.586V3h2v9.586l1.125-1.125 1.414 1.414L12 15.577zm-7 4.423h14v2H5v-2z" fill="currentColor"/>
-                        </svg>
-                      </div>
-                    </div>
-                    <div class="file-info">
-                      <div class="file-name">{{ getFileName(message) }}</div>
-                      <div class="file-size" v-if="getFileSize(message)">{{ formatFileSize(getFileSize(message)) }}</div>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 其他类型消息 -->
-              <template v-else>
-                <span>{{ getTextContent(message) }}</span>
-                <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
-              </template>
-
-                <!-- 置顶图标（不影响气泡宽度，绝对定位在右上角） -->
-                <span v-if="message.pinnedAt" class="pinned-indicator" title="已置顶">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
-                  </svg>
-                </span>
-
-                <div
-                  class="message-time-other"
-                  v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
-                        message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
-                >
-                  {{ formatMessageTime(message.createTime || message.time) }}
-                </div>
-              </div>
+              <MessageBubble
+                :message="message"
+                :is-self="message.isSelf"
+                :context="messageBubbleContext"
+              />
             </div>
             <!-- 多选指示器 - 自己的消息 -->
             <div
@@ -528,311 +227,12 @@
               >
                 ✓
               </div>
-              <div
-              v-if="message.isSelf"
-              class="message-content"
-              :class="{
-                'media-only-content':
-                  message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-                  message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
-              }"
-            >
-              <template v-if="message.quotedMessage">
-                <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
-                  <div class="quoted-header">
-                    <Avatar
-                      :src="getQuotedAvatar(message.quotedMessage)
-                        || getSenderAvatarById(message.quotedMessage.senderId)
-                        || undefined"
-                      :text="getQuotedInitial(message.quotedMessage)"
-                      :color-seed="message.quotedMessage?.senderId || message.quotedMessage?.senderUsername || message.quotedMessage?.senderName"
-                      :size="24"
-                    />
-                    <div class="quoted-sender">{{ getQuotedSenderName(message.quotedMessage) }}</div>
-                  </div>
-                  <div class="quoted-content">
-                    <div v-if="getQuotedMediaType(message.quotedMessage) !== 'image'" class="quoted-text">{{ getQuotedText(message.quotedMessage) }}</div>
-                    <img
-                      v-if="getQuotedMediaType(message.quotedMessage) === 'image' && getQuotedImageSrc(message.quotedMessage)"
-                      :src="getQuotedImageSrc(message.quotedMessage)"
-                      class="quoted-image"
-                      alt="引用图片"
-                      @load="scrollToBottomAfterImageLoad"
-                    />
-                  </div>
-                </div>
-              </template>
-
-              <!-- 文本消息 -->
-              <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
-                {{ getTextContent(message) }}
-              </template>
-
-              <!-- 音频消息 -->
-              <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
-                <VoiceMessage
-                  :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
-                  :duration="getAudioDuration(message)"
-                  :is-mine="message.isSelf"
-                />
-              </template>
-
-              <!-- 图片消息 -->
-              <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
-                <div class="media-message image-message">
-                  <div class="media-main">
-                    <img
-                      v-if="parseImageSrc(message)"
-                      :src="parseImageSrc(message)"
-                      :alt="getImageAlt(message)"
-                      class="message-image"
-                      :class="{ uploading: isMessageUploading(message) }"
-                      @click="handleImagePreview(parseImageSrc(message), message)"
-                      @load="scrollToBottomAfterImageLoad"
-                      @error="handleImageError"
-                      loading="lazy"
-                    />
-                    <MediaSkeleton v-else type="image" :width="200" :height="150" />
-
-                    <div
-                      v-if="isMessageUploading(message)"
-                      class="media-loading-overlay"
-                    >
-                      <div class="media-loading-spinner">
-                        <div class="loading-spinner"></div>
-                      </div>
-                    </div>
-
-                    <div class="media-time-badge">
-                      <span class="media-time-text">
-                        {{ formatMessageTime(message.createTime || message.time) }}
-                      </span>
-                      <svg
-                        v-if="message.isSelf && message.status === 2"
-                        class="media-status-icon sent"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          clip-rule="evenodd"
-                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                      <svg
-                        v-if="message.isSelf && message.status === 4"
-                        class="media-status-icon read"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          clip-rule="evenodd"
-                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                          fill="currentColor"
-                        />
-                        <path
-                          fill-rule="evenodd"
-                          clip-rule="evenodd"
-                          d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- 视频消息 -->
-              <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
-                <div class="media-message video-message">
-                  <div class="video-container" @click="handleVideoPlay(message)">
-                    <!-- 如果有视频缩略图则显示，否则显示默认占位 UI -->
-                    <div v-if="parseVideoScreenShotSrc(message)" class="video-thumbnail-wrapper">
-                      <img
-                        :src="parseVideoScreenShotSrc(message)"
-                        :alt="(typeof message.content === 'object' && message.content.name) || '视频'"
-                        class="video-thumbnail"
-                        @load="scrollToBottomAfterImageLoad"
-                        @error="handleVideoThumbnailError"
-                        loading="lazy"
-                      />
-                    </div>
-                    <template v-else>
-                      <!-- 有视频源时尝试加载首帧 -->
-                      <div v-if="parseVideoSrc(message)" class="video-placeholder">
-                        <div class="video-placeholder-inner">
-                          <video
-                            class="video-placeholder-video"
-                            :src="parseVideoSrc(message)"
-                            preload="metadata"
-                            muted
-                            playsinline
-                            @loadeddata="handleVideoFirstFrameLoaded"
-                            @error="handleVideoThumbnailError"
-                          ></video>
-                          <div class="video-placeholder-overlay">
-                            <div class="video-icon">🎬</div>
-                            <div class="video-placeholder-text">
-                              {{ (typeof message.content === 'object' && message.content.name) || '视频加载中...' }}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <!-- 没有视频源时显示骨架屏 -->
-                      <MediaSkeleton v-else type="video" :width="300" :height="180" />
-                    </template>
-                    <div class="video-play-overlay">
-                      <div class="play-icon">▶</div>
-                    </div>
-
-                    <div
-                      v-if="isMessageUploading(message)"
-                      class="media-loading-overlay"
-                    >
-                      <div class="media-loading-spinner">
-                        <div class="loading-spinner"></div>
-                      </div>
-                    </div>
-
-                    <div class="media-time-badge">
-                      <span class="media-time-text">
-                        {{ formatMessageTime(message.createTime || message.time) }}
-                      </span>
-                      <svg
-                        v-if="message.isSelf && message.status === 2"
-                        class="media-status-icon sent"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          clip-rule="evenodd"
-                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                      <svg
-                        v-if="message.isSelf && message.status === 4"
-                        class="media-status-icon read"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          clip-rule="evenodd"
-                          d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                          fill="currentColor"
-                        />
-                        <path
-                          fill-rule="evenodd"
-                          clip-rule="evenodd"
-                          d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- 文件消息 -->
-              <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
-                <div class="file-message" @click="handleFileDownload(message)">
-                  <div class="file-icon-wrapper">
-                    <div class="file-icon" :class="getFileIconClass(message)">
-                      <!-- 压缩包图标 -->
-                      <svg v-if="getFileIconType(message) === 'archive'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M4 6h16v2H4V6zm0 4h16v10H4V10zm2 2v6h12v-6H6z" fill="currentColor"/>
-                        <path d="M6 8h12v2H6V8z" fill="currentColor" opacity="0.5"/>
-                      </svg>
-                      <!-- 文本文件图标 -->
-                      <svg v-else-if="getFileIconType(message) === 'text'" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5 4v3h5.5v12h3V7H19V4H5zm-1-2h16a1 1 0 011 1v19a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" fill="currentColor"/>
-                        <path d="M7 9h10v1.5H7V9zm0 3h10v1.5H7V12zm0 3h7v1.5H7V15z" fill="currentColor" opacity="0.3"/>
-                      </svg>
-                      <!-- 其他文件图标（问号） -->
-                      <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-                        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                      </svg>
-                    </div>
-                    <!-- 下载进度圆圈 -->
-                    <div v-if="isFileDownloading(message) || isMessageUploading(message)" class="file-progress-circle">
-                      <svg class="progress-svg" width="48" height="48">
-                        <circle
-                          class="progress-background"
-                          cx="24"
-                          cy="24"
-                          r="20"
-                          fill="none"
-                          stroke="rgba(0,0,0,0.1)"
-                          stroke-width="3"
-                        />
-                        <circle
-                          class="progress-bar"
-                          cx="24"
-                          cy="24"
-                          r="20"
-                          fill="none"
-                          :stroke="message.isSelf ? '#fff' : '#007AFF'"
-                          stroke-width="3"
-                          stroke-linecap="round"
-                          :stroke-dasharray="2 * Math.PI * 20"
-                          :stroke-dashoffset="2 * Math.PI * 20 * (1 - getFileProgress(message))"
-                          transform="rotate(-90 24 24)"
-                        />
-                      </svg>
-                      <div class="progress-text">{{ Math.round(getFileProgress(message) * 100) }}%</div>
-                    </div>
-                    <!-- 下载图标 -->
-                    <div v-else-if="shouldShowDownloadIcon(message)" class="file-download-icon">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 15.577l-3.539-3.538 1.414-1.414L11 12.586V3h2v9.586l1.125-1.125 1.414 1.414L12 15.577zm-7 4.423h14v2H5v-2z" fill="currentColor"/>
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="file-info">
-                    <div class="file-name">{{ getFileName(message) }}</div>
-                    <div class="file-size" v-if="getFileSize(message)">{{ formatFileSize(getFileSize(message)) }}</div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- 其他类型消息 -->
-              <template v-else>
-                <span>{{ getTextContent(message) }}</span>
-                <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
-              </template>
-
-              <div
-                class="message-time"
-                v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
-                      message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
-              >
-                {{ formatMessageTime(message.createTime || message.time) }}
-                <svg v-if="message.isSelf && message.status === 2" class="message-status-icon sent" width="20" height="20" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
-                </svg>
-                <svg v-if="message.isSelf && message.status === 4" class="message-status-icon read" width="20" height="20" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path fill-rule="evenodd" clip-rule="evenodd" d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z" fill="currentColor"/>
-                  <path fill-rule="evenodd" clip-rule="evenodd" d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z" fill="currentColor"/>
-                </svg>
-              </div>
-            </div>
+              <MessageBubble
+                v-if="message.isSelf"
+                :message="message"
+                :is-self="message.isSelf"
+                :context="messageBubbleContext"
+              />
             <div v-if="message.status === 5" class="message-status failed">
               发送失败
               <button v-if="message.isSelf" @click="resendMessage(message)" class="resend-btn">重发</button>
@@ -873,6 +273,22 @@
               <button class="btn" @click="exitMultiSelect">取消</button>
               <button class="btn" :disabled="selectedMessagesCount === 0" @click="handleMessageMenuForward">转发</button>
               <button class="btn danger" :disabled="selectedMessagesCount === 0" @click="deleteSelectedMessages">删除</button>
+            </div>
+          </div>
+          <div v-if="pendingAttachments.length > 0" class="pending-attachments-bar">
+            <div class="pending-attachments-list">
+              <div v-for="(item, index) in pendingAttachments" :key="index" class="pending-attachment-item">
+                <div class="attachment-preview">
+                  <img v-if="item.previewUrl" :src="item.previewUrl" class="preview-img" />
+                  <div v-else class="preview-file-icon">
+                    <img src="@/assets/image/icon-file.svg" alt="文件" />
+                  </div>
+                  <div v-if="item.uploading" class="upload-overlay">
+                    <div class="upload-spinner"></div>
+                  </div>
+                </div>
+                <button class="remove-attachment" @click="removePendingAttachment(index)" aria-label="移除附件">×</button>
+              </div>
             </div>
           </div>
           <div class="input-container">
@@ -1338,7 +754,7 @@ import type { GroupSettings } from '../api/group'
 import { FriendApi } from '../api/friend'
 import { FileApi } from '../api/file'
 import { UserApi } from '../api/user'
-import type { Message as DomainMessage, Chat, RoomMember, MessagePart, MessageAttachment } from '@/types/models'
+import type { Message as DomainMessage, Chat, RoomMember, MessagePart, MessageAttachment, QuotedMessage } from '@/types/models'
 import { ChatType, MessageStatus, MessageType, MessagePartType } from '@/types/models'
 import { toast } from '../utils/toast'
 import { webSocketManager } from '../utils/websocket'
@@ -1750,20 +1166,19 @@ const partTypeContentMap: Record<Exclude<MessagePartPayloadInput['type'], 'text'
   file: MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
 };
 
-const buildAttachmentSummary = (type: MessagePartPayloadInput['type'], name: string): string => {
-  const safeName = name || '';
+const buildAttachmentSummary = (type: MessagePartPayloadInput['type'], _name: string): string => {
   switch (type) {
     case 'image':
-      return `[图片] ${safeName}`.trim();
+      return '[图片]';
     case 'video':
-      return `[视频] ${safeName}`.trim();
+      return '[视频]';
     case 'audio':
-      return `[语音] ${safeName}`.trim();
+      return '[语音]';
     case 'file':
-      return `[文件] ${safeName}`.trim();
+      return '[文件]';
     case 'text':
     default:
-      return safeName || '';
+      return '';
   }
 };
 
@@ -3230,8 +2645,8 @@ interface Message {
     name?: string;
     size?: number;
     type?: string;
-    localUrl?: string;  // 新增：本地URL字段
-    isUploading?: boolean;  // 新增：上传中标记
+    localUrl?: string;
+    isUploading?: boolean;
     fullPath?: string;
     fileName?: string;
     fileSaveTarget?: string;
@@ -3250,12 +2665,17 @@ interface Message {
   senderAvatarObjectKey?: string | null
   messageType: number
   status: number
-  createTime?: string  // 原始创建时间
-  timestamp?: number   // 时间戳
-  contentType?: number // 内容类型：1=文本，2=图片，3=视频等
+  createTime?: string
+  timestamp?: number
+  contentType?: number
   isEdited?: boolean
   parts?: MessagePart[]
   roomId?: string
+  quotedMessage?: QuotedMessage | null
+  pinnedAt?: Date | null
+  isDeleted?: boolean
+  senderUsername?: string
+  type?: MessageType
 }
 
 const route = useRoute()
@@ -3528,6 +2948,7 @@ const quotedHighlightTimers = new Map<string, number>()
 // 数据状态管理 - 使用store中的数据
 const chatList = computed(() => store.getters.chatList)
 const messages = ref<Message[]>([])
+const pendingAttachments = ref<any[]>([])
 // 置顶消息相关
 const currentPinnedIndex = ref(0)
 // 所有置顶消息列表（按时间排序，预留支持多条置顶）
@@ -4973,20 +4394,97 @@ const getTextContent = (message: Message): string => {
 }
 
 const isEmojiOnlyPreviewText = (text: string): boolean => {
-  const trimmed = text.trim()
-  if (!trimmed) return false
+  if (!text) return false
+  // 简单的正则检查，只含Emoji字符
+  const emojiRegex = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{3030}\u{303D}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{2328}\u{23CF}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{24C2}\u{25AA}\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}]*$/u
+  return emojiRegex.test(text.trim())
+}
 
-  // 去掉变体选择符与零宽连接符，方便匹配由多个 Emoji 组合而成的表情
-  const normalized = trimmed.replace(/[\uFE0F\u200D]/g, '')
+// 混合消息部分解析工具
+const getPartImageSrc = (message: Message, part: MessagePart): string => {
+  if (part.type !== MessagePartType.IMAGE || !part.attachment) return ''
+  const attachment = part.attachment
+  if (attachment.localPath) return convertLocalPathToUrlSync(attachment.localPath)
+  if (attachment.key) {
+    void ensureAttachmentLocalPath(message, part)
+    if (attachment.downloadUrl) return attachment.downloadUrl
+  }
+  return resolveAttachmentUrl(attachment.thumbnailKey || attachment.key)
+}
 
-  // 粗略判断：仅由常见 Emoji 区段字符组成，则认为是表情消息
-  const emojiRegex = /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])+$/u
-  return emojiRegex.test(normalized)
+const getPartVideoSrc = (message: Message, part: MessagePart): string => {
+  if (part.type !== MessagePartType.VIDEO || !part.attachment) return ''
+  const attachment = part.attachment
+  if (attachment.localPath) return convertLocalPathToUrlSync(attachment.localPath)
+  return resolveAttachmentUrl(attachment.key)
+}
+
+const getPartVideoThumbnailSrc = (message: Message, part: MessagePart): string => {
+  if (part.type !== MessagePartType.VIDEO || !part.attachment) return ''
+  const attachment = part.attachment
+  if (attachment.thumbnailLocalPath) return convertLocalPathToUrlSync(attachment.thumbnailLocalPath)
+  if (attachment.thumbnailKey) {
+    void ensureVideoThumbnailLocalPath(message, part)
+    const cached = attachmentUrlCache.get(attachment.thumbnailKey)
+    if (cached?.localPath) return convertLocalPathToUrlSync(cached.localPath)
+    return resolveAttachmentUrl(attachment.thumbnailKey)
+  }
+  return ''
+}
+
+const getPartFileName = (part: MessagePart): string => {
+  return part.attachment?.name || (part.attachment as any)?.fileName || '未知文件'
+}
+
+const getPartFileSize = (part: MessagePart): number | null | undefined => {
+  return part.attachment?.size || (part.attachment as any)?.fileSize
+}
+
+const getPartFileIconType = (part: MessagePart): 'archive' | 'text' | 'other' => {
+  const mime = part.attachment?.mime || (part.attachment as any)?.contentType || ''
+  const fileName = getPartFileName(part).toLowerCase()
+  if (mime.includes('zip') || mime.includes('rar') || mime.includes('7z') || mime.includes('tar') || mime.includes('gz') || 
+      fileName.endsWith('.zip') || fileName.endsWith('.rar') || fileName.endsWith('.7z')) return 'archive'
+  if (mime.includes('text') || mime.includes('plain') || mime.includes('markdown') || 
+      fileName.endsWith('.txt') || fileName.endsWith('.md') || fileName.endsWith('.log')) return 'text'
+  return 'other'
+}
+
+const getPartFileIconClass = (part: MessagePart): string => {
+  return `file-icon-${getPartFileIconType(part)}`
 }
 
 // 获取用于会话列表副标题展示的消息预览文案
 const getMessagePreviewText = (message: Message): string => {
-  // 优先根据消息类型返回固定文案
+  // 优先处理 mixed 类型或包含 parts 的消息
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    let summary = ''
+    message.parts.forEach(part => {
+      switch (part.type) {
+        case MessagePartType.TEXT:
+          if (part.text && part.text.trim()) {
+            summary += part.text.trim() + ' '
+          }
+          break
+        case MessagePartType.IMAGE:
+          summary += '[图片] '
+          break
+        case MessagePartType.VIDEO:
+          summary += '[视频] '
+          break
+        case MessagePartType.AUDIO:
+          summary += '[语音] '
+          break
+        case MessagePartType.FILE:
+          summary += '[附件] '
+          break
+      }
+    })
+    const trimmed = summary.trim()
+    if (trimmed) return trimmed
+  }
+
+  // 优先根据消息类型返回固定文案 (Legacy or fallback)
   switch (message.type) {
     case MessageType.IMAGE:
       return '[图片]'
@@ -5004,7 +4502,7 @@ const getMessagePreviewText = (message: Message): string => {
   const text = getTextContent(message)
   if (!text) return ''
 
-  // 处理 mixed 类型消息：根据 content 前缀判断附件类型
+  // 处理 mixed 类型消息：根据 content 前缀判断附件类型 (Legacy workaround)
   if (text.startsWith('[图片]')) {
     return '[图片]'
   }
@@ -5032,7 +4530,7 @@ const getQuotedSenderName = (quoted: QuotedMessage): string => {
 
 const getQuotedAvatar = (quoted: QuotedMessage | null | undefined): string | null => {
   if (!quoted) return null
-  return quoted.senderAvatar || quoted.senderAvatarUrl || null
+  return quoted.senderAvatar || null
 }
 
 const getQuotedInitial = (quoted: QuotedMessage | null | undefined): string => {
@@ -6113,70 +5611,75 @@ const handleInputPaste = async (event: ClipboardEvent) => {
   event.preventDefault()
 
   const plainText = event.clipboardData?.getData('text/plain') || ''
-
+  
   try {
-    const tauri = (window as any).__TAURI__
-    const isTauri = !!tauri?.core?.invoke
-    if (!isTauri) {
-      await insertTextAtCursor(plainText)
-      return
-    }
-
-    const [{ invoke }, { readFile }] = await Promise.all([
-      import('@tauri-apps/api/core'),
-      import('@tauri-apps/plugin-fs'),
-    ])
-
-    const files = await invoke<
-      Array<{
-        path: string
-        name: string
-        size: number
-        mime: string
-      }>
-    >('clipboard_get_files')
-
-    if (Array.isArray(files) && files.length > 0) {
-      if (!selectedChat.value || !selectedChat.value.groupId) {
-        toast.error('请先选择聊天对象')
+    // 1. 优先尝试标准 Web Clipboard API (支持浏览器复制的图片、截图等)
+    const items = event.clipboardData?.items
+    if (items) {
+      const fileArray: File[] = []
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+          const file = items[i].getAsFile()
+          if (file) {
+            fileArray.push(file)
+          }
+        }
+      }
+      if (fileArray.length > 0) {
+        console.log('检测到标准剪贴板文件/图片，数量:', fileArray.length)
+        await addFilesToStaging(fileArray)
         return
       }
-
-      if (files.length > 1) {
-        toast.info(`检测到 ${files.length} 个文件，开始发送...`)
-      }
-
-      for (const item of files) {
-        const filePath = item?.path || ''
-        const fileName =
-          item?.name?.trim() || getFileNameFromPath(filePath)
-        const mime = item?.mime?.trim() || 'application/octet-stream'
-        const fileSize = typeof item?.size === 'number' ? item.size : 0
-
-        const sizeLimitBytes = (() => {
-          if (mime.startsWith('image/')) return 5 * 1024 * 1024
-          if (mime.startsWith('video/')) return 50 * 1024 * 1024
-          if (mime.startsWith('audio/')) return 50 * 1024 * 1024
-          return 100 * 1024 * 1024
-        })()
-
-        if (fileSize > 0 && fileSize > sizeLimitBytes) {
-          toast.error(`文件大小超出限制，无法发送: ${fileName}`)
-          continue
-        }
-
-        try {
-          const bytes = await readFile(filePath)
-          const file = new File([bytes], fileName, { type: mime })
-          await uploadAndSendFile(file)
-        } catch (error: any) {
-          toast.error(`粘贴文件发送失败: ${fileName} ${error?.message ? `(${error.message})` : ''}`)
-        }
-      }
-
-      return
     }
 
+    // 2. 尝试 Tauri 特有的文件路径粘贴逻辑 (支持从文件管理器复制的文件)
+    const tauri = (window as any).__TAURI__
+    const isTauri = !!tauri?.core?.invoke
+    if (isTauri) {
+      const [{ invoke }, { readFile }] = await Promise.all([
+        import('@tauri-apps/api/core'),
+        import('@tauri-apps/plugin-fs'),
+      ])
+
+      const files = await invoke<
+        Array<{
+          path: string
+          name: string
+          size: number
+          mime: string
+        }>
+      >('clipboard_get_files')
+
+      if (Array.isArray(files) && files.length > 0) {
+        console.log('检测到 Tauri 系统剪贴板文件，数量:', files.length)
+        if (!selectedChat.value || !selectedChat.value.groupId) {
+          toast.error('请先选择聊天对象')
+          return
+        }
+
+        const stagedFiles: File[] = []
+        for (const item of files) {
+          const filePath = item?.path || ''
+          const fileName = item?.name?.trim() || getFileNameFromPath(filePath)
+          const mime = item?.mime?.trim() || 'application/octet-stream'
+          
+          try {
+            const bytes = await readFile(filePath)
+            const file = new File([bytes], fileName, { type: mime })
+            stagedFiles.push(file)
+          } catch (error: any) {
+            console.error(`读取系统粘贴文件失败: ${fileName}`, error)
+          }
+        }
+        
+        if (stagedFiles.length > 0) {
+          await addFilesToStaging(stagedFiles)
+          return
+        }
+      }
+    }
+
+    // 3. 如果都没有文件，则作为普通文本插入
     await insertTextAtCursor(plainText)
   } catch (error: any) {
     console.error('处理粘贴失败:', error)
@@ -6201,7 +5704,18 @@ watch(newMessage, () => {
 })
 
 const sendMessage = async () => {
-  if (!newMessage.value.trim() || !selectedChat.value) {
+  // 检查是否有上传中的附件
+  const isUploading = pendingAttachments.value.some(item => item.uploading)
+  if (isUploading) {
+    toast.warning('请等待文件上传完成')
+    return
+  }
+
+  if (!newMessage.value.trim() && pendingAttachments.value.length === 0) {
+    return
+  }
+  
+  if (!selectedChat.value) {
     return
   }
 
@@ -6210,6 +5724,17 @@ const sendMessage = async () => {
   const timestamp = Date.now()
   const tempId = `${timestamp}`
   const user = store.getters.currentUser
+
+  // 构建多部分消息内容
+  const parts: MessagePartPayloadInput[] = []
+  if (content) {
+    parts.push({ type: 'text', text: content })
+  }
+  pendingAttachments.value.forEach(item => {
+    if (item.attachmentPart) {
+      parts.push(item.attachmentPart)
+    }
+  })
 
   const quotedFromReply = replyingMessage.value
     ? {
@@ -6230,7 +5755,7 @@ const sendMessage = async () => {
 
   const tempMessage: Message = {
     id: tempId,
-    content,
+    content: parts.length > 1 ? '[混合消息]' : (content || '[附件]'),
     isSelf: true,
     time: formatTime(getTimeStr(timestamp)),
     senderId: currentUserId.value || '',
@@ -6241,18 +5766,37 @@ const sendMessage = async () => {
     createTime: getTimeStr(timestamp),
     timestamp,
     quotedMessage: quotedFromReply,
+    // 临时预览 parts
+    parts: parts.map((p, idx) => ({
+      position: idx,
+      type: p.type as any,
+      text: p.text,
+      attachment: p.image || p.video || p.audio || p.file
+    }))
   }
 
   messages.value.push(tempMessage)
-  // 将临时消息ID添加到recentSentMessages，让WebSocket能够正确匹配并替换
   recentSentMessages.value.add(tempId)
+  
+  // 清空输入区和暂存区
   newMessage.value = ''
+  const attachmentsToClear = [...pendingAttachments.value]
+  pendingAttachments.value = []
+  attachmentsToClear.forEach(item => {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+  })
+  
+  if (replyingMessage.value) {
+    clearReplyingMessage()
+  }
+
   scrollToBottom(false, true)
 
   try {
     const apiMessage = await webSocketManager.sendMessage({
       roomId: groupId,
-      content,
+      content: content || (parts.length > 0 ? '[混合消息]' : ''),
+      parts: parts.length > 0 ? parts : undefined,
       replyToMessageId: replyingMessage.value?.id,
     }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
@@ -6703,7 +6247,7 @@ const handleImagePreview = (imageUrl: string, message?: Message) => {
 
     // 如果有消息对象，提取媒体信息
     if (message && typeof message.content === 'object' && message.content) {
-      previewMediaName.value = message.content.name || '图片'
+      previewMediaName.value = '图片'
       previewMediaSize.value = message.content.size || 0
     } else {
       previewMediaName.value = '图片'
@@ -6845,7 +6389,7 @@ const handleVideoPlay = async (message: Message) => {
     previewMediaSrc.value = videoSrc
     previewMediaType.value = 'video'
     if (typeof message.content === 'object' && message.content) {
-      previewMediaName.value = message.content.name || '视频文件'
+      previewMediaName.value = '视频'
       previewMediaSize.value = message.content.size || 0
     }
     console.log('准备播放视频:', previewMediaSrc.value)
@@ -6892,7 +6436,15 @@ const messageBubbleContext = {
   getQuotedMediaType,
   getQuotedImageSrc,
   getSenderAvatarById,
-  scrollToQuoted
+  scrollToQuoted,
+  // 混合消息部分支持
+  getPartImageSrc,
+  getPartVideoSrc,
+  getPartVideoThumbnailSrc,
+  getPartFileName,
+  getPartFileSize,
+  getPartFileIconType,
+  getPartFileIconClass
 }
 
 // 处理上传点击
@@ -6952,29 +6504,105 @@ const handleFileUpload = async (event: Event) => {
     return
   }
 
-  // 创建文件数组的副本，因为 FileList 在处理后可能会被清空
   const fileArray = Array.from(files)
-  
-  console.log('开始处理文件上传，文件数量:', fileArray.length)
-  for (let i = 0; i < fileArray.length; i++) {
-    const file = fileArray[i]
-    console.log(`处理文件 ${i + 1}/${fileArray.length}:`, {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      isVideo: file.type.startsWith('video/'),
-      isImage: file.type.startsWith('image/')
-    })
-    try {
-      await uploadAndSendFile(file)
-    } catch (error: any) {
-      console.error(`文件 ${file.name} 上传失败:`, error)
-      toast.error(`文件 ${file.name} 上传失败: ${error?.message || '未知错误'}`)
-    }
-  }
+  await addFilesToStaging(fileArray)
   
   // 清理 input 元素
   target.value = ''
+}
+
+// 统一将文件添加到暂存区
+const addFilesToStaging = async (files: File[]) => {
+  console.log('开始处理文件添加到暂存区，数量:', files.length)
+  
+  for (const file of files) {
+    const isVideo = file.type.startsWith('video/')
+    const isImage = file.type.startsWith('image/')
+
+    console.log(`处理文件:`, {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      isVideo,
+      isImage
+    })
+    
+    // 创建一个占位的暂存附件对象，显示上传中状态
+    const pendingItem = reactive({
+      file,
+      uploading: true,
+      attachmentPart: null as MessagePartPayloadInput | null,
+      previewUrl: isImage ? URL.createObjectURL(file) : null
+    })
+    pendingAttachments.value.push(pendingItem)
+
+    // 异步生成视频预览图
+    if (isVideo) {
+      (async () => {
+        try {
+          const tauri = (window as any).__TAURI__
+          const isTauri = !!tauri?.core?.invoke
+          if (isTauri) {
+            const [{ invoke, convertFileSrc }, { join, appDataDir }, { mkdir, writeFile, exists }] = await Promise.all([
+              import('@tauri-apps/api/core'),
+              import('@tauri-apps/api/path'),
+              import('@tauri-apps/plugin-fs')
+            ])
+
+            const appDir = await appDataDir()
+            
+            // 确保视频缓存目录存在
+            const videosCacheDir = await join(appDir, 'videos')
+            if (!(await exists(videosCacheDir))) {
+              await mkdir(videosCacheDir, { recursive: true })
+            }
+
+            // 将视频写入临时路径以供 ffmpeg 处理
+            const timestamp = Date.now()
+            const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')
+            const videoCachePath = await join(videosCacheDir, `pending_${timestamp}_${safeName}`)
+            
+            const arrayBuffer = await file.arrayBuffer()
+            await writeFile(videoCachePath, new Uint8Array(arrayBuffer))
+
+            // 确保缩略图目录存在
+            const thumbnailsDir = await join(appDir, 'thumbnails')
+            if (!(await exists(thumbnailsDir))) {
+              await mkdir(thumbnailsDir, { recursive: true })
+            }
+
+            const thumbnailPath = await join(thumbnailsDir, `pending_thumb_${timestamp}_${safeName}.jpg`)
+            
+            // 调用 sidecar 生成首帧
+            const generatedPath = await invoke<string>('generate_video_thumbnail', {
+              videoPath: videoCachePath,
+              outputPath: thumbnailPath,
+              timeSec: 0.5
+            })
+            
+            // 更新预览图
+            pendingItem.previewUrl = convertFileSrc(generatedPath)
+          }
+        } catch (err) {
+          console.warn('生成视频暂存预览失败:', err)
+        }
+      })()
+    }
+    
+    try {
+      const part = await uploadAndGetPart(file)
+      pendingItem.attachmentPart = part
+      pendingItem.uploading = false
+    } catch (error: any) {
+      console.error(`文件 ${file.name} 上传失败:`, error)
+      toast.error(`文件 ${file.name} 上传失败: ${error?.message || '未知错误'}`)
+      // 从暂存区移除失败的项目
+      const index = pendingAttachments.value.indexOf(pendingItem)
+      if (index > -1) {
+        pendingAttachments.value.splice(index, 1)
+      }
+    }
+  }
 }
 
 // 图片预缓存管理
@@ -7436,18 +7064,15 @@ const uploadAndSendFile = async (file: File) => {
           // 删除临时消息ID，添加真实消息ID
           recentSentMessages.value.delete(tempId)
         } else {
-          // 临时消息不存在，检查真实消息是否已经在列表中（WebSocket可能已经替换了）
+          // 临时消息不存在，检查真实消息是否已经在列表中
           const realMessageExists = messages.value.some((msg) => msg.id === apiMessage.id)
           if (!realMessageExists) {
-            // 真实消息也不存在，才添加新消息
             messages.value.push({
               ...uiMessage,
               status: 2,
               roomId: uiMessage.roomId ?? selectedChat.value.groupId,
             })
-          } else {
           }
-          // 消息不存在，可能已被WebSocket替换，删除临时ID
           recentSentMessages.value.delete(tempId)
         }
       } else {
@@ -7485,6 +7110,107 @@ const uploadAndSendFile = async (file: File) => {
     // 文件上传失败提示用户重新选择文件
     toast.error('文件发送失败，请重新选择文件发送: ' + (error.message || '网络错误'))
   }
+}
+
+// 移除暂存附件
+const removePendingAttachment = (index: number) => {
+  const item = pendingAttachments.value[index]
+  if (item && item.previewUrl) {
+    URL.revokeObjectURL(item.previewUrl)
+  }
+  pendingAttachments.value.splice(index, 1)
+}
+
+// 核心上传逻辑（不发送消息）
+const uploadAndGetPart = async (file: File): Promise<MessagePartPayloadInput> => {
+  let attachmentKey = ''
+  let videoThumbnailKey: string | null = null
+  let fileHashValue: string | null = null
+  let fileHashAlg: number | null = null
+
+  console.log('开始处理文件上传流程:', file.name)
+  const meta = await determineAttachmentMeta(file)
+  
+  if (meta.partType === 'text') {
+    throw new Error('当前文件类型暂不支持')
+  }
+
+  // 1. 计算哈希
+  try {
+    const hashResult = await computeFileHash(file)
+    fileHashValue = hashResult.hashValue
+    fileHashAlg = hashResult.hashAlg
+  } catch (e) {
+    console.warn('哈希计算失败', e)
+  }
+
+  // 2. 获取签名或分片会话
+  const shouldUseMultipartUpload = file.size > MULTIPART_THRESHOLD_BYTES
+  let directUploadSignature: DirectUploadSignatureInfo | null = null
+  let multipartSession: any = null
+
+  if (shouldUseMultipartUpload) {
+    const initResp = await MessageApi.initiateAttachmentMultipartUpload({
+      groupId: selectedChat.value!.groupId,
+      partType: meta.partType,
+      fileName: file.name,
+      contentType: meta.mime,
+      fileSize: file.size,
+      hashValue: fileHashValue ?? undefined,
+      hashAlg: fileHashAlg ?? undefined,
+    })
+    if (!initResp.success || !initResp.data) throw new Error(initResp.message || '初始化分片上传失败')
+    attachmentKey = initResp.data.key
+    if (initResp.data.sessionId) {
+      multipartSession = initResp.data
+    }
+  } else {
+    const signatureResponse = await MessageApi.requestAttachmentSignature({
+      groupId: selectedChat.value!.groupId,
+      partType: meta.partType,
+      fileName: file.name,
+      contentType: meta.mime,
+      fileSize: file.size,
+      hashValue: fileHashValue ?? undefined,
+      hashAlg: fileHashAlg ?? undefined,
+    })
+    if (!signatureResponse.success || !signatureResponse.data) throw new Error(signatureResponse.message || '获取签名失败')
+    attachmentKey = signatureResponse.data.key
+    directUploadSignature = signatureResponse.data.signature
+  }
+
+  // 3. 执行上传
+  if (multipartSession) {
+    await uploadMultipartWithSession(
+      multipartSession.sessionId,
+      file,
+      multipartSession.partSize,
+      multipartSession.totalParts,
+      (p) => console.log('分片进度:', p)
+    )
+  } else if (directUploadSignature) {
+    await uploadWithSignature(directUploadSignature, file, (p) => console.log('直传进度:', p))
+  }
+
+  // 4. Commit
+  if (multipartSession || directUploadSignature) {
+    await MessageApi.commitAttachmentUpload({
+      roomId: selectedChat.value!.groupId,
+      key: attachmentKey,
+      fileSize: file.size,
+      hashValue: fileHashValue ?? undefined,
+      hashAlg: fileHashAlg ?? undefined,
+    })
+  }
+
+  return buildAttachmentPartPayload(
+    {
+      ...meta,
+      thumbnailKey: videoThumbnailKey || meta.thumbnailKey || null
+    },
+    attachmentKey,
+    file
+  )
 }
 
 const handleCreateGroup = async () => {
@@ -10961,87 +10687,10 @@ const loadMessageList = async (groupId: string) => {
     margin-right: 12px; /* 增加右侧间距 */
 
     .message-content {
-      background-color: $primary-color;
-      color: white;
-      padding: 12px 16px;
-      border-radius: 16px 16px 0 16px; /* 右下角0px，其余16px */
       white-space: pre-wrap; /* 保留换行符和空格 */
       word-wrap: break-word;
       word-break: break-word; /* 确保长单词/URL能正确换行 */
-      font-size: 16px;
-      overflow: hidden; /* 防止内容溢出 */
       max-width: 60%; /* 与对方消息宽度保持一致 */
-
-      // 媒体消息特殊处理 - 自己的消息
-      .media-message {
-        margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
-
-        .message-image {
-          max-width: 300px;
-          max-height: 300px;
-          width: auto;
-          height: auto;
-        }
-
-        .video-container {
-          max-width: 340px; /* 确保不超出气泡 */
-          border-radius: 8px;
-        }
-
-        .video-placeholder {
-          max-width: 340px; /* 确保不超出气泡 */
-          border-radius: 8px;
-        }
-
-        .video-thumbnail {
-          max-width: 300px;
-          max-height: 300px;
-          border-radius: 8px;
-        }
-      }
-
-      &.media-only-content {
-        background-color: transparent;
-        color: $text-primary;
-        padding: 0;
-        border-radius: 0;
-      }
-
-      &.media-only-content .media-message {
-        margin: 0;
-      }
-
-      .message-time {
-        font-size: 12px;
-        color: $message-time-color;
-        margin-top: 8px;
-        text-align: right;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 6px;
-      }
-
-      .message-status-icon {
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-        
-        &.sent {
-          color: white;
-        }
-        
-        &.read {
-          color: white;
-        }
-      }
-
-      .message-edited-flag {
-        margin-left: 6px;
-        font-size: 12px;
-        color: $message-time-color;
-      }
     }
   }
 
@@ -11063,73 +10712,11 @@ const loadMessageList = async (groupId: string) => {
 
 .message-content {
     position: relative;
-    background-color: #ffffff;
-    padding: 12px 16px;
-    border-radius: 0 16px 16px 16px; /* 左上角0px，其余16px */
     max-width: 100%; /* 占满 message-wrapper 的宽度，message-wrapper 已设置 60% */
     word-wrap: break-word;
     word-break: break-word; /* 确保长单词/URL能正确换行 */
     white-space: pre-wrap; /* 保留换行符和空格 */
-    font-size: 16px;
-    color: $text-primary;
     overflow: hidden; /* 防止内容溢出 */
-
-    // 媒体消息特殊处理 - 他人消息
-    .media-message {
-      margin: -4px -4px 4px -4px; /* 抵消padding让媒体内容贴边，但底部保留间距给时间 */
-
-      .message-image {
-        max-width: 300px;
-        max-height: 300px;
-        width: auto;
-        height: auto;
-      }
-
-      .video-container {
-        max-width: 340px; /* 确保不超出气泡 */
-        border-radius: 8px;
-      }
-
-      .video-placeholder {
-        max-width: 340px; /* 确保不超出气泡 */
-        border-radius: 8px;
-      }
-
-      .video-thumbnail {
-        max-width: 300px;
-        max-height: 300px;
-        border-radius: 8px;
-      }
-    }
-
-    &.media-only-content {
-      background-color: transparent;
-      padding: 0;
-      border-radius: 0;
-      min-width: 0;
-    }
-
-    &.media-only-content .media-message {
-      margin: 0;
-    }
-
-    .message-time-other {
-      font-size: 12px;
-      color: $message-time-other-color;
-      margin-top: 8px;
-      text-align: left;
-      line-height: 1;
-      white-space: nowrap; /* 防止时间换行 */
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .message-edited-flag {
-      margin-left: 6px;
-      font-size: 12px;
-      color: $message-time-other-color;
-    }
   }
 
   // 对方消息整体右移，为左侧选择控件留白
@@ -12325,4 +11912,83 @@ const loadMessageList = async (groupId: string) => {
   }
 }
 
+
+.pending-attachments-bar {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  max-height: 120px;
+  overflow-x: auto;
+}
+.pending-attachments-list {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.pending-attachment-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 80px;
+  flex-shrink: 0;
+}
+.attachment-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.preview-file-icon img {
+  width: 32px;
+  height: 32px;
+}
+.remove-attachment {
+  position: absolute;
+  top: -6px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #999;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  z-index: 10;
+  padding: 0;
+  line-height: 1;
+  border: none;
+}
+.upload-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.upload-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>

@@ -97,10 +97,6 @@ impl AudioRecorder {
         }
     }
 
-    /// 检查是否正在录音
-    pub fn is_recording(&self) -> bool {
-        self.is_recording.load(Ordering::SeqCst)
-    }
 
     /// 开始录音
     pub fn start(&self) -> Result<(), String> {
