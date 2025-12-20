@@ -5737,6 +5737,38 @@ const sendMessage = async () => {
     }
   })
 
+  const previewUrlsToKeep = new Set<string>()
+  const previewByAttachmentKey = new Map<string, { localPath?: string; thumbnailLocalPath?: string }>()
+  pendingAttachments.value.forEach((item) => {
+    const attachmentPart = item?.attachmentPart as MessagePartPayloadInput | null
+    if (!attachmentPart || attachmentPart.type === 'text') {
+      return
+    }
+    const previewUrl = typeof item?.previewUrl === 'string' ? item.previewUrl : null
+    if (!previewUrl) {
+      return
+    }
+    const attachmentKey = (attachmentPart as any)?.key
+    if (typeof attachmentKey !== 'string' || !attachmentKey.trim()) {
+      return
+    }
+
+    if (attachmentPart.type === 'image') {
+      previewUrlsToKeep.add(previewUrl)
+      previewByAttachmentKey.set(attachmentKey, { localPath: previewUrl })
+      registerBlobUrl(previewUrl)
+      return
+    }
+
+    if (attachmentPart.type === 'video') {
+      previewUrlsToKeep.add(previewUrl)
+      previewByAttachmentKey.set(attachmentKey, { thumbnailLocalPath: previewUrl })
+      if (previewUrl.startsWith('blob:')) {
+        registerBlobUrl(previewUrl)
+      }
+    }
+  })
+
   const quotedFromReply = replyingMessage.value
     ? {
         id: replyingMessage.value.id,
@@ -5773,6 +5805,14 @@ const sendMessage = async () => {
       height: part.height ?? null,
       durationMs: part.durationMs ?? null,
       thumbnailKey: part.thumbnailKey ?? null,
+    }
+
+    const preview = previewByAttachmentKey.get(part.key)
+    if (preview?.localPath) {
+      attachment.localPath = preview.localPath
+    }
+    if (preview?.thumbnailLocalPath) {
+      attachment.thumbnailLocalPath = preview.thumbnailLocalPath
     }
 
     return {
@@ -5813,7 +5853,9 @@ const sendMessage = async () => {
   const attachmentsToClear = [...pendingAttachments.value]
   pendingAttachments.value = []
   attachmentsToClear.forEach(item => {
-    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+    if (item.previewUrl && !previewUrlsToKeep.has(item.previewUrl)) {
+      URL.revokeObjectURL(item.previewUrl)
+    }
   })
   
   if (replyingMessage.value) {
