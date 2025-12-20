@@ -3,14 +3,14 @@
   <!-- 左侧 / 对方消息 -->
   <div
     v-if="!isSelf"
-    class="message-content"
-    :class="{
-      'media-only-content':
-        message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-        message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
-      'is-self': isSelf
-    }"
-  >
+	    class="message-content"
+	    :class="{
+	      'media-only-content':
+	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
+	      'is-self': isSelf
+	    }"
+	  >
     <!-- 引用消息预览 -->
     <template v-if="message.quotedMessage">
       <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
@@ -104,26 +104,26 @@
       </div>
     </template>
 
-    <template v-else>
-      <!-- 文本消息 -->
-      <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
-        {{ getTextContent(message) }}
-      </template>
+	    <template v-else>
+	      <!-- 文本消息 -->
+	      <template v-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
+	        {{ getTextContent(message) }}
+	      </template>
 
-      <!-- 音频消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
-        <VoiceMessage
-          :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
-          :duration="getAudioDuration(message)"
-          :is-mine="message.isSelf"
+	      <!-- 音频消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
+	        <VoiceMessage
+	          :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
+	          :duration="getAudioDuration(message)"
+	          :is-mine="message.isSelf"
           :message-id="message.id"
         />
-      </template>
+	      </template>
 
-      <!-- 图片消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
-        <div class="media-message image-message">
-          <div class="media-main">
+	      <!-- 图片消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
+	        <div class="media-message image-message">
+	          <div class="media-main">
             <img
               v-if="parseImageSrc(message)"
               :src="parseImageSrc(message)"
@@ -150,12 +150,12 @@
             </div>
           </div>
         </div>
-      </template>
+	      </template>
 
-      <!-- 视频消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
-        <div class="media-message video-message">
-          <div class="video-container" @click="handleVideoPlay(message)">
+	      <!-- 视频消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
+	        <div class="media-message video-message">
+	          <div class="video-container" @click="handleVideoPlay(message)">
             <div v-if="parseVideoScreenShotSrc(message)" class="video-thumbnail-wrapper">
               <img
                 :src="parseVideoScreenShotSrc(message)"
@@ -186,13 +186,13 @@
             </div>
           </div>
         </div>
-      </template>
+	      </template>
 
-      <!-- 文件消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
-        <div class="file-message" @click="handleFileDownload(message)">
-          <div class="file-icon-wrapper">
-            <div class="file-icon" :class="getFileIconClass(message)">
+	      <!-- 文件消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
+	        <div class="file-message" @click="handleFileDownload(message)">
+	          <div class="file-icon-wrapper">
+	            <div class="file-icon" :class="getFileIconClass(message)">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
                 <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
@@ -211,27 +211,27 @@
         <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
       </template>
 
-      <div
-        class="message-time-other"
-        v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
-              message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
-      >
-        {{ formatMessageTime(message.createTime || message.time) }}
-      </div>
-    </template>
-  </div>
+	      <div
+	        class="message-time-other"
+	        v-if="resolvedContentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
+	              resolvedContentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
+	      >
+	        {{ formatMessageTime(message.createTime || message.time) }}
+	      </div>
+	    </template>
+	  </div>
 
   <!-- 右侧 / 自己的消息 -->
   <div
     v-else
-    class="message-content"
-    :class="{
-      'media-only-content':
-        message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
-        message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
-      'is-self': isSelf
-    }"
-  >
+	    class="message-content"
+	    :class="{
+	      'media-only-content':
+	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE ||
+	        resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE,
+	      'is-self': isSelf
+	    }"
+	  >
     <template v-if="message.quotedMessage">
       <div class="quoted-block" @click.stop="scrollToQuoted(message.quotedMessage)">
         <div class="quoted-header">
@@ -364,25 +364,25 @@
       </div>
     </template>
 
-    <template v-else>
-      <!-- 文本消息 -->
-      <template v-if="!message.contentType || message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
-        {{ getTextContent(message) }}
-      </template>
+	    <template v-else>
+	      <!-- 文本消息 -->
+	      <template v-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE">
+	        {{ getTextContent(message) }}
+	      </template>
 
-      <!-- 音频消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
-        <VoiceMessage
-          :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
-          :duration="getAudioDuration(message)"
+	      <!-- 音频消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE || hasAudioPart(message)">
+	        <VoiceMessage
+	          :voice-url="audioUrlCache[message.id] || ensureAudioUrlLoading(message)"
+	          :duration="getAudioDuration(message)"
           :is-mine="message.isSelf"
         />
-      </template>
+	      </template>
 
-      <!-- 图片消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
-        <div class="media-message image-message">
-          <div class="media-main">
+	      <!-- 图片消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE">
+	        <div class="media-message image-message">
+	          <div class="media-main">
             <img
               v-if="parseImageSrc(message)"
               :src="parseImageSrc(message)"
@@ -447,12 +447,12 @@
             </div>
           </div>
         </div>
-      </template>
+	      </template>
 
-      <!-- 视频消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
-        <div class="media-message video-message">
-          <div class="video-container" @click="handleVideoPlay(message)">
+	      <!-- 视频消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE">
+	        <div class="media-message video-message">
+	          <div class="video-container" @click="handleVideoPlay(message)">
             <!-- 如果有视频缩略图则显示，否则显示默认占位 UI -->
             <div v-if="parseVideoScreenShotSrc(message)" class="video-thumbnail-wrapper">
               <img
@@ -546,13 +546,13 @@
             </div>
           </div>
         </div>
-      </template>
+	      </template>
 
-      <!-- 文件消息 -->
-      <template v-else-if="message.contentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
-        <div class="file-message" @click="handleFileDownload(message)">
-          <div class="file-icon-wrapper">
-            <div class="file-icon" :class="getFileIconClass(message)">
+	      <!-- 文件消息 -->
+	      <template v-else-if="resolvedContentType === MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE">
+	        <div class="file-message" @click="handleFileDownload(message)">
+	          <div class="file-icon-wrapper">
+	            <div class="file-icon" :class="getFileIconClass(message)">
               <!-- 压缩包图标 -->
               <svg
                 v-if="getFileIconType(message) === 'archive'"
@@ -653,12 +653,12 @@
         <span v-if="message.isEdited" class="message-edited-flag">（已编辑）</span>
       </template>
 
-      <div
-        class="message-time"
-        v-if="message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
-            message.contentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
-      >
-        {{ formatMessageTime(message.createTime || message.time) }}
+	      <div
+	        class="message-time"
+	        v-if="resolvedContentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE &&
+	            resolvedContentType !== MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE"
+	      >
+	        {{ formatMessageTime(message.createTime || message.time) }}
         <svg
           v-if="message.isSelf && message.status === 2"
           class="message-status-icon sent"
@@ -706,6 +706,7 @@
 import Avatar from './Avatar.vue'
 import VoiceMessage from './VoiceMessage.vue'
 import MediaSkeleton from './MediaSkeleton.vue'
+import { MessageType } from '@/types/models'
 import type { Message, QuotedMessage, MessagePart } from '@/types/models'
 
 interface Props {
@@ -820,19 +821,100 @@ const fileParts = computed(() => {
   return props.message.parts.filter(p => p.type === 'file')
 })
 
+const isAttachmentPlaceholderText = (text: string) => {
+  const normalized = text.trim()
+  if (!normalized) return false
+
+  return (
+    normalized === '[混合消息]'
+    || normalized === '[附件]'
+    || normalized === '[图片]'
+    || normalized === '[视频]'
+    || normalized === '[文件]'
+    || normalized.startsWith('[混合消息]')
+    || normalized.startsWith('[附件]')
+    || normalized.startsWith('[图片]')
+    || normalized.startsWith('[视频]')
+    || normalized.startsWith('[文件]')
+  )
+}
+
 const textPart = computed(() => {
   if (!props.message.parts) return null
-  return props.message.parts.find(p => p.type === 'text')
+  const parts = props.message.parts
+  const hasAttachment = parts.some((part) =>
+    part.type !== 'text' && Boolean(part.attachment?.key || part.attachment?.localPath || part.attachment?.downloadUrl),
+  )
+
+  return (
+    parts.find((part) =>
+      part.type === 'text'
+      && Boolean(part.text && String(part.text).trim())
+      && (!hasAttachment || !isAttachmentPlaceholderText(String(part.text))),
+    ) ?? null
+  )
 })
 
 const isMixed = computed(() => {
-  if (!props.message.parts || props.message.parts.length === 0) return false
-  // 如果超过 1 个部分，或者唯一的 1 个部分跟传统的 ContentType 不匹配，也认为是混合模式
-  if (props.message.parts.length > 1) return true
-  
-  // 这里的逻辑可以更细：如果只有一个部分且是文字，但带有附件元数据等，也可以视为 Mixed 以应用白色主题
-  // 但目前简单定义：多部分即 Mixed
-  return false
+  const explicitType = (props.message as any)?.type
+  if (explicitType === MessageType.MIXED || explicitType === 'mixed') {
+    return true
+  }
+  if (explicitType) {
+    return false
+  }
+
+  const parts = Array.isArray(props.message.parts) ? props.message.parts : []
+  if (parts.length === 0) {
+    return false
+  }
+
+  const attachmentParts = parts.filter((part) =>
+    part.type !== 'text'
+    && Boolean(part.attachment?.key || part.attachment?.localPath || part.attachment?.downloadUrl),
+  )
+
+  if (attachmentParts.length === 0) {
+    return false
+  }
+
+  const meaningfulTextParts = parts.filter((part) =>
+    part.type === 'text'
+    && Boolean(part.text && String(part.text).trim())
+    && !isAttachmentPlaceholderText(String(part.text)),
+  )
+
+  // 1) 多个附件（同类型也算，例如多图/多文件）
+  if (attachmentParts.length > 1) {
+    return true
+  }
+
+  // 2) 文本 + 单个附件
+  return meaningfulTextParts.length > 0
+})
+
+const resolvedContentType = computed(() => {
+  const explicit = (props.message as any)?.contentType
+  if (typeof explicit === 'number') {
+    return explicit
+  }
+
+  if (Array.isArray(props.message.parts) && props.message.parts.length > 0) {
+    if (props.message.parts.some((p) => p.type === 'image')) {
+      return MESSAGE_CONSTANTS.CONTENT_TYPE.IMG_CONTENT_TYPE
+    }
+    if (props.message.parts.some((p) => p.type === 'video')) {
+      return MESSAGE_CONSTANTS.CONTENT_TYPE.VIDEO_CONTENT_TYPE
+    }
+    if (props.message.parts.some((p) => p.type === 'audio')) {
+      return MESSAGE_CONSTANTS.CONTENT_TYPE.AUDIO_CONTENT_TYPE
+    }
+    if (props.message.parts.some((p) => p.type === 'file')) {
+      return MESSAGE_CONSTANTS.CONTENT_TYPE.FILE_CONTENT_TYPE
+    }
+  }
+
+  return MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE
 })
 
 const gridClass = computed(() => {

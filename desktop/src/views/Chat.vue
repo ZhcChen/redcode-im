@@ -5724,6 +5724,7 @@ const sendMessage = async () => {
   const timestamp = Date.now()
   const tempId = `${timestamp}`
   const user = store.getters.currentUser
+  const replyToMessageId = replyingMessage.value?.id
 
   // 构建多部分消息内容
   const parts: MessagePartPayloadInput[] = []
@@ -5753,6 +5754,39 @@ const sendMessage = async () => {
       }
     : undefined
 
+  const tempParts: MessagePart[] = parts.map((part, index) => {
+    if (part.type === 'text') {
+      return {
+        position: index,
+        type: MessagePartType.TEXT,
+        text: part.text,
+        attachment: null,
+      }
+    }
+
+    const attachment: MessageAttachment = {
+      key: part.key,
+      name: part.name ?? null,
+      mime: part.mime ?? null,
+      size: part.size ?? null,
+      width: part.width ?? null,
+      height: part.height ?? null,
+      durationMs: part.durationMs ?? null,
+      thumbnailKey: part.thumbnailKey ?? null,
+    }
+
+    return {
+      position: index,
+      type: partTypeEnumMap[part.type],
+      attachment,
+    }
+  })
+
+  const tempContentType =
+    tempParts.length > 1
+      ? MESSAGE_CONSTANTS.CONTENT_TYPE.OTHER_CONTENT_TYPE
+      : resolveContentTypeFromParts(tempParts, MESSAGE_CONSTANTS.CONTENT_TYPE.TEXT_CONTENT_TYPE)
+
   const tempMessage: Message = {
     id: tempId,
     content: parts.length > 1 ? '[混合消息]' : (content || '[附件]'),
@@ -5762,17 +5796,13 @@ const sendMessage = async () => {
     senderName: user?.nickname || user?.username || '我',
     senderAvatar: user?.avatar,
     messageType: MESSAGE_CONSTANTS.MSG_TYPE.USER_MSG,
+    contentType: tempContentType,
     status: 1,
     createTime: getTimeStr(timestamp),
     timestamp,
     quotedMessage: quotedFromReply,
-    // 临时预览 parts
-    parts: parts.map((p, idx) => ({
-      position: idx,
-      type: p.type as any,
-      text: p.text,
-      attachment: p.image || p.video || p.audio || p.file
-    }))
+    parts: tempParts,
+    roomId: groupId,
   }
 
   messages.value.push(tempMessage)
@@ -5795,9 +5825,8 @@ const sendMessage = async () => {
   try {
     const apiMessage = await webSocketManager.sendMessage({
       roomId: groupId,
-      content: content || (parts.length > 0 ? '[混合消息]' : ''),
-      parts: parts.length > 0 ? parts : undefined,
-      replyToMessageId: replyingMessage.value?.id,
+      parts,
+      replyToMessageId,
     }, MESSAGE_CONSTANTS.BUSINESS_CODE.chatting)
 
     if (apiMessage) {
@@ -7031,7 +7060,6 @@ const uploadAndSendFile = async (file: File) => {
     console.log('发送消息到服务器:', { partType: meta.partType, fileName: file.name })
     const apiMessage = await webSocketManager.sendMessage({
       roomId: selectedChat.value.groupId,
-      content: meta.summary,
       parts: [buildAttachmentPartPayload(
         {
           ...meta,
