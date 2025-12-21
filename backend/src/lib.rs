@@ -9,6 +9,7 @@ pub mod database;
 pub mod error;
 pub mod handlers;
 pub mod id;
+pub mod logging;
 pub mod models;
 pub mod proto;
 pub mod redis;
@@ -24,12 +25,16 @@ pub use models::*;
 pub use crate::database::Database;
 pub use crate::redis::RedisManager;
 
+use std::sync::Arc;
+use logging::LogStore;
+
 /// 应用状态
 #[derive(Clone)]
 pub struct AppState {
     pub database: database::Database,
     pub redis: redis::RedisManager,
     pub node_id: String,
+    pub log_store: Arc<dyn LogStore>,
     pub connection_manager: std::sync::Arc<websocket::ConnectionManager>,
 }
 

@@ -313,6 +313,13 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/ip-geolocation/enabled",
             get(admin::get_ip_geolocation_enabled).patch(admin::set_ip_geolocation_enabled),
         )
+        // 系统日志管理API
+        .route("/api/admin/logs", get(admin::list_system_logs))
+        .route("/api/admin/logs/stats", get(admin::get_system_log_stats))
+        .route(
+            "/api/admin/logs/cleanup",
+            post(admin::cleanup_system_logs),
+        )
         // 聊天记录管理API
         .route(
             "/api/admin/chat-history",

@@ -92,6 +92,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20251219120000_create_file_upload_multipart_sessions.sql"
         )),
     ),
+    // 2025-12-21：系统日志表（存储 DEBUG/WARN/ERROR 级别日志，7 天自动清理）
+    (
+        "20251221120000_create_system_logs.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251221120000_create_system_logs.sql"
+        )),
+    ),
 ];
 
 impl Database {

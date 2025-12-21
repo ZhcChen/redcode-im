@@ -1,26 +1,8 @@
-mod auth;
-mod constants;
-mod database;
-mod error;
-mod handlers;
-mod id;
-mod models;
-mod proto;
-mod redis;
-mod routes;
-mod services;
-mod storage;
-mod websocket;
-
-use std::{
-    env,
-    fs::{self, OpenOptions},
-    path::Path,
-    sync::OnceLock,
-};
+use std::{env, sync::Arc};
 use std::net::IpAddr;
 
 use tokio::net::TcpListener;
+use tokio::sync::mpsc;
 use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
@@ -28,13 +10,25 @@ use tower_http::{
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use tracing_appender::non_blocking::WorkerGuard;
-
-static FILE_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+use redcode_im_backend::{
+    database, redis, routes, services, websocket,
+    logging::{self, DatabaseLayer, LoggingConfig, LogWriter, PostgresLogStore, LogStore, LogEntry},
+    AppState,
+};
 
 #[tokio::main]
 async fn main() {
-    init_tracing();
+    // 先生成 node_id
+    let node_id = generate_node_id();
+
+    // 读取日志配置
+    let log_config = LoggingConfig::from_env();
+
+    // 创建日志 channel
+    let (log_tx, log_rx) = mpsc::channel::<LogEntry>(10000);
+
+    // 初始化 tracing（包含数据库 layer）
+    init_tracing(log_tx.clone(), node_id.clone(), &log_config);
 
     // 初始化数据库连接
     info!("正在初始化数据库连接...");
@@ -45,6 +39,24 @@ async fn main() {
     database.migrate().await.expect("数据库迁移失败");
 
     info!("数据库初始化完成!");
+
+    // 初始化日志存储并启动写入任务
+    let log_store: Arc<dyn LogStore> = Arc::new(PostgresLogStore::new(database.pool().clone()));
+    if log_config.enabled {
+        info!("正在初始化日志存储系统...");
+        let writer = LogWriter::new(log_rx, log_store.clone(), log_config.writer_config.clone());
+        tokio::spawn(async move {
+            writer.run().await;
+        });
+
+        // 启动日志清理任务
+        let cleanup_store = log_store.clone();
+        let retention_days = log_config.writer_config.retention_days;
+        tokio::spawn(async move {
+            logging::writer::start_log_cleanup_task(cleanup_store, retention_days).await;
+        });
+        info!("日志存储系统初始化完成!");
+    }
 
     // 初始化 Redis 连接
     info!("正在初始化 Redis 连接...");
@@ -63,7 +75,7 @@ async fn main() {
     info!("地理位置服务初始化完成!");
 
     // 启动后台任务
-    let node_id = start_background_tasks(database.clone(), redis_manager.clone()).await;
+    start_background_tasks(database.clone(), redis_manager.clone(), node_id.clone()).await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -76,7 +88,8 @@ async fn main() {
         .with_state(AppState {
             database: database.clone(),
             redis: redis_manager,
-            node_id,
+            node_id: node_id.clone(),
+            log_store,
             connection_manager: std::sync::Arc::new(websocket::ConnectionManager::new()),
         })
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
@@ -98,78 +111,48 @@ async fn main() {
     axum::serve(listener, app).await.expect("server");
 }
 
-fn init_tracing() {
-    let log_dir = Path::new("log");
-    let mut file_layer = None;
-
-    if let Err(e) = fs::create_dir_all(log_dir) {
-        eprintln!("创建日志目录 {:?} 失败: {}", log_dir, e);
-    } else {
-        let log_file_path = log_dir.join("app.log");
-        if log_file_path.exists() {
-            let archived_name = format!("app-{}.log", chrono::Local::now().format("%Y%m%d%H%M%S"));
-            let archive_path = log_dir.join(archived_name);
-            if let Err(e) = fs::rename(&log_file_path, &archive_path) {
-                eprintln!(
-                    "归档日志文件 {:?} -> {:?} 失败: {}",
-                    log_file_path, archive_path, e
-                );
-            }
-        }
-
-        match OpenOptions::new()
-            .create(true)
-            .write(true)
-            .append(true)
-            .open(&log_file_path)
-        {
-            Ok(file) => {
-                let (non_blocking, guard) = tracing_appender::non_blocking(file);
-                let layer = tracing_subscriber::fmt::layer()
-                    .with_writer(non_blocking)
-                    .with_ansi(false);
-                let _ = FILE_GUARD.set(guard);
-                file_layer = Some(layer);
-            }
-            Err(e) => {
-                eprintln!("创建日志文件 {:?} 失败: {}", log_file_path, e);
-            }
-        }
-    }
-
+fn init_tracing(
+    log_sender: mpsc::Sender<LogEntry>,
+    node_id: String,
+    log_config: &LoggingConfig,
+) {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
-    if let Some(layer) = file_layer {
+    // 控制台日志 layer（全量，由 RUST_LOG 控制级别）
+    let console_layer = tracing_subscriber::fmt::layer();
+
+    // 数据库日志 layer（可选，只存储 DEBUG/WARN/ERROR）
+    let db_layer = if log_config.enabled {
+        Some(DatabaseLayer::new(
+            log_sender,
+            node_id,
+            log_config.level_config.clone(),
+        ))
+    } else {
+        None
+    };
+
+    // 组合 layers
+    if let Some(db_layer) = db_layer {
         tracing_subscriber::registry()
             .with(env_filter)
-            .with(tracing_subscriber::fmt::layer())
-            .with(layer)
+            .with(console_layer)
+            .with(db_layer)
             .init();
-        return;
+    } else {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(console_layer)
+            .init();
     }
-
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-}
-
-/// 应用状态
-#[derive(Clone)]
-pub struct AppState {
-    pub database: database::Database,
-    pub redis: redis::RedisManager,
-    pub node_id: String,
-    pub connection_manager: std::sync::Arc<websocket::ConnectionManager>,
 }
 
 /// 启动后台任务
 async fn start_background_tasks(
     database: database::Database,
     redis_manager: redis::RedisManager,
-) -> String {
-    let node_id = generate_node_id();
-
+    node_id: String,
+) {
     // 启动节点心跳任务
     let redis_heartbeat = redis_manager.clone();
     let node_id_clone = node_id.clone();
@@ -217,7 +200,6 @@ async fn start_background_tasks(
     });
 
     info!("后台任务启动完成: 节点ID = {}", node_id);
-    node_id
 }
 
 /// 生成节点ID

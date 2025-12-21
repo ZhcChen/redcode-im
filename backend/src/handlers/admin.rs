@@ -16,6 +16,7 @@ use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
+use crate::logging::LogQueryParams;
 use crate::models::Claims;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
@@ -4922,5 +4923,175 @@ pub async fn set_ip_geolocation_enabled(
     Ok(Json(IpGeolocationStatusResponse {
         enabled: req.enabled,
         description: "控制是否启用用户IP地理位置解析功能，用于管理员数据统计".to_string(),
+    }))
+}
+
+
+// ========== 系统日志管理 API ==========
+
+/// 系统日志查询参数
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemLogQueryParams {
+    /// 日志级别 (DEBUG/INFO/WARN/ERROR)
+    pub level: Option<String>,
+    /// 模块路径（模糊匹配）
+    pub target: Option<String>,
+    /// 关键词搜索（消息内容模糊匹配）
+    pub keyword: Option<String>,
+    /// 开始时间
+    pub start_time: Option<DateTime<Utc>>,
+    /// 结束时间
+    pub end_time: Option<DateTime<Utc>>,
+    /// 每页数量（默认 50，最大 500）
+    pub limit: Option<i64>,
+    /// 偏移量
+    pub offset: Option<i64>,
+}
+
+/// 系统日志条目响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemLogEntry {
+    pub id: String,
+    pub level: String,
+    pub target: String,
+    pub message: String,
+    pub fields: Option<serde_json::Value>,
+    pub span_id: Option<String>,
+    pub node_id: String,
+    pub created_at: String,
+}
+
+/// 系统日志查询响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemLogsResponse {
+    pub logs: Vec<SystemLogEntry>,
+    pub total: i64,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+/// 系统日志统计响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemLogStatsResponse {
+    pub total_count: i64,
+    pub debug_count: i64,
+    pub info_count: i64,
+    pub warn_count: i64,
+    pub error_count: i64,
+    pub oldest_log: Option<String>,
+    pub newest_log: Option<String>,
+}
+
+/// 日志清理请求
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogCleanupRequest {
+    /// 保留天数（清理早于此天数的日志）
+    pub retention_days: i64,
+}
+
+/// 日志清理响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogCleanupResponse {
+    pub success: bool,
+    pub deleted_count: u64,
+    pub message: String,
+}
+
+/// 查询系统日志（需要管理员权限）
+pub async fn list_system_logs(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<SystemLogQueryParams>,
+) -> Result<Json<SystemLogsResponse>, AppError> {
+    let query_params = LogQueryParams {
+        level: params.level,
+        target: params.target,
+        keyword: params.keyword,
+        start_time: params.start_time,
+        end_time: params.end_time,
+        limit: params.limit,
+        offset: params.offset,
+    };
+
+    let result = state.log_store.query(&query_params).await?;
+
+    let logs = result
+        .logs
+        .into_iter()
+        .map(|entry| SystemLogEntry {
+            id: entry.id.map(|id| id.to_string()).unwrap_or_default(),
+            level: entry.level,
+            target: entry.target,
+            message: entry.message,
+            fields: entry.fields,
+            span_id: entry.span_id,
+            node_id: entry.node_id,
+            created_at: entry.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(SystemLogsResponse {
+        logs,
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
+    }))
+}
+
+/// 获取系统日志统计（需要管理员权限）
+pub async fn get_system_log_stats(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+) -> Result<Json<SystemLogStatsResponse>, AppError> {
+    let stats = state.log_store.stats().await?;
+
+    Ok(Json(SystemLogStatsResponse {
+        total_count: stats.total_count,
+        debug_count: stats.debug_count,
+        info_count: stats.info_count,
+        warn_count: stats.warn_count,
+        error_count: stats.error_count,
+        oldest_log: stats.oldest_log.map(|t| t.to_rfc3339()),
+        newest_log: stats.newest_log.map(|t| t.to_rfc3339()),
+    }))
+}
+
+/// 手动清理系统日志（需要管理员权限）
+pub async fn cleanup_system_logs(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<LogCleanupRequest>,
+) -> Result<Json<LogCleanupResponse>, AppError> {
+    if req.retention_days < 1 {
+        return Err(AppError::ValidationError(
+            "保留天数必须大于 0".to_string(),
+        ));
+    }
+
+    info!(
+        "管理员 {} 请求清理系统日志，保留 {} 天内的日志",
+        claims.sub, req.retention_days
+    );
+
+    let deleted_count = state.log_store.cleanup(req.retention_days).await?;
+
+    info!(
+        "系统日志清理完成: 删除了 {} 条日志，保留 {} 天",
+        deleted_count, req.retention_days
+    );
+
+    Ok(Json(LogCleanupResponse {
+        success: true,
+        deleted_count,
+        message: format!(
+            "成功删除 {} 条日志，保留最近 {} 天的日志",
+            deleted_count, req.retention_days
+        ),
     }))
 }
