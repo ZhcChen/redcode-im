@@ -18,6 +18,7 @@ export default {
   'menu.server.dashboard': '仪表盘-服务端',
   'menu.server.workplace': '工作台-服务端',
   'menu.server.monitor': '实时监控-服务端',
+  'menu.dashboard.systemLog': '系统日志',
   'menu.userManagement': '用户管理',
   'menu.userManagement.list': '用户列表',
   'menu.userManagement.feedback': '用户反馈',
