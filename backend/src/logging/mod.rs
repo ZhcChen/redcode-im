@@ -7,8 +7,7 @@
 //!
 //! ```text
 //! tracing-subscriber
-//!   ├── Console Layer (全量)
-//!   ├── File Layer (全量)
+//!   ├── Console Layer (可选，由 LOG_CONSOLE_ENABLED 控制)
 //!   └── Database Layer (DEBUG/WARN/ERROR)
 //!              │
 //!              ▼
@@ -39,6 +38,8 @@ pub use writer::{LogWriter, LogWriterConfig};
 pub struct LoggingConfig {
     /// 是否启用数据库日志
     pub enabled: bool,
+    /// 是否启用控制台日志输出（生产环境可关闭以提升性能）
+    pub console_enabled: bool,
     /// 日志级别配置
     pub level_config: LogLevelConfig,
     /// 写入器配置
@@ -51,6 +52,7 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            console_enabled: true,
             level_config: LogLevelConfig::default(),
             writer_config: LogWriterConfig::default(),
             channel_capacity: 10000,
@@ -65,8 +67,14 @@ impl LoggingConfig {
             .map(|v| v.to_lowercase() != "false" && v != "0")
             .unwrap_or(true);
 
+        // 控制台日志默认开启，生产环境可通过 LOG_CONSOLE_ENABLED=false 关闭
+        let console_enabled = std::env::var("LOG_CONSOLE_ENABLED")
+            .map(|v| v.to_lowercase() != "false" && v != "0")
+            .unwrap_or(true);
+
         Self {
             enabled,
+            console_enabled,
             level_config: LogLevelConfig::from_env(),
             writer_config: LogWriterConfig::from_env(),
             channel_capacity: 10000,

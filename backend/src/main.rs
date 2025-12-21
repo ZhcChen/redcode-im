@@ -30,20 +30,20 @@ async fn main() {
     // 初始化 tracing（包含数据库 layer）
     init_tracing(log_tx.clone(), node_id.clone(), &log_config);
 
-    // 初始化数据库连接
-    info!("正在初始化数据库连接...");
+    // 初始化数据库连接（使用 eprintln! 确保启动阶段日志即使控制台关闭也能输出）
+    eprintln!("[STARTUP] 正在初始化数据库连接...");
     let database = database::Database::new().await.expect("数据库连接失败");
 
     // 运行数据库迁移
-    info!("正在运行数据库迁移...");
+    eprintln!("[STARTUP] 正在运行数据库迁移...");
     database.migrate().await.expect("数据库迁移失败");
 
-    info!("数据库初始化完成!");
+    eprintln!("[STARTUP] 数据库初始化完成!");
 
     // 初始化日志存储并启动写入任务
     let log_store: Arc<dyn LogStore> = Arc::new(PostgresLogStore::new(database.pool().clone()));
     if log_config.enabled {
-        info!("正在初始化日志存储系统...");
+        eprintln!("[STARTUP] 正在初始化日志存储系统...");
         let writer = LogWriter::new(log_rx, log_store.clone(), log_config.writer_config.clone());
         tokio::spawn(async move {
             writer.run().await;
@@ -55,11 +55,11 @@ async fn main() {
         tokio::spawn(async move {
             logging::writer::start_log_cleanup_task(cleanup_store, retention_days).await;
         });
-        info!("日志存储系统初始化完成!");
+        eprintln!("[STARTUP] 日志存储系统初始化完成!");
     }
 
     // 初始化 Redis 连接
-    info!("正在初始化 Redis 连接...");
+    eprintln!("[STARTUP] 正在初始化 Redis 连接...");
     let redis_manager = redis::RedisManager::new().await.expect("Redis 连接失败");
 
     // 测试 Redis 连接
@@ -67,12 +67,12 @@ async fn main() {
         .test_connections()
         .await
         .expect("Redis 连接测试失败");
-    info!("Redis 连接初始化完成!");
+    eprintln!("[STARTUP] Redis 连接初始化完成!");
 
     // 初始化地理位置服务
-    info!("正在初始化地理位置服务...");
+    eprintln!("[STARTUP] 正在初始化地理位置服务...");
     services::geolocation::init_geolocation_service(database.pool().clone());
-    info!("地理位置服务初始化完成!");
+    eprintln!("[STARTUP] 地理位置服务初始化完成!");
 
     // 启动后台任务
     start_background_tasks(database.clone(), redis_manager.clone(), node_id.clone()).await;
@@ -99,13 +99,13 @@ async fn main() {
     let listener = TcpListener::bind(&addr).await.expect("bind");
 
     let local_ip = get_local_ip().unwrap_or_else(|| "Unknown".to_string());
-    info!("服务已启动:");
-    info!("  > Local:   http://localhost:{}", port);
-    info!("  > Network (Default): http://{}:{}", local_ip, port);
+    eprintln!("[STARTUP] 服务已启动:");
+    eprintln!("[STARTUP]   > Local:   http://localhost:{}", port);
+    eprintln!("[STARTUP]   > Network (Default): http://{}:{}", local_ip, port);
 
     // 尝试打印 en1 的 IP
     if let Some(en1_ip) = get_interface_ip("en1") {
-        info!("  > Network (en1):     http://{}:{}", en1_ip, port);
+        eprintln!("[STARTUP]   > Network (en1):     http://{}:{}", en1_ip, port);
     }
 
     axum::serve(listener, app).await.expect("server");
@@ -118,8 +118,12 @@ fn init_tracing(
 ) {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
-    // 控制台日志 layer（全量，由 RUST_LOG 控制级别）
-    let console_layer = tracing_subscriber::fmt::layer();
+    // 控制台日志 layer（可选，由 LOG_CONSOLE_ENABLED 控制）
+    let console_layer = if log_config.console_enabled {
+        Some(tracing_subscriber::fmt::layer())
+    } else {
+        None
+    };
 
     // 数据库日志 layer（可选，只存储 DEBUG/WARN/ERROR）
     let db_layer = if log_config.enabled {
@@ -132,19 +136,12 @@ fn init_tracing(
         None
     };
 
-    // 组合 layers
-    if let Some(db_layer) = db_layer {
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(console_layer)
-            .with(db_layer)
-            .init();
-    } else {
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(console_layer)
-            .init();
-    }
+    // 组合 layers（使用 Option 的 layer 支持）
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(console_layer)
+        .with(db_layer)
+        .init();
 }
 
 /// 启动后台任务

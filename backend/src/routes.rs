@@ -7,8 +7,8 @@ use axum::{
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
-    healthz, message, message_read, message_search, multipart_upload, report, room, root, settings,
-    user, version, ws,
+    health, healthz, message, message_read, message_search, multipart_upload, report, room, root,
+    settings, user, version, ws,
 };
 use crate::AppState;
 
@@ -17,6 +17,7 @@ pub fn create_routes() -> Router<AppState> {
     let public_routes = Router::new()
         .route("/", get(root))
         .route("/healthz", get(healthz))
+        .route("/readyz", get(health::readyz))
         .route("/ws", get(ws))
         .route("/versions/latest", get(version::latest_version))
         .route(
