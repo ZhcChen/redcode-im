@@ -43,12 +43,19 @@
       </div>
     </template>
 
-    <!-- 混合消息 / 多部分消息 -->
-    <template v-if="isMixed">
-      <div class="mixed-stack">
-        <!-- 1) 媒体网格 (图片/视频) -->
-        <div v-if="mediaParts.length > 0" class="media-grid" :class="gridClass">
-          <div v-for="(part, mIdx) in mediaParts" :key="mIdx" class="grid-item">
+	    <!-- 混合消息 / 多部分消息 -->
+	    <template v-if="isMixed">
+	      <div
+	        class="mixed-stack"
+	        :class="{
+	          'has-media': mediaParts.length > 0,
+	          'has-files': fileParts.length > 0,
+	          'has-text': !!textPart,
+	        }"
+	      >
+	        <!-- 1) 媒体网格 (图片/视频) -->
+	        <div v-if="mediaParts.length > 0" class="media-grid" :class="gridClass">
+	          <div v-for="(part, mIdx) in mediaParts" :key="mIdx" class="grid-item">
             <!-- 图片部分 -->
             <template v-if="part.type === 'image'">
               <img
@@ -362,12 +369,19 @@
       </div>
     </template>
 
-    <!-- 混合消息 / 多部分消息 -->
-    <template v-if="isMixed">
-      <div class="mixed-stack">
-        <!-- 1) 媒体网格 (图片/视频) -->
-        <div v-if="mediaParts.length > 0" class="media-grid" :class="gridClass">
-          <div v-for="(part, mIdx) in mediaParts" :key="mIdx" class="grid-item">
+	    <!-- 混合消息 / 多部分消息 -->
+	    <template v-if="isMixed">
+	      <div
+	        class="mixed-stack"
+	        :class="{
+	          'has-media': mediaParts.length > 0,
+	          'has-files': fileParts.length > 0,
+	          'has-text': !!textPart,
+	        }"
+	      >
+	        <!-- 1) 媒体网格 (图片/视频) -->
+	        <div v-if="mediaParts.length > 0" class="media-grid" :class="gridClass">
+	          <div v-for="(part, mIdx) in mediaParts" :key="mIdx" class="grid-item">
             <!-- 图片部分 -->
             <template v-if="part.type === 'image'">
               <img
@@ -1189,6 +1203,27 @@ const gridClass = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  &.has-text {
+    gap: 0;
+  }
+
+  &.has-media.has-text {
+    .media-grid {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    .mixed-file-text.has-files.has-text {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+
+    .mixed-text {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+  }
 }
 
 .media-grid {
@@ -1246,23 +1281,25 @@ const gridClass = computed(() => {
 }
 
 .mixed-file-text.has-files.has-text {
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+
   .file-parts-list {
-    background: #ffffff;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    overflow: hidden;
+    background: transparent;
+    border-radius: 0;
   }
 
-  .file-message:last-child {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+  .file-message {
+    border-radius: 0;
+    min-width: 0;
+    max-width: none;
+    padding: 8px 12px;
   }
 
   .mixed-text {
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
+    background: #ffffff;
+    border-radius: 0;
   }
 }
 
