@@ -123,66 +123,76 @@
           </div>
         </div>
 
-        <!-- 2) 文件列表 -->
-        <div v-if="fileParts.length > 0" class="file-parts-list">
-          <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
-            <div class="file-icon-wrapper">
-              <div class="file-icon" :class="getPartFileIconClass(part)">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
-                  <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-                </svg>
+        <!-- 2) 文件 + 文字（紧贴展示） -->
+        <div
+          v-if="fileParts.length > 0 || textPart"
+          class="mixed-file-text"
+          :class="{
+            'has-files': fileParts.length > 0,
+            'has-text': !!textPart,
+          }"
+        >
+          <!-- 文件列表 -->
+          <div v-if="fileParts.length > 0" class="file-parts-list">
+            <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
+              <div class="file-icon-wrapper">
+                <div class="file-icon" :class="getPartFileIconClass(part)">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
+                    <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  </svg>
+                </div>
+              </div>
+              <div class="file-info">
+                <div class="file-size" v-if="getPartFileSize(part)">{{ formatFileSize(getPartFileSize(part)!) }}</div>
               </div>
             </div>
-            <div class="file-info">
-              <div class="file-size" v-if="getPartFileSize(part)">{{ formatFileSize(getPartFileSize(part)!) }}</div>
-            </div>
           </div>
-        </div>
 
-        <!-- 3) 文本内容（作为说明/caption） -->
-        <div v-if="textPart" class="mixed-text">
-          {{ textPart.text }}
-          <div class="mixed-text-meta">
-            <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
-            <svg
-              v-if="message.isSelf && message.status === 2"
-              class="mixed-status-icon sent"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                fill="currentColor"
-              />
-            </svg>
-            <svg
-              v-if="message.isSelf && message.status === 4"
-              class="mixed-status-icon read"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                fill="currentColor"
-              />
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
-                fill="currentColor"
-              />
-            </svg>
+          <!-- 文本内容（作为说明/caption） -->
+          <div v-if="textPart" class="mixed-text">
+            {{ textPart.text }}
+            <div class="mixed-text-meta">
+              <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
+              <svg
+                v-if="message.isSelf && message.status === 2"
+                class="mixed-status-icon sent"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <svg
+                v-if="message.isSelf && message.status === 4"
+                class="mixed-status-icon read"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                  fill="currentColor"
+                />
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -432,66 +442,76 @@
           </div>
         </div>
 
-        <!-- 2) 文件列表 -->
-        <div v-if="fileParts.length > 0" class="file-parts-list">
-          <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
-            <div class="file-icon-wrapper">
-              <div class="file-icon" :class="getPartFileIconClass(part)">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
-                  <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-                </svg>
+        <!-- 2) 文件 + 文字（紧贴展示） -->
+        <div
+          v-if="fileParts.length > 0 || textPart"
+          class="mixed-file-text"
+          :class="{
+            'has-files': fileParts.length > 0,
+            'has-text': !!textPart,
+          }"
+        >
+          <!-- 文件列表 -->
+          <div v-if="fileParts.length > 0" class="file-parts-list">
+            <div v-for="(part, fIdx) in fileParts" :key="fIdx" class="file-message" @click="handleFileDownload(message)">
+              <div class="file-icon-wrapper">
+                <div class="file-icon" :class="getPartFileIconClass(part)">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
+                    <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  </svg>
+                </div>
+              </div>
+              <div class="file-info">
+                <div class="file-size" v-if="getPartFileSize(part)">{{ formatFileSize(getPartFileSize(part)!) }}</div>
               </div>
             </div>
-            <div class="file-info">
-              <div class="file-size" v-if="getPartFileSize(part)">{{ formatFileSize(getPartFileSize(part)!) }}</div>
-            </div>
           </div>
-        </div>
 
-        <!-- 3) 文本内容（作为说明/caption） -->
-        <div v-if="textPart" class="mixed-text">
-          {{ textPart.text }}
-          <div class="mixed-text-meta">
-            <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
-            <svg
-              v-if="message.status === 2"
-              class="mixed-status-icon sent"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                fill="currentColor"
-              />
-            </svg>
-            <svg
-              v-if="message.status === 4"
-              class="mixed-status-icon read"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
-                fill="currentColor"
-              />
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
-                fill="currentColor"
-              />
-            </svg>
+          <!-- 文本内容（作为说明/caption） -->
+          <div v-if="textPart" class="mixed-text">
+            {{ textPart.text }}
+            <div class="mixed-text-meta">
+              <span class="mixed-time">{{ formatMessageTime(message.createTime || message.time) }}</span>
+              <svg
+                v-if="message.status === 2"
+                class="mixed-status-icon sent"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <svg
+                v-if="message.status === 4"
+                class="mixed-status-icon read"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M9.03789 4.04543C9.21991 4.20434 9.23865 4.48071 9.07974 4.66273L4.49641 9.91273C4.41333 10.0079 4.29317 10.0625 4.16684 10.0625C4.04051 10.0625 3.92034 10.0079 3.83726 9.91273L2.00393 7.81273C1.84502 7.63071 1.86376 7.35434 2.04578 7.19543C2.2278 7.03652 2.50417 7.05526 2.66308 7.23728L4.16684 8.95977L8.42059 4.08728C8.5795 3.90526 8.85587 3.88652 9.03789 4.04543Z"
+                  fill="currentColor"
+                />
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M11.9687 4.09469C12.1436 4.26133 12.1504 4.53825 11.9838 4.71322L6.98361 9.96322C6.89524 10.056 6.77064 10.1054 6.6427 10.0983C6.51476 10.0913 6.39635 10.0285 6.31872 9.92654L6.06887 9.59841C5.92249 9.40618 5.95966 9.13167 6.1519 8.98529C6.31705 8.85954 6.54291 8.86925 6.69609 8.99637L11.3501 4.10976C11.5168 3.9348 11.7937 3.92805 11.9687 4.09469Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -1219,19 +1239,42 @@ const gridClass = computed(() => {
   gap: 6px;
 }
 
+.mixed-file-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.mixed-file-text.has-files.has-text {
+  .file-parts-list {
+    background: #ffffff;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    overflow: hidden;
+  }
+
+  .file-message:last-child {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .mixed-text {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+}
+
 .mixed-text {
   position: relative;
   padding: 8px 10px 24px 10px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.03);
+  background: #ffffff;
   font-size: 15px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.message-content.is-self .mixed-text {
-  background: rgba(0, 0, 0, 0.03);
 }
 
 .mixed-text-meta {
