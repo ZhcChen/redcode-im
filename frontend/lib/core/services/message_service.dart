@@ -91,6 +91,8 @@ class MessageService with ChangeNotifier {
   final Map<String, int> _roomMemberCountCache = {};
   // 每个房间可能存在多条置顶消息，这里缓存 messageId 列表以便快速查询
   final Map<String, List<String>> _pinnedMessageIds = {};
+  // 上传进度节流计时器 (roomId:messageId:key -> timestamp)
+  final Map<String, int> _progressUpdateThrottle = {};
 
   // 单例模式
   static MessageService? _instance;
@@ -2196,6 +2198,33 @@ class MessageService with ChangeNotifier {
     required String key,
     double? progress,
   }) async {
+    // 进度节流：对于 0.0 到 1.0 之间的进度，每 100ms 最多通知一次
+    if (progress != null && progress > 0 && progress < 1.0) {
+      final throttleKey = '$roomId:$messageId:$key';
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final lastUpdate = _progressUpdateThrottle[throttleKey] ?? 0;
+      if (now - lastUpdate < 100) {
+        // 更新数据但不立刻通知监听者（除非是 0 或 1）
+        _doUpdateProgressValue(roomId, messageId, key, progress,
+            shouldNotify: false);
+        return;
+      }
+      _progressUpdateThrottle[throttleKey] = now;
+    } else if (progress == null || progress >= 1.0 || progress <= 0) {
+      // 结束或开始时移除节流记录
+      _progressUpdateThrottle.remove('$roomId:$messageId:$key');
+    }
+
+    _doUpdateProgressValue(roomId, messageId, key, progress, shouldNotify: true);
+  }
+
+  void _doUpdateProgressValue(
+    String roomId,
+    String messageId,
+    String key,
+    double? progress, {
+    required bool shouldNotify,
+  }) {
     final messages = _messagesByRoom[roomId];
     if (messages == null) return;
 
@@ -2227,7 +2256,9 @@ class MessageService with ChangeNotifier {
             parts: updatedParts,
           );
         }
-        notifyListeners();
+        if (shouldNotify) {
+          notifyListeners();
+        }
         unawaited(_persistMessages(roomId));
       }
       break;

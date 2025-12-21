@@ -31,6 +31,8 @@ import '../../core/storage/message_search_storage.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'constants/emoji_list.dart';
+import '../../core/widgets/app_badge.dart';
+import '../../core/widgets/skeleton.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
 import 'models/message_model.dart';
@@ -5159,99 +5161,108 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
       attachment?.height,
     );
 
-    Widget child;
+    // 默认占位（骨架屏）
+    final skeletonPlaceHolder = Skeleton(
+      width: size.width,
+      height: size.height,
+      borderRadius: 10,
+    );
+
     if (_loading) {
-      child = const Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(strokeWidth: 2.4),
+      return skeletonPlaceHolder;
+    }
+
+    if (_error != null) {
+      return Container(
+        width: size.width,
+        height: size.height,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: GestureDetector(
+          onTap: _load,
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image, color: Colors.grey, size: 28),
+              SizedBox(height: 6),
+              Text(
+                '加载失败',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       );
-    } else if (_error != null) {
-      child = GestureDetector(
-        onTap: _load,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.broken_image, color: Colors.white70, size: 28),
-            const SizedBox(height: 6),
-            Text(
-              '加载失败，点击重试',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.white),
-            ),
-          ],
+    }
+
+    if (_localPath != null) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: size.width,
+          maxHeight: size.height,
         ),
-      );
-    } else if (_localPath != null) {
-      child = Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.file(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Stack(
+            children: [
+              // 使用 frameBuilder 实现平滑渐现
+              Image.file(
                 File(_localPath!),
                 width: size.width,
                 height: size.height,
                 fit: BoxFit.cover,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    child: child,
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) =>
+                    skeletonPlaceHolder,
               ),
-            ),
-          ),
-          Positioned.fill(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _previewImage(context),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-        ],
-      );
-    } else {
-      child = const Center(
-        child: Icon(Icons.image_not_supported, color: Colors.white70),
-      );
-    }
-
-    final progress = attachment?.uploadProgress;
-
-    return Container(
-      constraints: BoxConstraints(maxWidth: size.width, maxHeight: size.height),
-      decoration: BoxDecoration(
-        color: widget.isSelf
-            ? Colors.white.withOpacity(0.25)
-            : Colors.black.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: child),
-          if (progress != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(10),
-                  bottomRight: Radius.circular(10),
-                ),
-                child: LinearProgressIndicator(
-                  value: progress.clamp(0, 1),
-                  minHeight: 4,
-                  backgroundColor: Colors.black.withOpacity(0.12),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    widget.isSelf ? Colors.white : AppColors.primary,
+              // 点击预览层
+              Positioned.fill(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _previewImage(context),
+                    highlightColor: Colors.black.withOpacity(0.1),
+                    splashColor: Colors.black.withOpacity(0.1),
                   ),
                 ),
               ),
-            ),
-        ],
-      ),
-    );
+              // 上传进度遮罩
+              if (attachment?.uploadProgress != null)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.35),
+                    child: Center(
+                      child: SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          value: attachment!.uploadProgress,
+                          strokeWidth: 3,
+                          backgroundColor: Colors.white24,
+                          valueColor:
+                              const AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return skeletonPlaceHolder;
   }
 
   Future<void> _previewImage(BuildContext context) async {

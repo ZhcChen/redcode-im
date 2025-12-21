@@ -18,6 +18,7 @@ use std::{
     path::Path,
     sync::OnceLock,
 };
+use std::net::IpAddr;
 
 use tokio::net::TcpListener;
 use tower_http::{
@@ -83,7 +84,17 @@ async fn main() {
     let port = env::var("PORT").unwrap_or_else(|_| "8010".to_string());
     let addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(&addr).await.expect("bind");
-    info!("服务已启动");
+
+    let local_ip = get_local_ip().unwrap_or_else(|| "Unknown".to_string());
+    info!("服务已启动:");
+    info!("  > Local:   http://localhost:{}", port);
+    info!("  > Network (Default): http://{}:{}", local_ip, port);
+
+    // 尝试打印 en1 的 IP
+    if let Some(en1_ip) = get_interface_ip("en1") {
+        info!("  > Network (en1):     http://{}:{}", en1_ip, port);
+    }
+
     axum::serve(listener, app).await.expect("server");
 }
 
@@ -258,4 +269,30 @@ async fn cleanup_expired_sessions(
     }
 
     Ok(())
+}
+
+/// 获取本机内网 IP 地址 (默认)
+fn get_local_ip() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    socket.local_addr().ok().map(|addr| match addr.ip() {
+        IpAddr::V4(ipv4) => ipv4.to_string(),
+        IpAddr::V6(ipv6) => ipv6.to_string(),
+    })
+}
+
+/// 获取指定网卡的 IPv4 地址
+fn get_interface_ip(interface_name: &str) -> Option<String> {
+    use local_ip_address::list_afinet_netifas;
+
+    let network_interfaces = list_afinet_netifas().ok()?;
+
+    for (name, ip) in network_interfaces {
+        if name == interface_name {
+            if let IpAddr::V4(ipv4) = ip {
+                return Some(ipv4.to_string());
+            }
+        }
+    }
+    None
 }

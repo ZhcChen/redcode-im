@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/user_avatar_service.dart';
 import '../../../core/utils/avatar_color_utils.dart';
+import '../../../core/widgets/skeleton.dart';
 import '../models/message_model.dart';
 
 /// 消息发送者头像组件
@@ -127,11 +128,22 @@ class _MessageAvatarState extends State<MessageAvatar> {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      child: _buildAvatarContent(),
+    );
+  }
+
+  Widget _buildAvatarContent() {
     // 优先使用本地缓存
     if (_localAvatarPath != null && _localAvatarPath!.isNotEmpty) {
       final file = File(_localAvatarPath!);
       if (file.existsSync()) {
         return CircleAvatar(
+          key: ValueKey('local_$_localAvatarPath'),
           radius: widget.radius,
           backgroundImage: FileImage(file),
           backgroundColor: AppColors.surface,
@@ -144,6 +156,7 @@ class _MessageAvatarState extends State<MessageAvatar> {
     if (avatar != null && avatar.isNotEmpty) {
       if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
         return CircleAvatar(
+          key: ValueKey('network_$avatar'),
           radius: widget.radius,
           backgroundImage: NetworkImage(avatar),
           backgroundColor: AppColors.surface,
@@ -152,6 +165,7 @@ class _MessageAvatarState extends State<MessageAvatar> {
       // Asset头像
       if (!avatar.startsWith('/')) {
         return CircleAvatar(
+          key: ValueKey('asset_$avatar'),
           radius: widget.radius,
           backgroundImage: AssetImage(avatar),
           backgroundColor: AppColors.surface,
@@ -160,6 +174,14 @@ class _MessageAvatarState extends State<MessageAvatar> {
     }
 
     // 默认头像（首字母）
+    if (_isLoading) {
+      return Skeleton(
+        key: const ValueKey('skeleton'),
+        width: widget.radius * 2,
+        height: widget.radius * 2,
+        shape: BoxShape.circle,
+      );
+    }
     return _buildDefaultAvatar();
   }
 

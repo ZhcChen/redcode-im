@@ -39,6 +39,7 @@ ipnetwork = "0.20"
 
  # 环境变量
  dotenvy = "0.15"
+ local-ip-address = "0.6"
 
  # 异步工具
  tokio-stream = "0.1"
