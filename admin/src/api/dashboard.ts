@@ -29,6 +29,22 @@ export function getSystemMonitor() {
   return axios.get<SystemMonitor>('/api/dashboard/monitor');
 }
 
+export interface NodeMonitor {
+  nodeId: string;
+  address: string;
+  connectedUsers: number;
+  activeRooms: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+  lastHeartbeat: string;
+  startedAt: string;
+}
+
+export function getNodesMonitor() {
+  return axios.get<NodeMonitor[]>('/api/admin/nodes/monitor');
+}
+
 export interface DailyStat {
   date: string;
   count: number;

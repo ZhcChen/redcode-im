@@ -289,6 +289,9 @@ impl SessionManager {
         address: String,
         connected_users: usize,
         active_rooms: usize,
+        cpu_usage: f64,
+        memory_usage: f64,
+        disk_usage: f64,
     ) -> RedisResult<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
 
@@ -298,6 +301,9 @@ impl SessionManager {
             status: crate::redis::models::NodeStatus::Active,
             connected_users,
             active_rooms,
+            cpu_usage,
+            memory_usage,
+            disk_usage,
             last_heartbeat: Utc::now(),
             started_at: Utc::now(), // 这里应该从实际启动时间获取
         };

@@ -4,7 +4,7 @@
     <div class="layout">
       <div class="layout-content">
         <a-space :size="16" direction="vertical" fill>
-          <SystemMonitor />
+          <NodesMonitor />
           <ResourceMonitor />
         </a-space>
       </div>
@@ -19,7 +19,7 @@
 </template>
 
 <script lang="ts" setup>
-  import SystemMonitor from './components/system-monitor.vue';
+  import NodesMonitor from './components/nodes-monitor.vue';
   import ResourceMonitor from './components/resource-monitor.vue';
   import SystemLoad from './components/system-load.vue';
   import NetworkStatus from './components/network-status.vue';
@@ -33,7 +33,7 @@
 
 <style scoped lang="less">
   .container {
-    padding: 0 20px 20px 20px;
+    padding: 0 20px 20px;
   }
 
   .layout {
@@ -55,12 +55,13 @@
   @media (max-width: @screen-lg) {
     .layout {
       flex-wrap: wrap;
+
       &-content {
         flex: none;
         flex-basis: 100%;
-        padding: 0;
         order: -1;
         margin-bottom: 16px;
+        padding: 0;
       }
 
       &-right-side {

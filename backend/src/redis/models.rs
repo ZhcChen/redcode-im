@@ -90,6 +90,9 @@ pub struct NodeHeartbeat {
     pub status: NodeStatus,
     pub connected_users: usize,
     pub active_rooms: usize,
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+    pub disk_usage: f64,
     pub last_heartbeat: DateTime<Utc>,
     pub started_at: DateTime<Utc>,
 }

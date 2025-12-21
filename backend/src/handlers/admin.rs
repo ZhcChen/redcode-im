@@ -133,6 +133,20 @@ pub struct SystemMonitor {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeMonitorInfo {
+    pub node_id: String,
+    pub address: String,
+    pub connected_users: usize,
+    pub active_rooms: usize,
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+    pub disk_usage: f64,
+    pub last_heartbeat: String,
+    pub started_at: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DataStatistics {
     pub daily_active_users: Vec<DailyStat>,
     pub daily_messages: Vec<DailyStat>,
@@ -605,68 +619,11 @@ async fn get_today_messages_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Erro
     Ok(count)
 }
 
-async fn get_system_load() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        use std::fs;
-        let load_avg = fs::read_to_string("/proc/loadavg")?;
-        let load_str = load_avg.split_whitespace().next().unwrap_or("0.0");
-        Ok(load_str.parse::<f64>().unwrap_or(0.0))
-    }
-    #[cfg(not(unix))]
-    {
-        // Windows/macOS 系统使用其他方式获取
-        Ok(0.0)
-    }
-}
+use crate::utils::system::{
+    get_system_load, get_memory_usage, get_disk_usage, get_network_stats,
+    get_active_connections, get_system_uptime, get_load_average
+};
 
-async fn get_memory_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        use std::fs;
-        let meminfo = fs::read_to_string("/proc/meminfo")?;
-        let mut total_memory = 0u64;
-        let mut free_memory = 0u64;
-        let mut available_memory = 0u64;
-
-        for line in meminfo.lines() {
-            if line.starts_with("MemTotal:") {
-                total_memory = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()
-                    .unwrap_or(0);
-            } else if line.starts_with("MemFree:") {
-                free_memory = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()
-                    .unwrap_or(0);
-            } else if line.starts_with("MemAvailable:") {
-                available_memory = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()
-                    .unwrap_or(0);
-            }
-        }
-
-        let used = if available_memory > 0 {
-            total_memory - available_memory
-        } else {
-            total_memory - free_memory
-        };
-
-        Ok((used as f64) / (total_memory as f64))
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(0.0)
-    }
-}
 
 async fn get_storage_usage(_state: &AppState) -> Result<f64, AppError> {
     // 这里应该调用存储服务获取实际使用量
@@ -700,100 +657,42 @@ pub async fn get_system_monitor(
     Ok(Json(monitor))
 }
 
-async fn get_disk_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        // 模拟磁盘使用率
-        Ok(0.28)
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(0.28)
-    }
+pub async fn list_active_nodes_monitor(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+) -> Result<Json<Vec<NodeMonitorInfo>>, AppError> {
+    let session_manager = crate::redis::session::SessionManager::new(
+        state.redis.get_session_client().clone(),
+        state.node_id.clone(),
+    );
+
+    let nodes = session_manager.get_active_nodes().await.map_err(|e| {
+        error!("获取活跃节点失败: {}", e);
+        AppError::InternalError("获取节点信息失败".to_string())
+    })?;
+
+    let node_monitors = nodes
+        .into_iter()
+        .map(|node| NodeMonitorInfo {
+            node_id: node.node_id,
+            address: node.address,
+            connected_users: node.connected_users,
+            active_rooms: node.active_rooms,
+            cpu_usage: node.cpu_usage,
+            memory_usage: node.memory_usage,
+            disk_usage: node.disk_usage,
+            last_heartbeat: node.last_heartbeat.to_rfc3339(),
+            started_at: node.started_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(node_monitors))
 }
 
-async fn get_network_stats() -> Result<(f64, f64), Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        use std::fs;
-        // 读取网络接口统计信息
-        let net_dev = fs::read_to_string("/proc/net/dev")?;
-        let mut total_rx = 0u64;
-        let mut total_tx = 0u64;
 
-        for line in net_dev.lines().skip(2) {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() > 16 {
-                // 跳过 lo (loopback) 接口
-                if !line.contains("lo:") {
-                    total_rx += parts[1].parse::<u64>().unwrap_or(0);
-                    total_tx += parts[9].parse::<u64>().unwrap_or(0);
-                }
-            }
-        }
 
-        Ok((total_rx as f64, total_tx as f64))
-    }
-    #[cfg(not(unix))]
-    {
-        Ok((512000.0, 256000.0))
-    }
-}
 
-async fn get_active_connections() -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        use std::fs;
-        let tcp_content = fs::read_to_string("/proc/net/tcp")?;
-        let udp_content = fs::read_to_string("/proc/net/udp")?;
 
-        let tcp_connections = tcp_content.lines().count() as i64 - 1; // 减去标题行
-        let udp_connections = udp_content.lines().count() as i64 - 1;
-
-        Ok(tcp_connections + udp_connections)
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(68)
-    }
-}
-
-async fn get_system_uptime() -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        use std::fs;
-        let uptime_content = fs::read_to_string("/proc/uptime")?;
-        let uptime_seconds = uptime_content
-            .split_whitespace()
-            .next()
-            .unwrap_or("0")
-            .parse::<f64>()
-            .unwrap_or(0.0);
-        Ok(uptime_seconds as i64)
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(86400) // 模拟1天
-    }
-}
-
-async fn get_load_average() -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        use std::fs;
-        let load_avg = fs::read_to_string("/proc/loadavg")?;
-        let loads: Vec<f64> = load_avg
-            .split_whitespace()
-            .take(3)
-            .map(|s| s.parse::<f64>().unwrap_or(0.0))
-            .collect();
-        Ok(loads)
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(vec![0.5, 0.3, 0.2])
-    }
-}
 
 pub async fn get_user_list(
     State(state): State<AppState>,

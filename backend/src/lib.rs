@@ -16,6 +16,7 @@ pub mod redis;
 pub mod routes;
 pub mod services;
 pub mod storage;
+pub mod utils;
 pub mod websocket;
 
 // Re-export commonly used types

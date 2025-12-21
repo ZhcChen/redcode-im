@@ -214,9 +214,14 @@ async fn register_node_heartbeat(
         node_id.to_string(),
     );
 
-    // 获取当前节点统计信息（这里简化处理）
-    let connected_users = 0;
+    // 获取当前节点统计信息
+    let connected_users = 0; // 以后可以从 connection_manager 获取
     let active_rooms = 0;
+
+    // 获取系统指标
+    let cpu_usage = redcode_im_backend::utils::system::get_system_load().await.unwrap_or(0.0);
+    let memory_usage = redcode_im_backend::utils::system::get_memory_usage().await.unwrap_or(0.0);
+    let disk_usage = redcode_im_backend::utils::system::get_disk_usage().await.unwrap_or(0.0);
 
     session_manager
         .register_node_heartbeat(
@@ -226,6 +231,9 @@ async fn register_node_heartbeat(
             ),
             connected_users,
             active_rooms,
+            cpu_usage,
+            memory_usage,
+            disk_usage,
         )
         .await?;
 
