@@ -330,6 +330,12 @@ impl ConnectionManager {
         room_subs.get(&room_id).map(|subs| subs.len()).unwrap_or(0)
     }
 
+    // 获取当前节点上的活跃房间数（有订阅者的房间）
+    pub async fn get_active_room_count(&self) -> usize {
+        let room_subs = self.room_subscribers.read().await;
+        room_subs.len()
+    }
+
     pub async fn send_to_user(&self, user_id: &str, payload: ServerPush) {
         let payload = Arc::new(payload);
         let mut json_cache: Option<String> = None;

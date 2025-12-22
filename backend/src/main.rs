@@ -74,8 +74,17 @@ async fn main() {
     services::geolocation::init_geolocation_service(database.pool().clone());
     eprintln!("[STARTUP] 地理位置服务初始化完成!");
 
+    // 初始化 WebSocket 连接管理器
+    let connection_manager = std::sync::Arc::new(websocket::ConnectionManager::new());
+
     // 启动后台任务
-    start_background_tasks(database.clone(), redis_manager.clone(), node_id.clone()).await;
+    start_background_tasks(
+        database.clone(),
+        redis_manager.clone(),
+        node_id.clone(),
+        connection_manager.clone(),
+    )
+    .await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -90,7 +99,7 @@ async fn main() {
             redis: redis_manager,
             node_id: node_id.clone(),
             log_store,
-            connection_manager: std::sync::Arc::new(websocket::ConnectionManager::new()),
+            connection_manager,
         })
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
 
@@ -149,13 +158,17 @@ async fn start_background_tasks(
     database: database::Database,
     redis_manager: redis::RedisManager,
     node_id: String,
+    connection_manager: std::sync::Arc<websocket::ConnectionManager>,
 ) {
     // 启动节点心跳任务
     let redis_heartbeat = redis_manager.clone();
     let node_id_clone = node_id.clone();
+    let conn_mgr_heartbeat = connection_manager.clone();
     tokio::spawn(async move {
         loop {
-            if let Err(e) = register_node_heartbeat(&redis_heartbeat, &node_id_clone).await {
+            if let Err(e) =
+                register_node_heartbeat(&redis_heartbeat, &node_id_clone, &conn_mgr_heartbeat).await
+            {
                 error!("节点心跳注册失败: {:?}", e);
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
@@ -208,6 +221,7 @@ fn generate_node_id() -> String {
 async fn register_node_heartbeat(
     redis_manager: &redis::RedisManager,
     node_id: &str,
+    connection_manager: &websocket::ConnectionManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let session_manager = redis::session::SessionManager::new(
         redis_manager.get_session_client().clone(),
@@ -215,8 +229,8 @@ async fn register_node_heartbeat(
     );
 
     // 获取当前节点统计信息
-    let connected_users = 0; // 以后可以从 connection_manager 获取
-    let active_rooms = 0;
+    let connected_users = connection_manager.get_online_user_count().await;
+    let active_rooms = connection_manager.get_active_room_count().await;
 
     // 获取系统指标
     let cpu_usage = redcode_im_backend::utils::system::get_system_load().await.unwrap_or(0.0);
