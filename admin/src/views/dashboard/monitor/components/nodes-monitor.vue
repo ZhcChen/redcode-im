@@ -28,7 +28,9 @@
                   <icon-computer :size="20" />
                 </div>
                 <div class="node-info-text">
-                  <div class="node-id">{{ node.nodeId }}</div>
+                  <a-tooltip :content="node.nodeId">
+                    <div class="node-id">{{ node.nodeId }}</div>
+                  </a-tooltip>
                   <div class="node-addr">{{ node.address }}</div>
                 </div>
               </div>
@@ -224,17 +226,28 @@
         border-radius: 10px;
       }
 
+      .node-info-text {
+        flex: 1;
+        min-width: 0;
+      }
+
       .node-id {
         margin-bottom: 2px;
+        overflow: hidden;
         color: var(--color-text-1);
         font-weight: 600;
         font-size: 16px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
       }
 
       .node-addr {
+        overflow: hidden;
         color: var(--color-text-3);
         font-size: 13px;
         font-family: monospace;
+        white-space: nowrap;
+        text-overflow: ellipsis;
       }
     }
 
