@@ -26,6 +26,7 @@ export default {
   'menu.operations.cosTest': 'COS Test',
   'menu.operations.ipinfoToken': 'IP Geolocation Token',
   'menu.operations.dataCleanup': 'Data Cleanup',
+  'menu.operations.apiMetrics': 'API Metrics',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
   'menu.settings.privacyPolicy': 'Privacy Agreement',

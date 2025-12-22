@@ -650,6 +650,19 @@ pub async fn list_active_nodes_monitor(
     Ok(Json(node_monitors))
 }
 
+pub async fn get_api_performance_stats(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let session_manager = state.redis.get_session_manager(state.node_id.clone());
+    let stats = session_manager.get_api_performance_stats().await.map_err(|e| {
+        error!("获取 API 性能统计失败: {}", e);
+        AppError::InternalError("获取性能统计失败".to_string())
+    })?;
+
+    Ok(Json(stats))
+}
+
 
 
 

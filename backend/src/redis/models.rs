@@ -973,10 +973,23 @@ impl CacheKeys {
         format!("cache:room:{}", room_id)
     }
 
-    /// 下载URL缓存键
-    /// key: 文件路径, provider_id: 存储提供商ID, expires_in: 过期时间(秒)
     pub fn download_url_cache(key: &str, provider_id: &str, expires_in: u32) -> String {
         format!("cache:download_url:{}:{}:{}", key, provider_id, expires_in)
+    }
+
+    /// API 指标：命中次数 (Hash)
+    pub fn api_metrics_hits() -> String {
+        "api:metrics:hits".to_string()
+    }
+
+    /// API 指标：总耗时 (Hash)
+    pub fn api_metrics_duration() -> String {
+        "api:metrics:duration".to_string()
+    }
+
+    /// API 指标：慢日志 (ZSet)
+    pub fn api_metrics_slow_log() -> String {
+        "api:metrics:slow_log".to_string()
     }
 }
 

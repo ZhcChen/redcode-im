@@ -55,6 +55,16 @@ const OPERATIONS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'api-metrics',
+      name: 'ApiMetrics',
+      component: () => import('@/views/operations/api-metrics/index.vue'),
+      meta: {
+        locale: 'menu.operations.apiMetrics',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
     ...(isDataCleanupEnabled
       ? [
           {

@@ -8,7 +8,7 @@
 
 use axum::{
     extract::ConnectInfo,
-    http::{HeaderValue, Method},
+    http::{HeaderValue, Method, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::warn;
 
 /// IP 速率限制存储
 pub struct RateLimitStore {
@@ -85,12 +85,10 @@ impl RateLimitStore {
 
 /// 安全头中间件
 pub async fn security_headers(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    method: Method,
-    uri: axum::http::Uri,
-    next: Next<Response>,
+    request: axum::extract::Request,
+    next: Next,
 ) -> Response {
-    let mut response = next.run().await;
+    let mut response = next.run(request).await;
 
     // 添加安全头
     let headers = response.headers_mut();
@@ -152,31 +150,23 @@ pub async fn security_headers(
         ),
     );
 
-    // 记录请求信息
-    info!(
-        "Request: {} {} from {}",
-        method,
-        uri.path(),
-        addr.ip()
-    );
-
     response
 }
 
 /// 速率限制中间件
 pub async fn rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    method: Method,
-    uri: axum::http::Uri,
     rate_limit_store: axum::extract::State<RateLimitStore>,
-    next: Next<Response>,
+    request: axum::extract::Request,
+    next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     let ip = addr.ip().to_string();
+    let uri = request.uri().clone();
 
     // 跳过健康检查和静态资源的速率限制
     let skip_paths = ["/healthz", "/metrics", "/favicon.ico"];
     if skip_paths.iter().any(|path| uri.path().starts_with(path)) {
-        return Ok(next.run().await);
+        return Ok(next.run(request).await);
     }
 
     // 检查速率限制
@@ -191,16 +181,16 @@ pub async fn rate_limit_middleware(
         ));
     }
 
-    Ok(next.run().await)
+    Ok(next.run(request).await)
 }
 
 /// API 密钥验证中间件
 pub async fn api_key_validation(
-    headers: axum::http::HeaderMap,
-    next: Next<Response>,
+    request: axum::extract::Request,
+    next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     // 获取 API 密钥（如果需要）
-    let api_key = headers
+    let api_key = request.headers()
         .get("X-API-Key")
         .and_then(|v| v.to_str().ok());
 
@@ -212,7 +202,7 @@ pub async fn api_key_validation(
         }
     }
 
-    Ok(next.run().await)
+    Ok(next.run(request).await)
 }
 
 /// 验证 API 密钥（示例实现）
@@ -221,8 +211,6 @@ async fn is_valid_api_key(key: &str) -> bool {
     // 这里只是示例
     !key.is_empty() && key.len() >= 32
 }
-
-use axum::http::StatusCode;
 
 /// 创建 CORS 层
 pub fn create_cors_layer() -> tower_http::cors::CorsLayer {
@@ -249,17 +237,17 @@ pub fn create_cors_layer() -> tower_http::cors::CorsLayer {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::AUTHORIZATION,
             axum::http::header::ACCEPT,
-            axum::http::header::X_REQUESTED_WITH,
-            axum::http::header::X_API_KEY,
+            axum::http::header::HeaderName::from_static("x-requested-with"),
+            axum::http::header::HeaderName::from_static("x-api-key"),
         ])
         // 允许凭证
         .allow_credentials(true)
         // 暴露的响应头
         .expose_headers([
             axum::http::header::CONTENT_TYPE,
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
-            "X-RateLimit-Reset",
+            axum::http::header::HeaderName::from_static("x-ratelimit-limit"),
+            axum::http::header::HeaderName::from_static("x-ratelimit-remaining"),
+            axum::http::header::HeaderName::from_static("x-ratelimit-reset"),
         ])
         // 设置预检缓存时间（1小时）
         .max_age(Duration::from_secs(3600))
@@ -267,7 +255,7 @@ pub fn create_cors_layer() -> tower_http::cors::CorsLayer {
 
 /// JWT 安全增强
 pub mod jwt_security {
-    use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
+    use jsonwebtoken::{Validation};
     use serde::{Deserialize, Serialize};
 
     /// JWT 声明结构
@@ -322,9 +310,10 @@ pub mod jwt_security {
         audience: &str,
     ) -> Result<(), jsonwebtoken::errors::Error> {
         let mut validation = Validation::default();
-        validation.set_issuer(Some(&[issuer]));
-        validation.set_audience(Some(&[audience]));
+        validation.set_issuer(&[issuer]);
+        validation.set_audience(&[audience]);
 
+        use std::time::{SystemTime, UNIX_EPOCH};
         // 验证过期时间
         if claims.exp < SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -337,4 +326,3 @@ pub mod jwt_security {
         Ok(())
     }
 }
-

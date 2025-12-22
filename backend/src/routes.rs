@@ -100,6 +100,7 @@ pub fn create_routes() -> Router<AppState> {
             get(admin::get_dashboard_emoji_stats),
         )
         .route("/api/admin/nodes/monitor", get(admin::list_active_nodes_monitor))
+        .route("/api/admin/metrics/performance", get(admin::get_api_performance_stats))
         .route("/api/dashboard/statistics", get(admin::get_data_statistics))
         .route("/api/admin/users", get(admin::get_user_list))
         .route("/api/admin/users", post(admin::create_user))
@@ -650,5 +651,7 @@ pub fn create_routes() -> Router<AppState> {
         .layer(middleware::from_fn(auth_middleware));
 
     // 合并所有路由
-    public_routes.merge(user_routes).merge(admin_routes)
+    public_routes
+        .merge(user_routes)
+        .merge(admin_routes)
 }

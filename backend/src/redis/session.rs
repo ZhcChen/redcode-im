@@ -437,4 +437,72 @@ impl SessionManager {
 
         Ok(stats)
     }
+
+    /// 记录 API 性能指标
+    pub async fn record_api_metric(
+        &self,
+        method: &str,
+        path: &str,
+        duration_ms: u64,
+        _status: u16,
+    ) -> RedisResult<()> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let field = format!("{}:{}", method, path);
+
+        // 1. 增加命中次数
+        let hits_key = CacheKeys::api_metrics_hits();
+        redis::pipe()
+            .hincr(&hits_key, &field, 1)
+            // 2. 增加总耗时
+            .hincr(&CacheKeys::api_metrics_duration(), &field, duration_ms)
+            // 3. 更新慢日志排行 (ZSet 记录最大耗时)
+            .zadd(&CacheKeys::api_metrics_slow_log(), &field, duration_ms)
+            .query_async::<()>(&mut conn)
+            .await?;
+
+        // 限制慢日志数量为 Top 100
+        conn.zremrangebyrank::<_, ()>(&CacheKeys::api_metrics_slow_log(), 0, -101)
+            .await?;
+
+        Ok(())
+    }
+
+    /// 获取 API 性能统计
+    pub async fn get_api_performance_stats(&self) -> RedisResult<Vec<serde_json::Value>> {
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        
+        let hits_key = CacheKeys::api_metrics_hits();
+        let duration_key = CacheKeys::api_metrics_duration();
+        let slow_key = CacheKeys::api_metrics_slow_log();
+
+        let hits: HashMap<String, u64> = conn.hgetall(&hits_key).await?;
+        let durations: HashMap<String, u64> = conn.hgetall(&duration_key).await?;
+        let slow_logs: Vec<(String, u64)> = conn.zrevrange_withscores(&slow_key, 0, 9).await?;
+
+        let mut results = Vec::new();
+        for (field, count) in hits {
+            let total_dur = durations.get(&field).cloned().unwrap_or(0);
+            let avg_dur = if count > 0 { total_dur / count } else { 0 };
+            
+            let parts: Vec<&str> = field.splitn(2, ':').collect();
+            let (method, path) = if parts.len() == 2 {
+                (parts[0], parts[1])
+            } else {
+                ("UNKNOWN", field.as_str())
+            };
+
+            results.push(serde_json::json!({
+                "method": method,
+                "path": path,
+                "count": count,
+                "avg_duration": avg_dur,
+                "max_duration": slow_logs.iter().find(|(f, _)| f == &field).map(|(_, s)| *s).unwrap_or(0)
+            }));
+        }
+
+        // 按调用次数排序
+        results.sort_by(|a, b| b["count"].as_u64().cmp(&a["count"].as_u64()));
+
+        Ok(results)
+    }
 }

@@ -11,7 +11,7 @@ use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use redcode_im_backend::{
-    database, redis, routes, services, websocket,
+    database, redis, routes, services, websocket, middleware,
     logging::{self, DatabaseLayer, LoggingConfig, LogWriter, PostgresLogStore, LogStore, LogEntry},
     AppState,
 };
@@ -91,16 +91,22 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    let state = AppState {
+        database: database.clone(),
+        redis: redis_manager,
+        node_id: node_id.clone(),
+        log_store,
+        connection_manager,
+    };
+
     let app = routes::create_routes()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::metrics_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .with_state(AppState {
-            database: database.clone(),
-            redis: redis_manager,
-            node_id: node_id.clone(),
-            log_store,
-            connection_manager,
-        })
+        .with_state(state)
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
 
     let port = env::var("PORT").unwrap_or_else(|_| "8010".to_string());

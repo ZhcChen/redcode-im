@@ -45,6 +45,18 @@ export function getNodesMonitor() {
   return axios.get<NodeMonitor[]>('/api/admin/nodes/monitor');
 }
 
+export interface ApiPerformanceMetric {
+  method: string;
+  path: string;
+  count: number;
+  avg_duration: number;
+  max_duration: number;
+}
+
+export function getApiPerformanceMetrics() {
+  return axios.get<ApiPerformanceMetric[]>('/api/admin/metrics/performance');
+}
+
 export interface DailyStat {
   date: string;
   count: number;

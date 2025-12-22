@@ -28,6 +28,7 @@ export default {
   'menu.operations.cosTest': 'COS 测试',
   'menu.operations.ipinfoToken': 'IP地理位置Token',
   'menu.operations.dataCleanup': '数据清理',
+  'menu.operations.apiMetrics': 'API 性能监控',
   'menu.settings': '系统设置',
   'menu.settings.captcha': '验证码设置',
   'menu.settings.privacyPolicy': '隐私协议',
