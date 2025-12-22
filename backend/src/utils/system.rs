@@ -1,49 +1,55 @@
-use crate::error::AppError;
 use std::fs;
 
 pub async fn get_system_load() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         let load_avg = fs::read_to_string("/proc/loadavg")?;
         let load_str = load_avg.split_whitespace().next().unwrap_or("0.0");
         Ok(load_str.parse::<f64>().unwrap_or(0.0))
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let output = Command::new("sysctl")
+            .arg("-n")
+            .arg("vm.loadavg")
+            .output()?;
+        if output.status.success() {
+            let s = String::from_utf8_lossy(&output.stdout);
+            // 格式如 "{ 1.25 1.40 1.51 }"
+            let load = s.trim_start_matches('{')
+                        .trim_end_matches('}')
+                        .trim()
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("0.0");
+            if let Ok(l) = load.parse::<f64>() {
+                return Ok(l);
+            }
+        }
+        Ok(0.0)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         Ok(0.0)
     }
 }
 
 pub async fn get_memory_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         let meminfo = fs::read_to_string("/proc/meminfo")?;
         let mut total_memory = 0u64;
-        let mut free_memory = 0u64;
         let mut available_memory = 0u64;
+        let mut free_memory = 0u64;
 
         for line in meminfo.lines() {
             if line.starts_with("MemTotal:") {
-                total_memory = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()
-                    .unwrap_or(0);
-            } else if line.starts_with("MemFree:") {
-                free_memory = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()
-                    .unwrap_or(0);
+                total_memory = line.split_whitespace().nth(1).unwrap_or("0").parse::<u64>().unwrap_or(0);
             } else if line.starts_with("MemAvailable:") {
-                available_memory = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()
-                    .unwrap_or(0);
+                available_memory = line.split_whitespace().nth(1).unwrap_or("0").parse::<u64>().unwrap_or(0);
+            } else if line.starts_with("MemFree:") {
+                free_memory = line.split_whitespace().nth(1).unwrap_or("0").parse::<u64>().unwrap_or(0);
             }
         }
 
@@ -53,21 +59,76 @@ pub async fn get_memory_usage() -> Result<f64, Box<dyn std::error::Error + Send 
             total_memory - free_memory
         };
 
-        if total_memory == 0 {
-            return Ok(0.0);
-        }
-
+        if total_memory == 0 { return Ok(0.0); }
         Ok((used as f64) / (total_memory as f64))
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        
+        // 获取总内存
+        let output_total = Command::new("sysctl").arg("-n").arg("hw.memsize").output()?;
+        let total = if output_total.status.success() {
+            String::from_utf8_lossy(&output_total.stdout).trim().parse::<u64>().unwrap_or(0)
+        } else { 0 };
+
+        // 获取空闲页数
+        let output_vm = Command::new("vm_stat").output()?;
+        let mut free_pages = 0u64;
+        let mut inactive_pages = 0u64;
+        if output_vm.status.success() {
+            let s = String::from_utf8_lossy(&output_vm.stdout);
+            for line in s.lines() {
+                if line.contains("Pages free:") {
+                    free_pages = line.split(':').nth(1).unwrap_or("0").trim().trim_end_matches('.').parse::<u64>().unwrap_or(0);
+                } else if line.contains("Pages inactive:") {
+                    inactive_pages = line.split(':').nth(1).unwrap_or("0").trim().trim_end_matches('.').parse::<u64>().unwrap_or(0);
+                }
+            }
+        }
+        
+        // 4KB per page
+        let page_size = 4096;
+        let available = (free_pages + inactive_pages) * page_size;
+        
+        if total == 0 { Ok(0.0) }
+        else {
+            let used = total.saturating_sub(available);
+            Ok((used as f64) / (total as f64))
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         Ok(0.0)
     }
 }
 
 pub async fn get_disk_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-    // 简化的模拟实现
-    Ok(0.28)
+    #[cfg(unix)]
+    {
+        use std::process::Command;
+        let output = Command::new("df")
+            .arg("-h")
+            .arg("/")
+            .output()?;
+        
+        if output.status.success() {
+            let s = String::from_utf8_lossy(&output.stdout);
+            let last_line = s.lines().nth(1).unwrap_or("");
+            let parts: Vec<&str> = last_line.split_whitespace().collect();
+            if parts.len() >= 5 {
+                let percent_str = parts[4].trim_end_matches('%');
+                if let Ok(percent) = percent_str.parse::<f64>() {
+                    return Ok(percent / 100.0);
+                }
+            }
+        }
+        Ok(0.28)
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(0.28)
+    }
 }
 
 pub async fn get_network_stats() -> Result<(f64, f64), Box<dyn std::error::Error + Send + Sync>> {

@@ -158,7 +158,7 @@ async fn start_background_tasks(
             if let Err(e) = register_node_heartbeat(&redis_heartbeat, &node_id_clone).await {
                 error!("节点心跳注册失败: {:?}", e);
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         }
     });
 

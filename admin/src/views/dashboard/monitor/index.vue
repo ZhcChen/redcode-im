@@ -3,16 +3,7 @@
     <Breadcrumb :items="['menu.dashboard', 'menu.dashboard.monitor']" />
     <div class="layout">
       <div class="layout-content">
-        <a-space :size="16" direction="vertical" fill>
-          <NodesMonitor />
-          <ResourceMonitor />
-        </a-space>
-      </div>
-      <div class="layout-right-side">
-        <a-space :size="16" direction="vertical" fill>
-          <SystemLoad />
-          <NetworkStatus />
-        </a-space>
+        <NodesMonitor />
       </div>
     </div>
   </div>
@@ -20,9 +11,6 @@
 
 <script lang="ts" setup>
   import NodesMonitor from './components/nodes-monitor.vue';
-  import ResourceMonitor from './components/resource-monitor.vue';
-  import SystemLoad from './components/system-load.vue';
-  import NetworkStatus from './components/network-status.vue';
 </script>
 
 <script lang="ts">
@@ -37,15 +25,10 @@
   }
 
   .layout {
-    display: flex;
+    display: block;
 
     &-content {
-      flex: 1;
-      padding-right: 16px;
-    }
-
-    &-right-side {
-      flex-basis: 360px;
+      width: 100%;
     }
   }
 </style>
@@ -54,18 +37,8 @@
   // responsive
   @media (max-width: @screen-lg) {
     .layout {
-      flex-wrap: wrap;
-
       &-content {
-        flex: none;
-        flex-basis: 100%;
-        order: -1;
         margin-bottom: 16px;
-        padding: 0;
-      }
-
-      &-right-side {
-        flex-basis: 100%;
       }
     }
   }

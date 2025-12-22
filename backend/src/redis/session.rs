@@ -313,14 +313,14 @@ impl SessionManager {
             redis::RedisError::from((redis::ErrorKind::TypeError, "JSON序列化失败", e.to_string()))
         })?;
 
-        conn.set_ex::<_, _, ()>(&heartbeat_key, &heartbeat_json, 300)
-            .await?; // 5分钟过期
+        conn.set_ex::<_, _, ()>(&heartbeat_key, &heartbeat_json, 15)
+            .await?; // 15s过期
 
         // 添加到活跃节点列表
         let active_nodes_key = CacheKeys::active_nodes();
         conn.sadd::<_, _, ()>(&active_nodes_key, &self.node_id)
             .await?;
-        conn.expire::<_, ()>(&active_nodes_key, 300).await?;
+        conn.expire::<_, ()>(&active_nodes_key, 15).await?;
 
         info!(
             "注册节点心跳: {} (用户: {}, 房间: {})",
@@ -344,6 +344,9 @@ impl SessionManager {
                 if let Ok(heartbeat) = serde_json::from_str::<NodeHeartbeat>(&heartbeat_json) {
                     nodes.push(heartbeat);
                 }
+            } else {
+                // 节点已下线，从集合中移除
+                let _: () = conn.srem(&active_nodes_key, &node_id).await?;
             }
         }
 
