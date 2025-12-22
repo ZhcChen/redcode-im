@@ -33,12 +33,12 @@
                   color="arcoblue"
                   variant="outline"
                   class="instance-label"
-                  >Compute Instance</a-tag
+                  >计算节点</a-tag
                 >
               </div>
               <a-badge status="success">
                 <template #text>
-                  <span class="status-text">RUNNING</span>
+                  <span class="status-text">运行中</span>
                 </template>
               </a-badge>
             </div>
@@ -46,7 +46,7 @@
             <!-- 核心标识区：Node ID 铭牌 -->
             <div class="node-identity-section">
               <div class="node-id-wrapper">
-                <a-tooltip :content="'Full Node ID: ' + node.nodeId">
+                <a-tooltip :content="'节点完整 ID: ' + node.nodeId">
                   <div class="node-id">{{ node.nodeId }}</div>
                 </a-tooltip>
               </div>
@@ -62,7 +62,7 @@
             <div class="metrics-section">
               <div class="metric-group">
                 <div class="metric-label-row">
-                  <span class="label">CPU LOAD</span>
+                  <span class="label">CPU 负载</span>
                   <span class="value"
                     >{{ (node.cpuUsage * 100).toFixed(1) }}%</span
                   >
@@ -78,7 +78,7 @@
 
               <div class="metric-group">
                 <div class="metric-label-row">
-                  <span class="label">MEMORY USED</span>
+                  <span class="label">内存占用</span>
                   <span class="value"
                     >{{ (node.memoryUsage * 100).toFixed(1) }}%</span
                   >
@@ -94,7 +94,7 @@
 
               <div class="metric-group">
                 <div class="metric-label-row">
-                  <span class="label">DISK STORAGE</span>
+                  <span class="label">磁盘空间</span>
                   <span class="value"
                     >{{ (node.diskUsage * 100).toFixed(1) }}%</span
                   >
@@ -113,17 +113,17 @@
             <div class="stats-footer">
               <div class="stat-item">
                 <div class="stat-value">{{ node.connectedUsers }}</div>
-                <div class="stat-label">USERS</div>
+                <div class="stat-label">在线用户</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value">{{ node.activeRooms }}</div>
-                <div class="stat-label">ROOMS</div>
+                <div class="stat-label">活跃房间</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value uptime">{{
                   formatDate(node.lastHeartbeat)
                 }}</div>
-                <div class="stat-label">HEARTBEAT</div>
+                <div class="stat-label">最后报告</div>
               </div>
             </div>
           </div>
@@ -304,13 +304,11 @@
         display: flex;
         justify-content: space-between;
         margin-bottom: 6px;
-        font-size: 11px;
-        letter-spacing: 0.5px;
+        font-size: 12px;
 
         .label {
           color: var(--color-text-3);
-          font-weight: 700;
-          text-transform: uppercase;
+          font-weight: 600;
         }
 
         .value {
@@ -358,7 +356,6 @@
           font-weight: 600;
           font-size: 10px;
           letter-spacing: 0.5px;
-          text-transform: uppercase;
         }
       }
     }
