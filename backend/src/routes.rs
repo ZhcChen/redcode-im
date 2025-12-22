@@ -99,7 +99,6 @@ pub fn create_routes() -> Router<AppState> {
             "/api/dashboard/emoji-stats",
             get(admin::get_dashboard_emoji_stats),
         )
-        .route("/api/dashboard/monitor", get(admin::get_system_monitor))
         .route("/api/admin/nodes/monitor", get(admin::list_active_nodes_monitor))
         .route("/api/dashboard/statistics", get(admin::get_data_statistics))
         .route("/api/admin/users", get(admin::get_user_list))

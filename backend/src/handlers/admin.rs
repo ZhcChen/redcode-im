@@ -120,17 +120,6 @@ pub struct DashboardEmojiStats {
     pub popular_count: i64,
 }
 
-#[derive(Debug, Serialize)]
-pub struct SystemMonitor {
-    pub cpu: f64,
-    pub memory: f64,
-    pub disk: f64,
-    pub network_in: f64,
-    pub network_out: f64,
-    pub connections: i64,
-    pub uptime: i64,
-    pub load_average: Vec<f64>,
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -619,10 +608,7 @@ async fn get_today_messages_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Erro
     Ok(count)
 }
 
-use crate::utils::system::{
-    get_system_load, get_memory_usage, get_disk_usage, get_network_stats,
-    get_active_connections, get_system_uptime, get_load_average
-};
+use crate::utils::system::{get_system_load, get_memory_usage};
 
 
 async fn get_storage_usage(_state: &AppState) -> Result<f64, AppError> {
@@ -631,31 +617,6 @@ async fn get_storage_usage(_state: &AppState) -> Result<f64, AppError> {
     Ok(0.28)
 }
 
-pub async fn get_system_monitor(
-    State(_state): State<AppState>,
-) -> Result<Json<SystemMonitor>, AppError> {
-    // 获取真实的系统监控数据
-    let cpu = get_system_load().await.unwrap_or(0.0);
-    let memory = get_memory_usage().await.unwrap_or(0.0);
-    let disk = get_disk_usage().await.unwrap_or(0.0);
-    let (network_in, network_out) = get_network_stats().await.unwrap_or((512000.0, 256000.0));
-    let connections = get_active_connections().await.unwrap_or(68);
-    let uptime = get_system_uptime().await.unwrap_or(0);
-    let load_average = get_load_average().await.unwrap_or(vec![0.0, 0.0, 0.0]);
-
-    let monitor = SystemMonitor {
-        cpu,
-        memory,
-        disk,
-        network_in,
-        network_out,
-        connections,
-        uptime,
-        load_average,
-    };
-
-    Ok(Json(monitor))
-}
 
 pub async fn list_active_nodes_monitor(
     State(state): State<AppState>,

@@ -8,15 +8,6 @@
           {{ nodes.length }} 活跃节点
         </a-tag>
       </div>
-      <a-button
-        type="primary"
-        shape="round"
-        :loading="loading"
-        @click="fetchData"
-      >
-        <template #icon><icon-refresh /></template>
-        立即刷新
-      </a-button>
     </div>
 
     <a-spin :loading="loading" style="width: 100%">
