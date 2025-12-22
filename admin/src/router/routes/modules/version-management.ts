@@ -9,7 +9,7 @@ const VERSION_MANAGEMENT: AppRouteRecordRaw = {
     locale: 'menu.version',
     requiresAuth: true,
     icon: 'icon-cloud',
-    order: 3,
+    order: 4,
   },
   children: [
     {

@@ -33,17 +33,6 @@ const DASHBOARD: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
-    /** simple end */
-    {
-      path: 'system-log',
-      name: 'SystemLog',
-      component: () => import('@/views/dashboard/system-log/index.vue'),
-      meta: {
-        locale: 'menu.dashboard.systemLog',
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
   ],
 };
 

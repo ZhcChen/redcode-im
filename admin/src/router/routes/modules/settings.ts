@@ -13,7 +13,7 @@ const SETTINGS: AppRouteRecordRaw = {
     locale: 'menu.settings',
     requiresAuth: true,
     icon: 'icon-settings',
-    order: 2,
+    order: 3,
   },
   children: [
     {
@@ -47,26 +47,6 @@ const SETTINGS: AppRouteRecordRaw = {
       },
     },
     {
-      path: 'storage-provider',
-      name: 'StorageProviderSettings',
-      component: () => import('@/views/settings/storage-provider/index.vue'),
-      meta: {
-        locale: 'menu.settings.storageProvider',
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
-      path: 'cos-test',
-      name: 'CosTestSettings',
-      component: () => import('@/views/settings/cos-test/index.vue'),
-      meta: {
-        locale: 'menu.settings.cosTest',
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
       path: 'general',
       name: 'GeneralSettings',
       component: () => import('@/views/settings/general/index.vue'),
@@ -87,16 +67,6 @@ const SETTINGS: AppRouteRecordRaw = {
       },
     },
     {
-      path: 'ipinfo-token',
-      name: 'IpInfoTokenSettings',
-      component: () => import('@/views/settings/ipinfo-token/index.vue'),
-      meta: {
-        locale: 'menu.settings.ipinfoToken',
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
       path: 'user-profile',
       name: 'UserProfileSettings',
       component: () => import('@/views/settings/user-profile/index.vue'),
@@ -106,20 +76,6 @@ const SETTINGS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
-    ...(isDataCleanupEnabled
-      ? [
-          {
-            path: 'data-cleanup',
-            name: 'DataCleanup',
-            component: () => import('@/views/settings/data-cleanup/index.vue'),
-            meta: {
-              locale: 'menu.settings.dataCleanup',
-              requiresAuth: true,
-              roles: ['admin'],
-            },
-          },
-        ]
-      : []),
   ],
 };
 
