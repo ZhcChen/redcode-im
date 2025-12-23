@@ -56,6 +56,17 @@
               </div>
             </div>
 
+            <div class="node-specs-section">
+              <div class="spec-item">
+                <icon-thunderbolt :size="12" />
+                <span>{{ node.cpuCount }} 核心</span>
+              </div>
+              <div class="spec-item">
+                <icon-drive-file :size="12" />
+                <span>{{ formatMemory(node.totalMemory) }} 内存</span>
+              </div>
+            </div>
+
             <a-divider />
 
             <!-- 指标监测区 -->
@@ -158,6 +169,12 @@
     if (usage > 0.8) return '#F53F3F';
     if (usage > 0.6) return '#FF7D00';
     return '#00B42A';
+  };
+
+  const formatMemory = (bytes: number) => {
+    if (!bytes) return '0 GB';
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(1)} GB`;
   };
 
   const formatDate = (date: string) => {
@@ -289,6 +306,31 @@
         color: var(--color-text-3);
         font-size: 12px;
         font-family: monospace;
+      }
+    }
+
+    .node-specs-section {
+      display: flex;
+      gap: 16px;
+      padding: 0 20px 8px;
+
+      .spec-item {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        padding: 4px 8px;
+        color: var(--color-text-2);
+        font-size: 12px;
+        background: var(--color-primary-light-1);
+        border-radius: 4px;
+
+        span {
+          font-weight: 500;
+        }
+
+        .arco-icon {
+          color: var(--color-primary-6);
+        }
       }
     }
 

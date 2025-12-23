@@ -37,6 +37,8 @@ export interface NodeMonitor {
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
+  cpuCount: number;
+  totalMemory: number;
   lastHeartbeat: string;
   startedAt: string;
 }

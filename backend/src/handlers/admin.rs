@@ -131,6 +131,8 @@ pub struct NodeMonitorInfo {
     pub cpu_usage: f64,
     pub memory_usage: f64,
     pub disk_usage: f64,
+    pub cpu_count: u32,
+    pub total_memory: u64,
     pub last_heartbeat: String,
     pub started_at: String,
 }
@@ -642,6 +644,8 @@ pub async fn list_active_nodes_monitor(
             cpu_usage: node.cpu_usage,
             memory_usage: node.memory_usage,
             disk_usage: node.disk_usage,
+            cpu_count: node.cpu_count,
+            total_memory: node.total_memory,
             last_heartbeat: node.last_heartbeat.to_rfc3339(),
             started_at: node.started_at.to_rfc3339(),
         })

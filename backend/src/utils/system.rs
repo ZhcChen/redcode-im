@@ -35,6 +35,53 @@ pub async fn get_system_load() -> Result<f64, Box<dyn std::error::Error + Send +
     }
 }
 
+/// 获取 CPU 核心数
+pub async fn get_cpu_count() -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(target_os = "linux")]
+    {
+        let cpuinfo = fs::read_to_string("/proc/cpuinfo")?;
+        let count = cpuinfo.lines().filter(|l| l.starts_with("processor")).count();
+        Ok(count as u32)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let output = Command::new("sysctl").arg("-n").arg("hw.ncpu").output()?;
+        let count = String::from_utf8_lossy(&output.stdout).trim().parse::<u32>().unwrap_or(1);
+        Ok(count)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        Ok(1)
+    }
+}
+
+/// 获取总内存（单位：字节）
+pub async fn get_total_memory() -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(target_os = "linux")]
+    {
+        let meminfo = fs::read_to_string("/proc/meminfo")?;
+        for line in meminfo.lines() {
+            if line.starts_with("MemTotal:") {
+                let total_kb = line.split_whitespace().nth(1).unwrap_or("0").parse::<u64>().unwrap_or(0);
+                return Ok(total_kb * 1024);
+            }
+        }
+        Ok(0)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let output = Command::new("sysctl").arg("-n").arg("hw.memsize").output()?;
+        let total = String::from_utf8_lossy(&output.stdout).trim().parse::<u64>().unwrap_or(0);
+        Ok(total)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        Ok(0)
+    }
+}
+
 pub async fn get_memory_usage() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
     #[cfg(target_os = "linux")]
     {

@@ -242,6 +242,8 @@ async fn register_node_heartbeat(
     let cpu_usage = redcode_im_backend::utils::system::get_system_load().await.unwrap_or(0.0);
     let memory_usage = redcode_im_backend::utils::system::get_memory_usage().await.unwrap_or(0.0);
     let disk_usage = redcode_im_backend::utils::system::get_disk_usage().await.unwrap_or(0.0);
+    let cpu_count = redcode_im_backend::utils::system::get_cpu_count().await.unwrap_or(1);
+    let total_memory = redcode_im_backend::utils::system::get_total_memory().await.unwrap_or(0);
 
     session_manager
         .register_node_heartbeat(
@@ -254,6 +256,8 @@ async fn register_node_heartbeat(
             cpu_usage,
             memory_usage,
             disk_usage,
+            cpu_count,
+            total_memory,
         )
         .await?;
 

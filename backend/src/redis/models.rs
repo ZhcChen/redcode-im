@@ -93,6 +93,8 @@ pub struct NodeHeartbeat {
     pub cpu_usage: f64,
     pub memory_usage: f64,
     pub disk_usage: f64,
+    pub cpu_count: u32,
+    pub total_memory: u64,
     pub last_heartbeat: DateTime<Utc>,
     pub started_at: DateTime<Utc>,
 }

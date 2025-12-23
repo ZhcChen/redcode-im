@@ -292,6 +292,8 @@ impl SessionManager {
         cpu_usage: f64,
         memory_usage: f64,
         disk_usage: f64,
+        cpu_count: u32,
+        total_memory: u64,
     ) -> RedisResult<()> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
 
@@ -304,6 +306,8 @@ impl SessionManager {
             cpu_usage,
             memory_usage,
             disk_usage,
+            cpu_count,
+            total_memory,
             last_heartbeat: Utc::now(),
             started_at: Utc::now(), // 这里应该从实际启动时间获取
         };
