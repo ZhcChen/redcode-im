@@ -55,8 +55,22 @@ export interface ApiPerformanceMetric {
   max_duration: number;
 }
 
-export function getApiPerformanceMetrics() {
-  return axios.get<ApiPerformanceMetric[]>('/api/admin/metrics/performance');
+export interface ApiPerformanceResponse {
+  metrics: ApiPerformanceMetric[];
+  top_avg: ApiPerformanceMetric[];
+  top_count: ApiPerformanceMetric[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export function getApiPerformanceMetrics(params: {
+  page?: number;
+  page_size?: number;
+}) {
+  return axios.get<ApiPerformanceResponse>('/api/admin/metrics/performance', {
+    params,
+  });
 }
 
 export interface DailyStat {

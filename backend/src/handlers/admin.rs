@@ -147,6 +147,22 @@ pub struct DataStatistics {
     pub peak_active_time: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ApiMetricsParams {
+    pub page: Option<usize>,
+    pub page_size: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApiMetricsResponse {
+    pub metrics: Vec<serde_json::Value>,
+    pub top_avg: Vec<serde_json::Value>,
+    pub top_count: Vec<serde_json::Value>,
+    pub total: usize,
+    pub page: usize,
+    pub page_size: usize,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DailyStat {
     pub date: String,
@@ -656,15 +672,57 @@ pub async fn list_active_nodes_monitor(
 
 pub async fn get_api_performance_stats(
     State(state): State<AppState>,
+    Query(params): Query<ApiMetricsParams>,
     Extension(_claims): Extension<Claims>,
-) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiMetricsResponse>, AppError> {
     let session_manager = state.redis.get_session_manager(state.node_id.clone());
-    let stats = session_manager.get_api_performance_stats().await.map_err(|e| {
-        error!("获取 API 性能统计失败: {}", e);
-        AppError::InternalError("获取性能统计失败".to_string())
-    })?;
+    
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(10);
 
-    Ok(Json(stats))
+    let (metrics_all, total) = session_manager
+        .get_api_performance_stats_paginated(1, 1000) // 先拿 Top 1000 做全局排序
+        .await
+        .map_err(|e| {
+            error!("获取 API 性能统计失败: {}", e);
+            AppError::InternalError("获取性能统计失败".to_string())
+        })?;
+
+    // 计算 Top 耗时
+    let mut top_avg = metrics_all.clone();
+    top_avg.sort_by(|a, b| {
+        let a_val = a["avg_duration"].as_u64().unwrap_or(0);
+        let b_val = b["avg_duration"].as_u64().unwrap_or(0);
+        b_val.cmp(&a_val)
+    });
+    let top_avg = top_avg.into_iter().take(10).collect::<Vec<_>>();
+
+    // 计算 Top 频次
+    let mut top_count = metrics_all.clone();
+    top_count.sort_by(|a, b| {
+        let a_val = a["count"].as_u64().unwrap_or(0);
+        let b_val = b["count"].as_u64().unwrap_or(0);
+        b_val.cmp(&a_val)
+    });
+    let top_count = top_count.into_iter().take(10).collect::<Vec<_>>();
+
+    // 执行分页
+    let start = (page - 1) * page_size;
+    let end = (start + page_size).min(total);
+    let metrics = if start < total {
+        metrics_all[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    Ok(Json(ApiMetricsResponse {
+        metrics,
+        top_avg,
+        top_count,
+        total,
+        page,
+        page_size,
+    }))
 }
 
 

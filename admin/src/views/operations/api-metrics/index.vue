@@ -16,8 +16,9 @@
           <a-table
             :data="metrics"
             :loading="loading"
-            :pagination="false"
+            :pagination="pagination"
             :bordered="false"
+            @page-change="onPageChange"
           >
             <template #columns>
               <a-table-column title="方法" data-index="method">
@@ -76,9 +77,19 @@
     ApiPerformanceMetric,
   } from '@/api/dashboard';
   import * as echarts from 'echarts';
+  import { PaginationProps } from '@arco-design/web-vue';
 
   const loading = ref(false);
   const metrics = ref<ApiPerformanceMetric[]>([]);
+  const topAvg = ref<ApiPerformanceMetric[]>([]);
+  const topCount = ref<ApiPerformanceMetric[]>([]);
+  const pagination = ref<PaginationProps>({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+    showTotal: true,
+  });
+
   const avgChart = ref<HTMLElement | null>(null);
   const countChart = ref<HTMLElement | null>(null);
   let avgChartInstance: echarts.ECharts | null = null;
@@ -109,11 +120,8 @@
   const updateCharts = () => {
     if (!avgChartInstance || !countChartInstance) return;
 
-    // 平均耗时排行
-    const topAvgData = [...metrics.value]
-      .sort((a, b) => b.avg_duration - a.avg_duration)
-      .slice(0, 10)
-      .reverse();
+    // 平均耗时排行 (使用全局 topAvg)
+    const topAvgData = [...topAvg.value].reverse();
 
     avgChartInstance.setOption({
       tooltip: { trigger: 'axis' },
@@ -137,14 +145,14 @@
       ],
     });
 
-    // 调用频次占比
-    const topCountData = metrics.value.slice(0, 5).map((item) => ({
+    // 调用频次占比 (使用全局 topCount)
+    const topCountData = topCount.value.slice(0, 5).map((item) => ({
       name: `${item.method} ${item.path}`,
       value: item.count,
     }));
 
-    if (metrics.value.length > 5) {
-      const otherCount = metrics.value
+    if (topCount.value.length > 5) {
+      const otherCount = topCount.value
         .slice(5)
         .reduce((acc, cur) => acc + cur.count, 0);
       topCountData.push({ name: '其他', value: otherCount });
@@ -183,14 +191,25 @@
   const fetchData = async () => {
     loading.value = true;
     try {
-      const { data } = await getApiPerformanceMetrics();
-      metrics.value = data;
+      const { data } = await getApiPerformanceMetrics({
+        page: pagination.value.current,
+        page_size: pagination.value.pageSize,
+      });
+      metrics.value = data.metrics;
+      topAvg.value = data.top_avg;
+      topCount.value = data.top_count;
+      pagination.value.total = data.total;
       updateCharts();
     } catch (err) {
       // Ignore error for now or handle as needed
     } finally {
       loading.value = false;
     }
+  };
+
+  const onPageChange = (current: number) => {
+    pagination.value.current = current;
+    fetchData();
   };
 
   const initCharts = () => {

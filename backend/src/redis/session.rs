@@ -471,8 +471,12 @@ impl SessionManager {
         Ok(())
     }
 
-    /// 获取 API 性能统计
-    pub async fn get_api_performance_stats(&self) -> RedisResult<Vec<serde_json::Value>> {
+    /// 获取 API 性能统计（分页）
+    pub async fn get_api_performance_stats_paginated(
+        &self,
+        page: usize,
+        page_size: usize,
+    ) -> RedisResult<(Vec<serde_json::Value>, usize)> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         
         let hits_key = CacheKeys::api_metrics_hits();
@@ -481,9 +485,10 @@ impl SessionManager {
 
         let hits: HashMap<String, u64> = conn.hgetall(&hits_key).await?;
         let durations: HashMap<String, u64> = conn.hgetall(&duration_key).await?;
-        let slow_logs: Vec<(String, u64)> = conn.zrevrange_withscores(&slow_key, 0, 9).await?;
+        // 慢日志排行仍然取 Top 10 来辅助显示 Max Duration
+        let slow_logs: Vec<(String, u64)> = conn.zrevrange_withscores(&slow_key, 0, 99).await?;
 
-        let mut results = Vec::new();
+        let mut all_results = Vec::new();
         for (field, count) in hits {
             let total_dur = durations.get(&field).cloned().unwrap_or(0);
             let avg_dur = if count > 0 { total_dur / count } else { 0 };
@@ -495,7 +500,7 @@ impl SessionManager {
                 ("UNKNOWN", field.as_str())
             };
 
-            results.push(serde_json::json!({
+            all_results.push(serde_json::json!({
                 "method": method,
                 "path": path,
                 "count": count,
@@ -505,8 +510,24 @@ impl SessionManager {
         }
 
         // 按调用次数排序
-        results.sort_by(|a, b| b["count"].as_u64().cmp(&a["count"].as_u64()));
+        all_results.sort_by(|a, b| b["count"].as_u64().cmp(&a["count"].as_u64()));
 
-        Ok(results)
+        let total = all_results.len();
+        let start = (page - 1) * page_size;
+        let end = (start + page_size).min(total);
+        
+        let paginated_results = if start < total {
+            all_results[start..end].to_vec()
+        } else {
+            Vec::new()
+        };
+
+        Ok((paginated_results, total))
+    }
+
+    /// 获取 API 性能统计（原始版本，用于图表）
+    pub async fn get_api_performance_stats(&self) -> RedisResult<Vec<serde_json::Value>> {
+        let (data, _) = self.get_api_performance_stats_paginated(1, 1000).await?;
+        Ok(data)
     }
 }
