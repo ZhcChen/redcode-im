@@ -415,8 +415,10 @@ async function handleRegister() {
           const accountInfo = {
             id: mappedUserInfo.id,
             token: loginResponse.data.token,
+            refreshToken: loginResponse.data.refreshToken ?? null,
             userInfo: mappedUserInfo,
             unreadCount: 0,
+            friendRequestCount: 0,
             createdAt: Date.now()
           };
 
@@ -442,6 +444,7 @@ async function handleRegister() {
         if (!verifyToken || verifyToken !== loginResponse.data.token) {
           await store.dispatch("login", {
             token: loginResponse.data.token,
+            refreshToken: loginResponse.data.refreshToken ?? null,
             userInfo: mappedUserInfo,
           });
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -622,8 +625,10 @@ async function handleLogin() {
         const accountInfo = {
           id: mappedUserInfo.id,
           token: response.data.token,
+          refreshToken: response.data.refreshToken ?? null,
           userInfo: mappedUserInfo,
           unreadCount: 0,
+          friendRequestCount: 0,
           createdAt: Date.now()
         };
 
@@ -658,6 +663,7 @@ async function handleLogin() {
       if (!verifyToken || verifyToken !== response.data.token) {
         await store.dispatch("login", {
           token: response.data.token,
+          refreshToken: response.data.refreshToken ?? null,
           userInfo: mappedUserInfo,
         });
         // 再次等待确保设置完成

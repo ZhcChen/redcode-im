@@ -14,7 +14,9 @@ pub struct Account {
     pub avatar_local_path: Option<String>,
     pub mobile: Option<String>,
     pub email: Option<String>,
-    pub token: String, // 加密存储
+    pub token: String, // 加密存储（access token）
+    #[serde(default)]
+    pub refresh_token: Option<String>, // 加密存储（refresh token，可空）
     pub created_at: i64,
     pub updated_at: i64,
     #[serde(default)]
@@ -79,6 +81,7 @@ impl AccountStore {
                 mobile TEXT,
                 email TEXT,
                 token TEXT NOT NULL,
+                refresh_token TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             )
@@ -124,6 +127,7 @@ impl AccountStore {
             .await?;
         self.ensure_account_column("avatar_local_path", "TEXT")
             .await?;
+        self.ensure_account_column("refresh_token", "TEXT").await?;
         self.ensure_account_column("sort_order", "INTEGER").await?;
 
         tracing::info!("账号数据库表初始化完成");
@@ -158,8 +162,8 @@ impl AccountStore {
     pub async fn add_account(&self, account: &Account) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
-            INSERT INTO accounts (id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?))
+            INSERT INTO accounts (id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, refresh_token, created_at, updated_at, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?))
             ON CONFLICT(id) DO UPDATE SET
                 username = excluded.username,
                 nickname = excluded.nickname,
@@ -169,6 +173,7 @@ impl AccountStore {
                 mobile = excluded.mobile,
                 email = excluded.email,
                 token = excluded.token,
+                refresh_token = excluded.refresh_token,
                 updated_at = excluded.updated_at,
                 sort_order = COALESCE(accounts.sort_order, excluded.sort_order)
             "#,
@@ -182,6 +187,7 @@ impl AccountStore {
         .bind(&account.mobile)
         .bind(&account.email)
         .bind(&account.token)
+        .bind(&account.refresh_token)
         .bind(account.created_at)
         .bind(account.updated_at)
         .bind(account.sort_order)
@@ -210,7 +216,7 @@ impl AccountStore {
     pub async fn get_all_accounts(&self) -> Result<Vec<Account>, sqlx::Error> {
         let accounts = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order
+            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, refresh_token, created_at, updated_at, sort_order
             FROM accounts
             ORDER BY COALESCE(sort_order, created_at) ASC
             "#,
@@ -229,7 +235,7 @@ impl AccountStore {
     ) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, created_at, updated_at, sort_order
+            SELECT id, username, nickname, avatar, avatar_object_key, avatar_local_path, mobile, email, token, refresh_token, created_at, updated_at, sort_order
             FROM accounts
             WHERE id = ?
             "#,
@@ -275,7 +281,7 @@ impl AccountStore {
     pub async fn get_current_account(&self) -> Result<Option<Account>, sqlx::Error> {
         let account = sqlx::query_as::<_, Account>(
             r#"
-            SELECT a.id, a.username, a.nickname, a.avatar, a.avatar_object_key, a.avatar_local_path, a.mobile, a.email, a.token, a.created_at, a.updated_at, a.sort_order
+            SELECT a.id, a.username, a.nickname, a.avatar, a.avatar_object_key, a.avatar_local_path, a.mobile, a.email, a.token, a.refresh_token, a.created_at, a.updated_at, a.sort_order
             FROM accounts a
             INNER JOIN current_account c ON a.id = c.account_id
             WHERE c.id = 1

@@ -278,6 +278,19 @@ class HttpClient {
         } catch (e) {
         }
 
+        // 同步到账号存储（用于应用重启后无感续签）
+        try {
+          const currentAccountId = (store.state as any)?.accounts?.currentAccountId as string | null | undefined;
+          if (currentAccountId) {
+            void store.dispatch('accounts/syncAccountProfile', {
+              accountId: currentAccountId,
+              token: response.data.token,
+              refreshToken: response.data.refreshToken ?? refreshToken,
+            });
+          }
+        } catch (e) {
+        }
+
         // 同步到 Rust HTTP 客户端
         try {
           await syncRustBackendToken(response.data.token);
@@ -698,6 +711,7 @@ const noTokenApis = [
   '/auth/login',
   '/auth/login/sms',
   '/auth/register',
+  '/auth/refresh',
   '/auth/sms/send',
   '/settings/privacy-policy',
   '/settings/user-agreement',

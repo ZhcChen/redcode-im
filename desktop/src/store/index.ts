@@ -910,10 +910,12 @@ export const store = createStore<State>({
                     throw tokenError;
                 }
 
-                // 保存刷新令牌（如果后端已返回）
-                try {
-                    commit('SET_REFRESH_TOKEN', loginData.refreshToken ?? null);
-                } catch (e) {
+                // 保存刷新令牌（仅在调用方显式提供时更新，避免误清空）
+                if ('refreshToken' in loginData) {
+                    try {
+                        commit('SET_REFRESH_TOKEN', loginData.refreshToken ?? null);
+                    } catch (e) {
+                    }
                 }
 
                 try {

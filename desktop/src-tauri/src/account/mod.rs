@@ -67,6 +67,25 @@ impl AccountManager {
         let encrypted_token_base64 =
             base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &encrypted_token);
 
+        // 加密 refresh_token（可选）
+        let encrypted_refresh_token_base64 = match account
+            .refresh_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+        {
+            Some(refresh_token) => {
+                let encrypted_refresh_token = crypto
+                    .encrypt(refresh_token)
+                    .map_err(|e| format!("加密 refresh_token 失败: {}", e))?;
+                Some(base64::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    &encrypted_refresh_token,
+                ))
+            }
+            None => None,
+        };
+
         let now = chrono::Utc::now().timestamp();
         let db_account = Account {
             id: account.id,
@@ -78,6 +97,7 @@ impl AccountManager {
             mobile: account.mobile,
             email: account.email,
             token: encrypted_token_base64,
+            refresh_token: encrypted_refresh_token_base64,
             created_at: now,
             updated_at: now,
             sort_order: None, // 不设置 sort_order,由数据库层自动处理
@@ -119,6 +139,27 @@ impl AccountManager {
                 .decrypt(&encrypted_bytes)
                 .map_err(|e| format!("解密 token 失败: {}", e))?;
 
+            // 解密 refresh_token（可选）
+            let decrypted_refresh_token = match account
+                .refresh_token
+                .as_deref()
+                .map(str::trim)
+                .filter(|token| !token.is_empty())
+            {
+                Some(encrypted_refresh_token_base64) => {
+                    let encrypted_refresh_bytes = base64::Engine::decode(
+                        &base64::engine::general_purpose::STANDARD,
+                        encrypted_refresh_token_base64,
+                    )
+                    .map_err(|e| format!("解码 refresh_token 失败: {}", e))?;
+                    let refresh_token = crypto
+                        .decrypt(&encrypted_refresh_bytes)
+                        .map_err(|e| format!("解密 refresh_token 失败: {}", e))?;
+                    Some(refresh_token)
+                }
+                None => None,
+            };
+
             result.push(AccountOutput {
                 id: account.id,
                 username: account.username,
@@ -129,6 +170,7 @@ impl AccountManager {
                 mobile: account.mobile,
                 email: account.email,
                 token: decrypted_token,
+                refresh_token: decrypted_refresh_token,
                 created_at: account.created_at,
                 updated_at: account.updated_at,
                 sort_order: account.sort_order,
@@ -168,6 +210,27 @@ impl AccountManager {
                     .decrypt(&encrypted_bytes)
                     .map_err(|e| format!("解密 token 失败: {}", e))?;
 
+                // 解密 refresh_token（可选）
+                let decrypted_refresh_token = match account
+                    .refresh_token
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|token| !token.is_empty())
+                {
+                    Some(encrypted_refresh_token_base64) => {
+                        let encrypted_refresh_bytes = base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            encrypted_refresh_token_base64,
+                        )
+                        .map_err(|e| format!("解码 refresh_token 失败: {}", e))?;
+                        let refresh_token = crypto
+                            .decrypt(&encrypted_refresh_bytes)
+                            .map_err(|e| format!("解密 refresh_token 失败: {}", e))?;
+                        Some(refresh_token)
+                    }
+                    None => None,
+                };
+
                 Ok(Some(AccountOutput {
                     id: account.id,
                     username: account.username,
@@ -178,6 +241,7 @@ impl AccountManager {
                     mobile: account.mobile,
                     email: account.email,
                     token: decrypted_token,
+                    refresh_token: decrypted_refresh_token,
                     created_at: account.created_at,
                     updated_at: account.updated_at,
                     sort_order: account.sort_order,
@@ -287,6 +351,8 @@ pub struct AccountInput {
     pub mobile: Option<String>,
     pub email: Option<String>,
     pub token: String, // 明文 token
+    #[serde(default)]
+    pub refresh_token: Option<String>, // 明文 refresh_token（可选）
 }
 
 /// 账号输出（返回给前端）
@@ -301,6 +367,8 @@ pub struct AccountOutput {
     pub mobile: Option<String>,
     pub email: Option<String>,
     pub token: String, // 解密后的 token
+    #[serde(default)]
+    pub refresh_token: Option<String>, // 解密后的 refresh_token（可选）
     pub created_at: i64,
     pub updated_at: i64,
     #[serde(default)]

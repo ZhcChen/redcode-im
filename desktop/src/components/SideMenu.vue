@@ -351,10 +351,11 @@ const handleLogout = () => {
         store.dispatch('hideGlobalLoading')
       }
 
-      // 强制清除所有状态
-      if (currentToken || isLoggedIn) {
-        store.commit('SET_TOKEN', null)
-        store.commit('LOGOUT_USER')
+	      // 强制清除所有状态
+	      if (currentToken || isLoggedIn) {
+	        store.commit('SET_TOKEN', null)
+	        store.commit('SET_REFRESH_TOKEN', null)
+	        store.commit('LOGOUT_USER')
 
         // 重置登出状态，允许用户重新登录
         try {

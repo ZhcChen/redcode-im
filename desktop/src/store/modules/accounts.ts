@@ -33,6 +33,7 @@ export interface AccountRouteState {
 export interface AccountInfo {
   id: string // 账号唯一标识
   token: string // 认证令牌
+  refreshToken: string | null // 刷新令牌（用于 access token 过期后续签）
   userInfo: {
     id: string
     username: string
@@ -384,7 +385,15 @@ const accountsModule = {
     /**
      * 同步账号资料（头像、昵称等）到内存和 SQLite
      */
-    async syncAccountProfile({ state, commit }, payload: { accountId?: string; userInfo?: Partial<AccountInfo['userInfo']>; token?: string }) {
+    async syncAccountProfile(
+      { state, commit },
+      payload: {
+        accountId?: string;
+        userInfo?: Partial<AccountInfo['userInfo']>;
+        token?: string;
+        refreshToken?: string | null;
+      },
+    ) {
       const targetAccountId = payload.accountId || state.currentAccountId
       if (!targetAccountId) {
         return
@@ -398,6 +407,7 @@ const accountsModule = {
       const nextAccount: AccountInfo = {
         ...account,
         token: payload.token ?? account.token,
+        refreshToken: payload.refreshToken ?? account.refreshToken,
         userInfo: {
           ...account.userInfo,
           ...(payload.userInfo || {})
@@ -413,6 +423,7 @@ const accountsModule = {
         accountId: targetAccountId,
         data: {
           token: nextAccount.token,
+          refreshToken: nextAccount.refreshToken,
           userInfo: nextAccount.userInfo
         }
       })
@@ -684,6 +695,7 @@ interface RustAccountInput {
   mobile: string | null
   email: string | null
   token: string
+  refresh_token: string | null
 }
 
 /**
@@ -699,6 +711,7 @@ interface RustAccountOutput {
   mobile: string | null
   email: string | null
   token: string
+  refresh_token?: string | null
   created_at: number
   updated_at: number
   sort_order?: number | null
@@ -718,7 +731,8 @@ async function addAccountToRust(account: AccountInfo): Promise<void> {
       avatar_local_path: account.userInfo.avatarLocalPath || null,
       mobile: null,
       email: null,
-      token: account.token
+      token: account.token,
+      refresh_token: account.refreshToken ?? null
     }
 
     await invoke('account_add', { account: rustAccount })
@@ -736,6 +750,7 @@ async function loadAccountsFromRust(): Promise<AccountInfo[]> {
     return accounts.map(acc => ({
       id: acc.id,
       token: acc.token,
+      refreshToken: acc.refresh_token ?? null,
       userInfo: {
         id: acc.id,
         username: acc.username,

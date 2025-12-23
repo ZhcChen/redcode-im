@@ -30,6 +30,7 @@ interface RustAccountInput {
   mobile: string | null
   email: string | null
   token: string
+  refresh_token?: string | null
 }
 
 /**
@@ -95,7 +96,8 @@ export async function migrateAccounts(): Promise<{ success: boolean; message: st
           avatar_local_path: account.userInfo.avatarLocalPath ?? null,
           mobile: null,
           email: null,
-          token: account.token
+          token: account.token,
+          refresh_token: null
         }
 
         await invoke('account_add', { account: rustAccount })

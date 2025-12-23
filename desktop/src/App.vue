@@ -419,6 +419,7 @@ async function handleAccountSwitch(accountId: string) {
     const account = store.getters['accounts/getAccountById'](accountId);
     if (account) {
       store.commit('SET_TOKEN', account.token);
+      store.commit('SET_REFRESH_TOKEN', account.refreshToken ?? null);
       store.commit('SET_USER', account.userInfo);
 
       // 4. 同步 Rust 后端 token
@@ -522,12 +523,13 @@ async function handleRemoveAccount(accountId: string, skipConfirm = false) {
     } catch (error) {
     }
 
-    store.commit('SET_TOKEN', null);
-    store.commit('LOGOUT_USER');
-    toast.success(`账号 ${account.userInfo.nickname} 已移除`);
-    router.push('/login');
-    return;
-  }
+	    store.commit('SET_TOKEN', null);
+	    store.commit('SET_REFRESH_TOKEN', null);
+	    store.commit('LOGOUT_USER');
+	    toast.success(`账号 ${account.userInfo.nickname} 已移除`);
+	    router.push('/login');
+	    return;
+	  }
 
   toast.success(`账号 ${account.userInfo.nickname} 已移除`);
 
@@ -1170,10 +1172,11 @@ onMounted(async () => {
       await store.dispatch('accounts/loadAccountsFromStorage');
 
       // 如果有当前账号，恢复其状态
-      const currentAccount = store.getters['accounts/currentAccount'];
-      if (currentAccount) {
-        store.commit('SET_TOKEN', currentAccount.token);
-        store.commit('SET_USER', currentAccount.userInfo);
+	      const currentAccount = store.getters['accounts/currentAccount'];
+	      if (currentAccount) {
+	        store.commit('SET_TOKEN', currentAccount.token);
+	        store.commit('SET_REFRESH_TOKEN', currentAccount.refreshToken ?? null);
+	        store.commit('SET_USER', currentAccount.userInfo);
 
         await ensureAvatarCacheConsistency('app-initial-load');
 
