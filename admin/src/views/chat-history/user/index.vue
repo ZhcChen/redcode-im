@@ -213,18 +213,51 @@
                     {{ record.content }}
                   </div>
                   <div v-else-if="record.message_type === 'image'">
-                    <a-image
-                      v-if="
-                        record.parts &&
-                        record.parts.length > 0 &&
-                        record.parts[0].thumbnail_key
-                      "
-                      :src="record.parts[0].thumbnail_key"
-                      :width="50"
-                      :height="50"
-                      :preview="true"
-                    />
-                    <span v-else>{{ $t('chatHistory.image') }}</span>
+                    <a-space direction="vertical">
+                      <a-image
+                        v-if="record.parts && record.parts.length > 0"
+                        :src="
+                          record.parts[0].thumbnail_key ||
+                          record.parts[0].object_key
+                        "
+                        :preview-src="record.parts[0].object_key"
+                        :width="80"
+                        :height="80"
+                        :preview="true"
+                        style="object-fit: cover; border-radius: 4px"
+                      />
+                      <a-link
+                        v-if="record.parts && record.parts.length > 0"
+                        size="small"
+                        :href="record.parts[0].object_key"
+                        target="_blank"
+                        download
+                      >
+                        <template #icon><icon-download /></template>
+                        {{ $t('chatHistory.download') }}
+                      </a-link>
+                    </a-space>
+                  </div>
+                  <div v-else-if="record.message_type === 'video'">
+                    <a-space direction="vertical">
+                      <div
+                        class="video-preview-trigger"
+                        @click="playVideo(record.parts[0].object_key)"
+                      >
+                        <icon-play-circle-fill :size="32" />
+                        <span>{{ $t('chatHistory.previewVideo') }}</span>
+                      </div>
+                      <a-link
+                        v-if="record.parts && record.parts.length > 0"
+                        size="small"
+                        :href="record.parts[0].object_key"
+                        target="_blank"
+                        download
+                      >
+                        <template #icon><icon-download /></template>
+                        {{ $t('chatHistory.download') }}
+                      </a-link>
+                    </a-space>
                   </div>
                   <div v-else-if="record.message_type === 'file'">
                     <a-link
@@ -236,12 +269,16 @@
                       :href="record.parts[0].object_key"
                       target="_blank"
                     >
+                      <template #icon><icon-file /></template>
                       {{ record.parts[0].file_name || $t('chatHistory.file') }}
                     </a-link>
                     <span v-else>{{ $t('chatHistory.file') }}</span>
                   </div>
                   <div v-else>
-                    {{ record.message_type }}
+                    <a-tag color="gray">{{ record.message_type }}</a-tag>
+                    <div v-if="record.content" style="margin-top: 4px">{{
+                      record.content
+                    }}</div>
                   </div>
                 </template>
               </a-table-column>
@@ -259,6 +296,22 @@
         </a-tab-pane>
       </a-tabs>
     </a-card>
+
+    <!-- 视频预览弹窗 -->
+    <a-modal
+      v-model:visible="videoVisible"
+      :footer="false"
+      unmount-on-close
+      title="视频预览"
+      width="auto"
+    >
+      <video
+        :src="currentVideoUrl"
+        controls
+        autoplay
+        style="max-width: 100%; max-height: 70vh"
+      ></video>
+    </a-modal>
   </div>
 </template>
 
@@ -284,6 +337,14 @@
   const { t } = useI18n();
   const router = useRouter();
   const route = useRoute();
+
+  const videoVisible = ref(false);
+  const currentVideoUrl = ref('');
+
+  const playVideo = (url: string) => {
+    currentVideoUrl.value = url;
+    videoVisible.value = true;
+  };
 
   const userId = computed(() => route.params.userId as string);
   const userName = ref('');
@@ -414,5 +475,29 @@
     margin-top: 4px;
     color: var(--color-text-3);
     font-size: 12px;
+  }
+
+  .video-preview-trigger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    color: var(--color-text-2);
+    background-color: var(--color-fill-2);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+
+    &:hover {
+      color: var(--color-primary-light-4);
+      background-color: var(--color-fill-3);
+    }
+
+    span {
+      margin-top: 4px;
+      font-size: 12px;
+    }
   }
 </style>
