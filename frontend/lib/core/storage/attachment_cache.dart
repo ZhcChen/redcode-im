@@ -122,11 +122,13 @@ class AttachmentCache {
   }
 
   String _buildFileName(String objectKey, String extension) {
+    // 使用完整的 base64 编码作为文件名，确保不同 key 不会冲突
+    // 只移除 URL 不安全的字符（/）
     final encoded = base64Url
         .encode(utf8.encode(objectKey))
-        .replaceAll('=', '');
-    final shortened = encoded.length > 24 ? encoded.substring(0, 24) : encoded;
+        .replaceAll('=', '')
+        .replaceAll('/', '_');
     final safeExt = extension.startsWith('.') ? extension : '.$extension';
-    return '$shortened$safeExt';
+    return '$encoded$safeExt';
   }
 }
