@@ -56,13 +56,13 @@
 
       <a-grid-item :span="12">
         <a-card class="general-card" title="平均耗时排行 (Top 10)">
-          <div ref="avgChart" style="height: 350px"></div>
+          <div ref="avgChart" style="width: 100%; height: 350px"></div>
         </a-card>
       </a-grid-item>
 
       <a-grid-item :span="12">
         <a-card class="general-card" title="调用频次占比">
-          <div ref="countChart" style="height: 350px"></div>
+          <div ref="countChart" style="width: 100%; height: 350px"></div>
         </a-card>
       </a-grid-item>
     </a-grid>
@@ -173,6 +173,10 @@
         },
       ],
     });
+
+    // 强制触发一次 resize 确保布局正确
+    avgChartInstance.resize();
+    countChartInstance.resize();
   };
 
   const fetchData = async () => {
