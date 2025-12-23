@@ -177,7 +177,7 @@ async fn start_background_tasks(
             {
                 error!("节点心跳注册失败: {:?}", e);
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
     });
 

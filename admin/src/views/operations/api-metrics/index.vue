@@ -10,7 +10,7 @@
                 <template #icon><icon-refresh /></template>
                 {{ $t('monitor.studioInfo.btn.fresh') }}
               </a-button>
-              <a-tag color="arcoblue">自动刷新 (10s)</a-tag>
+              <a-tag color="arcoblue">自动刷新 (5s)</a-tag>
             </a-space>
           </template>
           <a-table
@@ -200,7 +200,7 @@
   onMounted(async () => {
     initCharts();
     await fetchData();
-    timer = setInterval(fetchData, 10000);
+    timer = setInterval(fetchData, 5000);
 
     window.addEventListener('resize', () => {
       avgChartInstance?.resize();
