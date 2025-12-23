@@ -224,7 +224,7 @@ impl EmojiPackStore {
             r#"
             UPDATE emoji_packs
             SET name = $1, icon_url = $2, icon_object_key = $3, description = $4, is_active = $5, pack_type = $6, parent_id = $7, updated_at = $8
-            WHERE id = $8
+            WHERE id = $9
             RETURNING id, name, icon_url, icon_object_key, description, is_active, pack_type, parent_id, created_at, updated_at
             "#,
         )
