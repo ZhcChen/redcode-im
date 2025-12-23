@@ -13,6 +13,7 @@ import '../constants/app_config.dart';
 import '../network/direct_upload.dart';
 import '../utils/file_hash.dart';
 import '../storage/attachment_cache.dart';
+import '../storage/attachment_url_cache.dart';
 import '../storage/avatar_cache.dart';
 import '../storage/token_storage.dart';
 import '../storage/message_storage.dart';
@@ -33,6 +34,19 @@ enum MessageStatus {
   delivered, // 已送达
   read, // 已读
   failed, // 发送失败
+}
+
+/// 附件路径更新事件
+class AttachmentPathUpdate {
+  final String messageId;
+  final String attachmentKey;
+  final String? localPath;
+
+  AttachmentPathUpdate({
+    required this.messageId,
+    required this.attachmentKey,
+    required this.localPath,
+  });
 }
 
 /// 待发送的附件草稿
@@ -93,6 +107,17 @@ class MessageService with ChangeNotifier {
   final Map<String, List<String>> _pinnedMessageIds = {};
   // 上传进度节流计时器 (roomId:messageId:key -> timestamp)
   final Map<String, int> _progressUpdateThrottle = {};
+
+  // 下载去重：正在进行的下载任务 (attachmentKey -> Future)
+  final Map<String, Future<String?>> _pendingDownloads = {};
+
+  // 附件路径更新广播
+  final _attachmentPathController =
+      StreamController<AttachmentPathUpdate>.broadcast();
+
+  /// 附件路径更新流，UI 组件可以监听此流来实时更新
+  Stream<AttachmentPathUpdate> get attachmentPathUpdates =>
+      _attachmentPathController.stream;
 
   // 单例模式
   static MessageService? _instance;
@@ -2311,6 +2336,13 @@ class MessageService with ChangeNotifier {
         }
         notifyListeners();
         unawaited(_persistMessages(roomId));
+
+        // 广播附件路径更新事件
+        _attachmentPathController.add(AttachmentPathUpdate(
+          messageId: messageId,
+          attachmentKey: key,
+          localPath: localPath,
+        ));
       }
       break;
     }
@@ -2670,41 +2702,78 @@ class MessageService with ChangeNotifier {
       return null;
     }
 
+    final key = attachment.key;
+
+    // 1. 先查内存缓存（最快）
+    if (!forceDownload) {
+      final memoryCached = AttachmentUrlCache.instance.get(key);
+      if (memoryCached != null && memoryCached.isNotEmpty) {
+        final memoryFile = File(memoryCached);
+        if (await memoryFile.exists()) {
+          return memoryCached;
+        }
+        // 文件不存在，清除内存缓存
+        AttachmentUrlCache.instance.remove(key);
+      }
+    }
+
+    // 2. 检查消息中的 localPath
     if (!forceDownload &&
         attachment.localPath != null &&
         attachment.localPath!.isNotEmpty) {
       final localFile = File(attachment.localPath!);
       if (await localFile.exists()) {
+        // 更新内存缓存
+        AttachmentUrlCache.instance.set(key, attachment.localPath!);
         return attachment.localPath;
       }
     }
 
-    final cached = await AttachmentCache.instance.resolve(attachment.key);
-    if (!forceDownload && cached != null && cached.isNotEmpty) {
-      final cachedFile = File(cached);
+    // 3. 检查文件系统缓存
+    final fileCached = await AttachmentCache.instance.resolve(key);
+    if (!forceDownload && fileCached != null && fileCached.isNotEmpty) {
+      final cachedFile = File(fileCached);
       if (await cachedFile.exists()) {
+        // 更新内存缓存
+        AttachmentUrlCache.instance.set(key, fileCached);
+        // 更新消息中的 localPath
         await _updateAttachmentLocalPath(
           roomId: roomId,
           messageId: message.id,
-          key: attachment.key,
-          localPath: cached,
+          key: key,
+          localPath: fileCached,
         );
-        return cached;
+        return fileCached;
       }
     }
 
+    // 4. 检查是否有正在进行的下载（去重）
+    if (_pendingDownloads.containsKey(key)) {
+      return _pendingDownloads[key];
+    }
+
+    // 5. 开始下载
     final session = await _tokenStorage.readSession();
     if (session == null) {
       throw Exception('User not authenticated');
     }
 
-    final savedPath = await _downloadAttachment(
+    final downloadFuture = _downloadAttachment(
       roomId: roomId,
       messageId: message.id,
       attachment: attachment,
       token: session.token,
     );
-    return savedPath;
+    _pendingDownloads[key] = downloadFuture;
+
+    try {
+      final savedPath = await downloadFuture;
+      // 更新内存缓存
+      AttachmentUrlCache.instance.set(key, savedPath);
+      return savedPath;
+    } finally {
+      _pendingDownloads.remove(key);
+    }
   }
 
   Future<String> _downloadAttachment({
@@ -4292,3 +4361,4 @@ MessageStatus? _parseMessageStatusFromApi(dynamic raw) {
       return null;
   }
 }
+

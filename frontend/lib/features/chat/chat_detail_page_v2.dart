@@ -5300,11 +5300,13 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
   String? _localPath;
   bool _loading = true;
   String? _error;
+  StreamSubscription<AttachmentPathUpdate>? _subscription;
 
   @override
   void initState() {
     super.initState();
     _localPath = widget.part.attachment?.localPath;
+    _subscribeToUpdates();
     _load();
   }
 
@@ -5317,6 +5319,29 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
       _loading = true;
       _load();
     }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToUpdates() {
+    final key = widget.part.attachment?.key;
+    if (key == null) return;
+
+    _subscription = MessageService.instance.attachmentPathUpdates.listen((update) {
+      if (update.attachmentKey == key && update.localPath != null) {
+        if (mounted) {
+          setState(() {
+            _localPath = update.localPath;
+            _loading = false;
+            _error = null;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -6403,11 +6428,13 @@ class _MediaGridItem extends StatefulWidget {
 class _MediaGridItemState extends State<_MediaGridItem> {
   String? _localPath;
   bool _loading = true;
+  StreamSubscription<AttachmentPathUpdate>? _subscription;
 
   @override
   void initState() {
     super.initState();
     _localPath = widget.part.attachment?.localPath;
+    _subscribeToUpdates();
     _load();
   }
 
@@ -6419,6 +6446,28 @@ class _MediaGridItemState extends State<_MediaGridItem> {
       _loading = true;
       _load();
     }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToUpdates() {
+    final key = widget.part.attachment?.key;
+    if (key == null) return;
+
+    _subscription = MessageService.instance.attachmentPathUpdates.listen((update) {
+      if (update.attachmentKey == key && update.localPath != null) {
+        if (mounted) {
+          setState(() {
+            _localPath = update.localPath;
+            _loading = false;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _load() async {
