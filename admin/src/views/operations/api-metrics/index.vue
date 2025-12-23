@@ -152,12 +152,13 @@
 
     countChartInstance.setOption({
       tooltip: { trigger: 'item' },
-      legend: { bottom: '5%', left: 'center' },
+      legend: { bottom: '0', left: 'center' },
       series: [
         {
           name: '调用频次',
           type: 'pie',
-          radius: ['40%', '70%'],
+          radius: ['40%', '65%'],
+          center: ['50%', '45%'],
           avoidLabelOverlap: false,
           itemStyle: {
             borderRadius: 10,
