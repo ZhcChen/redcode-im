@@ -2723,11 +2723,14 @@ class _MessageBubbleState extends State<_MessageBubble>
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment:
-          _isSelf ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: children,
+    // 使用固定宽度容器，让媒体和文字宽度一致
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
     );
   }
 
@@ -6361,20 +6364,17 @@ class _MediaGridView extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: borderRadius,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
-        child: Stack(
-          children: [
-            grid,
-            // 如果没有文字，在媒体右下角显示时间戳
-            if (!hasText)
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: _MediaTimeBadge(message: message, isSelf: isSelf),
-              ),
-          ],
-        ),
+      child: Stack(
+        children: [
+          grid,
+          // 如果没有文字，在媒体右下角显示时间戳
+          if (!hasText)
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: _MediaTimeBadge(message: message, isSelf: isSelf),
+            ),
+        ],
       ),
     );
   }
@@ -6658,7 +6658,6 @@ class _MixedTextWithTime extends StatelessWidget {
         : AppColors.textQuaternary;
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 22),
       decoration: BoxDecoration(
         color: bgColor,
