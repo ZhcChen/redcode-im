@@ -37,10 +37,12 @@ export function isCosUrlExpired(targetUrl: string | null | undefined): boolean {
  *
  * @param objectKey COS 对象键
  * @param initialUrl 初始 URL（可能来自后端 API 返回的已过期地址）
+ * @param providerId 存储提供商 ID（可选，如不传则使用默认存储提供商）
  */
 export default function useCosUrl(
   objectKey: string | null | undefined,
-  initialUrl?: string | null
+  initialUrl?: string | null,
+  providerId?: string | null
 ) {
   const url = ref(initialUrl || '');
   const loading = ref(false);
@@ -58,6 +60,7 @@ export default function useCosUrl(
     try {
       const { data } = await testCosDownloadUrl({
         key,
+        provider_id: providerId || undefined,
         expires_in_seconds: 3600 * 12, // 默认申请 12 小时有效期
       });
 

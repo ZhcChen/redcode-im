@@ -37,12 +37,14 @@
         :loading="listLoading"
         :pagination="false"
         :scroll="{ x: 'max-content' }"
+        :row-key="'id'"
         class="pack-table"
       >
         <template #icon_url="{ record }">
           <CosImage
             :object-key="record.icon_object_key"
             :initial-url="record.icon_url"
+            :provider-id="defaultStorageProvider?.id"
             alt="贴纸图标"
             class="pack-icon"
           >
@@ -125,6 +127,7 @@
                 <CosImage
                   :object-key="packFormData.icon_object_key"
                   :initial-url="packFormData.icon_url"
+                  :provider-id="defaultStorageProvider?.id"
                   alt="图标预览"
                   class="preview-image"
                 />
@@ -236,12 +239,14 @@
             :data="currentSuitePacks"
             :loading="suitePackLoading"
             :pagination="false"
+            :row-key="'id'"
             class="suite-pack-table"
           >
             <template #icon_url="{ record }">
               <CosImage
                 :object-key="record.icon_object_key"
                 :initial-url="record.icon_url"
+                :provider-id="defaultStorageProvider?.id"
                 alt="贴纸图标"
                 class="pack-icon"
               >
@@ -311,12 +316,14 @@
             :data="currentPackItems"
             :loading="itemLoading"
             :pagination="false"
+            :row-key="'id'"
             class="item-table"
           >
             <template #image_url="{ record }">
               <CosImage
                 :object-key="record.image_object_key"
                 :initial-url="record.image_url"
+                :provider-id="defaultStorageProvider?.id"
                 alt="表情"
                 class="emoji-image"
               />
@@ -367,6 +374,7 @@
                   <CosImage
                     :object-key="itemFormData.image_object_key"
                     :initial-url="itemFormData.image_url"
+                    :provider-id="defaultStorageProvider?.id"
                     alt="表情预览"
                     class="preview-image"
                   />

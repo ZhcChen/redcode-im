@@ -17,6 +17,8 @@
     objectKey?: string | null;
     /** 初始 URL（可选，可能已过期） */
     initialUrl?: string | null;
+    /** 存储提供商 ID（可选，如不传则使用默认存储提供商） */
+    providerId?: string | null;
     /** 容器宽度 */
     width?: string | number;
     /** 容器高度 */
@@ -25,7 +27,8 @@
 
   const { url, loading, refresh } = useCosUrl(
     props.objectKey,
-    props.initialUrl
+    props.initialUrl,
+    props.providerId
   );
 
   const containerStyle = computed(() => ({
