@@ -2459,6 +2459,12 @@ class _MessageBubbleState extends State<_MessageBubble>
 
   Widget _buildMessageContent(BuildContext context) {
     final body = _buildMessageBody(context);
+
+    // 混合消息或纯媒体消息自带时间显示，不需要额外的时间行
+    if (_isCurrentMessageMixed() || _isPureMediaMessage()) {
+      return body;
+    }
+
     final timeRow = _buildBubbleTimeRow(context);
 
     return Column(
@@ -2468,6 +2474,41 @@ class _MessageBubbleState extends State<_MessageBubble>
           : CrossAxisAlignment.start,
       children: [body, const SizedBox(height: 6), timeRow],
     );
+  }
+
+  /// 判断当前消息是否是混合消息
+  bool _isCurrentMessageMixed() {
+    final parts = _message.parts;
+    if (parts.isEmpty) return false;
+
+    final mediaParts = parts
+        .where((p) =>
+            p.type == MessagePartType.image || p.type == MessagePartType.video)
+        .toList();
+    final fileParts =
+        parts.where((p) => p.type == MessagePartType.file).toList();
+    final textPart = _getMeaningfulTextPart(parts);
+
+    return _isMixedMessage(mediaParts, fileParts, textPart);
+  }
+
+  /// 判断是否是纯媒体消息（单图/单视频，无文字）
+  bool _isPureMediaMessage() {
+    final parts = _message.parts;
+    if (parts.isEmpty) return false;
+
+    final mediaParts = parts
+        .where((p) =>
+            p.type == MessagePartType.image || p.type == MessagePartType.video)
+        .toList();
+    final textPart = _getMeaningfulTextPart(parts);
+    final fileParts =
+        parts.where((p) => p.type == MessagePartType.file).toList();
+
+    // 只有一个媒体，没有文字，没有文件
+    return mediaParts.length == 1 &&
+        textPart == null &&
+        fileParts.isEmpty;
   }
 
   Widget _buildMessageBody(BuildContext context) {
@@ -2507,6 +2548,34 @@ class _MessageBubbleState extends State<_MessageBubble>
       ..sort((a, b) => a.position.compareTo(b.position));
 
     if (parts.isNotEmpty) {
+      // 按类型分组
+      final mediaParts = parts
+          .where((p) =>
+              p.type == MessagePartType.image ||
+              p.type == MessagePartType.video)
+          .toList();
+      final fileParts =
+          parts.where((p) => p.type == MessagePartType.file).toList();
+      final audioParts =
+          parts.where((p) => p.type == MessagePartType.audio).toList();
+
+      // 获取有意义的文本部分（过滤占位符）
+      final textPart = _getMeaningfulTextPart(parts);
+
+      // 判断是否是混合消息
+      final isMixed = _isMixedMessage(mediaParts, fileParts, textPart);
+
+      if (isMixed) {
+        return _buildMixedContent(
+          context,
+          mediaParts: mediaParts,
+          fileParts: fileParts,
+          audioParts: audioParts,
+          textPart: textPart,
+        );
+      }
+
+      // 非混合消息：简单遍历渲染
       final widgets = <Widget>[];
       for (final part in parts) {
         final widget = _buildPartWidget(context, part);
@@ -2531,6 +2600,135 @@ class _MessageBubbleState extends State<_MessageBubble>
     }
 
     return _buildLegacyContent(context);
+  }
+
+  /// 判断文本是否是占位符
+  bool _isPlaceholderText(String text) {
+    final normalized = text.trim();
+    if (normalized.isEmpty) return true;
+    return normalized == '[混合消息]' ||
+        normalized == '[附件]' ||
+        normalized == '[图片]' ||
+        normalized == '[视频]' ||
+        normalized == '[文件]' ||
+        normalized.startsWith('[混合消息]') ||
+        normalized.startsWith('[附件]') ||
+        normalized.startsWith('[图片]') ||
+        normalized.startsWith('[视频]') ||
+        normalized.startsWith('[文件]');
+  }
+
+  /// 获取有意义的文本部分
+  MessagePart? _getMeaningfulTextPart(List<MessagePart> parts) {
+    // 获取附件名称列表
+    final attachmentNames = parts
+        .where((p) =>
+            p.type != MessagePartType.text &&
+            p.attachment?.name != null &&
+            p.attachment!.name!.trim().isNotEmpty)
+        .map((p) => p.attachment!.name!.trim())
+        .toList();
+
+    for (final part in parts) {
+      if (part.type != MessagePartType.text) continue;
+      final text = part.text?.trim();
+      if (text == null || text.isEmpty) continue;
+      if (_isPlaceholderText(text)) continue;
+      // 排除文件名作为文本
+      if (attachmentNames.contains(text)) continue;
+      return part;
+    }
+    return null;
+  }
+
+  /// 判断是否是混合消息
+  bool _isMixedMessage(
+    List<MessagePart> mediaParts,
+    List<MessagePart> fileParts,
+    MessagePart? textPart,
+  ) {
+    // 多个媒体附件
+    if (mediaParts.length > 1) return true;
+    // 媒体 + 文字
+    if (mediaParts.isNotEmpty && textPart != null) return true;
+    // 文件 + 文字
+    if (fileParts.isNotEmpty && textPart != null) return true;
+    // 多种类型附件
+    if (mediaParts.isNotEmpty && fileParts.isNotEmpty) return true;
+    return false;
+  }
+
+  /// 构建混合消息内容
+  Widget _buildMixedContent(
+    BuildContext context, {
+    required List<MessagePart> mediaParts,
+    required List<MessagePart> fileParts,
+    required List<MessagePart> audioParts,
+    required MessagePart? textPart,
+  }) {
+    final children = <Widget>[];
+
+    // 1) 媒体网格（图片/视频）在最上方
+    if (mediaParts.isNotEmpty) {
+      children.add(
+        _MediaGridView(
+          message: _message,
+          mediaParts: mediaParts,
+          isSelf: _isSelf,
+          hasText: textPart != null,
+        ),
+      );
+    }
+
+    // 2) 文件列表
+    for (final part in fileParts) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: 8));
+      }
+      children.add(
+        _AttachmentFileTile(
+          message: _message,
+          part: part,
+          isSelf: _isSelf,
+          icon: Icons.insert_drive_file,
+          fallbackLabel: '文件',
+        ),
+      );
+    }
+
+    // 3) 音频
+    for (final part in audioParts) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: 8));
+      }
+      children.add(
+        _AudioMessageTile(
+          message: _message,
+          part: part,
+          isSelf: _isSelf,
+        ),
+      );
+    }
+
+    // 4) 文字在最下方（带内嵌时间）
+    if (textPart != null) {
+      final text = textPart.text?.trim() ?? '';
+      children.add(
+        _MixedTextWithTime(
+          text: text,
+          message: _message,
+          isSelf: _isSelf,
+          hasMediaAbove: mediaParts.isNotEmpty,
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          _isSelf ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: children,
+    );
   }
 
   Widget _buildLegacyContent(BuildContext context) {
@@ -2738,6 +2936,11 @@ class _MessageBubbleState extends State<_MessageBubble>
     required bool isSelf,
     bool isSelected = false,
   }) {
+    // 混合消息或纯媒体消息使用透明背景，不需要气泡容器
+    if (_isCurrentMessageMixed() || _isPureMediaMessage()) {
+      return child;
+    }
+
     final bubbleColor = isSelf ? AppColors.primary : Colors.white;
 
     // 选中时的边框
@@ -5256,6 +5459,15 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
                     ),
                   ),
                 ),
+              // 时间戳角标
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: _MediaTimeBadge(
+                  message: widget.message,
+                  isSelf: widget.isSelf,
+                ),
+              ),
             ],
           ),
         ),
@@ -6049,6 +6261,484 @@ class _WaveformPainter extends CustomPainter {
         oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.isPlaying != isPlaying ||
         oldDelegate.animation?.value != animation?.value;
+  }
+}
+
+/// 多图网格布局组件
+class _MediaGridView extends StatelessWidget {
+  const _MediaGridView({
+    required this.message,
+    required this.mediaParts,
+    required this.isSelf,
+    this.hasText = false,
+  });
+
+  final Message message;
+  final List<MessagePart> mediaParts;
+  final bool isSelf;
+  final bool hasText;
+
+  @override
+  Widget build(BuildContext context) {
+    if (mediaParts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final count = mediaParts.length;
+    final gridChildren = <Widget>[];
+
+    for (int i = 0; i < count; i++) {
+      final part = mediaParts[i];
+      gridChildren.add(
+        _MediaGridItem(
+          message: message,
+          part: part,
+          isSelf: isSelf,
+          index: i,
+          total: count,
+        ),
+      );
+    }
+
+    // 根据图片数量选择布局
+    Widget grid;
+    if (count == 1) {
+      grid = gridChildren.first;
+    } else if (count == 2) {
+      grid = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Expanded(child: gridChildren[0]),
+          const SizedBox(width: 2),
+          Expanded(child: gridChildren[1]),
+        ],
+      );
+    } else if (count == 3) {
+      grid = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          gridChildren[0],
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(child: gridChildren[1]),
+              const SizedBox(width: 2),
+              Expanded(child: gridChildren[2]),
+            ],
+          ),
+        ],
+      );
+    } else {
+      // 4 张或更多：2x2 网格
+      final rows = <Widget>[];
+      for (int i = 0; i < count; i += 2) {
+        final rowChildren = <Widget>[
+          Expanded(child: gridChildren[i]),
+        ];
+        if (i + 1 < count) {
+          rowChildren.add(const SizedBox(width: 2));
+          rowChildren.add(Expanded(child: gridChildren[i + 1]));
+        }
+        if (rows.isNotEmpty) {
+          rows.add(const SizedBox(height: 2));
+        }
+        rows.add(Row(
+          mainAxisSize: MainAxisSize.min,
+          children: rowChildren,
+        ));
+      }
+      grid = Column(mainAxisSize: MainAxisSize.min, children: rows);
+    }
+
+    // 如果有文字，媒体网格底部圆角需要去掉
+    final borderRadius = hasText
+        ? const BorderRadius.only(
+            topLeft: Radius.circular(10),
+            topRight: Radius.circular(10),
+          )
+        : BorderRadius.circular(10);
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 280),
+        child: Stack(
+          children: [
+            grid,
+            // 如果没有文字，在媒体右下角显示时间戳
+            if (!hasText)
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: _MediaTimeBadge(message: message, isSelf: isSelf),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 媒体网格中的单个项
+class _MediaGridItem extends StatefulWidget {
+  const _MediaGridItem({
+    required this.message,
+    required this.part,
+    required this.isSelf,
+    required this.index,
+    required this.total,
+  });
+
+  final Message message;
+  final MessagePart part;
+  final bool isSelf;
+  final int index;
+  final int total;
+
+  @override
+  State<_MediaGridItem> createState() => _MediaGridItemState();
+}
+
+class _MediaGridItemState extends State<_MediaGridItem> {
+  String? _localPath;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _localPath = widget.part.attachment?.localPath;
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MediaGridItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.part.attachment?.key != widget.part.attachment?.key) {
+      _localPath = widget.part.attachment?.localPath;
+      _loading = true;
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final attachment = widget.part.attachment;
+    if (attachment == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
+    if (_localPath != null && _localPath!.isNotEmpty) {
+      final file = File(_localPath!);
+      if (await file.exists()) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+    }
+
+    try {
+      final path = await MessageService.instance.ensureAttachmentCached(
+        roomId: widget.message.roomId,
+        message: widget.message,
+        part: widget.part,
+      );
+      if (!mounted) return;
+      setState(() {
+        _localPath = path;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isVideo = widget.part.type == MessagePartType.video;
+
+    // 计算高度：单图较大，多图较小
+    final height = widget.total == 1 ? 200.0 : 140.0;
+
+    if (_loading) {
+      return SizedBox(
+        height: height,
+        child: const Skeleton(borderRadius: 0),
+      );
+    }
+
+    if (_localPath == null) {
+      return Container(
+        height: height,
+        color: AppColors.surfaceMuted,
+        child: const Center(
+          child: Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
+    }
+
+    Widget content = Image.file(
+      File(_localPath!),
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        height: height,
+        color: AppColors.surfaceMuted,
+        child: const Center(
+          child: Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      ),
+    );
+
+    // 视频叠加播放按钮
+    if (isVideo) {
+      content = Stack(
+        alignment: Alignment.center,
+        children: [
+          content,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.play_arrow,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _preview(context),
+      child: content,
+    );
+  }
+
+  Future<void> _preview(BuildContext context) async {
+    if (_localPath == null) return;
+
+    final isVideo = widget.part.type == MessagePartType.video;
+    if (isVideo) {
+      // TODO: 视频预览
+      return;
+    }
+
+    // 图片预览
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.9),
+            alignment: Alignment.center,
+            child: InteractiveViewer(child: Image.file(File(_localPath!))),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 媒体时间戳角标
+class _MediaTimeBadge extends StatelessWidget {
+  const _MediaTimeBadge({
+    required this.message,
+    required this.isSelf,
+  });
+
+  final Message message;
+  final bool isSelf;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = _formatTime(message.timestamp);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            time,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.white,
+            ),
+          ),
+          if (isSelf) ...[
+            const SizedBox(width: 4),
+            _buildStatusIcon(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusIcon() {
+    IconData icon;
+    Color color = Colors.white;
+
+    switch (message.status) {
+      case MessageStatus.sending:
+        return const SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            valueColor: AlwaysStoppedAnimation(Colors.white),
+          ),
+        );
+      case MessageStatus.sent:
+        icon = Icons.check;
+        break;
+      case MessageStatus.delivered:
+        icon = Icons.done_all;
+        break;
+      case MessageStatus.read:
+        icon = Icons.done_all;
+        color = const Color(0xFF40A9FF);
+        break;
+      case MessageStatus.failed:
+        icon = Icons.error_outline;
+        color = Colors.red;
+        break;
+    }
+
+    return Icon(icon, size: 14, color: color);
+  }
+
+  String _formatTime(DateTime time) {
+    final local = time.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+}
+
+/// 混合消息中的文字区域（带内嵌时间）
+class _MixedTextWithTime extends StatelessWidget {
+  const _MixedTextWithTime({
+    required this.text,
+    required this.message,
+    required this.isSelf,
+    this.hasMediaAbove = false,
+  });
+
+  final String text;
+  final Message message;
+  final bool isSelf;
+  final bool hasMediaAbove;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = _formatTime(message.timestamp);
+
+    // 如果上方有媒体，顶部圆角去掉
+    final borderRadius = hasMediaAbove
+        ? const BorderRadius.only(
+            bottomLeft: Radius.circular(10),
+            bottomRight: Radius.circular(10),
+          )
+        : BorderRadius.circular(10);
+
+    final bgColor = isSelf ? AppColors.primary : Colors.white;
+    final textColor = isSelf ? Colors.white : AppColors.textPrimary;
+    final timeColor = isSelf
+        ? Colors.white.withValues(alpha: 0.7)
+        : AppColors.textQuaternary;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 22),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: borderRadius,
+      ),
+      child: Stack(
+        children: [
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 15,
+              color: textColor,
+              height: 1.4,
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: -14,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: timeColor,
+                  ),
+                ),
+                if (isSelf) ...[
+                  const SizedBox(width: 4),
+                  _buildStatusIcon(),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusIcon() {
+    IconData icon;
+    Color color = isSelf
+        ? Colors.white.withValues(alpha: 0.7)
+        : AppColors.textQuaternary;
+
+    switch (message.status) {
+      case MessageStatus.sending:
+        return SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+        );
+      case MessageStatus.sent:
+        icon = Icons.check;
+        break;
+      case MessageStatus.delivered:
+        icon = Icons.done_all;
+        break;
+      case MessageStatus.read:
+        icon = Icons.done_all;
+        color = const Color(0xFF40A9FF);
+        break;
+      case MessageStatus.failed:
+        icon = Icons.error_outline;
+        color = Colors.red;
+        break;
+    }
+
+    return Icon(icon, size: 14, color: color);
+  }
+
+  String _formatTime(DateTime time) {
+    final local = time.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }
 
