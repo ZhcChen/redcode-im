@@ -5317,6 +5317,9 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
       _localPath = widget.part.attachment?.localPath;
       _error = null;
       _loading = true;
+      // 重新订阅新的 key
+      _subscription?.cancel();
+      _subscribeToUpdates();
       _load();
     }
   }
@@ -5332,7 +5335,9 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
     if (key == null) return;
 
     _subscription = MessageService.instance.attachmentPathUpdates.listen((update) {
-      if (update.attachmentKey == key && update.localPath != null) {
+      // 动态获取当前的 key，避免闭包捕获问题
+      final currentKey = widget.part.attachment?.key;
+      if (update.attachmentKey == currentKey && update.localPath != null) {
         if (mounted) {
           setState(() {
             _localPath = update.localPath;
@@ -5354,9 +5359,14 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
       return;
     }
 
+    // 记录加载开始时的 key，用于检测 widget 是否被复用
+    final loadingKey = attachment.key;
+
     if (_localPath != null && _localPath!.isNotEmpty) {
       final file = File(_localPath!);
       if (await file.exists()) {
+        // 检查 key 是否仍然匹配（widget 可能已被复用）
+        if (widget.part.attachment?.key != loadingKey) return;
         setState(() {
           _loading = false;
         });
@@ -5371,12 +5381,17 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
         part: widget.part,
       );
       if (!mounted) return;
+      // 关键：检查 key 是否仍然匹配，防止异步竞态导致图片错乱
+      // 如果 widget 已被复用显示其他图片，丢弃旧的加载结果
+      if (widget.part.attachment?.key != loadingKey) return;
       setState(() {
         _localPath = path;
         _loading = false;
       });
     } catch (error) {
       if (!mounted) return;
+      // 同样检查 key 匹配
+      if (widget.part.attachment?.key != loadingKey) return;
       setState(() {
         _loading = false;
         _error = '$error';
@@ -6444,6 +6459,9 @@ class _MediaGridItemState extends State<_MediaGridItem> {
     if (oldWidget.part.attachment?.key != widget.part.attachment?.key) {
       _localPath = widget.part.attachment?.localPath;
       _loading = true;
+      // 重新订阅新的 key
+      _subscription?.cancel();
+      _subscribeToUpdates();
       _load();
     }
   }
@@ -6459,7 +6477,9 @@ class _MediaGridItemState extends State<_MediaGridItem> {
     if (key == null) return;
 
     _subscription = MessageService.instance.attachmentPathUpdates.listen((update) {
-      if (update.attachmentKey == key && update.localPath != null) {
+      // 动态获取当前的 key，避免闭包捕获问题
+      final currentKey = widget.part.attachment?.key;
+      if (update.attachmentKey == currentKey && update.localPath != null) {
         if (mounted) {
           setState(() {
             _localPath = update.localPath;
@@ -6477,9 +6497,14 @@ class _MediaGridItemState extends State<_MediaGridItem> {
       return;
     }
 
+    // 记录加载开始时的 key，用于检测 widget 是否被复用
+    final loadingKey = attachment.key;
+
     if (_localPath != null && _localPath!.isNotEmpty) {
       final file = File(_localPath!);
       if (await file.exists()) {
+        // 检查 key 是否仍然匹配（widget 可能已被复用）
+        if (widget.part.attachment?.key != loadingKey) return;
         if (mounted) setState(() => _loading = false);
         return;
       }
@@ -6492,12 +6517,18 @@ class _MediaGridItemState extends State<_MediaGridItem> {
         part: widget.part,
       );
       if (!mounted) return;
+      // 关键：检查 key 是否仍然匹配，防止异步竞态导致图片错乱
+      // 如果 widget 已被复用显示其他图片，丢弃旧的加载结果
+      if (widget.part.attachment?.key != loadingKey) return;
       setState(() {
         _localPath = path;
         _loading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      // 同样检查 key 匹配
+      if (widget.part.attachment?.key != loadingKey) return;
+      setState(() => _loading = false);
     }
   }
 
