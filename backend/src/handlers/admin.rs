@@ -151,6 +151,8 @@ pub struct DataStatistics {
 pub struct ApiMetricsParams {
     pub page: Option<usize>,
     pub page_size: Option<usize>,
+    pub sort_field: Option<String>,
+    pub sort_order: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -706,11 +708,35 @@ pub async fn get_api_performance_stats(
     });
     let top_count = top_count.into_iter().take(10).collect::<Vec<_>>();
 
+    // 执行自定义排序
+    let mut metrics_to_sort = metrics_all;
+    if let Some(field) = params.sort_field {
+        let order = params.sort_order.unwrap_or_else(|| "descend".to_string());
+        metrics_to_sort.sort_by(|a, b| {
+            let (v_a, v_b) = match field.as_str() {
+                "count" => (a["count"].as_u64().unwrap_or(0), b["count"].as_u64().unwrap_or(0)),
+                "avg_duration" => (a["avg_duration"].as_u64().unwrap_or(0), b["avg_duration"].as_u64().unwrap_or(0)),
+                "max_duration" => (a["max_duration"].as_u64().unwrap_or(0), b["max_duration"].as_u64().unwrap_or(0)),
+                _ => (a["count"].as_u64().unwrap_or(0), b["count"].as_u64().unwrap_or(0)),
+            };
+            if order == "ascend" {
+                v_a.cmp(&v_b)
+            } else {
+                v_b.cmp(&v_a)
+            }
+        });
+    } else {
+        // 默认按次数降序
+        metrics_to_sort.sort_by(|a, b| {
+            b["count"].as_u64().cmp(&a["count"].as_u64())
+        });
+    }
+
     // 执行分页
     let start = (page - 1) * page_size;
     let end = (start + page_size).min(total);
     let metrics = if start < total {
-        metrics_all[start..end].to_vec()
+        metrics_to_sort[start..end].to_vec()
     } else {
         Vec::new()
     };

@@ -18,7 +18,7 @@
             :loading="loading"
             :pagination="pagination"
             :bordered="false"
-            @page-change="onPageChange"
+            @change="handleTableChange"
           >
             <template #columns>
               <a-table-column title="方法" data-index="method">
@@ -29,8 +29,16 @@
                 </template>
               </a-table-column>
               <a-table-column title="请求路径" data-index="path" />
-              <a-table-column title="调用次数" data-index="count" />
-              <a-table-column title="平均耗时 (ms)" data-index="avg_duration">
+              <a-table-column
+                title="调用次数"
+                data-index="count"
+                :sortable="{ sortDirections: ['ascend', 'descend'] }"
+              />
+              <a-table-column
+                title="平均耗时 (ms)"
+                data-index="avg_duration"
+                :sortable="{ sortDirections: ['ascend', 'descend'] }"
+              >
                 <template #cell="{ record }">
                   <a-progress
                     :percent="getDurationPercent(record.avg_duration)"
@@ -41,7 +49,11 @@
                   </a-progress>
                 </template>
               </a-table-column>
-              <a-table-column title="最大耗时 (ms)" data-index="max_duration">
+              <a-table-column
+                title="最大耗时 (ms)"
+                data-index="max_duration"
+                :sortable="{ sortDirections: ['ascend', 'descend'] }"
+              >
                 <template #cell="{ record }">
                   <span
                     :style="{ color: getDurationColor(record.max_duration) }"
@@ -89,6 +101,8 @@
     total: 0,
     showTotal: true,
   });
+  const sortField = ref<string>('');
+  const sortOrder = ref<string>('');
 
   const avgChart = ref<HTMLElement | null>(null);
   const countChart = ref<HTMLElement | null>(null);
@@ -194,6 +208,8 @@
       const { data } = await getApiPerformanceMetrics({
         page: pagination.value.current,
         page_size: pagination.value.pageSize,
+        sort_field: sortField.value,
+        sort_order: sortOrder.value,
       });
       metrics.value = data.metrics;
       topAvg.value = data.top_avg;
@@ -207,8 +223,14 @@
     }
   };
 
-  const onPageChange = (current: number) => {
-    pagination.value.current = current;
+  const handleTableChange = (data: any, extra: any) => {
+    if (extra.type === 'pagination') {
+      pagination.value.current = data.current;
+    } else if (extra.type === 'sorter') {
+      sortField.value = extra.sorter?.field || '';
+      sortOrder.value = extra.sorter?.direction || '';
+      pagination.value.current = 1; // 排序后回到第一页
+    }
     fetchData();
   };
 
