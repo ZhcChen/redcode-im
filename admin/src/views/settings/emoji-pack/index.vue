@@ -40,19 +40,16 @@
         class="pack-table"
       >
         <template #icon_url="{ record }">
-          <img
-            v-if="record.icon_url && !isExpiredUrl(record.icon_url)"
-            :src="record.icon_url"
+          <CosImage
+            :object-key="record.icon_object_key"
+            :initial-url="record.icon_url"
             alt="贴纸图标"
             class="pack-icon"
-          />
-          <img
-            v-else-if="record.icon_url && isExpiredUrl(record.icon_url)"
-            :src="getRefreshedUrl(record.icon_url)"
-            alt="贴纸图标"
-            class="pack-icon"
-          />
-          <span v-else class="pack-icon-placeholder">无图标</span>
+          >
+            <template #fallback>
+              <span class="pack-icon-placeholder">无图标</span>
+            </template>
+          </CosImage>
         </template>
 
         <template #pack_type="{ record }">
@@ -125,8 +122,9 @@
           <a-form-item field="icon_url" label="图标">
             <div class="icon-upload-wrapper">
               <div v-if="packFormData.icon_url" class="icon-preview">
-                <img
-                  :src="packFormData.icon_url"
+                <CosImage
+                  :object-key="packFormData.icon_object_key"
+                  :initial-url="packFormData.icon_url"
                   alt="图标预览"
                   class="preview-image"
                 />
@@ -134,7 +132,10 @@
                   type="text"
                   status="danger"
                   size="small"
-                  @click="packFormData.icon_url = ''"
+                  @click="
+                    packFormData.icon_url = '';
+                    packFormData.icon_object_key = '';
+                  "
                 >
                   删除
                 </a-button>
@@ -238,19 +239,16 @@
             class="suite-pack-table"
           >
             <template #icon_url="{ record }">
-              <img
-                v-if="record.icon_url && !isExpiredUrl(record.icon_url)"
-                :src="record.icon_url"
+              <CosImage
+                :object-key="record.icon_object_key"
+                :initial-url="record.icon_url"
                 alt="贴纸图标"
                 class="pack-icon"
-              />
-              <img
-                v-else-if="record.icon_url && isExpiredUrl(record.icon_url)"
-                :src="getRefreshedUrl(record.icon_url)"
-                alt="贴纸图标"
-                class="pack-icon"
-              />
-              <span v-else class="pack-icon-placeholder">无图标</span>
+              >
+                <template #fallback>
+                  <span class="pack-icon-placeholder">无图标</span>
+                </template>
+              </CosImage>
             </template>
 
             <template #is_active="{ record }">
@@ -316,7 +314,12 @@
             class="item-table"
           >
             <template #image_url="{ record }">
-              <img :src="record.image_url" alt="表情" class="emoji-image" />
+              <CosImage
+                :object-key="record.image_object_key"
+                :initial-url="record.image_url"
+                alt="表情"
+                class="emoji-image"
+              />
             </template>
 
             <template #operations="{ record }">
@@ -361,8 +364,9 @@
             <a-form-item field="image_url" label="图片">
               <div class="item-image-upload-wrapper">
                 <div v-if="itemFormData.image_url" class="item-image-preview">
-                  <img
-                    :src="itemFormData.image_url"
+                  <CosImage
+                    :object-key="itemFormData.image_object_key"
+                    :initial-url="itemFormData.image_url"
                     alt="表情预览"
                     class="preview-image"
                   />
@@ -370,7 +374,10 @@
                     type="text"
                     status="danger"
                     size="small"
-                    @click="itemFormData.image_url = ''"
+                    @click="
+                      itemFormData.image_url = '';
+                      itemFormData.image_object_key = '';
+                    "
                   >
                     删除
                   </a-button>
@@ -424,9 +431,10 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, computed, onMounted, defineComponent } from 'vue';
+  import { ref, reactive, computed, onMounted } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
+  import CosImage from '@/components/cos-image/index.vue';
   import {
     listAllEmojiPacks,
     createEmojiPack,
@@ -448,24 +456,6 @@
   } from '@/api/settings';
   import { uploadWithSignature } from '@/utils/direct-upload';
   import { computeFileHash } from '@/utils/fileHash';
-
-  // 检查URL是否可能是过期的临时URL
-  const isExpiredUrl = (url: string) => {
-    // 简单检查：如果包含cos.域名且有查询参数，认为是临时URL
-    return url.includes('cos.') && url.includes('?');
-  };
-
-  // 获取刷新的URL（如果是临时URL则尝试通过后端配置生成新的直连地址，否则直接返回原始URL）
-  const getRefreshedUrl = (url: string) => {
-    if (!url) return url;
-    // 如果不是临时URL，直接返回
-    if (!isExpiredUrl(url)) {
-      return url;
-    }
-    // 如果后续需要严格区分「存储 key」与「访问 URL」，可以在后端返回独立的 key 字段；
-    // 目前这里保守处理：直接返回原 URL，避免影响现有功能。
-    return url;
-  };
 
   const { loading: listLoading, setLoading: setListLoading } =
     useLoading(false);
