@@ -70,10 +70,11 @@ class ContactsPageState extends State<ContactsPage> {
               (friend.user.localAvatarPath == null ||
                   friend.user.localAvatarPath!.isEmpty)) {
             try {
-              final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
-                userId: friend.user.id,
-                objectKey: friend.user.avatarObjectKey!,
-              );
+              final cachedPath = await AvatarCache.instance
+                  .resolveUserLocalPath(
+                    userId: friend.user.id,
+                    objectKey: friend.user.avatarObjectKey!,
+                  );
               if (cachedPath != null) {
                 return FriendInfo(
                   id: friend.id,
@@ -145,10 +146,11 @@ class ContactsPageState extends State<ContactsPage> {
               (friend.user.localAvatarPath == null ||
                   friend.user.localAvatarPath!.isEmpty)) {
             try {
-              final cachedPath = await AvatarCache.instance.resolveUserLocalPath(
-                userId: friend.user.id,
-                objectKey: friend.user.avatarObjectKey!,
-              );
+              final cachedPath = await AvatarCache.instance
+                  .resolveUserLocalPath(
+                    userId: friend.user.id,
+                    objectKey: friend.user.avatarObjectKey!,
+                  );
               if (cachedPath != null) {
                 // 创建新的 FriendInfo，更新 user 的 localAvatarPath
                 return FriendInfo(
@@ -683,6 +685,7 @@ class _ContactAvatar extends StatefulWidget {
 class _ContactAvatarState extends State<_ContactAvatar> {
   String? _cachedAvatarPath;
   bool _isLoading = false;
+  bool _loadAttempted = false;
   final _avatarService = UserAvatarService();
 
   @override
@@ -745,6 +748,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
 
     // 如果avatarObjectKey变化，重新加载
     if (widget.entry.avatarObjectKey != oldWidget.entry.avatarObjectKey) {
+      _loadAttempted = false;
       if (widget.entry.avatarObjectKey != null &&
           widget.entry.avatarObjectKey!.isNotEmpty &&
           _cachedAvatarPath == null) {
@@ -759,6 +763,8 @@ class _ContactAvatarState extends State<_ContactAvatar> {
         widget.entry.avatarObjectKey!.isEmpty) {
       return;
     }
+
+    _loadAttempted = true;
 
     // 先快速检查缓存，如果找到了就不显示加载指示器
     try {
@@ -870,13 +876,11 @@ class _ContactAvatarState extends State<_ContactAvatar> {
     }
 
     // 如果有avatarObjectKey但还在加载中，显示加载指示器
-    // 或者如果有avatarObjectKey但_cachedAvatarPath为空，也显示加载指示器（避免闪烁）
-    if ((_isLoading ||
-            (_cachedAvatarPath == null &&
-                widget.entry.avatarObjectKey != null &&
-                widget.entry.avatarObjectKey!.isNotEmpty)) &&
+    // 首次加载前使用占位，避免闪烁；加载失败后回退到默认头像，避免一直转圈
+    final hasAvatarObjectKey =
         widget.entry.avatarObjectKey != null &&
-        widget.entry.avatarObjectKey!.isNotEmpty) {
+        widget.entry.avatarObjectKey!.isNotEmpty;
+    if (hasAvatarObjectKey && (_isLoading || !_loadAttempted)) {
       return Container(
         width: size,
         height: size,

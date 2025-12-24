@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import '../constants/app_config.dart';
 import '../storage/avatar_cache.dart';
@@ -85,28 +86,28 @@ class RoomAvatarService {
 
     try {
       // 下载头像
-      final response = await http.get(Uri.parse(downloadUrl));
+      final response = await http
+          .get(Uri.parse(downloadUrl))
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        // 保存到临时文件
-        final tempDir = await Directory.systemTemp.createTemp();
+        // 保存到临时文件（使用 app 沙盒目录，避免 Directory.systemTemp 在部分设备不可写）
+        final tempDir = await getTemporaryDirectory();
         final tempFile = File(
           '${tempDir.path}/room_avatar_${DateTime.now().millisecondsSinceEpoch}',
         );
-        await tempFile.writeAsBytes(response.bodyBytes);
-
-        // 保存到缓存
-        final cachedPath = await AvatarCache.instance.saveRoomAvatar(
-          roomId: roomId,
-          objectKey: avatarObjectKey,
-          source: tempFile,
-        );
-
-        // 清理临时文件
-        await tempFile.delete();
-        await tempDir.delete(recursive: true);
-
-        return cachedPath;
+        try {
+          await tempFile.writeAsBytes(response.bodyBytes, flush: true);
+          return await AvatarCache.instance.saveRoomAvatar(
+            roomId: roomId,
+            objectKey: avatarObjectKey,
+            source: tempFile,
+          );
+        } finally {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        }
       }
     } catch (e, stackTrace) {
       debugPrint('群头像下载失败 room=$roomId key=$avatarObjectKey err=$e');

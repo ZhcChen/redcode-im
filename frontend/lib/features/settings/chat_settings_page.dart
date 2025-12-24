@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/message_service.dart';
+import '../../core/storage/attachment_cache.dart';
+import '../../core/storage/attachment_url_cache.dart';
+import '../../core/storage/avatar_cache.dart';
+import '../../core/storage/emoji_cache.dart';
 import 'chat_background_page.dart';
 import 'sticker_management_page.dart';
 import 'widgets/confirm_action_dialog.dart';
@@ -15,6 +19,7 @@ class ChatSettingsPage extends StatefulWidget {
 
 class _ChatSettingsPageState extends State<ChatSettingsPage> {
   bool _clearingHistory = false;
+  bool _clearingCache = false;
 
   void _openChatBackground() {
     Navigator.of(
@@ -26,6 +31,48 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const StickerManagementPage()));
+  }
+
+  Future<void> _clearCache() async {
+    if (_clearingCache) return;
+
+    final confirm = await showConfirmActionDialog(
+      context,
+      title: '清除缓存',
+      message: '将清除所有本地缓存（包括图片、附件等），此操作不可恢复，确认继续？',
+      confirmLabel: '清除',
+    );
+    if (!mounted || confirm != true) {
+      return;
+    }
+
+    setState(() => _clearingCache = true);
+    try {
+      // 清除附件缓存
+      await AttachmentCache.instance.clearAll();
+      // 清除附件 URL 内存缓存
+      AttachmentUrlCache.instance.clear();
+      // 清除头像缓存
+      await AvatarCache.instance.clearAll();
+      // 清除表情缓存
+      await EmojiCache.instance.clearAll();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('缓存已清除')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('清除缓存失败：$error')));
+    } finally {
+      if (mounted) {
+        setState(() => _clearingCache = false);
+      } else {
+        _clearingCache = false;
+      }
+    }
   }
 
   Future<void> _clearChatHistory() async {
@@ -107,6 +154,13 @@ class _ChatSettingsPageState extends State<ChatSettingsPage> {
                   title: '表情管理',
                   onTap: _openStickerManagement,
                   showDivider: true,
+                ),
+                _ChatSettingItem(
+                  title: '清除缓存',
+                  onTap: _clearingCache ? null : _clearCache,
+                  showDivider: true,
+                  isLoading: _clearingCache,
+                  isDanger: true,
                 ),
                 _ChatSettingItem(
                   title: '清空聊天记录',

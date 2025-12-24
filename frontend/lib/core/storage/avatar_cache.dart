@@ -267,6 +267,38 @@ class AvatarCache {
     await prefs.setString(storageKey, raw);
   }
 
+  /// 清除所有头像缓存（包括用户头像和房间头像）
+  Future<void> clearAll() async {
+    // 删除用户头像缓存目录
+    final userDir = await _ensureUserCacheDir();
+    if (await userDir.exists()) {
+      await userDir.delete(recursive: true);
+    }
+
+    // 删除房间头像缓存目录
+    final roomDir = await _ensureRoomCacheDir();
+    if (await roomDir.exists()) {
+      await roomDir.delete(recursive: true);
+    }
+
+    // 清除 SharedPreferences 中的所有头像缓存键
+    final prefs = await SharedPreferences.getInstance();
+    final allKeys = prefs.getKeys();
+    final userKeys = allKeys
+        .where((key) => key.startsWith(_userPrefsKeyPrefix))
+        .toList();
+    final roomKeys = allKeys
+        .where((key) => key.startsWith(_roomPrefsKeyPrefix))
+        .toList();
+
+    for (final key in userKeys) {
+      await prefs.remove(key);
+    }
+    for (final key in roomKeys) {
+      await prefs.remove(key);
+    }
+  }
+
   // --- 向后兼容的旧方法 ---
   // 这些方法现在标记为废弃，建议使用专门的方法
 

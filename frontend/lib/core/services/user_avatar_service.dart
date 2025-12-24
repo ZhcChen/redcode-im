@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import '../constants/app_config.dart';
 import '../storage/token_storage.dart';
@@ -58,8 +60,17 @@ class UserAvatarService {
           return downloadUrl;
         }
       }
+      if (kDebugMode) {
+        debugPrint(
+          '[Avatar] 获取用户头像下载地址失败 user=$userId status=${response.statusCode} body=${response.body}',
+        );
+      }
     } catch (e, stackTrace) {
       // API不存在或失败，返回null
+      if (kDebugMode) {
+        debugPrint('[Avatar] 获取用户头像下载地址异常 user=$userId err=$e');
+        debugPrint(stackTrace.toString());
+      }
     }
     return null;
   }
@@ -132,25 +143,25 @@ class UserAvatarService {
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        // 保存到临时文件
-        final tempDir = await Directory.systemTemp.createTemp();
+        // 保存到临时文件（必须使用 app 沙盒目录，避免 Directory.systemTemp 在部分设备不可写）
+        final tempDir = await getTemporaryDirectory();
         final tempFile = File(
           '${tempDir.path}/avatar_${DateTime.now().millisecondsSinceEpoch}',
         );
-        await tempFile.writeAsBytes(response.bodyBytes);
+        try {
+          await tempFile.writeAsBytes(response.bodyBytes, flush: true);
 
-        // 保存到缓存
-        final cachedPath = await AvatarCache.instance.saveUserAvatar(
-          userId: userId,
-          objectKey: avatarObjectKey,
-          source: tempFile,
-        );
-
-        // 清理临时文件
-        await tempFile.delete();
-        await tempDir.delete(recursive: true);
-
-        return cachedPath;
+          // 保存到缓存
+          return await AvatarCache.instance.saveUserAvatar(
+            userId: userId,
+            objectKey: avatarObjectKey,
+            source: tempFile,
+          );
+        } finally {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        }
       }
 
       // 非 200 响应，根据状态码决定是否重试
@@ -172,6 +183,11 @@ class UserAvatarService {
           userId: userId,
           avatarObjectKey: avatarObjectKey,
           attempt: attempt + 1,
+        );
+      }
+      if (kDebugMode) {
+        debugPrint(
+          '[Avatar] 下载头像失败 user=$userId attempt=${attempt + 1}/$_maxRetries err=$e',
         );
       }
     }

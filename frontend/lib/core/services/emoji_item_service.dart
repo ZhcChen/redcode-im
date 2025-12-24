@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import '../storage/emoji_cache.dart';
 
@@ -26,24 +27,23 @@ class EmojiItemService {
       final response = await http.get(Uri.parse(imageUrl));
 
       if (response.statusCode == 200) {
-        // 保存到临时文件
-        final tempDir = await Directory.systemTemp.createTemp();
+        // 保存到临时文件（使用 app 沙盒目录，避免 Directory.systemTemp 在部分设备不可写）
+        final tempDir = await getTemporaryDirectory();
         final tempFile = File(
           '${tempDir.path}/emoji_${DateTime.now().millisecondsSinceEpoch}',
         );
-        await tempFile.writeAsBytes(response.bodyBytes);
-
-        // 保存到缓存
-        final cachedPath = await EmojiCache.instance.save(
-          imageUrl: imageUrl,
-          source: tempFile,
-        );
-
-        // 清理临时文件
-        await tempFile.delete();
-        await tempDir.delete(recursive: true);
-
-        return cachedPath;
+        try {
+          await tempFile.writeAsBytes(response.bodyBytes, flush: true);
+          // 保存到缓存
+          return await EmojiCache.instance.save(
+            imageUrl: imageUrl,
+            source: tempFile,
+          );
+        } finally {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        }
       }
     } catch (e) {
       // 下载失败，返回null

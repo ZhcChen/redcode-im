@@ -115,6 +115,26 @@ class EmojiCache {
     final raw = jsonEncode({'imageUrl': record.imageUrl, 'path': record.path});
     await prefs.setString(key, raw);
   }
+
+  /// 清除所有表情缓存
+  Future<void> clearAll() async {
+    // 删除表情缓存目录
+    final cacheDir = await _ensureCacheDir();
+    if (await cacheDir.exists()) {
+      await cacheDir.delete(recursive: true);
+    }
+
+    // 清除 SharedPreferences 中的所有表情缓存键
+    final prefs = await SharedPreferences.getInstance();
+    final allKeys = prefs.getKeys();
+    final emojiKeys = allKeys
+        .where((key) => key.startsWith(_prefsKeyPrefix))
+        .toList();
+
+    for (final key in emojiKeys) {
+      await prefs.remove(key);
+    }
+  }
 }
 
 class _EmojiCacheRecord {
