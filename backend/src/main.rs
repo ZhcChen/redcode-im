@@ -1,5 +1,5 @@
-use std::{env, sync::Arc};
 use std::net::IpAddr;
+use std::{env, sync::Arc};
 
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
@@ -11,9 +11,11 @@ use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use redcode_im_backend::{
-    database, redis, routes, services, websocket, middleware,
-    logging::{self, DatabaseLayer, LoggingConfig, LogWriter, PostgresLogStore, LogStore, LogEntry},
-    AppState,
+    database,
+    logging::{
+        self, DatabaseLayer, LogEntry, LogStore, LogWriter, LoggingConfig, PostgresLogStore,
+    },
+    middleware, redis, routes, services, websocket, AppState,
 };
 
 #[tokio::main]
@@ -116,21 +118,23 @@ async fn main() {
     let local_ip = get_local_ip().unwrap_or_else(|| "Unknown".to_string());
     eprintln!("[STARTUP] 服务已启动:");
     eprintln!("[STARTUP]   > Local:   http://localhost:{}", port);
-    eprintln!("[STARTUP]   > Network (Default): http://{}:{}", local_ip, port);
+    eprintln!(
+        "[STARTUP]   > Network (Default): http://{}:{}",
+        local_ip, port
+    );
 
     // 尝试打印 en1 的 IP
     if let Some(en1_ip) = get_interface_ip("en1") {
-        eprintln!("[STARTUP]   > Network (en1):     http://{}:{}", en1_ip, port);
+        eprintln!(
+            "[STARTUP]   > Network (en1):     http://{}:{}",
+            en1_ip, port
+        );
     }
 
     axum::serve(listener, app).await.expect("server");
 }
 
-fn init_tracing(
-    log_sender: mpsc::Sender<LogEntry>,
-    node_id: String,
-    log_config: &LoggingConfig,
-) {
+fn init_tracing(log_sender: mpsc::Sender<LogEntry>, node_id: String, log_config: &LoggingConfig) {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
     // 控制台日志 layer（可选，由 LOG_CONSOLE_ENABLED 控制）
@@ -215,6 +219,28 @@ async fn start_background_tasks(
         }
     });
 
+    // 启动文件内容审核任务（COS + 数据万象 CI）
+    let audit_db = database.clone();
+    let audit_cfg = services::file_upload_audit::FileUploadAuditConfig::from_env();
+    let audit_interval_seconds = env::var("FILE_UPLOAD_AUDIT_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(15);
+    tokio::spawn(async move {
+        loop {
+            if let Err(e) = services::file_upload_audit::run_file_upload_audit_once(
+                audit_db.clone(),
+                &audit_cfg,
+            )
+            .await
+            {
+                error!("文件内容审核任务失败: {:?}", e);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(audit_interval_seconds)).await;
+        }
+    });
+
     info!("后台任务启动完成: 节点ID = {}", node_id);
 }
 
@@ -239,11 +265,21 @@ async fn register_node_heartbeat(
     let active_rooms = connection_manager.get_active_room_count().await;
 
     // 获取系统指标
-    let cpu_usage = redcode_im_backend::utils::system::get_system_load().await.unwrap_or(0.0);
-    let memory_usage = redcode_im_backend::utils::system::get_memory_usage().await.unwrap_or(0.0);
-    let disk_usage = redcode_im_backend::utils::system::get_disk_usage().await.unwrap_or(0.0);
-    let cpu_count = redcode_im_backend::utils::system::get_cpu_count().await.unwrap_or(1);
-    let total_memory = redcode_im_backend::utils::system::get_total_memory().await.unwrap_or(0);
+    let cpu_usage = redcode_im_backend::utils::system::get_system_load()
+        .await
+        .unwrap_or(0.0);
+    let memory_usage = redcode_im_backend::utils::system::get_memory_usage()
+        .await
+        .unwrap_or(0.0);
+    let disk_usage = redcode_im_backend::utils::system::get_disk_usage()
+        .await
+        .unwrap_or(0.0);
+    let cpu_count = redcode_im_backend::utils::system::get_cpu_count()
+        .await
+        .unwrap_or(1);
+    let total_memory = redcode_im_backend::utils::system::get_total_memory()
+        .await
+        .unwrap_or(0);
 
     session_manager
         .register_node_heartbeat(

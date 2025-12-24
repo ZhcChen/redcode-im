@@ -99,8 +99,14 @@ pub fn create_routes() -> Router<AppState> {
             "/api/dashboard/emoji-stats",
             get(admin::get_dashboard_emoji_stats),
         )
-        .route("/api/admin/nodes/monitor", get(admin::list_active_nodes_monitor))
-        .route("/api/admin/metrics/performance", get(admin::get_api_performance_stats))
+        .route(
+            "/api/admin/nodes/monitor",
+            get(admin::list_active_nodes_monitor),
+        )
+        .route(
+            "/api/admin/metrics/performance",
+            get(admin::get_api_performance_stats),
+        )
         .route("/api/dashboard/statistics", get(admin::get_data_statistics))
         .route("/api/admin/users", get(admin::get_user_list))
         .route("/api/admin/users", post(admin::create_user))
@@ -318,9 +324,19 @@ pub fn create_routes() -> Router<AppState> {
         // 系统日志管理API
         .route("/api/admin/logs", get(admin::list_system_logs))
         .route("/api/admin/logs/stats", get(admin::get_system_log_stats))
+        .route("/api/admin/logs/cleanup", post(admin::cleanup_system_logs))
+        // 文件内容审核（COS/CI）运维 API
         .route(
-            "/api/admin/logs/cleanup",
-            post(admin::cleanup_system_logs),
+            "/api/admin/file-upload-audit/tasks",
+            get(admin::list_file_upload_audit_tasks),
+        )
+        .route(
+            "/api/admin/file-upload-audit/tasks/{task_id}",
+            get(admin::get_file_upload_audit_task),
+        )
+        .route(
+            "/api/admin/file-upload-audit/tasks/{task_id}/requeue",
+            post(admin::requeue_file_upload_audit_task),
         )
         // 聊天记录管理API
         .route(
@@ -651,7 +667,5 @@ pub fn create_routes() -> Router<AppState> {
         .layer(middleware::from_fn(auth_middleware));
 
     // 合并所有路由
-    public_routes
-        .merge(user_routes)
-        .merge(admin_routes)
+    public_routes.merge(user_routes).merge(admin_routes)
 }

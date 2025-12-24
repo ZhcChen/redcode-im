@@ -867,6 +867,28 @@ pub struct FileUploadMultipartSession {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
+/// 文件内容审核任务（COS + 数据万象 CI）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FileUploadAuditTask {
+    pub id: Uuid,
+    pub storage_provider_id: Uuid,
+    pub object_key: String,
+    pub scene: String,
+    pub media_kind: String,
+    pub content_type: Option<String>,
+    pub file_size: Option<i64>,
+    pub status: i16,
+    pub vendor_job_id: Option<String>,
+    pub result: Value,
+    pub rejected_reason: Option<String>,
+    pub attempts: i32,
+    pub next_run_at: DateTime<Utc>,
+    pub last_error: Option<String>,
+    pub audited_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 // ===== 群聊管理相关模型 =====
 
 /// 群聊设置

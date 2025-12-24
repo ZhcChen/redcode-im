@@ -9,6 +9,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::database::{
+    file_upload_audit_store::FileUploadAuditStore,
     file_upload_multipart_store::FileUploadMultipartStore,
     file_upload_store::FileUploadStore,
     group_management_store::GroupManagementStore,
@@ -455,6 +456,23 @@ fn normalize_hash_hex(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
 
+fn infer_media_kind_from_message_attachment_object_key(key: &str) -> &'static str {
+    let trimmed = key.trim();
+    if trimmed.contains("/images_") {
+        return "image";
+    }
+    if trimmed.contains("/videos_") {
+        return "video";
+    }
+    if trimmed.contains("/audios_") {
+        return "audio";
+    }
+    if trimmed.contains("/files_") {
+        return "document";
+    }
+    "unknown"
+}
+
 #[cfg(test)]
 mod message_attachment_key_tests {
     use super::is_valid_message_attachment_object_key;
@@ -631,6 +649,65 @@ pub async fn send_message(
                 ));
             }
         }
+        if let Some(key) = &part.thumbnail_key {
+            if !is_valid_message_attachment_object_key(key) {
+                return Err(AppError::ValidationError(
+                    "缩略图 key 不合法，请重新获取上传签名".to_string(),
+                ));
+            }
+        }
+    }
+
+    // 兜底：即使客户端未走 commit（仅引用 key），也要确保进入审核队列
+    // 说明：违规文件会在后台被删除；这里只负责“入队记录”。
+    {
+        let mut audit_items: Vec<(String, &'static str, Option<String>, Option<i64>)> = Vec::new();
+        for part in &db_parts {
+            if part.part_type == MessagePartType::Text {
+                continue;
+            }
+
+            if let Some(key) = &part.attachment_key {
+                let media_kind = match part.part_type {
+                    MessagePartType::Image => "image",
+                    MessagePartType::Video => "video",
+                    MessagePartType::Audio => "audio",
+                    MessagePartType::File => "document",
+                    MessagePartType::Text => "text",
+                };
+                audit_items.push((
+                    key.clone(),
+                    media_kind,
+                    part.attachment_mime.clone(),
+                    part.attachment_size,
+                ));
+            }
+
+            if let Some(key) = &part.thumbnail_key {
+                audit_items.push((key.clone(), "image", None, None));
+            }
+        }
+
+        if !audit_items.is_empty() {
+            audit_items.sort_by(|a, b| a.0.cmp(&b.0));
+            audit_items.dedup_by(|a, b| a.0 == b.0);
+
+            let provider = load_default_storage_provider(&state).await?;
+            let audit_store = FileUploadAuditStore::new(state.database.clone());
+            for (key, media_kind, content_type, file_size) in audit_items {
+                let _ = audit_store
+                    .upsert_task(
+                        &provider.id,
+                        &key,
+                        "message_attachment",
+                        media_kind,
+                        content_type.as_deref(),
+                        file_size,
+                    )
+                    .await
+                    .map_err(AppError::from)?;
+            }
+        }
     }
 
     let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
@@ -737,6 +814,57 @@ pub async fn forward_message(
         .await?
         .remove(&original.id)
         .unwrap_or_default();
+
+    // 兜底：转发时也确保附件 key 已进入审核队列（兼容历史数据/未走 commit 的情况）
+    {
+        let mut audit_items: Vec<(String, &'static str, Option<String>, Option<i64>)> = Vec::new();
+        for part in &original_parts {
+            if part.part_type == MessagePartType::Text {
+                continue;
+            }
+
+            if let Some(key) = &part.attachment_key {
+                let media_kind = match part.part_type {
+                    MessagePartType::Image => "image",
+                    MessagePartType::Video => "video",
+                    MessagePartType::Audio => "audio",
+                    MessagePartType::File => "document",
+                    MessagePartType::Text => "text",
+                };
+                audit_items.push((
+                    key.clone(),
+                    media_kind,
+                    part.attachment_mime.clone(),
+                    part.attachment_size,
+                ));
+            }
+
+            if let Some(key) = &part.thumbnail_key {
+                audit_items.push((key.clone(), "image", None, None));
+            }
+        }
+
+        if !audit_items.is_empty() {
+            audit_items.sort_by(|a, b| a.0.cmp(&b.0));
+            audit_items.dedup_by(|a, b| a.0 == b.0);
+
+            let provider = load_default_storage_provider(&state).await?;
+            let audit_store = FileUploadAuditStore::new(state.database.clone());
+            for (key, media_kind, content_type, file_size) in audit_items {
+                let _ = audit_store
+                    .upsert_task(
+                        &provider.id,
+                        &key,
+                        "message_attachment",
+                        media_kind,
+                        content_type.as_deref(),
+                        file_size,
+                    )
+                    .await
+                    .map_err(AppError::from)?;
+            }
+        }
+    }
 
     let created = store
         .create_forward_message(room_id, sender_id, &original, &original_parts)
@@ -1686,6 +1814,30 @@ pub async fn commit_message_attachment_upload(
     // 尝试将已有记录标记为完成；如果不存在记录，暂时忽略（说明生成签名时可能未带 hash）
     let _ = upload_store
         .mark_completed_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+
+    // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
+    let record = upload_store
+        .get_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+    let audit_store = FileUploadAuditStore::new(state.database.clone());
+    let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+    let file_size = record
+        .as_ref()
+        .and_then(|r| r.file_size)
+        .or(req.file_size.map(|v| v as i64));
+    let media_kind = infer_media_kind_from_message_attachment_object_key(key);
+    let _ = audit_store
+        .upsert_task(
+            &provider.id,
+            key,
+            "message_attachment",
+            media_kind,
+            content_type,
+            file_size,
+        )
         .await
         .map_err(AppError::from)?;
 

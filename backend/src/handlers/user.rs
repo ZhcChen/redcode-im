@@ -1,4 +1,5 @@
 use crate::auth::{hash_password, verify_password};
+use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::friend_store::FriendStore;
 use crate::database::models::{
     RoomType, StorageProvider, StorageProviderType, UpdateUserRequest as DbUpdateUserRequest,
@@ -453,6 +454,22 @@ pub async fn commit_avatar_upload(
     // 标记文件上传完成（如果之前通过直传签名创建了记录）
     let _ = upload_store
         .mark_completed_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+
+    // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
+    let audit_store = FileUploadAuditStore::new(state.database.clone());
+    let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+    let file_size = record.as_ref().and_then(|r| r.file_size);
+    let _ = audit_store
+        .upsert_task(
+            &provider.id,
+            key,
+            "avatar",
+            "image",
+            content_type,
+            file_size,
+        )
         .await
         .map_err(AppError::from)?;
 

@@ -1,4 +1,5 @@
 use crate::database::emoji_pack_store::EmojiPackStore;
+use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::models::{
     CreateEmojiItemRequest, CreateEmojiPackRequest, EmojiItem, EmojiPack, UpdateEmojiItemRequest,
     UpdateEmojiPackRequest,
@@ -135,6 +136,21 @@ pub async fn create_pack(
     let store = EmojiPackStore::new(state.database.clone());
     let pack = store.create_pack(payload).await?;
 
+    // 贴纸/表情属于可传播资源：写入审核任务（违规会删除对象并记录原因）
+    if let Some(key) = pack
+        .icon_object_key
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    {
+        let provider = load_default_storage_provider(&state).await?;
+        let audit_store = FileUploadAuditStore::new(state.database.clone());
+        let _ = audit_store
+            .upsert_task(&provider.id, key, "emoji_pack_icon", "image", None, None)
+            .await
+            .map_err(AppError::from)?;
+    }
+
     Ok(Json(db_pack_to_api(&pack)))
 }
 
@@ -175,6 +191,20 @@ pub async fn update_pack(
         .await?
         .ok_or_else(|| AppError::NotFound("贴纸不存在".to_string()))?;
 
+    if let Some(key) = pack
+        .icon_object_key
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    {
+        let provider = load_default_storage_provider(&state).await?;
+        let audit_store = FileUploadAuditStore::new(state.database.clone());
+        let _ = audit_store
+            .upsert_task(&provider.id, key, "emoji_pack_icon", "image", None, None)
+            .await
+            .map_err(AppError::from)?;
+    }
+
     Ok(Json(db_pack_to_api(&pack)))
 }
 
@@ -213,6 +243,20 @@ pub async fn create_item(
     let store = EmojiPackStore::new(state.database.clone());
     let item = store.create_item(payload).await?;
 
+    if let Some(key) = item
+        .image_object_key
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    {
+        let provider = load_default_storage_provider(&state).await?;
+        let audit_store = FileUploadAuditStore::new(state.database.clone());
+        let _ = audit_store
+            .upsert_task(&provider.id, key, "emoji_item_image", "image", None, None)
+            .await
+            .map_err(AppError::from)?;
+    }
+
     Ok(Json(db_item_to_api(&item)))
 }
 
@@ -247,6 +291,20 @@ pub async fn update_item(
         .update_item(item_id, payload)
         .await?
         .ok_or_else(|| AppError::NotFound("表情项不存在".to_string()))?;
+
+    if let Some(key) = item
+        .image_object_key
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    {
+        let provider = load_default_storage_provider(&state).await?;
+        let audit_store = FileUploadAuditStore::new(state.database.clone());
+        let _ = audit_store
+            .upsert_task(&provider.id, key, "emoji_item_image", "image", None, None)
+            .await
+            .map_err(AppError::from)?;
+    }
 
     Ok(Json(db_item_to_api(&item)))
 }

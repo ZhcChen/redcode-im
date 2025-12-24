@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     database::{
+        file_upload_audit_store::FileUploadAuditStore,
         file_upload_store::FileUploadStore,
         message_store::MessageStore,
         report_store::{AdminReportListFilters, ReportAttachmentInsert, ReportInsert, ReportStore},
@@ -272,6 +273,29 @@ pub async fn commit_report_attachment_upload(
 
     let _ = upload_store
         .mark_completed_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+
+    // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
+    let record = upload_store
+        .get_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?;
+    let audit_store = FileUploadAuditStore::new(state.database.clone());
+    let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+    let file_size = record
+        .as_ref()
+        .and_then(|r| r.file_size)
+        .or(req.file_size.map(|v| v as i64));
+    let _ = audit_store
+        .upsert_task(
+            &provider.id,
+            key,
+            "report_attachment",
+            "image",
+            content_type,
+            file_size,
+        )
         .await
         .map_err(AppError::from)?;
 

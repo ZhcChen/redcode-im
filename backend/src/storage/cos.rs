@@ -96,7 +96,7 @@ impl TencentCosService {
     }
 
     /// 生成腾讯云 COS API v1 签名（指定 host）
-    fn generate_signature_v1_with_host(
+    pub(crate) fn generate_signature_v1_with_host(
         &self,
         method: &str,
         path: &str,

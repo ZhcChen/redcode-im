@@ -61,17 +61,21 @@ impl FileUploadStore {
         if let Some(prefix) = object_key_prefix {
             query_as::<_, FileUploadRecord>(
                 r#"
-                SELECT id, storage_provider_id, object_key, hash_alg, hash_value,
-                       file_size, content_type, status, uploaded_at,
-                       updated_at, created_at, last_error
-                FROM file_upload_records
-                WHERE storage_provider_id = $1
-                  AND hash_alg = $2
-                  AND hash_value = $3
-                  AND file_size = $4
-                  AND status = 1
-                  AND object_key LIKE $5 || '%'
-                ORDER BY uploaded_at DESC NULLS LAST, created_at DESC
+                SELECT r.id, r.storage_provider_id, r.object_key, r.hash_alg, r.hash_value,
+                       r.file_size, r.content_type, r.status, r.uploaded_at,
+                       r.updated_at, r.created_at, r.last_error
+                FROM file_upload_records r
+                JOIN file_upload_audit_tasks a
+                  ON a.storage_provider_id = r.storage_provider_id
+                 AND a.object_key = r.object_key
+                WHERE r.storage_provider_id = $1
+                  AND r.hash_alg = $2
+                  AND r.hash_value = $3
+                  AND r.file_size = $4
+                  AND r.status = 1
+                  AND a.status = 1
+                  AND r.object_key LIKE $5 || '%'
+                ORDER BY r.uploaded_at DESC NULLS LAST, r.created_at DESC
                 LIMIT 1
                 "#,
             )
@@ -85,16 +89,20 @@ impl FileUploadStore {
         } else {
             query_as::<_, FileUploadRecord>(
                 r#"
-                SELECT id, storage_provider_id, object_key, hash_alg, hash_value,
-                       file_size, content_type, status, uploaded_at,
-                       updated_at, created_at, last_error
-                FROM file_upload_records
-                WHERE storage_provider_id = $1
-                  AND hash_alg = $2
-                  AND hash_value = $3
-                  AND file_size = $4
-                  AND status = 1
-                ORDER BY uploaded_at DESC NULLS LAST, created_at DESC
+                SELECT r.id, r.storage_provider_id, r.object_key, r.hash_alg, r.hash_value,
+                       r.file_size, r.content_type, r.status, r.uploaded_at,
+                       r.updated_at, r.created_at, r.last_error
+                FROM file_upload_records r
+                JOIN file_upload_audit_tasks a
+                  ON a.storage_provider_id = r.storage_provider_id
+                 AND a.object_key = r.object_key
+                WHERE r.storage_provider_id = $1
+                  AND r.hash_alg = $2
+                  AND r.hash_value = $3
+                  AND r.file_size = $4
+                  AND r.status = 1
+                  AND a.status = 1
+                ORDER BY r.uploaded_at DESC NULLS LAST, r.created_at DESC
                 LIMIT 1
                 "#,
             )

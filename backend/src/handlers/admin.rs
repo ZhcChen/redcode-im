@@ -120,7 +120,6 @@ pub struct DashboardEmojiStats {
     pub popular_count: i64,
 }
 
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeMonitorInfo {
@@ -628,15 +627,13 @@ async fn get_today_messages_count(pool: &sqlx::PgPool) -> Result<i64, sqlx::Erro
     Ok(count)
 }
 
-use crate::utils::system::{get_system_load, get_memory_usage};
-
+use crate::utils::system::{get_memory_usage, get_system_load};
 
 async fn get_storage_usage(_state: &AppState) -> Result<f64, AppError> {
     // 这里应该调用存储服务获取实际使用量
     // 暂时返回模拟数据
     Ok(0.28)
 }
-
 
 pub async fn list_active_nodes_monitor(
     State(state): State<AppState>,
@@ -678,7 +675,7 @@ pub async fn get_api_performance_stats(
     Extension(_claims): Extension<Claims>,
 ) -> Result<Json<ApiMetricsResponse>, AppError> {
     let session_manager = state.redis.get_session_manager(state.node_id.clone());
-    
+
     let page = params.page.unwrap_or(1);
     let page_size = params.page_size.unwrap_or(10);
 
@@ -714,10 +711,22 @@ pub async fn get_api_performance_stats(
         let order = params.sort_order.unwrap_or_else(|| "descend".to_string());
         metrics_to_sort.sort_by(|a, b| {
             let (v_a, v_b) = match field.as_str() {
-                "count" => (a["count"].as_u64().unwrap_or(0), b["count"].as_u64().unwrap_or(0)),
-                "avg_duration" => (a["avg_duration"].as_u64().unwrap_or(0), b["avg_duration"].as_u64().unwrap_or(0)),
-                "max_duration" => (a["max_duration"].as_u64().unwrap_or(0), b["max_duration"].as_u64().unwrap_or(0)),
-                _ => (a["count"].as_u64().unwrap_or(0), b["count"].as_u64().unwrap_or(0)),
+                "count" => (
+                    a["count"].as_u64().unwrap_or(0),
+                    b["count"].as_u64().unwrap_or(0),
+                ),
+                "avg_duration" => (
+                    a["avg_duration"].as_u64().unwrap_or(0),
+                    b["avg_duration"].as_u64().unwrap_or(0),
+                ),
+                "max_duration" => (
+                    a["max_duration"].as_u64().unwrap_or(0),
+                    b["max_duration"].as_u64().unwrap_or(0),
+                ),
+                _ => (
+                    a["count"].as_u64().unwrap_or(0),
+                    b["count"].as_u64().unwrap_or(0),
+                ),
             };
             if order == "ascend" {
                 v_a.cmp(&v_b)
@@ -727,9 +736,7 @@ pub async fn get_api_performance_stats(
         });
     } else {
         // 默认按次数降序
-        metrics_to_sort.sort_by(|a, b| {
-            b["count"].as_u64().cmp(&a["count"].as_u64())
-        });
+        metrics_to_sort.sort_by(|a, b| b["count"].as_u64().cmp(&a["count"].as_u64()));
     }
 
     // 执行分页
@@ -750,11 +757,6 @@ pub async fn get_api_performance_stats(
         page_size,
     }))
 }
-
-
-
-
-
 
 pub async fn get_user_list(
     State(state): State<AppState>,
@@ -2870,11 +2872,46 @@ pub async fn test_cos_upload(
         .upload_file(&key, content_bytes, content_type.as_deref())
         .await
     {
-        Ok(url) => Ok(Json(TestCosUploadResponse {
-            success: true,
-            url: Some(url),
-            message: "上传成功".to_string(),
-        })),
+        Ok(url) => {
+            // 仅测试接口：也进入审核队列，便于验证审核链路与后台展示
+            let media_kind = content_type
+                .as_deref()
+                .map(|v| v.trim().to_ascii_lowercase())
+                .map(|v| {
+                    if v.starts_with("image/") {
+                        "image"
+                    } else if v.starts_with("video/") {
+                        "video"
+                    } else if v.starts_with("audio/") {
+                        "audio"
+                    } else if v.starts_with("text/") {
+                        "text"
+                    } else {
+                        "document"
+                    }
+                })
+                .unwrap_or("unknown");
+
+            let audit_store = crate::database::file_upload_audit_store::FileUploadAuditStore::new(
+                state.database.clone(),
+            );
+            let _ = audit_store
+                .upsert_task(
+                    &provider.id,
+                    &key,
+                    "admin_test_upload",
+                    media_kind,
+                    content_type.as_deref(),
+                    None,
+                )
+                .await;
+
+            Ok(Json(TestCosUploadResponse {
+                success: true,
+                url: Some(url),
+                message: "上传成功".to_string(),
+            }))
+        }
         Err(e) => Ok(Json(TestCosUploadResponse {
             success: false,
             url: None,
@@ -4887,7 +4924,6 @@ pub async fn set_ip_geolocation_enabled(
     }))
 }
 
-
 // ========== 系统日志管理 API ==========
 
 /// 系统日志查询参数
@@ -5030,9 +5066,7 @@ pub async fn cleanup_system_logs(
     Json(req): Json<LogCleanupRequest>,
 ) -> Result<Json<LogCleanupResponse>, AppError> {
     if req.retention_days < 1 {
-        return Err(AppError::ValidationError(
-            "保留天数必须大于 0".to_string(),
-        ));
+        return Err(AppError::ValidationError("保留天数必须大于 0".to_string()));
     }
 
     info!(
@@ -5054,5 +5088,237 @@ pub async fn cleanup_system_logs(
             "成功删除 {} 条日志，保留最近 {} 天的日志",
             deleted_count, req.retention_days
         ),
+    }))
+}
+
+// ========== 文件内容审核（COS/CI）运维 API ==========
+
+/// 文件内容审核任务查询参数
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadAuditTaskQueryParams {
+    pub provider_id: Option<String>,
+    pub status: Option<i16>,
+    pub scene: Option<String>,
+    pub media_kind: Option<String>,
+    pub keyword: Option<String>,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// 文件内容审核任务（列表项）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadAuditTaskListEntry {
+    pub id: String,
+    pub storage_provider_id: String,
+    pub object_key: String,
+    pub scene: String,
+    pub media_kind: String,
+    pub content_type: Option<String>,
+    pub file_size: Option<i64>,
+    pub status: i16,
+    pub vendor_job_id: Option<String>,
+    pub rejected_reason: Option<String>,
+    pub attempts: i32,
+    pub next_run_at: String,
+    pub last_error: Option<String>,
+    pub audited_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 文件内容审核任务查询响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadAuditTaskListResponse {
+    pub tasks: Vec<FileUploadAuditTaskListEntry>,
+    pub total: i64,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+/// 文件内容审核任务详情响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadAuditTaskDetailResponse {
+    pub task: FileUploadAuditTaskDetailEntry,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadAuditTaskDetailEntry {
+    pub id: String,
+    pub storage_provider_id: String,
+    pub object_key: String,
+    pub scene: String,
+    pub media_kind: String,
+    pub content_type: Option<String>,
+    pub file_size: Option<i64>,
+    pub status: i16,
+    pub vendor_job_id: Option<String>,
+    pub result: serde_json::Value,
+    pub rejected_reason: Option<String>,
+    pub attempts: i32,
+    pub next_run_at: String,
+    pub last_error: Option<String>,
+    pub audited_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 重新入队响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadAuditTaskRequeueResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+pub async fn list_file_upload_audit_tasks(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<FileUploadAuditTaskQueryParams>,
+) -> Result<Json<FileUploadAuditTaskListResponse>, AppError> {
+    let provider_uuid = params
+        .provider_id
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            Uuid::parse_str(v)
+                .map_err(|_| AppError::ValidationError("无效的 provider_id".to_string()))
+        })
+        .transpose()?;
+
+    let limit = params.limit.unwrap_or(50).clamp(1, 500);
+    let offset = params.offset.unwrap_or(0).max(0);
+
+    let store =
+        crate::database::file_upload_audit_store::FileUploadAuditStore::new(state.database.clone());
+
+    let tasks = store
+        .list_tasks(
+            provider_uuid,
+            params.status,
+            params.scene.as_deref(),
+            params.media_kind.as_deref(),
+            params.keyword.as_deref(),
+            params.start_time,
+            params.end_time,
+            limit,
+            offset,
+        )
+        .await
+        .map_err(AppError::from)?;
+
+    let total = store
+        .count_tasks(
+            provider_uuid,
+            params.status,
+            params.scene.as_deref(),
+            params.media_kind.as_deref(),
+            params.keyword.as_deref(),
+            params.start_time,
+            params.end_time,
+        )
+        .await
+        .map_err(AppError::from)?;
+
+    let items = tasks
+        .into_iter()
+        .map(|t| FileUploadAuditTaskListEntry {
+            id: t.id.to_string(),
+            storage_provider_id: t.storage_provider_id.to_string(),
+            object_key: t.object_key,
+            scene: t.scene,
+            media_kind: t.media_kind,
+            content_type: t.content_type,
+            file_size: t.file_size,
+            status: t.status,
+            vendor_job_id: t.vendor_job_id,
+            rejected_reason: t.rejected_reason,
+            attempts: t.attempts,
+            next_run_at: t.next_run_at.to_rfc3339(),
+            last_error: t.last_error,
+            audited_at: t.audited_at.map(|v| v.to_rfc3339()),
+            created_at: t.created_at.to_rfc3339(),
+            updated_at: t.updated_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(FileUploadAuditTaskListResponse {
+        tasks: items,
+        total,
+        limit,
+        offset,
+    }))
+}
+
+pub async fn get_file_upload_audit_task(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(task_id): Path<String>,
+) -> Result<Json<FileUploadAuditTaskDetailResponse>, AppError> {
+    let task_uuid = Uuid::parse_str(task_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的 task_id".to_string()))?;
+
+    let store =
+        crate::database::file_upload_audit_store::FileUploadAuditStore::new(state.database.clone());
+
+    let task = store
+        .get_task_by_id(&task_uuid)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("审核任务不存在".to_string()))?;
+
+    Ok(Json(FileUploadAuditTaskDetailResponse {
+        task: FileUploadAuditTaskDetailEntry {
+            id: task.id.to_string(),
+            storage_provider_id: task.storage_provider_id.to_string(),
+            object_key: task.object_key,
+            scene: task.scene,
+            media_kind: task.media_kind,
+            content_type: task.content_type,
+            file_size: task.file_size,
+            status: task.status,
+            vendor_job_id: task.vendor_job_id,
+            result: task.result,
+            rejected_reason: task.rejected_reason,
+            attempts: task.attempts,
+            next_run_at: task.next_run_at.to_rfc3339(),
+            last_error: task.last_error,
+            audited_at: task.audited_at.map(|v| v.to_rfc3339()),
+            created_at: task.created_at.to_rfc3339(),
+            updated_at: task.updated_at.to_rfc3339(),
+        },
+    }))
+}
+
+pub async fn requeue_file_upload_audit_task(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(task_id): Path<String>,
+) -> Result<Json<FileUploadAuditTaskRequeueResponse>, AppError> {
+    let task_uuid = Uuid::parse_str(task_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的 task_id".to_string()))?;
+
+    let store =
+        crate::database::file_upload_audit_store::FileUploadAuditStore::new(state.database.clone());
+
+    let updated = store
+        .requeue_task(&task_uuid)
+        .await
+        .map_err(AppError::from)?;
+
+    if !updated {
+        return Err(AppError::NotFound("审核任务不存在".to_string()));
+    }
+
+    Ok(Json(FileUploadAuditTaskRequeueResponse {
+        success: true,
+        message: "已重新入队".to_string(),
     }))
 }

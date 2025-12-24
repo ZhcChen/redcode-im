@@ -1,3 +1,4 @@
+use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::file_upload_multipart_store::FileUploadMultipartStore;
 use crate::database::file_upload_store::FileUploadStore;
 use crate::database::models::{Platform, StorageProviderType};
@@ -385,6 +386,26 @@ pub async fn create_app_version(
             .mark_completed_by_key(&provider.id, req.download_key.trim())
             .await
             .map_err(AppError::from)?;
+
+        // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
+        let record = upload_store
+            .get_by_key(&provider.id, req.download_key.trim())
+            .await
+            .map_err(AppError::from)?;
+        let audit_store = FileUploadAuditStore::new(state.database.clone());
+        let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+        let file_size = record.as_ref().and_then(|r| r.file_size).or(req.file_size);
+        let _ = audit_store
+            .upsert_task(
+                &provider.id,
+                req.download_key.trim(),
+                "version",
+                "document",
+                content_type,
+                file_size,
+            )
+            .await
+            .map_err(AppError::from)?;
     }
 
     Ok(Json(db_app_version_to_api(&created)))
@@ -407,6 +428,67 @@ pub async fn update_app_version(
         .update_version(version_id, &update)
         .await?
         .ok_or_else(|| AppError::NotFound("版本记录不存在".to_string()))?;
+
+    // 若更新了 download_key，则同步标记 file_upload_records 完成并写入审核任务
+    if let Some(download_key) = req.download_key.as_deref() {
+        let download_key = download_key.trim();
+        if !download_key.is_empty() {
+            let provider = load_default_storage_provider(&state).await?;
+            let storage_service = storage::create_storage_service(&provider)?;
+            match storage_service.head_object(download_key).await {
+                Ok(head) => {
+                    if let Some(expected_size) = req.file_size {
+                        if let Some(actual_size) = head.content_length {
+                            if actual_size != expected_size as u64 {
+                                return Err(AppError::ValidationError(format!(
+                                    "安装包大小校验失败：期望 {} 字节，实际 {} 字节",
+                                    expected_size, actual_size
+                                )));
+                            }
+                        }
+                    }
+                }
+                Err(AppError::NotFound(_)) => {
+                    return Err(AppError::ValidationError(
+                        "对象存储中未找到安装包，请先完成上传".to_string(),
+                    ));
+                }
+                Err(AppError::ValidationError(_)) => {
+                    if !storage_service.file_exists(download_key).await? {
+                        return Err(AppError::ValidationError(
+                            "对象存储中未找到安装包，请先完成上传".to_string(),
+                        ));
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+
+            let upload_store = FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .mark_completed_by_key(&provider.id, download_key)
+                .await
+                .map_err(AppError::from)?;
+
+            let record = upload_store
+                .get_by_key(&provider.id, download_key)
+                .await
+                .map_err(AppError::from)?;
+            let audit_store = FileUploadAuditStore::new(state.database.clone());
+            let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+            let file_size = record.as_ref().and_then(|r| r.file_size).or(req.file_size);
+            let _ = audit_store
+                .upsert_task(
+                    &provider.id,
+                    download_key,
+                    "version",
+                    "document",
+                    content_type,
+                    file_size,
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
 
     Ok(Json(db_app_version_to_api(&updated)))
 }
@@ -687,6 +769,26 @@ pub async fn create_hot_update(
             .mark_completed_by_key(&provider.id, req.download_key.trim())
             .await
             .map_err(AppError::from)?;
+
+        // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
+        let record = upload_store
+            .get_by_key(&provider.id, req.download_key.trim())
+            .await
+            .map_err(AppError::from)?;
+        let audit_store = FileUploadAuditStore::new(state.database.clone());
+        let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+        let file_size = record.as_ref().and_then(|r| r.file_size).or(req.file_size);
+        let _ = audit_store
+            .upsert_task(
+                &provider.id,
+                req.download_key.trim(),
+                "hot_update",
+                "document",
+                content_type,
+                file_size,
+            )
+            .await
+            .map_err(AppError::from)?;
     }
 
     Ok(Json(db_hot_update_to_api(&created)))
@@ -723,6 +825,67 @@ pub async fn update_hot_update(
         .update_hot_update(hot_update_id, &update)
         .await?
         .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+
+    // 若更新了 download_key，则同步标记 file_upload_records 完成并写入审核任务
+    if let Some(download_key) = req.download_key.as_deref() {
+        let download_key = download_key.trim();
+        if !download_key.is_empty() {
+            let provider = load_default_storage_provider(&state).await?;
+            let storage_service = storage::create_storage_service(&provider)?;
+            match storage_service.head_object(download_key).await {
+                Ok(head) => {
+                    if let Some(expected_size) = req.file_size {
+                        if let Some(actual_size) = head.content_length {
+                            if actual_size != expected_size as u64 {
+                                return Err(AppError::ValidationError(format!(
+                                    "补丁大小校验失败：期望 {} 字节，实际 {} 字节",
+                                    expected_size, actual_size
+                                )));
+                            }
+                        }
+                    }
+                }
+                Err(AppError::NotFound(_)) => {
+                    return Err(AppError::ValidationError(
+                        "对象存储中未找到补丁，请先完成上传".to_string(),
+                    ));
+                }
+                Err(AppError::ValidationError(_)) => {
+                    if !storage_service.file_exists(download_key).await? {
+                        return Err(AppError::ValidationError(
+                            "对象存储中未找到补丁，请先完成上传".to_string(),
+                        ));
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+
+            let upload_store = FileUploadStore::new(state.database.clone());
+            let _ = upload_store
+                .mark_completed_by_key(&provider.id, download_key)
+                .await
+                .map_err(AppError::from)?;
+
+            let record = upload_store
+                .get_by_key(&provider.id, download_key)
+                .await
+                .map_err(AppError::from)?;
+            let audit_store = FileUploadAuditStore::new(state.database.clone());
+            let content_type = record.as_ref().and_then(|r| r.content_type.as_deref());
+            let file_size = record.as_ref().and_then(|r| r.file_size).or(req.file_size);
+            let _ = audit_store
+                .upsert_task(
+                    &provider.id,
+                    download_key,
+                    "hot_update",
+                    "document",
+                    content_type,
+                    file_size,
+                )
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
 
     Ok(Json(db_hot_update_to_api(&updated)))
 }

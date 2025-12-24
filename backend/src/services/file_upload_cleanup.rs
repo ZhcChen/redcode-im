@@ -1,3 +1,4 @@
+use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::file_upload_store::FileUploadStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::Database;
@@ -9,6 +10,77 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
+
+fn infer_audit_scene_from_object_key(object_key: &str) -> &'static str {
+    let key = object_key.trim();
+    if key.starts_with("avatars/") {
+        return "avatar";
+    }
+    if key.starts_with("room_avatars/") {
+        return "room_avatar";
+    }
+    if key.starts_with("messages/") {
+        return "message_attachment";
+    }
+    if key.starts_with("reports/") {
+        return "report_attachment";
+    }
+    if key.starts_with("releases/") {
+        return "version";
+    }
+    "unknown"
+}
+
+fn infer_media_kind_from_message_attachment_object_key(key: &str) -> &'static str {
+    let trimmed = key.trim();
+    if trimmed.contains("/images_") {
+        return "image";
+    }
+    if trimmed.contains("/videos_") {
+        return "video";
+    }
+    if trimmed.contains("/audios_") {
+        return "audio";
+    }
+    if trimmed.contains("/files_") {
+        return "document";
+    }
+    "unknown"
+}
+
+fn infer_media_kind_from_object_key(object_key: &str, content_type: Option<&str>) -> &'static str {
+    if let Some(content_type) = content_type {
+        let ct = content_type.trim().to_ascii_lowercase();
+        if ct.starts_with("image/") {
+            return "image";
+        }
+        if ct.starts_with("video/") {
+            return "video";
+        }
+        if ct.starts_with("audio/") {
+            return "audio";
+        }
+        if ct.starts_with("text/") {
+            return "text";
+        }
+        return "document";
+    }
+
+    let key = object_key.trim();
+    if key.starts_with("messages/") {
+        return infer_media_kind_from_message_attachment_object_key(key);
+    }
+    if key.starts_with("avatars/") || key.starts_with("room_avatars/") {
+        return "image";
+    }
+    if key.starts_with("reports/") {
+        return "image";
+    }
+    if key.starts_with("releases/") {
+        return "document";
+    }
+    "unknown"
+}
 
 #[derive(Debug, Clone)]
 pub struct FileUploadCleanupConfig {
@@ -82,6 +154,7 @@ pub async fn run_file_upload_cleanup(
     cfg: &FileUploadCleanupConfig,
 ) -> Result<(), AppError> {
     let upload_store = FileUploadStore::new(database.clone());
+    let audit_store = FileUploadAuditStore::new(database.clone());
     let provider_store = StorageProviderStore::new(database.clone());
 
     let mut services: HashMap<Uuid, Arc<dyn StorageService>> = HashMap::new();
@@ -113,6 +186,23 @@ pub async fn run_file_upload_cleanup(
             let _ = upload_store
                 .mark_completed_by_key(&record.storage_provider_id, key)
                 .await;
+
+            // 若该 key 已被引用但客户端未走 commit，这里补写审核任务，确保“全量审核”
+            let scene = infer_audit_scene_from_object_key(key);
+            let media_kind = infer_media_kind_from_object_key(key, record.content_type.as_deref());
+            if let Err(e) = audit_store
+                .upsert_task(
+                    &record.storage_provider_id,
+                    key,
+                    scene,
+                    media_kind,
+                    record.content_type.as_deref(),
+                    record.file_size,
+                )
+                .await
+            {
+                warn!("写入文件审核任务失败: key={}, error={}", key, e);
+            }
             continue;
         }
 

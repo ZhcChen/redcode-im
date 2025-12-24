@@ -953,8 +953,8 @@ CREATE TABLE IF NOT EXISTS user_account_limit_settings (
     updated_by UUID REFERENCES admin_users(id) ON DELETE SET NULL
 );
 
--- 创建唯一约束，确保只有一条记录
-ALTER TABLE user_account_limit_settings ADD CONSTRAINT IF NOT EXISTS user_account_limit_settings_id_unique UNIQUE (id);
+-- 说明：id 已是 PRIMARY KEY（固定为 1），无需额外 UNIQUE 约束；
+-- Postgres 15 不支持 `ADD CONSTRAINT IF NOT EXISTS` 语法，避免初始化失败。
 
 -- 插入默认配置
 INSERT INTO user_account_limit_settings (id, enable_phone_validation, enable_email_validation, enable_length_validation, min_length, max_length, enable_alphanumeric_validation, updated_at)

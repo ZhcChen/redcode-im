@@ -5,6 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::file_upload_multipart_store::FileUploadMultipartStore;
 use crate::database::file_upload_store::FileUploadStore;
 use crate::database::storage_provider_store::StorageProviderStore;
@@ -30,6 +31,77 @@ pub struct MultipartSessionResponse {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<MultipartSessionInfo>,
+}
+
+fn infer_audit_scene_from_object_key(object_key: &str) -> &'static str {
+    let key = object_key.trim();
+    if key.starts_with("messages/") {
+        return "message_attachment";
+    }
+    if key.starts_with("releases/") {
+        return "version";
+    }
+    if key.starts_with("reports/") {
+        return "report_attachment";
+    }
+    if key.starts_with("avatars/") {
+        return "avatar";
+    }
+    if key.starts_with("room_avatars/") {
+        return "room_avatar";
+    }
+    "multipart_upload"
+}
+
+fn infer_media_kind_from_message_attachment_object_key(key: &str) -> &'static str {
+    let trimmed = key.trim();
+    if trimmed.contains("/images_") {
+        return "image";
+    }
+    if trimmed.contains("/videos_") {
+        return "video";
+    }
+    if trimmed.contains("/audios_") {
+        return "audio";
+    }
+    if trimmed.contains("/files_") {
+        return "document";
+    }
+    "unknown"
+}
+
+fn infer_media_kind_from_object_key(object_key: &str, content_type: Option<&str>) -> &'static str {
+    if let Some(content_type) = content_type {
+        let ct = content_type.trim().to_ascii_lowercase();
+        if ct.starts_with("image/") {
+            return "image";
+        }
+        if ct.starts_with("video/") {
+            return "video";
+        }
+        if ct.starts_with("audio/") {
+            return "audio";
+        }
+        if ct.starts_with("text/") {
+            return "text";
+        }
+        return "document";
+    }
+
+    let key = object_key.trim();
+    if key.starts_with("messages/") {
+        return infer_media_kind_from_message_attachment_object_key(key);
+    }
+    if key.starts_with("releases/") {
+        return "document";
+    }
+    if key.starts_with("reports/") {
+        return "image";
+    }
+    if key.starts_with("avatars/") || key.starts_with("room_avatars/") {
+        return "image";
+    }
+    "unknown"
 }
 
 pub async fn get_multipart_session(
@@ -338,6 +410,23 @@ pub async fn complete_multipart_upload(
     let _ = upload_store
         .mark_completed_by_key(&provider.id, &session.object_key)
         .await;
+
+    // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
+    let audit_store = FileUploadAuditStore::new(state.database.clone());
+    let scene = infer_audit_scene_from_object_key(&session.object_key);
+    let media_kind =
+        infer_media_kind_from_object_key(&session.object_key, session.content_type.as_deref());
+    let _ = audit_store
+        .upsert_task(
+            &provider.id,
+            &session.object_key,
+            scene,
+            media_kind,
+            session.content_type.as_deref(),
+            session.file_size,
+        )
+        .await
+        .map_err(AppError::from)?;
 
     Ok(Json(CompleteMultipartResponse {
         success: true,
