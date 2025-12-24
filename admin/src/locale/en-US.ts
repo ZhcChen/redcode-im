@@ -27,6 +27,7 @@ export default {
   'menu.operations.ipinfoToken': 'IP Geolocation Token',
   'menu.operations.dataCleanup': 'Data Cleanup',
   'menu.operations.apiMetrics': 'API Metrics',
+  'menu.operations.fileUploadAudit': 'File Upload Audit',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
   'menu.settings.privacyPolicy': 'Privacy Agreement',

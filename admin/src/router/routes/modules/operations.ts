@@ -65,6 +65,16 @@ const OPERATIONS: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'file-upload-audit',
+      name: 'FileUploadAudit',
+      component: () => import('@/views/operations/file-upload-audit/index.vue'),
+      meta: {
+        locale: 'menu.operations.fileUploadAudit',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
     ...(isDataCleanupEnabled
       ? [
           {
