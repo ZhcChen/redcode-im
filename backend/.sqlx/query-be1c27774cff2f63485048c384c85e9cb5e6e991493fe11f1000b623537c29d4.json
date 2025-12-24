@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE admin_users SET password_hash = $1, password_changed_at = CURRENT_TIMESTAMP WHERE username = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "be1c27774cff2f63485048c384c85e9cb5e6e991493fe11f1000b623537c29d4"
+}

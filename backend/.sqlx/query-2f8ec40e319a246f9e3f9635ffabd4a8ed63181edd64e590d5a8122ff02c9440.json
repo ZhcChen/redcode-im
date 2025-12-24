@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO admin_operation_logs\n            (admin_user_id, operation, resource_type, resource_id, details, ip_address, user_agent)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Uuid",
+        "Jsonb",
+        "Inet",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2f8ec40e319a246f9e3f9635ffabd4a8ed63181edd64e590d5a8122ff02c9440"
+}

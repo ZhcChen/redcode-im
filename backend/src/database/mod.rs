@@ -163,10 +163,38 @@ impl Database {
             .execute(&mut **conn)
             .await
         {
-            tracing::error!(
-                "数据库缺少 gen_random_uuid()，通常需要启用 pgcrypto 扩展：CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+            tracing::warn!(
+                "数据库缺少 gen_random_uuid()，尝试自动启用 pgcrypto 扩展（需要具备 CREATE EXTENSION 权限）: {}",
+                e
             );
-            return Err(e);
+
+            // 尝试自动启用 pgcrypto（适配“全新数据库/刚删库”的开发环境）
+            // 说明：若权限不足或扩展不可用，则会继续返回原始错误，提示手工处理。
+            let create_result = sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
+                .execute(&mut **conn)
+                .await;
+            match create_result {
+                Ok(_) => tracing::info!("pgcrypto 扩展已启用（或已存在）"),
+                Err(create_err) => {
+                    tracing::error!(
+                        "自动启用 pgcrypto 扩展失败，请手工执行：CREATE EXTENSION IF NOT EXISTS pgcrypto; error={}",
+                        create_err
+                    );
+                    return Err(e);
+                }
+            }
+
+            // 二次验证
+            if let Err(e2) = sqlx::query("SELECT gen_random_uuid();")
+                .execute(&mut **conn)
+                .await
+            {
+                tracing::error!(
+                    "pgcrypto 启用后仍无法使用 gen_random_uuid()，请检查扩展安装状态与权限: {}",
+                    e2
+                );
+                return Err(e2);
+            }
         }
 
         // 1) 检查 public schema 中是否存在任何表，用于识别“空库”

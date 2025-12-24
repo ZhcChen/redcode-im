@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE admin_users\n            SET last_login_at = CURRENT_TIMESTAMP,\n                login_attempts = 0,\n                locked_until = NULL,\n                updated_at = CURRENT_TIMESTAMP\n            WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e4f8b9acc92723bcf9c89106228768e6752df1186e71b57bd82876b24c114dfc"
+}

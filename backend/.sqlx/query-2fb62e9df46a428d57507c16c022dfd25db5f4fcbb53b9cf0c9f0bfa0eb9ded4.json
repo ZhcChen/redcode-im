@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE admin_users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2fb62e9df46a428d57507c16c022dfd25db5f4fcbb53b9cf0c9f0bfa0eb9ded4"
+}

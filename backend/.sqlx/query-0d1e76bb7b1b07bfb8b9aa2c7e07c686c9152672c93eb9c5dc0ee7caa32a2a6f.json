@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO admin_login_history\n                (admin_user_id, ip_address, user_agent, success, failure_reason)\n            VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Inet",
+        "Text",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0d1e76bb7b1b07bfb8b9aa2c7e07c686c9152672c93eb9c5dc0ee7caa32a2a6f"
+}

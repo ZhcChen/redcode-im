@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO general_settings (key, value, description, updated_at, updated_by)\n        VALUES ('ip_geolocation_enabled', $1, '是否启用IP地址地理位置解析功能（0=关闭，1=开启）', NOW(), $2)\n        ON CONFLICT (key) DO UPDATE SET\n            value = EXCLUDED.value,\n            updated_at = NOW(),\n            updated_by = EXCLUDED.updated_by\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dce481acb652d262d7ac3f37db60ab7346bcfa4108d6e4a93f830cc8a82c80b3"
+}
