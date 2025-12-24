@@ -2310,7 +2310,23 @@ class _MessageBubbleState extends State<_MessageBubble>
 
   @override
   Widget build(BuildContext context) {
+    if (_message.type == MessageType.system) {
+      return _buildSystemMessage(context);
+    }
     return _isSelf ? _buildSelfBubble(context) : _buildPeerBubble(context);
+  }
+
+  Widget _buildSystemMessage(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text(
+        _message.content,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.textTertiary,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
   }
 
   /// 构建高亮背景层（占满屏幕宽度）

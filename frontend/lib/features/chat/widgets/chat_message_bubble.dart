@@ -13,10 +13,12 @@ class ChatMessageBubble extends StatelessWidget {
     if (message.type == ChatMessageType.system) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Text(
-          message.content,
-          style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
-          textAlign: TextAlign.center,
+        child: Center(
+          child: Text(
+            message.content,
+            style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }

@@ -1310,6 +1310,30 @@ class MessageService with ChangeNotifier {
     unawaited(_persistMessages(message.roomId));
   }
 
+  /// 插入系统消息（用于群信息变更等通知）
+  void insertSystemMessage({
+    required String roomId,
+    required String content,
+  }) {
+    if (roomId.isEmpty || content.isEmpty) return;
+
+    final now = DateTime.now();
+    final message = Message(
+      id: 'system_${now.millisecondsSinceEpoch}',
+      roomId: roomId,
+      senderId: '',
+      senderUsername: '',
+      senderName: '',
+      content: content,
+      type: MessageType.system,
+      status: MessageStatus.sent,
+      timestamp: now,
+      isSelf: false,
+    );
+
+    _addMessage(message);
+  }
+
   /// 用新消息替换旧消息（用于发送成功后更新临时消息）
   void _replaceMessage(String originalId, Message newMessage) {
     final messages = _messagesByRoom[newMessage.roomId];
@@ -4361,4 +4385,3 @@ MessageStatus? _parseMessageStatusFromApi(dynamic raw) {
       return null;
   }
 }
-

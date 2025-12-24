@@ -1011,6 +1011,37 @@ class WebSocketService with ChangeNotifier {
     final roomId = event.roomId;
     if (roomId.isEmpty) return;
 
+    // 群信息更新属于“系统提示”，不归属于普通文字消息
+    final chatsSnapshot = _messageService.chats;
+    final currentChatIndex = chatsSnapshot.indexWhere((c) => c.roomId == roomId);
+    final currentChat =
+        currentChatIndex >= 0 ? chatsSnapshot[currentChatIndex] : null;
+
+    final changes = <String>[];
+
+    final newAvatarKey = event.avatarObjectKey;
+    if (newAvatarKey != null && newAvatarKey.isNotEmpty) {
+      final oldAvatarKey = currentChat?.avatarObjectKey;
+      if (oldAvatarKey == null || oldAvatarKey != newAvatarKey) {
+        changes.add('群头像已更新');
+      }
+    }
+
+    final newRoomName = event.roomName.trim();
+    if (newRoomName.isNotEmpty) {
+      final oldRoomName = currentChat?.name.trim();
+      if (oldRoomName == null || oldRoomName != newRoomName) {
+        changes.add('群名称已改为“$newRoomName”');
+      }
+    }
+
+    if (changes.isNotEmpty) {
+      _messageService.insertSystemMessage(
+        roomId: roomId,
+        content: changes.join('，'),
+      );
+    }
+
     _messageService.ensureRoomPlaceholder(
       roomId: roomId,
       name: event.roomName,
@@ -1827,4 +1858,3 @@ class _GroupMemberChangedEvent extends _WsEvent {
   final String? reason;
   final String? until;
 }
-
