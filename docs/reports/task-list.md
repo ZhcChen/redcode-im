@@ -191,53 +191,44 @@ await _chatProvider.sendVoiceMessage(...);
 ---
 
 ### 7. COS 大文件分片前端直传（backend + desktop + frontend + admin）
-**目标**: 扩展现有“单文件直传”能力，支持大文件（例如视频/安装包）走 COS Multipart Upload（分片直传），文件数据始终由前端上传到 COS，后端仅负责分片会话与最终合并（Complete）。
+**目标**: 扩展现有"单文件直传"能力，支持大文件（例如视频/安装包）走 COS Multipart Upload（分片直传），文件数据始终由前端上传到 COS，后端仅负责分片会话与最终合并（Complete）。
 
-#### 7.1 现状
-- 已支持单文件直传：后端生成 `DirectUploadSignature(url/method/headers/key)`，前端 `PUT` 上传后再 `commit`（如消息附件、头像、版本包等）
-- 后端 `commit` 阶段已对 COS ETag 做了分块兼容：ETag 带 `-` 时不做 MD5 严格校验（适配 multipart）
+#### 7.1 实现概览
+- **后端 COS 层**: `backend/src/storage/cos.rs` 已实现 `initiate_multipart_upload`、`generate_multipart_upload_part_signature`、`complete_multipart_upload`、`abort_multipart_upload`
+- **后端 API**: `backend/src/handlers/multipart_upload.rs` 提供 5 个完整的分片上传 API
+- **后端路由**: `routes.rs` 已注册管理员端 + 普通用户端 + 消息附件三套路由
+- **数据库**: `20251219120000_create_file_upload_multipart_sessions.sql` 已创建分片会话表
+- **后端服务**: `backend/src/services/multipart_upload.rs` 实现分片计划计算（阈值 5MB，默认分片 8MB）
 
-#### 7.2 改造原则（约束）
-- 文件内容 **不经过后端**（避免带宽/成本与服务端压力）
-- 后端负责：
-  - Initiate：向 COS 发起 multipart 会话并返回 `upload_id`
-  - Part 签名：为每个 part 生成直传签名（Authorization/header/URL）
-  - Progress：记录/查询分片进度（用于断点续传与排障）
-  - Complete：收到前端汇总的 `part_number + etag` 列表后调用 COS Complete，并落库/复用
-  - Abort：取消/失败时终止会话并清理记录
+#### 7.2 前端实现
+- **Admin 后台**: `admin/src/api/multipart-upload.ts` + `admin/src/utils/multipart-upload.ts` 完整实现
+- **Desktop 桌面端**: `desktop/src/api/message.ts` API 封装 + `Chat.vue` 实际调用 `initiateAttachmentMultipartUpload` → `generateMultipartPartSignature` → `completeMultipartUpload`
+- **Flutter 移动端**: `frontend/lib/core/services/message_service.dart` 自动判断（> 5MB 走分片），完整实现分片上传流程
 
-#### 7.3 后端（接口 + 存储 + COS 适配）
-- 存储层：扩展 `backend/src/storage/cos.rs` 增加 multipart 所需能力（init/list/complete/abort + part PUT 签名）
-- DB：新增 `file_upload_multipart_sessions`（或等价结构），记录：
-  - provider_id/object_key/upload_id/status/part_size/total_parts
-  - uploaded_parts（part_number/etag，可 JSONB）与更新时间（用于续传）
-- 通用接口（建议做成统一上传模块，供消息附件/版本包/举报附件等复用）：
-  - `POST /uploads/multipart/initiate`（输入：object_key/content_type/file_size/hash）→ 输出：upload_id/part_size/total_parts/session_id
-  - `POST /uploads/multipart/part-signature`（session_id + part_number）→ 输出：DirectUploadSignature（用于 PUT part）
-  - `POST /uploads/multipart/complete`（session_id + parts[{part_number, etag}]）→ 后端请求 COS Complete → 标记 file_upload_records=completed
-  - `POST /uploads/multipart/abort`（session_id）→ 后端请求 COS Abort → 标记失败/清理
-  - `GET /uploads/multipart/{session_id}`（可选：返回已上传 parts，用于断点续传）
-- 校验：
-  - object_key 前缀白名单（messages/avatars/reports/versions 等），避免越权写任意 key
-  - part_number 范围与 total_parts 一致；complete 时 parts 必须齐全且 etag 不为空
+#### 7.3 API 路由清单
+```
+# 管理员端
+POST /api/admin/uploads/multipart/sessions/{session_id}/parts/signature
+POST /api/admin/uploads/multipart/sessions/{session_id}/parts/commit
+POST /api/admin/uploads/multipart/sessions/{session_id}/complete
+POST /api/admin/uploads/multipart/sessions/{session_id}/abort
+GET  /api/admin/uploads/multipart/sessions/{session_id}
 
-#### 7.4 前端（Desktop/Flutter/Admin）
-- 统一抽象“上传策略”：
-  - 小文件：沿用单文件直传（现有 uploadWithSignature/DirectUploadSignature）
-  - 大文件：multipart（init → 并发 PUT part → complete）
-- 关键能力：
-  - 分片大小策略（如 8MB/16MB，可配置）
-  - 并发上传与重试（失败重传单个 part）
-  - 断点续传：启动时从后端查询已上传 parts，跳过已完成 part
-  - 进度汇总：按已上传 bytes 计算总进度，并上报 UI（含速度/剩余时间可选）
-- 对接点：
-  - Desktop：消息附件上传、版本包上传（如有）
-  - Flutter：消息附件上传（视频/文件），尽量复用现有直传流程的 commit 语义
-  - Admin：版本管理上传（安装包通常体积较大，优先改造）
+# 普通用户端
+POST /uploads/multipart/sessions/{session_id}/parts/signature
+POST /uploads/multipart/sessions/{session_id}/parts/commit
+POST /uploads/multipart/sessions/{session_id}/complete
+POST /uploads/multipart/sessions/{session_id}/abort
+GET  /uploads/multipart/sessions/{session_id}
 
-**影响**: 大文件上传稳定性与体验显著提升；改动涉及 COS 签名/状态机/多端上传实现与兼容策略
-**状态**: ❌ 未完成
-**优先级**: 🟠 中（建议先在 Admin 版本包落地，再复用到聊天附件）
+# 消息附件
+POST /rooms/{room_id}/messages/attachments/multipart/initiate
+```
+
+**影响**: 大文件上传稳定性与体验显著提升；已完整实现分片上传全链路
+**状态**: ✅ 已完成
+**优先级**: 🟠 中（已处理）
+**完成时间**: 2025-12-19（迁移文件日期）
 
 ---
 
@@ -308,21 +299,34 @@ await _chatProvider.sendVoiceMessage(...);
 ---
 
 ### 11. 前端 (Flutter) - Android 构建配置
-**位置**: `frontend/android/app/build.gradle.kts`
+**位置**: `frontend/android/app/build.gradle.kts`, `frontend/config/android/app_config.properties`
 
-#### 8.1 应用 ID 配置 (第23行)
-```kotlin
-// TODO: Specify your own unique Application ID
+#### 11.1 应用 ID 配置
+- `build.gradle.kts` 已从统一配置文件 `config/android/app_config.properties` 读取 `APPLICATION_ID`
+- 默认值：`com.chatlyme.app`
+
+#### 11.2 签名配置
+- `build.gradle.kts` 已实现从配置文件读取 keystore 相关配置：
+  - `KEYSTORE_FILE`: keystore 文件路径
+  - `KEYSTORE_PASSWORD`: keystore 密码
+  - `KEY_ALIAS`: 密钥别名
+  - `KEY_PASSWORD`: 密钥密码
+- 如配置完整则使用 release 签名，否则自动回退到 debug 签名（保证开发环境可用）
+
+#### 11.3 配置文件示例
+```properties
+# frontend/config/android/app_config.properties
+APPLICATION_ID=com.chatlyme.app
+KEYSTORE_FILE=keystore/release.keystore
+KEYSTORE_PASSWORD=change_me_keystore_password
+KEY_ALIAS=release
+KEY_PASSWORD=change_me_key_password
 ```
 
-#### 8.2 签名配置 (第35行)
-```kotlin
-// TODO: Add your own signing config for the release build.
-```
-
-**影响**: Android 发布配置未完成
-**状态**: ❌ 未完成
-**优先级**: 🟡 低
+**影响**: Android 发布配置已完成，只需在配置文件中填写实际值即可发布
+**状态**: ✅ 已完成
+**优先级**: 🟡 低（已处理）
+**说明**: 生产环境的 keystore 文件和真实密码请不要提交到代码仓库，建议使用 CI Secret 注入
 
 ---
 
@@ -342,8 +346,8 @@ await _chatProvider.sendVoiceMessage(...);
 | 优先级 | 数量 | 模块分布 |
 |--------|------|----------|
 | 🔴 高优先级 | 3 | 后端(2，含 2 个已完成) + 前端桌面端(1，已完成) |
-| 🟠 中优先级 | 5 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) + 消息编辑/反应/输入态(1，未完成) + COS 分片直传(1，未完成) + Push 通知(1，未完成) |
-| 🟡 低优先级 | 4 | 后端测试(1，已完成基础单测) + 桌面端(1，已完成) + 移动端(1，未完成) + 管理后台(1，已完成基础主题结构) |
+| 🟠 中优先级 | 5 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) + 消息编辑/反应/输入态(1，未完成) + COS 分片直传(1，✅已完成) + Push 通知(1，未完成) |
+| 🟡 低优先级 | 4 | 后端测试(1，已完成基础单测) + 桌面端(1，已完成) + 移动端(1，✅已完成) + 管理后台(1，已完成基础主题结构) |
 | **总计** | **12** | - |
 
 ---
@@ -362,13 +366,13 @@ await _chatProvider.sendVoiceMessage(...);
 ### 第三阶段 (有空时)
 6. ✅ 音频波形可视化（desktop 录音预览的基础波形渲染）
 7. ✅ 测试用例补充（文件上传相关逻辑的基础单元测试）
-8. ❌ Android 发布配置（集中配置 Application ID 与签名）
+8. ✅ Android 发布配置（已从统一配置文件读取 Application ID 与签名配置）
 9. ✅ 图表主题优化（admin 基础主题结构与示例接入）
 10. ❌ Push 通知集成（先按文档准备环境与凭据，再按里程碑实现）
 11. ❌ 消息编辑 / Reactions / Typing（先编辑 → reactions → typing）
-12. ❌ COS 大文件分片前端直传（先 Admin 版本包 → 再聊天附件复用）
+12. ✅ COS 大文件分片前端直传（已完成：后端 API + Admin/Desktop/Flutter 全端实现）
 
 ---
 
-**最后更新**: 2025-12-19
-**总完成度**: 8/12 (66.7%)
+**最后更新**: 2025-12-27
+**总完成度**: 10/12 (83.3%)
