@@ -4,10 +4,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import '../../core/services/message_service.dart';
 import 'constants/emoji_list.dart';
 import 'models/chat_conversation.dart';
 import 'models/chat_message.dart';
 import 'widgets/chat_message_bubble.dart';
+import 'widgets/reaction_picker.dart';
 
 class ChatDetailPage extends StatefulWidget {
   const ChatDetailPage({super.key, required this.conversation});
@@ -176,7 +178,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-              ChatMessageBubble(message: message),
+              GestureDetector(
+                onLongPress: () {
+                  final RenderBox renderBox = context.findRenderObject() as RenderBox;
+                  final localPosition = renderBox.localToGlobal(Offset.zero);
+                  _showReactionPickerForMessage(message, localPosition);
+                },
+                child: ChatMessageBubble(
+                  message: message,
+                  onReactionTap: _handleReactionTap,
+                ),
+              ),
             ],
           );
         },
@@ -346,6 +358,79 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   void _handleBackgroundTap() {
     FocusScope.of(context).unfocus();
     _hidePanels();
+  }
+
+  void _handleReactionTap(ChatMessage message, String reactionKey) {
+    final existingReaction = message.reactions.firstWhere(
+      (r) => r.reactionKey == reactionKey,
+      orElse: () => const MessageReactionSummary(
+        reactionKey: '',
+        count: 0,
+        hasSelf: false,
+      ),
+    );
+
+    if (existingReaction.hasSelf) {
+      _removeReaction(message, reactionKey);
+    } else {
+      _addReaction(message, reactionKey);
+    }
+  }
+
+  Future<void> _addReaction(ChatMessage message, String reactionKey) async {
+    final index = _messages.indexWhere((m) => m.id == message.id);
+    if (index == -1) return;
+
+    try {
+      final summaries = await MessageService.instance.addReaction(
+        roomId: widget.conversation.id,
+        messageId: message.id,
+        reactionKey: reactionKey,
+      );
+
+      setState(() {
+        _messages[index] = _messages[index].copyWith(reactions: summaries);
+      });
+    } catch (e) {
+      debugPrint('Failed to add reaction: $e');
+      _showReactionError('添加反应失败');
+    }
+  }
+
+  Future<void> _removeReaction(ChatMessage message, String reactionKey) async {
+    final index = _messages.indexWhere((m) => m.id == message.id);
+    if (index == -1) return;
+
+    try {
+      final summaries = await MessageService.instance.removeReaction(
+        roomId: widget.conversation.id,
+        messageId: message.id,
+        reactionKey: reactionKey,
+      );
+
+      setState(() {
+        _messages[index] = _messages[index].copyWith(reactions: summaries);
+      });
+    } catch (e) {
+      debugPrint('Failed to remove reaction: $e');
+      _showReactionError('移除反应失败');
+    }
+  }
+
+  void _showReactionPickerForMessage(ChatMessage message, Offset globalPosition) {
+    showReactionPicker(
+      context: context,
+      position: globalPosition,
+      onReactionSelected: (reactionKey) {
+        _addReaction(message, reactionKey);
+      },
+    );
+  }
+
+  void _showReactionError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   List<ChatMessage> _mockMessages() {
