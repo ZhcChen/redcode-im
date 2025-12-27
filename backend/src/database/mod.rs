@@ -11,6 +11,7 @@ pub mod friend_store;
 pub mod group_management_store;
 pub mod member_with_user_info;
 pub mod message_read_store;
+pub mod message_reaction_store;
 pub mod message_store;
 pub mod models;
 pub mod report_store;
@@ -107,6 +108,22 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251224120000_create_file_upload_audit_tasks.sql"
+        )),
+    ),
+    // 2025-12-27：为消息添加 edited_at 字段，支持消息编辑功能
+    (
+        "20251227021700_add_message_edited_at.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251227021700_add_message_edited_at.sql"
+        )),
+    ),
+    // 2025-12-27：创建消息反应表（Message Reactions）
+    (
+        "20251227024227_create_message_reactions.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251227024227_create_message_reactions.sql"
         )),
     ),
 ];

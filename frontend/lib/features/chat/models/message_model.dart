@@ -230,6 +230,64 @@ class QuotedMessage {
   }
 }
 
+/// 消息反应聚合结果
+class MessageReactionSummary {
+  MessageReactionSummary({
+    required this.reactionKey,
+    required this.count,
+    required this.userIds,
+    required this.hasSelf,
+  });
+
+  final String reactionKey;
+  final int count;
+  final List<String> userIds;
+  final bool hasSelf;
+
+  factory MessageReactionSummary.fromJson(Map<String, dynamic> json) {
+    final userIdsRaw = json['user_ids'];
+    List<String> userIds = [];
+    if (userIdsRaw is List) {
+      userIds = userIdsRaw.map((id) => id.toString()).toList();
+    }
+
+    return MessageReactionSummary(
+      reactionKey: json['reaction_key']?.toString() ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      userIds: userIds,
+      hasSelf: json['has_self'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'reaction_key': reactionKey,
+      'count': count,
+      'user_ids': userIds,
+      'has_self': hasSelf,
+    };
+  }
+
+  Map<String, dynamic> toCacheJson() {
+    return toJson();
+  }
+
+  factory MessageReactionSummary.fromCacheJson(Map<String, dynamic> json) {
+    final userIdsRaw = json['user_ids'];
+    List<String> userIds = [];
+    if (userIdsRaw is List) {
+      userIds = userIdsRaw.map((id) => id.toString()).toList();
+    }
+
+    return MessageReactionSummary(
+      reactionKey: json['reaction_key']?.toString() ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      userIds: userIds,
+      hasSelf: json['has_self'] as bool? ?? false,
+    );
+  }
+}
+
 /// 消息分片类型
 enum MessagePartType { text, image, video, audio, file }
 
@@ -443,8 +501,11 @@ class Message {
   final QuotedMessage? quotedMessage;
   final ForwardInfo? forwardInfo;
   final bool isDeleted;
+  final bool isEdited;
+  final DateTime? editedAt;
   final DateTime? pinnedAt;
   final List<MessagePart> parts;
+  final List<MessageReactionSummary>? reactions;
 
   Message({
     required this.id,
@@ -463,8 +524,11 @@ class Message {
     this.quotedMessage,
     this.forwardInfo,
     this.isDeleted = false,
+    this.isEdited = false,
+    this.editedAt,
     this.pinnedAt,
     List<MessagePart>? parts,
+    this.reactions,
   }) : parts = parts ?? const [];
 
   /// 复制并修改部分字段
@@ -485,8 +549,11 @@ class Message {
     Object? quotedMessage = _unset,
     Object? forwardInfo = _unset,
     bool? isDeleted,
+    bool? isEdited,
+    Object? editedAt = _unset,
     Object? pinnedAt = _unset,
     Object? parts = _unset,
+    Object? reactions = _unset,
   }) {
     return Message(
       id: id ?? this.id,
@@ -515,12 +582,19 @@ class Message {
           ? this.forwardInfo
           : forwardInfo as ForwardInfo?,
       isDeleted: isDeleted ?? this.isDeleted,
+      isEdited: isEdited ?? this.isEdited,
+      editedAt: identical(editedAt, _unset)
+          ? this.editedAt
+          : editedAt as DateTime?,
       pinnedAt: identical(pinnedAt, _unset)
           ? this.pinnedAt
           : pinnedAt as DateTime?,
       parts: identical(parts, _unset)
           ? this.parts
           : List<MessagePart>.from(parts as List<MessagePart>),
+      reactions: identical(reactions, _unset)
+          ? this.reactions
+          : reactions as List<MessageReactionSummary>?,
     );
   }
 
@@ -606,8 +680,12 @@ class Message {
       'quoted': quotedMessage?.toCacheJson(),
       'forward': forwardInfo?.toCacheJson(),
       'isDeleted': isDeleted,
+      'isEdited': isEdited,
+      'editedAt': editedAt?.toIso8601String(),
       'pinnedAt': pinnedAt?.toIso8601String(),
       'parts': parts.map((part) => part.toCacheJson()).toList(),
+      if (reactions != null && reactions!.isNotEmpty)
+        'reactions': reactions!.map((r) => r.toCacheJson()).toList(),
     };
   }
 
@@ -658,9 +736,36 @@ class Message {
       quotedMessage: _parseQuotedFromCache(json['quoted']),
       forwardInfo: _parseForwardFromCache(json['forward']),
       isDeleted: json['isDeleted'] as bool? ?? false,
+      isEdited: json['isEdited'] as bool? ?? false,
+      editedAt: _parseTimestamp(json['editedAt']),
       pinnedAt: _parseTimestamp(json['pinnedAt']),
       parts: parsedParts,
+      reactions: _parseReactionsFromCache(json['reactions']),
     );
+  }
+
+  static List<MessageReactionSummary>? _parseReactionsFromCache(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is List) {
+      return raw.map((item) {
+        if (item is Map<String, dynamic>) {
+          return MessageReactionSummary.fromCacheJson(item);
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          return MessageReactionSummary.fromCacheJson(normalized);
+        }
+        return MessageReactionSummary(
+          reactionKey: '',
+          count: 0,
+          userIds: [],
+          hasSelf: false,
+        );
+      }).toList();
+    }
+    return null;
   }
 
   @override

@@ -1,4 +1,4 @@
-import { del, get, post } from "./http";
+import { del, get, patch, post } from "./http";
 import type { ApiResponse } from "./http";
 import type {
   Message,
@@ -7,6 +7,7 @@ import type {
   MessageReader,
   MessagePart,
   MessageAttachment,
+  MessageReactionSummary,
 } from "@/types/models";
 import {
   MessageType,
@@ -116,6 +117,10 @@ export interface BackendMessageInfo {
   forward_message?: BackendForwardMessage | null;
   is_deleted?: boolean;
   deleted_at?: string | null;
+  /** 消息是否已编辑 */
+  is_edited?: boolean;
+  /** 消息编辑时间 */
+  edited_at?: string | null;
   is_pinned?: boolean;
   pinned_at?: string | null;
   pinned_by?: string | null;
@@ -428,6 +433,8 @@ export const transformBackendMessage = (
     quotedMessage: mapQuotedMessage(message.quoted_message),
     forwardInfo: mapForwardMessage(message.forward_message),
     isDeleted: Boolean(message.is_deleted),
+    isEdited: Boolean(message.is_edited),
+    editedAt: message.edited_at ? parseTimestamp(message.edited_at) : null,
     pinnedAt: message.pinned_at ? parseTimestamp(message.pinned_at) : null,
     parts: mapMessageParts(message.parts),
   };
@@ -1188,6 +1195,42 @@ export class MessageApi {
     };
   }
 
+  /**
+   * 编辑消息（仅支持编辑自己发送的文本消息）
+   */
+  static async editMessage(params: {
+    groupId: string;
+    messageId: string;
+    content: string;
+  }): Promise<ApiResponse<Message | null>> {
+    const response = await patch<{ message?: BackendMessageInfo }>(
+      `/rooms/${params.groupId}/messages/${params.messageId}`,
+      { content: params.content },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    const rawData = response.data as Record<string, unknown>;
+    // 后端直接返回 MessageInfo 结构，不需要 .message 包装
+    const backendMessage = (rawData.id ? rawData : rawData.message) as BackendMessageInfo | undefined;
+    if (!backendMessage) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapBackendMessage(backendMessage),
+    };
+  }
+
   static async forwardMessage(params: {
     targetRoomId: string;
     originalMessageId: string;
@@ -1202,6 +1245,100 @@ export class MessageApi {
     return {
       ...response,
       data: null,
+    };
+  }
+
+  /**
+   * 添加消息反应
+   */
+  static async addReaction(params: {
+    groupId: string;
+    messageId: string;
+    reactionKey: string;
+  }): Promise<ApiResponse<{ summaries: MessageReactionSummary[] } | null>> {
+    const response = await post<{
+      success: boolean;
+      message: string;
+      summaries?: MessageReactionSummary[];
+    }>(
+      `/rooms/${params.groupId}/messages/${params.messageId}/reactions`,
+      { reaction_key: params.reactionKey },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        summaries: response.data.summaries || [],
+      },
+    };
+  }
+
+  /**
+   * 删除消息反应
+   */
+  static async removeReaction(params: {
+    groupId: string;
+    messageId: string;
+    reactionKey: string;
+  }): Promise<ApiResponse<{ summaries: MessageReactionSummary[] } | null>> {
+    // DELETE 请求使用 query 参数传递 reaction_key
+    const response = await del<{
+      success: boolean;
+      message: string;
+      summaries?: MessageReactionSummary[];
+    }>(
+      `/rooms/${params.groupId}/messages/${params.messageId}/reactions?reaction_key=${encodeURIComponent(params.reactionKey)}`,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        summaries: response.data.summaries || [],
+      },
+    };
+  }
+
+  /**
+   * 获取消息的所有反应
+   */
+  static async getReactions(params: {
+    groupId: string;
+    messageId: string;
+  }): Promise<ApiResponse<{ summaries: MessageReactionSummary[] } | null>> {
+    const response = await get<{
+      success: boolean;
+      message: string;
+      summaries?: MessageReactionSummary[];
+    }>(
+      `/rooms/${params.groupId}/messages/${params.messageId}/reactions`,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        summaries: response.data.summaries || [],
+      },
     };
   }
 

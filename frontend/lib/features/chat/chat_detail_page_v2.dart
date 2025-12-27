@@ -31,7 +31,6 @@ import '../../core/storage/message_search_storage.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'constants/emoji_list.dart';
-import '../../core/widgets/app_badge.dart';
 import '../../core/widgets/skeleton.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
@@ -67,7 +66,7 @@ class ChatDetailPageV2 extends StatefulWidget {
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
 }
 
-enum _MessageAction { copy, quote, forward, pin, delete }
+enum _MessageAction { copy, quote, forward, pin, delete, reaction }
 
 class _MessageActionEntry {
   const _MessageActionEntry({
@@ -81,6 +80,46 @@ class _MessageActionEntry {
   final String label;
   final IconData icon;
   final bool danger;
+}
+
+/// 反应选择器底部表单
+class _ReactionPickerSheet extends StatelessWidget {
+  const _ReactionPickerSheet({required this.reactions});
+
+  final List<String> reactions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      child: SafeArea(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: reactions.map((reaction) {
+            return InkWell(
+              onTap: () => Navigator.of(context).pop(reaction),
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                child: Text(
+                  reaction,
+                  style: const TextStyle(fontSize: 28),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
 }
 
 class _ChatDetailPageV2State extends State<ChatDetailPageV2>
@@ -944,6 +983,64 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       multiSelectMode: _multiSelectMode,
                       isHighlighted: _highlightedMessageId == message.id,
                     ),
+                    // 消息反应标签
+                    if (message.reactions != null && message.reactions!.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: 6,
+                          left: message.isSelf ? 0 : 56,
+                          right: message.isSelf ? 56 : 0,
+                        ),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          alignment: message.isSelf
+                              ? WrapAlignment.end
+                              : WrapAlignment.start,
+                          children: message.reactions!.map((reaction) {
+                            return InkWell(
+                              onTap: () => _handleReactionTagTap(message, reaction.reactionKey),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: reaction.hasSelf
+                                      ? AppColors.primary.withValues(alpha: 0.1)
+                                      : AppColors.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: reaction.hasSelf
+                                      ? Border.all(
+                                          color: AppColors.primary.withValues(alpha: 0.3),
+                                          width: 1,
+                                        )
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      reaction.reactionKey,
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${reaction.count}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                   ],
                 ),
               );
@@ -1616,6 +1713,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       );
     }
 
+    if (!message.isDeleted) {
+      actionEntries.add(
+        const _MessageActionEntry(
+          action: _MessageAction.reaction,
+          label: '添加反应',
+          icon: Icons.emoji_emotions_outlined,
+        ),
+      );
+    }
+
     actionEntries.add(
       const _MessageActionEntry(
         action: _MessageAction.delete,
@@ -1827,6 +1934,97 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         if (!mounted) return;
         await _confirmDeleteMessage(message);
         break;
+      case _MessageAction.reaction:
+        if (!mounted) return;
+        await _showReactionPicker(message);
+        break;
+    }
+  }
+
+  static const List<String> _allowedReactions = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
+
+  Future<void> _showReactionPicker(Message message) async {
+    final selectedReaction = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ReactionPickerSheet(
+        reactions: _allowedReactions,
+      ),
+    );
+
+    if (!mounted || selectedReaction == null) return;
+
+    try {
+      // 检查是否已有该反应
+      final existingReaction = message.reactions?.firstWhere(
+        (r) => r.reactionKey == selectedReaction,
+        orElse: () => MessageReactionSummary(
+          reactionKey: '',
+          count: 0,
+          userIds: [],
+          hasSelf: false,
+        ),
+      );
+      final hasSelf = existingReaction?.hasSelf ?? false;
+
+      if (hasSelf) {
+        // 删除反应
+        await MessageService.instance.removeReaction(
+          roomId: message.roomId,
+          messageId: message.id,
+          reactionKey: selectedReaction,
+        );
+      } else {
+        // 添加反应
+        await MessageService.instance.addReaction(
+          roomId: message.roomId,
+          messageId: message.id,
+          reactionKey: selectedReaction,
+        );
+      }
+    } catch (e) {
+      debugPrint('Reaction action failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('操作失败，请稍后重试')),
+      );
+    }
+  }
+
+  Future<void> _handleReactionTagTap(Message message, String reactionKey) async {
+    try {
+      final existingReaction = message.reactions?.firstWhere(
+        (r) => r.reactionKey == reactionKey,
+        orElse: () => MessageReactionSummary(
+          reactionKey: '',
+          count: 0,
+          userIds: [],
+          hasSelf: false,
+        ),
+      );
+      final hasSelf = existingReaction?.hasSelf ?? false;
+
+      if (hasSelf) {
+        // 删除反应
+        await MessageService.instance.removeReaction(
+          roomId: message.roomId,
+          messageId: message.id,
+          reactionKey: reactionKey,
+        );
+      } else {
+        // 添加反应
+        await MessageService.instance.addReaction(
+          roomId: message.roomId,
+          messageId: message.id,
+          reactionKey: reactionKey,
+        );
+      }
+    } catch (e) {
+      debugPrint('Reaction tag tap failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('操作失败，请稍后重试')),
+      );
     }
   }
 

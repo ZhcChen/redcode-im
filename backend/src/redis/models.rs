@@ -225,14 +225,96 @@ pub struct ForwardMessagePayload {
     pub sender_nickname: Option<String>,
 }
 
+/// 消息更新类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageUpdateType {
+    Deleted,
+    Edited,
+}
+
+impl std::fmt::Display for MessageUpdateType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MessageUpdateType::Deleted => write!(f, "deleted"),
+            MessageUpdateType::Edited => write!(f, "edited"),
+        }
+    }
+}
+
+impl std::str::FromStr for MessageUpdateType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "deleted" => Ok(MessageUpdateType::Deleted),
+            "edited" => Ok(MessageUpdateType::Edited),
+            _ => Err(format!("unknown update type: {}", s)),
+        }
+    }
+}
+
 /// 消息更新事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageUpdatePayload {
     pub room_id: Uuid,
     pub message_id: Uuid,
+    /// 更新类型：deleted / edited
+    #[serde(default = "default_update_type")]
+    pub update_type: MessageUpdateType,
+    /// 向后兼容：is_deleted 仍然保留
     pub is_deleted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<DateTime<Utc>>,
+    /// 编辑时间（仅 update_type=edited 时有值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edited_at: Option<DateTime<Utc>>,
+    /// 编辑后的新内容（仅 update_type=edited 时有值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+fn default_update_type() -> MessageUpdateType {
+    MessageUpdateType::Deleted
+}
+
+/// 反应操作类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReactionAction {
+    Add,
+    Remove,
+}
+
+impl std::fmt::Display for ReactionAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReactionAction::Add => write!(f, "add"),
+            ReactionAction::Remove => write!(f, "remove"),
+        }
+    }
+}
+
+impl std::str::FromStr for ReactionAction {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "add" => Ok(ReactionAction::Add),
+            "remove" => Ok(ReactionAction::Remove),
+            _ => Err(format!("unknown reaction action: {}", s)),
+        }
+    }
+}
+
+/// 消息反应更新事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReactionUpdatePayload {
+    pub room_id: Uuid,
+    pub message_id: Uuid,
+    pub reaction_key: String,
+    pub user_id: Uuid,
+    pub action: ReactionAction,
 }
 
 /// 房间聊天记录被清空事件
@@ -376,6 +458,10 @@ pub enum PubSubPayload {
         #[serde(flatten)]
         data: RoomHistoryClearedPayload,
     },
+    ReactionUpdate {
+        #[serde(flatten)]
+        data: ReactionUpdatePayload,
+    },
 }
 
 /// 缓存键生成器
@@ -407,6 +493,9 @@ impl PubSubPayload {
             }
             PubSubPayload::RoomHistoryCleared { data } => {
                 Payload::RoomHistoryCleared(ws::PubSubRoomHistoryCleared::from(data))
+            }
+            PubSubPayload::ReactionUpdate { data } => {
+                Payload::ReactionUpdate(ws::PubSubReactionUpdate::from(data))
             }
         };
 
@@ -461,6 +550,10 @@ impl TryFrom<ws::PubSubEvent> for PubSubPayload {
             Payload::RoomHistoryCleared(update) => {
                 let data = RoomHistoryClearedPayload::try_from(update)?;
                 Ok(PubSubPayload::RoomHistoryCleared { data })
+            }
+            Payload::ReactionUpdate(update) => {
+                let data = ReactionUpdatePayload::try_from(update)?;
+                Ok(PubSubPayload::ReactionUpdate { data })
             }
         }
     }
@@ -600,6 +693,12 @@ impl From<&MessageUpdatePayload> for ws::PubSubMessageUpdate {
                 .deleted_at
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_default(),
+            update_type: value.update_type.to_string(),
+            edited_at: value
+                .edited_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+            content: value.content.clone().unwrap_or_default(),
         }
     }
 }
@@ -608,13 +707,29 @@ impl TryFrom<ws::PubSubMessageUpdate> for MessageUpdatePayload {
     type Error = String;
 
     fn try_from(value: ws::PubSubMessageUpdate) -> Result<Self, Self::Error> {
+        let update_type = if value.update_type.is_empty() {
+            // 兼容旧版本：如果 update_type 为空，根据 is_deleted 推断
+            if value.is_deleted {
+                MessageUpdateType::Deleted
+            } else {
+                MessageUpdateType::Edited
+            }
+        } else {
+            value.update_type.parse().unwrap_or(MessageUpdateType::Deleted)
+        };
+
         Ok(MessageUpdatePayload {
             room_id: parse_uuid(&value.room_id, "room_id")?,
             message_id: parse_uuid(&value.message_id, "message_id")?,
+            update_type,
             is_deleted: value.is_deleted,
             deleted_at: option_from_string(value.deleted_at)
                 .map(|val| parse_datetime(&val, "deleted_at"))
                 .transpose()?,
+            edited_at: option_from_string(value.edited_at)
+                .map(|val| parse_datetime(&val, "edited_at"))
+                .transpose()?,
+            content: option_from_string(value.content),
         })
     }
 }
@@ -1070,6 +1185,37 @@ impl TryFrom<ws::PubSubGroupMemberChanged> for GroupMemberChangedPayload {
             operator_id,
             reason: value.reason,
             until,
+        })
+    }
+}
+
+impl From<&ReactionUpdatePayload> for ws::PubSubReactionUpdate {
+    fn from(value: &ReactionUpdatePayload) -> Self {
+        ws::PubSubReactionUpdate {
+            room_id: value.room_id.to_string(),
+            message_id: value.message_id.to_string(),
+            reaction_key: value.reaction_key.clone(),
+            user_id: value.user_id.to_string(),
+            action: value.action.to_string(),
+        }
+    }
+}
+
+impl TryFrom<ws::PubSubReactionUpdate> for ReactionUpdatePayload {
+    type Error = String;
+
+    fn try_from(value: ws::PubSubReactionUpdate) -> Result<Self, Self::Error> {
+        let room_id = parse_uuid(&value.room_id, "room_id")?;
+        let message_id = parse_uuid(&value.message_id, "message_id")?;
+        let user_id = parse_uuid(&value.user_id, "user_id")?;
+        let action = value.action.parse().unwrap_or(ReactionAction::Add);
+
+        Ok(ReactionUpdatePayload {
+            room_id,
+            message_id,
+            reaction_key: value.reaction_key,
+            user_id,
+            action,
         })
     }
 }

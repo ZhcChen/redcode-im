@@ -237,6 +237,19 @@
               发送失败
               <button v-if="message.isSelf" @click="resendMessage(message)" class="resend-btn">重发</button>
             </div>
+            <!-- 消息反应标签 -->
+            <div v-if="message.reactions && message.reactions.length > 0" class="message-reactions">
+              <div
+                v-for="reaction in message.reactions"
+                :key="reaction.reactionKey"
+                class="reaction-tag"
+                :class="{ 'has-self': reaction.hasSelf }"
+                @click="handleReactionTagClick(message, reaction.reactionKey)"
+              >
+                <span class="reaction-emoji">{{ reaction.reactionKey }}</span>
+                <span class="reaction-count">{{ reaction.count }}</span>
+              </div>
+            </div>
             <!-- 加载动画放在消息框外面左下角 -->
             <div
               v-if="message.status === 1 &&
@@ -636,12 +649,23 @@
     :is-pinned="!!messageContextMenuTarget?.pinnedAt"
     :can-download="!!messageContextMenuTarget && canDownloadMessage(messageContextMenuTarget)"
     :can-delete="!!messageContextMenuTarget && messageContextMenuTarget.isSelf"
+    :can-edit="!!messageContextMenuTarget && canEditMessage(messageContextMenuTarget)"
     @copy="handleMessageMenuCopy"
     @quote="handleMessageMenuQuote"
     @forward="handleMessageMenuForward"
     @pin="handleMessageMenuPin"
     @download="handleMessageMenuDownload"
     @delete="handleMessageMenuDelete"
+    @edit="handleMessageMenuEdit"
+    @reaction="handleMessageMenuReaction"
+  />
+
+  <!-- 反应选择器 -->
+  <ReactionPicker
+    v-model:visible="showReactionPicker"
+    :position="reactionPickerPosition"
+    :reactions="ALLOWED_REACTIONS"
+    @select="handleReactionSelect"
   />
 
   <!-- 删除对话确认对话框 -->
@@ -656,6 +680,36 @@
     @confirm="confirmDelete"
     @cancel="cancelDelete"
   />
+
+  <!-- 编辑消息对话框 -->
+  <Teleport to="body">
+    <div v-if="showEditMessageDialog" class="edit-message-dialog-overlay" @click="cancelEditMessage">
+      <div class="edit-message-dialog" @click.stop>
+        <div class="edit-message-header">
+          <h3>编辑消息</h3>
+          <button class="close-btn" @click="cancelEditMessage">×</button>
+        </div>
+        <div class="edit-message-body">
+          <textarea
+            v-model="editMessageContent"
+            class="edit-message-input"
+            placeholder="输入消息内容..."
+            rows="4"
+            maxlength="10000"
+            @keydown.ctrl.enter="confirmEditMessage"
+            @keydown.meta.enter="confirmEditMessage"
+          ></textarea>
+          <div class="edit-message-footer">
+            <span class="char-count">{{ editMessageContent.length }}/10000</span>
+            <div class="button-group">
+              <button class="btn-cancel" @click="cancelEditMessage">取消</button>
+              <button class="btn-confirm" @click="confirmEditMessage">确定</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 
   <!-- 解散群聊确认对话框 -->
   <Dialog
@@ -742,6 +796,7 @@ import GroupSettingsDrawer from '../components/GroupSettingsDrawer.vue'
 import VoiceMessage from '../components/VoiceMessage.vue'
 import ChatContextMenu from '../components/ChatContextMenu.vue'
 import MessageContextMenu from '../components/MessageContextMenu.vue'
+import ReactionPicker from '../components/ReactionPicker.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PinnedMessageBanner from '../components/PinnedMessageBanner.vue'
 import SelectableListDialog from '../components/SelectableListDialog.vue'
@@ -4740,6 +4795,18 @@ const canCopyMessage = (message: Message | null): boolean => {
   return Boolean(text && text.trim().length)
 }
 
+const canEditMessage = (message: Message | null): boolean => {
+  if (!message) return false
+  // 只能编辑自己发送的文本消息
+  if (!message.isSelf) return false
+  if (message.isDeleted) return false
+  // 仅支持编辑纯文本消息
+  if (message.messageType !== MESSAGE_CONSTANTS.MSG_TYPE.TEXT_MSG) return false
+  // 检查是否有文本内容
+  const text = getTextContent(message)
+  return Boolean(text && text.trim().length)
+}
+
 const canDownloadMessage = (message: Message | null): boolean => {
   if (!message) return false
   if (Array.isArray(message.parts)) {
@@ -7644,6 +7711,183 @@ const handleMessageMenuDelete = async () => {
   }
 }
 
+// 编辑消息相关状态
+const showEditMessageDialog = ref(false)
+const editingMessage = ref<Message | null>(null)
+const editMessageContent = ref('')
+
+const handleMessageMenuEdit = () => {
+  const target = messageContextMenuTarget.value
+  if (!target || !canEditMessage(target)) return
+  
+  editingMessage.value = target
+  editMessageContent.value = getTextContent(target)
+  showMessageContextMenu.value = false
+  showEditMessageDialog.value = true
+}
+
+// 反应相关状态
+const showReactionPicker = ref(false)
+const reactionPickerPosition = ref({ x: 0, y: 0 })
+const reactionPickerTarget = ref<Message | null>(null)
+const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢']
+
+const handleMessageMenuReaction = () => {
+  const target = messageContextMenuTarget.value
+  if (!target || target.isDeleted) return
+  
+  reactionPickerTarget.value = target
+  // 使用右键菜单位置作为反应选择器的位置
+  reactionPickerPosition.value = {
+    x: messageContextMenuPosition.value.x,
+    y: messageContextMenuPosition.value.y,
+  }
+  showReactionPicker.value = true
+  showMessageContextMenu.value = false
+}
+
+const handleReactionSelect = async (reactionKey: string) => {
+  const target = reactionPickerTarget.value
+  if (!target || !selectedChat.value) return
+  
+  try {
+    // 检查是否已有该反应
+    const existingReaction = target.reactions?.find(r => r.reactionKey === reactionKey)
+    const hasSelf = existingReaction?.hasSelf || false
+    
+    let response
+    if (hasSelf) {
+      // 删除反应
+      response = await MessageApi.removeReaction({
+        groupId: selectedChat.value.groupId,
+        messageId: target.id,
+        reactionKey,
+      })
+    } else {
+      // 添加反应
+      response = await MessageApi.addReaction({
+        groupId: selectedChat.value.groupId,
+        messageId: target.id,
+        reactionKey,
+      })
+    }
+    
+    if (response.success && response.data) {
+      // 更新消息的反应列表
+      const messageIndex = messages.value.findIndex(m => m.id === target.id)
+      if (messageIndex !== -1) {
+        messages.value[messageIndex] = {
+          ...messages.value[messageIndex],
+          reactions: response.data.summaries,
+        }
+      }
+    }
+  } catch (error: any) {
+    toast.error(error.message || '操作失败')
+  } finally {
+    showReactionPicker.value = false
+    reactionPickerTarget.value = null
+  }
+}
+
+const handleReactionTagClick = async (message: Message, reactionKey: string) => {
+  if (!selectedChat.value) return
+  
+  try {
+    const existingReaction = message.reactions?.find(r => r.reactionKey === reactionKey)
+    const hasSelf = existingReaction?.hasSelf || false
+    
+    let response
+    if (hasSelf) {
+      // 删除反应
+      response = await MessageApi.removeReaction({
+        groupId: selectedChat.value.groupId,
+        messageId: message.id,
+        reactionKey,
+      })
+    } else {
+      // 添加反应
+      response = await MessageApi.addReaction({
+        groupId: selectedChat.value.groupId,
+        messageId: message.id,
+        reactionKey,
+      })
+    }
+    
+    if (response.success && response.data) {
+      // 更新消息的反应列表
+      const messageIndex = messages.value.findIndex(m => m.id === message.id)
+      if (messageIndex !== -1) {
+        messages.value[messageIndex] = {
+          ...messages.value[messageIndex],
+          reactions: response.data.summaries,
+        }
+      }
+    }
+  } catch (error: any) {
+    toast.error(error.message || '操作失败')
+  }
+}
+
+const confirmEditMessage = async () => {
+  const message = editingMessage.value
+  if (!message) return
+  
+  const newContent = editMessageContent.value.trim()
+  if (!newContent) {
+    toast.warning('消息内容不能为空')
+    return
+  }
+  
+  if (newContent.length > 10000) {
+    toast.warning('消息内容不能超过 10000 字符')
+    return
+  }
+  
+  const roomId = message.roomId || selectedChat.value?.groupId
+  if (!roomId) {
+    toast.error('缺少房间信息，无法编辑')
+    return
+  }
+  
+  try {
+    const res = await MessageApi.editMessage({
+      groupId: roomId,
+      messageId: message.id,
+      content: newContent,
+    })
+    
+    if (res.success && res.data) {
+      // 更新本地消息
+      const index = messages.value.findIndex((msg) => msg.id === message.id)
+      if (index !== -1) {
+        const updatedMessage = {
+          ...messages.value[index],
+          ...res.data,
+          isEdited: true,
+          editedAt: new Date(),
+        }
+        messages.value.splice(index, 1, updatedMessage)
+      }
+      toast.success('消息已编辑')
+      showEditMessageDialog.value = false
+      editingMessage.value = null
+      editMessageContent.value = ''
+    } else {
+      toast.error(res.message || '编辑失败')
+    }
+  } catch (error) {
+    console.error('编辑消息失败', error)
+    toast.error('编辑失败，请重试')
+  }
+}
+
+const cancelEditMessage = () => {
+  showEditMessageDialog.value = false
+  editingMessage.value = null
+  editMessageContent.value = ''
+}
+
 // 多选模式（拖拽进入）
 const multiSelectMode = ref(false)
 const selectedMessageIds = reactive(new Set<string>())
@@ -8999,9 +9243,109 @@ const handleWebSocketMessage = (event: CustomEvent) => {
   }
 }
 
+const handleWebSocketReactionUpdate = (event: CustomEvent) => {
+  const detail = event.detail as {
+    room_id?: string
+    message_id?: string
+    reaction_key?: string
+    user_id?: string
+    action?: string // "add" | "remove"
+  } | undefined
+
+  if (!detail || !detail.room_id || !detail.message_id) return
+
+  const roomId = detail.room_id
+  const messageId = detail.message_id
+  const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === roomId
+
+  if (isCurrentRoom) {
+    const existingIndex = messages.value.findIndex((msg) => msg.id === messageId)
+    if (existingIndex !== -1) {
+      const existingMessage = messages.value[existingIndex]
+      // 重新获取反应列表以更新 UI
+      MessageApi.getReactions({
+        groupId: roomId,
+        messageId: messageId,
+      }).then((response) => {
+        if (response.success && response.data) {
+          const updatedMessage = {
+            ...existingMessage,
+            reactions: response.data.summaries,
+          }
+          messages.value.splice(existingIndex, 1, updatedMessage)
+        }
+      }).catch(() => {
+        // 静默失败，不影响用户体验
+      })
+    }
+  }
+}
+
 const handleWebSocketMessageUpdate = (event: CustomEvent) => {
-  const detail = event.detail as { message?: DomainMessage; action?: string } | undefined
-  if (!detail?.message) {
+  // 支持两种格式：
+  // 1. 旧格式：{ message: DomainMessage } - 删除消息事件
+  // 2. 新格式：{ room_id, message_id, update_type, is_deleted, content, edited_at, ... }
+  const detail = event.detail as {
+    message?: DomainMessage
+    room_id?: string
+    message_id?: string
+    update_type?: string
+    is_deleted?: boolean
+    content?: string
+    edited_at?: string
+  } | undefined
+
+  if (!detail) return
+
+  // 新格式：后端直接推送消息更新事件
+  if (detail.room_id && detail.message_id) {
+    const roomId = detail.room_id
+    const messageId = detail.message_id
+    const updateType = detail.update_type || (detail.is_deleted ? 'deleted' : 'edited')
+    const isDeleted = detail.is_deleted === true
+    const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === roomId
+
+    if (isCurrentRoom) {
+      const existingIndex = messages.value.findIndex((msg) => msg.id === messageId)
+
+      if (updateType === 'deleted' || isDeleted) {
+        // 删除消息
+        if (existingIndex !== -1) {
+          messages.value.splice(existingIndex, 1)
+        }
+      } else if (updateType === 'edited' && existingIndex !== -1) {
+        // 编辑消息：更新内容
+        const existingMessage = messages.value[existingIndex]
+        const updatedMessage = {
+          ...existingMessage,
+          content: detail.content ?? existingMessage.content,
+          isEdited: true,
+          editedAt: detail.edited_at ? new Date(detail.edited_at) : new Date(),
+        }
+        messages.value.splice(existingIndex, 1, updatedMessage)
+      }
+    }
+
+    // 更新会话列表的最后消息
+    const chatItem = store.getters.getChatByGroupId(roomId)
+    if (chatItem && chatItem.lastMessageId === messageId) {
+      let newLastMessage = chatItem.lastMessage
+      if (isDeleted) {
+        newLastMessage = '[消息已删除]'
+      } else if (updateType === 'edited' && detail.content) {
+        newLastMessage = detail.content.substring(0, 50)
+      }
+      const updatedChat = {
+        ...chatItem,
+        lastMessage: newLastMessage,
+      }
+      store.dispatch('updateChatItem', updatedChat)
+    }
+    return
+  }
+
+  // 旧格式：通过 message 对象传递
+  if (!detail.message) {
     return
   }
 
@@ -9362,6 +9706,7 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-message-update', handleWebSocketMessageUpdate as EventListener)
   eventManager.addWindowListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
   eventManager.addWindowListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
+  eventManager.addWindowListener('websocket-reaction-update', handleWebSocketReactionUpdate as EventListener)
   eventManager.addWindowListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   eventManager.addWindowListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
   eventManager.addWindowListener('websocket-group-settings-updated', handleGroupSettingsUpdatedEvent as EventListener)
@@ -9474,6 +9819,7 @@ onUnmounted(async () => {
   window.removeEventListener('websocket-message-update', handleWebSocketMessageUpdate as EventListener)
   window.removeEventListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
   window.removeEventListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
+  window.removeEventListener('websocket-reaction-update', handleWebSocketReactionUpdate as EventListener)
   window.removeEventListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   window.removeEventListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
   window.removeEventListener('websocket-room-history-cleared', handleRoomHistoryClearedEvent as EventListener)
@@ -11472,6 +11818,53 @@ const loadMessageList = async (groupId: string) => {
 }
 
 // 发送状态样式调整
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 80%;
+
+  .reaction-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.08);
+      transform: scale(1.05);
+    }
+
+    &.has-self {
+      background: rgba(0, 194, 179, 0.1);
+      border-color: rgba(0, 194, 179, 0.3);
+    }
+
+    .reaction-emoji {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .reaction-count {
+      font-size: 12px;
+      color: #666;
+      font-weight: 500;
+    }
+  }
+}
+
+.own-message + .message-reactions {
+  margin-left: auto;
+  margin-right: 0;
+  justify-content: flex-end;
+}
+
 .message-status {
   display: flex;
   align-items: center;
@@ -12062,5 +12455,159 @@ const loadMessageList = async (groupId: string) => {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+// 编辑消息对话框样式
+.edit-message-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+.edit-message-dialog {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 500px;
+  animation: slideUp 0.2s ease;
+}
+
+.edit-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e5e5;
+
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1e1f24;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #f5f5f5;
+    }
+  }
+}
+
+.edit-message-body {
+  padding: 20px;
+}
+
+.edit-message-input {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #d0d1db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: var(--primary-color, #4ecdc4);
+  }
+
+  &::placeholder {
+    color: #999;
+  }
+}
+
+.edit-message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+
+  .char-count {
+    font-size: 12px;
+    color: #999;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-cancel,
+  .btn-confirm {
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+
+  .btn-cancel {
+    background: #f5f5f5;
+    color: #666;
+
+    &:hover {
+      background: #e5e5e5;
+    }
+  }
+
+  .btn-confirm {
+    background: var(--primary-color, #4ecdc4);
+    color: #fff;
+
+    &:hover {
+      opacity: 0.9;
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

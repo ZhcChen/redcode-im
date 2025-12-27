@@ -36,6 +36,25 @@
         <span class="menu-label">{{ isPinned ? '取消置顶' : '置顶' }}</span>
       </div>
 
+      <div class="menu-divider"></div>
+
+      <div class="menu-item" @click="handleAction('reaction', true)">
+        <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 9V5a3 3 0 0 0-6 0v4M7 9h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/>
+        </svg>
+        <span class="menu-label">添加反应</span>
+      </div>
+
+      <div v-if="canEdit" class="menu-divider"></div>
+
+      <div v-if="canEdit" class="menu-item" @click="handleAction('edit', canEdit)">
+        <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <span class="menu-label">编辑</span>
+      </div>
+
       <div v-if="canDownload" class="menu-divider"></div>
 
       <div v-if="canDownload" class="menu-item" @click="handleAction('download', canDownload)">
@@ -73,6 +92,7 @@ interface Props {
   canQuote: boolean
   canForward: boolean
   canPin: boolean
+  canEdit: boolean
   isPinned: boolean
 }
 
@@ -84,6 +104,8 @@ interface Emits {
   (e: 'quote'): void
   (e: 'forward'): void
   (e: 'pin'): void
+  (e: 'edit'): void
+  (e: 'reaction'): void
 }
 
 const props = defineProps<Props>()
@@ -119,7 +141,7 @@ const menuStyle = computed(() => {
 })
 
 const handleAction = (
-  action: 'copy' | 'download' | 'delete' | 'quote' | 'forward' | 'pin',
+  action: 'copy' | 'download' | 'delete' | 'quote' | 'forward' | 'pin' | 'edit' | 'reaction',
   enabled: boolean,
 ) => {
   if (!enabled) return

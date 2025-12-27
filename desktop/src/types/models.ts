@@ -132,6 +132,13 @@ export enum MessageStatus {
   FAILED = 'failed',
 }
 
+export interface MessageReactionSummary {
+  reactionKey: string;
+  count: number;
+  userIds: string[];
+  hasSelf: boolean;
+}
+
 export interface Message {
   id: string;
   roomId: string;
@@ -149,8 +156,14 @@ export interface Message {
   quotedMessage?: QuotedMessage | null;
   forwardInfo?: ForwardInfo | null;
   isDeleted: boolean;
+  /** 消息是否已编辑 */
+  isEdited?: boolean;
+  /** 消息编辑时间 */
+  editedAt?: Date | null;
   pinnedAt?: Date | null;
   parts?: MessagePart[];
+  /** 消息反应聚合结果 */
+  reactions?: MessageReactionSummary[];
 }
 
 export interface MessageReader {

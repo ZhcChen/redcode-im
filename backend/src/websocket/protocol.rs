@@ -145,6 +145,9 @@ pub enum ServerPush {
         avatar_url: Option<String>,
         avatar_object_key: Option<String>,
     },
+    ReactionUpdate {
+        data: crate::redis::models::ReactionUpdatePayload,
+    },
 }
 
 impl ServerPush {
@@ -170,6 +173,7 @@ impl ServerPush {
             ServerPush::RoomHistoryCleared { .. } => "room_history_cleared",
             ServerPush::FriendshipDeleted { .. } => "friendship_deleted",
             ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
+            ServerPush::ReactionUpdate { .. } => "reaction_update",
         }
     }
 
@@ -329,6 +333,14 @@ impl ServerPush {
                 "avatar_url": avatar_url,
                 "avatar_object_key": avatar_object_key,
             }),
+            ServerPush::ReactionUpdate { data } => json!({
+                "type": "reaction_update",
+                "room_id": data.room_id,
+                "message_id": data.message_id,
+                "reaction_key": data.reaction_key,
+                "user_id": data.user_id,
+                "action": data.action.to_string(),
+            }),
         }
     }
 
@@ -379,6 +391,12 @@ impl ServerPush {
                     .deleted_at
                     .map(|ts| ts.to_rfc3339())
                     .unwrap_or_default(),
+                update_type: data.update_type.to_string(),
+                edited_at: data
+                    .edited_at
+                    .map(|ts| ts.to_rfc3339())
+                    .unwrap_or_default(),
+                content: data.content.clone().unwrap_or_default(),
             }),
             ServerPush::PinUpdate { data } => Payload::PinUpdate(ws::ServerPinUpdate {
                 room_id: data.room_id.to_string(),
@@ -494,6 +512,13 @@ impl ServerPush {
                 nickname: nickname.clone().unwrap_or_default(),
                 avatar_url: avatar_url.clone().unwrap_or_default(),
                 avatar_object_key: avatar_object_key.clone().unwrap_or_default(),
+            }),
+            ServerPush::ReactionUpdate { data } => Payload::ReactionUpdate(ws::ServerReactionUpdate {
+                room_id: data.room_id.to_string(),
+                message_id: data.message_id.to_string(),
+                reaction_key: data.reaction_key.clone(),
+                user_id: data.user_id.to_string(),
+                action: data.action.to_string(),
             }),
         };
 

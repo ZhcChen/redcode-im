@@ -264,6 +264,12 @@ class WebSocketManager {
         break;
       }
 
+      case 'reactionupdate':
+      case 'reaction_update': {
+        this.emitReactionUpdate(payload.payload, eventUserId);
+        break;
+      }
+
       case 'friendrequestupdate': {
         const data = payload.payload as { pending_count: number };
         if (typeof data.pending_count === 'number') {
@@ -760,6 +766,15 @@ class WebSocketManager {
       }
     }
     this.dispatchDomEvent('websocket-pin-update', detail);
+  }
+
+  /**
+   * 发送反应更新事件
+   */
+  private emitReactionUpdate(raw: any, eventUserId?: string): void {
+    const detail: any = { ...raw, userId: eventUserId };
+    delete detail.type;
+    this.dispatchDomEvent('websocket-reaction-update', detail);
   }
 
   /**

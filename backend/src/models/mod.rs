@@ -505,6 +505,12 @@ pub struct MessageInfo {
     pub is_deleted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<String>,
+    /// 消息是否已编辑
+    #[serde(default)]
+    pub is_edited: bool,
+    /// 编辑时间
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edited_at: Option<String>,
     #[serde(default)]
     pub is_pinned: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

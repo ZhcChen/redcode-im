@@ -429,6 +429,7 @@ pub struct MessageWithSender {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+    pub edited_at: Option<DateTime<Utc>>,
     pub sender_username: String,
     pub sender_nickname: Option<String>,
     pub sender_avatar_url: Option<String>,
@@ -647,6 +648,26 @@ pub struct MessageRead {
     pub user_id: Uuid,
     pub room_id: Uuid,
     pub read_at: DateTime<Utc>,
+}
+
+/// 消息反应表模型
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MessageReaction {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub user_id: Uuid,
+    pub reaction_key: String,
+    pub created_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+/// 消息反应聚合结果（用于 API 返回）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageReactionSummary {
+    pub reaction_key: String,
+    pub count: i64,
+    pub user_ids: Vec<Uuid>,
+    pub has_self: bool,
 }
 
 /// 会话概要信息（用于列表展示）

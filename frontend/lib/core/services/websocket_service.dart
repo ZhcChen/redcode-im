@@ -483,6 +483,19 @@ class WebSocketService with ChangeNotifier {
           pinnedAt: _parseDateTime(_nullIfEmpty(payload.pinnedAt)),
           pinnedBy: _nullIfEmpty(payload.pinnedBy),
         );
+      // TODO: 需要重新生成 proto 文件以支持 reactionUpdate
+      // case ws.ServerEvent_Payload.reactionUpdate:
+      //   final payload = event.reactionUpdate;
+      //   if (payload.roomId.isEmpty || payload.messageId.isEmpty) {
+      //     return null;
+      //   }
+      //   return _ReactionUpdateEvent(
+      //     roomId: payload.roomId,
+      //     messageId: payload.messageId,
+      //     reactionKey: payload.reactionKey,
+      //     userId: payload.userId,
+      //     action: payload.action,
+      //   );
       case ws.ServerEvent_Payload.friendRequestUpdate:
         return _FriendRequestUpdateEvent(
           pendingCount: event.friendRequestUpdate.pendingCount,
@@ -650,6 +663,23 @@ class WebSocketService with ChangeNotifier {
           pinnedAt: pinnedAt,
           pinnedBy: _nullIfEmpty(pinnedBy),
         );
+      case 'reaction_update':
+      case 'reaction.update':
+        final roomId = message['room_id']?.toString() ?? '';
+        final messageId = message['message_id']?.toString() ?? '';
+        final reactionKey = message['reaction_key']?.toString() ?? '';
+        final userId = message['user_id']?.toString() ?? '';
+        final action = message['action']?.toString() ?? 'add';
+        if (roomId.isEmpty || messageId.isEmpty || reactionKey.isEmpty) {
+          return null;
+        }
+        return _ReactionUpdateEvent(
+          roomId: roomId,
+          messageId: messageId,
+          reactionKey: reactionKey,
+          userId: userId,
+          action: action,
+        );
       case 'error':
         final msg = message['message']?.toString() ?? 'Unknown error';
         return _ErrorEvent(message: msg);
@@ -788,6 +818,8 @@ class WebSocketService with ChangeNotifier {
       _handleMessageUpdate(event);
     } else if (event is _PinUpdateEvent) {
       _handlePinUpdate(event);
+    } else if (event is _ReactionUpdateEvent) {
+      _handleReactionUpdate(event);
     } else if (event is _FriendRequestUpdateEvent) {
       _handleFriendRequestUpdate(event);
     } else if (event is _RoomCreatedEvent) {
@@ -898,6 +930,18 @@ class WebSocketService with ChangeNotifier {
         messageId: event.messageId,
         isDeleted: event.isDeleted,
         deletedAt: event.deletedAt,
+      ),
+    );
+  }
+
+  void _handleReactionUpdate(_ReactionUpdateEvent event) {
+    unawaited(
+      _messageService.handleReactionUpdate(
+        roomId: event.roomId,
+        messageId: event.messageId,
+        reactionKey: event.reactionKey,
+        userId: event.userId,
+        action: event.action,
       ),
     );
   }
@@ -1702,6 +1746,21 @@ class _MessageUpdateEvent extends _WsEvent {
   final String messageId;
   final bool isDeleted;
   final DateTime? deletedAt;
+}
+
+class _ReactionUpdateEvent extends _WsEvent {
+  const _ReactionUpdateEvent({
+    required this.roomId,
+    required this.messageId,
+    required this.reactionKey,
+    required this.userId,
+    required this.action,
+  });
+  final String roomId;
+  final String messageId;
+  final String reactionKey;
+  final String userId;
+  final String action; // "add" | "remove"
 }
 
 class _PinUpdateEvent extends _WsEvent {

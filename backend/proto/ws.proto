@@ -47,6 +47,7 @@ message ServerEvent {
     ServerFriendProfileUpdated friend_profile_updated = 18;
     ServerRoomHistoryCleared room_history_cleared = 19;
     ServerFriendshipDeleted friendship_deleted = 20;
+    ServerReactionUpdate reaction_update = 21;
   }
 }
 
@@ -131,6 +132,10 @@ message ServerMessageUpdate {
   string message_id = 2;
   bool is_deleted = 3;
   string deleted_at = 4;
+  // 新增编辑相关字段
+  string update_type = 5;  // "deleted" | "edited"
+  string edited_at = 6;
+  string content = 7;      // 编辑后的新内容
 }
 
 message ServerPinUpdate {
@@ -227,6 +232,15 @@ message ServerFriendProfileUpdated {
   string avatar_object_key = 5;
 }
 
+// 消息反应更新事件
+message ServerReactionUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  string reaction_key = 3;
+  string user_id = 4;
+  string action = 5;  // "add" | "remove"
+}
+
 enum PubSubPriority {
   PUBSUB_PRIORITY_UNKNOWN = 0;
   PUBSUB_PRIORITY_CRITICAL = 1;
@@ -266,6 +280,10 @@ message PubSubMessageUpdate {
   string message_id = 2;
   bool is_deleted = 3;
   string deleted_at = 4;
+  // 新增编辑相关字段
+  string update_type = 5;  // "deleted" | "edited"
+  string edited_at = 6;
+  string content = 7;      // 编辑后的新内容
 }
 
 message PubSubPinUpdate {
@@ -311,6 +329,15 @@ message PubSubRoomHistoryCleared {
   string cleared_at = 3;
 }
 
+// 消息反应更新事件（跨节点广播）
+message PubSubReactionUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  string reaction_key = 3;
+  string user_id = 4;
+  string action = 5;  // "add" | "remove"
+}
+
 message PubSubEvent {
   oneof payload {
     PubSubMessage message = 1;
@@ -321,5 +348,6 @@ message PubSubEvent {
     PubSubGroupSettingsUpdate group_settings_update = 6;
     PubSubGroupMemberChanged group_member_changed = 7;
     PubSubRoomHistoryCleared room_history_cleared = 8;
+    PubSubReactionUpdate reaction_update = 9;
   }
 }

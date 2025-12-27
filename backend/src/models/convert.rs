@@ -206,6 +206,8 @@ pub fn db_message_to_api_message_info(
         forward_message: forward,
         is_deleted: db_msg.deleted_at.is_some(),
         deleted_at: db_msg.deleted_at.map(|dt| dt.to_rfc3339()),
+        is_edited: db_msg.edited_at.is_some(),
+        edited_at: db_msg.edited_at.map(|dt| dt.to_rfc3339()),
         is_pinned,
         pinned_at,
         pinned_by,

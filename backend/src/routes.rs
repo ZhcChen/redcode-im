@@ -558,7 +558,13 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/messages/{message_id}",
-            delete(message::delete_message),
+            delete(message::delete_message).patch(message::edit_message),
+        )
+        .route(
+            "/rooms/{room_id}/messages/{message_id}/reactions",
+            post(message::add_message_reaction)
+                .delete(message::remove_message_reaction)
+                .get(message::get_message_reactions),
         )
         .route(
             "/rooms/{room_id}/messages/{message_id}/reads",

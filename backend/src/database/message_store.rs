@@ -190,6 +190,7 @@ impl<'a> MessageStore<'a> {
                  m.created_at,
                  m.updated_at,
                  m.deleted_at,
+                 m.edited_at,
                  m.forward_from_message_id,
                  m.forward_from_room_id,
                  m.forward_from_sender_id,
@@ -305,6 +306,7 @@ impl<'a> MessageStore<'a> {
                          m.created_at,
                          m.updated_at,
                          m.deleted_at,
+                         m.edited_at,
                          m.forward_from_message_id,
                          m.forward_from_room_id,
                          m.forward_from_sender_id,
@@ -355,6 +357,7 @@ impl<'a> MessageStore<'a> {
                          m.created_at,
                          m.updated_at,
                          m.deleted_at,
+                         m.edited_at,
                          m.forward_from_message_id,
                          m.forward_from_room_id,
                          m.forward_from_sender_id,
@@ -412,6 +415,7 @@ impl<'a> MessageStore<'a> {
                  m.created_at,
                  m.updated_at,
                  m.deleted_at,
+                 m.edited_at,
                  m.forward_from_message_id,
                  m.forward_from_room_id,
                  m.forward_from_sender_id,
@@ -619,6 +623,28 @@ impl<'a> MessageStore<'a> {
                        created_at, updated_at, deleted_at",
         )
         .bind(message_id)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(row)
+    }
+
+    /// 更新消息内容（编辑消息）
+    pub async fn update_message_content(
+        &self,
+        message_id: Uuid,
+        new_content: &str,
+    ) -> Result<Option<Message>, sqlx::Error> {
+        let row = sqlx::query_as::<_, Message>(
+            "UPDATE messages
+             SET content = $2, edited_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND deleted_at IS NULL
+             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+                       forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                       forward_from_sender_username, forward_from_sender_nickname,
+                       created_at, updated_at, deleted_at",
+        )
+        .bind(message_id)
+        .bind(new_content)
         .fetch_optional(self.pool)
         .await?;
         Ok(row)

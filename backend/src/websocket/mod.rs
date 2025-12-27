@@ -846,6 +846,9 @@ pub async fn handle_socket(
                                     cleared_at: data.cleared_at.to_rfc3339(),
                                 }
                             }
+                            crate::redis::models::PubSubPayload::ReactionUpdate { data } => {
+                                ServerPush::ReactionUpdate { data }
+                            }
                         };
 
                         let frame = push.encode(format_for_pubsub);

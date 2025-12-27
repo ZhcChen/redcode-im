@@ -132,29 +132,22 @@ await _chatProvider.sendVoiceMessage(...);
 ---
 
 ### 6. 消息编辑 / Reactions / Typing（backend + desktop + frontend）
-**目标**: 桌面端与移动端能力对齐，实现“消息编辑 / 消息反应（reactions）/ 正在输入（typing）”并通过 WebSocket 保障多端实时一致。
+**目标**: 桌面端与移动端能力对齐，实现"消息编辑 / 消息反应（reactions）/ 正在输入（typing）"并通过 WebSocket 保障多端实时一致。
 
-#### 6.1 消息编辑（edit）
-- **现状**:
-  - 后端仅支持删除消息：`DELETE /rooms/{room_id}/messages/{message_id}`（无编辑接口）
-  - WebSocket `message_update` 载荷目前只覆盖“删除”（`is_deleted/deleted_at`）
-  - 桌面端存在“（已编辑）”展示占位，但缺少可用的编辑链路与可用推送载荷
-- **需求边界（先固定最小可用）**:
-  - 仅允许编辑“自己发送的消息”
-  - 仅支持 `text` 消息（后续再扩展 `mixed` 中的文本 part）
-  - 编辑对所有人可见；编辑后会更新会话 lastMessage 预览
-- **后端（API + 数据）**:
-  - 新增接口：`PATCH /rooms/{room_id}/messages/{message_id}`（body：`content`）
-  - DB：新增 `messages.edited_at`（TIMESTAMPTZ，可空）或等价字段；编辑时同步更新 `updated_at`
-  - 广播：扩展 `message_update`（JSON/Protobuf）支持 `update_type=edited` 并携带 `message`（至少包含 id/room_id/content/message_type/parts/edited_at）
-  - 校验：仅房间成员、仅 sender 本人、消息未删除、内容长度限制与敏感字符处理
-- **Desktop**:
-  - 消息气泡长按/右键菜单新增“编辑”（仅自己文本消息）
-  - 提交编辑后本地立即更新，并等待 WS 回流做最终一致（失败回滚 + toast）
-  - 收到 `edited` 推送时：更新消息内容、标记“已编辑”、更新本地搜索索引（`messageSearchService.updateMessageIndex`）
-- **Flutter**:
-  - 长按菜单新增“编辑”（仅自己文本消息），输入框进入编辑态（可取消/确认）
-  - 收到 `edited` 推送时：更新消息内容、标记“已编辑”；同时刷新本地搜索索引（可先按房间重建索引，后续再做增量更新）
+#### 6.1 消息编辑（edit）✅
+- **完成情况**:
+  - ✅ 后端：新增 `PATCH /rooms/{room_id}/messages/{message_id}` 接口，支持编辑消息内容
+  - ✅ 数据库：新增 `messages.edited_at` 字段（迁移文件：`20251227021700_add_message_edited_at.sql`）
+  - ✅ WebSocket：扩展 `MessageUpdatePayload` 支持 `update_type=edited`，包含 `edited_at` 和 `content` 字段
+  - ✅ Desktop：右键菜单新增"编辑"选项，实现编辑对话框和 API 调用
+  - ✅ Flutter：更新 `Message` 模型添加 `isEdited` 和 `editedAt` 字段，添加 `editMessage` API 方法
+  - ✅ 限制：仅允许编辑自己发送的文本消息，编辑后实时同步到所有客户端
+- **实现位置**:
+  - 后端：`backend/src/handlers/message.rs::edit_message`, `backend/src/database/message_store.rs::update_message_content`
+  - Desktop：`desktop/src/components/MessageContextMenu.vue`, `desktop/src/views/Chat.vue::handleMessageMenuEdit`
+  - Flutter：`frontend/lib/core/services/message_service.dart::editMessage`
+- **状态**: ✅ 已完成
+- **完成时间**: 2025-12-27
 
 #### 6.2 消息反应（reactions）
 > reactions 不是“发一条表情/贴纸消息”，而是给“某一条已存在消息”追加一个可聚合的小标签（例如：👍×3、😂×1），用于快速反馈且不刷屏。
@@ -185,8 +178,8 @@ await _chatProvider.sendVoiceMessage(...);
   - UI：单聊显示“对方正在输入…”；群聊显示“某某正在输入…”（或多人时折叠）
 
 **影响**: 多端核心聊天体验对齐（编辑/反应/输入态）；涉及 WS 协议与 DB 变更，需要统一灰度与兼容策略
-**状态**: ❌ 未完成
-**优先级**: 🟠 中（建议先做编辑 → reactions → typing）
+**状态**: 🟡 部分完成（消息编辑已完成，Reactions 和 Typing 待实现）
+**优先级**: 🟠 中（消息编辑已完成，建议继续实现 reactions → typing）
 
 ---
 
@@ -345,10 +338,10 @@ KEY_PASSWORD=change_me_key_password
 
 | 优先级 | 数量 | 模块分布 |
 |--------|------|----------|
-| 🔴 高优先级 | 3 | 后端(2，含 2 个已完成) + 前端桌面端(1，已完成) |
-| 🟠 中优先级 | 5 | 前端桌面端(1，已完成) + 前端移动端(1，已完成) + 消息编辑/反应/输入态(1，未完成) + COS 分片直传(1，✅已完成) + Push 通知(1，未完成) |
-| 🟡 低优先级 | 4 | 后端测试(1，已完成基础单测) + 桌面端(1，已完成) + 移动端(1，✅已完成) + 管理后台(1，已完成基础主题结构) |
-| **总计** | **12** | - |
+| 🔴 高优先级 | 3 | 后端(2，✅已完成) + 前端桌面端(1，✅已完成) |
+| 🟠 中优先级 | 5 | 前端桌面端(1，✅已完成) + 前端移动端(1，✅已完成) + 消息编辑/反应/输入态(1，🟡部分完成-编辑已完成) + COS 分片直传(1，✅已完成) + Push 通知(1，❌未完成) |
+| 🟡 低优先级 | 4 | 后端测试(1，✅已完成基础单测) + 桌面端(1，✅已完成) + 移动端(1，✅已完成) + 管理后台(1，✅已完成基础主题结构) |
+| **总计** | **12** | **已完成: 10.5/12 (87.5%)** |
 
 ---
 
@@ -369,10 +362,70 @@ KEY_PASSWORD=change_me_key_password
 8. ✅ Android 发布配置（已从统一配置文件读取 Application ID 与签名配置）
 9. ✅ 图表主题优化（admin 基础主题结构与示例接入）
 10. ❌ Push 通知集成（先按文档准备环境与凭据，再按里程碑实现）
-11. ❌ 消息编辑 / Reactions / Typing（先编辑 → reactions → typing）
+11. 🟡 消息编辑 / Reactions / Typing（✅ 消息编辑已完成，❌ Reactions 和 Typing 待实现）
 12. ✅ COS 大文件分片前端直传（已完成：后端 API + Admin/Desktop/Flutter 全端实现）
 
 ---
 
+## 🎯 待完成任务清单（按优先级）
+
+### 🔴 高优先级
+无（所有高优先级任务已完成）
+
+### 🟠 中优先级
+
+#### 1. 消息反应（Reactions）
+- **状态**: ❌ 未完成（已确认：后端/Desktop/Flutter 均未实现）
+- **需求**: 实现消息反应功能，允许用户对消息添加表情反应（👍 ❤️ 😂 🎉 😮 😢）
+- **代码检查结果**:
+  - ❌ 后端：无 `message_reactions` 表、无 reactions API、无 WebSocket 事件
+  - ❌ Desktop：无 reactions UI 和 API 调用
+  - ❌ Flutter：无 reactions UI 和 API 调用（`_MoreActionsPanel` 是其他功能）
+- **后端任务**:
+  - 创建 `message_reactions` 表（迁移文件）
+  - 实现 `POST /rooms/{room_id}/messages/{message_id}/reactions`（添加/切换）
+  - 实现 `DELETE /rooms/{room_id}/messages/{message_id}/reactions`（取消）
+  - 实现 `GET /rooms/{room_id}/messages/{message_id}/reactions`（查询聚合结果）
+  - WebSocket 推送 `message_reaction_update` 事件（扩展 `ws.proto` 和 `ServerPush`）
+- **前端任务**:
+  - Desktop：长按消息弹出 reaction bar，显示聚合标签
+  - Flutter：长按菜单添加 reaction 选项，显示聚合标签
+
+#### 2. 正在输入（Typing）
+- **状态**: ❌ 未完成（已确认：后端/Desktop/Flutter 均未实现）
+- **需求**: 实现"正在输入"指示器，提升实时感知
+- **代码检查结果**:
+  - ❌ 后端：WebSocket `ClientEvent` 和 `ServerEvent` 中无 typing 事件
+  - ❌ Desktop：无 typing UI 指示器和 WebSocket 事件处理
+  - ❌ Flutter：无 typing UI 指示器和 WebSocket 事件处理
+- **后端任务**:
+  - WebSocket 客户端上行事件：`typing`（room_id + is_typing）- 扩展 `ClientEvent`
+  - WebSocket 服务端下行推送：`typing_update`（room_id/user_id/is_typing）- 扩展 `ServerEvent`
+  - 实现节流机制（1-2秒）和超时清理
+  - 无需数据库（纯临时态）
+- **前端任务**:
+  - Desktop：输入框内容变化触发 typing 事件，显示"对方正在输入…"
+  - Flutter：输入框内容变化触发 typing 事件，显示"对方正在输入…"
+
+#### 3. Push 通知集成
+- **状态**: ❌ 未完成
+- **需求**: App 不在前台时也能收到通知（新消息/好友请求等）
+- **后端任务**:
+  - 创建 `push_devices` 表存储设备 token
+  - 实现 `POST /push/devices`（注册/更新 token）
+  - 实现 `DELETE /push/devices/{device_id}`（注销）
+  - 集成 FCM（Android）和 APNs（iOS）
+  - 在消息发送、好友请求等场景触发推送
+- **Flutter 任务**:
+  - 集成 Firebase Messaging（Android）和 APNs（iOS）
+  - Token 生命周期管理（注册/刷新/注销）
+  - 通知点击跳转逻辑
+
+### 🟡 低优先级
+无（所有低优先级任务已完成）
+
+---
+
 **最后更新**: 2025-12-27
-**总完成度**: 10/12 (83.3%)
+**总完成度**: 10.5/12 (87.5%)
+**待完成任务**: 2.5 个（Reactions、Typing、Push 通知）

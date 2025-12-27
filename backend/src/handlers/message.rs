@@ -14,6 +14,7 @@ use crate::database::{
     file_upload_store::FileUploadStore,
     group_management_store::GroupManagementStore,
     message_read_store::MessageReadStore,
+    message_reaction_store::MessageReactionStore,
     message_store::{MessageStore, NewMessagePart},
     models::{
         MessagePart, MessagePartType, MessageType, MessageWithSender, RoomType, StorageProvider,
@@ -1178,8 +1179,11 @@ pub async fn delete_message(
         MessageUpdatePayload {
             room_id,
             message_id,
+            update_type: crate::redis::models::MessageUpdateType::Deleted,
             is_deleted: true,
             deleted_at: updated.deleted_at,
+            edited_at: None,
+            content: None,
         },
     )
     .await
@@ -1199,6 +1203,305 @@ pub async fn delete_message(
         },
     );
     Ok(Json(api_message))
+}
+
+/// 编辑消息请求
+#[derive(Debug, Deserialize)]
+pub struct EditMessagePayload {
+    pub content: String,
+}
+
+/// 编辑消息
+pub async fn edit_message(
+    State(state): State<AppState>,
+    Path((room_id, message_id)): Path<(Uuid, Uuid)>,
+    Extension(claims): Extension<crate::models::Claims>,
+    Json(payload): Json<EditMessagePayload>,
+) -> Result<Json<MessageInfo>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let new_content = payload.content.trim();
+    if new_content.is_empty() {
+        return Err(AppError::ValidationError("消息内容不能为空".to_string()));
+    }
+    if new_content.len() > 10000 {
+        return Err(AppError::ValidationError(
+            "消息内容不能超过 10000 字符".to_string(),
+        ));
+    }
+
+    let store = MessageStore::new(state.database.pool());
+
+    if !store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法编辑消息".to_string(),
+        ));
+    }
+
+    let existing = store
+        .get_message_with_sender(message_id)
+        .await?
+        .ok_or_else(|| AppError::ValidationError("消息不存在".to_string()))?;
+
+    if existing.room_id != room_id {
+        return Err(AppError::ValidationError("消息不属于当前房间".to_string()));
+    }
+
+    if existing.sender_id != user_id {
+        return Err(AppError::Forbidden("仅支持编辑自己发送的消息".to_string()));
+    }
+
+    if existing.deleted_at.is_some() {
+        return Err(AppError::ValidationError("消息已删除，无法编辑".to_string()));
+    }
+
+    // 仅允许编辑文本消息
+    if existing.message_type != crate::database::models::MessageType::Text {
+        return Err(AppError::ValidationError(
+            "仅支持编辑文本消息".to_string(),
+        ));
+    }
+
+    let _updated_msg = store
+        .update_message_content(message_id, new_content)
+        .await?
+        .ok_or_else(|| AppError::InternalError("编辑消息失败".to_string()))?;
+
+    let updated = store
+        .get_message_with_sender(message_id)
+        .await?
+        .ok_or_else(|| AppError::InternalError("消息编辑后加载失败".to_string()))?;
+
+    // 广播编辑事件
+    if let Err(e) = broadcast_message_update(
+        &state,
+        MessageUpdatePayload {
+            room_id,
+            message_id,
+            update_type: crate::redis::models::MessageUpdateType::Edited,
+            is_deleted: false,
+            deleted_at: None,
+            edited_at: updated.edited_at,
+            content: Some(new_content.to_string()),
+        },
+    )
+    .await
+    {
+        error!("广播消息编辑事件失败: {}", e);
+    }
+
+    let parts_map = store.get_message_parts_map(&[updated.id]).await?;
+    let api_message = db_message_to_api_message_info(
+        &updated,
+        &parts_map,
+        None,
+        Some(MessageDeliveryStatus::Sent),
+    );
+    Ok(Json(api_message))
+}
+
+// ===== 消息反应（Reactions）API =====
+
+/// 添加反应请求
+#[derive(Debug, Deserialize)]
+pub struct AddReactionPayload {
+    pub reaction_key: String,
+}
+
+/// 添加反应响应
+#[derive(Debug, Serialize)]
+pub struct ReactionResponse {
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summaries: Option<Vec<crate::database::models::MessageReactionSummary>>,
+}
+
+/// 允许的反应类型（固定集合）
+const ALLOWED_REACTION_KEYS: &[&str] = &["👍", "❤️", "😂", "🎉", "😮", "😢"];
+
+fn validate_reaction_key(reaction_key: &str) -> Result<(), AppError> {
+    if !ALLOWED_REACTION_KEYS.contains(&reaction_key) {
+        return Err(AppError::ValidationError(format!(
+            "不支持的反应类型: {}。支持的类型: {}",
+            reaction_key,
+            ALLOWED_REACTION_KEYS.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// 添加或切换消息反应
+pub async fn add_message_reaction(
+    State(state): State<AppState>,
+    Path((room_id, message_id)): Path<(Uuid, Uuid)>,
+    Extension(claims): Extension<crate::models::Claims>,
+    Json(payload): Json<AddReactionPayload>,
+) -> Result<Json<ReactionResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    // 验证反应类型
+    validate_reaction_key(&payload.reaction_key)?;
+
+    let message_store = MessageStore::new(state.database.pool());
+    let reaction_store = MessageReactionStore::new(state.database.pool());
+
+    // 验证用户是房间成员
+    if !message_store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法添加反应".to_string(),
+        ));
+    }
+
+    // 验证消息存在且未删除
+    let message = message_store
+        .get_message_with_sender(message_id)
+        .await?
+        .ok_or_else(|| AppError::ValidationError("消息不存在".to_string()))?;
+
+    if message.room_id != room_id {
+        return Err(AppError::ValidationError("消息不属于当前房间".to_string()));
+    }
+
+    if message.deleted_at.is_some() {
+        return Err(AppError::ValidationError("消息已删除，无法添加反应".to_string()));
+    }
+
+    // 添加反应（toggle：如果已存在则恢复，不存在则创建）
+    let _reaction = reaction_store
+        .add_reaction(message_id, user_id, &payload.reaction_key)
+        .await?;
+
+    // 获取聚合结果
+    let summaries = reaction_store
+        .get_reaction_summaries(message_id, Some(user_id))
+        .await?;
+
+    // 广播反应更新事件
+    if let Err(e) = broadcast_reaction_update(
+        &state,
+        crate::redis::models::ReactionUpdatePayload {
+            room_id,
+            message_id,
+            reaction_key: payload.reaction_key.clone(),
+            user_id,
+            action: crate::redis::models::ReactionAction::Add,
+        },
+    )
+    .await
+    {
+        error!("广播反应更新事件失败: {}", e);
+    }
+
+    Ok(Json(ReactionResponse {
+        success: true,
+        message: "反应已添加".to_string(),
+        summaries: Some(summaries),
+    }))
+}
+
+/// 删除反应请求（支持 body 或 query 参数）
+#[derive(Debug, Deserialize)]
+pub struct RemoveReactionPayload {
+    pub reaction_key: String,
+}
+
+/// 删除消息反应（支持 body 或 query 参数）
+pub async fn remove_message_reaction(
+    State(state): State<AppState>,
+    Path((room_id, message_id)): Path<(Uuid, Uuid)>,
+    Extension(claims): Extension<crate::models::Claims>,
+    Query(query): Query<Option<RemoveReactionPayload>>,
+    Json(body): Json<Option<RemoveReactionPayload>>,
+) -> Result<Json<ReactionResponse>, AppError> {
+    // 优先使用 body，如果没有则使用 query
+    let payload = body.or(query).ok_or_else(|| {
+        AppError::ValidationError("缺少 reaction_key 参数".to_string())
+    })?;
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    // 验证反应类型
+    validate_reaction_key(&payload.reaction_key)?;
+
+    let message_store = MessageStore::new(state.database.pool());
+    let reaction_store = MessageReactionStore::new(state.database.pool());
+
+    // 验证用户是房间成员
+    if !message_store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法删除反应".to_string(),
+        ));
+    }
+
+    // 删除反应
+    let removed = reaction_store
+        .remove_reaction(message_id, user_id, &payload.reaction_key)
+        .await?;
+
+    if !removed {
+        return Err(AppError::ValidationError("反应不存在或已删除".to_string()));
+    }
+
+    // 获取聚合结果
+    let summaries = reaction_store
+        .get_reaction_summaries(message_id, Some(user_id))
+        .await?;
+
+    // 广播反应更新事件
+    if let Err(e) = broadcast_reaction_update(
+        &state,
+        crate::redis::models::ReactionUpdatePayload {
+            room_id,
+            message_id,
+            reaction_key: payload.reaction_key.clone(),
+            user_id,
+            action: crate::redis::models::ReactionAction::Remove,
+        },
+    )
+    .await
+    {
+        error!("广播反应更新事件失败: {}", e);
+    }
+
+    Ok(Json(ReactionResponse {
+        success: true,
+        message: "反应已删除".to_string(),
+        summaries: Some(summaries),
+    }))
+}
+
+/// 获取消息的所有反应
+pub async fn get_message_reactions(
+    State(state): State<AppState>,
+    Path((room_id, message_id)): Path<(Uuid, Uuid)>,
+    Extension(claims): Extension<crate::models::Claims>,
+) -> Result<Json<ReactionResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let message_store = MessageStore::new(state.database.pool());
+    let reaction_store = MessageReactionStore::new(state.database.pool());
+
+    // 验证用户是房间成员
+    if !message_store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法查看反应".to_string(),
+        ));
+    }
+
+    // 获取聚合结果
+    let summaries = reaction_store
+        .get_reaction_summaries(message_id, Some(user_id))
+        .await?;
+
+    Ok(Json(ReactionResponse {
+        success: true,
+        message: "获取成功".to_string(),
+        summaries: Some(summaries),
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1915,6 +2218,28 @@ pub async fn broadcast_message_update(
 
     info!(
         "消息更新已广播到房间 {} ({} 个订阅者)",
+        channel, subscriber_count
+    );
+
+    Ok(())
+}
+
+pub async fn broadcast_reaction_update(
+    state: &AppState,
+    payload: crate::redis::models::ReactionUpdatePayload,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let channel = CacheKeys::pubsub_channel(&payload.room_id);
+    let encoded = PubSubPayload::ReactionUpdate { data: payload }.encode_protobuf();
+
+    let mut conn = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await?;
+    let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
+
+    info!(
+        "反应更新已广播到房间 {} ({} 个订阅者)",
         channel, subscriber_count
     );
 

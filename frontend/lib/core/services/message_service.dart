@@ -803,6 +803,118 @@ class MessageService with ChangeNotifier {
     unawaited(_hydrateAttachmentLocalPaths(updated));
   }
 
+  /// 编辑消息（仅支持编辑自己发送的文本消息）
+  Future<void> editMessage({
+    required String roomId,
+    required String messageId,
+    required String content,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _editMessageAPI(
+      roomId: roomId,
+      messageId: messageId,
+      content: content,
+      token: session.token,
+    );
+
+    final status = _currentMessageStatus(roomId, response.id);
+    final updated = _messageFromResponse(
+      response,
+      session.user.id,
+      overrideStatus: status,
+    );
+
+    _replaceMessage(response.id, updated);
+    unawaited(_hydrateAttachmentLocalPaths(updated));
+  }
+
+  /// 添加消息反应
+  Future<List<MessageReactionSummary>> addReaction({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _addReactionAPI(
+      roomId: roomId,
+      messageId: messageId,
+      reactionKey: reactionKey,
+      token: session.token,
+    );
+
+    // 更新消息的反应列表
+    final messageIndex = _messagesByRoom[roomId]
+        ?.indexWhere((m) => m.id == messageId);
+    if (messageIndex != null && messageIndex >= 0) {
+      final messages = _messagesByRoom[roomId]!;
+      messages[messageIndex] = messages[messageIndex].copyWith(
+        reactions: response.summaries,
+      );
+      notifyListeners();
+    }
+
+    return response.summaries;
+  }
+
+  /// 删除消息反应
+  Future<List<MessageReactionSummary>> removeReaction({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _removeReactionAPI(
+      roomId: roomId,
+      messageId: messageId,
+      reactionKey: reactionKey,
+      token: session.token,
+    );
+
+    // 更新消息的反应列表
+    final messageIndex = _messagesByRoom[roomId]
+        ?.indexWhere((m) => m.id == messageId);
+    if (messageIndex != null && messageIndex >= 0) {
+      final messages = _messagesByRoom[roomId]!;
+      messages[messageIndex] = messages[messageIndex].copyWith(
+        reactions: response.summaries,
+      );
+      notifyListeners();
+    }
+
+    return response.summaries;
+  }
+
+  /// 获取消息的所有反应
+  Future<List<MessageReactionSummary>> getReactions({
+    required String roomId,
+    required String messageId,
+  }) async {
+    final session = await _tokenStorage.readSession();
+    if (session == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final response = await _getReactionsAPI(
+      roomId: roomId,
+      messageId: messageId,
+      token: session.token,
+    );
+
+    return response.summaries;
+  }
+
   Message? getPinnedMessage(String roomId) {
     final messages = _messagesByRoom[roomId];
     if (messages == null || messages.isEmpty) return null;
@@ -1010,6 +1122,119 @@ class MessageService with ChangeNotifier {
     throw Exception('删除消息失败: ${response.body}');
   }
 
+  Future<MessageResponse> _editMessageAPI({
+    required String roomId,
+    required String messageId,
+    required String content,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId',
+    );
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'content': content}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return MessageResponse.fromJson(data);
+      }
+      throw Exception('Invalid edit message response structure');
+    }
+
+    throw Exception('编辑消息失败: ${response.body}');
+  }
+
+  Future<_ReactionResponse> _addReactionAPI({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/reactions',
+    );
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'reaction_key': reactionKey}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return _ReactionResponse.fromJson(data);
+      }
+      throw Exception('Invalid add reaction response structure');
+    }
+
+    throw Exception('添加反应失败: ${response.body}');
+  }
+
+  Future<_ReactionResponse> _removeReactionAPI({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/reactions?reaction_key=${Uri.encodeComponent(reactionKey)}',
+    );
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return _ReactionResponse.fromJson(data);
+      }
+      throw Exception('Invalid remove reaction response structure');
+    }
+
+    throw Exception('删除反应失败: ${response.body}');
+  }
+
+  Future<_ReactionResponse> _getReactionsAPI({
+    required String roomId,
+    required String messageId,
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/reactions',
+    );
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return _ReactionResponse.fromJson(data);
+      }
+      throw Exception('Invalid get reactions response structure');
+    }
+
+    throw Exception('获取反应失败: ${response.body}');
+  }
+
   /// 加载历史消息
   Future<List<Message>> loadMessages(
     String roomId, {
@@ -1191,6 +1416,9 @@ class MessageService with ChangeNotifier {
     required String messageId,
     required bool isDeleted,
     DateTime? deletedAt,
+    String? updateType,
+    DateTime? editedAt,
+    String? content,
   }) async {
     final messages = _messagesByRoom[roomId];
     if (messages == null || messages.isEmpty) return;
@@ -1199,12 +1427,28 @@ class MessageService with ChangeNotifier {
     if (index == -1) return;
 
     final message = messages[index];
-    final extra = _mergeExtra(message.extra, {
-      'is_deleted': isDeleted ? true : null,
-      'deleted_at': deletedAt?.toIso8601String(),
-    });
-
-    messages[index] = message.copyWith(isDeleted: isDeleted, extra: extra);
+    final isEditUpdate = updateType == 'edited' || (!isDeleted && editedAt != null);
+    
+    if (isEditUpdate) {
+      // 编辑消息
+      final extra = _mergeExtra(message.extra, {
+        'is_edited': true,
+        'edited_at': editedAt?.toIso8601String(),
+      });
+      messages[index] = message.copyWith(
+        content: content ?? message.content,
+        isEdited: true,
+        editedAt: editedAt,
+        extra: extra,
+      );
+    } else {
+      // 删除消息
+      final extra = _mergeExtra(message.extra, {
+        'is_deleted': isDeleted ? true : null,
+        'deleted_at': deletedAt?.toIso8601String(),
+      });
+      messages[index] = message.copyWith(isDeleted: isDeleted, extra: extra);
+    }
 
     if (isDeleted) {
       final list = List<String>.from(
@@ -1222,6 +1466,36 @@ class MessageService with ChangeNotifier {
 
     notifyListeners();
     unawaited(_persistMessages(roomId));
+  }
+
+  Future<void> handleReactionUpdate({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+    required String userId,
+    required String action,
+  }) async {
+    // 重新获取反应列表以更新 UI
+    try {
+      final summaries = await getReactions(
+        roomId: roomId,
+        messageId: messageId,
+      );
+
+      final messages = _messagesByRoom[roomId];
+      if (messages != null && messages.isNotEmpty) {
+        final index = messages.indexWhere((m) => m.id == messageId);
+        if (index >= 0) {
+          messages[index] = messages[index].copyWith(
+            reactions: summaries,
+          );
+          notifyListeners();
+          unawaited(_persistMessages(roomId));
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to handle reaction update: $e');
+    }
   }
 
   Future<void> handlePinUpdate({
@@ -3525,6 +3799,11 @@ class MessageService with ChangeNotifier {
       }
     }
 
+    if (response.isEdited && response.editedAt != null) {
+      extra['is_edited'] = true;
+      extra['edited_at'] = response.editedAt!.toIso8601String();
+    }
+
     if (response.isPinned) {
       if (response.pinnedAt != null) {
         extra['pinned_at'] = response.pinnedAt!.toIso8601String();
@@ -3556,8 +3835,11 @@ class MessageService with ChangeNotifier {
       quotedMessage: quoted,
       forwardInfo: forwardInfo,
       isDeleted: response.isDeleted,
+      isEdited: response.isEdited,
+      editedAt: response.editedAt,
       pinnedAt: response.pinnedAt,
       parts: parts,
+      reactions: response.reactions,
     );
   }
 
@@ -3923,10 +4205,13 @@ class MessageResponse {
   final ForwardMessageResponse? forwardMessage;
   final bool isDeleted;
   final DateTime? deletedAt;
+  final bool isEdited;
+  final DateTime? editedAt;
   final bool isPinned;
   final DateTime? pinnedAt;
   final String? pinnedBy;
   final List<MessagePartResponse> parts;
+  final List<MessageReactionSummary>? reactions;
 
   MessageResponse({
     required this.id,
@@ -3943,10 +4228,13 @@ class MessageResponse {
     required this.forwardMessage,
     required this.isDeleted,
     required this.deletedAt,
+    this.isEdited = false,
+    this.editedAt,
     required this.isPinned,
     required this.pinnedAt,
     required this.pinnedBy,
     required this.parts,
+    this.reactions,
   });
 
   factory MessageResponse.fromJson(Map<String, dynamic> json) {
@@ -4020,6 +4308,11 @@ class MessageResponse {
           json['deleted_at'] != null && json['deleted_at'].toString().isNotEmpty
           ? DateTime.tryParse(json['deleted_at'].toString())
           : null,
+      isEdited: parseBool(json['is_edited']),
+      editedAt:
+          json['edited_at'] != null && json['edited_at'].toString().isNotEmpty
+          ? DateTime.tryParse(json['edited_at'].toString())
+          : null,
       isPinned: parseBool(json['is_pinned']),
       pinnedAt:
           json['pinned_at'] != null && json['pinned_at'].toString().isNotEmpty
@@ -4027,7 +4320,32 @@ class MessageResponse {
           : null,
       pinnedBy: json['pinned_by']?.toString(),
       parts: parts,
+      reactions: _parseReactionsFromJson(json['reactions']),
     );
+  }
+
+  static List<MessageReactionSummary>? _parseReactionsFromJson(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is List) {
+      return raw.map((item) {
+        if (item is Map<String, dynamic>) {
+          return MessageReactionSummary.fromJson(item);
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          return MessageReactionSummary.fromJson(normalized);
+        }
+        return MessageReactionSummary(
+          reactionKey: '',
+          count: 0,
+          userIds: [],
+          hasSelf: false,
+        );
+      }).toList();
+    }
+    return null;
   }
 
   String get displayName {
@@ -4035,6 +4353,49 @@ class MessageResponse {
       return senderNickname!;
     }
     return senderUsername;
+  }
+}
+
+/// 反应响应
+class _ReactionResponse {
+  final bool success;
+  final String message;
+  final List<MessageReactionSummary> summaries;
+
+  _ReactionResponse({
+    required this.success,
+    required this.message,
+    required this.summaries,
+  });
+
+  factory _ReactionResponse.fromJson(Map<String, dynamic> json) {
+    final summariesRaw = json['summaries'];
+    List<MessageReactionSummary> summaries = [];
+    if (summariesRaw is List) {
+      summaries = summariesRaw.map((item) {
+        if (item is Map<String, dynamic>) {
+          return MessageReactionSummary.fromJson(item);
+        } else if (item is Map) {
+          final normalized = <String, dynamic>{};
+          item.forEach((key, value) {
+            normalized[key.toString()] = value;
+          });
+          return MessageReactionSummary.fromJson(normalized);
+        }
+        return MessageReactionSummary(
+          reactionKey: '',
+          count: 0,
+          userIds: [],
+          hasSelf: false,
+        );
+      }).toList();
+    }
+
+    return _ReactionResponse(
+      success: json['success'] as bool? ?? false,
+      message: json['message']?.toString() ?? '',
+      summaries: summaries,
+    );
   }
 }
 
