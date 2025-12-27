@@ -8,6 +8,7 @@ message ClientEvent {
     ClientJoin join = 2;
     ClientLeave leave = 3;
     ClientPing ping = 4;
+    ClientTyping typing = 5;
   }
 }
 
@@ -24,6 +25,11 @@ message ClientLeave {
 }
 
 message ClientPing {}
+
+message ClientTyping {
+  string room_id = 1;
+  bool is_typing = 2;
+}
 
 message ServerEvent {
   oneof payload {
@@ -47,6 +53,8 @@ message ServerEvent {
     ServerFriendProfileUpdated friend_profile_updated = 18;
     ServerRoomHistoryCleared room_history_cleared = 19;
     ServerFriendshipDeleted friendship_deleted = 20;
+    ServerReactionUpdate reaction_update = 21;
+    ServerTypingUpdate typing_update = 22;
   }
 }
 
@@ -225,6 +233,23 @@ message ServerFriendProfileUpdated {
   string nickname = 3;
   string avatar_url = 4;
   string avatar_object_key = 5;
+}
+
+// 消息反应更新事件
+message ServerReactionUpdate {
+  string room_id = 1;
+  string message_id = 2;
+  string reaction_key = 3;
+  string user_id = 4;
+  string action = 5; // "add" | "remove"
+}
+
+// 正在输入（Typing）事件
+message ServerTypingUpdate {
+  string room_id = 1;
+  string user_id = 2;
+  bool is_typing = 3;
+  int32 expires_in_ms = 4;
 }
 
 enum PubSubPriority {

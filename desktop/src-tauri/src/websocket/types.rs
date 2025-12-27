@@ -104,6 +104,17 @@ impl ClientEventEncoder {
         event.encode(&mut buf)?;
         Ok(buf)
     }
+
+    /// 编码正在输入（typing）消息
+    pub fn encode_typing(room_id: String, is_typing: bool) -> Result<Vec<u8>> {
+        let typing = ws::ClientTyping { room_id, is_typing };
+        let event = ws::ClientEvent {
+            payload: Some(ws::client_event::Payload::Typing(typing)),
+        };
+        let mut buf = Vec::new();
+        event.encode(&mut buf)?;
+        Ok(buf)
+    }
 }
 
 /// 服务器事件解码器
@@ -145,6 +156,10 @@ pub enum TauriEventPayload {
     MessageUpdate(serde_json::Value),
     /// 置顶更新
     PinUpdate(serde_json::Value),
+    /// 消息反应更新
+    ReactionUpdate(serde_json::Value),
+    /// 正在输入更新
+    TypingUpdate(serde_json::Value),
     /// 好友请求更新
     FriendRequestUpdate { pending_count: i32 },
     /// 房间创建
@@ -314,6 +329,25 @@ impl TauriEventPayload {
                     "pinned_by": pin.pinned_by,
                 });
                 Some(Self::PinUpdate(json))
+            }
+            ws::server_event::Payload::ReactionUpdate(update) => {
+                let json = serde_json::json!({
+                    "room_id": update.room_id,
+                    "message_id": update.message_id,
+                    "reaction_key": update.reaction_key,
+                    "user_id": update.user_id,
+                    "action": update.action,
+                });
+                Some(Self::ReactionUpdate(json))
+            }
+            ws::server_event::Payload::TypingUpdate(update) => {
+                let json = serde_json::json!({
+                    "room_id": update.room_id,
+                    "user_id": update.user_id,
+                    "is_typing": update.is_typing,
+                    "expires_in_ms": update.expires_in_ms,
+                });
+                Some(Self::TypingUpdate(json))
             }
             ws::server_event::Payload::FriendRequestUpdate(update) => {
                 Some(Self::FriendRequestUpdate {

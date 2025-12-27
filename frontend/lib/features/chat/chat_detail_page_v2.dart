@@ -162,6 +162,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   String? _currentUserId;
   StreamSubscription<GroupSettingsUpdatedEvent>? _groupSettingsSubscription;
   StreamSubscription<GroupMemberChangedEvent>? _groupMemberSubscription;
+  StreamSubscription<TypingUpdateEvent>? _typingSubscription;
+
+  static const Duration _typingThrottle = Duration(milliseconds: 1200);
+  static const Duration _typingIdleDelay = Duration(milliseconds: 1500);
+  Timer? _typingIdleTimer;
+  bool? _lastSentTypingState;
+  DateTime? _lastSentTypingAt;
+
+  final Set<String> _remoteTypingUsers = <String>{};
+  final Map<String, Timer> _remoteTypingTimers = <String, Timer>{};
 
   String? _peerIdFromExtra(Map<String, dynamic>? extra) {
     if (extra == null) return null;
@@ -215,6 +225,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _chatProvider = widget.chatProvider ?? ChatProvider();
     _initChat();
     _scrollController.addListener(_onScroll);
+    unawaited(_ensureCurrentUserId());
+    _textController.addListener(_handleLocalTextChanged);
 
     _inputFocusNode.addListener(() {
       if (_inputFocusNode.hasFocus && (_showEmojiPanel || _showMorePanel)) {
@@ -223,7 +235,15 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           _showMorePanel = false;
         });
       }
+
+      if (!_inputFocusNode.hasFocus) {
+        _stopTyping();
+      }
     });
+
+    _typingSubscription = WebSocketService.instance.onTypingUpdate
+        .where((event) => event.roomId == widget.roomId)
+        .listen(_handleTypingUpdate);
 
     // 监听群设置更新事件（仅群聊）
     if (widget.chatType == ChatType.group) {
@@ -262,6 +282,93 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         _isPersonalMuted = false;
       });
     }
+  }
+
+  Future<void> _ensureCurrentUserId() async {
+    if (_currentUserId != null && _currentUserId!.isNotEmpty) return;
+    try {
+      final session = await _tokenStorage.readSession();
+      _currentUserId = session?.user.id;
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _handleLocalTextChanged() {
+    if (_isInputDisabled) {
+      _stopTyping();
+      return;
+    }
+
+    final content = _textController.text.trim();
+    if (content.isEmpty) {
+      _stopTyping();
+      return;
+    }
+
+    _sendTyping(true);
+    _typingIdleTimer?.cancel();
+    _typingIdleTimer = Timer(_typingIdleDelay, () {
+      if (!mounted) return;
+      _sendTyping(false);
+    });
+  }
+
+  void _sendTyping(bool isTyping) {
+    if (isTyping && _isInputDisabled) return;
+    if (isTyping && !_inputFocusNode.hasFocus) return;
+
+    final now = DateTime.now();
+    if (_lastSentTypingState == isTyping &&
+        _lastSentTypingAt != null &&
+        now.difference(_lastSentTypingAt!) < _typingThrottle) {
+      return;
+    }
+
+    _lastSentTypingState = isTyping;
+    _lastSentTypingAt = now;
+    WebSocketService.instance.setTyping(widget.roomId, isTyping);
+  }
+
+  void _stopTyping() {
+    _typingIdleTimer?.cancel();
+    _typingIdleTimer = null;
+    _sendTyping(false);
+  }
+
+  void _handleTypingUpdate(TypingUpdateEvent event) {
+    if (!mounted) return;
+    if (_currentUserId != null && event.userId == _currentUserId) return;
+
+    final userId = event.userId;
+    _remoteTypingTimers[userId]?.cancel();
+    _remoteTypingTimers.remove(userId);
+
+    if (event.isTyping) {
+      _remoteTypingUsers.add(userId);
+      final ttl = event.expiresInMs > 0
+          ? Duration(milliseconds: event.expiresInMs)
+          : const Duration(milliseconds: 6000);
+      _remoteTypingTimers[userId] = Timer(ttl, () {
+        _remoteTypingTimers.remove(userId);
+        _remoteTypingUsers.remove(userId);
+        if (mounted) setState(() {});
+      });
+    } else {
+      _remoteTypingUsers.remove(userId);
+    }
+
+    setState(() {});
+  }
+
+  String? get _typingIndicatorText {
+    if (_remoteTypingUsers.isEmpty) return null;
+    if (widget.chatType == ChatType.single) {
+      return '对方正在输入...';
+    }
+    final count = _remoteTypingUsers.length;
+    if (count == 1) return '有人正在输入...';
+    return '${count}人正在输入...';
   }
 
   Future<void> _initChat() async {
@@ -385,6 +492,15 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _keyboardUpdateTimer?.cancel();
     _groupSettingsSubscription?.cancel();
     _groupMemberSubscription?.cancel();
+    _typingSubscription?.cancel();
+    _typingIdleTimer?.cancel();
+    WebSocketService.instance.setTyping(widget.roomId, false);
+    _textController.removeListener(_handleLocalTextChanged);
+    for (final timer in _remoteTypingTimers.values.toList()) {
+      timer.cancel();
+    }
+    _remoteTypingTimers.clear();
+    _remoteTypingUsers.clear();
     _scrollController.removeListener(_onScroll);
     _chatProvider.leaveChatRoom();
     if (_ownsProvider) {
@@ -443,6 +559,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     }
 
     try {
+      _stopTyping();
       await _chatProvider.sendRichMessage(
         text: trimmed,
         attachments: attachments,
@@ -1101,6 +1218,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Widget _buildInputArea() {
+    final theme = Theme.of(context);
+    final typingText = _typingIndicatorText;
+
     return Container(
       key: _inputAreaKey,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1142,6 +1262,31 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     ),
             ),
             if (_quotedMessage != null) const SizedBox(height: 8),
+            if (typingText != null) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Text(
+                    typingText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             // 为输入区域添加高度过渡动画，减轻高度瞬间变化带来的突兀感
             AnimatedSize(
               duration: const Duration(milliseconds: 140),

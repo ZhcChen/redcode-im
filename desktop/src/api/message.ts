@@ -1227,7 +1227,7 @@ export class MessageApi {
 
     return {
       ...response,
-      data: mapBackendMessage(backendMessage),
+      data: transformBackendMessage(backendMessage, backendMessage.sender_id),
     };
   }
 

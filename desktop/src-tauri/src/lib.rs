@@ -467,6 +467,7 @@ pub fn run() {
             ws_join_room,
             ws_leave_room,
             ws_join_rooms,
+            ws_typing,
             ws_get_status,
             ws_get_all_status,
             ws_get_subscribed_rooms,

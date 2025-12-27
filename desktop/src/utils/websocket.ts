@@ -270,6 +270,12 @@ class WebSocketManager {
         break;
       }
 
+      case 'typingupdate':
+      case 'typing_update': {
+        this.emitTypingUpdate(payload.payload, eventUserId);
+        break;
+      }
+
       case 'friendrequestupdate': {
         const data = payload.payload as { pending_count: number };
         if (typeof data.pending_count === 'number') {
@@ -778,6 +784,15 @@ class WebSocketManager {
   }
 
   /**
+   * 发送输入态更新事件
+   */
+  private emitTypingUpdate(raw: any, eventUserId?: string): void {
+    const detail: any = { ...raw, userId: eventUserId };
+    delete detail.type;
+    this.dispatchDomEvent('websocket-typing-update', detail);
+  }
+
+  /**
    * 确保房间已订阅
    * @param roomIds 房间ID列表
    * @param pruneMissing 是否清理多余的订阅
@@ -853,6 +868,21 @@ class WebSocketManager {
       connection.desiredRooms.delete(roomId);
     }
     WebSocketApi.leaveRoom(roomId, targetUserId).catch((error) => {
+    });
+  }
+
+  /**
+   * 发送正在输入状态
+   */
+  public typing(roomId: string, isTyping: boolean, userId?: string): void {
+    if (!roomId) return;
+    const targetUserId = userId || this.currentUserId;
+    if (!targetUserId) return;
+
+    const connection = this.connections.get(targetUserId);
+    if (!connection || connection.status !== 'authenticated') return;
+
+    WebSocketApi.typing(roomId, isTyping, targetUserId).catch((error) => {
     });
   }
 

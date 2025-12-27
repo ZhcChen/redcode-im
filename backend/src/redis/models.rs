@@ -317,6 +317,15 @@ pub struct ReactionUpdatePayload {
     pub action: ReactionAction,
 }
 
+/// 正在输入（Typing）更新事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypingUpdatePayload {
+    pub room_id: Uuid,
+    pub user_id: Uuid,
+    pub is_typing: bool,
+    pub expires_in_ms: i32,
+}
+
 /// 房间聊天记录被清空事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomHistoryClearedPayload {
@@ -462,6 +471,10 @@ pub enum PubSubPayload {
         #[serde(flatten)]
         data: ReactionUpdatePayload,
     },
+    TypingUpdate {
+        #[serde(flatten)]
+        data: TypingUpdatePayload,
+    },
 }
 
 /// 缓存键生成器
@@ -496,6 +509,9 @@ impl PubSubPayload {
             }
             PubSubPayload::ReactionUpdate { data } => {
                 Payload::ReactionUpdate(ws::PubSubReactionUpdate::from(data))
+            }
+            PubSubPayload::TypingUpdate { data } => {
+                Payload::TypingUpdate(ws::PubSubTypingUpdate::from(data))
             }
         };
 
@@ -555,7 +571,38 @@ impl TryFrom<ws::PubSubEvent> for PubSubPayload {
                 let data = ReactionUpdatePayload::try_from(update)?;
                 Ok(PubSubPayload::ReactionUpdate { data })
             }
+            Payload::TypingUpdate(update) => {
+                let data = TypingUpdatePayload::try_from(update)?;
+                Ok(PubSubPayload::TypingUpdate { data })
+            }
         }
+    }
+}
+
+impl From<&TypingUpdatePayload> for ws::PubSubTypingUpdate {
+    fn from(value: &TypingUpdatePayload) -> Self {
+        ws::PubSubTypingUpdate {
+            room_id: value.room_id.to_string(),
+            user_id: value.user_id.to_string(),
+            is_typing: value.is_typing,
+            expires_in_ms: value.expires_in_ms,
+        }
+    }
+}
+
+impl TryFrom<ws::PubSubTypingUpdate> for TypingUpdatePayload {
+    type Error = String;
+
+    fn try_from(value: ws::PubSubTypingUpdate) -> Result<Self, Self::Error> {
+        let room_id = parse_uuid(&value.room_id, "room_id")?;
+        let user_id = parse_uuid(&value.user_id, "user_id")?;
+
+        Ok(TypingUpdatePayload {
+            room_id,
+            user_id,
+            is_typing: value.is_typing,
+            expires_in_ms: value.expires_in_ms,
+        })
     }
 }
 

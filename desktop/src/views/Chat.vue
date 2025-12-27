@@ -304,6 +304,9 @@
               </div>
             </div>
           </div>
+          <div v-if="typingIndicatorText" class="typing-indicator">
+            {{ typingIndicatorText }}
+          </div>
           <div class="input-container">
             <div class="input-left-actions">
               <img
@@ -329,6 +332,7 @@
               v-model="newMessage"
               @keydown="handleInputKeydown"
               @paste="handleInputPaste"
+              @blur="handleInputBlur"
               :placeholder="inputPlaceholder"
               :disabled="isInputDisabled"
               rows="1"
@@ -2999,6 +3003,43 @@ const detachMessagesScrollListener = () => {
 
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const quotedHighlightTimers = new Map<string, number>()
+
+// ===== 正在输入（Typing）状态 =====
+const typingUsers = ref<Record<string, number>>({})
+const typingCleanupTimers = new Map<string, number>()
+
+const clearTypingUsers = () => {
+  typingUsers.value = {}
+  typingCleanupTimers.forEach((timer) => clearTimeout(timer))
+  typingCleanupTimers.clear()
+}
+
+const typingIndicatorText = computed(() => {
+  const chat = selectedChat.value
+  if (!chat) return ''
+
+  const now = Date.now()
+  const activeUserIds = Object.entries(typingUsers.value)
+    .filter(([, expiresAt]) => expiresAt > now)
+    .map(([userId]) => userId)
+
+  if (activeUserIds.length === 0) return ''
+
+  // 单聊
+  if (chat.groupType === 0) {
+    return '对方正在输入...'
+  }
+
+  // 群聊：尽量展示一个昵称 + 人数
+  const firstUserId = activeUserIds[0]
+  const member = groupMembers.value.find((m) => String(m.userId) === String(firstUserId))
+  const displayName = member?.nickname || member?.username || '有人'
+
+  if (activeUserIds.length === 1) {
+    return `${displayName} 正在输入...`
+  }
+  return `${displayName} 等${activeUserIds.length}人正在输入...`
+})
 
 // 数据状态管理 - 使用store中的数据
 const chatList = computed(() => store.getters.chatList)
@@ -5769,8 +5810,86 @@ const adjustTextareaHeight = () => {
 }
 
 // 监听消息输入变化，自动调整高度
-watch(newMessage, () => {
+const typingStopSendTimer = ref<number | null>(null)
+const typingIsTyping = ref(false)
+const lastTypingSentAt = ref(0)
+
+const sendTypingState = (roomId: string, isTyping: boolean) => {
+  if (!roomId) return
+  const userId = currentUserId.value
+  if (!userId) return
+  webSocketManager.typing(roomId, isTyping, userId)
+}
+
+const stopTyping = (roomId?: string) => {
+  const targetRoomId = roomId || selectedChat.value?.groupId
+  if (!targetRoomId) return
+
+  if (typingStopSendTimer.value) {
+    clearTimeout(typingStopSendTimer.value)
+    typingStopSendTimer.value = null
+  }
+
+  if (typingIsTyping.value) {
+    sendTypingState(targetRoomId, false)
+    typingIsTyping.value = false
+  }
+}
+
+const scheduleTypingFromInput = (value: string) => {
+  // 输入被禁用时强制清理 typing
+  if (isInputDisabled.value) {
+    stopTyping()
+    return
+  }
+
+  const roomId = selectedChat.value?.groupId
+  if (!roomId) return
+
+  const hasText = value.trim().length > 0
+  if (!hasText) {
+    stopTyping(roomId)
+    return
+  }
+
+  const now = Date.now()
+  if (!typingIsTyping.value || now - lastTypingSentAt.value >= 1200) {
+    sendTypingState(roomId, true)
+    typingIsTyping.value = true
+    lastTypingSentAt.value = now
+  }
+
+  if (typingStopSendTimer.value) {
+    clearTimeout(typingStopSendTimer.value)
+  }
+  typingStopSendTimer.value = window.setTimeout(() => {
+    stopTyping(roomId)
+  }, 1500)
+}
+
+const handleInputBlur = () => {
+  stopTyping()
+}
+
+watch(newMessage, (value) => {
   setTimeout(adjustTextareaHeight, 0)
+  scheduleTypingFromInput(value)
+})
+
+watch(
+  () => selectedChat.value?.groupId,
+  (newRoomId, oldRoomId) => {
+    if (oldRoomId && oldRoomId !== newRoomId) {
+      stopTyping(oldRoomId)
+    }
+    clearTypingUsers()
+  },
+)
+
+watch(isInputDisabled, (disabled) => {
+  if (disabled) {
+    stopTyping()
+  }
 })
 
 const sendMessage = async () => {
@@ -5788,6 +5907,9 @@ const sendMessage = async () => {
   if (!selectedChat.value) {
     return
   }
+
+  // 发送消息前强制清理 typing
+  stopTyping(selectedChat.value.groupId)
 
   const content = newMessage.value.trim()
   const groupId = selectedChat.value.groupId
@@ -9250,9 +9372,16 @@ const handleWebSocketReactionUpdate = (event: CustomEvent) => {
     reaction_key?: string
     user_id?: string
     action?: string // "add" | "remove"
+    userId?: string // 多账号：事件所属账号 user_id
   } | undefined
 
   if (!detail || !detail.room_id || !detail.message_id) return
+
+  // 多账号支持：只处理当前账号的事件
+  const currentAccount = store.getters['accounts/currentAccount']
+  const currentAccountUserId = currentAccount?.userInfo?.id
+  const isCurrentAccountEvent = !detail.userId || detail.userId === currentAccountUserId
+  if (!isCurrentAccountEvent) return
 
   const roomId = detail.room_id
   const messageId = detail.message_id
@@ -9279,6 +9408,68 @@ const handleWebSocketReactionUpdate = (event: CustomEvent) => {
       })
     }
   }
+}
+
+const handleWebSocketTypingUpdate = (event: CustomEvent) => {
+  const detail = event.detail as {
+    room_id?: string
+    user_id?: string
+    is_typing?: boolean
+    expires_in_ms?: number
+    userId?: string // 多账号：事件所属账号 user_id
+  } | undefined
+
+  if (!detail || !detail.room_id || !detail.user_id) return
+
+  // 多账号支持：只处理当前账号的事件
+  const currentAccount = store.getters['accounts/currentAccount']
+  const currentAccountUserId = currentAccount?.userInfo?.id
+  const isCurrentAccountEvent = !detail.userId || detail.userId === currentAccountUserId
+  if (!isCurrentAccountEvent) return
+
+  // 仅处理当前会话
+  const roomId = detail.room_id
+  if (!selectedChat.value || selectedChat.value.groupId !== roomId) return
+
+  const actorUserId = String(detail.user_id)
+  const selfId = currentUserId.value ? String(currentUserId.value) : null
+  if (selfId && actorUserId === selfId) return
+
+  const isTyping = detail.is_typing === true
+  const expiresInMs = Number.isFinite(detail.expires_in_ms) ? Number(detail.expires_in_ms) : 6000
+
+  if (isTyping) {
+    const expiresAt = Date.now() + Math.max(0, expiresInMs)
+    typingUsers.value = {
+      ...typingUsers.value,
+      [actorUserId]: expiresAt,
+    }
+
+    const existingTimer = typingCleanupTimers.get(actorUserId)
+    if (existingTimer) clearTimeout(existingTimer)
+
+    const timer = window.setTimeout(() => {
+      const currentExpiresAt = typingUsers.value[actorUserId]
+      if (currentExpiresAt && currentExpiresAt <= Date.now()) {
+        const next = { ...typingUsers.value }
+        delete next[actorUserId]
+        typingUsers.value = next
+      }
+      typingCleanupTimers.delete(actorUserId)
+    }, Math.max(0, expiresInMs) + 50)
+
+    typingCleanupTimers.set(actorUserId, timer)
+    return
+  }
+
+  // is_typing = false：立即移除
+  const next = { ...typingUsers.value }
+  delete next[actorUserId]
+  typingUsers.value = next
+
+  const existingTimer = typingCleanupTimers.get(actorUserId)
+  if (existingTimer) clearTimeout(existingTimer)
+  typingCleanupTimers.delete(actorUserId)
 }
 
 const handleWebSocketMessageUpdate = (event: CustomEvent) => {
@@ -9707,6 +9898,7 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
   eventManager.addWindowListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
   eventManager.addWindowListener('websocket-reaction-update', handleWebSocketReactionUpdate as EventListener)
+  eventManager.addWindowListener('websocket-typing-update', handleWebSocketTypingUpdate as EventListener)
   eventManager.addWindowListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   eventManager.addWindowListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
   eventManager.addWindowListener('websocket-group-settings-updated', handleGroupSettingsUpdatedEvent as EventListener)
@@ -9786,6 +9978,10 @@ onUnmounted(async () => {
   // 重置初始化状态
   isInitialized.value = false
 
+  // 清理 typing 状态（避免离开页面后仍然显示/发送）
+  stopTyping()
+  clearTypingUsers()
+
   // 如果有选中的聊天，更新已读时间
   if (selectedChat.value) {
     await updateReadTimeOnLeave(selectedChat.value)
@@ -9820,6 +10016,7 @@ onUnmounted(async () => {
   window.removeEventListener('websocket-message-read', handleWebSocketMessageRead as EventListener)
   window.removeEventListener('websocket-pin-update', handleWebSocketPinUpdate as EventListener)
   window.removeEventListener('websocket-reaction-update', handleWebSocketReactionUpdate as EventListener)
+  window.removeEventListener('websocket-typing-update', handleWebSocketTypingUpdate as EventListener)
   window.removeEventListener('websocket-group-dissolved', handleGroupDissolvedEvent as EventListener)
   window.removeEventListener('websocket-group-owner-transferred', handleGroupOwnerTransferredEvent as EventListener)
   window.removeEventListener('websocket-room-history-cleared', handleRoomHistoryClearedEvent as EventListener)
@@ -11210,6 +11407,22 @@ const loadMessageList = async (groupId: string) => {
         color: #111827;
       }
     }
+  }
+
+  .typing-indicator {
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: #f5f7fb;
+    border: 1px solid #e5e7ee;
+    font-size: 12px;
+    color: #6b7280;
+    width: fit-content;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
   }
   
   .input-container {

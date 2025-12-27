@@ -67,6 +67,21 @@ class GroupMemberChangedEvent {
   final String? until;
 }
 
+/// 正在输入事件（公开）
+class TypingUpdateEvent {
+  const TypingUpdateEvent({
+    required this.roomId,
+    required this.userId,
+    required this.isTyping,
+    required this.expiresInMs,
+  });
+
+  final String roomId;
+  final String userId;
+  final bool isTyping;
+  final int expiresInMs;
+}
+
 /// WebSocket服务 - 管理WebSocket连接和消息
 class WebSocketService with ChangeNotifier {
   WebSocketService({TokenStorage? tokenStorage, MessageService? messageService})
@@ -115,6 +130,11 @@ class WebSocketService with ChangeNotifier {
       StreamController<GroupMemberChangedEvent>.broadcast();
   Stream<GroupMemberChangedEvent> get onGroupMemberChanged =>
       _groupMemberChangedController.stream;
+
+  // 正在输入事件流
+  final StreamController<TypingUpdateEvent> _typingUpdateController =
+      StreamController<TypingUpdateEvent>.broadcast();
+  Stream<TypingUpdateEvent> get onTypingUpdate => _typingUpdateController.stream;
 
   // 重连相关
   Timer? _reconnectTimer;
@@ -310,6 +330,18 @@ class WebSocketService with ChangeNotifier {
     debugPrint('Leaving room: $roomId');
   }
 
+  /// 设置正在输入状态（仅已认证且已订阅的房间）
+  void setTyping(String roomId, bool isTyping) {
+    if (roomId.isEmpty) return;
+    if (!_isAuthenticated) return;
+    if (!_subscribedRooms.contains(roomId)) return;
+
+    final event = ws.ClientEvent(
+      typing: ws.ClientTyping(roomId: roomId, isTyping: isTyping),
+    );
+    _sendClientEvent(event);
+  }
+
   /// 确保订阅指定房间；可选是否解除不在列表中的房间
   void ensureRoomsSubscribed(
     Iterable<String> roomIds, {
@@ -470,6 +502,9 @@ class WebSocketService with ChangeNotifier {
           messageId: payload.messageId,
           isDeleted: payload.isDeleted,
           deletedAt: _parseDateTime(_nullIfEmpty(payload.deletedAt)),
+          updateType: _nullIfEmpty(payload.updateType),
+          editedAt: _parseDateTime(_nullIfEmpty(payload.editedAt)),
+          content: _nullIfEmpty(payload.content),
         );
       case ws.ServerEvent_Payload.pinUpdate:
         final payload = event.pinUpdate;
@@ -483,19 +518,32 @@ class WebSocketService with ChangeNotifier {
           pinnedAt: _parseDateTime(_nullIfEmpty(payload.pinnedAt)),
           pinnedBy: _nullIfEmpty(payload.pinnedBy),
         );
-      // TODO: 需要重新生成 proto 文件以支持 reactionUpdate
-      // case ws.ServerEvent_Payload.reactionUpdate:
-      //   final payload = event.reactionUpdate;
-      //   if (payload.roomId.isEmpty || payload.messageId.isEmpty) {
-      //     return null;
-      //   }
-      //   return _ReactionUpdateEvent(
-      //     roomId: payload.roomId,
-      //     messageId: payload.messageId,
-      //     reactionKey: payload.reactionKey,
-      //     userId: payload.userId,
-      //     action: payload.action,
-      //   );
+      case ws.ServerEvent_Payload.reactionUpdate:
+        final payload = event.reactionUpdate;
+        if (payload.roomId.isEmpty ||
+            payload.messageId.isEmpty ||
+            payload.reactionKey.isEmpty ||
+            payload.userId.isEmpty) {
+          return null;
+        }
+        return _ReactionUpdateEvent(
+          roomId: payload.roomId,
+          messageId: payload.messageId,
+          reactionKey: payload.reactionKey,
+          userId: payload.userId,
+          action: _nullIfEmpty(payload.action) ?? 'add',
+        );
+      case ws.ServerEvent_Payload.typingUpdate:
+        final payload = event.typingUpdate;
+        if (payload.roomId.isEmpty || payload.userId.isEmpty) {
+          return null;
+        }
+        return _TypingUpdateEvent(
+          roomId: payload.roomId,
+          userId: payload.userId,
+          isTyping: payload.isTyping,
+          expiresInMs: payload.expiresInMs,
+        );
       case ws.ServerEvent_Payload.friendRequestUpdate:
         return _FriendRequestUpdateEvent(
           pendingCount: event.friendRequestUpdate.pendingCount,
@@ -580,6 +628,18 @@ class WebSocketService with ChangeNotifier {
           avatarUrl: _nullIfEmpty(payload.avatarUrl),
           avatarObjectKey: _nullIfEmpty(payload.avatarObjectKey),
         );
+      case ws.ServerEvent_Payload.roomHistoryCleared:
+        final payload = event.roomHistoryCleared;
+        if (payload.roomId.isEmpty) return null;
+        return _RoomHistoryClearedEvent(
+          roomId: payload.roomId,
+          clearedBy: _nullIfEmpty(payload.clearedBy),
+          clearedAt: _parseDateTime(_nullIfEmpty(payload.clearedAt)),
+        );
+      case ws.ServerEvent_Payload.friendshipDeleted:
+        final payload = event.friendshipDeleted;
+        final userId = _nullIfEmpty(payload.userId);
+        return _FriendshipDeletedEvent(userId: userId);
       case ws.ServerEvent_Payload.notSet:
         return null;
     }
@@ -640,11 +700,17 @@ class WebSocketService with ChangeNotifier {
             ? rawDeleted
             : rawDeleted?.toString().toLowerCase() == 'true';
         final deletedAt = _parseDateTime(message['deleted_at']?.toString());
+        final updateType = _nullIfEmpty(message['update_type']?.toString());
+        final editedAt = _parseDateTime(message['edited_at']?.toString());
+        final content = _nullIfEmpty(message['content']?.toString());
         return _MessageUpdateEvent(
           roomId: roomId,
           messageId: messageId,
           isDeleted: isDeleted,
           deletedAt: deletedAt,
+          updateType: updateType,
+          editedAt: editedAt,
+          content: content,
         );
       case 'pin_update':
         final roomId = message['room_id']?.toString() ?? '';
@@ -679,6 +745,25 @@ class WebSocketService with ChangeNotifier {
           reactionKey: reactionKey,
           userId: userId,
           action: action,
+        );
+      case 'typing_update':
+      case 'typingupdate':
+        final roomId = message['room_id']?.toString() ?? '';
+        final userId = message['user_id']?.toString() ?? '';
+        if (roomId.isEmpty || userId.isEmpty) return null;
+        final rawTyping = message['is_typing'];
+        final isTyping = rawTyping is bool
+            ? rawTyping
+            : rawTyping?.toString().toLowerCase() == 'true';
+        final rawExpires = message['expires_in_ms'];
+        final expiresInMs = rawExpires is num
+            ? rawExpires.toInt()
+            : int.tryParse(rawExpires?.toString() ?? '') ?? 0;
+        return _TypingUpdateEvent(
+          roomId: roomId,
+          userId: userId,
+          isTyping: isTyping,
+          expiresInMs: expiresInMs,
         );
       case 'error':
         final msg = message['message']?.toString() ?? 'Unknown error';
@@ -715,6 +800,15 @@ class WebSocketService with ChangeNotifier {
             message['avatar_object_key']?.toString(),
           ),
           description: _nullIfEmpty(message['description']?.toString()),
+        );
+      case 'room_history_cleared':
+      case 'roomhistorycleared':
+        final roomId = message['room_id']?.toString() ?? '';
+        if (roomId.isEmpty) return null;
+        return _RoomHistoryClearedEvent(
+          roomId: roomId,
+          clearedBy: _nullIfEmpty(message['cleared_by']?.toString()),
+          clearedAt: _parseDateTime(message['cleared_at']?.toString()),
         );
       case 'friendship.created':
       case 'friendship_created':
@@ -820,12 +914,16 @@ class WebSocketService with ChangeNotifier {
       _handlePinUpdate(event);
     } else if (event is _ReactionUpdateEvent) {
       _handleReactionUpdate(event);
+    } else if (event is _TypingUpdateEvent) {
+      _handleTypingUpdate(event);
     } else if (event is _FriendRequestUpdateEvent) {
       _handleFriendRequestUpdate(event);
     } else if (event is _RoomCreatedEvent) {
       _handleRoomCreated(event);
     } else if (event is _RoomUpdatedEvent) {
       _handleRoomUpdated(event);
+    } else if (event is _RoomHistoryClearedEvent) {
+      _handleRoomHistoryCleared(event);
     } else if (event is _FriendshipCreatedEvent) {
       _handleFriendshipCreated(event);
     } else if (event is _FriendshipDeletedEvent) {
@@ -930,6 +1028,9 @@ class WebSocketService with ChangeNotifier {
         messageId: event.messageId,
         isDeleted: event.isDeleted,
         deletedAt: event.deletedAt,
+        updateType: event.updateType,
+        editedAt: event.editedAt,
+        content: event.content,
       ),
     );
   }
@@ -942,6 +1043,17 @@ class WebSocketService with ChangeNotifier {
         reactionKey: event.reactionKey,
         userId: event.userId,
         action: event.action,
+      ),
+    );
+  }
+
+  void _handleTypingUpdate(_TypingUpdateEvent event) {
+    _typingUpdateController.add(
+      TypingUpdateEvent(
+        roomId: event.roomId,
+        userId: event.userId,
+        isTyping: event.isTyping,
+        expiresInMs: event.expiresInMs,
       ),
     );
   }
@@ -1103,6 +1215,13 @@ class WebSocketService with ChangeNotifier {
     }
 
     // 轻量强制刷新会话列表，确保其他字段也同步
+    unawaited(_messageService.fetchChats(force: true));
+  }
+
+  void _handleRoomHistoryCleared(_RoomHistoryClearedEvent event) {
+    final roomId = event.roomId;
+    if (roomId.isEmpty) return;
+    _messageService.clearRoomMessages(roomId);
     unawaited(_messageService.fetchChats(force: true));
   }
 
@@ -1285,6 +1404,7 @@ class WebSocketService with ChangeNotifier {
     _roomManager.dispose();
     _groupSettingsUpdatedController.close();
     _groupMemberChangedController.close();
+    _typingUpdateController.close();
     super.dispose();
   }
 }
@@ -1741,11 +1861,17 @@ class _MessageUpdateEvent extends _WsEvent {
     required this.messageId,
     required this.isDeleted,
     this.deletedAt,
+    this.updateType,
+    this.editedAt,
+    this.content,
   });
   final String roomId;
   final String messageId;
   final bool isDeleted;
   final DateTime? deletedAt;
+  final String? updateType;
+  final DateTime? editedAt;
+  final String? content;
 }
 
 class _ReactionUpdateEvent extends _WsEvent {
@@ -1761,6 +1887,20 @@ class _ReactionUpdateEvent extends _WsEvent {
   final String reactionKey;
   final String userId;
   final String action; // "add" | "remove"
+}
+
+class _TypingUpdateEvent extends _WsEvent {
+  const _TypingUpdateEvent({
+    required this.roomId,
+    required this.userId,
+    required this.isTyping,
+    required this.expiresInMs,
+  });
+
+  final String roomId;
+  final String userId;
+  final bool isTyping;
+  final int expiresInMs;
 }
 
 class _PinUpdateEvent extends _WsEvent {
@@ -1818,6 +1958,18 @@ class _RoomUpdatedEvent extends _WsEvent {
   final String? avatarUrl;
   final String? avatarObjectKey;
   final String? description;
+}
+
+class _RoomHistoryClearedEvent extends _WsEvent {
+  const _RoomHistoryClearedEvent({
+    required this.roomId,
+    this.clearedBy,
+    this.clearedAt,
+  });
+
+  final String roomId;
+  final String? clearedBy;
+  final DateTime? clearedAt;
 }
 
 class _FriendshipCreatedEvent extends _WsEvent {

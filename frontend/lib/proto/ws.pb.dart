@@ -8,7 +8,7 @@
 // ignore_for_file: constant_identifier_names
 // ignore_for_file: curly_braces_in_flow_control_structures
 // ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
-// ignore_for_file: non_constant_identifier_names
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
 
 import 'dart:core' as $core;
 
@@ -21,7 +21,7 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'ws.pbenum.dart';
 
-enum ClientEvent_Payload { auth, join, leave, ping, notSet }
+enum ClientEvent_Payload { auth, join, leave, ping, typing, notSet }
 
 class ClientEvent extends $pb.GeneratedMessage {
   factory ClientEvent({
@@ -29,12 +29,14 @@ class ClientEvent extends $pb.GeneratedMessage {
     ClientJoin? join,
     ClientLeave? leave,
     ClientPing? ping,
+    ClientTyping? typing,
   }) {
     final result = create();
     if (auth != null) result.auth = auth;
     if (join != null) result.join = join;
     if (leave != null) result.leave = leave;
     if (ping != null) result.ping = ping;
+    if (typing != null) result.typing = typing;
     return result;
   }
 
@@ -53,13 +55,14 @@ class ClientEvent extends $pb.GeneratedMessage {
     2: ClientEvent_Payload.join,
     3: ClientEvent_Payload.leave,
     4: ClientEvent_Payload.ping,
+    5: ClientEvent_Payload.typing,
     0: ClientEvent_Payload.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4])
+    ..oo(0, [1, 2, 3, 4, 5])
     ..aOM<ClientAuth>(1, _omitFieldNames ? '' : 'auth',
         subBuilder: ClientAuth.create)
     ..aOM<ClientJoin>(2, _omitFieldNames ? '' : 'join',
@@ -68,6 +71,8 @@ class ClientEvent extends $pb.GeneratedMessage {
         subBuilder: ClientLeave.create)
     ..aOM<ClientPing>(4, _omitFieldNames ? '' : 'ping',
         subBuilder: ClientPing.create)
+    ..aOM<ClientTyping>(5, _omitFieldNames ? '' : 'typing',
+        subBuilder: ClientTyping.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -93,12 +98,14 @@ class ClientEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   @$pb.TagNumber(3)
   @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
   ClientEvent_Payload whichPayload() =>
       _ClientEvent_PayloadByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
   @$pb.TagNumber(3)
   @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
   void clearPayload() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -144,6 +151,17 @@ class ClientEvent extends $pb.GeneratedMessage {
   void clearPing() => $_clearField(4);
   @$pb.TagNumber(4)
   ClientPing ensurePing() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  ClientTyping get typing => $_getN(4);
+  @$pb.TagNumber(5)
+  set typing(ClientTyping value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasTyping() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearTyping() => $_clearField(5);
+  @$pb.TagNumber(5)
+  ClientTyping ensureTyping() => $_ensure(4);
 }
 
 class ClientAuth extends $pb.GeneratedMessage {
@@ -343,6 +361,72 @@ class ClientPing extends $pb.GeneratedMessage {
   static ClientPing? _defaultInstance;
 }
 
+class ClientTyping extends $pb.GeneratedMessage {
+  factory ClientTyping({
+    $core.String? roomId,
+    $core.bool? isTyping,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (isTyping != null) result.isTyping = isTyping;
+    return result;
+  }
+
+  ClientTyping._();
+
+  factory ClientTyping.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ClientTyping.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientTyping',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOB(2, _omitFieldNames ? '' : 'isTyping')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientTyping clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientTyping copyWith(void Function(ClientTyping) updates) =>
+      super.copyWith((message) => updates(message as ClientTyping))
+          as ClientTyping;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ClientTyping create() => ClientTyping._();
+  @$core.override
+  ClientTyping createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ClientTyping getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientTyping>(create);
+  static ClientTyping? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get isTyping => $_getBF(1);
+  @$pb.TagNumber(2)
+  set isTyping($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasIsTyping() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIsTyping() => $_clearField(2);
+}
+
 enum ServerEvent_Payload {
   authed,
   joined,
@@ -362,6 +446,10 @@ enum ServerEvent_Payload {
   groupSettingsUpdated,
   groupMemberChanged,
   friendProfileUpdated,
+  roomHistoryCleared,
+  friendshipDeleted,
+  reactionUpdate,
+  typingUpdate,
   notSet
 }
 
@@ -385,6 +473,10 @@ class ServerEvent extends $pb.GeneratedMessage {
     ServerGroupSettingsUpdated? groupSettingsUpdated,
     ServerGroupMemberChanged? groupMemberChanged,
     ServerFriendProfileUpdated? friendProfileUpdated,
+    ServerRoomHistoryCleared? roomHistoryCleared,
+    ServerFriendshipDeleted? friendshipDeleted,
+    ServerReactionUpdate? reactionUpdate,
+    ServerTypingUpdate? typingUpdate,
   }) {
     final result = create();
     if (authed != null) result.authed = authed;
@@ -410,6 +502,11 @@ class ServerEvent extends $pb.GeneratedMessage {
       result.groupMemberChanged = groupMemberChanged;
     if (friendProfileUpdated != null)
       result.friendProfileUpdated = friendProfileUpdated;
+    if (roomHistoryCleared != null)
+      result.roomHistoryCleared = roomHistoryCleared;
+    if (friendshipDeleted != null) result.friendshipDeleted = friendshipDeleted;
+    if (reactionUpdate != null) result.reactionUpdate = reactionUpdate;
+    if (typingUpdate != null) result.typingUpdate = typingUpdate;
     return result;
   }
 
@@ -442,13 +539,40 @@ class ServerEvent extends $pb.GeneratedMessage {
     16: ServerEvent_Payload.groupSettingsUpdated,
     17: ServerEvent_Payload.groupMemberChanged,
     18: ServerEvent_Payload.friendProfileUpdated,
+    19: ServerEvent_Payload.roomHistoryCleared,
+    20: ServerEvent_Payload.friendshipDeleted,
+    21: ServerEvent_Payload.reactionUpdate,
+    22: ServerEvent_Payload.typingUpdate,
     0: ServerEvent_Payload.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ServerEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+    ..oo(0, [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22
+    ])
     ..aOM<ServerAuthed>(1, _omitFieldNames ? '' : 'authed',
         subBuilder: ServerAuthed.create)
     ..aOM<ServerJoined>(2, _omitFieldNames ? '' : 'joined',
@@ -490,6 +614,16 @@ class ServerEvent extends $pb.GeneratedMessage {
     ..aOM<ServerFriendProfileUpdated>(
         18, _omitFieldNames ? '' : 'friendProfileUpdated',
         subBuilder: ServerFriendProfileUpdated.create)
+    ..aOM<ServerRoomHistoryCleared>(
+        19, _omitFieldNames ? '' : 'roomHistoryCleared',
+        subBuilder: ServerRoomHistoryCleared.create)
+    ..aOM<ServerFriendshipDeleted>(
+        20, _omitFieldNames ? '' : 'friendshipDeleted',
+        subBuilder: ServerFriendshipDeleted.create)
+    ..aOM<ServerReactionUpdate>(21, _omitFieldNames ? '' : 'reactionUpdate',
+        subBuilder: ServerReactionUpdate.create)
+    ..aOM<ServerTypingUpdate>(22, _omitFieldNames ? '' : 'typingUpdate',
+        subBuilder: ServerTypingUpdate.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -528,6 +662,11 @@ class ServerEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(15)
   @$pb.TagNumber(16)
   @$pb.TagNumber(17)
+  @$pb.TagNumber(18)
+  @$pb.TagNumber(19)
+  @$pb.TagNumber(20)
+  @$pb.TagNumber(21)
+  @$pb.TagNumber(22)
   ServerEvent_Payload whichPayload() =>
       _ServerEvent_PayloadByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
@@ -547,6 +686,11 @@ class ServerEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(15)
   @$pb.TagNumber(16)
   @$pb.TagNumber(17)
+  @$pb.TagNumber(18)
+  @$pb.TagNumber(19)
+  @$pb.TagNumber(20)
+  @$pb.TagNumber(21)
+  @$pb.TagNumber(22)
   void clearPayload() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -751,6 +895,51 @@ class ServerEvent extends $pb.GeneratedMessage {
   void clearFriendProfileUpdated() => $_clearField(18);
   @$pb.TagNumber(18)
   ServerFriendProfileUpdated ensureFriendProfileUpdated() => $_ensure(17);
+
+  @$pb.TagNumber(19)
+  ServerRoomHistoryCleared get roomHistoryCleared => $_getN(18);
+  @$pb.TagNumber(19)
+  set roomHistoryCleared(ServerRoomHistoryCleared value) =>
+      $_setField(19, value);
+  @$pb.TagNumber(19)
+  $core.bool hasRoomHistoryCleared() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearRoomHistoryCleared() => $_clearField(19);
+  @$pb.TagNumber(19)
+  ServerRoomHistoryCleared ensureRoomHistoryCleared() => $_ensure(18);
+
+  @$pb.TagNumber(20)
+  ServerFriendshipDeleted get friendshipDeleted => $_getN(19);
+  @$pb.TagNumber(20)
+  set friendshipDeleted(ServerFriendshipDeleted value) => $_setField(20, value);
+  @$pb.TagNumber(20)
+  $core.bool hasFriendshipDeleted() => $_has(19);
+  @$pb.TagNumber(20)
+  void clearFriendshipDeleted() => $_clearField(20);
+  @$pb.TagNumber(20)
+  ServerFriendshipDeleted ensureFriendshipDeleted() => $_ensure(19);
+
+  @$pb.TagNumber(21)
+  ServerReactionUpdate get reactionUpdate => $_getN(20);
+  @$pb.TagNumber(21)
+  set reactionUpdate(ServerReactionUpdate value) => $_setField(21, value);
+  @$pb.TagNumber(21)
+  $core.bool hasReactionUpdate() => $_has(20);
+  @$pb.TagNumber(21)
+  void clearReactionUpdate() => $_clearField(21);
+  @$pb.TagNumber(21)
+  ServerReactionUpdate ensureReactionUpdate() => $_ensure(20);
+
+  @$pb.TagNumber(22)
+  ServerTypingUpdate get typingUpdate => $_getN(21);
+  @$pb.TagNumber(22)
+  set typingUpdate(ServerTypingUpdate value) => $_setField(22, value);
+  @$pb.TagNumber(22)
+  $core.bool hasTypingUpdate() => $_has(21);
+  @$pb.TagNumber(22)
+  void clearTypingUpdate() => $_clearField(22);
+  @$pb.TagNumber(22)
+  ServerTypingUpdate ensureTypingUpdate() => $_ensure(21);
 }
 
 class ServerAuthed extends $pb.GeneratedMessage {
@@ -1723,12 +1912,18 @@ class ServerMessageUpdate extends $pb.GeneratedMessage {
     $core.String? messageId,
     $core.bool? isDeleted,
     $core.String? deletedAt,
+    $core.String? updateType,
+    $core.String? editedAt,
+    $core.String? content,
   }) {
     final result = create();
     if (roomId != null) result.roomId = roomId;
     if (messageId != null) result.messageId = messageId;
     if (isDeleted != null) result.isDeleted = isDeleted;
     if (deletedAt != null) result.deletedAt = deletedAt;
+    if (updateType != null) result.updateType = updateType;
+    if (editedAt != null) result.editedAt = editedAt;
+    if (content != null) result.content = content;
     return result;
   }
 
@@ -1749,6 +1944,9 @@ class ServerMessageUpdate extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'messageId')
     ..aOB(3, _omitFieldNames ? '' : 'isDeleted')
     ..aOS(4, _omitFieldNames ? '' : 'deletedAt')
+    ..aOS(5, _omitFieldNames ? '' : 'updateType')
+    ..aOS(6, _omitFieldNames ? '' : 'editedAt')
+    ..aOS(7, _omitFieldNames ? '' : 'content')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1805,6 +2003,34 @@ class ServerMessageUpdate extends $pb.GeneratedMessage {
   $core.bool hasDeletedAt() => $_has(3);
   @$pb.TagNumber(4)
   void clearDeletedAt() => $_clearField(4);
+
+  /// 新增编辑相关字段
+  @$pb.TagNumber(5)
+  $core.String get updateType => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set updateType($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasUpdateType() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearUpdateType() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get editedAt => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set editedAt($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasEditedAt() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearEditedAt() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get content => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set content($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasContent() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearContent() => $_clearField(7);
 }
 
 class ServerPinUpdate extends $pb.GeneratedMessage {
@@ -2394,6 +2620,141 @@ class ServerGroupOwnerTransferred extends $pb.GeneratedMessage {
   void clearNewOwnerId() => $_clearField(3);
 }
 
+/// 房间聊天记录被清空事件
+class ServerRoomHistoryCleared extends $pb.GeneratedMessage {
+  factory ServerRoomHistoryCleared({
+    $core.String? roomId,
+    $core.String? clearedBy,
+    $core.String? clearedAt,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (clearedBy != null) result.clearedBy = clearedBy;
+    if (clearedAt != null) result.clearedAt = clearedAt;
+    return result;
+  }
+
+  ServerRoomHistoryCleared._();
+
+  factory ServerRoomHistoryCleared.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerRoomHistoryCleared.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerRoomHistoryCleared',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'clearedBy')
+    ..aOS(3, _omitFieldNames ? '' : 'clearedAt')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerRoomHistoryCleared clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerRoomHistoryCleared copyWith(
+          void Function(ServerRoomHistoryCleared) updates) =>
+      super.copyWith((message) => updates(message as ServerRoomHistoryCleared))
+          as ServerRoomHistoryCleared;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerRoomHistoryCleared create() => ServerRoomHistoryCleared._();
+  @$core.override
+  ServerRoomHistoryCleared createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerRoomHistoryCleared getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerRoomHistoryCleared>(create);
+  static ServerRoomHistoryCleared? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get clearedBy => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set clearedBy($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasClearedBy() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearClearedBy() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get clearedAt => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set clearedAt($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasClearedAt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearClearedAt() => $_clearField(3);
+}
+
+class ServerFriendshipDeleted extends $pb.GeneratedMessage {
+  factory ServerFriendshipDeleted({
+    $core.String? userId,
+  }) {
+    final result = create();
+    if (userId != null) result.userId = userId;
+    return result;
+  }
+
+  ServerFriendshipDeleted._();
+
+  factory ServerFriendshipDeleted.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerFriendshipDeleted.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerFriendshipDeleted',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerFriendshipDeleted clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerFriendshipDeleted copyWith(
+          void Function(ServerFriendshipDeleted) updates) =>
+      super.copyWith((message) => updates(message as ServerFriendshipDeleted))
+          as ServerFriendshipDeleted;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerFriendshipDeleted create() => ServerFriendshipDeleted._();
+  @$core.override
+  ServerFriendshipDeleted createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerFriendshipDeleted getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerFriendshipDeleted>(create);
+  static ServerFriendshipDeleted? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get userId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set userId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasUserId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUserId() => $_clearField(1);
+}
+
 class ServerGroupSettingsUpdated extends $pb.GeneratedMessage {
   factory ServerGroupSettingsUpdated({
     $core.String? roomId,
@@ -2785,7 +3146,8 @@ class ServerFriendProfileUpdated extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ServerFriendProfileUpdated copyWith(
           void Function(ServerFriendProfileUpdated) updates) =>
-      super.copyWith((message) => updates(message as ServerFriendProfileUpdated))
+      super.copyWith(
+              (message) => updates(message as ServerFriendProfileUpdated))
           as ServerFriendProfileUpdated;
 
   @$core.override
@@ -2844,6 +3206,200 @@ class ServerFriendProfileUpdated extends $pb.GeneratedMessage {
   $core.bool hasAvatarObjectKey() => $_has(4);
   @$pb.TagNumber(5)
   void clearAvatarObjectKey() => $_clearField(5);
+}
+
+/// 消息反应更新事件
+class ServerReactionUpdate extends $pb.GeneratedMessage {
+  factory ServerReactionUpdate({
+    $core.String? roomId,
+    $core.String? messageId,
+    $core.String? reactionKey,
+    $core.String? userId,
+    $core.String? action,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (messageId != null) result.messageId = messageId;
+    if (reactionKey != null) result.reactionKey = reactionKey;
+    if (userId != null) result.userId = userId;
+    if (action != null) result.action = action;
+    return result;
+  }
+
+  ServerReactionUpdate._();
+
+  factory ServerReactionUpdate.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerReactionUpdate.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerReactionUpdate',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'messageId')
+    ..aOS(3, _omitFieldNames ? '' : 'reactionKey')
+    ..aOS(4, _omitFieldNames ? '' : 'userId')
+    ..aOS(5, _omitFieldNames ? '' : 'action')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerReactionUpdate clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerReactionUpdate copyWith(void Function(ServerReactionUpdate) updates) =>
+      super.copyWith((message) => updates(message as ServerReactionUpdate))
+          as ServerReactionUpdate;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerReactionUpdate create() => ServerReactionUpdate._();
+  @$core.override
+  ServerReactionUpdate createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerReactionUpdate getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerReactionUpdate>(create);
+  static ServerReactionUpdate? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get messageId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set messageId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessageId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessageId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get reactionKey => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set reactionKey($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasReactionKey() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReactionKey() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get userId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set userId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasUserId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUserId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get action => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set action($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasAction() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAction() => $_clearField(5);
+}
+
+/// 正在输入（Typing）事件
+class ServerTypingUpdate extends $pb.GeneratedMessage {
+  factory ServerTypingUpdate({
+    $core.String? roomId,
+    $core.String? userId,
+    $core.bool? isTyping,
+    $core.int? expiresInMs,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (userId != null) result.userId = userId;
+    if (isTyping != null) result.isTyping = isTyping;
+    if (expiresInMs != null) result.expiresInMs = expiresInMs;
+    return result;
+  }
+
+  ServerTypingUpdate._();
+
+  factory ServerTypingUpdate.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ServerTypingUpdate.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ServerTypingUpdate',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'userId')
+    ..aOB(3, _omitFieldNames ? '' : 'isTyping')
+    ..aI(4, _omitFieldNames ? '' : 'expiresInMs')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerTypingUpdate clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ServerTypingUpdate copyWith(void Function(ServerTypingUpdate) updates) =>
+      super.copyWith((message) => updates(message as ServerTypingUpdate))
+          as ServerTypingUpdate;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ServerTypingUpdate create() => ServerTypingUpdate._();
+  @$core.override
+  ServerTypingUpdate createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ServerTypingUpdate getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ServerTypingUpdate>(create);
+  static ServerTypingUpdate? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get userId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set userId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUserId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUserId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get isTyping => $_getBF(2);
+  @$pb.TagNumber(3)
+  set isTyping($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasIsTyping() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIsTyping() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get expiresInMs => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set expiresInMs($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasExpiresInMs() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearExpiresInMs() => $_clearField(4);
 }
 
 class PubSubMessage extends $pb.GeneratedMessage {
@@ -3172,12 +3728,18 @@ class PubSubMessageUpdate extends $pb.GeneratedMessage {
     $core.String? messageId,
     $core.bool? isDeleted,
     $core.String? deletedAt,
+    $core.String? updateType,
+    $core.String? editedAt,
+    $core.String? content,
   }) {
     final result = create();
     if (roomId != null) result.roomId = roomId;
     if (messageId != null) result.messageId = messageId;
     if (isDeleted != null) result.isDeleted = isDeleted;
     if (deletedAt != null) result.deletedAt = deletedAt;
+    if (updateType != null) result.updateType = updateType;
+    if (editedAt != null) result.editedAt = editedAt;
+    if (content != null) result.content = content;
     return result;
   }
 
@@ -3198,6 +3760,9 @@ class PubSubMessageUpdate extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'messageId')
     ..aOB(3, _omitFieldNames ? '' : 'isDeleted')
     ..aOS(4, _omitFieldNames ? '' : 'deletedAt')
+    ..aOS(5, _omitFieldNames ? '' : 'updateType')
+    ..aOS(6, _omitFieldNames ? '' : 'editedAt')
+    ..aOS(7, _omitFieldNames ? '' : 'content')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3254,6 +3819,34 @@ class PubSubMessageUpdate extends $pb.GeneratedMessage {
   $core.bool hasDeletedAt() => $_has(3);
   @$pb.TagNumber(4)
   void clearDeletedAt() => $_clearField(4);
+
+  /// 新增编辑相关字段
+  @$pb.TagNumber(5)
+  $core.String get updateType => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set updateType($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasUpdateType() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearUpdateType() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get editedAt => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set editedAt($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasEditedAt() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearEditedAt() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get content => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set content($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasContent() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearContent() => $_clearField(7);
 }
 
 class PubSubPinUpdate extends $pb.GeneratedMessage {
@@ -3703,6 +4296,280 @@ class PubSubGroupMemberChanged extends $pb.GeneratedMessage {
   void clearUntil() => $_clearField(7);
 }
 
+/// 房间聊天记录被清空事件（跨节点广播）
+class PubSubRoomHistoryCleared extends $pb.GeneratedMessage {
+  factory PubSubRoomHistoryCleared({
+    $core.String? roomId,
+    $core.String? clearedBy,
+    $core.String? clearedAt,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (clearedBy != null) result.clearedBy = clearedBy;
+    if (clearedAt != null) result.clearedAt = clearedAt;
+    return result;
+  }
+
+  PubSubRoomHistoryCleared._();
+
+  factory PubSubRoomHistoryCleared.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PubSubRoomHistoryCleared.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PubSubRoomHistoryCleared',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'clearedBy')
+    ..aOS(3, _omitFieldNames ? '' : 'clearedAt')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubRoomHistoryCleared clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubRoomHistoryCleared copyWith(
+          void Function(PubSubRoomHistoryCleared) updates) =>
+      super.copyWith((message) => updates(message as PubSubRoomHistoryCleared))
+          as PubSubRoomHistoryCleared;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PubSubRoomHistoryCleared create() => PubSubRoomHistoryCleared._();
+  @$core.override
+  PubSubRoomHistoryCleared createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PubSubRoomHistoryCleared getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PubSubRoomHistoryCleared>(create);
+  static PubSubRoomHistoryCleared? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get clearedBy => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set clearedBy($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasClearedBy() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearClearedBy() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get clearedAt => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set clearedAt($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasClearedAt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearClearedAt() => $_clearField(3);
+}
+
+/// 消息反应更新事件（跨节点广播）
+class PubSubReactionUpdate extends $pb.GeneratedMessage {
+  factory PubSubReactionUpdate({
+    $core.String? roomId,
+    $core.String? messageId,
+    $core.String? reactionKey,
+    $core.String? userId,
+    $core.String? action,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (messageId != null) result.messageId = messageId;
+    if (reactionKey != null) result.reactionKey = reactionKey;
+    if (userId != null) result.userId = userId;
+    if (action != null) result.action = action;
+    return result;
+  }
+
+  PubSubReactionUpdate._();
+
+  factory PubSubReactionUpdate.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PubSubReactionUpdate.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PubSubReactionUpdate',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'messageId')
+    ..aOS(3, _omitFieldNames ? '' : 'reactionKey')
+    ..aOS(4, _omitFieldNames ? '' : 'userId')
+    ..aOS(5, _omitFieldNames ? '' : 'action')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubReactionUpdate clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubReactionUpdate copyWith(void Function(PubSubReactionUpdate) updates) =>
+      super.copyWith((message) => updates(message as PubSubReactionUpdate))
+          as PubSubReactionUpdate;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PubSubReactionUpdate create() => PubSubReactionUpdate._();
+  @$core.override
+  PubSubReactionUpdate createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PubSubReactionUpdate getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PubSubReactionUpdate>(create);
+  static PubSubReactionUpdate? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get messageId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set messageId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessageId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessageId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get reactionKey => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set reactionKey($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasReactionKey() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReactionKey() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get userId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set userId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasUserId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUserId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get action => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set action($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasAction() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAction() => $_clearField(5);
+}
+
+/// 正在输入（Typing）事件（跨节点广播）
+class PubSubTypingUpdate extends $pb.GeneratedMessage {
+  factory PubSubTypingUpdate({
+    $core.String? roomId,
+    $core.String? userId,
+    $core.bool? isTyping,
+    $core.int? expiresInMs,
+  }) {
+    final result = create();
+    if (roomId != null) result.roomId = roomId;
+    if (userId != null) result.userId = userId;
+    if (isTyping != null) result.isTyping = isTyping;
+    if (expiresInMs != null) result.expiresInMs = expiresInMs;
+    return result;
+  }
+
+  PubSubTypingUpdate._();
+
+  factory PubSubTypingUpdate.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PubSubTypingUpdate.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PubSubTypingUpdate',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'roomId')
+    ..aOS(2, _omitFieldNames ? '' : 'userId')
+    ..aOB(3, _omitFieldNames ? '' : 'isTyping')
+    ..aI(4, _omitFieldNames ? '' : 'expiresInMs')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubTypingUpdate clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PubSubTypingUpdate copyWith(void Function(PubSubTypingUpdate) updates) =>
+      super.copyWith((message) => updates(message as PubSubTypingUpdate))
+          as PubSubTypingUpdate;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PubSubTypingUpdate create() => PubSubTypingUpdate._();
+  @$core.override
+  PubSubTypingUpdate createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PubSubTypingUpdate getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PubSubTypingUpdate>(create);
+  static PubSubTypingUpdate? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get roomId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set roomId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRoomId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRoomId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get userId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set userId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUserId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUserId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get isTyping => $_getBF(2);
+  @$pb.TagNumber(3)
+  set isTyping($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasIsTyping() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIsTyping() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get expiresInMs => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set expiresInMs($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasExpiresInMs() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearExpiresInMs() => $_clearField(4);
+}
+
 enum PubSubEvent_Payload {
   message,
   readReceipt,
@@ -3711,6 +4578,9 @@ enum PubSubEvent_Payload {
   roomUpdate,
   groupSettingsUpdate,
   groupMemberChanged,
+  roomHistoryCleared,
+  reactionUpdate,
+  typingUpdate,
   notSet
 }
 
@@ -3723,6 +4593,9 @@ class PubSubEvent extends $pb.GeneratedMessage {
     PubSubRoomUpdate? roomUpdate,
     PubSubGroupSettingsUpdate? groupSettingsUpdate,
     PubSubGroupMemberChanged? groupMemberChanged,
+    PubSubRoomHistoryCleared? roomHistoryCleared,
+    PubSubReactionUpdate? reactionUpdate,
+    PubSubTypingUpdate? typingUpdate,
   }) {
     final result = create();
     if (message != null) result.message = message;
@@ -3734,6 +4607,10 @@ class PubSubEvent extends $pb.GeneratedMessage {
       result.groupSettingsUpdate = groupSettingsUpdate;
     if (groupMemberChanged != null)
       result.groupMemberChanged = groupMemberChanged;
+    if (roomHistoryCleared != null)
+      result.roomHistoryCleared = roomHistoryCleared;
+    if (reactionUpdate != null) result.reactionUpdate = reactionUpdate;
+    if (typingUpdate != null) result.typingUpdate = typingUpdate;
     return result;
   }
 
@@ -3755,13 +4632,16 @@ class PubSubEvent extends $pb.GeneratedMessage {
     5: PubSubEvent_Payload.roomUpdate,
     6: PubSubEvent_Payload.groupSettingsUpdate,
     7: PubSubEvent_Payload.groupMemberChanged,
+    8: PubSubEvent_Payload.roomHistoryCleared,
+    9: PubSubEvent_Payload.reactionUpdate,
+    10: PubSubEvent_Payload.typingUpdate,
     0: PubSubEvent_Payload.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PubSubEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'ws'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     ..aOM<PubSubMessage>(1, _omitFieldNames ? '' : 'message',
         subBuilder: PubSubMessage.create)
     ..aOM<PubSubReadReceipt>(2, _omitFieldNames ? '' : 'readReceipt',
@@ -3778,6 +4658,13 @@ class PubSubEvent extends $pb.GeneratedMessage {
     ..aOM<PubSubGroupMemberChanged>(
         7, _omitFieldNames ? '' : 'groupMemberChanged',
         subBuilder: PubSubGroupMemberChanged.create)
+    ..aOM<PubSubRoomHistoryCleared>(
+        8, _omitFieldNames ? '' : 'roomHistoryCleared',
+        subBuilder: PubSubRoomHistoryCleared.create)
+    ..aOM<PubSubReactionUpdate>(9, _omitFieldNames ? '' : 'reactionUpdate',
+        subBuilder: PubSubReactionUpdate.create)
+    ..aOM<PubSubTypingUpdate>(10, _omitFieldNames ? '' : 'typingUpdate',
+        subBuilder: PubSubTypingUpdate.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3806,6 +4693,9 @@ class PubSubEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   @$pb.TagNumber(6)
   @$pb.TagNumber(7)
+  @$pb.TagNumber(8)
+  @$pb.TagNumber(9)
+  @$pb.TagNumber(10)
   PubSubEvent_Payload whichPayload() =>
       _PubSubEvent_PayloadByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
@@ -3815,6 +4705,9 @@ class PubSubEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   @$pb.TagNumber(6)
   @$pb.TagNumber(7)
+  @$pb.TagNumber(8)
+  @$pb.TagNumber(9)
+  @$pb.TagNumber(10)
   void clearPayload() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -3895,6 +4788,40 @@ class PubSubEvent extends $pb.GeneratedMessage {
   void clearGroupMemberChanged() => $_clearField(7);
   @$pb.TagNumber(7)
   PubSubGroupMemberChanged ensureGroupMemberChanged() => $_ensure(6);
+
+  @$pb.TagNumber(8)
+  PubSubRoomHistoryCleared get roomHistoryCleared => $_getN(7);
+  @$pb.TagNumber(8)
+  set roomHistoryCleared(PubSubRoomHistoryCleared value) =>
+      $_setField(8, value);
+  @$pb.TagNumber(8)
+  $core.bool hasRoomHistoryCleared() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearRoomHistoryCleared() => $_clearField(8);
+  @$pb.TagNumber(8)
+  PubSubRoomHistoryCleared ensureRoomHistoryCleared() => $_ensure(7);
+
+  @$pb.TagNumber(9)
+  PubSubReactionUpdate get reactionUpdate => $_getN(8);
+  @$pb.TagNumber(9)
+  set reactionUpdate(PubSubReactionUpdate value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasReactionUpdate() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearReactionUpdate() => $_clearField(9);
+  @$pb.TagNumber(9)
+  PubSubReactionUpdate ensureReactionUpdate() => $_ensure(8);
+
+  @$pb.TagNumber(10)
+  PubSubTypingUpdate get typingUpdate => $_getN(9);
+  @$pb.TagNumber(10)
+  set typingUpdate(PubSubTypingUpdate value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasTypingUpdate() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearTypingUpdate() => $_clearField(10);
+  @$pb.TagNumber(10)
+  PubSubTypingUpdate ensureTypingUpdate() => $_ensure(9);
 }
 
 const $core.bool _omitFieldNames =

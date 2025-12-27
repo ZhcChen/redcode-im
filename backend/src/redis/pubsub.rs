@@ -193,10 +193,7 @@ impl PubSubManager {
         let should_forward = match &event {
             PubSubPayload::Message { data } => data.source_node != node_id,
             PubSubPayload::ReadReceipt { data } => data.source_node != node_id,
-            PubSubPayload::MessageUpdate { .. } => true,
-            PubSubPayload::PinUpdate { .. } => true,
-            PubSubPayload::RoomUpdate { .. } => true,
-            PubSubPayload::GroupSettingsUpdate { .. } => true,
+            _ => true,
         };
 
         if !should_forward {
@@ -244,6 +241,34 @@ impl PubSubManager {
                 info!(
                     "收到跨节点群设置更新 [{}]: 房间={}, 全局禁言={}",
                     node_id, data.room_id, data.global_mute_enabled
+                );
+            }
+            PubSubPayload::GroupMemberChanged { data } => {
+                info!(
+                    "收到跨节点群成员变更 [{}]: 房间={}, 成员={}, 类型={}",
+                    node_id, data.room_id, data.member_id, data.change_type
+                );
+            }
+            PubSubPayload::RoomHistoryCleared { data } => {
+                info!(
+                    "收到跨节点清空聊天记录 [{}]: 房间={}, 清空者={:?}",
+                    node_id, data.room_id, data.cleared_by
+                );
+            }
+            PubSubPayload::ReactionUpdate { data } => {
+                info!(
+                    "收到跨节点消息反应更新 [{}]: 房间={}, 消息={}, user={}, action={}",
+                    node_id,
+                    data.room_id,
+                    data.message_id,
+                    data.user_id,
+                    data.action
+                );
+            }
+            PubSubPayload::TypingUpdate { data } => {
+                info!(
+                    "收到跨节点输入态更新 [{}]: 房间={}, user={}, is_typing={}",
+                    node_id, data.room_id, data.user_id, data.is_typing
                 );
             }
         }

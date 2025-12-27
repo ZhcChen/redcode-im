@@ -79,6 +79,16 @@ export const WebSocketApi = {
   },
 
   /**
+   * 发送正在输入状态
+   * @param roomId 房间 ID
+   * @param isTyping 是否正在输入
+   * @param userId 可选，指定账号；不传则使用当前活跃账号
+   */
+  async typing(roomId: string, isTyping: boolean, userId?: string): Promise<void> {
+    await invoke('ws_typing', { roomId, isTyping, userId });
+  },
+
+  /**
    * 批量加入房间
    * @param roomIds 房间 ID 列表
    * @param userId 可选，指定账号；不传则使用当前活跃账号

@@ -9,11 +9,13 @@ use axum::{http::StatusCode, response::IntoResponse};
 use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
 use prost::Message as _;
+use redis::AsyncCommands;
 use serde::Deserialize;
 use serde_json::json;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
+    time::Instant,
 };
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
@@ -30,6 +32,14 @@ pub struct ConnectionManager {
     connection_rooms: Arc<RwLock<HashMap<String, HashSet<Uuid>>>>,
     // 房间ID -> 订阅用户集合
     room_subscribers: Arc<RwLock<HashMap<Uuid, HashSet<String>>>>,
+    // 输入态节流：key = "{conn_id}:{room_id}"
+    typing_throttles: Arc<RwLock<HashMap<String, TypingThrottleInfo>>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TypingThrottleInfo {
+    last_sent_at: Instant,
+    last_is_typing: bool,
 }
 
 // 连接信息
@@ -50,6 +60,7 @@ impl ConnectionManager {
             user_connections: Arc::new(RwLock::new(HashMap::new())),
             connection_rooms: Arc::new(RwLock::new(HashMap::new())),
             room_subscribers: Arc::new(RwLock::new(HashMap::new())),
+            typing_throttles: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -195,6 +206,48 @@ impl ConnectionManager {
             info!("连接 {} 取消订阅房间 {}", conn_id, room_id);
         }
         was_subscribed
+    }
+
+    pub async fn is_connection_subscribed_to_room(&self, conn_id: &str, room_id: Uuid) -> bool {
+        let conn_rooms = self.connection_rooms.read().await;
+        conn_rooms
+            .get(conn_id)
+            .map(|rooms| rooms.contains(&room_id))
+            .unwrap_or(false)
+    }
+
+    pub async fn can_emit_typing(&self, conn_id: &str, room_id: Uuid, is_typing: bool) -> bool {
+        // 允许的最小间隔（同一连接、同一房间、同一状态）
+        const THROTTLE_MS: u64 = 1200;
+
+        let key = format!("{}:{}", conn_id, room_id);
+        let mut throttles = self.typing_throttles.write().await;
+
+        let now = Instant::now();
+        if let Some(entry) = throttles.get_mut(&key) {
+            // 状态发生变化（true <-> false）允许立即发送
+            if entry.last_is_typing != is_typing {
+                entry.last_is_typing = is_typing;
+                entry.last_sent_at = now;
+                return true;
+            }
+
+            if now.duration_since(entry.last_sent_at).as_millis() >= THROTTLE_MS as u128 {
+                entry.last_sent_at = now;
+                return true;
+            }
+
+            return false;
+        }
+
+        throttles.insert(
+            key,
+            TypingThrottleInfo {
+                last_sent_at: now,
+                last_is_typing: is_typing,
+            },
+        );
+        true
     }
 
     // 获取房间订阅者
@@ -389,6 +442,11 @@ enum ClientEvent {
     Join { room_id: Uuid },
     Leave { room_id: Uuid },
     Ping,
+    Typing {
+        room_id: Uuid,
+        #[serde(alias = "isTyping")]
+        is_typing: bool,
+    },
 }
 
 impl TryFrom<ws::ClientEvent> for ClientEvent {
@@ -408,6 +466,11 @@ impl TryFrom<ws::ClientEvent> for ClientEvent {
                     .map_err(|_| "invalid room_id".to_string())?,
             }),
             Some(Payload::Ping(_)) => Ok(ClientEvent::Ping),
+            Some(Payload::Typing(typing)) => Ok(ClientEvent::Typing {
+                room_id: Uuid::parse_str(&typing.room_id)
+                    .map_err(|_| "invalid room_id".to_string())?,
+                is_typing: typing.is_typing,
+            }),
             None => Err("missing payload".to_string()),
         }
     }
@@ -622,6 +685,59 @@ async fn handle_client_event(
                 .update_ping(conn_id, client_addr.ip(), state)
                 .await;
             let _ = out_tx.send(ServerPush::Pong.encode(format));
+            Ok(())
+        }
+        ClientEvent::Typing { room_id, is_typing } => {
+            // 必须已认证
+            let user_id = connection_manager
+                .get_user_id_by_conn(conn_id)
+                .await
+                .ok_or_else(|| "连接未认证".to_string())?;
+
+            let user_uuid =
+                Uuid::parse_str(&user_id).map_err(|_| "invalid user_id".to_string())?;
+
+            // 必须已加入该房间（Join 时已做过“房间成员校验”，这里避免每次 typing 都查 DB）
+            if !connection_manager
+                .is_connection_subscribed_to_room(conn_id, room_id)
+                .await
+            {
+                return Err("not subscribed".to_string());
+            }
+
+            // 节流：同一状态 1.2s 内只广播一次（状态变化允许立即发送）
+            if !connection_manager
+                .can_emit_typing(conn_id, room_id, is_typing)
+                .await
+            {
+                return Ok(());
+            }
+
+            // typing=true 时携带超时，客户端据此自动过期
+            let expires_in_ms: i32 = if is_typing { 6000 } else { 0 };
+
+            let payload = crate::redis::models::TypingUpdatePayload {
+                room_id,
+                user_id: user_uuid,
+                is_typing,
+                expires_in_ms,
+            };
+
+            let channel = crate::redis::models::CacheKeys::pubsub_channel(&room_id);
+            let encoded = crate::redis::models::PubSubPayload::TypingUpdate { data: payload }
+                .encode_protobuf();
+
+            let mut conn = state
+                .redis
+                .get_pubsub_client()
+                .get_multiplexed_async_connection()
+                .await
+                .map_err(|e| e.to_string())?;
+            let _subscriber_count: i64 = conn
+                .publish(&channel, encoded)
+                .await
+                .map_err(|e| e.to_string())?;
+
             Ok(())
         }
     }
@@ -848,6 +964,9 @@ pub async fn handle_socket(
                             }
                             crate::redis::models::PubSubPayload::ReactionUpdate { data } => {
                                 ServerPush::ReactionUpdate { data }
+                            }
+                            crate::redis::models::PubSubPayload::TypingUpdate { data } => {
+                                ServerPush::TypingUpdate { data }
                             }
                         };
 

@@ -148,6 +148,9 @@ pub enum ServerPush {
     ReactionUpdate {
         data: crate::redis::models::ReactionUpdatePayload,
     },
+    TypingUpdate {
+        data: crate::redis::models::TypingUpdatePayload,
+    },
 }
 
 impl ServerPush {
@@ -174,6 +177,7 @@ impl ServerPush {
             ServerPush::FriendshipDeleted { .. } => "friendship_deleted",
             ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
             ServerPush::ReactionUpdate { .. } => "reaction_update",
+            ServerPush::TypingUpdate { .. } => "typing_update",
         }
     }
 
@@ -340,6 +344,13 @@ impl ServerPush {
                 "reaction_key": data.reaction_key,
                 "user_id": data.user_id,
                 "action": data.action.to_string(),
+            }),
+            ServerPush::TypingUpdate { data } => json!({
+                "type": "typing_update",
+                "room_id": data.room_id,
+                "user_id": data.user_id,
+                "is_typing": data.is_typing,
+                "expires_in_ms": data.expires_in_ms,
             }),
         }
     }
@@ -519,6 +530,12 @@ impl ServerPush {
                 reaction_key: data.reaction_key.clone(),
                 user_id: data.user_id.to_string(),
                 action: data.action.to_string(),
+            }),
+            ServerPush::TypingUpdate { data } => Payload::TypingUpdate(ws::ServerTypingUpdate {
+                room_id: data.room_id.to_string(),
+                user_id: data.user_id.to_string(),
+                is_typing: data.is_typing,
+                expires_in_ms: data.expires_in_ms,
             }),
         };
 

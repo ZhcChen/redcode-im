@@ -225,6 +225,37 @@ pub async fn ws_leave_room(
     }
 }
 
+/// 设置正在输入状态（为指定账号或当前账号）
+#[tauri::command]
+pub async fn ws_typing(
+    room_id: String,
+    is_typing: bool,
+    user_id: Option<String>,
+    manager: State<'_, WebSocketManager>,
+) -> Result<(), String> {
+    let target_user_id = if let Some(uid) = user_id {
+        uid
+    } else {
+        manager
+            .current_user_id
+            .read()
+            .await
+            .clone()
+            .ok_or_else(|| "未设置当前账号".to_string())?
+    };
+
+    let clients = manager.clients.read().await;
+    if let Some(client) = clients.get(&target_user_id) {
+        client
+            .typing(room_id, is_typing)
+            .await
+            .map_err(|e| format!("发送 typing 事件失败: {:?}", e))?;
+        Ok(())
+    } else {
+        Err(format!("账号 {} 的 WebSocket 未连接", target_user_id))
+    }
+}
+
 /// 批量加入房间（为指定账号或当前账号）
 #[tauri::command]
 pub async fn ws_join_rooms(

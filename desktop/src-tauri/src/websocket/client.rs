@@ -335,6 +335,22 @@ impl WebSocketClient {
         Ok(())
     }
 
+    /// 设置正在输入状态
+    pub async fn typing(&self, room_id: String, is_typing: bool) -> Result<()> {
+        let state = self.state.read().await;
+        if state.status != ConnectionStatus::Authenticated {
+            return Ok(());
+        }
+        drop(state);
+
+        if let Some(tx) = &self.tx {
+            let data = ClientEventEncoder::encode_typing(room_id, is_typing)?;
+            tx.send(data)
+                .map_err(|e| WebSocketError::SendError(e.to_string()))?;
+        }
+        Ok(())
+    }
+
     /// 断开连接
     pub async fn disconnect(&mut self) {
         let mut state = self.state.write().await;
