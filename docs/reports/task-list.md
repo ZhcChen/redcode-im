@@ -253,7 +253,7 @@ POST /rooms/{room_id}/messages/attachments/multipart/initiate
 - ✅ 集成推送 SDK：`firebase_core` + `firebase_messaging` 获取 FCM token
 - ✅ Token 生命周期：首次登录上报、token 刷新回调更新、登出时解绑
 - ✅ 通知点击跳转：解析 payload → 打开对应会话（`ChatDetailPageV2`）
-- 🟡 前台本地通知（`flutter_local_notifications`）待接入（首版暂不做）
+- ✅ 本地通知兜底：WebSocket 新消息且 App 非前台时弹本地通知（不依赖 Firebase 配置）
 
 #### 8.4 配置与材料清单（落地前准备）
 - iOS：Bundle ID、开启 Push capability、APNs `.p8` / Key ID / Team ID
@@ -377,19 +377,29 @@ KEY_PASSWORD=change_me_key_password
 - **已完成**:
   - ✅ 后端：`push_devices` 表 + `POST/DELETE /push/devices`；消息发送后异步触发推送（FCM HTTP v1）
   - ✅ Flutter：Firebase Messaging 获取 token；登录后注册、登出注销；点击通知跳转到会话
+  - ✅ Flutter：本地通知兜底（WebSocket 新消息且 App 非前台时提示，不依赖 Firebase 配置）
+  - ✅ Desktop：系统通知（`tauri-plugin-notification`，窗口非前台时提示）+ 提示音/任务栏提醒
 - **待补齐**:
   - 🟡 更多触发点：好友请求、群管理事件（踢人/解散/转让等）
   - 🟡 `mentions_only` 精准 @ 解析（当前为简化规则：content 含 `@`）
   - 🟡 跨节点在线状态去重（当前 `PUSH_SKIP_IF_ONLINE` 仅本节点维度）
   - 🟡 失败重试/退避 + 发送结果落库（`push_logs`）与可观测性完善
   - 🟡 iOS 工程侧材料与 capability 配置（`GoogleService-Info.plist` / Push capability 等）
-  - 🟡 前台本地通知（如需）与通知样式/渠道策略
+  - 🟡 通知样式/渠道策略（如需：前台展示、聚合、badge、sound 等）
 
 ### 🟡 低优先级
-无（所有低优先级任务已完成）
+#### 1. Flutter 视频预览
+- **状态**: 🟡 未实现
+- **位置**: `frontend/lib/features/chat/chat_detail_page_v2.dart:6966`
+- **说明**: 当前视频附件点击仅展示播放按钮，尚未打开预览/播放器。
+
+#### 2. Desktop 文档同步（视频缩略图参数）
+- **状态**: ✅ 已完成
+- **位置**: `docs/desktop/desktop-remaining-tasks.md:146`
+- **说明**: 已在文档中补充并确认视频缩略图生成参数（尺寸/质量）。
 
 ---
 
 **最后更新**: 2025-12-28
 **总完成度**: 11.5/12 (95.8%)
-**待完成任务**: 1 个（Push 通知：部分完成）
+**待完成任务**: Push 通知里程碑 + 若干低优先级 TODO

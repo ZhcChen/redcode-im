@@ -234,33 +234,12 @@ export class RustSystemApi {
   /**
    * 验证验证码 - 使用 Rust 后端
    */
-  // TODO(rust-backend): 当前 Rust 后端未提供 `/auth/sms/verify`，且桌面端现阶段未调用该接口；
-  // 如后续需要在 Rust 通道启用“验证码校验”，请先补齐后端路由并统一参数命名（phone/code）。
   static async verifyCode(params: {
     mobile: string
     code: string
   }): Promise<ApiResponse<any>> {
-    if (this.useRust()) {
-      try {
-        const response = await rustHttp.post('/auth/sms/verify', {
-          phone: params.mobile,
-          code: params.code
-        })
-
-        return {
-          code: 200,
-          message: '验证成功',
-          data: response.data,
-          success: true
-        }
-      } catch (error: any) {
-        const { SystemApi } = await import('./system')
-        return await SystemApi.verifyCode(params)
-      }
-    } else {
-      const { SystemApi } = await import('./system')
-      return await SystemApi.verifyCode(params)
-    }
+    const { SystemApi } = await import('./system')
+    return await SystemApi.verifyCode(params)
   }
 
   /**

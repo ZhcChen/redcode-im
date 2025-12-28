@@ -30,6 +30,7 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 - 使用 `firebase_core` + `firebase_messaging` 获取 FCM token
 - 登录成功后自动注册设备；登出时注销设备
 - 处理通知点击（`getInitialMessage` / `onMessageOpenedApp`）→ 打开 `ChatDetailPageV2`
+- 本地通知兜底：WebSocket 新消息且 App 非前台时弹本地通知（不依赖 Firebase 配置）
 
 ## 数据结构
 
@@ -82,5 +83,5 @@ Backend 会附带以下 `data`：
 - APNs 直连（不经 FCM）或多通道抽象（当前仅 fcm）
 - 更精细的通知过滤（`mentions_only` 的精准 @ 解析；当前为简化实现：content 含 `@` 即视为 mention）
 - 推送发送结果落库（`push_logs` / `push_id`）与失败重试/退避
-- 前台消息本地通知（`flutter_local_notifications`）
+- 通知样式与策略（如需：前台展示、聚合、badge、sound 等）
 - 更多触发点：好友请求、群管理事件（被踢/解散/转让等）

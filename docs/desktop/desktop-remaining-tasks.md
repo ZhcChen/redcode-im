@@ -143,13 +143,15 @@
      - 需要重构现有 `Chat.vue` 中的上传逻辑和 `MessageApi` 调用结构。
    - 当前结论：**短期内保留 HTML `<input type="file">`，先让“本地落盘 + Rust 截帧 + COS 直传 + thumbnail_key 落库”打通；**是否将文件选择完全迁移到 Rust 侧，留待后续桌面端架构重构时再统一评估。
 
-### 下一步 TODO（待实现）
+### 已完成（视频首帧缩略图生成与上传）
 
-- [ ] 在桌面端上传视频流程中，增加“File -> 本地视频路径”的落盘步骤（使用 Tauri FS 与 `app_data_dir`）；
-- [ ] 基于本地视频路径调用 `generate_video_thumbnail`，使用 ffmpeg（`scale='min(320,iw)':-2 -q:v 4`）生成等比例压缩后的首帧 JPEG；
-- [ ] 为首帧 JPEG 请求图片直传签名（`partType: image`），上传到 COS，拿到缩略图对象 Key；
-- [ ] 在发送消息的 `parts` 中，为视频分片补齐 `thumbnailKey`，让后端写入 `thumbnail_key`；
-- [ ] 在文档中补充最终确认的参数规范（缩略图尺寸、质量、缓存策略），并同步到移动端/后端设计。
+- [x] 在桌面端上传视频流程中，增加“File -> 本地视频路径”的落盘步骤（Tauri FS + `appDataDir()/videos`）；
+- [x] 基于本地视频路径调用 `generate_video_thumbnail` 生成首帧 JPEG（默认 `timeSec=0.5`）；
+- [x] 上传首帧 JPEG 并拿到缩略图对象 Key（当前在启用 `RUST_FILE_UPLOAD` 时通过 `rustHttp.upload('/files/upload')` 完成）；
+- [x] 在发送消息的 `parts` 中为视频分片补齐 `thumbnailKey`，让后端写入 `message_parts.thumbnail_key`；
+- [x] 记录并确认参数规范：
+  - ffmpeg：`-vf scale=320:-1 -vcodec mjpeg -q:v 2`
+  - 说明：宽度固定 320px，高度按比例缩放；`-q:v` 越小质量越高（当前取 2）。
 
 ## 阶段一执行计划
 
