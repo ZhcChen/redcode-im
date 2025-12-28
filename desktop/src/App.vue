@@ -728,6 +728,64 @@ function removeWebSocketEventListeners() {
 
 // 消息处理函数
 // 多账号架构：detail 中包含 userId 字段标识消息所属账号
+function buildMessagePreview(payload: any): string {
+  const content = String(payload?.content ?? '').trim()
+  if (content) {
+    return content.replace(/\s+/g, ' ')
+  }
+
+  const rawType = String(
+    payload?.type ?? payload?.message_type ?? payload?.messageType ?? '',
+  )
+    .trim()
+    .toLowerCase()
+
+  switch (rawType) {
+    case 'image':
+      return '[图片]'
+    case 'voice':
+    case 'audio':
+      return '[语音]'
+    case 'video':
+      return '[视频]'
+    case 'file':
+      return '[文件]'
+    case 'mixed':
+      return '[多媒体消息]'
+    case 'system':
+      return '[系统消息]'
+    case 'text':
+      return '[消息]'
+    default:
+      return '[消息]'
+  }
+}
+
+function buildChatMessageNotificationPayload(payload: any, chat: any) {
+  const title = String(chat?.name ?? '').trim() || '新消息'
+  const preview = buildMessagePreview(payload)
+
+  // groupType: 0=单聊, 1=群聊, 2=收藏夹
+  if (chat?.groupType === 1) {
+    const sender = String(
+      payload?.senderName ??
+        payload?.sender_nickname ??
+        payload?.senderNickname ??
+        payload?.sender_username ??
+        payload?.senderUsername ??
+        payload?.senderId ??
+        payload?.sender_id ??
+        '',
+    ).trim()
+
+    if (sender) {
+      return { title, body: `${sender}：${preview}` }
+    }
+  }
+
+  return { title, body: preview }
+}
+
 function handleChatMessage(detail: any) {
   const payload = detail?.message ?? detail
   const eventUserId = detail?.userId // 消息所属的账号ID
@@ -768,7 +826,9 @@ function handleChatMessage(detail: any) {
       roomId,
       messageId: payload?.id,
     })
-    NotificationApi.showNewMessageNotification()
+    NotificationApi.showNewMessageNotification(
+      buildChatMessageNotificationPayload(payload, chat),
+    )
   } else {
     logDebug('CHAT_MESSAGE_NOTIFY', '会话为免打扰状态，跳过提示音', {
       eventUserId,
