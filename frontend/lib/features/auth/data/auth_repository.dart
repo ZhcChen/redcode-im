@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
@@ -14,6 +15,7 @@ import '../../../core/network/direct_upload.dart';
 import '../../../core/services/websocket_service.dart';
 import '../../../core/services/message_service.dart';
 import '../../../core/services/friend_store.dart';
+import '../../../core/services/push_service.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../core/storage/avatar_cache.dart';
 import '../models/auth_session.dart';
@@ -49,6 +51,7 @@ class AuthRepository {
       await MessageService.instance.clearAll();
       FriendStore.instance.clearAll();
       AuthStateBus.emit(AuthState.authenticated);
+      unawaited(PushService.instance.registerDevice());
       return session;
     }
 
@@ -143,6 +146,7 @@ class AuthRepository {
         await MessageService.instance.clearAll();
         FriendStore.instance.clearAll();
         AuthStateBus.emit(AuthState.authenticated);
+        unawaited(PushService.instance.registerDevice());
         if (kDebugMode) {
           debugPrint('[Auth] 登录流程完成');
         }
@@ -644,6 +648,7 @@ class AuthRepository {
 
   Future<void> logout() async {
     try {
+      await PushService.instance.unregisterDevice();
       // 断开 WS、清空本地消息/会话与好友状态，避免切换账号出现脏数据
       await WebSocketService.instance.disconnect();
     } catch (_) {}

@@ -759,6 +759,15 @@ pub async fn send_message(
         error!("广播消息失败: {}", e);
     }
 
+    {
+        let push_state = state.clone();
+        let push_message = enriched.clone();
+        let push_parts = part_map.get(&push_message.id).cloned().unwrap_or_default();
+        tokio::spawn(async move {
+            crate::services::push::notify_new_message(push_state, push_message, push_parts).await;
+        });
+    }
+
     let api_message = db_message_to_api_message_info(
         &enriched,
         &part_map,
@@ -884,6 +893,15 @@ pub async fn forward_message(
 
     if let Err(e) = broadcast_message_to_room(&state, &enriched, &parts_map).await {
         error!("广播转发消息失败: {}", e);
+    }
+
+    {
+        let push_state = state.clone();
+        let push_message = enriched.clone();
+        let push_parts = parts_map.get(&push_message.id).cloned().unwrap_or_default();
+        tokio::spawn(async move {
+            crate::services::push::notify_new_message(push_state, push_message, push_parts).await;
+        });
     }
 
     let api_message = db_message_to_api_message_info(

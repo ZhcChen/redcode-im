@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::database::member_with_user_info::{RoomMemberRow, RoomMemberWithUserInfo};
 use crate::database::models::{
-    ChatSummaryRow, MemberRole, Room, RoomMember, RoomType, UserRoomPin,
+    ChatSummaryRow, MemberRole, NotificationSetting, Room, RoomMember, RoomType, UserRoomPin,
 };
 
 pub struct RoomStore<'a> {
@@ -716,6 +716,31 @@ impl<'a> RoomStore<'a> {
         .await?;
 
         Ok(rows)
+    }
+
+    pub async fn list_member_notification_settings(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Vec<(Uuid, NotificationSetting)>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT user_id, notification_settings
+            FROM room_members
+            WHERE room_id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(room_id)
+        .fetch_all(self.pool)
+        .await?;
+
+        let mut items = Vec::with_capacity(rows.len());
+        for row in rows {
+            let user_id: Uuid = row.get("user_id");
+            let setting: NotificationSetting = row.get("notification_settings");
+            items.push((user_id, setting));
+        }
+
+        Ok(items)
     }
 
     /// 更新房间信息

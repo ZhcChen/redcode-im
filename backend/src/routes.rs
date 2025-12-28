@@ -7,8 +7,8 @@ use axum::{
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
-    health, healthz, message, message_read, message_search, multipart_upload, report, room, root,
-    settings, user, version, ws,
+    health, healthz, message, message_read, message_search, multipart_upload, push, report, room,
+    root, settings, user, version, ws,
 };
 use crate::AppState;
 
@@ -380,6 +380,9 @@ pub fn create_routes() -> Router<AppState> {
     let user_routes = Router::new()
         .route("/auth/me", get(auth::get_current_user))
         .route("/auth/password/reset", post(auth::reset_password_with_sms))
+        // Push 设备（离线推送）
+        .route("/push/devices", post(push::register_device))
+        .route("/push/devices/{device_id}", delete(push::unregister_device))
         .route("/feedbacks", post(feedback::submit_feedback))
         // 举报（群聊/用户）
         .route(

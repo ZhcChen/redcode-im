@@ -58,6 +58,8 @@ dependencies:
   archive: ^3.6.1
   flutter_screenutil: ^5.9.0
   device_info_plus: ^10.1.0
+  firebase_core: ^4.3.0
+  firebase_messaging: ^16.0.1
   record: ^6.0.0
   just_audio: ^0.9.40
   permission_handler: ^11.3.1

@@ -670,6 +670,21 @@ pub struct MessageReactionSummary {
     pub has_self: bool,
 }
 
+/// Push 设备记录（用于离线推送）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PushDevice {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub platform: String,
+    pub channel: String,
+    pub device_id: String,
+    pub device_token: String,
+    pub is_active: bool,
+    pub last_seen_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// 会话概要信息（用于列表展示）
 #[derive(Debug, Clone, FromRow)]
 pub struct ChatSummaryRow {

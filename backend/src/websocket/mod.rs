@@ -377,6 +377,14 @@ impl ConnectionManager {
         user_conns.len()
     }
 
+    pub async fn is_user_online(&self, user_id: &str) -> bool {
+        let user_conns = self.user_connections.read().await;
+        user_conns
+            .get(user_id)
+            .map(|conns| !conns.is_empty())
+            .unwrap_or(false)
+    }
+
     // 获取房间订阅者数
     pub async fn get_room_subscriber_count(&self, room_id: Uuid) -> usize {
         let room_subs = self.room_subscribers.read().await;

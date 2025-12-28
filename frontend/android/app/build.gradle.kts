@@ -7,6 +7,13 @@ plugins {
 
 import java.util.Properties
 
+// Firebase：仅在存在 google-services.json 时启用，避免未配置环境直接构建失败
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    println("[firebase] google-services.json not found, skip google-services plugin")
+}
+
 android {
     // 从统一配置文件读取 Application ID 与签名信息
     val androidConfigProps = Properties()
