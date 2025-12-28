@@ -1,9 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../features/chat/chat_detail_page_v2.dart';
 import '../../features/chat/models/chat_model.dart';
 
 final GlobalKey<NavigatorState> pushNavigatorKey = GlobalKey<NavigatorState>();
+
+final List<Map<String, dynamic>> _pendingPushPayloads = [];
+bool _pendingFlushScheduled = false;
+
+void _scheduleFlushPendingPushPayloads() {
+  if (_pendingFlushScheduled) return;
+  _pendingFlushScheduled = true;
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _pendingFlushScheduled = false;
+    if (_pendingPushPayloads.isEmpty) return;
+
+    final pending = List<Map<String, dynamic>>.from(_pendingPushPayloads);
+    _pendingPushPayloads.clear();
+    for (final payload in pending) {
+      unawaited(openChatFromPushPayload(payload));
+    }
+  });
+}
 
 ChatType _chatTypeFromRoomType(String? roomType) {
   final value = (roomType ?? '').trim().toLowerCase();
@@ -31,7 +52,11 @@ Future<void> openChatFromPushPayload(Map<String, dynamic> payload) async {
   final messageId = payload['message_id']?.toString().trim();
 
   final navigator = pushNavigatorKey.currentState;
-  if (navigator == null) return;
+  if (navigator == null) {
+    _pendingPushPayloads.add(Map<String, dynamic>.from(payload));
+    _scheduleFlushPendingPushPayloads();
+    return;
+  }
 
   navigator.push(
     MaterialPageRoute(
@@ -44,4 +69,3 @@ Future<void> openChatFromPushPayload(Map<String, dynamic> payload) async {
     ),
   );
 }
-

@@ -18,6 +18,7 @@ import '../storage/avatar_cache.dart';
 import '../storage/token_storage.dart';
 import '../storage/message_storage.dart';
 import '../storage/chat_cache.dart';
+import 'local_notification_service.dart';
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
@@ -1370,8 +1371,79 @@ class MessageService with ChangeNotifier {
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     unawaited(_hydrateAttachmentLocalPaths(message));
     _updateChatLastMessage(message.roomId, message);
+
+    if (index < 0) {
+      _maybeNotifyLocalForIncomingMessage(message);
+    }
+
     notifyListeners();
     unawaited(_persistMessages(message.roomId));
+  }
+
+  void _maybeNotifyLocalForIncomingMessage(Message message) {
+    if (message.isSelf) return;
+    if (message.type == MessageType.system) return;
+    if (message.roomId.trim().isEmpty) return;
+
+    final chatIndex = _chats.indexWhere((c) => c.roomId == message.roomId);
+    final chat = chatIndex >= 0 ? _chats[chatIndex] : null;
+    if (chat?.isMuted == true) return;
+
+    final title = chat?.name.trim().isNotEmpty == true ? chat!.name : '聊天';
+    final body = _buildLocalNotificationBody(message, chat);
+
+    unawaited(
+      LocalNotificationService.instance.maybeShowChatMessage(
+        roomId: message.roomId,
+        roomType: chat == null ? null : _rawRoomType(chat.type),
+        chatName: chat?.name,
+        messageId: message.id,
+        title: title,
+        body: body,
+      ),
+    );
+  }
+
+  String _buildLocalNotificationBody(Message message, Chat? chat) {
+    final base = () {
+      final content = message.content.trim();
+      if (content.isNotEmpty) return content;
+      switch (message.type) {
+        case MessageType.image:
+          return '[图片]';
+        case MessageType.audio:
+          return '[语音]';
+        case MessageType.video:
+          return '[视频]';
+        case MessageType.file:
+          return '[文件]';
+        case MessageType.mixed:
+          return '[多媒体消息]';
+        case MessageType.system:
+          return '[系统消息]';
+        case MessageType.text:
+          return '[消息]';
+      }
+    }();
+
+    if (chat?.type == ChatType.group) {
+      final sender = message.displaySenderName.trim();
+      if (sender.isNotEmpty) {
+        return '$sender：$base';
+      }
+    }
+    return base;
+  }
+
+  String _rawRoomType(ChatType type) {
+    switch (type) {
+      case ChatType.group:
+        return 'group';
+      case ChatType.favorite:
+        return 'favorite';
+      case ChatType.single:
+        return 'private';
+    }
   }
 
   /// 处理已读回执事件
@@ -3504,6 +3576,19 @@ class MessageService with ChangeNotifier {
       _readString(json, const ['room_type', 'roomType', 'type']),
     );
 
+    final isPinned =
+        chatType == ChatType.favorite ||
+        _readBool(json, const ['is_pinned', 'isPinned']);
+
+    final isMuted =
+        _readBool(json, const ['is_muted', 'isMuted']) ||
+        _readInt(
+              json,
+              const ['notification_settings', 'notificationSettings'],
+              defaultValue: 0,
+            ) ==
+            2;
+
     var lastMessageText =
         _readString(lastMessage, const ['content', 'text', 'message']) ?? '';
     if (chatType == ChatType.favorite && lastMessageText.trim().isEmpty) {
@@ -3531,7 +3616,8 @@ class MessageService with ChangeNotifier {
       lastMessage: lastMessageText,
       lastMessageTime: lastMessageTime,
       unreadCount: effectiveUnread,
-      isPinned: chatType == ChatType.favorite,
+      isPinned: isPinned,
+      isMuted: isMuted,
       extra: extra.isEmpty ? null : extra,
     );
   }
@@ -3754,6 +3840,33 @@ class MessageService with ChangeNotifier {
       if (value is String) {
         final parsed = int.tryParse(value);
         if (parsed != null) return parsed;
+      }
+    }
+    return defaultValue;
+  }
+
+  static bool _readBool(
+    Map<String, dynamic> source,
+    List<String> keys, {
+    bool defaultValue = false,
+  }) {
+    for (final key in keys) {
+      if (!source.containsKey(key)) continue;
+      final value = source[key];
+      if (value is bool) return value;
+      if (value is num) return value.toInt() != 0;
+      if (value is String) {
+        final normalized = value.trim().toLowerCase();
+        if (normalized == 'true' ||
+            normalized == '1' ||
+            normalized == 'yes') {
+          return true;
+        }
+        if (normalized == 'false' ||
+            normalized == '0' ||
+            normalized == 'no') {
+          return false;
+        }
       }
     }
     return defaultValue;
