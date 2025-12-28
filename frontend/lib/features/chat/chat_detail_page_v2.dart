@@ -39,6 +39,7 @@ import 'models/message_reader.dart';
 import 'group_settings_page.dart';
 import 'pinned_messages_page.dart';
 import 'message_search_page.dart';
+import 'video_preview_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
@@ -6238,6 +6239,19 @@ class _AttachmentFileTileState extends State<_AttachmentFileTile> {
       if (!mounted) return;
       _localPath = path;
       if (path != null && path.isNotEmpty) {
+        if (widget.part.type == MessagePartType.video) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => VideoPreviewPage(
+                path: path,
+                title: attachment.name?.trim().isNotEmpty == true
+                    ? attachment.name!.trim()
+                    : '视频',
+              ),
+            ),
+          );
+          return;
+        }
         await OpenFilex.open(path);
       } else {
         ScaffoldMessenger.maybeOf(
@@ -6909,8 +6923,11 @@ class _MediaGridItemState extends State<_MediaGridItem> {
       return Container(
         height: height,
         color: AppColors.surfaceMuted,
-        child: const Center(
-          child: Icon(Icons.broken_image, color: Colors.grey),
+        child: Center(
+          child: Icon(
+            isVideo ? Icons.movie : Icons.broken_image,
+            color: Colors.grey,
+          ),
         ),
       );
     }
@@ -6923,8 +6940,11 @@ class _MediaGridItemState extends State<_MediaGridItem> {
       errorBuilder: (_, __, ___) => Container(
         height: height,
         color: AppColors.surfaceMuted,
-        child: const Center(
-          child: Icon(Icons.broken_image, color: Colors.grey),
+        child: Center(
+          child: Icon(
+            isVideo ? Icons.movie : Icons.broken_image,
+            color: Colors.grey,
+          ),
         ),
       ),
     );
@@ -6959,13 +6979,46 @@ class _MediaGridItemState extends State<_MediaGridItem> {
   }
 
   Future<void> _preview(BuildContext context) async {
-    if (_localPath == null) return;
-
     final isVideo = widget.part.type == MessagePartType.video;
     if (isVideo) {
-      // TODO: 视频预览
+      final attachment = widget.part.attachment;
+      if (attachment == null) return;
+
+      String? path = _localPath;
+      if (path == null || path.isEmpty || !(await File(path).exists())) {
+        try {
+          path = await MessageService.instance.ensureAttachmentCached(
+            roomId: widget.message.roomId,
+            message: widget.message,
+            part: widget.part,
+            forceDownload: true,
+          );
+        } catch (error) {
+          if (!mounted) return;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(content: Text('加载视频失败：$error')),
+          );
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      if (path == null || path.isEmpty) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => VideoPreviewPage(
+            path: path!,
+            title: attachment.name?.trim().isNotEmpty == true
+                ? attachment.name!.trim()
+                : '视频',
+          ),
+        ),
+      );
       return;
     }
+
+    if (_localPath == null) return;
 
     // 图片预览
     await showDialog<void>(
