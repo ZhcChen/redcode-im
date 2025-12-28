@@ -3,19 +3,27 @@ use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use once_cell::sync::OnceCell;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs};
+use std::{collections::HashMap, env, fs, sync::Arc};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
+use crate::crypto::SecretCrypto;
 use crate::database::models::{
     MessagePart, MessagePartType, MessageWithSender, NotificationSetting, RoomType,
 };
 use crate::database::push_device_store::PushDeviceStore;
+use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::room_store::RoomStore;
+use crate::database::settings_store::SettingsStore;
 use crate::AppState;
 
-static FCM_CLIENT: OnceCell<Option<FcmClient>> = OnceCell::new();
+const SETTING_PUSH_ENABLED: &str = "push_enabled";
+const SETTING_PUSH_SKIP_IF_ONLINE: &str = "push_skip_if_online";
+
+const PUSH_RUNTIME_TTL_SECONDS: i64 = 10;
+
+static PUSH_RUNTIME: OnceCell<RwLock<PushRuntime>> = OnceCell::new();
 
 #[derive(Debug, Clone, Deserialize)]
 struct GoogleServiceAccount {
@@ -37,6 +45,34 @@ struct FcmClient {
     http: reqwest::Client,
     sa: GoogleServiceAccount,
     cached_token: RwLock<Option<CachedAccessToken>>,
+}
+
+#[derive(Debug, Clone)]
+struct PushRuntimeSnapshot {
+    enabled: bool,
+    skip_if_online: bool,
+    fcm: Option<Arc<FcmClient>>,
+}
+
+#[derive(Debug)]
+struct PushRuntime {
+    loaded_at: chrono::DateTime<Utc>,
+    enabled: bool,
+    skip_if_online: bool,
+    fcm_fingerprint: Option<String>,
+    fcm: Option<Arc<FcmClient>>,
+}
+
+impl Default for PushRuntime {
+    fn default() -> Self {
+        Self {
+            loaded_at: Utc::now() - Duration::seconds(PUSH_RUNTIME_TTL_SECONDS * 10),
+            enabled: true,
+            skip_if_online: true,
+            fcm_fingerprint: None,
+            fcm: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,16 +111,8 @@ struct ServiceAccountClaims {
 }
 
 impl FcmClient {
-    fn from_env() -> Result<Self, String> {
-        let path = env::var("FCM_SERVICE_ACCOUNT_PATH").unwrap_or_default();
-        let path = path.trim();
-        if path.is_empty() {
-            return Err("FCM_SERVICE_ACCOUNT_PATH 未设置".to_string());
-        }
-
-        let raw = fs::read_to_string(path)
-            .map_err(|e| format!("读取 FCM service account 失败: {} ({})", path, e))?;
-        let sa: GoogleServiceAccount = serde_json::from_str(&raw)
+    fn from_service_account_json(raw: &str) -> Result<Self, String> {
+        let sa: GoogleServiceAccount = serde_json::from_str(raw)
             .map_err(|e| format!("解析 FCM service account JSON 失败: {}", e))?;
 
         Ok(Self {
@@ -235,19 +263,6 @@ impl FcmClient {
     }
 }
 
-fn fcm_client() -> Option<&'static FcmClient> {
-    match FCM_CLIENT.get_or_init(|| match FcmClient::from_env() {
-        Ok(client) => Some(client),
-        Err(e) => {
-            warn!("Push: 未启用 FCM（{}）", e);
-            None
-        }
-    }) {
-        Some(c) => Some(c),
-        None => None,
-    }
-}
-
 fn env_flag(name: &str, default: bool) -> bool {
     match env::var(name) {
         Ok(v) => match v.trim().to_lowercase().as_str() {
@@ -257,6 +272,161 @@ fn env_flag(name: &str, default: bool) -> bool {
         },
         Err(_) => default,
     }
+}
+
+fn parse_bool_value(value: &str, default: bool) -> bool {
+    match value.trim().to_lowercase().as_str() {
+        "1" | "true" | "yes" | "y" | "on" => true,
+        "0" | "false" | "no" | "n" | "off" => false,
+        _ => default,
+    }
+}
+
+fn push_runtime_lock() -> &'static RwLock<PushRuntime> {
+    PUSH_RUNTIME.get_or_init(|| RwLock::new(PushRuntime::default()))
+}
+
+async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
+    let now = Utc::now();
+    {
+        let guard = push_runtime_lock().read().await;
+        if guard.loaded_at > now - Duration::seconds(PUSH_RUNTIME_TTL_SECONDS) {
+            return PushRuntimeSnapshot {
+                enabled: guard.enabled,
+                skip_if_online: guard.skip_if_online,
+                fcm: guard.fcm.clone(),
+            };
+        }
+    }
+
+    let mut guard = push_runtime_lock().write().await;
+    if guard.loaded_at > now - Duration::seconds(PUSH_RUNTIME_TTL_SECONDS) {
+        return PushRuntimeSnapshot {
+            enabled: guard.enabled,
+            skip_if_online: guard.skip_if_online,
+            fcm: guard.fcm.clone(),
+        };
+    }
+
+    // 1) 全局开关（优先 DB，缺省回退 env）
+    let mut enabled = env_flag("PUSH_ENABLED", true);
+    let mut skip_if_online = env_flag("PUSH_SKIP_IF_ONLINE", true);
+
+    let settings_store = SettingsStore::new(state.database.clone());
+    if let Ok(Some(record)) = settings_store.get_general_setting(SETTING_PUSH_ENABLED).await {
+        enabled = parse_bool_value(&record.value, enabled);
+    }
+    if let Ok(Some(record)) = settings_store
+        .get_general_setting(SETTING_PUSH_SKIP_IF_ONLINE)
+        .await
+    {
+        skip_if_online = parse_bool_value(&record.value, skip_if_online);
+    }
+
+    // 2) 平台配置：优先 DB（管理后台），缺省回退 env 文件路径（兼容开发环境）
+    let provider_store = PushProviderConfigStore::new(state.database.pool());
+    let cfg = provider_store.get_config("fcm", "all").await.ok().flatten();
+    let has_db_record = cfg.is_some();
+
+    let mut next_fcm: Option<Arc<FcmClient>> = None;
+    let mut next_fingerprint: Option<String> = None;
+
+    if let Some(cfg) = cfg {
+        if cfg.enabled {
+            if let Some(ciphertext) = cfg
+                .secret_ciphertext
+                .as_ref()
+                .map(|v| v.trim())
+                .filter(|v| !v.is_empty())
+            {
+                let crypto = match SecretCrypto::new() {
+                    Ok(c) => c,
+                    Err(e) => {
+                        warn!("Push: SecretCrypto 初始化失败，跳过 FCM（{}）", e);
+                        guard.loaded_at = Utc::now();
+                        guard.enabled = enabled;
+                        guard.skip_if_online = skip_if_online;
+                        return PushRuntimeSnapshot {
+                            enabled: guard.enabled,
+                            skip_if_online: guard.skip_if_online,
+                            fcm: guard.fcm.clone(),
+                        };
+                    }
+                };
+
+                match crypto.decrypt_from_base64(ciphertext) {
+                    Ok(raw) => {
+                        let fp = cfg
+                            .secret_fingerprint
+                            .clone()
+                            .filter(|v| !v.trim().is_empty())
+                            .unwrap_or_else(|| SecretCrypto::sha256_hex(&raw));
+
+                        next_fingerprint = Some(fp.clone());
+                        if guard.fcm_fingerprint.as_deref() == Some(fp.as_str()) {
+                            next_fcm = guard.fcm.clone();
+                        } else {
+                            match FcmClient::from_service_account_json(&raw) {
+                                Ok(client) => next_fcm = Some(Arc::new(client)),
+                                Err(e) => warn!("Push: FCM 配置解析失败（{}）", e),
+                            }
+                        }
+                    }
+                    Err(e) => warn!("Push: FCM 配置解密失败（{}）", e),
+                }
+            }
+        }
+    }
+
+    // 仅当 DB 未配置该 provider 时才允许回退 env，避免“后台已禁用但仍发 push”的混乱。
+    if next_fcm.is_none() && !has_db_record {
+        if let Ok(path) = env::var("FCM_SERVICE_ACCOUNT_PATH") {
+            if !path.trim().is_empty() {
+                match fs::read_to_string(path.trim()) {
+                    Ok(raw) => {
+                        let fp = SecretCrypto::sha256_hex(&raw);
+                        next_fingerprint = Some(format!("env:{}", fp));
+                        if guard.fcm_fingerprint.as_deref() == Some(next_fingerprint.as_ref().unwrap().as_str()) {
+                            next_fcm = guard.fcm.clone();
+                        } else {
+                            match FcmClient::from_service_account_json(&raw) {
+                                Ok(client) => next_fcm = Some(Arc::new(client)),
+                                Err(e) => warn!("Push: env FCM 配置解析失败（{}）", e),
+                            }
+                        }
+                    }
+                    Err(e) => warn!("Push: 读取 env FCM 配置失败（{}）", e),
+                }
+            }
+        }
+    }
+
+    guard.enabled = enabled;
+    guard.skip_if_online = skip_if_online;
+    guard.fcm_fingerprint = next_fingerprint;
+    guard.fcm = next_fcm;
+    guard.loaded_at = Utc::now();
+
+    PushRuntimeSnapshot {
+        enabled: guard.enabled,
+        skip_if_online: guard.skip_if_online,
+        fcm: guard.fcm.clone(),
+    }
+}
+
+pub async fn send_fcm_test(
+    state: &AppState,
+    device_token: &str,
+    title: &str,
+    body: &str,
+    data: &HashMap<String, String>,
+) -> Result<(), String> {
+    let runtime = push_runtime_snapshot(state).await;
+    if !runtime.enabled {
+        return Err("Push 已关闭（push_enabled=false）".to_string());
+    }
+    let fcm = runtime.fcm.ok_or_else(|| "FCM 未配置或未启用".to_string())?;
+    fcm.send_to_token(device_token, title, body, data).await
 }
 
 fn preview_text(message: &MessageWithSender, parts: &[MessagePart]) -> String {
@@ -313,11 +483,12 @@ pub async fn notify_new_message(
     message: MessageWithSender,
     parts: Vec<MessagePart>,
 ) {
-    if !env_flag("PUSH_ENABLED", true) {
+    let runtime = push_runtime_snapshot(&state).await;
+    if !runtime.enabled {
         return;
     }
 
-    let fcm = match fcm_client() {
+    let fcm = match runtime.fcm {
         Some(c) => c,
         None => return,
     };
@@ -365,7 +536,7 @@ pub async fn notify_new_message(
         }
     };
 
-    let skip_if_online = env_flag("PUSH_SKIP_IF_ONLINE", true);
+    let skip_if_online = runtime.skip_if_online;
 
     let mut targets: Vec<Uuid> = Vec::new();
     for (user_id, setting) in members {
@@ -420,10 +591,7 @@ pub async fn notify_new_message(
             continue;
         }
 
-        match fcm
-            .send_to_token(&device.device_token, &title, &body, &data)
-            .await
-        {
+        match fcm.send_to_token(&device.device_token, &title, &body, &data).await {
             Ok(_) => {
                 success += 1;
             }

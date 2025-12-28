@@ -8,7 +8,7 @@ use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
     health, healthz, message, message_read, message_search, multipart_upload, push, report, room,
-    root, settings, user, version, ws,
+    root, settings, user, version, ws, push_settings,
 };
 use crate::AppState;
 
@@ -175,6 +175,20 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/settings/user-account-limit",
             get(settings::get_user_account_limit).put(settings::update_user_account_limit),
+        )
+        // Push 平台配置（管理后台）
+        .route(
+            "/api/admin/settings/push",
+            get(push_settings::get_push_settings_admin)
+                .put(push_settings::update_push_settings_admin),
+        )
+        .route(
+            "/api/admin/settings/push/providers/{provider}",
+            put(push_settings::upsert_push_provider_admin),
+        )
+        .route(
+            "/api/admin/settings/push/test",
+            post(push_settings::test_push_admin),
         )
         .route(
             "/api/admin/storage-providers",

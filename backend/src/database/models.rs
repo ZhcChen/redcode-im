@@ -685,6 +685,21 @@ pub struct PushDevice {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Push 平台配置（由管理后台维护）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PushProviderConfig {
+    pub id: Uuid,
+    pub provider: String,
+    pub platform: String,
+    pub enabled: bool,
+    pub config_public: Value,
+    pub secret_ciphertext: Option<String>,
+    pub secret_fingerprint: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub updated_by: Option<Uuid>,
+}
+
 /// 会话概要信息（用于列表展示）
 #[derive(Debug, Clone, FromRow)]
 pub struct ChatSummaryRow {

@@ -6,6 +6,9 @@ use machine_uid;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
+pub mod secret;
+pub use secret::SecretCrypto;
+
 /// 应用固定盐值（用于生成加密密钥）
 const APP_SALT: &[u8] = b"redcode-im-v1-salt-2024";
 

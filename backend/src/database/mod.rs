@@ -15,6 +15,7 @@ pub mod message_reaction_store;
 pub mod message_store;
 pub mod models;
 pub mod push_device_store;
+pub mod push_provider_config_store;
 pub mod report_store;
 pub mod room_store;
 pub mod settings_store;
@@ -133,6 +134,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251228090000_create_push_devices.sql"
+        )),
+    ),
+    // 2025-12-28：Push 平台配置表（FCM/APNs 等）
+    (
+        "20251228110000_create_push_provider_configs.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251228110000_create_push_provider_configs.sql"
         )),
     ),
 ];
