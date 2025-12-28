@@ -241,13 +241,13 @@ POST /rooms/{room_id}/messages/attachments/multipart/initiate
   - ✅ `DELETE /push/devices/{device_id}`：注销（软禁用）
 - 推送触发点：
   - ✅ 消息落库成功后，对房间成员进行过滤并异步发送 push（已覆盖 `send_message` / `forward_message`）
-  - 🟡 好友请求、群解散/踢人等事件同理（待补齐触发点）
+  - ✅ 已补齐更多触发点：好友请求、群解散/踢人/转让群主等事件触发 push
 - ✅ 异步化：推送发送走后台任务（`tokio::spawn`），避免阻塞发消息接口
-- 🟡 失败重试与退避：待补齐（首版先保证链路可用）
+- ✅ 失败重试与退避：已实现基础重试（指数退避，最多 3 次）
 - Provider 集成：
   - ✅ Android：FCM HTTP v1（Service Account JSON）
   - 🟡 iOS：首版先走 Firebase Messaging（经 FCM 转发到 APNs）；APNs 直连可后续补齐
-- 🟡 可观测性：发送结果落库（`push_logs`）/错误码聚合与 `push_id` 追踪待补齐
+- ✅ 可观测性：发送结果落库（`push_logs`）+ `push_id` 追踪（错误码聚合可后续补齐）
 
 #### 8.3 Flutter（移动端）
 - ✅ 集成推送 SDK：`firebase_core` + `firebase_messaging` 获取 FCM token
@@ -260,7 +260,7 @@ POST /rooms/{room_id}/messages/attachments/multipart/initiate
 - Android：Firebase 项目、`google-services.json`、Service Account JSON
 
 **影响**: 移动端离线可达性与提醒体验显著提升；涉及安全凭据与服务稳定性，需要完整的环境配置与灰度策略
-**状态**: 🟡 部分完成（已实现设备注册/注销 + FCM 首版推送 + Flutter 基础接入，详见 `docs/design/push-notification-design.md`）
+**状态**: 🟡 部分完成（核心链路与可观测性已补齐；iOS 工程材料与 capability 仍需配置，详见 `docs/design/push-notification-design.md`）
 **优先级**: 🟠 中（按里程碑继续完善）
 
 ---
@@ -339,7 +339,7 @@ KEY_PASSWORD=change_me_key_password
 | 🔴 高优先级 | 3 | 后端(2，✅已完成) + 前端桌面端(1，✅已完成) |
 | 🟠 中优先级 | 5 | 前端桌面端(1，✅已完成) + 前端移动端(1，✅已完成) + 消息编辑/反应/输入态(1，✅已完成) + COS 分片直传(1，✅已完成) + Push 通知(1，🟡部分完成-FCM 首版) |
 | 🟡 低优先级 | 4 | 后端测试(1，✅已完成基础单测) + 桌面端(1，✅已完成) + 移动端(1，✅已完成) + 管理后台(1，✅已完成基础主题结构) |
-| **总计** | **12** | **已完成: 11.5/12 (95.8%)** |
+| **总计** | **12** | **已完成: 11/12（Push 部分完成）** |
 
 ---
 
@@ -380,18 +380,18 @@ KEY_PASSWORD=change_me_key_password
   - ✅ Flutter：本地通知兜底（WebSocket 新消息且 App 非前台时提示，不依赖 Firebase 配置）
   - ✅ Desktop：系统通知（`tauri-plugin-notification`，窗口非前台时提示）+ 提示音/任务栏提醒
 - **待补齐**:
-  - 🟡 更多触发点：好友请求、群管理事件（踢人/解散/转让等）
+  - ✅ 更多触发点：好友请求、群管理事件（踢人/解散/转让等）
   - ✅ `mentions_only` 精准 @ 解析（按 `@用户名/@昵称/@all` 解析，仅对被提及成员推送）
-  - 🟡 跨节点在线状态去重（当前 `PUSH_SKIP_IF_ONLINE` 仅本节点维度）
-  - 🟡 失败重试/退避 + 发送结果落库（`push_logs`）与可观测性完善
+  - ✅ 跨节点在线状态去重（`PUSH_SKIP_IF_ONLINE` 支持跨节点在线态判断）
+  - ✅ 失败重试/退避 + 发送结果落库（`push_logs`）与 `push_id` 追踪
   - 🟡 iOS 工程侧材料与 capability 配置（`GoogleService-Info.plist` / Push capability 等）
   - 🟡 通知样式/渠道策略（如需：前台展示、聚合、badge、sound 等）
 
 ### 🟡 低优先级
 #### 1. Flutter 视频预览
-- **状态**: 🟡 未实现
+- **状态**: ✅ 已完成
 - **位置**: `frontend/lib/features/chat/chat_detail_page_v2.dart:6966`
-- **说明**: 当前视频附件点击仅展示播放按钮，尚未打开预览/播放器。
+- **说明**: 已支持点击视频附件打开播放器预览（单视频与混合消息均可打开）。
 
 #### 2. Desktop 文档同步（视频缩略图参数）
 - **状态**: ✅ 已完成
@@ -401,5 +401,5 @@ KEY_PASSWORD=change_me_key_password
 ---
 
 **最后更新**: 2025-12-28
-**总完成度**: 11.5/12 (95.8%)
-**待完成任务**: Push 通知里程碑 + 若干低优先级 TODO
+**总完成度**: 11/12（Push 部分完成）
+**待完成任务**: Push 通知里程碑（iOS 工程配置/策略）

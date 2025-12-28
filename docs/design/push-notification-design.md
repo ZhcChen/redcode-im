@@ -17,13 +17,16 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 ### Backend
 
 - 数据表：`push_devices`（`backend/sql/migrations/20251228090000_create_push_devices.sql`）
+- 数据表：`push_logs`（`backend/sql/migrations/20251228130000_create_push_logs.sql`）
 - 接口：
   - `POST /push/devices`：注册/更新设备 token（需要登录）
   - `DELETE /push/devices/{device_id}`：注销当前账号在该设备上的 push（软禁用）
 - 发送链路：
   - 在消息发送成功后异步触发 push（不阻塞发消息接口）
   - 首版仅实现 **FCM HTTP v1**（通过 Admin 后台配置启用）
-  - 默认 `PUSH_SKIP_IF_ONLINE=true`：若用户当前已建立 WebSocket 连接则跳过 push（减少重复提醒）
+  - 默认 `PUSH_SKIP_IF_ONLINE=true`：基于跨节点在线态（Redis）判断“在线则跳过”以减少重复提醒
+  - 基础失败重试：指数退避，最多 3 次；每次发送结果写入 `push_logs`
+  - 覆盖触发点：新消息、好友请求、群解散/踢人/转让群主等群管理事件
 
 ### Flutter
 
@@ -45,18 +48,39 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 - `is_active`：是否启用（注销后为 `false`）
 - `last_seen_at`：最近上报时间
 
+### push_logs
+
+核心字段：
+- `push_id`：同一“通知事件”的追踪 ID（同一事件可能对多个设备发送）
+- `user_id`/`device_id`：目标用户与设备
+- `event_type`：`message/friend_request/group_event/...`
+- `attempt`/`success`/`error`：发送次数、是否成功与错误信息
+
 ## 推送载荷约定
 
 ### FCM data 字段（用于点击跳转）
 
 Backend 会附带以下 `data`：
-- `type`: `"message"`
+- `push_id`: UUID（用于追踪）
+- `type`: `"message" | "friend_request" | "group_event"`
+
+`type=message`：
 - `room_id`
 - `message_id`
 - `room_type`: `"private" | "group" | "favorite" | "public"`
 - `sender_id`
 - `sender_name`
 - `chat_name`：用于客户端展示/导航（群聊为群名，私聊为对方昵称/用户名）
+
+`type=friend_request`：
+- `request_id`
+- `requester_id`
+- `requester_name`
+
+`type=group_event`：
+- `event`（例如：`kicked/dissolved/owner_transferred`）
+- `room_id`
+- `room_name`
 
 > 说明：当前客户端导航主要依赖 `room_id`/`room_type`/`chat_name`/`message_id`。
 
@@ -82,6 +106,5 @@ Backend 会附带以下 `data`：
 
 - APNs 直连（不经 FCM）或多通道抽象（当前仅 fcm）
 - 更精细的通知过滤（例如：更丰富的 @ 语法、别名/备注匹配、避免歧义等）
-- 推送发送结果落库（`push_logs` / `push_id`）与失败重试/退避
 - 通知样式与策略（如需：前台展示、聚合、badge、sound 等）
-- 更多触发点：好友请求、群管理事件（被踢/解散/转让等）
+- iOS 工程材料与 capability（`GoogleService-Info.plist` / Push capability / APNs 配置等）
