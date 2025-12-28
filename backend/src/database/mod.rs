@@ -15,6 +15,7 @@ pub mod message_reaction_store;
 pub mod message_store;
 pub mod models;
 pub mod push_device_store;
+pub mod push_log_store;
 pub mod push_provider_config_store;
 pub mod report_store;
 pub mod room_store;
@@ -142,6 +143,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251228110000_create_push_provider_configs.sql"
+        )),
+    ),
+    // 2025-12-28：Push 发送日志表（push_logs）
+    (
+        "20251228130000_create_push_logs.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251228130000_create_push_logs.sql"
         )),
     ),
 ];

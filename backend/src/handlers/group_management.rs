@@ -726,6 +726,12 @@ pub async fn remove_group_member(
         ));
     }
 
+    let room_name = room_store
+        .get_room(room_id)
+        .await
+        .map(|room| room.name)
+        .unwrap_or_else(|_| "群聊".to_string());
+
     let _ = store
         .log_operation(room_id, operator_id, Some(member_id), "remove_member", None)
         .await;
@@ -743,6 +749,24 @@ pub async fn remove_group_member(
     .await
     {
         error!("广播群成员移除事件失败: {}", e);
+    }
+
+    {
+        let push_state = state.clone();
+        let targets = vec![member_id];
+        let body_room_name = room_name.clone();
+        tokio::spawn(async move {
+            crate::services::push::notify_group_event(
+                push_state,
+                targets,
+                room_id,
+                room_name,
+                "kicked",
+                "你已被移出群聊".to_string(),
+                body_room_name,
+            )
+            .await;
+        });
     }
 
     Ok(Json(RemoveGroupMemberResponse { success: true }))

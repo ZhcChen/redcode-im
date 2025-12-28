@@ -24,6 +24,8 @@ use crate::{auth, database::room_store::RoomStore, proto::ws, services::geolocat
 use protocol::{ConnectionFormat, OutboundFrame};
 use tracing::{debug, error, info, trace, warn};
 
+const USER_ONLINE_TTL_SECONDS: u64 = 90;
+
 // WebSocket连接管理器
 pub struct ConnectionManager {
     // 用户ID -> 连接集合映射
@@ -293,6 +295,18 @@ impl ConnectionManager {
                         Err(_) => return,
                     };
 
+                    // 跨节点在线态：用于 Push 的 skip_if_online 去重
+                    if let Ok(mut conn) = redis_manager
+                        .get_session_client()
+                        .get_multiplexed_async_connection()
+                        .await
+                    {
+                        let key = crate::redis::models::CacheKeys::user_online_status(&user_uuid);
+                        let _: redis::RedisResult<()> =
+                            conn.set_ex(key, node_id.as_str(), USER_ONLINE_TTL_SECONDS)
+                                .await;
+                    }
+
                     // 获取会话管理器并更新心跳和IP
                     let session_manager = redis_manager.get_session_manager(node_id.clone());
                     if let Err(e) = session_manager
@@ -517,6 +531,19 @@ async fn handle_client_event(
                         Ok(uuid) => uuid,
                         Err(_) => return,
                     };
+
+                    // 跨节点在线态：用于 Push 的 skip_if_online 去重
+                    if let Ok(mut conn) = state_clone
+                        .redis
+                        .get_session_client()
+                        .get_multiplexed_async_connection()
+                        .await
+                    {
+                        let key = crate::redis::models::CacheKeys::user_online_status(&user_uuid);
+                        let _: redis::RedisResult<()> =
+                            conn.set_ex(key, state_clone.node_id.as_str(), USER_ONLINE_TTL_SECONDS)
+                                .await;
+                    }
 
                     // 记录登录历史
                     let login_request = crate::handlers::activity_logs::CreateLoginHistoryRequest {

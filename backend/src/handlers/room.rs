@@ -399,7 +399,7 @@ pub async fn dissolve_room(
         )
         .await;
 
-    for user_id in member_ids {
+    for user_id in member_ids.iter().copied() {
         let payload = ServerPush::GroupDissolved {
             room_id: room_id.to_string(),
         };
@@ -407,6 +407,24 @@ pub async fn dissolve_room(
             .connection_manager
             .send_to_user(&user_id.to_string(), payload)
             .await;
+    }
+
+    {
+        let push_state = state.clone();
+        let targets = member_ids.clone();
+        let room_name = room.name.clone();
+        tokio::spawn(async move {
+            crate::services::push::notify_group_event(
+                push_state,
+                targets,
+                room_id,
+                room_name.clone(),
+                "dissolved",
+                "群聊已解散".to_string(),
+                room_name,
+            )
+            .await;
+        });
     }
 
     Ok(Json(DissolveRoomResponse { success: true }))
@@ -480,11 +498,29 @@ pub async fn transfer_room_owner(
         new_owner_id: new_owner_id.to_string(),
     };
 
-    for user_id in member_ids {
+    for user_id in member_ids.iter().copied() {
         state
             .connection_manager
             .send_to_user(&user_id.to_string(), payload.clone())
             .await;
+    }
+
+    {
+        let push_state = state.clone();
+        let targets = member_ids.clone();
+        let room_name = room.name.clone();
+        tokio::spawn(async move {
+            crate::services::push::notify_group_event(
+                push_state,
+                targets,
+                room_id,
+                room_name.clone(),
+                "owner_transferred",
+                "群主已变更".to_string(),
+                room_name,
+            )
+            .await;
+        });
     }
 
     Ok(Json(TransferRoomOwnerResponse {

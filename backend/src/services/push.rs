@@ -2,6 +2,7 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use once_cell::sync::OnceCell;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -18,15 +19,19 @@ use crate::database::models::{
 };
 use crate::database::member_with_user_info::RoomMemberWithUserInfo;
 use crate::database::push_device_store::PushDeviceStore;
+use crate::database::push_log_store::PushLogStore;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::room_store::RoomStore;
 use crate::database::settings_store::SettingsStore;
+use crate::redis::models::CacheKeys;
 use crate::AppState;
 
 const SETTING_PUSH_ENABLED: &str = "push_enabled";
 const SETTING_PUSH_SKIP_IF_ONLINE: &str = "push_skip_if_online";
 
 const PUSH_RUNTIME_TTL_SECONDS: i64 = 10;
+const PUSH_SEND_MAX_ATTEMPTS: i32 = 3;
+const PUSH_SEND_RETRY_BASE_MS: u64 = 300;
 
 static PUSH_RUNTIME: OnceCell<RwLock<PushRuntime>> = OnceCell::new();
 
@@ -575,6 +580,229 @@ fn should_send_for_setting(
     }
 }
 
+async fn is_user_online_for_push(state: &AppState, user_id: &Uuid) -> bool {
+    if state
+        .connection_manager
+        .is_user_online(&user_id.to_string())
+        .await
+    {
+        return true;
+    }
+
+    let key = CacheKeys::user_online_status(user_id);
+    let Ok(mut conn) = state
+        .redis
+        .get_session_client()
+        .get_multiplexed_async_connection()
+        .await
+    else {
+        return false;
+    };
+
+    conn.exists::<_, bool>(&key).await.unwrap_or(false)
+}
+
+async fn send_to_token_with_retry(
+    fcm: &FcmClient,
+    device_token: &str,
+    title: &str,
+    body: &str,
+    data: &HashMap<String, String>,
+) -> (bool, i32, Option<String>) {
+    let mut attempt: i32 = 1;
+    loop {
+        match fcm.send_to_token(device_token, title, body, data).await {
+            Ok(_) => return (true, attempt, None),
+            Err(e) => {
+                if attempt >= PUSH_SEND_MAX_ATTEMPTS {
+                    return (false, attempt, Some(e));
+                }
+                let exp = (attempt - 1).clamp(0, 16) as u32;
+                let delay_ms = PUSH_SEND_RETRY_BASE_MS.saturating_mul(2u64.saturating_pow(exp));
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                attempt += 1;
+            }
+        }
+    }
+}
+
+async fn send_basic_notification(
+    state: &AppState,
+    targets: Vec<Uuid>,
+    title: String,
+    body: String,
+    mut data: HashMap<String, String>,
+    event_type: &str,
+    room_id: Option<Uuid>,
+    message_id: Option<Uuid>,
+    request_id: Option<Uuid>,
+) {
+    let push_id = Uuid::new_v4();
+    data.insert("push_id".to_string(), push_id.to_string());
+    let data_json = serde_json::to_value(&data).unwrap_or_else(|_| serde_json::json!({}));
+
+    let runtime = push_runtime_snapshot(state).await;
+    if !runtime.enabled {
+        return;
+    }
+
+    let fcm = match runtime.fcm {
+        Some(c) => c,
+        None => return,
+    };
+
+    let skip_if_online = runtime.skip_if_online;
+
+    let mut filtered: Vec<Uuid> = Vec::new();
+    for user_id in targets {
+        if skip_if_online && is_user_online_for_push(state, &user_id).await {
+            continue;
+        }
+        filtered.push(user_id);
+    }
+
+    if filtered.is_empty() {
+        return;
+    }
+
+    let device_store = PushDeviceStore::new(state.database.pool());
+    let devices = match device_store.list_active_devices_for_users(&filtered).await {
+        Ok(devices) => devices,
+        Err(e) => {
+            warn!("Push: 获取 push_devices 失败: {}", e);
+            return;
+        }
+    };
+
+    if devices.is_empty() {
+        return;
+    }
+
+    let mut success = 0usize;
+    let mut failed = 0usize;
+    let log_store = PushLogStore::new(state.database.pool());
+
+    for device in devices {
+        if device.channel != "fcm" {
+            continue;
+        }
+
+        let (ok, attempt, err) =
+            send_to_token_with_retry(&fcm, &device.device_token, &title, &body, &data).await;
+
+        if ok {
+            success += 1;
+        } else {
+            failed += 1;
+        }
+
+        if let Err(e) = log_store
+            .insert_log(
+                push_id,
+                device.user_id,
+                &device.device_id,
+                &device.platform,
+                &device.channel,
+                "fcm",
+                event_type,
+                room_id,
+                message_id,
+                request_id,
+                Some(&title),
+                Some(&body),
+                &data_json,
+                attempt,
+                ok,
+                err.as_deref(),
+            )
+            .await
+        {
+            warn!(
+                "Push: 写入 push_logs 失败 user_id={}, device_id={}, err={}",
+                device.user_id, device.device_id, e
+            );
+        }
+
+        if let Some(err) = err.as_deref() {
+            warn!(
+                "Push: 发送失败 user_id={}, device_id={}, attempt={}, err={}",
+                device.user_id, device.device_id, attempt, err
+            );
+        }
+    }
+
+    info!(
+        "Push: basic targets={} title={} success={} failed={}",
+        filtered.len(),
+        title,
+        success,
+        failed
+    );
+}
+
+pub async fn notify_friend_request(
+    state: AppState,
+    request_id: Uuid,
+    requester_id: Uuid,
+    requester_name: String,
+    target_user_id: Uuid,
+    message: Option<String>,
+) {
+    let title = "新的好友请求".to_string();
+    let body = match message.as_deref().map(|v| v.trim()).filter(|v| !v.is_empty()) {
+        Some(m) => format!("{}: {}", requester_name, truncate_with_ellipsis(m, 80)),
+        None => format!("{} 想添加你为好友", requester_name),
+    };
+
+    let mut data: HashMap<String, String> = HashMap::new();
+    data.insert("type".to_string(), "friend_request".to_string());
+    data.insert("request_id".to_string(), request_id.to_string());
+    data.insert("requester_id".to_string(), requester_id.to_string());
+    data.insert("requester_name".to_string(), requester_name);
+
+    send_basic_notification(
+        &state,
+        vec![target_user_id],
+        title,
+        body,
+        data,
+        "friend_request",
+        None,
+        None,
+        Some(request_id),
+    )
+    .await;
+}
+
+pub async fn notify_group_event(
+    state: AppState,
+    targets: Vec<Uuid>,
+    room_id: Uuid,
+    room_name: String,
+    event: &str,
+    title: String,
+    body: String,
+) {
+    let mut data: HashMap<String, String> = HashMap::new();
+    data.insert("type".to_string(), "group_event".to_string());
+    data.insert("event".to_string(), event.to_string());
+    data.insert("room_id".to_string(), room_id.to_string());
+    data.insert("room_name".to_string(), room_name);
+
+    send_basic_notification(
+        &state,
+        targets,
+        title,
+        body,
+        data,
+        "group_event",
+        Some(room_id),
+        None,
+        None,
+    )
+    .await;
+}
+
 pub async fn notify_new_message(
     state: AppState,
     message: MessageWithSender,
@@ -660,11 +888,7 @@ pub async fn notify_new_message(
         if !should_send_for_setting(setting, room.room_type, &user_id, &mention_decision) {
             continue;
         }
-        if skip_if_online && state
-            .connection_manager
-            .is_user_online(&user_id.to_string())
-            .await
-        {
+        if skip_if_online && is_user_online_for_push(&state, &user_id).await {
             debug!("Push: skip online user {} for room {}", user_id, message.room_id);
             continue;
         }
@@ -696,26 +920,60 @@ pub async fn notify_new_message(
     data.insert("sender_id".to_string(), message.sender_id.to_string());
     data.insert("sender_name".to_string(), sender_name.clone());
     data.insert("chat_name".to_string(), title.clone());
+    let push_id = Uuid::new_v4();
+    data.insert("push_id".to_string(), push_id.to_string());
+    let data_json = serde_json::to_value(&data).unwrap_or_else(|_| serde_json::json!({}));
 
     // 逐 token 发送（首版先简单实现，后续可做并发与重试）
     let mut success = 0usize;
     let mut failed = 0usize;
+    let log_store = PushLogStore::new(state.database.pool());
     for device in devices {
         if device.channel != "fcm" {
             continue;
         }
 
-        match fcm.send_to_token(&device.device_token, &title, &body, &data).await {
-            Ok(_) => {
-                success += 1;
-            }
-            Err(e) => {
-                failed += 1;
-                warn!(
-                    "Push: 发送失败 user_id={}, device_id={}, err={}",
-                    device.user_id, device.device_id, e
-                );
-            }
+        let (ok, attempt, err) =
+            send_to_token_with_retry(&fcm, &device.device_token, &title, &body, &data).await;
+
+        if ok {
+            success += 1;
+        } else {
+            failed += 1;
+        }
+
+        if let Err(e) = log_store
+            .insert_log(
+                push_id,
+                device.user_id,
+                &device.device_id,
+                &device.platform,
+                &device.channel,
+                "fcm",
+                "message",
+                Some(message.room_id),
+                Some(message.id),
+                None,
+                Some(&title),
+                Some(&body),
+                &data_json,
+                attempt,
+                ok,
+                err.as_deref(),
+            )
+            .await
+        {
+            warn!(
+                "Push: 写入 push_logs 失败 user_id={}, device_id={}, err={}",
+                device.user_id, device.device_id, e
+            );
+        }
+
+        if let Some(err) = err.as_deref() {
+            warn!(
+                "Push: 发送失败 user_id={}, device_id={}, attempt={}, err={}",
+                device.user_id, device.device_id, attempt, err
+            );
         }
     }
 
