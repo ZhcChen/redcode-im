@@ -46,6 +46,7 @@
 - [端到端加密设计](design/end-to-end-encryption-design.md) - 加密方案设计（待实现）
 - [消息搜索设计](design/message-search-design.md) - 搜索实现方案
 - [Push 通知集成方案](design/push-notification-design.md) - FCM/APNs 推送方案与落地步骤
+- [Push 平台配置后台化需求](design/push-provider-config-requirements.md) - Admin 可视化配置 Push 凭据与降级策略
 
 ### 🔒 安全文档
 

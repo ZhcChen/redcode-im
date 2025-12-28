@@ -6,6 +6,12 @@
 - 点击通知可直接打开对应会话（可选定位到 `message_id`）。
 - 支持多设备、多账号切换、token 刷新。
 
+## 需求（配置后台化，2025-12-28）
+
+Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admin 管理后台可视化配置**；若未配置任何平台凭据，则系统默认只提供“应用存活时的实时推送能力”（WebSocket），不发送系统通知。
+
+详见需求文档：`docs/design/push-provider-config-requirements.md`。
+
 ## 当前实现（2025-12-28）
 
 ### Backend
@@ -57,8 +63,8 @@ Backend 会附带以下 `data`：
 
 ### Backend（FCM HTTP v1）
 
-环境变量（见 `backend/.env.example`）：
-- `FCM_SERVICE_ACCOUNT_PATH=/path/to/firebase-service-account.json`
+当前实现仍通过环境变量启用 FCM（见 `backend/.env.example`）：
+- `FCM_SERVICE_ACCOUNT_PATH=/path/to/firebase-service-account.json`（临时：后续将迁移到 Admin 后台配置）
 - `PUSH_ENABLED=true`
 - `PUSH_SKIP_IF_ONLINE=true`
 
@@ -75,4 +81,3 @@ Backend 会附带以下 `data`：
 - 推送发送结果落库（`push_logs` / `push_id`）与失败重试/退避
 - 前台消息本地通知（`flutter_local_notifications`）
 - 更多触发点：好友请求、群管理事件（被踢/解散/转让等）
-
