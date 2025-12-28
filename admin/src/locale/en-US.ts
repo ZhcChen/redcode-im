@@ -33,6 +33,7 @@ export default {
   'menu.settings.privacyPolicy': 'Privacy Agreement',
   'menu.settings.userAgreement': 'User Agreement',
   'menu.settings.general': 'General Settings',
+  'menu.settings.push': 'Push Notifications',
   'menu.settings.emojiPack': 'Emoji Pack Settings',
   'menu.settings.userProfile': 'Profile Settings',
   'menu.version': 'Version Management',

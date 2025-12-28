@@ -35,6 +35,7 @@ export default {
   'menu.settings.privacyPolicy': '隐私协议',
   'menu.settings.userAgreement': '用户协议',
   'menu.settings.general': '通用设置',
+  'menu.settings.push': 'Push 通知',
   'menu.settings.emojiPack': '贴纸设置',
   'menu.settings.userProfile': '个人设置',
   'menu.version': '版本管理',

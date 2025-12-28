@@ -57,6 +57,16 @@ const SETTINGS: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'push',
+      name: 'PushSettings',
+      component: () => import('@/views/settings/push/index.vue'),
+      meta: {
+        locale: 'menu.settings.push',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
+    {
       path: 'emoji-pack',
       name: 'EmojiPackSettings',
       component: () => import('@/views/settings/emoji-pack/index.vue'),
