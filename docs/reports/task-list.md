@@ -381,7 +381,7 @@ KEY_PASSWORD=change_me_key_password
   - ✅ Desktop：系统通知（`tauri-plugin-notification`，窗口非前台时提示）+ 提示音/任务栏提醒
 - **待补齐**:
   - 🟡 更多触发点：好友请求、群管理事件（踢人/解散/转让等）
-  - 🟡 `mentions_only` 精准 @ 解析（当前为简化规则：content 含 `@`）
+  - ✅ `mentions_only` 精准 @ 解析（按 `@用户名/@昵称/@all` 解析，仅对被提及成员推送）
   - 🟡 跨节点在线状态去重（当前 `PUSH_SKIP_IF_ONLINE` 仅本节点维度）
   - 🟡 失败重试/退避 + 发送结果落库（`push_logs`）与可观测性完善
   - 🟡 iOS 工程侧材料与 capability 配置（`GoogleService-Info.plist` / Push capability 等）

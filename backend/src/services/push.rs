@@ -3,7 +3,11 @@ use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use once_cell::sync::OnceCell;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -12,6 +16,7 @@ use crate::crypto::SecretCrypto;
 use crate::database::models::{
     MessagePart, MessagePartType, MessageWithSender, NotificationSetting, RoomType,
 };
+use crate::database::member_with_user_info::RoomMemberWithUserInfo;
 use crate::database::push_device_store::PushDeviceStore;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::room_store::RoomStore;
@@ -446,11 +451,127 @@ fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
     out
 }
 
-fn should_send_for_setting(setting: NotificationSetting, content: &str) -> bool {
+#[derive(Debug, Default)]
+struct MentionDecision {
+    mention_all: bool,
+    mentioned_user_ids: HashSet<Uuid>,
+}
+
+fn is_mention_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric()
+        || matches!(ch, '_' | '-')
+        || (!ch.is_ascii() && ch.is_alphanumeric())
+}
+
+fn normalize_mention_token(raw: &str) -> String {
+    raw.trim().trim_matches('@').to_lowercase()
+}
+
+fn is_mention_all_token(token: &str) -> bool {
+    matches!(
+        token,
+        "all" | "everyone" | "here" | "全体" | "全员" | "所有人" | "全体成员" | "全体人员"
+    )
+}
+
+fn parse_mentions_from_content(
+    content: &str,
+    members: &[RoomMemberWithUserInfo],
+) -> MentionDecision {
+    let mut decision = MentionDecision::default();
+    let content = content.trim();
+    if content.is_empty() {
+        return decision;
+    }
+
+    let mut mention_key_to_user_ids: HashMap<String, Vec<Uuid>> = HashMap::new();
+    for member in members {
+        let username_key = normalize_mention_token(&member.username);
+        if !username_key.is_empty() {
+            mention_key_to_user_ids
+                .entry(username_key)
+                .or_default()
+                .push(member.user_id);
+        }
+        if let Some(nickname) = member.nickname.as_ref() {
+            let nick_key = normalize_mention_token(nickname);
+            if !nick_key.is_empty() {
+                mention_key_to_user_ids
+                    .entry(nick_key)
+                    .or_default()
+                    .push(member.user_id);
+            }
+        }
+    }
+
+    let chars: Vec<char> = content.chars().collect();
+    let mut idx = 0;
+    while idx < chars.len() {
+        if chars[idx] != '@' {
+            idx += 1;
+            continue;
+        }
+
+        // 避免把 email/handle 当作 @ 提及：前一个字符为 ASCII 字母数字或常见 email 字符时跳过
+        if idx > 0 {
+            let prev = chars[idx - 1];
+            if prev.is_ascii_alphanumeric() || matches!(prev, '_' | '.' | '+' | '-') {
+                idx += 1;
+                continue;
+            }
+        }
+
+        let mut j = idx + 1;
+        let mut token = String::new();
+        while j < chars.len() {
+            let ch = chars[j];
+            if is_mention_char(ch) {
+                token.push(ch);
+                j += 1;
+                continue;
+            }
+            break;
+        }
+
+        idx = j;
+
+        let token = normalize_mention_token(&token);
+        if token.is_empty() {
+            continue;
+        }
+        if is_mention_all_token(&token) {
+            decision.mention_all = true;
+            continue;
+        }
+
+        if let Some(ids) = mention_key_to_user_ids.get(&token) {
+            for id in ids {
+                decision.mentioned_user_ids.insert(*id);
+            }
+        }
+    }
+
+    decision
+}
+
+fn should_send_for_setting(
+    setting: NotificationSetting,
+    room_type: RoomType,
+    target_user_id: &Uuid,
+    mentions: &MentionDecision,
+) -> bool {
     match setting {
         NotificationSetting::All => true,
         NotificationSetting::Muted => false,
-        NotificationSetting::MentionsOnly => content.contains('@'),
+        NotificationSetting::MentionsOnly => {
+            if room_type != RoomType::Group {
+                return true;
+            }
+            if mentions.mention_all {
+                return true;
+            }
+            mentions.mentioned_user_ids.contains(target_user_id)
+        }
     }
 }
 
@@ -498,10 +619,7 @@ pub async fn notify_new_message(
         _ => (sender_name.clone(), preview.clone()),
     };
 
-    let members = match room_store
-        .list_member_notification_settings(message.room_id)
-        .await
-    {
+    let members = match room_store.list_member_notification_settings(message.room_id).await {
         Ok(members) => members,
         Err(e) => {
             warn!(
@@ -514,12 +632,32 @@ pub async fn notify_new_message(
 
     let skip_if_online = runtime.skip_if_online;
 
+    let mention_decision = if room.room_type == RoomType::Group
+        && message.content.contains('@')
+        && members
+            .iter()
+            .any(|(_, setting)| *setting == NotificationSetting::MentionsOnly)
+    {
+        match room_store.list_members_with_user_info(message.room_id).await {
+            Ok(members) => parse_mentions_from_content(&message.content, &members),
+            Err(e) => {
+                warn!(
+                    "Push: 获取房间成员信息失败 room_id={}, err={}",
+                    message.room_id, e
+                );
+                MentionDecision::default()
+            }
+        }
+    } else {
+        MentionDecision::default()
+    };
+
     let mut targets: Vec<Uuid> = Vec::new();
     for (user_id, setting) in members {
         if user_id == message.sender_id {
             continue;
         }
-        if !should_send_for_setting(setting, &message.content) {
+        if !should_send_for_setting(setting, room.room_type, &user_id, &mention_decision) {
             continue;
         }
         if skip_if_online && state
@@ -589,4 +727,77 @@ pub async fn notify_new_message(
         success,
         failed
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use crate::database::models::MemberRole;
+
+    fn member(user_id: Uuid, username: &str, nickname: Option<&str>) -> RoomMemberWithUserInfo {
+        RoomMemberWithUserInfo {
+            user_id,
+            username: username.to_string(),
+            nickname: nickname.map(|v| v.to_string()),
+            avatar_url: None,
+            avatar_object_key: None,
+            role: MemberRole::Member,
+            joined_at: Some(Utc::now()),
+        }
+    }
+
+    #[test]
+    fn parse_mentions_should_ignore_email_like_patterns() {
+        let alice = Uuid::new_v4();
+        let members = vec![member(alice, "example", None)];
+        let decision = parse_mentions_from_content("test@example.com", &members);
+        assert!(!decision.mention_all);
+        assert!(decision.mentioned_user_ids.is_empty());
+    }
+
+    #[test]
+    fn parse_mentions_should_pick_username_and_nickname() {
+        let alice = Uuid::new_v4();
+        let bob = Uuid::new_v4();
+        let members = vec![
+            member(alice, "alice", Some("张三")),
+            member(bob, "bob", Some("李四")),
+        ];
+
+        let decision = parse_mentions_from_content("你好@张三，ping @bob", &members);
+        assert!(!decision.mention_all);
+        assert!(decision.mentioned_user_ids.contains(&alice));
+        assert!(decision.mentioned_user_ids.contains(&bob));
+    }
+
+    #[test]
+    fn parse_mentions_should_support_mention_all() {
+        let alice = Uuid::new_v4();
+        let members = vec![member(alice, "alice", None)];
+        let decision = parse_mentions_from_content("@all 请看一下", &members);
+        assert!(decision.mention_all);
+    }
+
+    #[test]
+    fn mentions_only_should_send_only_when_mentioned_in_group() {
+        let alice = Uuid::new_v4();
+        let mut decision = MentionDecision::default();
+        decision.mentioned_user_ids.insert(alice);
+
+        assert!(should_send_for_setting(
+            NotificationSetting::MentionsOnly,
+            RoomType::Group,
+            &alice,
+            &decision
+        ));
+
+        let bob = Uuid::new_v4();
+        assert!(!should_send_for_setting(
+            NotificationSetting::MentionsOnly,
+            RoomType::Group,
+            &bob,
+            &decision
+        ));
+    }
 }
