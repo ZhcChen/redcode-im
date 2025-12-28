@@ -149,37 +149,35 @@ await _chatProvider.sendVoiceMessage(...);
 - **状态**: ✅ 已完成
 - **完成时间**: 2025-12-27
 
-#### 6.2 消息反应（reactions）
-> reactions 不是“发一条表情/贴纸消息”，而是给“某一条已存在消息”追加一个可聚合的小标签（例如：👍×3、😂×1），用于快速反馈且不刷屏。
+#### 6.2 消息反应（reactions）✅
+- **完成情况**:
+  - ✅ 数据库：新增 `message_reactions` 表（迁移文件：`20251227024227_create_message_reactions.sql`），支持软删除与唯一约束 `(message_id, user_id, reaction_key)`
+  - ✅ API：新增 reactions 接口（`POST/DELETE/GET /rooms/{room_id}/messages/{message_id}/reactions`），删除接口兼容 body/query 两种传参
+  - ✅ WebSocket：新增 `reaction_update` 推送，并通过 Redis Pub/Sub 做跨节点广播
+  - ✅ Desktop：上下文菜单 + `ReactionPicker`，消息下方展示聚合标签并支持点击 toggle
+  - ✅ Flutter：`ReactionPicker` + 气泡内 reaction tags；API 调用与 WS 更新保持一致
+  - ✅ 约束：反应类型固定集合（👍 ❤️ 😂 🎉 😮 😢），同一用户对同一消息同一 reaction 为 0/1 toggle
+- **实现位置**:
+  - 后端：`backend/src/handlers/message.rs::{add_message_reaction,remove_message_reaction,get_message_reactions}`，`backend/src/database/message_reaction_store.rs`，`backend/proto/ws.proto`
+  - Desktop：`desktop/src/views/Chat.vue`，`desktop/src/components/ReactionPicker.vue`，`desktop/src/api/message.ts`
+  - Flutter：`frontend/lib/core/services/message_service.dart`，`frontend/lib/features/chat/widgets/reaction_picker.dart`，`frontend/lib/core/services/websocket_service.dart`
+- **状态**: ✅ 已完成
 
-- **需求边界（先固定最小可用）**:
-  - 每个用户对同一条消息、同一种 reaction 只能有 0/1（点击即 toggle）
-  - reaction 类型先固定集合（例如：👍 ❤️ 😂 🎉 😮 😢），避免自定义导致兼容成本
-- **后端（DB + API）**:
-  - 新增表：`message_reactions`（message_id/user_id/reaction_key/created_at/deleted_at），唯一约束 `(message_id, user_id, reaction_key)`
-  - 新增接口：
-    - `POST /rooms/{room_id}/messages/{message_id}/reactions`（body：`reaction_key`）→ 添加/恢复
-    - `DELETE /rooms/{room_id}/messages/{message_id}/reactions`（body：`reaction_key`）→ 取消
-    - `GET /rooms/{room_id}/messages/{message_id}/reactions`（可选：返回聚合结果 + self 状态）
-  - 广播：新增 WS 推送 `message_reaction_update`（delta：message_id/reaction_key/user_id/action=add|remove），客户端按 delta 维护聚合计数
-  - 权限：仅房间成员可操作；消息已删除则不可加 reaction（可选：保留但不展示）
-- **Desktop/Flutter UI**:
-  - 交互：长按消息弹出 reaction bar；点某个 reaction toggle；消息下方展示聚合标签（可点开查看详情或二次 toggle）
-  - 同步：本地乐观更新（先加/减 UI），失败回滚；收到 WS delta 做最终收敛
-
-#### 6.3 正在输入（typing）
-- **定位**: 纯临时态（不落库），用于提升会话实时感知；必须节流与超时，避免频繁广播。
-- **后端（WebSocket）**:
-  - 新增客户端上行事件：`typing`（room_id + is_typing），同一用户同一房间 1~2s 节流
-  - 新增服务端下行推送：`typing_update`（room_id/user_id/is_typing/expires_in_ms）
-  - 规则：发送消息时强制清理 typing 状态；离开房间/断线时清理
-- **客户端**:
-  - 输入框内容变化触发 `typing=true`（节流）；停止输入/输入框失焦触发 `typing=false`
-  - UI：单聊显示“对方正在输入…”；群聊显示“某某正在输入…”（或多人时折叠）
+#### 6.3 正在输入（typing）✅
+- **完成情况**:
+  - ✅ WebSocket 协议：新增 `ClientTyping` / `ServerTypingUpdate`，并同步到 Desktop/Flutter 的 proto
+  - ✅ 后端：连接级节流（1200ms）+ `expires_in_ms`，通过 Redis Pub/Sub 广播到房间；发送消息/离开房间/断线时清理 typing 状态
+  - ✅ Desktop：输入变化节流上报 typing；空闲自动发送 `typing=false`；UI 显示 typing 指示器并按过期时间清理
+  - ✅ Flutter：`ChatDetailPageV2` 本地节流上报 + idle timer；订阅 `onTypingUpdate` 更新 UI
+- **实现位置**:
+  - 后端：`backend/proto/ws.proto`，`backend/src/websocket/mod.rs`，`backend/src/redis/models.rs`，`backend/src/redis/pubsub.rs`
+  - Desktop：`desktop/src/views/Chat.vue`，`desktop/src/utils/websocket.ts`，`desktop/src/api/websocket.ts`
+  - Flutter：`frontend/lib/core/services/websocket_service.dart`，`frontend/lib/features/chat/chat_detail_page_v2.dart`
+- **状态**: ✅ 已完成
 
 **影响**: 多端核心聊天体验对齐（编辑/反应/输入态）；涉及 WS 协议与 DB 变更，需要统一灰度与兼容策略
-**状态**: 🟡 部分完成（消息编辑已完成，Reactions 和 Typing 待实现）
-**优先级**: 🟠 中（消息编辑已完成，建议继续实现 reactions → typing）
+**状态**: ✅ 已完成（消息编辑 / Reactions / Typing 全端已对齐）
+**优先级**: 🟠 中（已处理）
 
 ---
 
@@ -237,33 +235,33 @@ POST /rooms/{room_id}/messages/attachments/multipart/initiate
 - 通知载荷（用于点击跳转）：至少包含 `room_id`、可选 `message_id`（用于定位消息）与展示用的 `sender_name/message_preview`
 
 #### 8.2 后端（接口 + 存储）
-- 设备标识与 token 存储：新增 `push_devices`（或同等表）记录 `user_id/platform/device_token/channel/device_id/last_seen/is_active` 等
+- ✅ 设备标识与 token 存储：已新增 `push_devices` 表记录 `user_id/platform/device_token/channel/device_id/last_seen/is_active` 等（迁移文件：`20251228090000_create_push_devices.sql`）
 - Token 注册接口：
-  - `POST /push/devices`：上报/更新 token（支持 token 刷新）
-  - `DELETE /push/devices/{device_id}`（或按 token 注销）
+  - ✅ `POST /push/devices`：上报/更新 token（支持 token 刷新）
+  - ✅ `DELETE /push/devices/{device_id}`：注销（软禁用）
 - 推送触发点：
-  - 消息落库成功后，对房间成员进行过滤并异步发送 push
-  - 好友请求、群解散/踢人等事件同理
-- 异步化：推送发送必须走后台任务（避免阻塞发消息接口）；支持失败重试与退避
+  - ✅ 消息落库成功后，对房间成员进行过滤并异步发送 push（已覆盖 `send_message` / `forward_message`）
+  - 🟡 好友请求、群解散/踢人等事件同理（待补齐触发点）
+- ✅ 异步化：推送发送走后台任务（`tokio::spawn`），避免阻塞发消息接口
+- 🟡 失败重试与退避：待补齐（首版先保证链路可用）
 - Provider 集成：
-  - Android：FCM HTTP v1（Service Account JSON）
-  - iOS：APNs（Auth Key `.p8` + Key ID + Team ID）
-- 可观测性：记录发送结果、错误码、可追踪的 `push_id`（便于排障）
+  - ✅ Android：FCM HTTP v1（Service Account JSON）
+  - 🟡 iOS：首版先走 Firebase Messaging（经 FCM 转发到 APNs）；APNs 直连可后续补齐
+- 🟡 可观测性：发送结果落库（`push_logs`）/错误码聚合与 `push_id` 追踪待补齐
 
 #### 8.3 Flutter（移动端）
-- 集成推送 SDK：
-  - Android：Firebase Messaging（获取 FCM token）
-  - iOS：APNs 权限 + FCM（或直接 APNs，根据最终选型）
-- Token 生命周期：首次登录上报、token 刷新回调更新、登出时解绑
-- 通知点击跳转：解析 payload → 打开对应会话 →（有 `message_id` 则）定位到目标消息
+- ✅ 集成推送 SDK：`firebase_core` + `firebase_messaging` 获取 FCM token
+- ✅ Token 生命周期：首次登录上报、token 刷新回调更新、登出时解绑
+- ✅ 通知点击跳转：解析 payload → 打开对应会话（`ChatDetailPageV2`）
+- 🟡 前台本地通知（`flutter_local_notifications`）待接入（首版暂不做）
 
 #### 8.4 配置与材料清单（落地前准备）
 - iOS：Bundle ID、开启 Push capability、APNs `.p8` / Key ID / Team ID
 - Android：Firebase 项目、`google-services.json`、Service Account JSON
 
 **影响**: 移动端离线可达性与提醒体验显著提升；涉及安全凭据与服务稳定性，需要完整的环境配置与灰度策略
-**状态**: ❌ 未完成
-**优先级**: 🟠 中（文档先行，后续按里程碑实现）
+**状态**: 🟡 部分完成（已实现设备注册/注销 + FCM 首版推送 + Flutter 基础接入，详见 `docs/design/push-notification-design.md`）
+**优先级**: 🟠 中（按里程碑继续完善）
 
 ---
 
@@ -339,9 +337,9 @@ KEY_PASSWORD=change_me_key_password
 | 优先级 | 数量 | 模块分布 |
 |--------|------|----------|
 | 🔴 高优先级 | 3 | 后端(2，✅已完成) + 前端桌面端(1，✅已完成) |
-| 🟠 中优先级 | 5 | 前端桌面端(1，✅已完成) + 前端移动端(1，✅已完成) + 消息编辑/反应/输入态(1，🟡部分完成-编辑已完成) + COS 分片直传(1，✅已完成) + Push 通知(1，❌未完成) |
+| 🟠 中优先级 | 5 | 前端桌面端(1，✅已完成) + 前端移动端(1，✅已完成) + 消息编辑/反应/输入态(1，✅已完成) + COS 分片直传(1，✅已完成) + Push 通知(1，🟡部分完成-FCM 首版) |
 | 🟡 低优先级 | 4 | 后端测试(1，✅已完成基础单测) + 桌面端(1，✅已完成) + 移动端(1，✅已完成) + 管理后台(1，✅已完成基础主题结构) |
-| **总计** | **12** | **已完成: 10.5/12 (87.5%)** |
+| **总计** | **12** | **已完成: 11.5/12 (95.8%)** |
 
 ---
 
@@ -361,8 +359,8 @@ KEY_PASSWORD=change_me_key_password
 7. ✅ 测试用例补充（文件上传相关逻辑的基础单元测试）
 8. ✅ Android 发布配置（已从统一配置文件读取 Application ID 与签名配置）
 9. ✅ 图表主题优化（admin 基础主题结构与示例接入）
-10. ❌ Push 通知集成（先按文档准备环境与凭据，再按里程碑实现）
-11. 🟡 消息编辑 / Reactions / Typing（✅ 消息编辑已完成，❌ Reactions 和 Typing 待实现）
+10. 🟡 Push 通知集成（FCM 首版已接入，继续按文档完善）
+11. ✅ 消息编辑 / Reactions / Typing（已完成：编辑 + Reactions + Typing）
 12. ✅ COS 大文件分片前端直传（已完成：后端 API + Admin/Desktop/Flutter 全端实现）
 
 ---
@@ -374,58 +372,24 @@ KEY_PASSWORD=change_me_key_password
 
 ### 🟠 中优先级
 
-#### 1. 消息反应（Reactions）
-- **状态**: ❌ 未完成（已确认：后端/Desktop/Flutter 均未实现）
-- **需求**: 实现消息反应功能，允许用户对消息添加表情反应（👍 ❤️ 😂 🎉 😮 😢）
-- **代码检查结果**:
-  - ❌ 后端：无 `message_reactions` 表、无 reactions API、无 WebSocket 事件
-  - ❌ Desktop：无 reactions UI 和 API 调用
-  - ❌ Flutter：无 reactions UI 和 API 调用（`_MoreActionsPanel` 是其他功能）
-- **后端任务**:
-  - 创建 `message_reactions` 表（迁移文件）
-  - 实现 `POST /rooms/{room_id}/messages/{message_id}/reactions`（添加/切换）
-  - 实现 `DELETE /rooms/{room_id}/messages/{message_id}/reactions`（取消）
-  - 实现 `GET /rooms/{room_id}/messages/{message_id}/reactions`（查询聚合结果）
-  - WebSocket 推送 `message_reaction_update` 事件（扩展 `ws.proto` 和 `ServerPush`）
-- **前端任务**:
-  - Desktop：长按消息弹出 reaction bar，显示聚合标签
-  - Flutter：长按菜单添加 reaction 选项，显示聚合标签
-
-#### 2. 正在输入（Typing）
-- **状态**: ❌ 未完成（已确认：后端/Desktop/Flutter 均未实现）
-- **需求**: 实现"正在输入"指示器，提升实时感知
-- **代码检查结果**:
-  - ❌ 后端：WebSocket `ClientEvent` 和 `ServerEvent` 中无 typing 事件
-  - ❌ Desktop：无 typing UI 指示器和 WebSocket 事件处理
-  - ❌ Flutter：无 typing UI 指示器和 WebSocket 事件处理
-- **后端任务**:
-  - WebSocket 客户端上行事件：`typing`（room_id + is_typing）- 扩展 `ClientEvent`
-  - WebSocket 服务端下行推送：`typing_update`（room_id/user_id/is_typing）- 扩展 `ServerEvent`
-  - 实现节流机制（1-2秒）和超时清理
-  - 无需数据库（纯临时态）
-- **前端任务**:
-  - Desktop：输入框内容变化触发 typing 事件，显示"对方正在输入…"
-  - Flutter：输入框内容变化触发 typing 事件，显示"对方正在输入…"
-
-#### 3. Push 通知集成
-- **状态**: ❌ 未完成
-- **需求**: App 不在前台时也能收到通知（新消息/好友请求等）
-- **后端任务**:
-  - 创建 `push_devices` 表存储设备 token
-  - 实现 `POST /push/devices`（注册/更新 token）
-  - 实现 `DELETE /push/devices/{device_id}`（注销）
-  - 集成 FCM（Android）和 APNs（iOS）
-  - 在消息发送、好友请求等场景触发推送
-- **Flutter 任务**:
-  - 集成 Firebase Messaging（Android）和 APNs（iOS）
-  - Token 生命周期管理（注册/刷新/注销）
-  - 通知点击跳转逻辑
+#### 1. Push 通知集成（里程碑）
+- **状态**: 🟡 部分完成
+- **已完成**:
+  - ✅ 后端：`push_devices` 表 + `POST/DELETE /push/devices`；消息发送后异步触发推送（FCM HTTP v1）
+  - ✅ Flutter：Firebase Messaging 获取 token；登录后注册、登出注销；点击通知跳转到会话
+- **待补齐**:
+  - 🟡 更多触发点：好友请求、群管理事件（踢人/解散/转让等）
+  - 🟡 `mentions_only` 精准 @ 解析（当前为简化规则：content 含 `@`）
+  - 🟡 跨节点在线状态去重（当前 `PUSH_SKIP_IF_ONLINE` 仅本节点维度）
+  - 🟡 失败重试/退避 + 发送结果落库（`push_logs`）与可观测性完善
+  - 🟡 iOS 工程侧材料与 capability 配置（`GoogleService-Info.plist` / Push capability 等）
+  - 🟡 前台本地通知（如需）与通知样式/渠道策略
 
 ### 🟡 低优先级
 无（所有低优先级任务已完成）
 
 ---
 
-**最后更新**: 2025-12-27
-**总完成度**: 10.5/12 (87.5%)
-**待完成任务**: 2.5 个（Reactions、Typing、Push 通知）
+**最后更新**: 2025-12-28
+**总完成度**: 11.5/12 (95.8%)
+**待完成任务**: 1 个（Push 通知：部分完成）

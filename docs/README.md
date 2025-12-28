@@ -45,6 +45,7 @@
 
 - [端到端加密设计](design/end-to-end-encryption-design.md) - 加密方案设计（待实现）
 - [消息搜索设计](design/message-search-design.md) - 搜索实现方案
+- [Push 通知集成方案](design/push-notification-design.md) - FCM/APNs 推送方案与落地步骤
 
 ### 🔒 安全文档
 
@@ -66,4 +67,4 @@
 
 ---
 
-**文档最后更新**: 2025-12-12
+**文档最后更新**: 2025-12-28
