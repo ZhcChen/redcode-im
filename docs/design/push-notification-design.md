@@ -22,7 +22,7 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
   - `DELETE /push/devices/{device_id}`：注销当前账号在该设备上的 push（软禁用）
 - 发送链路：
   - 在消息发送成功后异步触发 push（不阻塞发消息接口）
-  - 首版仅实现 **FCM HTTP v1**（通过 `FCM_SERVICE_ACCOUNT_PATH` 启用）
+  - 首版仅实现 **FCM HTTP v1**（通过 Admin 后台配置启用）
   - 默认 `PUSH_SKIP_IF_ONLINE=true`：若用户当前已建立 WebSocket 连接则跳过 push（减少重复提醒）
 
 ### Flutter
@@ -63,10 +63,13 @@ Backend 会附带以下 `data`：
 
 ### Backend（FCM HTTP v1）
 
-当前实现仍通过环境变量启用 FCM（见 `backend/.env.example`）：
-- `FCM_SERVICE_ACCOUNT_PATH=/path/to/firebase-service-account.json`（临时：后续将迁移到 Admin 后台配置）
-- `PUSH_ENABLED=true`
-- `PUSH_SKIP_IF_ONLINE=true`
+通过 Admin 后台配置（`系统设置 -> Push 通知`）：
+- FCM：粘贴 Firebase Service Account JSON（服务端会加密落库）
+- 全局开关：`push_enabled`、`push_skip_if_online`
+
+服务端环境变量（见 `backend/.env.example`）：
+- `DATA_ENCRYPTION_KEY=...`：用于加密存储 Push 平台敏感配置（必填，生产环境建议强随机）
+- `PUSH_ENABLED=true` / `PUSH_SKIP_IF_ONLINE=true`：仅作为开发兜底（优先以后台配置为准）
 
 ### Flutter（Android / iOS）
 

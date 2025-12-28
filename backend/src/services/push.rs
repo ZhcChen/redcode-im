@@ -3,7 +3,7 @@ use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use once_cell::sync::OnceCell;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -326,7 +326,6 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
     // 2) 平台配置：优先 DB（管理后台），缺省回退 env 文件路径（兼容开发环境）
     let provider_store = PushProviderConfigStore::new(state.database.pool());
     let cfg = provider_store.get_config("fcm", "all").await.ok().flatten();
-    let has_db_record = cfg.is_some();
 
     let mut next_fcm: Option<Arc<FcmClient>> = None;
     let mut next_fingerprint: Option<String> = None;
@@ -373,29 +372,6 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
                         }
                     }
                     Err(e) => warn!("Push: FCM 配置解密失败（{}）", e),
-                }
-            }
-        }
-    }
-
-    // 仅当 DB 未配置该 provider 时才允许回退 env，避免“后台已禁用但仍发 push”的混乱。
-    if next_fcm.is_none() && !has_db_record {
-        if let Ok(path) = env::var("FCM_SERVICE_ACCOUNT_PATH") {
-            if !path.trim().is_empty() {
-                match fs::read_to_string(path.trim()) {
-                    Ok(raw) => {
-                        let fp = SecretCrypto::sha256_hex(&raw);
-                        next_fingerprint = Some(format!("env:{}", fp));
-                        if guard.fcm_fingerprint.as_deref() == Some(next_fingerprint.as_ref().unwrap().as_str()) {
-                            next_fcm = guard.fcm.clone();
-                        } else {
-                            match FcmClient::from_service_account_json(&raw) {
-                                Ok(client) => next_fcm = Some(Arc::new(client)),
-                                Err(e) => warn!("Push: env FCM 配置解析失败（{}）", e),
-                            }
-                        }
-                    }
-                    Err(e) => warn!("Push: 读取 env FCM 配置失败（{}）", e),
                 }
             }
         }
