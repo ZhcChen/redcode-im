@@ -12,7 +12,7 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 
 详见需求文档：`docs/design/push-provider-config-requirements.md`。
 
-## 当前实现（2025-12-28）
+## 当前实现（2025-12-29）
 
 ### Backend
 
@@ -100,7 +100,12 @@ Backend 会附带以下 `data`：
 
 - Android：需要 Firebase 项目与 `google-services.json`
   - 由于仓库默认不携带该文件，`frontend/android/app/build.gradle.kts` 已做“存在才启用 google-services 插件”的降级处理
-- iOS：需要 `GoogleService-Info.plist`、开启 Push capability，并按 Firebase Messaging 文档配置 APNs
+- iOS：
+  - 需要 `GoogleService-Info.plist`
+  - Push capability（仓库已提供 entitlements）：
+    - Debug：`frontend/ios/Runner/RunnerDebug.entitlements`
+    - Release/Profile：`frontend/ios/Runner/RunnerRelease.entitlements`
+  - 并按 Firebase Messaging 文档配置 APNs（`.p8` / Key ID / Team ID）
 
 ## 后续待完善
 
@@ -108,3 +113,9 @@ Backend 会附带以下 `data`：
 - 更精细的通知过滤（例如：更丰富的 @ 语法、别名/备注匹配、避免歧义等）
 - 通知样式与策略（如需：前台展示、聚合、badge、sound 等）
 - iOS 工程材料与 capability（`GoogleService-Info.plist` / Push capability / APNs 配置等）
+
+## 点击跳转策略（当前实现）
+
+- `type=message`：打开对应会话（`room_id` 必填，`message_id` 可选用于定位）
+- `type=friend_request`：打开“好友请求”页（移动端 `AddFriendPage(showRequestsFirst=true)`）
+- `type=group_event`：默认按 `room_id` 打开会话（若被踢/解散导致无法进入，客户端会按业务逻辑提示）

@@ -384,8 +384,8 @@ KEY_PASSWORD=change_me_key_password
   - ✅ `mentions_only` 精准 @ 解析（按 `@用户名/@昵称/@all` 解析，仅对被提及成员推送）
   - ✅ 跨节点在线状态去重（`PUSH_SKIP_IF_ONLINE` 支持跨节点在线态判断）
   - ✅ 失败重试/退避 + 发送结果落库（`push_logs`）与 `push_id` 追踪
-  - 🟡 iOS 工程侧材料与 capability 配置（`GoogleService-Info.plist` / Push capability 等）
-  - 🟡 通知样式/渠道策略（如需：前台展示、聚合、badge、sound 等）
+  - 🟡 iOS 工程侧材料（`GoogleService-Info.plist` / APNs `.p8` 等）仍需配置（仓库已提供 Push capability entitlements）
+  - ✅ 通知样式/渠道策略（基础策略已落地：iOS 前台展示选项 + 本地通知兜底 + 点击跳转）
 
 ### 🟡 低优先级
 #### 1. Flutter 视频预览
@@ -400,6 +400,6 @@ KEY_PASSWORD=change_me_key_password
 
 ---
 
-**最后更新**: 2025-12-28
+**最后更新**: 2025-12-29
 **总完成度**: 11/12（Push 部分完成）
-**待完成任务**: Push 通知里程碑（iOS 工程配置/策略）
+**待完成任务**: Push 通知里程碑（iOS 工程材料）
