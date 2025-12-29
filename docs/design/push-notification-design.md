@@ -93,6 +93,11 @@ Backend 会附带以下 `data`：
 
 ## 配置与材料清单
 
+## 概念补充：Firebase / Push capability
+
+- Firebase（这里指 Firebase Cloud Messaging, FCM）：Android/iOS 的“系统通知/离线推送”入口。iOS 侧通常是 **FCM 转发到 APNs**，服务端只需对接 FCM HTTP v1。
+- Push capability（iOS 工程能力开关）：Xcode 的 “Signing & Capabilities -> Push Notifications” 对应的能力声明，本质是给 App 打上 entitlements（例如 `aps-environment`），否则无法拿到 APNs token，也无法接收系统推送。
+
 ### Backend（FCM HTTP v1）
 
 通过 Admin 后台配置（`系统设置 -> Push 通知`）：
@@ -113,6 +118,49 @@ Backend 会附带以下 `data`：
     - Debug：`frontend/ios/Runner/RunnerDebug.entitlements`
     - Release/Profile：`frontend/ios/Runner/RunnerRelease.entitlements`
   - 并按 Firebase Messaging 文档配置 APNs（`.p8` / Key ID / Team ID）
+
+### Desktop（Windows / macOS）
+
+- 使用 Tauri 的系统通知插件：`@tauri-apps/plugin-notification`（由 Desktop 端在窗口不前台时触发系统通知）
+
+## 工程配置步骤（不提交敏感文件）
+
+### 1) 后端（Admin 后台配置）
+
+1. 设置环境变量 `DATA_ENCRYPTION_KEY`（生产环境必须，建议强随机）。
+2. 使用 Admin 后台：`系统设置 -> Push 通知`
+   - 开启“离线推送总开关”
+   - 配置并启用 FCM：粘贴 Firebase Service Account JSON
+3. 可使用“测试发送”验证（建议优先填 `device_token`，其次 `user_id`）。
+
+### 2) Android（Flutter）
+
+1. Firebase 控制台新增 Android App（应用 ID 与 Flutter `applicationId` 一致）。
+2. 下载 `google-services.json` 放入：`frontend/android/app/google-services.json`（仓库已忽略该文件，请勿提交）。
+3. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
+
+### 3) iOS（Flutter）
+
+1. Firebase 控制台新增 iOS App（Bundle ID 与 Xcode 工程一致）。
+2. 下载 `GoogleService-Info.plist` 放入：`frontend/ios/Runner/GoogleService-Info.plist`（仓库已忽略该文件，请勿提交），并确保加入 Runner target。
+3. Xcode：开启 Push Notifications capability
+   - 仓库已提供 entitlements：`frontend/ios/Runner/RunnerDebug.entitlements`、`frontend/ios/Runner/RunnerRelease.entitlements`
+4. Apple Developer：创建 APNs Auth Key（`.p8`），在 Firebase Cloud Messaging 中配置（Key ID / Team ID / Bundle ID 对应）。
+5. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
+
+## 验证与排障
+
+- 推荐验证顺序：
+  1) 后台“测试发送” → 目标设备应出现系统通知  
+  2) 发送真实消息 → 检查接收端是否收到通知（在线是否按策略跳过）
+- 排障入口：
+  - Admin：`运维管理 -> Push 日志`
+  - 重点看 `success/error/push_id`；同一事件可用 `push_id` 追踪多设备投递结果。
+
+## 降级策略说明（与产品需求对齐）
+
+- 当未配置任何离线推送平台（或平台不可用）时：服务端不会发送系统通知；客户端仍可通过 **WebSocket 实时推送**收到消息。
+- 对于“应用存活但不在前台”的场景：移动端会使用 **Local Notification** 在收到 WebSocket 新消息时弹出本地系统通知（不依赖 Firebase 配置）。
 
 ## 后续待完善
 

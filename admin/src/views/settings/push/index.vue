@@ -38,6 +38,7 @@
               >
                 刷新
               </a-button>
+              <a-button @click="handleOpenPushLogs">查看 Push 日志</a-button>
             </a-space>
           </div>
 
@@ -153,6 +154,7 @@
 
 <script lang="ts" setup>
   import { computed, onMounted, reactive, ref } from 'vue';
+  import { useRouter } from 'vue-router';
   import dayjs from 'dayjs';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
@@ -163,6 +165,8 @@
     upsertPushProviderConfig,
     type PushProviderConfigView,
   } from '@/api/settings';
+
+  const router = useRouter();
 
   const globalForm = reactive({
     enabled: true,
@@ -277,6 +281,10 @@
     } finally {
       savingFcm.value = false;
     }
+  };
+
+  const handleOpenPushLogs = () => {
+    router.push({ name: 'PushLog' });
   };
 
   const openTestModal = () => {
