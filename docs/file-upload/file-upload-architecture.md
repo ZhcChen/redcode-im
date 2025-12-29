@@ -29,6 +29,10 @@
 - **主要方法**:
   - `upload_file()` - 直接上传文件到COS
   - `generate_direct_upload_signature()` - 生成直传签名
+  - `initiate_multipart_upload()` - 初始化分片上传会话
+  - `generate_multipart_upload_part_signature()` - 生成分片上传签名（Part）
+  - `complete_multipart_upload()` - 合并分片
+  - `abort_multipart_upload()` - 取消分片上传
   - `delete_file()` - 删除COS文件
   - `file_exists()` - 检查文件是否存在
   - `head_object()` - 获取对象元数据（content-length/etag）
@@ -317,7 +321,7 @@ COS_ENDPOINT=cos.ap-shanghai.myqcloud.com
 ## 性能优化
 
 ### 1. 前端优化
-- **分片上传**: 大文件可以分片上传（当前未实现）
+- **分片上传**: 已实现（COS Multipart Upload，前端分片直传 + 后端会话/合并）
 - **进度显示**: 实时显示上传进度
 - **重试机制**: 网络失败时自动重试
 - **并发控制**: 限制同时上传的文件数量
@@ -371,7 +375,6 @@ debug!("COS上传结果: key={}, status={}", key, status);
 - 支持批量上传
 
 ### 2. 性能扩展
-- 实现分片上传
 - 添加断点续传
 - 优化大文件处理
 - 实现CDN加速
@@ -384,6 +387,6 @@ debug!("COS上传结果: key={}, status={}", key, status);
 
 ---
 
-**文档版本**: v1.0
-**更新时间**: 2024-11-07
+**文档版本**: v1.1
+**更新时间**: 2025-12-29
 **维护者**: 开发团队

@@ -22,7 +22,7 @@
 
 - [项目现状评估报告 (2025-11-08)](reports/project-status-assessment-report-2025-11-08.md) - ⭐ **最新**：完整的项目分析、进度评估、任务清单
 - [项目深入分析报告](reports/project-analysis-report.md) - 技术架构与代码详细分析
-- [待完成任务清单](reports/task-list.md) - TODO 事项跟踪（9 项任务）
+- [待完成任务清单](reports/task-list.md) - TODO 事项跟踪（12 项任务）
 
 ### 🔧 API 文档
 
@@ -68,4 +68,4 @@
 
 ---
 
-**文档最后更新**: 2025-12-28
+**文档最后更新**: 2025-12-29
