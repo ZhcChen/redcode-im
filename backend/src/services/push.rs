@@ -17,10 +17,12 @@ use uuid::Uuid;
 
 use crate::crypto::SecretCrypto;
 use crate::database::member_with_user_info::RoomMemberWithUserInfo;
+use crate::database::message_store::MessageStore;
 use crate::database::models::{
     MessagePart, MessagePartType, MessageWithSender, NotificationSetting, PushDevice, RoomType,
 };
 use crate::database::push_device_store::PushDeviceStore;
+use crate::database::push_job_store::PushJobStore;
 use crate::database::push_log_store::PushLogStore;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::room_store::RoomStore;
@@ -39,6 +41,12 @@ const PUSH_SEND_CONCURRENCY: usize = 50;
 const PUSH_DEVICE_SEND_CONCURRENCY: usize = 20;
 const PUSH_JOB_QUEUE_CAPACITY: usize = 10_000;
 const PUSH_JOB_CONCURRENCY: usize = 20;
+const PUSH_DB_QUEUE_BATCH_SIZE: i64 = 200;
+const PUSH_DB_QUEUE_LEASE_SECONDS: i64 = 120;
+const PUSH_DB_QUEUE_POLL_INTERVAL_SECONDS: u64 = 2;
+const PUSH_DB_QUEUE_MAX_ATTEMPTS: i32 = 12;
+const PUSH_DB_QUEUE_RETRY_BASE_SECONDS: i64 = 2;
+const PUSH_DB_QUEUE_RETRY_MAX_SECONDS: i64 = 300;
 
 static PUSH_RUNTIME: OnceCell<RwLock<PushRuntime>> = OnceCell::new();
 static PUSH_DISPATCHER: OnceCell<PushDispatcher> = OnceCell::new();
@@ -49,6 +57,9 @@ enum PushJob {
     NewMessage {
         message: MessageWithSender,
         parts: Vec<MessagePart>,
+    },
+    NewMessageById {
+        message_id: Uuid,
     },
     FriendRequest {
         request_id: Uuid,
@@ -471,6 +482,20 @@ fn env_u64(name: &str, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
+fn env_i64(name: &str, default: i64) -> i64 {
+    env::var(name)
+        .ok()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .unwrap_or(default)
+}
+
+fn env_i32(name: &str, default: i32) -> i32 {
+    env::var(name)
+        .ok()
+        .and_then(|v| v.trim().parse::<i32>().ok())
+        .unwrap_or(default)
+}
+
 fn parse_bool_value(value: &str, default: bool) -> bool {
     match value.trim().to_lowercase().as_str() {
         "1" | "true" | "yes" | "y" | "on" => true,
@@ -494,6 +519,222 @@ fn push_dispatcher() -> Option<&'static PushDispatcher> {
     PUSH_DISPATCHER.get()
 }
 
+fn enqueue_push_job_to_db(state: AppState, job_type: &'static str, payload: serde_json::Value) {
+    tokio::spawn(async move {
+        let store = PushJobStore::new(state.database.pool());
+        if let Err(e) = store.enqueue(job_type, &payload, Utc::now()).await {
+            warn!(
+                "Push: 写入 push_job_queue 失败 job_type={}, err={}",
+                job_type, e
+            );
+        }
+    });
+}
+
+#[derive(Debug, Deserialize)]
+struct DbMessageJobPayload {
+    message_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+struct DbFriendRequestJobPayload {
+    request_id: Uuid,
+    requester_id: Uuid,
+    requester_name: String,
+    target_user_id: Uuid,
+    message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DbGroupEventJobPayload {
+    targets: Vec<Uuid>,
+    room_id: Uuid,
+    room_name: String,
+    event: String,
+    title: String,
+    body: String,
+}
+
+#[derive(Debug, Clone)]
+struct PushDbQueueConfig {
+    enabled: bool,
+    batch_size: i64,
+    lease_seconds: i64,
+    poll_interval_seconds: u64,
+    max_attempts: i32,
+    retry_base_seconds: i64,
+    retry_max_seconds: i64,
+}
+
+impl PushDbQueueConfig {
+    fn from_env() -> Self {
+        Self {
+            enabled: env_flag("PUSH_DB_QUEUE_ENABLED", true),
+            batch_size: env_i64("PUSH_DB_QUEUE_BATCH_SIZE", PUSH_DB_QUEUE_BATCH_SIZE).clamp(1, 2000),
+            lease_seconds: env_i64("PUSH_DB_QUEUE_LEASE_SECONDS", PUSH_DB_QUEUE_LEASE_SECONDS)
+                .clamp(5, 3600),
+            poll_interval_seconds: env_u64(
+                "PUSH_DB_QUEUE_POLL_INTERVAL_SECONDS",
+                PUSH_DB_QUEUE_POLL_INTERVAL_SECONDS,
+            )
+            .clamp(1, 60),
+            max_attempts: env_i32("PUSH_DB_QUEUE_MAX_ATTEMPTS", PUSH_DB_QUEUE_MAX_ATTEMPTS)
+                .clamp(1, 100),
+            retry_base_seconds: env_i64(
+                "PUSH_DB_QUEUE_RETRY_BASE_SECONDS",
+                PUSH_DB_QUEUE_RETRY_BASE_SECONDS,
+            )
+            .clamp(1, 3600),
+            retry_max_seconds: env_i64(
+                "PUSH_DB_QUEUE_RETRY_MAX_SECONDS",
+                PUSH_DB_QUEUE_RETRY_MAX_SECONDS,
+            )
+            .clamp(1, 24 * 3600),
+        }
+    }
+}
+
+fn push_db_next_retry_at(cfg: &PushDbQueueConfig, attempts: i32) -> chrono::DateTime<Utc> {
+    let exp = attempts.clamp(0, 16) as u32;
+    let base = cfg.retry_base_seconds as u64;
+    let max = cfg.retry_max_seconds as u64;
+    let delay = base.saturating_mul(2u64.saturating_pow(exp)).min(max) as i64;
+    Utc::now() + Duration::seconds(delay)
+}
+
+async fn run_push_db_queue_once(state: &AppState, cfg: &PushDbQueueConfig) {
+    if !cfg.enabled {
+        return;
+    }
+
+    let Some(dispatcher) = push_dispatcher() else {
+        return;
+    };
+
+    let store = PushJobStore::new(state.database.pool());
+    let jobs = match store.claim_due_jobs(cfg.batch_size, cfg.lease_seconds).await {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("Push: claim push_job_queue 失败: {}", e);
+            return;
+        }
+    };
+
+    if jobs.is_empty() {
+        return;
+    }
+
+    for job in jobs {
+        if job.attempts >= cfg.max_attempts {
+            let _ = store
+                .mark_failed(&job.id, "超过最大重试次数，已停止入队")
+                .await;
+            continue;
+        }
+
+        let enqueue_result = match job.job_type.as_str() {
+            "message" => {
+                let payload: DbMessageJobPayload = match serde_json::from_value(job.payload.clone())
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = store
+                            .mark_failed(&job.id, &format!("解析 payload 失败: {}", e))
+                            .await;
+                        continue;
+                    }
+                };
+                dispatcher
+                    .tx
+                    .try_send(PushJob::NewMessageById {
+                        message_id: payload.message_id,
+                    })
+            }
+            "friend_request" => {
+                let payload: DbFriendRequestJobPayload =
+                    match serde_json::from_value(job.payload.clone()) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            let _ = store
+                                .mark_failed(&job.id, &format!("解析 payload 失败: {}", e))
+                                .await;
+                            continue;
+                        }
+                    };
+
+                dispatcher.tx.try_send(PushJob::FriendRequest {
+                    request_id: payload.request_id,
+                    requester_id: payload.requester_id,
+                    requester_name: payload.requester_name,
+                    target_user_id: payload.target_user_id,
+                    message: payload.message,
+                })
+            }
+            "group_event" => {
+                let payload: DbGroupEventJobPayload =
+                    match serde_json::from_value(job.payload.clone()) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            let _ = store
+                                .mark_failed(&job.id, &format!("解析 payload 失败: {}", e))
+                                .await;
+                            continue;
+                        }
+                    };
+
+                dispatcher.tx.try_send(PushJob::GroupEvent {
+                    targets: payload.targets,
+                    room_id: payload.room_id,
+                    room_name: payload.room_name,
+                    event: payload.event,
+                    title: payload.title,
+                    body: payload.body,
+                })
+            }
+            other => {
+                let _ = store
+                    .mark_failed(&job.id, &format!("不支持的 job_type: {}", other))
+                    .await;
+                continue;
+            }
+        };
+
+        match enqueue_result {
+            Ok(_) => {
+                let _ = store.mark_done(&job.id).await;
+            }
+            Err(e) => {
+                let reason = match e {
+                    tokio::sync::mpsc::error::TrySendError::Full(_) => "内存队列满",
+                    tokio::sync::mpsc::error::TrySendError::Closed(_) => "内存队列已关闭",
+                };
+                let next_run_at = push_db_next_retry_at(cfg, job.attempts);
+                let _ = store
+                    .mark_retry(
+                        &job.id,
+                        &format!("{}，稍后重试入队", reason),
+                        next_run_at,
+                    )
+                    .await;
+            }
+        }
+    }
+}
+
+fn start_push_db_queue_worker(state: AppState) {
+    let cfg = PushDbQueueConfig::from_env();
+    if !cfg.enabled {
+        return;
+    }
+
+    tokio::spawn(async move {
+        loop {
+            run_push_db_queue_once(&state, &cfg).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(cfg.poll_interval_seconds)).await;
+        }
+    });
+}
+
 pub fn init_push_dispatcher(state: AppState) {
     if push_dispatcher().is_some() {
         return;
@@ -507,13 +748,49 @@ pub fn init_push_dispatcher(state: AppState) {
         return;
     }
 
+    let worker_state = state.clone();
     tokio::spawn(async move {
         ReceiverStream::new(rx)
             .for_each_concurrent(concurrency, |job| {
-                let state = state.clone();
+                let state = worker_state.clone();
                 async move {
                     match job {
                         PushJob::NewMessage { message, parts } => {
+                            notify_new_message(state, message, parts).await;
+                        }
+                        PushJob::NewMessageById { message_id } => {
+                            let store = MessageStore::new(state.database.pool());
+                            let message = match store.get_message_with_sender(message_id).await {
+                                Ok(Some(m)) => m,
+                                Ok(None) => {
+                                    warn!(
+                                        "Push: message 不存在，跳过离线推送 message_id={}",
+                                        message_id
+                                    );
+                                    return;
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "Push: 读取 message 失败，跳过离线推送 message_id={}, err={}",
+                                        message_id, e
+                                    );
+                                    return;
+                                }
+                            };
+
+                            let mut parts_map = match store.get_message_parts_map(&[message_id]).await
+                            {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    warn!(
+                                        "Push: 读取 message_parts 失败，跳过离线推送 message_id={}, err={}",
+                                        message_id, e
+                                    );
+                                    return;
+                                }
+                            };
+                            let parts = parts_map.remove(&message_id).unwrap_or_default();
+
                             notify_new_message(state, message, parts).await;
                         }
                         PushJob::FriendRequest {
@@ -551,20 +828,40 @@ pub fn init_push_dispatcher(state: AppState) {
             })
             .await;
     });
+
+    // 兜底 DB 队列：当内存队列满时落库，后台轮询重试入队
+    start_push_db_queue_worker(state);
 }
 
 pub fn enqueue_new_message(state: &AppState, message: MessageWithSender, parts: Vec<MessagePart>) {
     if let Some(dispatcher) = push_dispatcher() {
-        if dispatcher
-            .tx
-            .try_send(PushJob::NewMessage { message, parts })
-            .is_ok()
-        {
-            return;
-        }
+        let job = PushJob::NewMessage { message, parts };
+        match dispatcher.tx.try_send(job) {
+            Ok(_) => return,
+            Err(e) => {
+                let job = match e {
+                    tokio::sync::mpsc::error::TrySendError::Full(job) => job,
+                    tokio::sync::mpsc::error::TrySendError::Closed(job) => job,
+                };
+                let PushJob::NewMessage { message, .. } = job else {
+                    return;
+                };
 
-        warn!("Push: job queue 满，丢弃 new_message push job");
-        return;
+                let message_id = message.id;
+                warn!(
+                    "Push: job queue 发送失败，已落库等待重试 job_type=message message_id={}",
+                    message_id
+                );
+                enqueue_push_job_to_db(
+                    state.clone(),
+                    "message",
+                    serde_json::json!({
+                        "message_id": message_id,
+                    }),
+                );
+                return;
+            }
+        }
     }
 
     let state = state.clone();
@@ -580,22 +877,50 @@ pub fn enqueue_friend_request(
     message: Option<String>,
 ) {
     if let Some(dispatcher) = push_dispatcher() {
-        if dispatcher
-            .tx
-            .try_send(PushJob::FriendRequest {
-                request_id,
-                requester_id,
-                requester_name,
-                target_user_id,
-                message,
-            })
-            .is_ok()
-        {
-            return;
-        }
+        let job = PushJob::FriendRequest {
+            request_id,
+            requester_id,
+            requester_name,
+            target_user_id,
+            message,
+        };
 
-        warn!("Push: job queue 满，丢弃 friend_request push job");
-        return;
+        match dispatcher.tx.try_send(job) {
+            Ok(_) => return,
+            Err(e) => {
+                let job = match e {
+                    tokio::sync::mpsc::error::TrySendError::Full(job) => job,
+                    tokio::sync::mpsc::error::TrySendError::Closed(job) => job,
+                };
+                let PushJob::FriendRequest {
+                    request_id,
+                    requester_id,
+                    requester_name,
+                    target_user_id,
+                    message,
+                } = job
+                else {
+                    return;
+                };
+
+                warn!(
+                    "Push: job queue 发送失败，已落库等待重试 job_type=friend_request request_id={}",
+                    request_id
+                );
+                enqueue_push_job_to_db(
+                    state.clone(),
+                    "friend_request",
+                    serde_json::json!({
+                        "request_id": request_id,
+                        "requester_id": requester_id,
+                        "requester_name": requester_name,
+                        "target_user_id": target_user_id,
+                        "message": message,
+                    }),
+                );
+                return;
+            }
+        }
     }
 
     let state = state.clone();
@@ -622,23 +947,53 @@ pub fn enqueue_group_event(
     body: String,
 ) {
     if let Some(dispatcher) = push_dispatcher() {
-        if dispatcher
-            .tx
-            .try_send(PushJob::GroupEvent {
-                targets,
-                room_id,
-                room_name,
-                event: event.to_string(),
-                title,
-                body,
-            })
-            .is_ok()
-        {
-            return;
-        }
+        let job = PushJob::GroupEvent {
+            targets,
+            room_id,
+            room_name,
+            event: event.to_string(),
+            title,
+            body,
+        };
 
-        warn!("Push: job queue 满，丢弃 group_event push job");
-        return;
+        match dispatcher.tx.try_send(job) {
+            Ok(_) => return,
+            Err(e) => {
+                let job = match e {
+                    tokio::sync::mpsc::error::TrySendError::Full(job) => job,
+                    tokio::sync::mpsc::error::TrySendError::Closed(job) => job,
+                };
+                let PushJob::GroupEvent {
+                    targets,
+                    room_id,
+                    room_name,
+                    event,
+                    title,
+                    body,
+                } = job
+                else {
+                    return;
+                };
+
+                warn!(
+                    "Push: job queue 发送失败，已落库等待重试 job_type=group_event room_id={}",
+                    room_id
+                );
+                enqueue_push_job_to_db(
+                    state.clone(),
+                    "group_event",
+                    serde_json::json!({
+                        "targets": targets,
+                        "room_id": room_id,
+                        "room_name": room_name,
+                        "event": event,
+                        "title": title,
+                        "body": body,
+                    }),
+                );
+                return;
+            }
+        }
     }
 
     let state = state.clone();

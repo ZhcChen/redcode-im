@@ -26,6 +26,7 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 - 发送链路：
   - 在消息发送成功后异步触发 push（不阻塞发消息接口）
   - 后台队列/Worker：通过内置队列统一消费 push job，避免业务接口直接 `tokio::spawn` 大量 push 任务
+  - 兜底 DB 队列：当内存 push job 队列满（或通道不可用）时，push job 写入 `push_job_queue`，由后台 worker 轮询重试入队（指数退避 + 最大尝试次数），避免直接丢弃
   - 首版仅实现 **FCM HTTP v1**（通过 Admin 后台配置启用）
   - 默认 `PUSH_SKIP_IF_ONLINE=true`：基于跨节点在线态（Redis）判断“在线则跳过”以减少重复提醒
   - 基础失败重试：指数退避，最多 3 次；每次发送结果写入 `push_logs`
@@ -64,6 +65,13 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 
 - 一次通知事件的全链路排查：用 `push_id` 过滤，即可看到同一事件对多个设备的发送结果与错误信息。
 - 常用过滤维度：`event_type`、`success`、`provider/channel/platform`、时间范围、关键字（标题/正文/错误/用户名等）。
+
+### push_job_queue
+
+用于“内存队列溢出”的兜底队列（不作为主链路，避免每条消息都落库）：
+- 当 `PUSH_JOB_QUEUE_CAPACITY` 满导致 `try_send` 失败时：写入 `push_job_queue`（`status=pending`）
+- 后台 worker 会定期认领 due job，并尝试重新入队；失败则按退避规则更新 `next_run_at` 并增加 `attempts`
+- 超过最大尝试次数后置为 `failed`，避免队列抖动
 
 ## 推送载荷约定
 
@@ -116,6 +124,11 @@ Backend 会附带以下 `data`：
 - `PUSH_DEVICE_SEND_CONCURRENCY=20`：单个事件内对多个设备发送的并发度
 - `PUSH_JOB_QUEUE_CAPACITY=10000`：push job 队列容量
 - `PUSH_JOB_CONCURRENCY=20`：push job worker 并发度
+- `PUSH_DB_QUEUE_ENABLED=true`：是否启用 push job DB 兜底队列（默认 true）
+- `PUSH_DB_QUEUE_BATCH_SIZE=200`：每轮认领 due job 数量
+- `PUSH_DB_QUEUE_POLL_INTERVAL_SECONDS=2`：轮询间隔（秒）
+- `PUSH_DB_QUEUE_MAX_ATTEMPTS=12`：最大重试次数
+- `PUSH_DB_QUEUE_RETRY_BASE_SECONDS=2` / `PUSH_DB_QUEUE_RETRY_MAX_SECONDS=300`：重试退避（秒）
 
 ### Flutter（Android / iOS）
 

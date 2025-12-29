@@ -15,6 +15,7 @@ pub mod message_reaction_store;
 pub mod message_store;
 pub mod models;
 pub mod push_device_store;
+pub mod push_job_store;
 pub mod push_log_store;
 pub mod push_provider_config_store;
 pub mod report_store;
@@ -151,6 +152,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20251228130000_create_push_logs.sql"
+        )),
+    ),
+    // 2025-12-29：Push job 落库队列（内存队列满时落库并重试）
+    (
+        "20251229100000_create_push_job_queue.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20251229100000_create_push_job_queue.sql"
         )),
     ),
 ];
