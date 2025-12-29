@@ -101,6 +101,9 @@ async fn main() {
         connection_manager,
     };
 
+    // 启动 Push 后台发送队列（避免业务接口直接 spawn 大量 push 任务）
+    services::push::init_push_dispatcher(state.clone());
+
     let app = routes::create_routes()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

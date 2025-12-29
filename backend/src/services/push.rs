@@ -1,23 +1,25 @@
 use chrono::{Duration, Utc};
+use futures_util::StreamExt;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use once_cell::sync::OnceCell;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     env,
     sync::Arc,
+    time::Duration as StdDuration,
 };
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tokio::sync::{mpsc, RwLock, Semaphore};
+use tokio_stream::wrappers::ReceiverStream;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::crypto::SecretCrypto;
-use crate::database::models::{
-    MessagePart, MessagePartType, MessageWithSender, NotificationSetting, RoomType,
-};
 use crate::database::member_with_user_info::RoomMemberWithUserInfo;
+use crate::database::models::{
+    MessagePart, MessagePartType, MessageWithSender, NotificationSetting, PushDevice, RoomType,
+};
 use crate::database::push_device_store::PushDeviceStore;
 use crate::database::push_log_store::PushLogStore;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
@@ -32,8 +34,43 @@ const SETTING_PUSH_SKIP_IF_ONLINE: &str = "push_skip_if_online";
 const PUSH_RUNTIME_TTL_SECONDS: i64 = 10;
 const PUSH_SEND_MAX_ATTEMPTS: i32 = 3;
 const PUSH_SEND_RETRY_BASE_MS: u64 = 300;
+const PUSH_SEND_HTTP_TIMEOUT_SECONDS: u64 = 10;
+const PUSH_SEND_CONCURRENCY: usize = 50;
+const PUSH_DEVICE_SEND_CONCURRENCY: usize = 20;
+const PUSH_JOB_QUEUE_CAPACITY: usize = 10_000;
+const PUSH_JOB_CONCURRENCY: usize = 20;
 
 static PUSH_RUNTIME: OnceCell<RwLock<PushRuntime>> = OnceCell::new();
+static PUSH_DISPATCHER: OnceCell<PushDispatcher> = OnceCell::new();
+static PUSH_SEND_SEMAPHORE: OnceCell<Arc<Semaphore>> = OnceCell::new();
+
+#[derive(Debug)]
+enum PushJob {
+    NewMessage {
+        message: MessageWithSender,
+        parts: Vec<MessagePart>,
+    },
+    FriendRequest {
+        request_id: Uuid,
+        requester_id: Uuid,
+        requester_name: String,
+        target_user_id: Uuid,
+        message: Option<String>,
+    },
+    GroupEvent {
+        targets: Vec<Uuid>,
+        room_id: Uuid,
+        room_name: String,
+        event: String,
+        title: String,
+        body: String,
+    },
+}
+
+#[derive(Debug)]
+struct PushDispatcher {
+    tx: mpsc::Sender<PushJob>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 struct GoogleServiceAccount {
@@ -109,6 +146,88 @@ struct FcmErrorDetail {
     message: Option<String>,
     #[allow(dead_code)]
     status: Option<String>,
+    details: Option<Vec<FcmErrorExtraDetail>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FcmErrorExtraDetail {
+    #[serde(rename = "@type")]
+    #[allow(dead_code)]
+    type_url: Option<String>,
+    #[serde(rename = "errorCode")]
+    error_code: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+enum FcmSendErrorKind {
+    Transport,
+    Config,
+    Http {
+        status: reqwest::StatusCode,
+        error_code: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct FcmSendError {
+    kind: FcmSendErrorKind,
+    message: String,
+}
+
+impl FcmSendError {
+    fn is_unregistered(&self) -> bool {
+        matches!(
+            &self.kind,
+            FcmSendErrorKind::Http {
+                error_code: Some(code),
+                ..
+            } if code.eq_ignore_ascii_case("UNREGISTERED")
+        )
+    }
+
+    fn is_invalid_token(&self) -> bool {
+        match &self.kind {
+            FcmSendErrorKind::Transport => false,
+            FcmSendErrorKind::Config => false,
+            FcmSendErrorKind::Http { status, .. } => {
+                if *status != reqwest::StatusCode::BAD_REQUEST {
+                    return false;
+                }
+
+                let message = self.message.to_lowercase();
+                message.contains("not a valid fcm registration token")
+                    || message.contains("registration token is not a valid")
+                    || message.contains("invalid registration token")
+            }
+        }
+    }
+
+    fn is_permanent(&self) -> bool {
+        match &self.kind {
+            FcmSendErrorKind::Transport => false,
+            FcmSendErrorKind::Config => true,
+            FcmSendErrorKind::Http { status, .. } => {
+                if *status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                    return false;
+                }
+                status.is_client_error()
+            }
+        }
+    }
+
+    fn to_log_string(&self) -> String {
+        match &self.kind {
+            FcmSendErrorKind::Transport => self.message.clone(),
+            FcmSendErrorKind::Config => self.message.clone(),
+            FcmSendErrorKind::Http { status, error_code } => {
+                if let Some(code) = error_code.as_deref().filter(|v| !v.trim().is_empty()) {
+                    format!("status={} code={} {}", status, code, self.message)
+                } else {
+                    format!("status={} {}", status, self.message)
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -125,14 +244,23 @@ impl FcmClient {
         let sa: GoogleServiceAccount = serde_json::from_str(raw)
             .map_err(|e| format!("解析 FCM service account JSON 失败: {}", e))?;
 
+        let timeout_seconds =
+            env_u64("PUSH_HTTP_TIMEOUT_SECONDS", PUSH_SEND_HTTP_TIMEOUT_SECONDS).clamp(1, 120);
+
+        let http = reqwest::Client::builder()
+            .timeout(StdDuration::from_secs(timeout_seconds))
+            .connect_timeout(StdDuration::from_secs(5))
+            .build()
+            .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
+
         Ok(Self {
-            http: reqwest::Client::new(),
+            http,
             sa,
             cached_token: RwLock::new(None),
         })
     }
 
-    async fn access_token(&self) -> Result<String, String> {
+    async fn access_token(&self) -> Result<String, FcmSendError> {
         {
             let guard = self.cached_token.read().await;
             if let Some(token) = guard.as_ref() {
@@ -162,15 +290,19 @@ impl FcmClient {
         };
 
         let header = Header::new(Algorithm::RS256);
-        let key = EncodingKey::from_rsa_pem(self.sa.private_key.as_bytes())
-            .map_err(|e| format!("解析 private_key 失败: {}", e))?;
-        let jwt = encode(&header, &claims, &key).map_err(|e| format!("签名 JWT 失败: {}", e))?;
+        let key = EncodingKey::from_rsa_pem(self.sa.private_key.as_bytes()).map_err(|e| {
+            FcmSendError {
+                kind: FcmSendErrorKind::Config,
+                message: format!("解析 private_key 失败: {}", e),
+            }
+        })?;
+        let jwt = encode(&header, &claims, &key).map_err(|e| FcmSendError {
+            kind: FcmSendErrorKind::Config,
+            message: format!("签名 JWT 失败: {}", e),
+        })?;
 
         let mut form = HashMap::new();
-        form.insert(
-            "grant_type",
-            "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        );
+        form.insert("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
         form.insert("assertion", jwt.as_str());
 
         let resp = self
@@ -180,20 +312,32 @@ impl FcmClient {
             .form(&form)
             .send()
             .await
-            .map_err(|e| format!("请求 Google OAuth2 token 失败: {}", e))?;
+            .map_err(|e| FcmSendError {
+                kind: FcmSendErrorKind::Transport,
+                message: format!("请求 Google OAuth2 token 失败: {}", e),
+            })?;
 
         let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("读取 token 响应失败: {}", e))?;
+        let text = resp.text().await.map_err(|e| FcmSendError {
+            kind: FcmSendErrorKind::Transport,
+            message: format!("读取 token 响应失败: {}", e),
+        })?;
 
         if !status.is_success() {
-            return Err(format!("获取 access_token 失败: status={}, body={}", status, text));
+            return Err(FcmSendError {
+                kind: if status.is_client_error() {
+                    FcmSendErrorKind::Config
+                } else {
+                    FcmSendErrorKind::Transport
+                },
+                message: format!("获取 access_token 失败: status={}, body={}", status, text),
+            });
         }
 
-        let parsed: OAuthTokenResponse =
-            serde_json::from_str(&text).map_err(|e| format!("解析 token 响应失败: {}", e))?;
+        let parsed: OAuthTokenResponse = serde_json::from_str(&text).map_err(|e| FcmSendError {
+            kind: FcmSendErrorKind::Transport,
+            message: format!("解析 token 响应失败: {}", e),
+        })?;
 
         let expires_at = Utc::now() + Duration::seconds(parsed.expires_in);
         {
@@ -213,7 +357,7 @@ impl FcmClient {
         title: &str,
         body: &str,
         data: &HashMap<String, String>,
-    ) -> Result<(), String> {
+    ) -> Result<(), FcmSendError> {
         let access_token = self.access_token().await?;
 
         let url = format!(
@@ -224,8 +368,12 @@ impl FcmClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", access_token))
-                .map_err(|e| format!("构造 Authorization header 失败: {}", e))?,
+            HeaderValue::from_str(&format!("Bearer {}", access_token)).map_err(|e| {
+                FcmSendError {
+                    kind: FcmSendErrorKind::Config,
+                    message: format!("构造 Authorization header 失败: {}", e),
+                }
+            })?,
         );
         headers.insert(
             CONTENT_TYPE,
@@ -243,6 +391,15 @@ impl FcmClient {
             }
         });
 
+        let _permit = push_send_semaphore()
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| FcmSendError {
+                kind: FcmSendErrorKind::Transport,
+                message: "获取 push send semaphore 失败".to_string(),
+            })?;
+
         let resp = self
             .http
             .post(&url)
@@ -250,26 +407,42 @@ impl FcmClient {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| format!("请求 FCM 失败: {}", e))?;
+            .map_err(|e| FcmSendError {
+                kind: FcmSendErrorKind::Transport,
+                message: format!("请求 FCM 失败: {}", e),
+            })?;
 
         let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("读取 FCM 响应失败: {}", e))?;
+        let text = resp.text().await.map_err(|e| FcmSendError {
+            kind: FcmSendErrorKind::Transport,
+            message: format!("读取 FCM 响应失败: {}", e),
+        })?;
 
         if status.is_success() {
             let _ = serde_json::from_str::<FcmSendResponse>(&text).ok();
             return Ok(());
         }
 
-        let message = serde_json::from_str::<FcmErrorEnvelope>(&text)
+        let parsed = serde_json::from_str::<FcmErrorEnvelope>(&text)
             .ok()
-            .and_then(|e| e.error)
-            .and_then(|d| d.message)
+            .and_then(|e| e.error);
+        let message = parsed
+            .as_ref()
+            .and_then(|d| d.message.clone())
             .unwrap_or_else(|| text.clone());
+        let error_code = parsed
+            .and_then(|d| {
+                d.details
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find_map(|detail| detail.error_code)
+            })
+            .filter(|v| !v.trim().is_empty());
 
-        Err(format!("FCM send 失败: status={}, {}", status, message))
+        Err(FcmSendError {
+            kind: FcmSendErrorKind::Http { status, error_code },
+            message,
+        })
     }
 }
 
@@ -284,6 +457,20 @@ fn env_flag(name: &str, default: bool) -> bool {
     }
 }
 
+fn env_usize(name: &str, default: usize) -> usize {
+    env::var(name)
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(default)
+}
+
+fn env_u64(name: &str, default: u64) -> u64 {
+    env::var(name)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(default)
+}
+
 fn parse_bool_value(value: &str, default: bool) -> bool {
     match value.trim().to_lowercase().as_str() {
         "1" | "true" | "yes" | "y" | "on" => true,
@@ -294,6 +481,171 @@ fn parse_bool_value(value: &str, default: bool) -> bool {
 
 fn push_runtime_lock() -> &'static RwLock<PushRuntime> {
     PUSH_RUNTIME.get_or_init(|| RwLock::new(PushRuntime::default()))
+}
+
+fn push_send_semaphore() -> &'static Arc<Semaphore> {
+    PUSH_SEND_SEMAPHORE.get_or_init(|| {
+        let value = env_usize("PUSH_SEND_CONCURRENCY", PUSH_SEND_CONCURRENCY);
+        Arc::new(Semaphore::new(value.clamp(1, 500)))
+    })
+}
+
+fn push_dispatcher() -> Option<&'static PushDispatcher> {
+    PUSH_DISPATCHER.get()
+}
+
+pub fn init_push_dispatcher(state: AppState) {
+    if push_dispatcher().is_some() {
+        return;
+    }
+
+    let capacity = env_usize("PUSH_JOB_QUEUE_CAPACITY", PUSH_JOB_QUEUE_CAPACITY).clamp(1, 200_000);
+    let concurrency = env_usize("PUSH_JOB_CONCURRENCY", PUSH_JOB_CONCURRENCY).clamp(1, 200);
+    let (tx, rx) = mpsc::channel::<PushJob>(capacity);
+
+    if PUSH_DISPATCHER.set(PushDispatcher { tx }).is_err() {
+        return;
+    }
+
+    tokio::spawn(async move {
+        ReceiverStream::new(rx)
+            .for_each_concurrent(concurrency, |job| {
+                let state = state.clone();
+                async move {
+                    match job {
+                        PushJob::NewMessage { message, parts } => {
+                            notify_new_message(state, message, parts).await;
+                        }
+                        PushJob::FriendRequest {
+                            request_id,
+                            requester_id,
+                            requester_name,
+                            target_user_id,
+                            message,
+                        } => {
+                            notify_friend_request(
+                                state,
+                                request_id,
+                                requester_id,
+                                requester_name,
+                                target_user_id,
+                                message,
+                            )
+                            .await;
+                        }
+                        PushJob::GroupEvent {
+                            targets,
+                            room_id,
+                            room_name,
+                            event,
+                            title,
+                            body,
+                        } => {
+                            notify_group_event(
+                                state, targets, room_id, room_name, &event, title, body,
+                            )
+                            .await;
+                        }
+                    }
+                }
+            })
+            .await;
+    });
+}
+
+pub fn enqueue_new_message(state: &AppState, message: MessageWithSender, parts: Vec<MessagePart>) {
+    if let Some(dispatcher) = push_dispatcher() {
+        if dispatcher
+            .tx
+            .try_send(PushJob::NewMessage { message, parts })
+            .is_ok()
+        {
+            return;
+        }
+
+        warn!("Push: job queue 满，丢弃 new_message push job");
+        return;
+    }
+
+    let state = state.clone();
+    tokio::spawn(async move { notify_new_message(state, message, parts).await });
+}
+
+pub fn enqueue_friend_request(
+    state: &AppState,
+    request_id: Uuid,
+    requester_id: Uuid,
+    requester_name: String,
+    target_user_id: Uuid,
+    message: Option<String>,
+) {
+    if let Some(dispatcher) = push_dispatcher() {
+        if dispatcher
+            .tx
+            .try_send(PushJob::FriendRequest {
+                request_id,
+                requester_id,
+                requester_name,
+                target_user_id,
+                message,
+            })
+            .is_ok()
+        {
+            return;
+        }
+
+        warn!("Push: job queue 满，丢弃 friend_request push job");
+        return;
+    }
+
+    let state = state.clone();
+    tokio::spawn(async move {
+        notify_friend_request(
+            state,
+            request_id,
+            requester_id,
+            requester_name,
+            target_user_id,
+            message,
+        )
+        .await;
+    });
+}
+
+pub fn enqueue_group_event(
+    state: &AppState,
+    targets: Vec<Uuid>,
+    room_id: Uuid,
+    room_name: String,
+    event: &str,
+    title: String,
+    body: String,
+) {
+    if let Some(dispatcher) = push_dispatcher() {
+        if dispatcher
+            .tx
+            .try_send(PushJob::GroupEvent {
+                targets,
+                room_id,
+                room_name,
+                event: event.to_string(),
+                title,
+                body,
+            })
+            .is_ok()
+        {
+            return;
+        }
+
+        warn!("Push: job queue 满，丢弃 group_event push job");
+        return;
+    }
+
+    let state = state.clone();
+    let event = event.to_string();
+    tokio::spawn(async move {
+        notify_group_event(state, targets, room_id, room_name, &event, title, body).await
+    });
 }
 
 async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
@@ -323,7 +675,10 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
     let mut skip_if_online = env_flag("PUSH_SKIP_IF_ONLINE", true);
 
     let settings_store = SettingsStore::new(state.database.clone());
-    if let Ok(Some(record)) = settings_store.get_general_setting(SETTING_PUSH_ENABLED).await {
+    if let Ok(Some(record)) = settings_store
+        .get_general_setting(SETTING_PUSH_ENABLED)
+        .await
+    {
         enabled = parse_bool_value(&record.value, enabled);
     }
     if let Ok(Some(record)) = settings_store
@@ -411,8 +766,12 @@ pub async fn send_fcm_test(
     if !runtime.enabled {
         return Err("Push 已关闭（push_enabled=false）".to_string());
     }
-    let fcm = runtime.fcm.ok_or_else(|| "FCM 未配置或未启用".to_string())?;
-    fcm.send_to_token(device_token, title, body, data).await
+    let fcm = runtime
+        .fcm
+        .ok_or_else(|| "FCM 未配置或未启用".to_string())?;
+    fcm.send_to_token(device_token, title, body, data)
+        .await
+        .map_err(|e| e.to_log_string())
 }
 
 fn preview_text(message: &MessageWithSender, parts: &[MessagePart]) -> String {
@@ -580,26 +939,64 @@ fn should_send_for_setting(
     }
 }
 
-async fn is_user_online_for_push(state: &AppState, user_id: &Uuid) -> bool {
-    if state
-        .connection_manager
-        .is_user_online(&user_id.to_string())
-        .await
-    {
-        return true;
+async fn filter_targets_skip_online(state: &AppState, targets: Vec<Uuid>) -> Vec<Uuid> {
+    if targets.is_empty() {
+        return targets;
     }
 
-    let key = CacheKeys::user_online_status(user_id);
+    let mut candidates: Vec<Uuid> = Vec::with_capacity(targets.len());
+    for user_id in targets {
+        if state
+            .connection_manager
+            .is_user_online(&user_id.to_string())
+            .await
+        {
+            continue;
+        }
+        candidates.push(user_id);
+    }
+
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
     let Ok(mut conn) = state
         .redis
         .get_session_client()
         .get_multiplexed_async_connection()
         .await
     else {
-        return false;
+        // Redis 不可用时，保持原行为：不做跨节点在线跳过（认为离线）
+        return candidates;
     };
 
-    conn.exists::<_, bool>(&key).await.unwrap_or(false)
+    let keys: Vec<String> = candidates
+        .iter()
+        .map(|user_id| CacheKeys::user_online_status(user_id))
+        .collect();
+
+    let mut pipe = redis::pipe();
+    for key in &keys {
+        pipe.cmd("EXISTS").arg(key);
+    }
+
+    let exists_list: Vec<i32> = match pipe.query_async(&mut conn).await {
+        Ok(v) => v,
+        Err(_) => {
+            // Redis 查询失败时，保持原行为：不跳过
+            return candidates;
+        }
+    };
+
+    let mut offline: Vec<Uuid> = Vec::new();
+    for (idx, user_id) in candidates.into_iter().enumerate() {
+        let exists = exists_list.get(idx).copied().unwrap_or(0);
+        if exists == 0 {
+            offline.push(user_id);
+        }
+    }
+
+    offline
 }
 
 async fn send_to_token_with_retry(
@@ -608,14 +1005,28 @@ async fn send_to_token_with_retry(
     title: &str,
     body: &str,
     data: &HashMap<String, String>,
-) -> (bool, i32, Option<String>) {
+) -> DeviceSendOutcome {
     let mut attempt: i32 = 1;
     loop {
         match fcm.send_to_token(device_token, title, body, data).await {
-            Ok(_) => return (true, attempt, None),
+            Ok(_) => {
+                return DeviceSendOutcome {
+                    ok: true,
+                    attempt,
+                    error: None,
+                    deactivate_device: false,
+                }
+            }
             Err(e) => {
-                if attempt >= PUSH_SEND_MAX_ATTEMPTS {
-                    return (false, attempt, Some(e));
+                let deactivate_device = e.is_unregistered() || e.is_invalid_token();
+                let error = Some(e.to_log_string());
+                if e.is_permanent() || attempt >= PUSH_SEND_MAX_ATTEMPTS {
+                    return DeviceSendOutcome {
+                        ok: false,
+                        attempt,
+                        error,
+                        deactivate_device,
+                    };
                 }
                 let exp = (attempt - 1).clamp(0, 16) as u32;
                 let delay_ms = PUSH_SEND_RETRY_BASE_MS.saturating_mul(2u64.saturating_pow(exp));
@@ -624,6 +1035,139 @@ async fn send_to_token_with_retry(
             }
         }
     }
+}
+
+struct DeviceSendOutcome {
+    ok: bool,
+    attempt: i32,
+    error: Option<String>,
+    deactivate_device: bool,
+}
+
+fn push_device_send_concurrency() -> usize {
+    env_usize("PUSH_DEVICE_SEND_CONCURRENCY", PUSH_DEVICE_SEND_CONCURRENCY).clamp(1, 200)
+}
+
+async fn send_fcm_to_devices_and_log(
+    state: &AppState,
+    fcm: Arc<FcmClient>,
+    devices: Vec<PushDevice>,
+    title: String,
+    body: String,
+    data: HashMap<String, String>,
+    data_json: serde_json::Value,
+    push_id: Uuid,
+    event_type: &str,
+    room_id: Option<Uuid>,
+    message_id: Option<Uuid>,
+    request_id: Option<Uuid>,
+) {
+    let devices: Vec<PushDevice> = devices
+        .into_iter()
+        .filter(|device| device.channel == "fcm")
+        .collect();
+
+    if devices.is_empty() {
+        return;
+    }
+
+    let title = Arc::new(title);
+    let body = Arc::new(body);
+    let data = Arc::new(data);
+
+    let concurrency = push_device_send_concurrency();
+    let device_store = PushDeviceStore::new(state.database.pool());
+    let log_store = PushLogStore::new(state.database.pool());
+
+    let mut success = 0usize;
+    let mut failed = 0usize;
+
+    let mut stream = futures_util::stream::iter(devices)
+        .map(|device| {
+            let fcm = fcm.clone();
+            let title = title.clone();
+            let body = body.clone();
+            let data = data.clone();
+            async move {
+                let outcome = send_to_token_with_retry(
+                    &fcm,
+                    &device.device_token,
+                    title.as_str(),
+                    body.as_str(),
+                    data.as_ref(),
+                )
+                .await;
+                (device, outcome)
+            }
+        })
+        .buffer_unordered(concurrency);
+
+    while let Some((device, outcome)) = stream.next().await {
+        if outcome.ok {
+            success += 1;
+        } else {
+            failed += 1;
+        }
+
+        if outcome.deactivate_device {
+            match device_store
+                .deactivate_device(device.user_id, &device.device_id)
+                .await
+            {
+                Ok(updated) => {
+                    if updated {
+                        info!(
+                            "Push: 已停用无效 token user_id={}, device_id={}",
+                            device.user_id, device.device_id
+                        );
+                    }
+                }
+                Err(e) => warn!(
+                    "Push: 停用无效 token 失败 user_id={}, device_id={}, err={}",
+                    device.user_id, device.device_id, e
+                ),
+            }
+        }
+
+        if let Err(e) = log_store
+            .insert_log(
+                push_id,
+                device.user_id,
+                &device.device_id,
+                &device.platform,
+                &device.channel,
+                "fcm",
+                event_type,
+                room_id,
+                message_id,
+                request_id,
+                Some(title.as_str()),
+                Some(body.as_str()),
+                &data_json,
+                outcome.attempt,
+                outcome.ok,
+                outcome.error.as_deref(),
+            )
+            .await
+        {
+            warn!(
+                "Push: 写入 push_logs 失败 user_id={}, device_id={}, err={}",
+                device.user_id, device.device_id, e
+            );
+        }
+
+        if let Some(err) = outcome.error.as_deref() {
+            warn!(
+                "Push: 发送失败 user_id={}, device_id={}, attempt={}, err={}",
+                device.user_id, device.device_id, outcome.attempt, err
+            );
+        }
+    }
+
+    info!(
+        "Push: event_type={} push_id={} success={} failed={}",
+        event_type, push_id, success, failed
+    );
 }
 
 async fn send_basic_notification(
@@ -653,13 +1197,11 @@ async fn send_basic_notification(
 
     let skip_if_online = runtime.skip_if_online;
 
-    let mut filtered: Vec<Uuid> = Vec::new();
-    for user_id in targets {
-        if skip_if_online && is_user_online_for_push(state, &user_id).await {
-            continue;
-        }
-        filtered.push(user_id);
-    }
+    let filtered = if skip_if_online {
+        filter_targets_skip_online(state, targets).await
+    } else {
+        targets
+    };
 
     if filtered.is_empty() {
         return;
@@ -678,66 +1220,11 @@ async fn send_basic_notification(
         return;
     }
 
-    let mut success = 0usize;
-    let mut failed = 0usize;
-    let log_store = PushLogStore::new(state.database.pool());
-
-    for device in devices {
-        if device.channel != "fcm" {
-            continue;
-        }
-
-        let (ok, attempt, err) =
-            send_to_token_with_retry(&fcm, &device.device_token, &title, &body, &data).await;
-
-        if ok {
-            success += 1;
-        } else {
-            failed += 1;
-        }
-
-        if let Err(e) = log_store
-            .insert_log(
-                push_id,
-                device.user_id,
-                &device.device_id,
-                &device.platform,
-                &device.channel,
-                "fcm",
-                event_type,
-                room_id,
-                message_id,
-                request_id,
-                Some(&title),
-                Some(&body),
-                &data_json,
-                attempt,
-                ok,
-                err.as_deref(),
-            )
-            .await
-        {
-            warn!(
-                "Push: 写入 push_logs 失败 user_id={}, device_id={}, err={}",
-                device.user_id, device.device_id, e
-            );
-        }
-
-        if let Some(err) = err.as_deref() {
-            warn!(
-                "Push: 发送失败 user_id={}, device_id={}, attempt={}, err={}",
-                device.user_id, device.device_id, attempt, err
-            );
-        }
-    }
-
-    info!(
-        "Push: basic targets={} title={} success={} failed={}",
-        filtered.len(),
-        title,
-        success,
-        failed
-    );
+    send_fcm_to_devices_and_log(
+        state, fcm, devices, title, body, data, data_json, push_id, event_type, room_id,
+        message_id, request_id,
+    )
+    .await;
 }
 
 pub async fn notify_friend_request(
@@ -749,7 +1236,11 @@ pub async fn notify_friend_request(
     message: Option<String>,
 ) {
     let title = "新的好友请求".to_string();
-    let body = match message.as_deref().map(|v| v.trim()).filter(|v| !v.is_empty()) {
+    let body = match message
+        .as_deref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    {
         Some(m) => format!("{}: {}", requester_name, truncate_with_ellipsis(m, 80)),
         None => format!("{} 想添加你为好友", requester_name),
     };
@@ -847,7 +1338,10 @@ pub async fn notify_new_message(
         _ => (sender_name.clone(), preview.clone()),
     };
 
-    let members = match room_store.list_member_notification_settings(message.room_id).await {
+    let members = match room_store
+        .list_member_notification_settings(message.room_id)
+        .await
+    {
         Ok(members) => members,
         Err(e) => {
             warn!(
@@ -866,7 +1360,10 @@ pub async fn notify_new_message(
             .iter()
             .any(|(_, setting)| *setting == NotificationSetting::MentionsOnly)
     {
-        match room_store.list_members_with_user_info(message.room_id).await {
+        match room_store
+            .list_members_with_user_info(message.room_id)
+            .await
+        {
             Ok(members) => parse_mentions_from_content(&message.content, &members),
             Err(e) => {
                 warn!(
@@ -888,12 +1385,14 @@ pub async fn notify_new_message(
         if !should_send_for_setting(setting, room.room_type, &user_id, &mention_decision) {
             continue;
         }
-        if skip_if_online && is_user_online_for_push(&state, &user_id).await {
-            debug!("Push: skip online user {} for room {}", user_id, message.room_id);
-            continue;
-        }
         targets.push(user_id);
     }
+
+    let targets = if skip_if_online {
+        filter_targets_skip_online(&state, targets).await
+    } else {
+        targets
+    };
 
     if targets.is_empty() {
         return;
@@ -924,74 +1423,28 @@ pub async fn notify_new_message(
     data.insert("push_id".to_string(), push_id.to_string());
     let data_json = serde_json::to_value(&data).unwrap_or_else(|_| serde_json::json!({}));
 
-    // 逐 token 发送（首版先简单实现，后续可做并发与重试）
-    let mut success = 0usize;
-    let mut failed = 0usize;
-    let log_store = PushLogStore::new(state.database.pool());
-    for device in devices {
-        if device.channel != "fcm" {
-            continue;
-        }
-
-        let (ok, attempt, err) =
-            send_to_token_with_retry(&fcm, &device.device_token, &title, &body, &data).await;
-
-        if ok {
-            success += 1;
-        } else {
-            failed += 1;
-        }
-
-        if let Err(e) = log_store
-            .insert_log(
-                push_id,
-                device.user_id,
-                &device.device_id,
-                &device.platform,
-                &device.channel,
-                "fcm",
-                "message",
-                Some(message.room_id),
-                Some(message.id),
-                None,
-                Some(&title),
-                Some(&body),
-                &data_json,
-                attempt,
-                ok,
-                err.as_deref(),
-            )
-            .await
-        {
-            warn!(
-                "Push: 写入 push_logs 失败 user_id={}, device_id={}, err={}",
-                device.user_id, device.device_id, e
-            );
-        }
-
-        if let Some(err) = err.as_deref() {
-            warn!(
-                "Push: 发送失败 user_id={}, device_id={}, attempt={}, err={}",
-                device.user_id, device.device_id, attempt, err
-            );
-        }
-    }
-
-    info!(
-        "Push: message={} room={} targets={} success={} failed={}",
-        message.id,
-        message.room_id,
-        targets.len(),
-        success,
-        failed
-    );
+    send_fcm_to_devices_and_log(
+        &state,
+        fcm,
+        devices,
+        title,
+        body,
+        data,
+        data_json,
+        push_id,
+        "message",
+        Some(message.room_id),
+        Some(message.id),
+        None,
+    )
+    .await;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use crate::database::models::MemberRole;
+    use chrono::Utc;
 
     fn member(user_id: Uuid, username: &str, nickname: Option<&str>) -> RoomMemberWithUserInfo {
         RoomMemberWithUserInfo {

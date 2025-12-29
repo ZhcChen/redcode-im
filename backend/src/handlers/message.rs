@@ -13,8 +13,8 @@ use crate::database::{
     file_upload_multipart_store::FileUploadMultipartStore,
     file_upload_store::FileUploadStore,
     group_management_store::GroupManagementStore,
-    message_read_store::MessageReadStore,
     message_reaction_store::MessageReactionStore,
+    message_read_store::MessageReadStore,
     message_store::{MessageStore, NewMessagePart},
     models::{
         MessagePart, MessagePartType, MessageType, MessageWithSender, RoomType, StorageProvider,
@@ -759,14 +759,9 @@ pub async fn send_message(
         error!("广播消息失败: {}", e);
     }
 
-    {
-        let push_state = state.clone();
-        let push_message = enriched.clone();
-        let push_parts = part_map.get(&push_message.id).cloned().unwrap_or_default();
-        tokio::spawn(async move {
-            crate::services::push::notify_new_message(push_state, push_message, push_parts).await;
-        });
-    }
+    let push_message = enriched.clone();
+    let push_parts = part_map.get(&push_message.id).cloned().unwrap_or_default();
+    crate::services::push::enqueue_new_message(&state, push_message, push_parts);
 
     let api_message = db_message_to_api_message_info(
         &enriched,
@@ -895,14 +890,9 @@ pub async fn forward_message(
         error!("广播转发消息失败: {}", e);
     }
 
-    {
-        let push_state = state.clone();
-        let push_message = enriched.clone();
-        let push_parts = parts_map.get(&push_message.id).cloned().unwrap_or_default();
-        tokio::spawn(async move {
-            crate::services::push::notify_new_message(push_state, push_message, push_parts).await;
-        });
-    }
+    let push_message = enriched.clone();
+    let push_parts = parts_map.get(&push_message.id).cloned().unwrap_or_default();
+    crate::services::push::enqueue_new_message(&state, push_message, push_parts);
 
     let api_message = db_message_to_api_message_info(
         &enriched,
@@ -1271,14 +1261,14 @@ pub async fn edit_message(
     }
 
     if existing.deleted_at.is_some() {
-        return Err(AppError::ValidationError("消息已删除，无法编辑".to_string()));
+        return Err(AppError::ValidationError(
+            "消息已删除，无法编辑".to_string(),
+        ));
     }
 
     // 仅允许编辑文本消息
     if existing.message_type != crate::database::models::MessageType::Text {
-        return Err(AppError::ValidationError(
-            "仅支持编辑文本消息".to_string(),
-        ));
+        return Err(AppError::ValidationError("仅支持编辑文本消息".to_string()));
     }
 
     let _updated_msg = store
@@ -1384,7 +1374,9 @@ pub async fn add_message_reaction(
     }
 
     if message.deleted_at.is_some() {
-        return Err(AppError::ValidationError("消息已删除，无法添加反应".to_string()));
+        return Err(AppError::ValidationError(
+            "消息已删除，无法添加反应".to_string(),
+        ));
     }
 
     // 添加反应（toggle：如果已存在则恢复，不存在则创建）
@@ -1435,9 +1427,9 @@ pub async fn remove_message_reaction(
     Json(body): Json<Option<RemoveReactionPayload>>,
 ) -> Result<Json<ReactionResponse>, AppError> {
     // 优先使用 body，如果没有则使用 query
-    let payload = body.or(query).ok_or_else(|| {
-        AppError::ValidationError("缺少 reaction_key 参数".to_string())
-    })?;
+    let payload = body
+        .or(query)
+        .ok_or_else(|| AppError::ValidationError("缺少 reaction_key 参数".to_string()))?;
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 

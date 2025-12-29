@@ -70,28 +70,22 @@ pub async fn create_friend_request(
     notify_pending_count(&state, &friend_store, request.addressee_id).await?;
     notify_pending_count(&state, &friend_store, requester_id).await?;
 
-    {
-        let push_state = state.clone();
-        let request_id = request.id;
-        let requester_name = current_user
-            .nickname
-            .clone()
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| current_user.username.clone());
-        let request_message = request.message.clone();
-        tokio::spawn(async move {
-            crate::services::push::notify_friend_request(
-                push_state,
-                request_id,
-                requester_id,
-                requester_name,
-                target_user_id,
-                request_message,
-            )
-            .await;
-        });
-    }
+    let request_id = request.id;
+    let requester_name = current_user
+        .nickname
+        .clone()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| current_user.username.clone());
+    let request_message = request.message.clone();
+    crate::services::push::enqueue_friend_request(
+        &state,
+        request_id,
+        requester_id,
+        requester_name,
+        target_user_id,
+        request_message,
+    );
 
     Ok(Json(info))
 }

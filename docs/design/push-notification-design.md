@@ -25,9 +25,11 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
   - `POST /api/admin/push/logs/cleanup`：按保留天数清理 push 日志（管理员）
 - 发送链路：
   - 在消息发送成功后异步触发 push（不阻塞发消息接口）
+  - 后台队列/Worker：通过内置队列统一消费 push job，避免业务接口直接 `tokio::spawn` 大量 push 任务
   - 首版仅实现 **FCM HTTP v1**（通过 Admin 后台配置启用）
   - 默认 `PUSH_SKIP_IF_ONLINE=true`：基于跨节点在线态（Redis）判断“在线则跳过”以减少重复提醒
   - 基础失败重试：指数退避，最多 3 次；每次发送结果写入 `push_logs`
+  - 无效 token 自动停用：当 FCM 返回 `UNREGISTERED`（或明显的 token 非法）时，会将对应 `push_devices` 记录置为 `is_active=false`（等待客户端重新注册）
   - 覆盖触发点：新消息、好友请求、群解散/踢人/转让群主等群管理事件
 
 ### Flutter
@@ -107,6 +109,13 @@ Backend 会附带以下 `data`：
 服务端环境变量（见 `backend/.env.example`）：
 - `DATA_ENCRYPTION_KEY=...`：用于加密存储 Push 平台敏感配置（必填，生产环境建议强随机）
 - `PUSH_ENABLED=true` / `PUSH_SKIP_IF_ONLINE=true`：仅作为开发兜底（优先以后台配置为准）
+
+性能/稳定性相关（可选）：
+- `PUSH_HTTP_TIMEOUT_SECONDS=10`：FCM/OAuth 请求超时（秒）
+- `PUSH_SEND_CONCURRENCY=50`：全局并发上限（限制同时进行的 FCM 请求数）
+- `PUSH_DEVICE_SEND_CONCURRENCY=20`：单个事件内对多个设备发送的并发度
+- `PUSH_JOB_QUEUE_CAPACITY=10000`：push job 队列容量
+- `PUSH_JOB_CONCURRENCY=20`：push job worker 并发度
 
 ### Flutter（Android / iOS）
 
