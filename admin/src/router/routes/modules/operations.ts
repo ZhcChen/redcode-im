@@ -26,6 +26,16 @@ const OPERATIONS: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'push-log',
+      name: 'PushLog',
+      component: () => import('@/views/operations/push-log/index.vue'),
+      meta: {
+        locale: 'menu.operations.pushLog',
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
+    {
       path: 'storage-provider',
       name: 'StorageProviderSettings',
       component: () => import('@/views/settings/storage-provider/index.vue'),

@@ -1,9 +1,9 @@
 <template>
   <div class="system-log-container">
-    <Breadcrumb :items="['menu.dashboard', 'menu.dashboard.systemLog']" />
+    <Breadcrumb :items="['menu.operations', 'menu.operations.systemLog']" />
     <a-card
       class="general-card"
-      :title="$t('menu.dashboard.systemLog')"
+      :title="$t('menu.operations.systemLog')"
       :bordered="false"
     >
       <div class="header-actions">

@@ -21,6 +21,8 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 - 接口：
   - `POST /push/devices`：注册/更新设备 token（需要登录）
   - `DELETE /push/devices/{device_id}`：注销当前账号在该设备上的 push（软禁用）
+  - `GET /api/admin/push/logs`：查询 push 发送日志（管理员）
+  - `POST /api/admin/push/logs/cleanup`：按保留天数清理 push 日志（管理员）
 - 发送链路：
   - 在消息发送成功后异步触发 push（不阻塞发消息接口）
   - 首版仅实现 **FCM HTTP v1**（通过 Admin 后台配置启用）
@@ -55,6 +57,11 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 - `user_id`/`device_id`：目标用户与设备
 - `event_type`：`message/friend_request/group_event/...`
 - `attempt`/`success`/`error`：发送次数、是否成功与错误信息
+
+#### 运维查询建议
+
+- 一次通知事件的全链路排查：用 `push_id` 过滤，即可看到同一事件对多个设备的发送结果与错误信息。
+- 常用过滤维度：`event_type`、`success`、`provider/channel/platform`、时间范围、关键字（标题/正文/错误/用户名等）。
 
 ## 推送载荷约定
 

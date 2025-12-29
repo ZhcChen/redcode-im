@@ -24,6 +24,7 @@ export default {
   'menu.chatHistory.user': '用户聊天记录',
   'menu.operations': '运维管理',
   'menu.operations.systemLog': '系统日志',
+  'menu.operations.pushLog': 'Push 日志',
   'menu.operations.storageProvider': '对象存储提供商',
   'menu.operations.cosTest': 'COS 测试',
   'menu.operations.ipinfoToken': 'IP地理位置Token',

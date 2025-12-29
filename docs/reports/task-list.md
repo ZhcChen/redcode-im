@@ -248,6 +248,7 @@ POST /rooms/{room_id}/messages/attachments/multipart/initiate
   - ✅ Android：FCM HTTP v1（Service Account JSON）
   - 🟡 iOS：首版先走 Firebase Messaging（经 FCM 转发到 APNs）；APNs 直连可后续补齐
 - ✅ 可观测性：发送结果落库（`push_logs`）+ `push_id` 追踪（错误码聚合可后续补齐）
+- ✅ 运维可视化：Admin 支持查询/清理 push 日志（`GET /api/admin/push/logs`、`POST /api/admin/push/logs/cleanup`）
 
 #### 8.3 Flutter（移动端）
 - ✅ 集成推送 SDK：`firebase_core` + `firebase_messaging` 获取 FCM token
@@ -376,6 +377,7 @@ KEY_PASSWORD=change_me_key_password
 - **状态**: 🟡 部分完成
 - **已完成**:
   - ✅ 后端：`push_devices` 表 + `POST/DELETE /push/devices`；消息发送后异步触发推送（FCM HTTP v1）
+  - ✅ Admin：Push 日志查询/清理（`/api/admin/push/logs`）
   - ✅ Flutter：Firebase Messaging 获取 token；登录后注册、登出注销；点击通知跳转到会话
   - ✅ Flutter：本地通知兜底（WebSocket 新消息且 App 非前台时提示，不依赖 Firebase 配置）
   - ✅ Desktop：系统通知（`tauri-plugin-notification`，窗口非前台时提示）+ 提示音/任务栏提醒

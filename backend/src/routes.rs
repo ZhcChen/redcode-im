@@ -7,8 +7,8 @@ use axum::{
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
-    health, healthz, message, message_read, message_search, multipart_upload, push, report, room,
-    root, settings, user, version, ws, push_settings,
+    health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
+    push_settings, report, room, root, settings, user, version, ws,
 };
 use crate::AppState;
 
@@ -339,6 +339,12 @@ pub fn create_routes() -> Router<AppState> {
         .route("/api/admin/logs", get(admin::list_system_logs))
         .route("/api/admin/logs/stats", get(admin::get_system_log_stats))
         .route("/api/admin/logs/cleanup", post(admin::cleanup_system_logs))
+        // Push 发送日志（运维排障）
+        .route("/api/admin/push/logs", get(push_logs::list_push_logs))
+        .route(
+            "/api/admin/push/logs/cleanup",
+            post(push_logs::cleanup_push_logs),
+        )
         // 文件内容审核（COS/CI）运维 API
         .route(
             "/api/admin/file-upload-audit/tasks",

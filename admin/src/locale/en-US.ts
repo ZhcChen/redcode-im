@@ -22,6 +22,7 @@ export default {
   'menu.chatHistory.user': 'User Chat History',
   'menu.operations': 'Operations',
   'menu.operations.systemLog': 'System Logs',
+  'menu.operations.pushLog': 'Push Logs',
   'menu.operations.storageProvider': 'Object Storage Provider',
   'menu.operations.cosTest': 'COS Test',
   'menu.operations.ipinfoToken': 'IP Geolocation Token',
