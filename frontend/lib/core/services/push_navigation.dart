@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../features/chat/chat_detail_page_v2.dart';
 import '../../features/chat/models/chat_model.dart';
+import '../../features/contacts/add_friend_page.dart';
+import 'friend_store.dart';
 
 final GlobalKey<NavigatorState> pushNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -40,6 +42,28 @@ ChatType _chatTypeFromRoomType(String? roomType) {
 }
 
 Future<void> openChatFromPushPayload(Map<String, dynamic> payload) async {
+  final type = payload['type']?.toString().trim().toLowerCase();
+  if (type == 'friend_request') {
+    final navigator = pushNavigatorKey.currentState;
+    if (navigator == null) {
+      _pendingPushPayloads.add(Map<String, dynamic>.from(payload));
+      _scheduleFlushPendingPushPayloads();
+      return;
+    }
+
+    final existingFriendIds =
+        FriendStore.instance.friends.map((f) => f.user.id).toSet();
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => AddFriendPage(
+          existingFriendIds: existingFriendIds,
+          showRequestsFirst: true,
+        ),
+      ),
+    );
+    return;
+  }
+
   final roomId = payload['room_id']?.toString().trim() ?? '';
   if (roomId.isEmpty) return;
 
