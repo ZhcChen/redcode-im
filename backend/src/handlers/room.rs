@@ -418,7 +418,8 @@ pub async fn dissolve_room(
         "dissolved",
         "群聊已解散".to_string(),
         push_room_name,
-    );
+    )
+    .await;
 
     Ok(Json(DissolveRoomResponse { success: true }))
 }
@@ -507,7 +508,8 @@ pub async fn transfer_room_owner(
         "owner_transferred",
         "群主已变更".to_string(),
         push_room_name,
-    );
+    )
+    .await;
 
     Ok(Json(TransferRoomOwnerResponse {
         room_id: updated_room.id.to_string(),

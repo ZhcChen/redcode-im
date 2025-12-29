@@ -242,10 +242,10 @@ POST /rooms/{room_id}/messages/attachments/multipart/initiate
 - 推送触发点：
   - ✅ 消息落库成功后，对房间成员进行过滤并异步发送 push（已覆盖 `send_message` / `forward_message`）
   - ✅ 已补齐更多触发点：好友请求、群解散/踢人/转让群主等事件触发 push
-- ✅ 异步化：推送发送走后台任务（`tokio::spawn`），避免阻塞发消息接口
+- ✅ 异步化：业务侧仅落库 push job，后台 worker 认领并发送，避免阻塞发消息接口
 - ✅ 失败重试与退避：已实现基础重试（指数退避，最多 3 次）
 - ✅ 稳定性优化：增加 push job 队列/worker 与全局并发限流（避免高峰期 spawn 风暴），无效 token 自动停用
-- ✅ 可靠性兜底：内存 push job 队列满时落库到 `push_job_queue`，后台 worker 轮询重试入队（指数退避 + 最大尝试次数），避免直接丢弃
+- ✅ 可靠性：push job 主队列落库到 `push_job_queue`，服务异常退出后重启可继续处理（at-least-once，可能重复）
 - Provider 集成：
   - ✅ Android：FCM HTTP v1（Service Account JSON）
   - 🟡 iOS：首版先走 Firebase Messaging（经 FCM 转发到 APNs）；APNs 直连可后续补齐

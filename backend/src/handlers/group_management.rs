@@ -760,7 +760,8 @@ pub async fn remove_group_member(
         "kicked",
         "你已被移出群聊".to_string(),
         body_room_name,
-    );
+    )
+    .await;
 
     Ok(Json(RemoveGroupMemberResponse { success: true }))
 }

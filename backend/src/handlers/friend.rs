@@ -85,7 +85,8 @@ pub async fn create_friend_request(
         requester_name,
         target_user_id,
         request_message,
-    );
+    )
+    .await;
 
     Ok(Json(info))
 }
