@@ -45,6 +45,12 @@ const PUSH_DB_QUEUE_POLL_INTERVAL_SECONDS: u64 = 2;
 const PUSH_DB_QUEUE_MAX_ATTEMPTS: i32 = 12;
 const PUSH_DB_QUEUE_RETRY_BASE_SECONDS: i64 = 2;
 const PUSH_DB_QUEUE_RETRY_MAX_SECONDS: i64 = 300;
+const PUSH_DB_QUEUE_RETENTION_DAYS: i64 = 7;
+const PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS: u64 = 86400;
+const PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE: i64 = 10_000;
+const PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES: i64 = 20;
+
+const PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY: i64 = 0x7075_7368_6a6f_625f; // "pushjob_"
 
 static PUSH_RUNTIME: OnceCell<RwLock<PushRuntime>> = OnceCell::new();
 static PUSH_DB_WORKER_STARTED: OnceCell<()> = OnceCell::new();
@@ -575,6 +581,40 @@ fn push_db_next_retry_at(cfg: &PushDbQueueConfig, attempts: i32) -> chrono::Date
     Utc::now() + Duration::seconds(delay)
 }
 
+#[derive(Debug, Clone)]
+struct PushDbQueueCleanupConfig {
+    enabled: bool,
+    retention_days: i64,
+    interval_seconds: u64,
+    batch_size: i64,
+    max_batches: i64,
+}
+
+impl PushDbQueueCleanupConfig {
+    fn from_env() -> Self {
+        Self {
+            enabled: env_flag("PUSH_DB_QUEUE_CLEANUP_ENABLED", true),
+            retention_days: env_i64("PUSH_DB_QUEUE_RETENTION_DAYS", PUSH_DB_QUEUE_RETENTION_DAYS)
+                .clamp(1, 3650),
+            interval_seconds: env_u64(
+                "PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS",
+                PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS,
+            )
+            .clamp(60, 30 * 86400),
+            batch_size: env_i64(
+                "PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE",
+                PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE,
+            )
+            .clamp(1, 200_000),
+            max_batches: env_i64(
+                "PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES",
+                PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES,
+            )
+            .clamp(1, 10_000),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum PushDbJobOutcome {
     Done,
@@ -732,13 +772,96 @@ fn start_push_db_queue_worker(state: AppState) {
     });
 }
 
+async fn cleanup_push_job_queue_once(state: &AppState, cfg: &PushDbQueueCleanupConfig) {
+    if !cfg.enabled {
+        return;
+    }
+
+    let Ok(mut conn) = state.database.pool().acquire().await else {
+        return;
+    };
+
+    let locked = match sqlx::query_scalar::<_, bool>("SELECT pg_try_advisory_lock($1)")
+        .bind(PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY)
+        .fetch_one(&mut *conn)
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("Push: 获取 push_job_queue cleanup lock 失败: {}", e);
+            return;
+        }
+    };
+
+    if !locked {
+        return;
+    }
+
+    let store = PushJobStore::new(state.database.pool());
+    let mut total_deleted: u64 = 0;
+    let mut failed: Option<sqlx::Error> = None;
+
+    for _ in 0..cfg.max_batches {
+        match store
+            .cleanup_done_failed_batch(&mut conn, cfg.retention_days, cfg.batch_size)
+            .await
+        {
+            Ok(deleted) => {
+                total_deleted += deleted;
+                if deleted < cfg.batch_size as u64 {
+                    break;
+                }
+            }
+            Err(e) => {
+                failed = Some(e);
+                break;
+            }
+        }
+    }
+
+    if let Err(e) = sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY)
+        .execute(&mut *conn)
+        .await
+    {
+        warn!("Push: 释放 push_job_queue cleanup lock 失败: {}", e);
+    }
+
+    if let Some(e) = failed {
+        warn!("Push: push_job_queue 清理失败: {}", e);
+        return;
+    }
+
+    if total_deleted > 0 {
+        info!(
+            "Push: push_job_queue 清理完成 deleted={} retention_days={}",
+            total_deleted, cfg.retention_days
+        );
+    }
+}
+
+fn start_push_db_queue_cleanup_worker(state: AppState) {
+    let cfg = PushDbQueueCleanupConfig::from_env();
+    if !cfg.enabled {
+        return;
+    }
+
+    tokio::spawn(async move {
+        loop {
+            cleanup_push_job_queue_once(&state, &cfg).await;
+            tokio::time::sleep(StdDuration::from_secs(cfg.interval_seconds)).await;
+        }
+    });
+}
+
 pub fn init_push_dispatcher(state: AppState) {
     if PUSH_DB_WORKER_STARTED.set(()).is_err() {
         return;
     }
 
     // 使用 DB 队列作为主队列：所有 push job 落库后由后台 worker 认领并发送
-    start_push_db_queue_worker(state);
+    start_push_db_queue_worker(state.clone());
+    start_push_db_queue_cleanup_worker(state);
 }
 
 pub async fn enqueue_new_message(state: &AppState, message_id: Uuid) {

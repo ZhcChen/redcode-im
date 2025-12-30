@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, Postgres};
 use uuid::Uuid;
 
 const STATUS_PENDING: i16 = 0;
@@ -144,6 +144,43 @@ impl<'a> PushJobStore<'a> {
         Ok(result.rows_affected() > 0)
     }
 
+    /// 清理已完成/失败的历史任务（按 updated_at 保留）
+    ///
+    /// 注意：该方法不负责分布式互斥；多节点部署请在调用侧加 advisory lock。
+    pub async fn cleanup_done_failed_batch(
+        &self,
+        conn: &mut sqlx::pool::PoolConnection<Postgres>,
+        retention_days: i64,
+        limit: i64,
+    ) -> Result<u64, sqlx::Error> {
+        let retention_days = retention_days.clamp(0, 3650);
+        let limit = limit.clamp(1, 200_000);
+
+        let result = sqlx::query(
+            r#"
+            WITH picked AS (
+                SELECT id
+                FROM push_job_queue
+                WHERE status IN ($1, $2)
+                  AND updated_at < NOW() - make_interval(days => $3)
+                ORDER BY updated_at ASC
+                LIMIT $4
+            )
+            DELETE FROM push_job_queue t
+            USING picked
+            WHERE t.id = picked.id
+            "#,
+        )
+        .bind(STATUS_DONE)
+        .bind(STATUS_FAILED)
+        .bind(retention_days as i32)
+        .bind(limit)
+        .execute(&mut **conn)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
     pub fn is_done_status(status: i16) -> bool {
         status == STATUS_DONE
     }
@@ -152,4 +189,3 @@ impl<'a> PushJobStore<'a> {
         status == STATUS_PENDING || status == STATUS_RETRY
     }
 }
-

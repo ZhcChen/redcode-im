@@ -72,6 +72,7 @@ Push 的主队列（所有 push job 落库）：
 - 业务侧在触发 push 时写入 `push_job_queue`（`status=pending`）
 - 后台 worker 会定期认领 due job 并发送；失败则按退避规则更新 `next_run_at` 并增加 `attempts`
 - 超过最大尝试次数后置为 `failed`，避免队列抖动
+- 自动清理：`done/failed` 默认保留 7 天；多节点部署通过 DB advisory lock 保证同一时间仅一台执行清理
 
 ## 推送载荷约定
 
@@ -128,6 +129,9 @@ Backend 会附带以下 `data`：
 - `PUSH_DB_QUEUE_POLL_INTERVAL_SECONDS=2`：轮询间隔（秒）
 - `PUSH_DB_QUEUE_MAX_ATTEMPTS=12`：最大重试次数
 - `PUSH_DB_QUEUE_RETRY_BASE_SECONDS=2` / `PUSH_DB_QUEUE_RETRY_MAX_SECONDS=300`：重试退避（秒）
+- `PUSH_DB_QUEUE_RETENTION_DAYS=7`：清理保留天数（仅清理 done/failed）
+- `PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS=86400`：清理间隔（秒）
+- `PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE=10000` / `PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES=20`：清理批量与单次上限
 
 ### Flutter（Android / iOS）
 
