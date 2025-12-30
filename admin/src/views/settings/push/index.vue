@@ -45,6 +45,55 @@
           <a-divider />
 
           <div class="section">
+            <h3 class="section-title">队列状态（push_job_queue）</h3>
+            <a-alert type="warning" show-icon :closable="false" title="说明">
+              <template #default>
+                <div class="hint">
+                  服务端采用 DB 队列作为 Push
+                  主队列；此处用于观察是否存在积压与失败。
+                </div>
+              </template>
+            </a-alert>
+
+            <a-descriptions
+              :column="2"
+              size="small"
+              bordered
+              style="margin-top: 12px"
+            >
+              <a-descriptions-item label="pending">
+                {{ queueStats?.pending ?? '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="retry">
+                {{ queueStats?.retry ?? '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="due（可执行）">
+                {{ queueStats?.due ?? '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="failed">
+                {{ queueStats?.failed ?? '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="done">
+                {{ queueStats?.done ?? '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="next_run_at">
+                {{ formatTime(queueStats?.next_run_at ?? undefined) }}
+              </a-descriptions-item>
+              <a-descriptions-item label="oldest_created_at">
+                {{ formatTime(queueStats?.oldest_created_at ?? undefined) }}
+              </a-descriptions-item>
+            </a-descriptions>
+
+            <a-space style="margin-top: 12px">
+              <a-button :loading="loadingQueueStats" @click="fetchQueueStats">
+                刷新队列状态
+              </a-button>
+            </a-space>
+          </div>
+
+          <a-divider />
+
+          <div class="section">
             <h3 class="section-title">平台配置</h3>
 
             <a-card
@@ -160,10 +209,12 @@
   import useLoading from '@/hooks/loading';
   import {
     getPushSettings,
+    getPushJobQueueStats,
     testPush,
     updatePushSettings,
     upsertPushProviderConfig,
     type PushProviderConfigView,
+    type PushJobQueueStatsResponse,
   } from '@/api/settings';
 
   const router = useRouter();
@@ -198,6 +249,9 @@
     service_account_json: '',
   });
 
+  const queueStats = ref<PushJobQueueStatsResponse | null>(null);
+  const loadingQueueStats = ref(false);
+
   const { loading, setLoading } = useLoading(true);
   const savingGlobal = ref(false);
   const savingFcm = ref(false);
@@ -216,10 +270,27 @@
     return dayjs(value).format('YYYY-MM-DD HH:mm');
   };
 
+  const fetchQueueStats = async () => {
+    loadingQueueStats.value = true;
+    try {
+      const { data } = await getPushJobQueueStats();
+      queueStats.value = data;
+    } catch (_) {
+      Message.error('加载队列状态失败，请稍后重试');
+    } finally {
+      loadingQueueStats.value = false;
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data } = await getPushSettings();
+      const [settingsResp] = await Promise.all([
+        getPushSettings(),
+        fetchQueueStats().catch(() => {}),
+      ]);
+
+      const { data } = settingsResp;
       globalForm.enabled = data.enabled;
       globalForm.skip_if_online = data.skip_if_online;
       providers.value = data.providers ?? [];

@@ -100,6 +100,22 @@ export function testPush(payload: TestPushPayload) {
   return axios.post<TestPushResponse>('/api/admin/settings/push/test', payload);
 }
 
+export interface PushJobQueueStatsResponse {
+  pending: number;
+  retry: number;
+  done: number;
+  failed: number;
+  due: number;
+  next_run_at?: string | null;
+  oldest_created_at?: string | null;
+}
+
+export function getPushJobQueueStats() {
+  return axios.get<PushJobQueueStatsResponse>(
+    '/api/admin/push/job-queue/stats'
+  );
+}
+
 // ========== 文件上传提供商管理 API ==========
 
 export interface StorageProvider {
