@@ -376,20 +376,22 @@ KEY_PASSWORD=change_me_key_password
 ### 🟠 中优先级
 
 #### 1. Push 通知集成（里程碑）
-- **状态**: 🟡 部分完成
+- **状态**: 🟡 部分完成（iOS 工程材料未就绪）
 - **已完成**:
-  - ✅ 后端：`push_devices` 表 + `POST/DELETE /push/devices`；消息发送后异步触发推送（FCM HTTP v1）
-  - ✅ Admin：Push 日志查询/清理（`/api/admin/push/logs`）
+  - ✅ 后端：push 配置后台化（全局开关 + FCM Service Account 加密存储）+ 测试发送
+  - ✅ 后端：`push_devices` 表 + `POST/DELETE /push/devices`
+  - ✅ 后端：触发点覆盖（消息/好友请求/群管理事件）
+  - ✅ 后端：通知过滤（不推给自己、免打扰/仅@、跨节点在线则跳过）
+  - ✅ 后端：push job 全量落库到 `push_job_queue` + worker 多节点安全消费（`FOR UPDATE SKIP LOCKED`）
+  - ✅ 后端：自动重试/退避 + 发送结果落库（`push_logs`）与 `push_id` 追踪；无效 token 自动停用
+  - ✅ 后端：`push_job_queue` 自动清理（仅 done/failed，默认保留 7 天；advisory lock 避免多节点并发清理）
+  - ✅ Admin：Push 配置页 + Push 日志查询/清理（`/api/admin/settings/push/*`、`/api/admin/push/logs*`）
   - ✅ Flutter：Firebase Messaging 获取 token；登录后注册、登出注销；点击通知跳转到会话
   - ✅ Flutter：本地通知兜底（WebSocket 新消息且 App 非前台时提示，不依赖 Firebase 配置）
   - ✅ Desktop：系统通知（`tauri-plugin-notification`，窗口非前台时提示）+ 提示音/任务栏提醒
 - **待补齐**:
-  - ✅ 更多触发点：好友请求、群管理事件（踢人/解散/转让等）
-  - ✅ `mentions_only` 精准 @ 解析（按 `@用户名/@昵称/@all` 解析，仅对被提及成员推送）
-  - ✅ 跨节点在线状态去重（`PUSH_SKIP_IF_ONLINE` 支持跨节点在线态判断）
-  - ✅ 失败重试/退避 + 发送结果落库（`push_logs`）与 `push_id` 追踪
   - 🟡 iOS 工程侧材料（`GoogleService-Info.plist` / APNs `.p8` 等）仍需配置（仓库已提供 Push capability entitlements）
-  - ✅ 通知样式/渠道策略（基础策略已落地：iOS 前台展示选项 + 本地通知兜底 + 点击跳转）
+  - （可选）APNs 直连/厂商推送/多通道抽象（当前首版统一走 FCM HTTP v1）
 
 ### 🟡 低优先级
 #### 1. Flutter 视频预览
@@ -404,6 +406,32 @@ KEY_PASSWORD=change_me_key_password
 
 ---
 
-**最后更新**: 2025-12-29
+## 🧩 盘点新增待办（2025-12-30）
+
+> 说明：以下为“原 12 项任务清单”之外的新增待办，用于补齐文档计划与现状差异。
+
+### 🟠 中优先级
+
+1. **动态上传策略下发（Upload Policy）**
+   - **现状**：`docs/file-upload/chat-upload-limits.md` 已给出接口草案（`GET /system/upload-policy`），但后端与客户端尚未落地
+   - **目标**：把上传大小/数量/MIME 白名单等从客户端常量迁移为后端可配置并下发（缓存 + 兜底）
+   - **影响**：后续限额变更无需发版；多端策略一致
+
+2. **群聊高级管理 UI 对齐**
+   - **现状**：后端已存在群规则、入群审核等能力（`backend/src/handlers/group_management.rs`），但 Desktop/Flutter UI 暂未对齐
+   - **范围建议**：群规则（rules）/入群申请（join requests）/邀请记录等（按产品确认取舍）
+
+### 🟡 低优先级
+
+1. **CI 自动化**
+   - **现状**：仓库存在 Rust 单测与 Go 集成测试（`tests/go/*`），但缺少统一 CI（例如 GitHub Actions）自动跑
+   - **目标**：每次 PR/Push 自动执行 `cargo test` + Go tests，减少回归成本
+
+2. **文档清理与去过时**
+   - `docs/desktop/desktop-remaining-tasks.md` 已明显过时（大量条目已完成，但未勾选/未同步），建议更新为“历史记录”或重写为当前剩余清单
+
+---
+
+**最后更新**: 2025-12-30
 **总完成度**: 11/12（Push 部分完成）
 **待完成任务**: Push 通知里程碑（iOS 工程材料）
