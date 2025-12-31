@@ -17,6 +17,8 @@
 - [文件存储 API](#文件存储-api)
 - [版本管理 API](#版本管理-api)
 - [系统设置 API](#系统设置-api)
+- [Push 通知 API](#push-通知-api)
+- [其他 API](#其他-api)
 - [WebSocket 接口](#websocket-接口)
 
 ---
@@ -281,6 +283,93 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 需要认证
 - **功能**: 将消息转发到其他房间
 - **Handler**: `message::forward_message`
+
+#### 7. 编辑消息
+- **接口**: `PATCH /rooms/:room_id/messages/:message_id`
+- **权限**: 需要认证
+- **功能**: 编辑自己发送的文本消息
+- **Handler**: `message::edit_message`
+- **限制**: 仅允许编辑自己发送的文本消息
+
+**请求示例**：
+```json
+{
+  "content": "编辑后的消息内容"
+}
+```
+
+**响应**: 返回更新后的消息对象，包含 `edited_at` 字段
+
+### 消息反应 (Reactions)
+
+#### 8. 添加消息反应
+- **接口**: `POST /rooms/:room_id/messages/:message_id/reactions`
+- **权限**: 需要认证
+- **功能**: 为消息添加表情反应（toggle 模式：已存在则恢复，不存在则创建）
+- **Handler**: `message::add_message_reaction`
+- **支持的反应类型**: `👍` `❤️` `😂` `🎉` `😮` `😢`
+
+**请求示例**：
+```json
+{
+  "reaction_key": "👍"
+}
+```
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "message": "反应已添加",
+  "summaries": [
+    {
+      "reaction_key": "👍",
+      "count": 3,
+      "reacted_by_me": true
+    }
+  ]
+}
+```
+
+#### 9. 删除消息反应
+- **接口**: `DELETE /rooms/:room_id/messages/:message_id/reactions`
+- **权限**: 需要认证
+- **功能**: 删除自己对消息的表情反应
+- **Handler**: `message::remove_message_reaction`
+- **参数传递**: 支持 body 或 query 参数
+
+**请求示例**（body 或 query）：
+```json
+{
+  "reaction_key": "👍"
+}
+```
+
+#### 10. 获取消息反应
+- **接口**: `GET /rooms/:room_id/messages/:message_id/reactions`
+- **权限**: 需要认证
+- **功能**: 获取消息的所有反应聚合信息
+- **Handler**: `message::get_message_reactions`
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "message": "获取成功",
+  "summaries": [
+    {
+      "reaction_key": "👍",
+      "count": 5,
+      "reacted_by_me": false
+    },
+    {
+      "reaction_key": "❤️",
+      "count": 2,
+      "reacted_by_me": true
+    }
+  ]
+}
+```
 
 ### 消息附件
 
@@ -866,6 +955,57 @@ Authorization: Bearer <your-jwt-token>
 
 ---
 
+## Push 通知 API
+
+### 设备管理
+
+#### 1. 注册推送设备
+- **接口**: `POST /push/devices`
+- **权限**: 需要认证
+- **功能**: 注册或更新推送设备 token（支持 token 刷新）
+- **Handler**: `push::register_device`
+
+**请求示例**：
+```json
+{
+  "device_id": "device-unique-id",
+  "platform": "android",
+  "channel": "fcm",
+  "device_token": "fcm-device-token..."
+}
+```
+
+**参数说明**：
+- `device_id`: 设备唯一标识（最大 128 字符）
+- `platform`: 平台类型（`android` / `ios`）
+- `channel`: 推送通道（`fcm` / `apns`）
+- `device_token`: 推送服务下发的设备 token（最大 4096 字符）
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "message": "设备已注册",
+  "device_id": "device-unique-id"
+}
+```
+
+#### 2. 注销推送设备
+- **接口**: `DELETE /push/devices/:device_id`
+- **权限**: 需要认证
+- **功能**: 注销（软禁用）推送设备
+- **Handler**: `push::unregister_device`
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "message": "设备已注销"
+}
+```
+
+---
+
 ## 其他 API
 
 ### 反馈
@@ -1064,6 +1204,79 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 }
 ```
 
+#### 12. reaction_update - 消息反应更新
+有用户添加或删除消息反应时推送
+```json
+{
+  "type": "reaction_update",
+  "room_id": "room-uuid",
+  "message_id": "message-uuid",
+  "reaction_key": "👍",
+  "user_id": "user-uuid",
+  "action": "add"
+}
+```
+- `action`: `"add"` 添加反应 | `"remove"` 删除反应
+
+#### 13. typing_update - 正在输入
+有用户在房间中输入时推送
+```json
+{
+  "type": "typing_update",
+  "room_id": "room-uuid",
+  "user_id": "user-uuid",
+  "is_typing": true,
+  "expires_in_ms": 3000
+}
+```
+- `expires_in_ms`: 输入状态过期时间（毫秒），客户端应在过期后自动清除显示
+
+### 客户端发送事件
+
+客户端可以通过 WebSocket 发送以下事件：
+
+#### 1. auth - 认证
+```json
+{
+  "type": "auth",
+  "token": "jwt-token"
+}
+```
+
+#### 2. join - 加入房间
+```json
+{
+  "type": "join",
+  "room_id": "room-uuid"
+}
+```
+
+#### 3. leave - 离开房间
+```json
+{
+  "type": "leave",
+  "room_id": "room-uuid"
+}
+```
+
+#### 4. ping - 心跳
+```json
+{
+  "type": "ping"
+}
+```
+
+#### 5. typing - 正在输入
+```json
+{
+  "type": "typing",
+  "room_id": "room-uuid",
+  "is_typing": true
+}
+```
+- 服务端会对 typing 事件进行节流（约 1200ms），避免频繁广播
+- 发送消息、离开房间或断开连接时会自动清除 typing 状态
+
 ### 消息格式
 
 #### JSON 格式
@@ -1080,10 +1293,10 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 
 ### API 统计
 
-- **公开路由**: 9 个
-- **需要认证的路由**: 100+ 个
-- **管理后台路由**: 40+ 个
-- **WebSocket 事件类型**: 11 种
+- **公开路由**: 10+ 个
+- **需要认证的路由**: 120+ 个
+- **管理后台路由**: 50+ 个
+- **WebSocket 事件类型**: 13 种（服务端推送） + 5 种（客户端发送）
 
 ### Handler 模块列表
 
@@ -1091,7 +1304,7 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 2. `user.rs` - 用户管理
 3. `friend.rs` - 好友系统
 4. `room.rs` - 房间管理
-5. `message.rs` - 消息处理
+5. `message.rs` - 消息处理（含 reactions）
 6. `message_read.rs` - 消息已读
 7. `message_search.rs` - 消息搜索
 8. `group_management.rs` - 群组管理
@@ -1099,20 +1312,23 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 10. `version.rs` - 版本管理
 11. `settings.rs` - 系统设置
 12. `feedback.rs` - 反馈系统
-13. `websocket/mod.rs` - WebSocket
+13. `push.rs` - Push 通知
+14. `report.rs` - 举报系统
+15. `websocket/mod.rs` - WebSocket
 
 ### 技术栈
 
-- **Web 框架**: Axum 0.7
-- **异步运行时**: Tokio
-- **数据库**: PostgreSQL 15 + SQLx
-- **缓存**: Redis 7
-- **序列化**: Protocol Buffers (prost)
-- **认证**: JWT (jsonwebtoken)
-- **密码加密**: bcrypt
+- **Web 框架**: Axum 0.8.6
+- **异步运行时**: Tokio 1.44
+- **数据库**: PostgreSQL 15 + SQLx 0.8.6
+- **缓存**: Redis 7 (redis 0.32.7)
+- **序列化**: Protocol Buffers (prost 0.14.1)
+- **认证**: JWT (jsonwebtoken 9.3)
+- **密码加密**: bcrypt 0.16
+- **HTTP 客户端**: reqwest 0.12
 
 ---
 
-**文档生成时间**: 2024-11-07
+**文档最后更新**: 2025-12-31
 **API 版本**: v1
 **后端版本**: 0.1.0
