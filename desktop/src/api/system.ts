@@ -62,6 +62,36 @@ export interface LegacyUserInfo {
   powerList?: any[] | null;
 }
 
+export interface UploadPolicyMaxSizeMbByPartType {
+  image: number;
+  video: number;
+  audio: number;
+  file: number;
+}
+
+export interface UploadPolicyMimeByPartType {
+  image: string[];
+  video: string[];
+  audio: string[];
+  file: string[];
+}
+
+export interface AudioOnlyPolicy {
+  enabled: boolean;
+  force_single_attachment: boolean;
+  allow_text: boolean;
+}
+
+export interface UploadPolicyView {
+  version: string;
+  max_total_size_mb: number;
+  max_attachments_per_message: number;
+  max_size_mb_by_part_type: UploadPolicyMaxSizeMbByPartType;
+  mime_by_part_type: UploadPolicyMimeByPartType;
+  mime_whitelist: string[];
+  audio_only: AudioOnlyPolicy;
+}
+
 const mapStatusToActiveFlag = (status: BackendUserStatus): number | null => {
   switch (status) {
     case 'active':
@@ -194,6 +224,13 @@ export class SystemApi {
       code: params.code,
       new_password: params.newPassword
     });
+  }
+
+  /**
+   * 获取上传策略（登录态）
+   */
+  static async getUploadPolicy(): Promise<ApiResponse<UploadPolicyView>> {
+    return get<UploadPolicyView>('/system/upload-policy');
   }
 
   /**

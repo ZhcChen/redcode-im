@@ -808,6 +808,7 @@ import { api, MessageApi } from '../api'
 import { ReportApi } from '../api/report'
 import { logDebug, logInfo, logWarn } from '@/utils/frontendLogger'
 import type { DirectUploadSignatureInfo, MessagePartPayloadInput } from '../api/message'
+import type { UploadPolicyView } from '../api/system'
 import { GroupApi } from '../api/group'
 import type { GroupSettings } from '../api/group'
 import { FriendApi } from '../api/friend'
@@ -1051,6 +1052,134 @@ type AttachmentMeta = {
    * 仅对视频附件生效，由上传流程填充
    */
   thumbnailKey?: string | null;
+};
+
+const BUILTIN_UPLOAD_POLICY: UploadPolicyView = {
+  version: 'builtin-v1',
+  max_total_size_mb: 100,
+  max_attachments_per_message: 10,
+  max_size_mb_by_part_type: {
+    image: 5,
+    video: 100,
+    audio: 20,
+    file: 50,
+  },
+  mime_by_part_type: {
+    image: ['image/jpeg', 'image/png', 'image/webp'],
+    video: ['video/mp4', 'video/quicktime'],
+    audio: ['audio/aac', 'audio/m4a', 'audio/mp4'],
+    file: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/zip',
+    ],
+  },
+  mime_whitelist: [],
+  audio_only: {
+    enabled: true,
+    force_single_attachment: true,
+    allow_text: false,
+  },
+};
+
+const UPLOAD_POLICY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const uploadPolicy = ref<UploadPolicyView>(BUILTIN_UPLOAD_POLICY);
+
+const normalizeMime = (value: string) => value.trim().toLowerCase();
+
+const normalizeMimeList = (raw: unknown): string[] => {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const set = new Set<string>();
+  raw.forEach((item) => {
+    if (typeof item !== 'string') return;
+    const normalized = normalizeMime(item);
+    if (!normalized) return;
+    set.add(normalized);
+  });
+  return Array.from(set).sort();
+};
+
+const clampInt = (
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(value)));
+};
+
+const normalizeUploadPolicy = (policy: UploadPolicyView): UploadPolicyView => {
+  const base = BUILTIN_UPLOAD_POLICY;
+  return {
+    version: policy?.version?.trim() || base.version,
+    max_total_size_mb: clampInt(policy?.max_total_size_mb, 1, 10_000, base.max_total_size_mb),
+    max_attachments_per_message: clampInt(
+      policy?.max_attachments_per_message,
+      0,
+      200,
+      base.max_attachments_per_message,
+    ),
+    max_size_mb_by_part_type: {
+      image: clampInt(policy?.max_size_mb_by_part_type?.image, 1, 10_000, base.max_size_mb_by_part_type.image),
+      video: clampInt(policy?.max_size_mb_by_part_type?.video, 1, 10_000, base.max_size_mb_by_part_type.video),
+      audio: clampInt(policy?.max_size_mb_by_part_type?.audio, 1, 10_000, base.max_size_mb_by_part_type.audio),
+      file: clampInt(policy?.max_size_mb_by_part_type?.file, 1, 10_000, base.max_size_mb_by_part_type.file),
+    },
+    mime_by_part_type: {
+      image: normalizeMimeList(policy?.mime_by_part_type?.image) || base.mime_by_part_type.image,
+      video: normalizeMimeList(policy?.mime_by_part_type?.video) || base.mime_by_part_type.video,
+      audio: normalizeMimeList(policy?.mime_by_part_type?.audio) || base.mime_by_part_type.audio,
+      file: normalizeMimeList(policy?.mime_by_part_type?.file) || base.mime_by_part_type.file,
+    },
+    mime_whitelist: normalizeMimeList(policy?.mime_whitelist),
+    audio_only: {
+      enabled: !!policy?.audio_only?.enabled,
+      force_single_attachment: policy?.audio_only?.force_single_attachment !== false,
+      allow_text: !!policy?.audio_only?.allow_text,
+    },
+  };
+};
+
+const isMimeAllowedForPartType = (
+  partType: Exclude<MessagePartPayloadInput['type'], 'text'>,
+  mime: string,
+): boolean => {
+  const normalized = normalizeMime(mime || '');
+  if (!normalized) return false;
+  const list = uploadPolicy.value?.mime_by_part_type?.[partType] || BUILTIN_UPLOAD_POLICY.mime_by_part_type[partType];
+  return Array.isArray(list) && list.some((v) => normalizeMime(v) === normalized);
+};
+
+const refreshUploadPolicy = async () => {
+  const cached = await loadCache<UploadPolicyView>(CACHE_KEYS.uploadPolicy);
+  if (cached?.data) {
+    uploadPolicy.value = normalizeUploadPolicy(cached.data);
+  }
+
+  if (cached && Date.now() - cached.updatedAt < UPLOAD_POLICY_CACHE_TTL_MS) {
+    return;
+  }
+
+  try {
+    const resp = await api.system.getUploadPolicy();
+    if (resp.success && resp.data) {
+      const normalized = normalizeUploadPolicy(resp.data);
+      uploadPolicy.value = normalized;
+      await saveCache(CACHE_KEYS.uploadPolicy, normalized);
+    }
+  } catch (error: any) {
+    // 不阻断：客户端会使用缓存/内置默认值，服务端仍会做严格校验
+    logWarn('UploadPolicy', '刷新上传策略失败', { error: error?.message || String(error) });
+  }
 };
 
 const MESSAGES_CACHE_LIMIT = 200;
@@ -1463,27 +1592,28 @@ const getAudioFileDuration = (file: File): Promise<number> => {
 
 const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
   const mime = file.type?.toLowerCase() || 'application/octet-stream';
+  const normalizedMime = normalizeMime(mime);
 
-  if (mime.startsWith('image/')) {
+  if (isMimeAllowedForPartType('image', normalizedMime)) {
     try {
       const { width, height } = await getImageDimensions(file);
       return {
         partType: 'image',
         width,
         height,
-        mime,
+        mime: normalizedMime,
         summary: buildAttachmentSummary('image', file.name)
       };
     } catch (error) {
       return {
         partType: 'image',
-        mime,
+        mime: normalizedMime,
         summary: buildAttachmentSummary('image', file.name)
       };
     }
   }
 
-  if (mime.startsWith('video/')) {
+  if (isMimeAllowedForPartType('video', normalizedMime)) {
     console.log('检测到视频文件，开始获取元数据:', file.name)
     try {
       // 设置超时，避免某些视频文件导致卡住
@@ -1499,40 +1629,44 @@ const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
         width,
         height,
         durationMs,
-        mime,
+        mime: normalizedMime,
         summary: buildAttachmentSummary('video', file.name)
       };
     } catch (error: any) {
       console.warn('获取视频元数据失败，继续上传（无元数据）:', error?.message || error, file.name)
       return {
         partType: 'video',
-        mime,
+        mime: normalizedMime,
         summary: buildAttachmentSummary('video', file.name)
       };
     }
   }
 
-  if (mime.startsWith('audio/')) {
+  if (isMimeAllowedForPartType('audio', normalizedMime)) {
     try {
       const durationMs = await getAudioFileDuration(file);
       return {
         partType: 'audio',
         durationMs,
-        mime,
+        mime: normalizedMime,
         summary: buildAttachmentSummary('audio', file.name)
       };
     } catch (error) {
       return {
         partType: 'audio',
-        mime,
+        mime: normalizedMime,
         summary: buildAttachmentSummary('audio', file.name)
       };
     }
   }
 
+  if (!isMimeAllowedForPartType('file', normalizedMime)) {
+    throw new Error(`暂不支持该文件类型 (${normalizedMime})`)
+  }
+
   return {
     partType: 'file',
-    mime,
+    mime: normalizedMime,
     summary: buildAttachmentSummary('file', file.name)
   };
 };
@@ -5918,6 +6052,41 @@ const sendMessage = async () => {
   const user = store.getters.currentUser
   const replyToMessageId = replyingMessage.value?.id
 
+  {
+    const policy = uploadPolicy.value || BUILTIN_UPLOAD_POLICY
+    const attachmentParts = pendingAttachments.value
+      .map((item) => item?.attachmentPart as MessagePartPayloadInput | null)
+      .filter((v): v is MessagePartPayloadInput => !!v && v.type !== 'text')
+
+    const attachmentCount = attachmentParts.length
+    if (attachmentCount > policy.max_attachments_per_message) {
+      toast.error(`单条消息最多可发送 ${policy.max_attachments_per_message} 个附件`)
+      return
+    }
+
+    const totalSize = attachmentParts.reduce((sum, part) => {
+      const size = typeof part.size === 'number' && Number.isFinite(part.size) ? part.size : 0
+      return sum + size
+    }, 0)
+    const maxTotalBytes = policy.max_total_size_mb * 1024 * 1024
+    if (maxTotalBytes > 0 && totalSize > maxTotalBytes) {
+      toast.error(`附件总大小超过${policy.max_total_size_mb}MB限制`)
+      return
+    }
+
+    const hasAudio = attachmentParts.some((p) => p.type === 'audio')
+    if (hasAudio && policy.audio_only?.enabled) {
+      if (policy.audio_only.force_single_attachment && attachmentCount > 1) {
+        toast.error('语音消息暂不支持与其他附件混合发送')
+        return
+      }
+      if (!policy.audio_only.allow_text && content) {
+        toast.error('语音消息暂不支持附带文本')
+        return
+      }
+    }
+  }
+
   // 构建多部分消息内容
   const parts: MessagePartPayloadInput[] = []
   if (content) {
@@ -6897,6 +7066,15 @@ const uploadAndSendFile = async (file: File) => {
     return
   }
 
+  // 先按策略拦截“附件数量”场景，避免进入上传流程后再失败
+  {
+    const policy = uploadPolicy.value || BUILTIN_UPLOAD_POLICY
+    if (pendingAttachments.value.length >= policy.max_attachments_per_message) {
+      toast.error(`单条消息最多可发送 ${policy.max_attachments_per_message} 个附件`)
+      return
+    }
+  }
+
   let tempId: string | null = null
   let attachmentKey = ''
   let localUrl: string | null = null
@@ -6914,16 +7092,40 @@ const uploadAndSendFile = async (file: File) => {
       return
     }
 
-    const sizeLimitMap: Record<Exclude<MessagePartPayloadInput['type'], 'text'>, number> = {
-      image: 5 * 1024 * 1024,
-      video: 50 * 1024 * 1024,
-      audio: 50 * 1024 * 1024,
-      file: 100 * 1024 * 1024,
+    {
+      const policy = uploadPolicy.value || BUILTIN_UPLOAD_POLICY
+      const hasPendingAudio = pendingAttachments.value.some((item) => item?.attachmentPart?.type === 'audio')
+      const hasText = newMessage.value.trim().length > 0
+      const isAudio = meta.partType === 'audio'
+
+      if (policy.audio_only?.enabled) {
+        if (hasPendingAudio && !isAudio) {
+          toast.error('语音消息暂不支持与其他附件混合发送')
+          return
+        }
+        if (isAudio) {
+          if (policy.audio_only.force_single_attachment && pendingAttachments.value.length > 0) {
+            toast.error('语音消息暂不支持与其他附件混合发送')
+            return
+          }
+          if (!policy.audio_only.allow_text && hasText) {
+            toast.error('语音消息暂不支持附带文本')
+            return
+          }
+        }
+      }
     }
-    const limit = sizeLimitMap[meta.partType] ?? 50 * 1024 * 1024
-    if (file.size > limit) {
-      toast.error(`文件大小不能超过${meta.partType === 'image' ? '5MB' : meta.partType === 'video' ? '50MB' : '100MB'}`)
-      return
+
+    {
+      const policy = uploadPolicy.value || BUILTIN_UPLOAD_POLICY
+      const partType = meta.partType as Exclude<MessagePartPayloadInput['type'], 'text'>
+      const mb = policy.max_size_mb_by_part_type?.[partType]
+      const maxMb = typeof mb === 'number' && Number.isFinite(mb) ? mb : 50
+      const limit = maxMb * 1024 * 1024
+      if (file.size > limit) {
+        toast.error(`文件大小不能超过${maxMb}MB`)
+        return
+      }
     }
 
     // 计算文件哈希（用于后端去重）
@@ -9904,6 +10106,9 @@ onMounted(async () => {
   eventManager.addWindowListener('websocket-group-settings-updated', handleGroupSettingsUpdatedEvent as EventListener)
   eventManager.addWindowListener('websocket-group-member-changed', handleGroupMemberChangedEvent as EventListener)
   eventManager.addWindowListener('websocket-room-history-cleared', handleRoomHistoryClearedEvent as EventListener)
+
+  // 上传策略：优先读缓存，后台刷新（不阻塞页面初始化）
+  void refreshUploadPolicy()
 
   // 添加点击外部关闭表情选择器的监听器
   document.addEventListener('click', handleClickOutside)
