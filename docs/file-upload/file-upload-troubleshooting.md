@@ -88,12 +88,19 @@ if (!allowedTypes.includes(file.type)) {
 2. 确认文件类型对应的大小限制
 3. 考虑压缩文件
 
-**大小限制参考**:
+**动态上传策略（Upload Policy）**:
+> 自 2025-12 起，文件大小/数量/MIME 白名单等限制已由后端动态下发（Upload Policy），客户端应从 `GET /system/upload-policy` 获取实时配置。
+
+**默认大小限制参考**（`builtin-v1` 策略）:
 - 头像: 5MB
-- 图片: 10MB
+- 图片: 5MB
 - 音频: 20MB
 - 视频: 100MB
 - 文档/压缩包/其它: 50MB
+- 单条消息附件总大小: 100MB
+- 单条消息最大附件数: 10
+
+**管理员可通过**：`PUT /api/admin/settings/upload-policy` 或管理后台「通用设置 → 上传策略」调整上述限制。
 
 #### 错误3: 上传完成校验失败（size/hash）
 **错误信息**:
@@ -150,6 +157,50 @@ tail -f /path/to/logs/app.log | grep "signature"
 date
 # 同步时间
 sudo ntpdate -s time.apple.com
+```
+
+### 📦 分片上传错误
+
+> 大文件（> 5MB）会自动走 COS Multipart Upload（分片直传）。
+
+#### 错误1: 分片会话初始化失败
+**错误信息**: `创建分片会话失败`
+**排查步骤**:
+1. 确认存储提供商配置正确且已启用
+2. 检查 COS Bucket 权限是否包含 `InitiateMultipartUpload`
+3. 查看后端日志中的详细错误
+
+#### 错误2: 分片上传超时或中断
+**错误信息**: `分片上传超时` / 网络中断
+**排查步骤**:
+1. 检查网络稳定性
+2. 增加客户端重试机制
+3. 查询分片会话状态：`GET /uploads/multipart/sessions/{session_id}`
+
+**恢复中断的上传**:
+- 分片会话信息保存在 `file_upload_multipart_sessions` 表
+- 客户端可通过 `session_id` 查询已完成的分片，继续上传剩余分片
+- 超时的会话会被后台清理任务自动 `abort`
+
+#### 错误3: 分片合并失败
+**错误信息**: `Complete multipart upload failed`
+**排查步骤**:
+1. 确认所有分片都已上传成功
+2. 检查分片 ETag 是否正确记录
+3. 查看 COS 控制台的分片上传记录
+
+**数据库查询**:
+```sql
+-- 检查分片会话状态
+SELECT id, status, total_parts, completed_parts, created_at
+FROM file_upload_multipart_sessions
+WHERE id = '会话UUID';
+
+-- 检查各分片状态
+SELECT part_number, etag, uploaded_at
+FROM file_upload_multipart_parts
+WHERE session_id = '会话UUID'
+ORDER BY part_number;
 ```
 
 ### 🔧 后端处理错误
@@ -210,7 +261,7 @@ tail -f /path/to/logs/app.log | grep -E "(upload|signature|COS)"
 psql -h localhost -U username -d database -c "SELECT NOW();"
 
 # 测试存储提供商配置
-curl -X GET "http://localhost:8080/api/admin/storage-providers/default" \
+curl -X GET "http://localhost:8010/api/admin/storage-providers/default" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -341,6 +392,6 @@ pub async fn get_cached_signature(key: &str) -> Option<String> {
 
 ---
 
-**文档版本**: v1.1
-**更新时间**: 2025-11-08
+**文档版本**: v1.2
+**更新时间**: 2025-12-31
 **维护者**: 开发团队

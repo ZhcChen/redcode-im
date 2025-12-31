@@ -81,7 +81,7 @@ export FILE_UPLOAD_CLEANUP_BATCH_SIZE=200
 ### 2.2 管理后台配置
 
 1. 启动后端服务
-2. 访问管理后台（通常为 `http://localhost:8080/admin`）
+2. 访问管理后台（通常为 `http://localhost:8010/admin`）
 3. 进入 **系统管理 → 存储提供商**
 4. 点击 **添加存储提供商**：
 
@@ -105,11 +105,11 @@ export FILE_UPLOAD_CLEANUP_BATCH_SIZE=200
 
 ```bash
 # 测试存储提供商配置
-curl -X GET "http://localhost:8080/api/admin/storage-providers/default" \
+curl -X GET "http://localhost:8010/api/admin/storage-providers/default" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 测试头像上传签名生成
-curl -X POST "http://localhost:8080/users/me/avatar/direct-upload" \
+curl -X POST "http://localhost:8010/users/me/avatar/direct-upload" \
   -H "Authorization: Bearer $USER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -124,7 +124,7 @@ curl -X POST "http://localhost:8080/users/me/avatar/direct-upload" \
 
 ```bash
 # API基础URL
-export VITE_API_BASE_URL="http://localhost:8080"
+export VITE_API_BASE_URL="http://localhost:8010"
 
 # 上传相关配置
 export VITE_MAX_FILE_SIZE="10485760"  # 10MB
@@ -137,7 +137,7 @@ export VITE_ALLOWED_FILE_TYPES="image/*,audio/*,video/*,application/pdf"
 
 ```typescript
 // 基础配置
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8010';
 
 // 请求拦截器配置
 http.interceptors.request.use((config) => {
@@ -213,22 +213,17 @@ export const MessageApi = {
 
 ### 5.1 Docker配置
 
+> **注意**：COS 配置已由管理后台（`storage_providers` 表）管理，不再通过环境变量注入。
+
 ```dockerfile
 # backend/Dockerfile
-FROM rust:1.70
-
-# 设置环境变量
-ENV COS_SECRET_ID=${COS_SECRET_ID}
-ENV COS_SECRET_KEY=${COS_SECRET_KEY}
-ENV COS_REGION=${COS_REGION}
-ENV COS_BUCKET=${COS_BUCKET}
-ENV COS_ENDPOINT=${COS_ENDPOINT}
+FROM rust:1.75
 
 # 构建和运行
 WORKDIR /app
 COPY . .
 RUN cargo build --release
-CMD ["cargo", "run", "--release"]
+CMD ["./target/release/backend"]
 ```
 
 ```yaml
@@ -238,14 +233,10 @@ services:
   backend:
     build: ./backend
     environment:
-      - COS_SECRET_ID=${COS_SECRET_ID}
-      - COS_SECRET_KEY=${COS_SECRET_KEY}
-      - COS_REGION=${COS_REGION}
-      - COS_BUCKET=${COS_BUCKET}
-      - COS_ENDPOINT=${COS_ENDPOINT}
       - DATABASE_URL=postgresql://postgres:password@db:5432/redcode_im
+      - REDIS_URL=redis://redis:6379
     ports:
-      - "8080:8080"
+      - "8010:8010"
     depends_on:
       - db
       - redis
@@ -257,19 +248,16 @@ services:
 
 ```bash
 # .env
-# 腾讯云COS配置
-COS_SECRET_ID=your_secret_id
-COS_SECRET_KEY=your_secret_key
-COS_REGION=ap-shanghai
-COS_BUCKET=redcode-im-files
-COS_ENDPOINT=cos.ap-shanghai.myqcloud.com
-
 # 数据库配置
 DATABASE_URL=postgresql://postgres:password@localhost:5432/redcode_im
 
+# Redis配置
+REDIS_URL=redis://localhost:6379
+
 # JWT配置
 JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=24h
+
+# 注意：COS 配置已通过管理后台配置，无需在环境变量中设置
 ```
 
 ## 6. 生产环境部署
@@ -400,7 +388,7 @@ async function testFileSizeLimit() {
 curl -v "https://your-bucket.cos.ap-shanghai.myqcloud.com/"
 
 # 测试API连通性
-curl -v "http://localhost:8080/users/me/avatar/direct-upload" \
+curl -v "http://localhost:8010/users/me/avatar/direct-upload" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json"
 
@@ -430,6 +418,6 @@ docker-compose logs backend
 
 ---
 
-**文档版本**: v1.0
-**更新时间**: 2024-11-07
+**文档版本**: v1.1
+**更新时间**: 2025-12-31
 **维护者**: 开发团队

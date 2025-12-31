@@ -1,232 +1,11 @@
-# Desktop 客户端消息与 API 对齐任务
+# Desktop 客户端开发参考
 
-> [!WARNING]
-> 本文为 2025-11 阶段的历史任务拆解，当前已明显过时；请以 `docs/reports/task-list.md` 为准。
-> 如需继续维护桌面端专项清单，建议基于现状重写本文件（或拆分为“已完成/进行中/待规划”）。
+> **说明**：本文档保留桌面端开发过程中的关键技术决策与实现方案，供后续维护参考。
+> 任务追踪已迁移至 `docs/reports/task-list.md`。
 
-## 背景
+---
 
-移动端（`frontend` Flutter 客户端）已经具备完整的登录、联系人、群聊以及消息收发能力，服务端接口也在稳定运行。桌面端（`desktop` Tauri 应用）目前只完成基础壳体，消息发送、接收以及周边高级能力尚未落地。需要对照移动端现有实现，梳理并落地桌面端的 API 适配、状态管理与 WebSocket 事件处理。自 2025-11-03 起，桌面端必须彻底抛弃旧版数据结构，所有模型、枚举与字段命名均以 `frontend` Flutter 客户端为唯一标准，UI 行为保持现状，由适配层负责过渡。
-
-## 目标
-
-- 桌面端具备与移动端一致的即时通讯核心体验（登录后的消息收发、状态同步、历史记录、重试补偿）。
-- 对齐后端提供的 HTTP/WebSocket 接口，封装统一的数据访问层，便于后续能力扩展。
-- 搭建完善的测试与验证流程，确保桌面端可以独立完成发布。
-
-## 成功标准
-
-- ✅ 用户登录后自动建立 WebSocket 连接，支持自动重连与鉴权。
-- ✅ 文本消息可发送、可接收，状态从 `sending`→`sent`→`delivered/read` 正确流转。
-- ✅ 支持消息历史分页加载、失败重发、本地缓存。
-- ✅ 处理 `message_update`、`message_read`、`pin_update` 等推送事件，未读数实时同步。
-- ✅ 完成基础测试脚本（API/E2E）并写入 CI。
-
-## 进度更新（2025-11-08）
-
-- [x] 桌面端头像直传诊断完善：在 `UserApi.uploadAvatar`、`rust-http` 中加入 `client_debug`，并通过 `app.log` 轮转保存参数、响应、错误。
-- [x] 自动化 E2E：`VITE_AUTO_UPLOAD_TEST=true` 时自动登录 `alice` 并触发头像上传，便于复现 COS 400 问题。
-- [x] 后端配套修复：通过 `backend/sql/base.sql`（v1 基线）+ `backend/sql/migrations/`（增量）统一数据库结构，`UserStore::update_user` 返回列补全 `avatar_object_key` / `status`，消除 `ColumnNotFound`。
-- [ ] 将文件上传调试脚本扩展到多媒体消息（待产品确认范围）。
-
-## 工作拆解
-
-### 1. 前置准备
-
-- [ ] 审核后端 API 文档与 `frontend/lib` 中的服务抽象（`services`, `providers` 等），梳理桌面端需要的接口清单。
-- [ ] 为桌面端建立统一的 HTTP 客户端封装（鉴权拦截器、错误处理、重试策略）。
-- [ ] 整理消息、会话、联系人等核心模型定义，统一 ID、时间戳、状态字段；所有定义需对标 `frontend/lib/features` 内现有模型实现，禁止继续沿用遗留字段。
-
-### 2. 消息核心流程
-
-- [ ] 实现消息发送服务（文本优先），复用移动端的发送流程：本地建临时消息 → HTTP 调用 → 更新状态。
-- [ ] 开发消息接收与分发逻辑，将 WebSocket 推送写入本地状态树。
-- [ ] 支持重发、删除（对所有人/撤回）占位、失败提示等基础交互（接口可先打桩，配合后续实现）。
-- [ ] 完成消息历史分页、首屏加载、滚动定位。
-
-### 3. WebSocket 能力
-
-- [ ] 建立与后端一致的 WebSocket 客户端：心跳、鉴权、重连、断网恢复。
-- [ ] 处理 `message_update`、`message_read`、`pin_update` 等事件，保持未读数、置顶状态与移动端一致。
-- [ ] 统一事件总线，向 UI/状态管理层派发类型化事件，避免散乱监听。
-
-### 4. 多媒体与文件（待与产品确认范围）
-
-- [ ] 梳理图片、文件消息的接口与存储策略，明确上传限额与压缩需求。
-- [ ] 设计桌面端文件选择、上传进度、预览展示流程。
-- [ ] 对齐后端文件服务鉴权和临时 URL 失效策略。
-
-### 5. UI 与交互
-
-- [ ] 构建聊天列表、消息面板、输入框等组件，风格对齐移动端但适配桌面布局。
-- [ ] 实现消息状态、时间分组、未读提示、@ 提示等基础 UI 元素。
-- [ ] 支持快捷键（回车发送、`Ctrl+Enter` 换行、`Cmd+K` 搜索等）。
-
-### 6. 状态管理与本地存储
-
-- [ ] 选型并落地桌面端的全局状态管理方案（例如 Zustand、Pinia、Redux Toolkit）。
-- [ ] 设计消息与会话的归档策略：内存 + IndexedDB/文件缓存，确保重启获取最近会话。
-- [ ] 对齐移动端的未读计数、草稿、会话排序等逻辑。
-
-### 7. 测试与质量保障
-
-- [ ] 提炼移动端已有测试用例，优先使用 Go（Go 1.25）编写 API/E2E 测试（可参考 `backend/test_go` 现有结构）。
-- [ ] 定义开发自测流程：本地跑 `cargo test`、`bun run type-check`、桌面端端到端脚本。
-- [ ] 在 CI 中加入桌面端构建与核心自动化测试。
-
-### 8. 文档与对外同步
-
-- [ ] 在 `docs` 补充接口映射表、事件协议说明、状态流转图。
-- [ ] 记录桌面端开发指南：环境准备、调试技巧、常见问题。
-- [ ] 跟进产品/设计确认多媒体与高级消息功能范围。
-
-## 依赖与风险
-
-- 后端文件服务与高级消息（删除（对所有人/撤回）、转发、搜索）需确认接口和权限策略。
-- 桌面端与移动端 UI 差异可能带来额外设计成本，需要设计稿或组件库支持。
-- 多端共享账号/未读状态，需要验证 Redis 通知与客户端并发处理的一致性。
-
-## 里程碑建议
-
-1. **M1：API 与 WebSocket 基线**（完成 1-3 节）
-2. **M2：消息体验完善**（完成 4-6 节核心项）
-3. **M3：发布准备**（完成测试、文档与 CI 集成）
-
-## 附录：桌面端视频消息首帧 & 上传方案讨论（进行中）
-
-> 本节用于记录当前关于“视频消息首帧缩略图 + 上传链路”相关的设计思考，方便后续继续在 docs 目录中迭代，不代表最终结论。
-
-### 现状小结
-
-- 后端数据库层：`message_parts` 表已经包含 `thumbnail_key` 字段，API 模型也支持 `thumbnail_key`/`thumbnailKey`，可以为视频消息存储缩略图对象 Key。
-- 桌面端前端（Vue）：
-  - 发送附件时通过 HTML 的 `<input type="file">` 选择文件，拿到的是浏览器 `File` 对象；
-  - 上传附件走 COS 直传签名：`MessageApi.requestAttachmentSignature` -> `uploadWithSignature` -> Rust `rustHttp.requestRaw` 完成 PUT；
-  - 消息列表渲染时，若附件有 `thumbnailKey`，会优先显示缩略图图片 + 播放按钮的视频气泡。
-- 桌面端 Rust（Tauri）：
-  - 已引入 `ffmpeg-sidecar`，在 `generate_video_thumbnail` 命令中可基于本地视频路径调用 ffmpeg 截取首帧，并按参数（`scale`、`-q:v`）输出压缩后的 JPEG 缩略图。
-
-### 关键技术问题
-
-1. **文件选择入口是谁驱动？**
-   - 当前实现：前端使用 HTML `<input type="file">`，完全在 WebView 内完成文件选择；
-   - Rust 侧只负责 HTTP 请求和 ffmpeg 处理，不参与文件选择对话框。
-   - 影响：前端拿到的是 `File`（内存 Blob），Rust 命令（`generate_video_thumbnail`）希望拿到的是本地文件路径 `String`，两者之间需要一层“落盘”转换。
-
-2. **本地视频文件路径在什么时候准备？**
-   - 选项 A：选中文件后，**先在前端通过 Tauri FS 写入本地临时视频文件**（例如 `app_data_dir/videos/<timestamp>_xxx.mp4`），再把路径传给 Rust：
-     - 优点：与现有前端上传流程耦合最小，只是多了一步“File -> 本地路径”；
-     - 缺点：会在本地多占一份视频空间（但可以通过定期清理临时目录缓解）。
-   - 选项 B：保持当前“前端直传 COS”的方式，**上传成功后再从 COS 下载一份视频到本地**，供 ffmpeg 使用：
-     - 优点：本地只在需要截帧时才保存视频；
-     - 缺点：多一次网络下载，开销和复杂度都更高。
-   - 当前倾向：优先探索 **选项 A**，即在“选中文件 → 上传”之间，增加一小段“写入本地临时文件 + 用路径调用 Rust 截帧”的逻辑。
-
-3. **缩略图上传链路放在哪里？**
-   - 方案 1（推荐）：继续沿用 COS 直传签名：
-     - 步骤：为视频 `File` 请求一次签名（`partType: video`），为首帧缩略图再请求一次签名（`partType: image`），两者都走 `uploadWithSignature`；
-     - 发送消息时的视频分片携带：
-       - `key`: 视频对象 Key；
-       - `thumbnailKey`: 缩略图对象 Key；
-     - 优点：完全复用现有“直传签名 + Rust HTTP 客户端”的成熟路径。
-   - 方案 2：增加统一文件上传 API（例如 `/files/upload`），让缩略图走后端 HTTP 表单上传：
-     - 需要在 backend 新增接口与鉴权逻辑；
-     - 当前项目尚未约定此类统一文件上传 API，因此暂不采纳。
-
-4. **是否要把文件选择也迁移到 Rust 侧？**
-   - 理论上，桌面端可以通过 Tauri 的原生对话框（或自定义命令）让 Rust 直接获取文件路径，并在 Rust 中完成：
-     1. 文件选择；
-     2. 调用后端获取上传签名；
-     3. 使用 Rust HTTP 客户端上传视频和缩略图；
-     4. 组装消息 payload 回传给前端。
-   - 优点：
-     - 避免大文件在 WebView 与 Rust 之间反复拷贝；
-     - 上传与日志集中在 Rust 侧，便于统一诊断与重试。
-   - 缺点：
-     - 与移动端/Web 端的上传流程差异增大；
-     - 需要重构现有 `Chat.vue` 中的上传逻辑和 `MessageApi` 调用结构。
-   - 当前结论：**短期内保留 HTML `<input type="file">`，先让“本地落盘 + Rust 截帧 + COS 直传 + thumbnail_key 落库”打通；**是否将文件选择完全迁移到 Rust 侧，留待后续桌面端架构重构时再统一评估。
-
-### 已完成（视频首帧缩略图生成与上传）
-
-- [x] 在桌面端上传视频流程中，增加“File -> 本地视频路径”的落盘步骤（Tauri FS + `appDataDir()/videos`）；
-- [x] 基于本地视频路径调用 `generate_video_thumbnail` 生成首帧 JPEG（默认 `timeSec=0.5`）；
-- [x] 上传首帧 JPEG 并拿到缩略图对象 Key（当前在启用 `RUST_FILE_UPLOAD` 时通过 `rustHttp.upload('/files/upload')` 完成）；
-- [x] 在发送消息的 `parts` 中为视频分片补齐 `thumbnailKey`，让后端写入 `message_parts.thumbnail_key`；
-- [x] 记录并确认参数规范：
-  - ffmpeg：`-vf scale=320:-1 -vcodec mjpeg -q:v 2`
-  - 说明：宽度固定 320px，高度按比例缩放；`-q:v` 越小质量越高（当前取 2）。
-
-## 阶段一执行计划
-
-### API 对齐清单（参考 `frontend/lib/core/services`）
-
-| 模块 | HTTP 方法 | 路径 | 功能 | 桌面端要点 |
-| --- | --- | --- | --- | --- |
-| 会话 | `GET` | `/chats` | 查询会话列表 | 解析单聊/群聊 extra 字段，维护未读数；接入订阅同步 |
-| 消息 | `GET` | `/rooms/{roomId}/messages` | 分页拉取消息 | 支持 `limit`/`before_id`/`since_id` 查询参数，合并本地缓存 |
-| 消息 | `POST` | `/rooms/{roomId}/messages` | 发送文本/引用消息 | 创建临时消息、状态回写；预留 `message_type` 扩展 |
-| 消息 | `POST` | `/rooms/{roomId}/messages/forward` | 转发消息 | 转发信息写入 `extra.forward`，保持一致的 ForwardInfo 模型 |
-| 消息 | `DELETE` | `/rooms/{roomId}/messages/{messageId}` | 删除消息 | 配合 `message_update` 推送刷新本地状态 |
-| 消息 | `POST` | `/rooms/{roomId}/messages/{messageId}/pin` | 置顶消息 | 处理返回消息体或布尔标记两种响应 |
-| 消息 | `DELETE` | `/rooms/{roomId}/messages/{messageId}/pin` | 取消置顶 | 同步 `_pinnedMessageIds` 缓存和 UI |
-| 消息 | `POST` | `/rooms/{roomId}/messages/read` | 上报已读 | 本地状态批量更改，自行动画未读清零 |
-| 消息 | `GET` | `/rooms/{roomId}/messages/{messageId}/reads` | 获取已读成员 | 缓存 `MessageReader`，支撑阅读回执面板 |
-| 房间 | `GET` | `/rooms/{roomId}/members` | 查询群成员 | 缓存人数，驱动群成员面板 |
-| 房间 | `POST` | `/rooms` | 创建群聊 | 用于桌面端群聊引导（可后置） |
-| 好友 | `GET` | `/friends` | 获取好友列表 | 初始化联系人数据，驱动会话占位 |
-| 好友 | `POST` | `/friends/{friendUserId}/chat` | 确保私聊会话 | 新好友建立后自动加入房间 |
-| 好友申请 | `GET` | `/friends/requests` | 列表/状态过滤 | `websocket` 事件 `friend_request_update` 同步待处理数量 |
-| 好友申请 | `POST` | `/friends/requests` | 发送请求 | 保留备注信息 |
-| 好友申请 | `POST` | `/friends/requests/{requestId}/respond` | 处理好友请求 | 同步联系人与会话刷新 |
-| 用户 | `GET` | `/users/search` | 搜索用户 | 桌面端适配全局搜索体验 |
-
-> 若后端接口有新增字段，请同步更新桌面端模型与序列化逻辑。
-
-### WebSocket 事件对齐（参考 `frontend/lib/core/services/websocket_service.dart`）
-
-- `authed`：鉴权成功后重放订阅、刷新会话与好友列表。
-- `joined`/`left`：维护 `_subscribedRooms` 与 `_desiredRooms`，决定是否补拉历史消息。
-- `message`：调用消息服务去重、合并状态；与 HTTP 发送流程联动剔除临时消息。
-- `message_read`：同步本地已读状态，并失效 `MessageReader` 缓存。（桌面端当前版本已将推送转换为统一消息模型并驱动未读计数清零）
-- `message_update`：处理删除、编辑等状态变更，更新 pinned 缓存。
-- `pin_update`：刷新置顶消息 UI 与缓存字段。（桌面端已落地置顶事件监听，能够实时刷新聊天列表与当前会话状态）
-- `friend_request_update`、`friendship_created/deleted`、`friend_profile_updated`、`friends.version`：驱动联系人与侧边栏徽标。
-- `room_created`：为新群聊创建占位、触发订阅与会话刷新。
-- `error`/`pong`：调试与心跳。
-
-### 阶段一任务拆解（执行顺序建议）
-
-1. **HTTP 客户端落地**
-   - 选型 `fetch`/`axios` 或自封装 `tauri::http`，支持全局 Base URL、超时、鉴权头、错误统一处理。
-   - 写入刷新 token/登出处理策略，与桌面端本地存储方案衔接。
-
-2. **数据模型同步**
-   - 以移动端 `frontend/lib/features/**/models` 为唯一范本，重新定义 TypeScript 接口（`ChatConversation`、`Chat`、`Message`、`ForwardInfo`、`MessageReader`、`FriendInfo` 等），删除遗留的 `ChatGroupInfo`、`MessageInfo`、`FriendGroup` 等旧结构。
-  - 统一状态枚举（消息状态、房间类型、消息类型），枚举成员名称必须与 Flutter 端保持一致，禁止再出现魔法字符串。
-  - 约定前后端时间戳统一为 ISO 字符串，进入应用内即转为 `Date` 对象，由适配层负责在不破坏现有 UI 交互的情况下完成过渡。
-
-3. **本地仓储与状态管理**
-   - 确定桌面端全局状态方案（如 Zustand/Redux）与消息缓存持久化介质（IndexedDB/文件）。
-   - 设计消息字典结构：`roomId -> message[]`、`pendingMessages`、`pinnedMessageIds` 等，与移动端字段保持对齐。
-
-4. **WebSocket 客户端框架**
-   - 复刻移动端连接流程（连接→鉴权→订阅），实现自动重连、心跳、网络状态监听。
-   - 定义事件枚举与处理器，将原始推送转为应用层事件流。
-
-5. **消息发送/接收 MVP**
-   - 完成文本消息发送流程：临时 ID → HTTP → 状态更新 → WS 去重。
-   - 构建聊天列表/消息面板简版 UI 验证数据流。
-   - 支持历史消息分页加载与滚动补拉。
-   - 现阶段已完成 WebSocket 文本消息推送的归一化、未读数同步与置顶状态刷新，下一步聚焦多媒体消息和编辑提示体验。
-
-6. **验证与文档**
-   - 编写阶段一冒烟脚本：登录→建立连接→发送消息→跨端验证。
-   - 在 `docs` 更新 API 字段映射表、事件时序图、错误处理指引。
-
-完成以上步骤后，即可进入阶段二的高级消息和多媒体能力开发。
-
-## 版本更新策略（2025-11-18 更新）
+## 版本更新策略
 
 - 桌面端仅支持整包更新，不参与热补丁。
 - **启动检查**：应用启动后自动调用 `/versions/latest?platform=<windows|macos|linux>`；若发现新版本，弹窗提示。
@@ -245,3 +24,28 @@
   - macOS: `cd desktop && ./scripts/build-macos.sh arm64 stable-macos-arm64`
   - Linux: `cd desktop && ./scripts/build-linux.sh stable-linux`
   - Windows: 在Windows机器上运行 `./scripts/build-windows.sh stable-windows`（不支持从macOS交叉编译）
+
+---
+
+## 视频缩略图生成方案
+
+> 记录桌面端视频消息首帧缩略图的技术实现。
+
+### 实现概述
+
+- **ffmpeg-sidecar**：Rust 侧通过 `generate_video_thumbnail` 命令调用 ffmpeg 截取首帧
+- **参数规范**：`-vf scale=320:-1 -vcodec mjpeg -q:v 2`（宽度固定 320px，高度按比例缩放）
+- **上传链路**：继续沿用 COS 直传签名，为视频和缩略图分别请求签名后上传
+
+### 已完成功能
+
+- 在桌面端上传视频流程中，增加"File -> 本地视频路径"的落盘步骤（Tauri FS + `appDataDir()/videos`）
+- 基于本地视频路径调用 `generate_video_thumbnail` 生成首帧 JPEG
+- 上传首帧 JPEG 并拿到缩略图对象 Key
+- 在发送消息的 `parts` 中为视频分片补齐 `thumbnailKey`
+
+---
+
+**文档版本**: v2.0
+**更新时间**: 2025-12-31
+**说明**: 精简自历史任务文档，保留关键技术决策
