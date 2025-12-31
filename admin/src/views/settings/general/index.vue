@@ -251,15 +251,25 @@
 
             <a-form-item label="语音消息规则（audio_only）">
               <a-space wrap>
-                <a-switch v-model="uploadPolicyForm.audio_only.enabled" />
+                <a-switch
+                  v-model="uploadPolicyForm.audio_only.enabled"
+                  disabled
+                />
                 <span>启用</span>
                 <a-switch
                   v-model="uploadPolicyForm.audio_only.force_single_attachment"
+                  disabled
                 />
                 <span>强制单附件</span>
-                <a-switch v-model="uploadPolicyForm.audio_only.allow_text" />
+                <a-switch
+                  v-model="uploadPolicyForm.audio_only.allow_text"
+                  disabled
+                />
                 <span>允许携带文本</span>
               </a-space>
+              <template #help>
+                当前版本后端固定强制“语音不可混合其他内容”，暂不支持修改此规则。
+              </template>
             </a-form-item>
 
             <a-form-item label="MIME 白名单（image，每行一个）">

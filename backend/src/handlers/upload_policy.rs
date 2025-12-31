@@ -101,6 +101,17 @@ pub async fn update_upload_policy_admin(
         return Err(AppError::ValidationError("version 不能为空".to_string()));
     }
 
+    // 当前后端固定强制“语音不可混合其他内容”，暂不允许通过策略放开
+    let default_audio_only = crate::services::upload_policy::AudioOnlyPolicy::default();
+    if payload.audio_only.enabled != default_audio_only.enabled
+        || payload.audio_only.force_single_attachment != default_audio_only.force_single_attachment
+        || payload.audio_only.allow_text != default_audio_only.allow_text
+    {
+        return Err(AppError::ValidationError(
+            "当前版本暂不支持修改 audio_only 规则".to_string(),
+        ));
+    }
+
     let max_total_size_mb = payload.max_total_size_mb.clamp(1, 10_000);
     let max_attachments_per_message = payload.max_attachments_per_message.clamp(0, 200);
 
@@ -110,7 +121,7 @@ pub async fn update_upload_policy_admin(
         max_attachments_per_message,
         max_size_mb_by_part_type: payload.max_size_mb_by_part_type,
         mime_by_part_type: payload.mime_by_part_type,
-        audio_only: payload.audio_only,
+        audio_only: default_audio_only,
     };
 
     // 防御：去掉空字符串，避免“空 MIME”被视为可用
