@@ -413,7 +413,15 @@ KEY_PASSWORD=change_me_key_password
 ### 🟠 中优先级
 
 1. **动态上传策略下发（Upload Policy）**
-   - **现状**：`docs/file-upload/chat-upload-limits.md` 已给出接口草案（`GET /system/upload-policy`），但后端与客户端尚未落地
+   - **现状**：后端与 Admin 已落地；客户端（Flutter/Desktop）仍待接入下发并替换本地常量/硬编码
+   - **已完成**：
+     - ✅ `GET /system/upload-policy`（登录态）
+     - ✅ `GET/PUT /api/admin/settings/upload-policy` + Admin「通用设置 → 上传策略」可视化配置
+     - ✅ 后端在发送消息/获取附件签名处按策略做数量/大小/MIME 校验
+   - **待补齐**：
+     - 🟠 Flutter：拉取+缓存+兜底；替换 `AppConfig` 相关校验
+     - 🟠 Desktop：拉取+缓存+兜底；替换 `Chat.vue` 内硬编码大小/MIME 校验
+     - 🟡 Go（Go 1.25）集成测试覆盖（拉取/更新/生效）
    - **目标**：把上传大小/数量/MIME 白名单等从客户端常量迁移为后端可配置并下发（缓存 + 兜底）
    - **影响**：后续限额变更无需发版；多端策略一致
 
@@ -424,14 +432,13 @@ KEY_PASSWORD=change_me_key_password
 ### 🟡 低优先级
 
 1. **CI 自动化**
-   - **现状**：仓库存在 Rust 单测与 Go 集成测试（`tests/go/*`），但缺少统一 CI（例如 GitHub Actions）自动跑
-   - **目标**：每次 PR/Push 自动执行 `cargo test` + Go tests，减少回归成本
+   - **状态**：🚫 不做（用户明确暂不需要）
 
 2. **文档清理与去过时**
    - `docs/desktop/desktop-remaining-tasks.md` 已明显过时（大量条目已完成，但未勾选/未同步），建议更新为“历史记录”或重写为当前剩余清单
 
 ---
 
-**最后更新**: 2025-12-30
+**最后更新**: 2025-12-31
 **总完成度**: 11/12（Push 部分完成）
 **待完成任务**: Push 通知里程碑（iOS 工程材料）
