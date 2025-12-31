@@ -472,6 +472,62 @@ export function updateUserAccountLimit(payload: UpdateUserAccountLimitPayload) {
   );
 }
 
+// ========== 上传策略（Upload Policy）==========
+
+export interface UploadPolicyMaxSizeMbByPartType {
+  image: number;
+  video: number;
+  audio: number;
+  file: number;
+}
+
+export interface UploadPolicyMimeByPartType {
+  image: string[];
+  video: string[];
+  audio: string[];
+  file: string[];
+}
+
+export interface AudioOnlyPolicy {
+  enabled: boolean;
+  force_single_attachment: boolean;
+  allow_text: boolean;
+}
+
+export interface UploadPolicyView {
+  version: string;
+  max_total_size_mb: number;
+  max_attachments_per_message: number;
+  max_size_mb_by_part_type: UploadPolicyMaxSizeMbByPartType;
+  mime_by_part_type: UploadPolicyMimeByPartType;
+  mime_whitelist: string[];
+  audio_only: AudioOnlyPolicy;
+}
+
+export interface UploadPolicyAdminResponse {
+  policy: UploadPolicyView;
+  updated_at?: string | null;
+  updated_by?: string | null;
+}
+
+export type UpdateUploadPolicyPayload = Omit<
+  UploadPolicyView,
+  'mime_whitelist'
+>;
+
+export function getUploadPolicy() {
+  return axios.get<UploadPolicyAdminResponse>(
+    '/api/admin/settings/upload-policy'
+  );
+}
+
+export function updateUploadPolicy(payload: UpdateUploadPolicyPayload) {
+  return axios.put<UploadPolicyAdminResponse>(
+    '/api/admin/settings/upload-policy',
+    payload
+  );
+}
+
 // ========== IP地理位置解析开关 API ==========
 
 export interface IpGeolocationStatusResponse {

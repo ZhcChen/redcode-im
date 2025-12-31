@@ -172,6 +172,152 @@
           </a-form>
         </a-tab-pane>
 
+        <a-tab-pane key="upload-policy" title="上传策略">
+          <a-form
+            :model="uploadPolicyForm"
+            label-align="left"
+            :label-col-props="{ span: 6 }"
+            :wrapper-col-props="{ span: 18 }"
+            class="settings-form"
+            @submit="handleUploadPolicySubmit"
+          >
+            <a-alert type="info" :closable="false" style="margin-bottom: 20px">
+              用于下发给客户端（Flutter/Desktop）统一附件大小/数量/MIME
+              白名单等限制；当客户端未能拉取策略时会回退到本地默认值。
+            </a-alert>
+
+            <a-form-item field="version" label="策略版本">
+              <a-input
+                v-model="uploadPolicyForm.version"
+                placeholder="例如 2025-12-31 或 v1"
+                maxlength="50"
+              />
+              <template #help>
+                可用于排查“客户端未刷新策略”的问题，建议每次变更时递增版本。
+              </template>
+            </a-form-item>
+
+            <a-form-item label="消息级限制">
+              <a-space>
+                <a-input-number
+                  v-model="uploadPolicyForm.max_attachments_per_message"
+                  :min="0"
+                  :max="200"
+                  style="width: 200px"
+                  placeholder="单条消息最多附件数"
+                />
+                <a-input-number
+                  v-model="uploadPolicyForm.max_total_size_mb"
+                  :min="1"
+                  :max="10000"
+                  style="width: 200px"
+                  placeholder="单条消息附件总大小（MB）"
+                />
+              </a-space>
+            </a-form-item>
+
+            <a-form-item label="单文件大小上限（MB）">
+              <a-space wrap>
+                <a-input-number
+                  v-model="uploadPolicyForm.max_size_mb_by_part_type.image"
+                  :min="1"
+                  :max="10000"
+                  style="width: 200px"
+                  placeholder="image"
+                />
+                <a-input-number
+                  v-model="uploadPolicyForm.max_size_mb_by_part_type.video"
+                  :min="1"
+                  :max="10000"
+                  style="width: 200px"
+                  placeholder="video"
+                />
+                <a-input-number
+                  v-model="uploadPolicyForm.max_size_mb_by_part_type.audio"
+                  :min="1"
+                  :max="10000"
+                  style="width: 200px"
+                  placeholder="audio"
+                />
+                <a-input-number
+                  v-model="uploadPolicyForm.max_size_mb_by_part_type.file"
+                  :min="1"
+                  :max="10000"
+                  style="width: 200px"
+                  placeholder="file"
+                />
+              </a-space>
+            </a-form-item>
+
+            <a-form-item label="语音消息规则（audio_only）">
+              <a-space wrap>
+                <a-switch v-model="uploadPolicyForm.audio_only.enabled" />
+                <span>启用</span>
+                <a-switch
+                  v-model="uploadPolicyForm.audio_only.force_single_attachment"
+                />
+                <span>强制单附件</span>
+                <a-switch v-model="uploadPolicyForm.audio_only.allow_text" />
+                <span>允许携带文本</span>
+              </a-space>
+            </a-form-item>
+
+            <a-form-item label="MIME 白名单（image，每行一个）">
+              <a-textarea
+                v-model="uploadPolicyMimeText.image"
+                :auto-size="{ minRows: 4, maxRows: 10 }"
+                placeholder="例如 image/png"
+              />
+            </a-form-item>
+
+            <a-form-item label="MIME 白名单（video，每行一个）">
+              <a-textarea
+                v-model="uploadPolicyMimeText.video"
+                :auto-size="{ minRows: 4, maxRows: 10 }"
+                placeholder="例如 video/mp4"
+              />
+            </a-form-item>
+
+            <a-form-item label="MIME 白名单（audio，每行一个）">
+              <a-textarea
+                v-model="uploadPolicyMimeText.audio"
+                :auto-size="{ minRows: 4, maxRows: 10 }"
+                placeholder="例如 audio/mp4"
+              />
+            </a-form-item>
+
+            <a-form-item label="MIME 白名单（file，每行一个）">
+              <a-textarea
+                v-model="uploadPolicyMimeText.file"
+                :auto-size="{ minRows: 4, maxRows: 10 }"
+                placeholder="例如 application/pdf"
+              />
+              <template #help>
+                当前汇总白名单数量：{{ uploadPolicyMimeWhitelist.length }}
+                （后台会自动去重/转小写，并过滤危险类型）。
+              </template>
+            </a-form-item>
+
+            <a-form-item label="最后更新">
+              <a-space>
+                <span>{{ formatTime(uploadPolicyMeta.updated_at) }}</span>
+                <span v-if="uploadPolicyMeta.updated_by">
+                  updated_by: {{ uploadPolicyMeta.updated_by }}
+                </span>
+              </a-space>
+            </a-form-item>
+
+            <a-form-item>
+              <a-space>
+                <a-button type="primary" html-type="submit" :loading="loading">
+                  保存设置
+                </a-button>
+                <a-button @click="handleUploadPolicyReset"> 重置 </a-button>
+              </a-space>
+            </a-form-item>
+          </a-form>
+        </a-tab-pane>
+
         <a-tab-pane key="api-test" title="API测试">
           <ApiTest />
         </a-tab-pane>
@@ -191,6 +337,8 @@
     setIpGeolocationEnabled,
     getUserAccountLimit,
     updateUserAccountLimit,
+    getUploadPolicy,
+    updateUploadPolicy,
   } from '@/api/settings';
   import ApiTest from '../api-test/index.vue';
 
@@ -211,6 +359,55 @@
     min_length: 3,
     max_length: 20,
     enable_alphanumeric_validation: false,
+  });
+
+  const uploadPolicyMeta = reactive({
+    updated_at: '',
+    updated_by: '',
+  });
+
+  const uploadPolicyForm = reactive({
+    version: '',
+    max_total_size_mb: 100,
+    max_attachments_per_message: 10,
+    max_size_mb_by_part_type: {
+      image: 5,
+      video: 100,
+      audio: 20,
+      file: 50,
+    },
+    audio_only: {
+      enabled: true,
+      force_single_attachment: true,
+      allow_text: false,
+    },
+  });
+
+  const uploadPolicyMimeText = reactive({
+    image: '',
+    video: '',
+    audio: '',
+    file: '',
+  });
+
+  const splitMimeLines = (raw: string): string[] => {
+    return raw
+      .split(/[\n,]/g)
+      .map((v) => v.trim())
+      .filter((v) => v);
+  };
+
+  const uploadPolicyMimeWhitelist = computed(() => {
+    const list = [
+      ...splitMimeLines(uploadPolicyMimeText.image),
+      ...splitMimeLines(uploadPolicyMimeText.video),
+      ...splitMimeLines(uploadPolicyMimeText.audio),
+      ...splitMimeLines(uploadPolicyMimeText.file),
+    ];
+    const set = new Set(
+      list.map((v) => v.trim().toLowerCase()).filter((v) => v)
+    );
+    return Array.from(set).sort();
   });
 
   const isAnyValidationEnabled = computed(() => {
@@ -252,6 +449,54 @@
       }
     } catch (error) {
       Message.error('获取用户账号限制设置失败');
+    }
+  };
+
+  const formatTime = (value?: string) => {
+    if (!value) return '暂无';
+    return new Date(value).toLocaleString();
+  };
+
+  const fetchUploadPolicy = async () => {
+    try {
+      const { data } = await getUploadPolicy();
+      const policy = data?.policy;
+      if (!policy) return;
+
+      uploadPolicyMeta.updated_at = data.updated_at || '';
+      uploadPolicyMeta.updated_by = data.updated_by || '';
+
+      uploadPolicyForm.version = policy.version || '';
+      uploadPolicyForm.max_total_size_mb = policy.max_total_size_mb ?? 100;
+      uploadPolicyForm.max_attachments_per_message =
+        policy.max_attachments_per_message ?? 10;
+      uploadPolicyForm.max_size_mb_by_part_type = {
+        image: policy.max_size_mb_by_part_type?.image ?? 5,
+        video: policy.max_size_mb_by_part_type?.video ?? 100,
+        audio: policy.max_size_mb_by_part_type?.audio ?? 20,
+        file: policy.max_size_mb_by_part_type?.file ?? 50,
+      };
+      uploadPolicyForm.audio_only = {
+        enabled: policy.audio_only?.enabled ?? true,
+        force_single_attachment:
+          policy.audio_only?.force_single_attachment ?? true,
+        allow_text: policy.audio_only?.allow_text ?? false,
+      };
+
+      uploadPolicyMimeText.image = (policy.mime_by_part_type?.image ?? []).join(
+        '\n'
+      );
+      uploadPolicyMimeText.video = (policy.mime_by_part_type?.video ?? []).join(
+        '\n'
+      );
+      uploadPolicyMimeText.audio = (policy.mime_by_part_type?.audio ?? []).join(
+        '\n'
+      );
+      uploadPolicyMimeText.file = (policy.mime_by_part_type?.file ?? []).join(
+        '\n'
+      );
+    } catch (error) {
+      Message.error('获取上传策略失败');
     }
   };
 
@@ -328,10 +573,46 @@
     fetchAccountLimit();
   };
 
+  const handleUploadPolicySubmit = async () => {
+    if (!uploadPolicyForm.version.trim()) {
+      Message.warning('请输入策略版本');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateUploadPolicy({
+        version: uploadPolicyForm.version.trim(),
+        max_total_size_mb: uploadPolicyForm.max_total_size_mb,
+        max_attachments_per_message:
+          uploadPolicyForm.max_attachments_per_message,
+        max_size_mb_by_part_type: uploadPolicyForm.max_size_mb_by_part_type,
+        mime_by_part_type: {
+          image: splitMimeLines(uploadPolicyMimeText.image),
+          video: splitMimeLines(uploadPolicyMimeText.video),
+          audio: splitMimeLines(uploadPolicyMimeText.audio),
+          file: splitMimeLines(uploadPolicyMimeText.file),
+        },
+        audio_only: uploadPolicyForm.audio_only,
+      });
+      Message.success('上传策略保存成功');
+      await fetchUploadPolicy();
+    } catch (error: any) {
+      Message.error(error?.response?.data?.message || '保存失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadPolicyReset = () => {
+    fetchUploadPolicy();
+  };
+
   onMounted(() => {
     fetchAppName();
     fetchIpGeolocation();
     fetchAccountLimit();
+    fetchUploadPolicy();
   });
 </script>
 

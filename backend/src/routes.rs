@@ -8,7 +8,7 @@ use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
     health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
-    push_queue, push_settings, report, room, root, settings, user, version, ws,
+    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws,
 };
 use crate::AppState;
 
@@ -175,6 +175,11 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/settings/user-account-limit",
             get(settings::get_user_account_limit).put(settings::update_user_account_limit),
+        )
+        .route(
+            "/api/admin/settings/upload-policy",
+            get(upload_policy::get_upload_policy_admin)
+                .put(upload_policy::update_upload_policy_admin),
         )
         // Push 平台配置（管理后台）
         .route(
@@ -404,6 +409,10 @@ pub fn create_routes() -> Router<AppState> {
     let user_routes = Router::new()
         .route("/auth/me", get(auth::get_current_user))
         .route("/auth/password/reset", post(auth::reset_password_with_sms))
+        .route(
+            "/system/upload-policy",
+            get(upload_policy::get_upload_policy_user),
+        )
         // Push 设备（离线推送）
         .route("/push/devices", post(push::register_device))
         .route("/push/devices/{device_id}", delete(push::unregister_device))

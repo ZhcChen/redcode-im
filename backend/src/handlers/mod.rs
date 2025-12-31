@@ -12,12 +12,13 @@ pub mod message_read;
 pub mod message_search;
 pub mod multipart_upload;
 pub mod push;
-pub mod push_queue;
 pub mod push_logs;
+pub mod push_queue;
 pub mod push_settings;
 pub mod report;
 pub mod room;
 pub mod settings;
+pub mod upload_policy;
 pub mod user;
 pub mod version;
 

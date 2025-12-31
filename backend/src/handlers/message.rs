@@ -621,6 +621,85 @@ pub async fn send_message(
     let (prepared_parts, resolved_message_type, content_summary) =
         normalize_message_parts(content, parts)?;
 
+    // 上传策略校验：附件数量 / 总大小（尽量基于客户端上报的 size/mime；缺失则跳过对应项）
+    {
+        let policy = crate::services::upload_policy::get_upload_policy(&state).await;
+
+        let attachment_count = prepared_parts
+            .iter()
+            .filter(|p| p.part_type != MessagePartType::Text)
+            .count() as i32;
+
+        if policy.max_attachments_per_message >= 0
+            && attachment_count > policy.max_attachments_per_message
+        {
+            return Err(AppError::ValidationError(format!(
+                "单条消息最多可发送 {} 个附件",
+                policy.max_attachments_per_message
+            )));
+        }
+
+        let mut total_size: i64 = 0;
+        for part in &prepared_parts {
+            if part.part_type == MessagePartType::Text {
+                continue;
+            }
+
+            let part_type_key = match part.part_type {
+                MessagePartType::Image => "image",
+                MessagePartType::Video => "video",
+                MessagePartType::Audio => "audio",
+                MessagePartType::File => "file",
+                MessagePartType::Text => "text",
+            };
+
+            if let Some(mime) = part.attachment_mime.as_deref().map(|v| v.trim()) {
+                if !mime.is_empty() {
+                    if crate::constants::DANGEROUS_FILE_TYPES
+                        .iter()
+                        .any(|v| v.eq_ignore_ascii_case(mime))
+                    {
+                        return Err(AppError::ValidationError(format!(
+                            "不支持的文件类型: {}",
+                            mime
+                        )));
+                    }
+
+                    if !policy.is_mime_allowed_for_part_type(part_type_key, mime) {
+                        return Err(AppError::ValidationError(format!(
+                            "不支持的文件类型: {}",
+                            mime
+                        )));
+                    }
+                }
+            }
+
+            if let Some(size) = part.attachment_size {
+                if size > 0 {
+                    total_size = total_size.saturating_add(size);
+                    if let Some(max_bytes) = policy.max_size_bytes_for_part_type(part_type_key) {
+                        if size as u64 > max_bytes as u64 {
+                            return Err(AppError::ValidationError(format!(
+                                "文件大小超出限制，最大允许{}MB",
+                                max_bytes / 1024 / 1024
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+
+        if policy.max_total_size_mb > 0 {
+            let max_total_bytes = (policy.max_total_size_mb as i64) * 1024 * 1024;
+            if total_size > max_total_bytes {
+                return Err(AppError::ValidationError(format!(
+                    "附件总大小超出限制，最大允许{}MB",
+                    policy.max_total_size_mb
+                )));
+            }
+        }
+    }
+
     let db_parts: Vec<NewMessagePart> = prepared_parts
         .iter()
         .map(|part| NewMessagePart {
@@ -1662,29 +1741,47 @@ pub async fn generate_message_attachment_signature(
         ));
     }
 
-    // 验证文件类型
+    let policy = crate::services::upload_policy::get_upload_policy(&state).await;
+    let part_type_key = match req.part_type {
+        ApiMessagePartType::Image => "image",
+        ApiMessagePartType::Video => "video",
+        ApiMessagePartType::Audio => "audio",
+        ApiMessagePartType::File => "file",
+        ApiMessagePartType::Text => "text",
+    };
+
+    // 验证文件类型：按 Upload Policy 白名单（并过滤危险类型）
     if let Some(content_type) = &req.content_type {
-        if !crate::constants::is_content_type_allowed(content_type) {
-            return Err(AppError::ValidationError(format!(
-                "不支持的文件类型: {}",
-                content_type
-            )));
+        let content_type = content_type.trim();
+        if !content_type.is_empty() {
+            if crate::constants::DANGEROUS_FILE_TYPES
+                .iter()
+                .any(|v| v.eq_ignore_ascii_case(content_type))
+            {
+                return Err(AppError::ValidationError(format!(
+                    "不支持的文件类型: {}",
+                    content_type
+                )));
+            }
+
+            if !policy.is_mime_allowed_for_part_type(part_type_key, content_type) {
+                return Err(AppError::ValidationError(format!(
+                    "不支持的文件类型: {}",
+                    content_type
+                )));
+            }
         }
     }
 
-    // 验证文件大小
+    // 验证文件大小：按 Upload Policy 的分类型上限
     if let Some(file_size) = req.file_size {
-        let max_size = if let Some(content_type) = &req.content_type {
-            crate::constants::get_max_size_by_content_type(content_type)
-        } else {
-            crate::constants::FILE_MAX_SIZE_BYTES
-        };
-
-        if file_size > max_size {
-            return Err(AppError::ValidationError(format!(
-                "文件大小超出限制，最大允许{}MB",
-                max_size / 1024 / 1024
-            )));
+        if let Some(max_size) = policy.max_size_bytes_for_part_type(part_type_key) {
+            if file_size > max_size {
+                return Err(AppError::ValidationError(format!(
+                    "文件大小超出限制，最大允许{}MB",
+                    max_size / 1024 / 1024
+                )));
+            }
         }
     }
 
@@ -1803,27 +1900,46 @@ pub async fn initiate_message_attachment_multipart_upload(
         ));
     }
 
-    // 验证文件类型
+    let policy = crate::services::upload_policy::get_upload_policy(&state).await;
+    let part_type_key = match req.part_type {
+        ApiMessagePartType::Image => "image",
+        ApiMessagePartType::Video => "video",
+        ApiMessagePartType::Audio => "audio",
+        ApiMessagePartType::File => "file",
+        ApiMessagePartType::Text => "text",
+    };
+
+    // 验证文件类型：按 Upload Policy 白名单（并过滤危险类型）
     if let Some(content_type) = &req.content_type {
-        if !crate::constants::is_content_type_allowed(content_type) {
-            return Err(AppError::ValidationError(format!(
-                "不支持的文件类型: {}",
-                content_type
-            )));
+        let content_type = content_type.trim();
+        if !content_type.is_empty() {
+            if crate::constants::DANGEROUS_FILE_TYPES
+                .iter()
+                .any(|v| v.eq_ignore_ascii_case(content_type))
+            {
+                return Err(AppError::ValidationError(format!(
+                    "不支持的文件类型: {}",
+                    content_type
+                )));
+            }
+
+            if !policy.is_mime_allowed_for_part_type(part_type_key, content_type) {
+                return Err(AppError::ValidationError(format!(
+                    "不支持的文件类型: {}",
+                    content_type
+                )));
+            }
         }
     }
 
-    // 验证文件大小
-    let max_size = if let Some(content_type) = &req.content_type {
-        crate::constants::get_max_size_by_content_type(content_type)
-    } else {
-        crate::constants::FILE_MAX_SIZE_BYTES
-    };
-    if req.file_size > max_size {
-        return Err(AppError::ValidationError(format!(
-            "文件大小超过限制: {} bytes（最大允许 {} bytes）",
-            req.file_size, max_size
-        )));
+    // 验证文件大小：按 Upload Policy 的分类型上限
+    if let Some(max_size) = policy.max_size_bytes_for_part_type(part_type_key) {
+        if req.file_size > max_size {
+            return Err(AppError::ValidationError(format!(
+                "文件大小超过限制: {} bytes（最大允许 {} bytes）",
+                req.file_size, max_size
+            )));
+        }
     }
 
     let (part_size, total_parts) = multipart_upload::plan_multipart_upload(req.file_size as i64)?;
