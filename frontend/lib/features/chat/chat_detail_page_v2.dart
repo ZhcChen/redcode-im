@@ -19,11 +19,11 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_config.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
+import '../../core/services/upload_policy_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
@@ -2429,7 +2429,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     final mimeType = (source.mimeType ?? lookupMimeType(file.path) ?? 'image/*')
         .toLowerCase();
-    if (!AppConfig.allowedImageMimeTypes.contains(mimeType)) {
+    final policy = await UploadPolicyService.instance.getPolicy();
+    if (!policy.isMimeAllowedForPartType('image', mimeType)) {
       throw StateError('暂不支持该图片格式 ($mimeType)');
     }
 
@@ -2451,12 +2452,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 'application/octet-stream')
             .toLowerCase();
 
+    final policy = await UploadPolicyService.instance.getPolicy();
+
     late final MessagePartType partType;
-    if (AppConfig.allowedVideoMimeTypes.contains(mimeType)) {
+    if (policy.isMimeAllowedForPartType('video', mimeType)) {
       partType = MessagePartType.video;
-    } else if (AppConfig.allowedAudioMimeTypes.contains(mimeType)) {
+    } else if (policy.isMimeAllowedForPartType('audio', mimeType)) {
       partType = MessagePartType.audio;
-    } else if (AppConfig.allowedFileMimeTypes.contains(mimeType)) {
+    } else if (policy.isMimeAllowedForPartType('file', mimeType)) {
       partType = MessagePartType.file;
     } else {
       throw StateError('暂不支持该文件类型 ($mimeType)');

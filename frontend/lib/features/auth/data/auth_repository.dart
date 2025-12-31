@@ -16,6 +16,7 @@ import '../../../core/services/websocket_service.dart';
 import '../../../core/services/message_service.dart';
 import '../../../core/services/friend_store.dart';
 import '../../../core/services/push_service.dart';
+import '../../../core/services/upload_policy_service.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../core/storage/avatar_cache.dart';
 import '../models/auth_session.dart';
@@ -52,6 +53,7 @@ class AuthRepository {
       FriendStore.instance.clearAll();
       AuthStateBus.emit(AuthState.authenticated);
       unawaited(PushService.instance.registerDevice());
+      unawaited(UploadPolicyService.instance.refresh());
       return session;
     }
 
@@ -147,6 +149,7 @@ class AuthRepository {
         FriendStore.instance.clearAll();
         AuthStateBus.emit(AuthState.authenticated);
         unawaited(PushService.instance.registerDevice());
+        unawaited(UploadPolicyService.instance.refresh());
         if (kDebugMode) {
           debugPrint('[Auth] 登录流程完成');
         }

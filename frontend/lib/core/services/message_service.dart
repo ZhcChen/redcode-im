@@ -19,6 +19,7 @@ import '../storage/token_storage.dart';
 import '../storage/message_storage.dart';
 import '../storage/chat_cache.dart';
 import 'local_notification_service.dart';
+import 'upload_policy_service.dart';
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
@@ -469,13 +470,14 @@ class MessageService with ChangeNotifier {
       return;
     }
 
-    _validateDraft(trimmedText, attachments);
+    final policy = await UploadPolicyService.instance.getPolicy();
+    _validateDraft(trimmedText, attachments, policy);
 
     final totalSize = await _calculateAttachmentSize(attachments);
-    final maxBytes = (AppConfig.maxTotalAttachmentSizeMb * 1024 * 1024).toInt();
+    final maxBytes = policy.maxTotalBytes();
     if (totalSize > maxBytes) {
       throw StateError(
-        '附件总大小超过 ${AppConfig.maxTotalAttachmentSizeMb.toStringAsFixed(0)} MB 限制',
+        '附件总大小超过 ${policy.maxTotalSizeMb} MB 限制',
       );
     }
 
@@ -495,6 +497,7 @@ class MessageService with ChangeNotifier {
             messageId: tempId,
             attachments: attachments,
             token: session.token,
+            policy: policy,
           ),
         );
       }
@@ -2036,64 +2039,83 @@ class MessageService with ChangeNotifier {
     }
   }
 
-  void _validateDraft(String? text, List<MessageAttachmentDraft> attachments) {
+  void _validateDraft(
+    String? text,
+    List<MessageAttachmentDraft> attachments,
+    UploadPolicy policy,
+  ) {
     if (attachments.isEmpty) {
       return;
     }
     final hasAudio = attachments.any(
       (draft) => draft.type == MessagePartType.audio,
     );
-    if (hasAudio) {
-      if (attachments.length > 1) {
+
+    if (hasAudio && policy.audioOnly.enabled) {
+      if (policy.audioOnly.forceSingleAttachment && attachments.length > 1) {
         throw StateError('语音消息暂不支持与其他附件混合发送');
       }
-      if (text != null && text.isNotEmpty) {
+      if (!policy.audioOnly.allowText && text != null && text.isNotEmpty) {
         throw StateError('语音消息暂不支持附带文本');
       }
     }
 
-    _enforceAttachmentPolicy(attachments);
+    _enforceAttachmentPolicy(attachments, policy);
   }
 
-  void _enforceAttachmentPolicy(List<MessageAttachmentDraft> attachments) {
-    if (attachments.length > AppConfig.maxAttachmentCount) {
-      throw StateError('单条消息最多可发送 ${AppConfig.maxAttachmentCount} 个附件');
+  void _enforceAttachmentPolicy(
+    List<MessageAttachmentDraft> attachments,
+    UploadPolicy policy,
+  ) {
+    if (attachments.length > policy.maxAttachmentsPerMessage) {
+      throw StateError('单条消息最多可发送 ${policy.maxAttachmentsPerMessage} 个附件');
     }
-
-    final perFileLimitBytes = (AppConfig.maxAttachmentSizeMb * 1024 * 1024)
-        .toInt();
 
     for (final draft in attachments) {
       final file = draft.file;
       final size = file.lengthSync();
-      if (size > perFileLimitBytes) {
+      final partTypeKey = _policyPartTypeKey(draft.type);
+      final perFileLimitBytes = policy.maxSizeBytesForPartType(partTypeKey);
+      if (perFileLimitBytes != null && size > perFileLimitBytes) {
+        final mb = policy.maxSizeMbByPartType[partTypeKey] ?? 0;
         throw StateError(
-          '附件 "${draft.displayName ?? file.path}" 超过 ${AppConfig.maxAttachmentSizeMb.toStringAsFixed(0)} MB 限制',
+          '附件 "${draft.displayName ?? file.path}" 超过 $mb MB 限制',
         );
       }
 
       final mime = draft.mime ?? lookupMimeType(file.path) ?? '';
-      if (!_isMimeAllowed(draft.type, mime)) {
+      if (!_isMimeAllowed(draft.type, mime, policy)) {
         throw StateError('暂不支持发送该文件类型 ($mime)');
       }
     }
   }
 
-  bool _isMimeAllowed(MessagePartType type, String mime) {
+  String _policyPartTypeKey(MessagePartType type) {
+    switch (type) {
+      case MessagePartType.image:
+        return 'image';
+      case MessagePartType.video:
+        return 'video';
+      case MessagePartType.audio:
+        return 'audio';
+      case MessagePartType.file:
+      case MessagePartType.text:
+        return 'file';
+    }
+  }
+
+  bool _isMimeAllowed(MessagePartType type, String mime, UploadPolicy policy) {
     final normalized = mime.toLowerCase();
     switch (type) {
       case MessagePartType.image:
-        return AppConfig.allowedImageMimeTypes.contains(normalized);
+        return policy.isMimeAllowedForPartType('image', normalized);
       case MessagePartType.video:
-        return AppConfig.allowedVideoMimeTypes.contains(normalized);
+        return policy.isMimeAllowedForPartType('video', normalized);
       case MessagePartType.audio:
-        return AppConfig.allowedAudioMimeTypes.contains(normalized);
+        return policy.isMimeAllowedForPartType('audio', normalized);
       case MessagePartType.file:
       case MessagePartType.text:
-        return AppConfig.allowedFileMimeTypes.contains(normalized) ||
-            AppConfig.allowedImageMimeTypes.contains(normalized) ||
-            AppConfig.allowedVideoMimeTypes.contains(normalized) ||
-            AppConfig.allowedAudioMimeTypes.contains(normalized);
+        return policy.isMimeAllowedForPartType('file', normalized);
     }
   }
 
@@ -2102,6 +2124,7 @@ class MessageService with ChangeNotifier {
     required String messageId,
     required List<MessageAttachmentDraft> attachments,
     required String token,
+    required UploadPolicy policy,
   }) async {
     final plans = <_AttachmentUploadPlan>[];
     for (var index = 0; index < attachments.length; index++) {
@@ -2114,15 +2137,16 @@ class MessageService with ChangeNotifier {
           draft.mime ??
           lookupMimeType(draft.file.path) ??
           'application/octet-stream';
-      if (!_isMimeAllowed(draft.type, contentType)) {
+      if (!_isMimeAllowed(draft.type, contentType, policy)) {
         throw StateError('暂不支持发送该文件类型 ($contentType)');
       }
       final size = await draft.file.length();
-      final perFileLimitBytes = (AppConfig.maxAttachmentSizeMb * 1024 * 1024)
-          .toInt();
-      if (size > perFileLimitBytes) {
+      final partTypeKey = _policyPartTypeKey(draft.type);
+      final perFileLimitBytes = policy.maxSizeBytesForPartType(partTypeKey);
+      if (perFileLimitBytes != null && size > perFileLimitBytes) {
+        final mb = policy.maxSizeMbByPartType[partTypeKey] ?? 0;
         throw StateError(
-          '附件 "${draft.displayName ?? draft.file.path}" 超过 ${AppConfig.maxAttachmentSizeMb.toStringAsFixed(0)} MB 限制',
+          '附件 "${draft.displayName ?? draft.file.path}" 超过 $mb MB 限制',
         );
       }
 
