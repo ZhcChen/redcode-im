@@ -767,3 +767,211 @@ fn is_valid_avatar_key(user_id: &Uuid, key: &str) -> bool {
     let expected_prefix = format!("avatars/{}/", user_id);
     normalized.starts_with(&expected_prefix)
 }
+
+// ============================================================================
+// 验证辅助函数（可测试的纯逻辑）
+// ============================================================================
+
+/// 验证密码长度（至少 6 个字符）
+pub fn validate_password_length(password: &str) -> bool {
+    password.len() >= 6
+}
+
+/// 验证搜索关键字（不能为空）
+pub fn validate_search_keyword(keyword: &str) -> bool {
+    !keyword.trim().is_empty()
+}
+
+/// 规范化搜索限制（限制在 1-50 之间）
+pub fn normalize_search_limit(limit: Option<i64>) -> i64 {
+    limit.unwrap_or(20).clamp(1, 50)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // 头像文件扩展名推断测试
+    // ========================================================================
+
+    #[test]
+    fn test_infer_avatar_extension_png() {
+        assert_eq!(infer_avatar_extension(Some("image/png")), ".png");
+        assert_eq!(infer_avatar_extension(Some("IMAGE/PNG")), ".png");
+    }
+
+    #[test]
+    fn test_infer_avatar_extension_jpeg() {
+        assert_eq!(infer_avatar_extension(Some("image/jpeg")), ".jpg");
+        assert_eq!(infer_avatar_extension(Some("image/jpg")), ".jpg");
+    }
+
+    #[test]
+    fn test_infer_avatar_extension_webp() {
+        assert_eq!(infer_avatar_extension(Some("image/webp")), ".webp");
+    }
+
+    #[test]
+    fn test_infer_avatar_extension_gif() {
+        assert_eq!(infer_avatar_extension(Some("image/gif")), ".gif");
+    }
+
+    #[test]
+    fn test_infer_avatar_extension_heic() {
+        assert_eq!(infer_avatar_extension(Some("image/heic")), ".heic");
+        assert_eq!(infer_avatar_extension(Some("image/heif")), ".heif");
+    }
+
+    #[test]
+    fn test_infer_avatar_extension_svg() {
+        assert_eq!(infer_avatar_extension(Some("image/svg+xml")), ".svg");
+    }
+
+    #[test]
+    fn test_infer_avatar_extension_unknown() {
+        assert_eq!(infer_avatar_extension(Some("application/octet-stream")), ".bin");
+        assert_eq!(infer_avatar_extension(Some("video/mp4")), ".bin");
+        assert_eq!(infer_avatar_extension(None), ".bin");
+    }
+
+    // ========================================================================
+    // 头像对象键验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_is_valid_avatar_key_valid() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let key = format!("avatars/{}/20250113_abc123.png", user_id);
+        assert!(is_valid_avatar_key(&user_id, &key));
+    }
+
+    #[test]
+    fn test_is_valid_avatar_key_with_whitespace() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let key = format!("  avatars/{}/20250113_abc123.png  ", user_id);
+        assert!(is_valid_avatar_key(&user_id, &key));
+    }
+
+    #[test]
+    fn test_is_valid_avatar_key_wrong_user() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let other_user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap();
+        let key = format!("avatars/{}/20250113_abc123.png", other_user_id);
+        assert!(!is_valid_avatar_key(&user_id, &key));
+    }
+
+    #[test]
+    fn test_is_valid_avatar_key_path_traversal() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let key = format!("avatars/{}/../../../etc/passwd", user_id);
+        assert!(!is_valid_avatar_key(&user_id, &key));
+    }
+
+    #[test]
+    fn test_is_valid_avatar_key_empty() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        assert!(!is_valid_avatar_key(&user_id, ""));
+        assert!(!is_valid_avatar_key(&user_id, "   "));
+    }
+
+    #[test]
+    fn test_is_valid_avatar_key_wrong_prefix() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        assert!(!is_valid_avatar_key(&user_id, "uploads/avatar.png"));
+        assert!(!is_valid_avatar_key(&user_id, "room_avatars/abc.png"));
+    }
+
+    // ========================================================================
+    // 密码验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_password_length_valid() {
+        assert!(validate_password_length("123456"));
+        assert!(validate_password_length("password123"));
+        assert!(validate_password_length("很长的密码1234567890"));
+    }
+
+    #[test]
+    fn test_validate_password_length_invalid() {
+        assert!(!validate_password_length(""));
+        assert!(!validate_password_length("12345"));
+        assert!(!validate_password_length("abc"));
+    }
+
+    // ========================================================================
+    // 搜索关键字验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_search_keyword_valid() {
+        assert!(validate_search_keyword("test"));
+        assert!(validate_search_keyword("用户名"));
+        assert!(validate_search_keyword("  keyword  ")); // 有内容
+    }
+
+    #[test]
+    fn test_validate_search_keyword_invalid() {
+        assert!(!validate_search_keyword(""));
+        assert!(!validate_search_keyword("   "));
+        assert!(!validate_search_keyword("\t\n"));
+    }
+
+    // ========================================================================
+    // 搜索限制规范化测试
+    // ========================================================================
+
+    #[test]
+    fn test_normalize_search_limit_default() {
+        assert_eq!(normalize_search_limit(None), 20);
+    }
+
+    #[test]
+    fn test_normalize_search_limit_within_range() {
+        assert_eq!(normalize_search_limit(Some(10)), 10);
+        assert_eq!(normalize_search_limit(Some(1)), 1);
+        assert_eq!(normalize_search_limit(Some(50)), 50);
+    }
+
+    #[test]
+    fn test_normalize_search_limit_below_min() {
+        assert_eq!(normalize_search_limit(Some(0)), 1);
+        assert_eq!(normalize_search_limit(Some(-5)), 1);
+    }
+
+    #[test]
+    fn test_normalize_search_limit_above_max() {
+        assert_eq!(normalize_search_limit(Some(100)), 50);
+        assert_eq!(normalize_search_limit(Some(1000)), 50);
+    }
+
+    // ========================================================================
+    // 头像对象键构建测试
+    // ========================================================================
+
+    #[test]
+    fn test_build_avatar_object_key_format() {
+        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let key = build_avatar_object_key(&user_id, Some("image/png"));
+
+        // 验证前缀
+        assert!(key.starts_with(&format!("avatars/{}/", user_id)));
+        // 验证扩展名
+        assert!(key.ends_with(".png"));
+        // 验证格式：avatars/uuid/timestamp_random.ext
+        let parts: Vec<&str> = key.split('/').collect();
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0], "avatars");
+    }
+
+    #[test]
+    fn test_build_avatar_object_key_different_types() {
+        let user_id = Uuid::new_v4();
+
+        assert!(build_avatar_object_key(&user_id, Some("image/jpeg")).ends_with(".jpg"));
+        assert!(build_avatar_object_key(&user_id, Some("image/webp")).ends_with(".webp"));
+        assert!(build_avatar_object_key(&user_id, Some("image/gif")).ends_with(".gif"));
+        assert!(build_avatar_object_key(&user_id, None).ends_with(".bin"));
+    }
+}

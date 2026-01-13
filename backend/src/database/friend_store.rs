@@ -407,7 +407,7 @@ impl FriendStore {
 }
 
 /// 好友请求方向
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FriendRequestDirection {
     Incoming,
     Outgoing,

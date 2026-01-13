@@ -483,3 +483,163 @@ pub async fn delete_friend(
         message: "删除好友成功".to_string(),
     }))
 }
+
+// ============================================================================
+// 验证辅助函数（可测试的纯逻辑）
+// ============================================================================
+
+/// 解析好友请求方向参数
+pub fn parse_direction(direction: Option<&str>) -> Result<Option<FriendRequestDirection>, String> {
+    match direction {
+        None | Some("") => Ok(None),
+        Some("incoming") => Ok(Some(FriendRequestDirection::Incoming)),
+        Some("outgoing") => Ok(Some(FriendRequestDirection::Outgoing)),
+        Some(other) => Err(format!("不支持的 direction 参数: {}", other)),
+    }
+}
+
+/// 解析好友请求状态参数
+pub fn parse_status(status: Option<&str>) -> Result<Option<DbFriendRequestStatus>, String> {
+    match status {
+        None | Some("") => Ok(None),
+        Some("pending") => Ok(Some(DbFriendRequestStatus::Pending)),
+        Some("accepted") => Ok(Some(DbFriendRequestStatus::Accepted)),
+        Some("declined") => Ok(Some(DbFriendRequestStatus::Declined)),
+        Some(other) => Err(format!("不支持的 status 参数: {}", other)),
+    }
+}
+
+/// 检查是否为自身操作（不允许对自己进行好友操作）
+pub fn validate_not_self_operation(current_user_id: &Uuid, target_user_id: &Uuid) -> bool {
+    current_user_id != target_user_id
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // 方向参数解析测试
+    // ========================================================================
+
+    #[test]
+    fn test_parse_direction_none() {
+        let result = parse_direction(None);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_parse_direction_empty() {
+        let result = parse_direction(Some(""));
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_parse_direction_incoming() {
+        let result = parse_direction(Some("incoming"));
+        assert!(result.is_ok());
+        assert!(matches!(
+            result.unwrap(),
+            Some(FriendRequestDirection::Incoming)
+        ));
+    }
+
+    #[test]
+    fn test_parse_direction_outgoing() {
+        let result = parse_direction(Some("outgoing"));
+        assert!(result.is_ok());
+        assert!(matches!(
+            result.unwrap(),
+            Some(FriendRequestDirection::Outgoing)
+        ));
+    }
+
+    #[test]
+    fn test_parse_direction_invalid() {
+        let result = parse_direction(Some("invalid"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("不支持的 direction 参数"));
+    }
+
+    // ========================================================================
+    // 状态参数解析测试
+    // ========================================================================
+
+    #[test]
+    fn test_parse_status_none() {
+        let result = parse_status(None);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_parse_status_empty() {
+        let result = parse_status(Some(""));
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_parse_status_pending() {
+        let result = parse_status(Some("pending"));
+        assert!(result.is_ok());
+        assert!(matches!(
+            result.unwrap(),
+            Some(DbFriendRequestStatus::Pending)
+        ));
+    }
+
+    #[test]
+    fn test_parse_status_accepted() {
+        let result = parse_status(Some("accepted"));
+        assert!(result.is_ok());
+        assert!(matches!(
+            result.unwrap(),
+            Some(DbFriendRequestStatus::Accepted)
+        ));
+    }
+
+    #[test]
+    fn test_parse_status_declined() {
+        let result = parse_status(Some("declined"));
+        assert!(result.is_ok());
+        assert!(matches!(
+            result.unwrap(),
+            Some(DbFriendRequestStatus::Declined)
+        ));
+    }
+
+    #[test]
+    fn test_parse_status_invalid() {
+        let result = parse_status(Some("unknown"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("不支持的 status 参数"));
+    }
+
+    // ========================================================================
+    // 自身操作验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_not_self_operation_different_users() {
+        let user1 = Uuid::new_v4();
+        let user2 = Uuid::new_v4();
+        assert!(validate_not_self_operation(&user1, &user2));
+    }
+
+    #[test]
+    fn test_validate_not_self_operation_same_user() {
+        let user = Uuid::new_v4();
+        assert!(!validate_not_self_operation(&user, &user));
+    }
+
+    #[test]
+    fn test_validate_not_self_operation_with_specific_uuids() {
+        let user1 = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let user2 = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap();
+        assert!(validate_not_self_operation(&user1, &user2));
+        assert!(!validate_not_self_operation(&user1, &user1));
+    }
+}

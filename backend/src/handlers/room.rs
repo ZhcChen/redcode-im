@@ -1069,3 +1069,210 @@ pub async fn get_room_avatar_download_url(
         download_url: Some(download_url),
     }))
 }
+
+// ============================================================================
+// 验证辅助函数（可测试的纯逻辑）
+// ============================================================================
+
+/// 验证房间名称（不能为空）
+pub fn validate_room_name(name: &str) -> bool {
+    !name.trim().is_empty()
+}
+
+/// 验证房间类型是否允许通过普通接口创建
+pub fn validate_room_type_for_creation(room_type: &RoomType) -> bool {
+    !matches!(room_type, RoomType::Private | RoomType::Favorite)
+}
+
+/// 验证群组房间是否有至少一个额外成员
+pub fn validate_group_has_members(room_type: &RoomType, member_count: usize) -> bool {
+    if *room_type == RoomType::Group {
+        member_count > 0
+    } else {
+        true
+    }
+}
+
+/// 验证通知设置值（0=全部, 1=仅@, 2=静音）
+pub fn validate_notification_setting(value: i32) -> bool {
+    matches!(value, 0 | 1 | 2)
+}
+
+/// 验证转让群主时新旧群主不能是同一人
+pub fn validate_owner_transfer(current_owner: &Uuid, new_owner: &Uuid) -> bool {
+    current_owner != new_owner
+}
+
+/// 验证头像文件类型（只允许图片）
+pub fn validate_avatar_content_type(content_type: &str) -> bool {
+    content_type.starts_with("image/")
+}
+
+/// 验证头像文件大小
+pub fn validate_avatar_file_size(file_size: i64, max_size: i64) -> bool {
+    file_size <= max_size
+}
+
+/// 验证房间头像的对象键格式
+pub fn validate_room_avatar_key(key: &str, room_id: &Uuid) -> bool {
+    key.starts_with(&format!("room_avatars/{}/", room_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // 房间名称验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_room_name_valid() {
+        assert!(validate_room_name("Test Room"));
+        assert!(validate_room_name("群聊"));
+        assert!(validate_room_name("  Room Name  ")); // 有内容，只是两边有空格
+    }
+
+    #[test]
+    fn test_validate_room_name_invalid() {
+        assert!(!validate_room_name(""));
+        assert!(!validate_room_name("   "));
+        assert!(!validate_room_name("\t\n"));
+    }
+
+    // ========================================================================
+    // 房间类型验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_room_type_for_creation_allowed() {
+        assert!(validate_room_type_for_creation(&RoomType::Group));
+    }
+
+    #[test]
+    fn test_validate_room_type_for_creation_not_allowed() {
+        assert!(!validate_room_type_for_creation(&RoomType::Private));
+        assert!(!validate_room_type_for_creation(&RoomType::Favorite));
+    }
+
+    // ========================================================================
+    // 群组成员验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_group_has_members_valid() {
+        assert!(validate_group_has_members(&RoomType::Group, 1));
+        assert!(validate_group_has_members(&RoomType::Group, 10));
+    }
+
+    #[test]
+    fn test_validate_group_has_members_invalid() {
+        assert!(!validate_group_has_members(&RoomType::Group, 0));
+    }
+
+    #[test]
+    fn test_validate_group_has_members_non_group_types() {
+        // 非群组类型不需要成员验证
+        assert!(validate_group_has_members(&RoomType::Private, 0));
+        assert!(validate_group_has_members(&RoomType::Favorite, 0));
+    }
+
+    // ========================================================================
+    // 通知设置验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_notification_setting_valid() {
+        assert!(validate_notification_setting(0)); // All
+        assert!(validate_notification_setting(1)); // MentionsOnly
+        assert!(validate_notification_setting(2)); // Muted
+    }
+
+    #[test]
+    fn test_validate_notification_setting_invalid() {
+        assert!(!validate_notification_setting(-1));
+        assert!(!validate_notification_setting(3));
+        assert!(!validate_notification_setting(100));
+    }
+
+    // ========================================================================
+    // 群主转让验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_owner_transfer_valid() {
+        let owner1 = Uuid::new_v4();
+        let owner2 = Uuid::new_v4();
+        assert!(validate_owner_transfer(&owner1, &owner2));
+    }
+
+    #[test]
+    fn test_validate_owner_transfer_same_user() {
+        let owner = Uuid::new_v4();
+        assert!(!validate_owner_transfer(&owner, &owner));
+    }
+
+    // ========================================================================
+    // 头像文件类型验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_avatar_content_type_valid() {
+        assert!(validate_avatar_content_type("image/png"));
+        assert!(validate_avatar_content_type("image/jpeg"));
+        assert!(validate_avatar_content_type("image/gif"));
+        assert!(validate_avatar_content_type("image/webp"));
+    }
+
+    #[test]
+    fn test_validate_avatar_content_type_invalid() {
+        assert!(!validate_avatar_content_type("video/mp4"));
+        assert!(!validate_avatar_content_type("application/pdf"));
+        assert!(!validate_avatar_content_type("text/plain"));
+        assert!(!validate_avatar_content_type(""));
+    }
+
+    // ========================================================================
+    // 头像文件大小验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_avatar_file_size_valid() {
+        let max_size = 5 * 1024 * 1024; // 5MB
+        assert!(validate_avatar_file_size(1024, max_size));
+        assert!(validate_avatar_file_size(max_size, max_size));
+        assert!(validate_avatar_file_size(0, max_size));
+    }
+
+    #[test]
+    fn test_validate_avatar_file_size_invalid() {
+        let max_size = 5 * 1024 * 1024; // 5MB
+        assert!(!validate_avatar_file_size(max_size + 1, max_size));
+        assert!(!validate_avatar_file_size(10 * 1024 * 1024, max_size));
+    }
+
+    // ========================================================================
+    // 房间头像对象键验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_room_avatar_key_valid() {
+        let room_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let key = format!("room_avatars/{}/20250113_abc123.png", room_id);
+        assert!(validate_room_avatar_key(&key, &room_id));
+    }
+
+    #[test]
+    fn test_validate_room_avatar_key_invalid() {
+        let room_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let other_room_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap();
+
+        // 不同房间的键
+        let key = format!("room_avatars/{}/20250113_abc123.png", other_room_id);
+        assert!(!validate_room_avatar_key(&key, &room_id));
+
+        // 错误的前缀
+        assert!(!validate_room_avatar_key("user_avatars/abc.png", &room_id));
+        assert!(!validate_room_avatar_key("", &room_id));
+    }
+}

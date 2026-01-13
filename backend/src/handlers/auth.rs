@@ -1035,3 +1035,263 @@ pub async fn change_current_admin_password(
         message: "密码重置成功".to_string(),
     }))
 }
+
+// ============================================================================
+// 验证辅助函数（可测试的纯逻辑）
+// ============================================================================
+
+/// 验证用户密码长度（至少 6 个字符）
+pub fn validate_password_length(password: &str) -> bool {
+    password.len() >= 6
+}
+
+/// 验证管理员密码强度（至少 8 个字符，包含字母和数字）
+pub fn validate_admin_password_strength(password: &str) -> bool {
+    if password.len() < 8 {
+        return false;
+    }
+    let has_letter = password.chars().any(|c| c.is_ascii_alphabetic());
+    let has_digit = password.chars().any(|c| c.is_ascii_digit());
+    has_letter && has_digit
+}
+
+/// 验证手机号格式（中国大陆手机号：1 开头的 11 位数字）
+pub fn validate_phone_format(phone: &str) -> bool {
+    let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
+    phone_regex.is_match(phone)
+}
+
+/// 验证邮箱格式
+pub fn validate_email_format(email: &str) -> bool {
+    let email_regex =
+        regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+    email_regex.is_match(email)
+}
+
+/// 验证用户名长度
+pub fn validate_username_length(username: &str, min_length: i32, max_length: i32) -> bool {
+    let len = username.len() as i32;
+    len >= min_length && len <= max_length
+}
+
+/// 验证用户名是否同时包含字母和数字
+pub fn validate_alphanumeric(username: &str) -> bool {
+    let has_letter = username.chars().any(|c| c.is_ascii_alphabetic());
+    let has_digit = username.chars().any(|c| c.is_ascii_digit());
+    has_letter && has_digit
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // 密码验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_password_length_valid() {
+        assert!(validate_password_length("123456"));
+        assert!(validate_password_length("password123"));
+        assert!(validate_password_length("很长的密码1234567890"));
+    }
+
+    #[test]
+    fn test_validate_password_length_invalid() {
+        assert!(!validate_password_length(""));
+        assert!(!validate_password_length("12345"));
+        assert!(!validate_password_length("abc"));
+    }
+
+    #[test]
+    fn test_validate_admin_password_strength_valid() {
+        assert!(validate_admin_password_strength("password1"));
+        assert!(validate_admin_password_strength("12345678a"));
+        assert!(validate_admin_password_strength("Abcd1234"));
+        assert!(validate_admin_password_strength("test1234TEST"));
+    }
+
+    #[test]
+    fn test_validate_admin_password_strength_too_short() {
+        assert!(!validate_admin_password_strength("pass1"));
+        assert!(!validate_admin_password_strength("1234567"));
+        assert!(!validate_admin_password_strength("abcdefg"));
+    }
+
+    #[test]
+    fn test_validate_admin_password_strength_missing_letter() {
+        assert!(!validate_admin_password_strength("12345678"));
+        assert!(!validate_admin_password_strength("123456789012"));
+    }
+
+    #[test]
+    fn test_validate_admin_password_strength_missing_digit() {
+        assert!(!validate_admin_password_strength("abcdefgh"));
+        assert!(!validate_admin_password_strength("PASSWORD"));
+    }
+
+    // ========================================================================
+    // 手机号验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_phone_format_valid() {
+        assert!(validate_phone_format("13812345678"));
+        assert!(validate_phone_format("15912345678"));
+        assert!(validate_phone_format("18612345678"));
+        assert!(validate_phone_format("19912345678"));
+    }
+
+    #[test]
+    fn test_validate_phone_format_invalid() {
+        // 不是 1 开头
+        assert!(!validate_phone_format("23812345678"));
+        // 第二位不在 3-9 范围
+        assert!(!validate_phone_format("12812345678"));
+        // 长度不对
+        assert!(!validate_phone_format("1381234567"));
+        assert!(!validate_phone_format("138123456789"));
+        // 包含非数字
+        assert!(!validate_phone_format("1381234567a"));
+        // 空字符串
+        assert!(!validate_phone_format(""));
+    }
+
+    // ========================================================================
+    // 邮箱验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_email_format_valid() {
+        assert!(validate_email_format("test@example.com"));
+        assert!(validate_email_format("user.name@domain.org"));
+        assert!(validate_email_format("user+tag@example.co.uk"));
+        assert!(validate_email_format("a@b.cc"));
+    }
+
+    #[test]
+    fn test_validate_email_format_invalid() {
+        assert!(!validate_email_format(""));
+        assert!(!validate_email_format("notanemail"));
+        assert!(!validate_email_format("@example.com"));
+        assert!(!validate_email_format("user@"));
+        assert!(!validate_email_format("user@.com"));
+        assert!(!validate_email_format("user@domain"));
+        assert!(!validate_email_format("user@domain.c")); // TLD 至少 2 个字符
+    }
+
+    // ========================================================================
+    // 用户名长度验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_username_length_valid() {
+        assert!(validate_username_length("user", 3, 20));
+        assert!(validate_username_length("abc", 3, 20));
+        assert!(validate_username_length("12345678901234567890", 3, 20));
+    }
+
+    #[test]
+    fn test_validate_username_length_too_short() {
+        assert!(!validate_username_length("ab", 3, 20));
+        assert!(!validate_username_length("", 3, 20));
+    }
+
+    #[test]
+    fn test_validate_username_length_too_long() {
+        assert!(!validate_username_length("123456789012345678901", 3, 20));
+    }
+
+    // ========================================================================
+    // 字母数字混合验证测试
+    // ========================================================================
+
+    #[test]
+    fn test_validate_alphanumeric_valid() {
+        assert!(validate_alphanumeric("user123"));
+        assert!(validate_alphanumeric("123abc"));
+        assert!(validate_alphanumeric("a1"));
+    }
+
+    #[test]
+    fn test_validate_alphanumeric_only_letters() {
+        assert!(!validate_alphanumeric("username"));
+        assert!(!validate_alphanumeric("ABC"));
+    }
+
+    #[test]
+    fn test_validate_alphanumeric_only_digits() {
+        assert!(!validate_alphanumeric("123456"));
+        assert!(!validate_alphanumeric("000"));
+    }
+
+    #[test]
+    fn test_validate_alphanumeric_empty() {
+        assert!(!validate_alphanumeric(""));
+    }
+
+    // ========================================================================
+    // 自动注册辅助函数测试
+    // ========================================================================
+
+    #[test]
+    fn test_build_auto_registration_email() {
+        assert_eq!(
+            build_auto_registration_email("13812345678"),
+            "13812345678@example.com"
+        );
+        assert_eq!(
+            build_auto_registration_email("testuser"),
+            "testuser@example.com"
+        );
+    }
+
+    #[test]
+    fn test_build_auto_registration_password_length() {
+        let password = build_auto_registration_password("13812345678");
+        // 密码应该至少有合理长度（前缀4 + 随机8 = 12，可能更长）
+        assert!(password.len() >= 12);
+    }
+
+    #[test]
+    fn test_build_auto_registration_password_contains_required_chars() {
+        let password = build_auto_registration_password("13812345678");
+        // 必须包含小写字母
+        assert!(password.chars().any(|c| c.is_ascii_lowercase()));
+        // 必须包含大写字母
+        assert!(password.chars().any(|c| c.is_ascii_uppercase()));
+        // 必须包含数字
+        assert!(password.chars().any(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn test_build_auto_registration_password_uses_phone_prefix() {
+        let password = build_auto_registration_password("13812345678");
+        // 应该以手机号前 4 位开头
+        assert!(password.starts_with("1381"));
+    }
+
+    #[test]
+    fn test_build_auto_registration_password_fallback_prefix() {
+        let password = build_auto_registration_password("abcdefg");
+        // 没有数字时使用 "rcim" 作为前缀
+        assert!(password.starts_with("rcim"));
+    }
+
+    #[test]
+    fn test_build_auto_registration_password_short_digits_padding() {
+        let password = build_auto_registration_password("a1b2");
+        // 数字不足 4 位时补 0
+        assert!(password.starts_with("1200"));
+    }
+
+    #[test]
+    fn test_build_auto_registration_request() {
+        let request = build_auto_registration_request("13812345678");
+        assert_eq!(request.username, "13812345678");
+        assert_eq!(request.email, "13812345678@example.com");
+        assert_eq!(request.nickname, Some("13812345678".to_string()));
+        // 密码应满足强度要求
+        assert!(request.password.len() >= 12);
+    }
+}
