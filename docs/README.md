@@ -60,6 +60,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [Backend 单元测试计划](testing/backend-test-plan.md) | 后端测试现状与补充计划 |
 | [E2E 测试路径](testing/test-paths.md) | 移动端用户旅程测试 |
 | [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用 |
 | [WebSocket 测试](testing/websocket-test.md) | WS 实时分发测试 |
@@ -101,7 +102,7 @@
 
 | 模块 | 说明 |
 |------|------|
-| [backend](../backend/README.md) | 后端服务 (Go) |
+| [backend](../backend/README.md) | 后端服务 (Rust) |
 | [frontend](../frontend/README.md) | 移动端 (Flutter) |
 | [desktop](../desktop/README.md) | 桌面端 (Vue + Tauri) |
 | [admin](../admin/README.md) | 管理后台 (Vue) |
