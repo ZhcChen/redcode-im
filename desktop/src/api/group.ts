@@ -102,6 +102,123 @@ interface BackendRoomMember {
   joined_at?: string | null;
 }
 
+// ===== 群管理相关后端类型 =====
+
+interface BackendGroupAdmin {
+  id: string;
+  room_id: string;
+  admin_id: string;
+  appointed_by: string;
+  role: string;
+  permissions?: string[] | null;
+  appointed_at: string;
+}
+
+interface BackendJoinRequest {
+  id: string;
+  room_id: string;
+  applicant_id: string;
+  message?: string | null;
+  status: number; // 0=pending, 1=approved, 2=rejected
+  reviewer_id?: string | null;
+  review_message?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+}
+
+interface BackendGroupMute {
+  id: string;
+  room_id: string;
+  user_id: string;
+  muted_by: string;
+  reason?: string | null;
+  mute_duration_hours: number;
+  muted_at: string;
+  unmuted_at?: string | null;
+  is_active: boolean;
+}
+
+interface BackendGroupRule {
+  id: string;
+  room_id: string;
+  title: string;
+  content: string;
+  creator_id: string;
+  order_index: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendGroupOperationLog {
+  id: string;
+  room_id: string;
+  operator_id: string;
+  target_user_id?: string | null;
+  operation_type: string;
+  operation_data?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+// ===== 群管理相关前端类型 =====
+
+export interface GroupAdmin {
+  id: string;
+  roomId: string;
+  adminId: string;
+  appointedBy: string;
+  role: string;
+  permissions?: string[] | null;
+  appointedAt: Date;
+}
+
+export interface JoinRequest {
+  id: string;
+  roomId: string;
+  applicantId: string;
+  message?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewerId?: string | null;
+  reviewMessage?: string | null;
+  createdAt: Date;
+  reviewedAt?: Date | null;
+}
+
+export interface GroupMute {
+  id: string;
+  roomId: string;
+  userId: string;
+  mutedBy: string;
+  reason?: string | null;
+  muteDurationHours: number;
+  mutedAt: Date;
+  unmutedAt?: Date | null;
+  isActive: boolean;
+  muteUntil?: Date | null;
+}
+
+export interface GroupRule {
+  id: string;
+  roomId: string;
+  title: string;
+  content: string;
+  creatorId: string;
+  orderIndex: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GroupOperationLog {
+  id: string;
+  roomId: string;
+  operatorId: string;
+  targetUserId?: string | null;
+  operationType: string;
+  operationData?: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
 interface BackendEnsureChatResponse {
   room_id: string;
   room_name: string;
@@ -355,6 +472,83 @@ const mapRoomMember = (member: BackendRoomMember): RoomMember => ({
   avatarObjectKey: member.avatar_object_key ?? null,
   role: mapRoomMemberRole(member.role),
   joinedAt: member.joined_at ? parseTimestamp(member.joined_at) : null,
+});
+
+// ===== 群管理相关映射函数 =====
+
+const mapGroupAdmin = (admin: BackendGroupAdmin): GroupAdmin => ({
+  id: admin.id,
+  roomId: admin.room_id,
+  adminId: admin.admin_id,
+  appointedBy: admin.appointed_by,
+  role: admin.role,
+  permissions: admin.permissions ?? null,
+  appointedAt: parseTimestamp(admin.appointed_at),
+});
+
+const mapJoinRequestStatus = (status: number): 'pending' | 'approved' | 'rejected' => {
+  switch (status) {
+    case 1:
+      return 'approved';
+    case 2:
+      return 'rejected';
+    default:
+      return 'pending';
+  }
+};
+
+const mapJoinRequest = (request: BackendJoinRequest): JoinRequest => ({
+  id: request.id,
+  roomId: request.room_id,
+  applicantId: request.applicant_id,
+  message: request.message ?? null,
+  status: mapJoinRequestStatus(request.status),
+  reviewerId: request.reviewer_id ?? null,
+  reviewMessage: request.review_message ?? null,
+  createdAt: parseTimestamp(request.created_at),
+  reviewedAt: request.reviewed_at ? parseTimestamp(request.reviewed_at) : null,
+});
+
+const mapGroupMute = (mute: BackendGroupMute): GroupMute => {
+  const mutedAt = parseTimestamp(mute.muted_at);
+  const muteUntil = mute.mute_duration_hours > 0
+    ? new Date(mutedAt.getTime() + mute.mute_duration_hours * 60 * 60 * 1000)
+    : null;
+
+  return {
+    id: mute.id,
+    roomId: mute.room_id,
+    userId: mute.user_id,
+    mutedBy: mute.muted_by,
+    reason: mute.reason ?? null,
+    muteDurationHours: mute.mute_duration_hours,
+    mutedAt,
+    unmutedAt: mute.unmuted_at ? parseTimestamp(mute.unmuted_at) : null,
+    isActive: mute.is_active,
+    muteUntil,
+  };
+};
+
+const mapGroupRule = (rule: BackendGroupRule): GroupRule => ({
+  id: rule.id,
+  roomId: rule.room_id,
+  title: rule.title,
+  content: rule.content,
+  creatorId: rule.creator_id,
+  orderIndex: rule.order_index,
+  isActive: rule.is_active,
+  createdAt: parseTimestamp(rule.created_at),
+  updatedAt: parseTimestamp(rule.updated_at),
+});
+
+const mapGroupOperationLog = (log: BackendGroupOperationLog): GroupOperationLog => ({
+  id: log.id,
+  roomId: log.room_id,
+  operatorId: log.operator_id,
+  targetUserId: log.target_user_id ?? null,
+  operationType: log.operation_type,
+  operationData: log.operation_data ?? null,
+  createdAt: parseTimestamp(log.created_at),
 });
 
 export class GroupApi {
@@ -823,6 +1017,376 @@ export class GroupApi {
       data: {
         downloadUrl: response.data.download_url,
       },
+    };
+  }
+
+  // ===== 群管理员管理 =====
+
+  /**
+   * 获取群管理员列表
+   */
+  static async listAdmins(params: {
+    roomId: string;
+  }): Promise<ApiResponse<GroupAdmin[]>> {
+    const response = await get<{ admins: BackendGroupAdmin[] }>(
+      `/rooms/${params.roomId}/admins`,
+    );
+
+    if (!response.success || !response.data?.admins) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: response.data.admins.map(mapGroupAdmin),
+    };
+  }
+
+  /**
+   * 任命管理员
+   */
+  static async appointAdmin(params: {
+    roomId: string;
+    userId: string;
+    role?: string;
+  }): Promise<ApiResponse<GroupAdmin>> {
+    const response = await post<{ admin: BackendGroupAdmin }>(
+      `/rooms/${params.roomId}/admins`,
+      {
+        user_id: params.userId,
+        role: params.role || 'admin',
+      },
+    );
+
+    if (!response.success || !response.data?.admin) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupAdmin(response.data.admin),
+    };
+  }
+
+  /**
+   * 撤销管理员
+   */
+  static async removeAdmin(params: {
+    roomId: string;
+    adminId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del<null>(
+      `/rooms/${params.roomId}/admins/${params.adminId}`,
+    );
+    return response;
+  }
+
+  // ===== 入群申请管理 =====
+
+  /**
+   * 获取入群申请列表
+   */
+  static async listJoinRequests(params: {
+    roomId: string;
+  }): Promise<ApiResponse<JoinRequest[]>> {
+    const response = await get<{ requests: BackendJoinRequest[] }>(
+      `/rooms/${params.roomId}/join-requests`,
+    );
+
+    if (!response.success || !response.data?.requests) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: response.data.requests.map(mapJoinRequest),
+    };
+  }
+
+  /**
+   * 审批入群申请
+   */
+  static async reviewJoinRequest(params: {
+    roomId: string;
+    requestId: string;
+    status: 'approved' | 'rejected';
+    reviewMessage?: string;
+  }): Promise<ApiResponse<JoinRequest>> {
+    const response = await patch<{ request: BackendJoinRequest }>(
+      `/rooms/${params.roomId}/join-requests/${params.requestId}/review`,
+      {
+        status: params.status,
+        review_message: params.reviewMessage,
+      },
+    );
+
+    if (!response.success || !response.data?.request) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapJoinRequest(response.data.request),
+    };
+  }
+
+  // ===== 禁言管理 =====
+
+  /**
+   * 获取被禁言的成员列表
+   */
+  static async listMutedUsers(params: {
+    roomId: string;
+  }): Promise<ApiResponse<GroupMute[]>> {
+    const response = await get<{ mutes: BackendGroupMute[] }>(
+      `/rooms/${params.roomId}/mutes`,
+    );
+
+    if (!response.success || !response.data?.mutes) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: response.data.mutes.map(mapGroupMute),
+    };
+  }
+
+  /**
+   * 禁言成员
+   */
+  static async muteUser(params: {
+    roomId: string;
+    userId: string;
+    durationHours: number;
+    reason?: string;
+  }): Promise<ApiResponse<GroupMute>> {
+    const response = await post<{ mute: BackendGroupMute }>(
+      `/rooms/${params.roomId}/mutes`,
+      {
+        user_id: params.userId,
+        duration_hours: params.durationHours,
+        reason: params.reason,
+      },
+    );
+
+    if (!response.success || !response.data?.mute) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupMute(response.data.mute),
+    };
+  }
+
+  /**
+   * 解除禁言
+   */
+  static async unmuteUser(params: {
+    roomId: string;
+    userId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del<null>(
+      `/rooms/${params.roomId}/mutes/${params.userId}`,
+    );
+    return response;
+  }
+
+  // ===== 群规管理 =====
+
+  /**
+   * 获取群规列表
+   */
+  static async listRules(params: {
+    roomId: string;
+  }): Promise<ApiResponse<GroupRule[]>> {
+    const response = await get<{ rules: BackendGroupRule[] }>(
+      `/rooms/${params.roomId}/rules`,
+    );
+
+    if (!response.success || !response.data?.rules) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: response.data.rules.map(mapGroupRule),
+    };
+  }
+
+  /**
+   * 创建群规
+   */
+  static async createRule(params: {
+    roomId: string;
+    title: string;
+    content: string;
+    orderIndex?: number;
+  }): Promise<ApiResponse<GroupRule>> {
+    const response = await post<{ rule: BackendGroupRule }>(
+      `/rooms/${params.roomId}/rules`,
+      {
+        title: params.title,
+        content: params.content,
+        order_index: params.orderIndex,
+      },
+    );
+
+    if (!response.success || !response.data?.rule) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupRule(response.data.rule),
+    };
+  }
+
+  /**
+   * 更新群规
+   */
+  static async updateRule(params: {
+    roomId: string;
+    ruleId: string;
+    title?: string;
+    content?: string;
+    orderIndex?: number;
+    isActive?: boolean;
+  }): Promise<ApiResponse<GroupRule>> {
+    const payload: Record<string, unknown> = {};
+    if (params.title !== undefined) payload.title = params.title;
+    if (params.content !== undefined) payload.content = params.content;
+    if (params.orderIndex !== undefined) payload.order_index = params.orderIndex;
+    if (params.isActive !== undefined) payload.is_active = params.isActive;
+
+    const response = await patch<{ rule: BackendGroupRule }>(
+      `/rooms/${params.roomId}/rules/${params.ruleId}`,
+      payload,
+    );
+
+    if (!response.success || !response.data?.rule) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupRule(response.data.rule),
+    };
+  }
+
+  /**
+   * 删除群规
+   */
+  static async deleteRule(params: {
+    roomId: string;
+    ruleId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await del<null>(
+      `/rooms/${params.roomId}/rules/${params.ruleId}`,
+    );
+    return response;
+  }
+
+  // ===== 操作日志 =====
+
+  /**
+   * 获取群操作日志
+   */
+  static async listOperationLogs(params: {
+    roomId: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse<{ logs: GroupOperationLog[]; total: number }>> {
+    const queryParams = new URLSearchParams();
+    if (params.limit !== undefined) queryParams.set('limit', String(params.limit));
+    if (params.offset !== undefined) queryParams.set('offset', String(params.offset));
+
+    const queryString = queryParams.toString();
+    const url = `/rooms/${params.roomId}/operation-logs${queryString ? `?${queryString}` : ''}`;
+
+    const response = await get<{ logs: BackendGroupOperationLog[]; total: number }>(url);
+
+    if (!response.success || !response.data?.logs) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        logs: response.data.logs.map(mapGroupOperationLog),
+        total: response.data.total,
+      },
+    };
+  }
+
+  // ===== 群设置管理 =====
+
+  /**
+   * 更新群设置
+   */
+  static async updateGroupSettings(params: {
+    roomId: string;
+    joinApprovalRequired?: boolean;
+    memberCanInvite?: boolean;
+    maxMembers?: number;
+  }): Promise<ApiResponse<GroupSettings>> {
+    const payload: Record<string, unknown> = {};
+    if (params.joinApprovalRequired !== undefined) {
+      payload.join_approval_required = params.joinApprovalRequired;
+    }
+    if (params.memberCanInvite !== undefined) {
+      payload.member_can_invite = params.memberCanInvite;
+    }
+    if (params.maxMembers !== undefined) {
+      payload.max_members = params.maxMembers;
+    }
+
+    const response = await patch<{ settings: BackendGroupSettings }>(
+      `/rooms/${params.roomId}/settings`,
+      payload,
+    );
+
+    if (!response.success || !response.data?.settings) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    return {
+      ...response,
+      data: mapGroupSettings(response.data.settings),
     };
   }
 }

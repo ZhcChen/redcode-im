@@ -25,6 +25,11 @@ import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
 import '../contacts/contact_detail_page.dart';
 import '../contacts/models/friend_models.dart';
+import 'group_admin_management_page.dart';
+import 'group_join_requests_page.dart';
+import 'group_mute_management_page.dart';
+import 'group_operation_logs_page.dart';
+import 'group_rules_page.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 
@@ -230,6 +235,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   bool _isUploadingAvatar = false;
   String? _currentUserId;
   bool _isGroupOwner = false;
+  bool _isAdmin = false; // 是否为管理员
   String? _avatarObjectKey; // 用于跟踪最新的头像 key
 
   // 群成员列表
@@ -302,6 +308,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         _members = members;
         _isLoadingMembers = false;
         _isGroupOwner = _computeOwnership(membersOverride: members);
+        _isAdmin = _computeIsAdmin(membersOverride: members);
       });
     } catch (e) {
       debugPrint('加载群成员失败: $e');
@@ -311,9 +318,34 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     }
   }
 
+  /// 判断当前用户是否为管理员
+  bool _computeIsAdmin({List<Map<String, dynamic>>? membersOverride}) {
+    if (widget.chat.type != ChatType.group) return false;
+    final userId = _currentUserId;
+    if (userId == null || userId.isEmpty) return false;
+
+    final members = membersOverride ?? _members;
+    for (final member in members) {
+      final roleValue = member['role'] ?? member['member_role'];
+      final role = roleValue is String
+          ? roleValue.toLowerCase()
+          : roleValue?.toString().toLowerCase();
+      final memberIdValue =
+          member['user_id'] ?? member['userId'] ?? member['id'];
+      final memberId = memberIdValue is String
+          ? memberIdValue
+          : memberIdValue?.toString();
+      if (role == 'admin' && memberId == userId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isGroupOwner = _isGroupOwner;
+    final canManageGroup = _isGroupOwner || _isAdmin;
     final memberCount = _chatProvider.cachedMemberCount(widget.chat.roomId);
     final navbarTitle = widget.chat.type == ChatType.group
         ? '聊天信息${memberCount != null ? "($memberCount)" : ""}'
@@ -337,6 +369,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
               const SizedBox(height: 16),
             ],
             _buildSettingsSection(context, isGroupOwner),
+            // 群聊管理入口（仅群主/管理员可见）
+            if (widget.chat.type == ChatType.group && canManageGroup)
+              _buildManagementSection(context),
             if (widget.chat.type == ChatType.group) ...[
               const SizedBox(height: 24),
               _buildBottomActions(context, isGroupOwner),
@@ -675,6 +710,101 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  /// 群聊管理入口区块（仅群主/管理员可见）
+  Widget _buildManagementSection(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          _SettingTile(
+            label: '管理员设置',
+            onTap: () => _navigateToAdminManagement(context),
+          ),
+          _SettingTile(
+            label: '入群审核',
+            onTap: () => _navigateToJoinRequests(context),
+          ),
+          _SettingTile(
+            label: '禁言管理',
+            onTap: () => _navigateToMuteManagement(context),
+          ),
+          _SettingTile(
+            label: '群规',
+            onTap: () => _navigateToGroupRules(context),
+          ),
+          _SettingTile(
+            label: '操作日志',
+            onTap: () => _navigateToOperationLogs(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToAdminManagement(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupAdminManagementPage(
+          roomId: widget.chat.roomId,
+          members: _members,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToJoinRequests(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupJoinRequestsPage(
+          roomId: widget.chat.roomId,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToMuteManagement(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupMuteManagementPage(
+          roomId: widget.chat.roomId,
+          members: _members,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToGroupRules(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupRulesPage(
+          roomId: widget.chat.roomId,
+          canManage: _isGroupOwner || _isAdmin,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToOperationLogs(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupOperationLogsPage(
+          roomId: widget.chat.roomId,
+          members: _members,
+        ),
       ),
     );
   }

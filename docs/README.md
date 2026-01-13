@@ -1,71 +1,112 @@
-## 📚 文档索引
+# 文档索引
 
-> 本文档用于索引 `docs/` 目录下的文档入口；快速开始请查看仓库根目录 `README.md`。
+> 本文档用于索引 `docs/` 目录下的所有文档。快速开始请查看仓库根目录 `README.md`。
 
-### 🌟 推荐阅读（新成员起步）
+## 总览
 
-1. **[项目现状评估报告 (2025-11-08)](reports/project-status-assessment-report-2025-11-08.md)** ⭐ **最新**
-   - 完整的项目分析、技术栈、进度评估
-   - 待完成任务清单与优先级建议
-   - 代码质量与安全评估
-   - 风险分析与行动计划
-
-2. **[API 概览](api/api-overview.md)**
-   - 接口分类与概述
-   - 快速查找所需 API
-
-3. **[文件上传排障](file-upload/file-upload-troubleshooting.md)**
-   - 头像上传问题诊断
-   - 自动化测试脚本使用
-
-### 📋 项目报告
-
-- [项目现状评估报告 (2025-11-08)](reports/project-status-assessment-report-2025-11-08.md) - ⭐ **最新**：完整的项目分析、进度评估、任务清单
-- [项目深入分析报告](reports/project-analysis-report.md) - 技术架构与代码详细分析
-- [待完成任务清单](reports/task-list.md) - TODO 事项跟踪（12 项任务）
-
-### 🔧 API 文档
-
-- [API 概览](api/api-overview.md) - 接口分类与概述
-- [API 参考](api/api-reference.md) - 详细接口文档
-- [版本联动方案（整包 + 热更新）](design/version-linkage-plan.md) - 多端整包/热更新策略与开发任务拆解
-
-### 📱 桌面端开发
-
-- [桌面端剩余工作](desktop/desktop-remaining-tasks.md) - 开发任务与进度、API 对齐清单
-
-### 📁 文件上传
-
-- [文件上传架构](file-upload/file-upload-architecture.md) - 系统设计与技术方案
-- [文件上传配置](file-upload/file-upload-configuration.md) - 配置指南
-- [聊天上传限制](file-upload/chat-upload-limits.md) - 上传规则说明
-- [文件上传排障](file-upload/file-upload-troubleshooting.md) - 问题排查手册与自动化测试
-
-### 🎨 设计文档
-
-- [端到端加密设计](design/end-to-end-encryption-design.md) - 加密方案设计（待实现）
-- [消息搜索设计](design/message-search-design.md) - 搜索实现方案
-- [Push 通知集成方案](design/push-notification-design.md) - FCM/APNs 推送方案与落地步骤
-- [Push 平台配置后台化需求](design/push-provider-config-requirements.md) - Admin 可视化配置 Push 凭据与降级策略
-
-### 🔒 安全文档
-
-- [隐私政策](legal/privacy-policy.md) - 个人信息保护政策 ⭐ **新增**
-- [用户协议](legal/user-agreement.md) - 用户使用服务条款 ⭐ **新增**
-- [安全说明](security/security-overview.md) - 安全措施详解
-- [安全检查清单](security/security-checklist.md) - 安全检查项
-
-### 📖 团队手册
-
-- [代理指南](handbook/agent-guide.md) - 团队协作规范
-- [Flutter 热更新实施方案](handbook/flutter-hot-update-implementation.md) - 移动端整包/热更新落地步骤与任务拆解
-- [管理后台开发规范](../admin/docs/开发规范.md) - MUST：API 封装、代理配置、loading/错误处理自检清单
-
-### 🧩 后端专题（backend/docs）
-
-- [Backend 文档索引](../backend/docs/README.md)
-- [WebSocket 实时分发测试](../backend/docs/testing/websocket-test.md)
+- [API 概览](api/api-overview.md) - 接口分类与快速查找
+- [API 详细参考](api/api-reference.md) - 完整接口文档
 
 ---
 
-**文档最后更新**: 2025-12-29
+## API 文档
+
+| 文档 | 说明 |
+|------|------|
+| [API 概览](api/api-overview.md) | 接口分类与概述 |
+| [API 参考](api/api-reference.md) | 详细接口规范 |
+| [认证接口](api/auth.md) | 登录、注册、Token |
+| [用户资料](api/user-profile.md) | 个人信息管理 |
+| [好友接口](api/friends.md) | 好友关系管理 |
+| [会话接口](api/chats.md) | 聊天会话管理 |
+| [消息接口](api/messages.md) | 消息收发 |
+| [WebSocket](api/websocket.md) | 实时通信协议 |
+| [文件上传](api/file-upload-hash.md) | 文件上传与哈希校验 |
+| [版本管理](api/version-management.md) | 客户端版本控制 |
+| [系统接口](api/system.md) | 系统配置与状态 |
+| [管理后台存储](api/admin-storage.md) | Admin 存储接口 |
+| [数据模型](api/models.md) | 通用数据结构 |
+
+---
+
+## 架构设计
+
+| 文档 | 说明 |
+|------|------|
+| [版本联动方案](architecture/version-linkage-plan.md) | 整包 + 热更新策略 |
+| [推送通知设计](architecture/push-notification-design.md) | FCM/APNs 推送方案 |
+| [推送配置需求](architecture/push-provider-config-requirements.md) | Push 凭据后台化 |
+| [端到端加密设计](architecture/end-to-end-encryption-design.md) | E2EE 方案（规划中） |
+| [消息搜索设计](architecture/message-search-design.md) | 搜索实现方案 |
+| [COS 集成](architecture/cos-integration.md) | 腾讯云对象存储 |
+| [Redis 配置](architecture/redis-setup.md) | Redis 部署指南 |
+| [Redis 安全](architecture/redis-security.md) | Redis 安全配置 |
+| [桌面端图标规范](architecture/desktop-icon-design-spec.md) | 图标设计标准 |
+
+---
+
+## 开发指南
+
+| 文档 | 说明 |
+|------|------|
+| [WebSocket 集成](guides/websocket-integration.md) | 客户端 WebSocket 接入 |
+| [登录 WebSocket 集成](guides/login-websocket-integration.md) | 登录流程与 WS 结合 |
+| [错误处理规范](guides/error-handling.md) | 后端错误处理 |
+| [SQL 开发规范](guides/sql-development.md) | 数据库开发指南 |
+
+---
+
+## 测试文档
+
+| 文档 | 说明 |
+|------|------|
+| [E2E 测试路径](testing/test-paths.md) | 移动端用户旅程测试 |
+| [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用 |
+| [WebSocket 测试](testing/websocket-test.md) | WS 实时分发测试 |
+| [快速测试](testing/quick-test.md) | 快速验证指南 |
+| [添加好友测试](testing/add-friend.md) | 好友功能测试 |
+| [桌面端测试架构](testing/desktop-add-member-go-test-architecture.md) | Go 测试设计 |
+
+---
+
+## 运维部署
+
+| 文档 | 说明 |
+|------|------|
+| [部署环境](operations/deployment-env.md) | 环境配置说明 |
+| [开发与构建](operations/dev-and-build.md) | 本地开发指南 |
+| [Docker 部署](operations/docker-deploy.md) | 容器化部署 |
+
+---
+
+## 安全文档
+
+| 文档 | 说明 |
+|------|------|
+| [安全概述](security/security-overview.md) | 安全措施详解 |
+| [安全检查清单](security/security-checklist.md) | 安全检查项 |
+
+---
+
+## 法律文档
+
+| 文档 | 说明 |
+|------|------|
+| [隐私政策](legal/privacy-policy.md) | 个人信息保护政策 |
+| [用户协议](legal/user-agreement.md) | 用户服务条款 |
+
+---
+
+## 各模块 README
+
+| 模块 | 说明 |
+|------|------|
+| [backend](../backend/README.md) | 后端服务 (Go) |
+| [frontend](../frontend/README.md) | 移动端 (Flutter) |
+| [desktop](../desktop/README.md) | 桌面端 (Vue + Tauri) |
+| [admin](../admin/README.md) | 管理后台 (Vue) |
+| [website](../website/README.md) | 官网 |
+
+---
+
+**文档最后更新**: 2025-01-13

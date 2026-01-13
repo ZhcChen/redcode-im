@@ -1,12 +1,9 @@
 # Frontend 文档
 
-## 分类索引
+> 所有文档已迁移至统一位置，请访问 [docs/README.md](../../docs/README.md)
 
-- 开发指引
-  - [登录与 WebSocket 集成说明](./guides/login-websocket-integration.md)
-  - [WebSocket 集成方案概述](./guides/websocket-integration.md)
-- 测试手册
-  - [快速联调步骤](./testing/quick-test.md)
-  - [添加好友流程测试](./testing/add-friend.md)
-- 项目记录
-  - [迁移任务记录](./project/migration-task.md)
+## 相关文档
+
+- [E2E 测试路径](../../docs/testing/test-paths.md)
+- [E2E 测试指南](../../docs/testing/e2e-testing-guide.md)
+- [WebSocket 集成](../../docs/guides/websocket-integration.md)

@@ -106,6 +106,43 @@
             </div>
           </div>
 
+          <!-- 群高级管理功能（仅群主/管理员可见） -->
+          <div class="setting-item" v-if="isGroupOwner" @click="handleManageAdmins">
+            <div class="setting-label">管理员设置</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" v-if="isGroupOwner" @click="handleManageJoinRequests">
+            <div class="setting-label">入群审核</div>
+            <div class="setting-value">
+              <span v-if="pendingJoinRequestCount > 0" class="badge">{{ pendingJoinRequestCount }}</span>
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" v-if="isGroupOwner" @click="handleManageMutes">
+            <div class="setting-label">禁言管理</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" @click="handleViewRules">
+            <div class="setting-label">群规</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
+          <div class="setting-item" v-if="isGroupOwner" @click="handleViewLogs">
+            <div class="setting-label">操作日志</div>
+            <div class="setting-value">
+              <img src="@/assets/image/icon-right.svg" alt="右箭头" class="setting-arrow" />
+            </div>
+          </div>
+
           <div class="setting-item" v-if="isGroupOwner" @click="handleTransferOwner">
             <div class="setting-label">转让群主</div>
             <div class="setting-value">
@@ -200,6 +237,7 @@ interface Props {
   isGroupOwner?: boolean
   globalMuteEnabled?: boolean
   globalMuteLoading?: boolean
+  pendingJoinRequestCount?: number
 }
 
 interface Emits {
@@ -217,6 +255,11 @@ interface Emits {
   (e: 'toggle-global-mute', value: boolean): void
   (e: 'transfer-owner'): void
   (e: 'dissolve-group'): void
+  (e: 'manage-admins'): void
+  (e: 'manage-join-requests'): void
+  (e: 'manage-mutes'): void
+  (e: 'view-rules'): void
+  (e: 'view-logs'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -225,7 +268,8 @@ const props = withDefaults(defineProps<Props>(), {
   groupMembers: () => [],
   isGroupOwner: false,
   globalMuteEnabled: false,
-  globalMuteLoading: false
+  globalMuteLoading: false,
+  pendingJoinRequestCount: 0
 })
 const emit = defineEmits<Emits>()
 
@@ -347,6 +391,27 @@ const handleReport = () => {
 
 const handleLeaveGroup = () => {
   emit('leave-group')
+}
+
+// 群高级管理功能
+const handleManageAdmins = () => {
+  emit('manage-admins')
+}
+
+const handleManageJoinRequests = () => {
+  emit('manage-join-requests')
+}
+
+const handleManageMutes = () => {
+  emit('manage-mutes')
+}
+
+const handleViewRules = () => {
+  emit('view-rules')
+}
+
+const handleViewLogs = () => {
+  emit('view-logs')
 }
 </script>
 
@@ -566,6 +631,20 @@ const handleLeaveGroup = () => {
     gap: 8px;
     flex: 1;
     min-width: 0;
+
+    .badge {
+      background-color: #ff4757;
+      color: #ffffff;
+      font-size: 12px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
 
     .setting-value__text {
       flex: 1;

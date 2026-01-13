@@ -126,6 +126,213 @@ class GroupSettingsInfo {
   }
 }
 
+// ===== 群管理相关模型 =====
+
+/// 群管理员
+class GroupAdmin {
+  GroupAdmin({
+    required this.id,
+    required this.roomId,
+    required this.adminId,
+    required this.appointedBy,
+    required this.role,
+    this.permissions,
+    required this.appointedAt,
+  });
+
+  final String id;
+  final String roomId;
+  final String adminId;
+  final String appointedBy;
+  final String role;
+  final List<String>? permissions;
+  final DateTime appointedAt;
+
+  factory GroupAdmin.fromJson(Map<String, dynamic> json) {
+    return GroupAdmin(
+      id: json['id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      adminId: json['admin_id'] as String? ?? '',
+      appointedBy: json['appointed_by'] as String? ?? '',
+      role: json['role'] as String? ?? 'admin',
+      permissions: (json['permissions'] as List?)?.cast<String>(),
+      appointedAt: DateTime.tryParse(json['appointed_at'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
+/// 入群申请
+class JoinRequest {
+  JoinRequest({
+    required this.id,
+    required this.roomId,
+    required this.applicantId,
+    this.message,
+    required this.status,
+    this.reviewerId,
+    this.reviewMessage,
+    required this.createdAt,
+    this.reviewedAt,
+  });
+
+  final String id;
+  final String roomId;
+  final String applicantId;
+  final String? message;
+  final String status; // 'pending', 'approved', 'rejected'
+  final String? reviewerId;
+  final String? reviewMessage;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+
+  factory JoinRequest.fromJson(Map<String, dynamic> json) {
+    final statusRaw = json['status'];
+    String status = 'pending';
+    if (statusRaw is int) {
+      status = statusRaw == 1 ? 'approved' : (statusRaw == 2 ? 'rejected' : 'pending');
+    } else if (statusRaw is String) {
+      status = statusRaw;
+    }
+
+    return JoinRequest(
+      id: json['id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      applicantId: json['applicant_id'] as String? ?? '',
+      message: json['message'] as String?,
+      status: status,
+      reviewerId: json['reviewer_id'] as String?,
+      reviewMessage: json['review_message'] as String?,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+      reviewedAt: json['reviewed_at'] != null
+          ? DateTime.tryParse(json['reviewed_at'] as String)
+          : null,
+    );
+  }
+}
+
+/// 群禁言记录
+class GroupMute {
+  GroupMute({
+    required this.id,
+    required this.roomId,
+    required this.userId,
+    required this.mutedBy,
+    this.reason,
+    required this.muteDurationHours,
+    required this.mutedAt,
+    this.unmutedAt,
+    required this.isActive,
+    this.muteUntil,
+  });
+
+  final String id;
+  final String roomId;
+  final String userId;
+  final String mutedBy;
+  final String? reason;
+  final int muteDurationHours;
+  final DateTime mutedAt;
+  final DateTime? unmutedAt;
+  final bool isActive;
+  final DateTime? muteUntil;
+
+  factory GroupMute.fromJson(Map<String, dynamic> json) {
+    final mutedAt = DateTime.tryParse(json['muted_at'] as String? ?? '') ?? DateTime.now();
+    final durationHours = json['mute_duration_hours'] as int? ?? 0;
+    DateTime? muteUntil;
+    if (durationHours > 0) {
+      muteUntil = mutedAt.add(Duration(hours: durationHours));
+    }
+
+    return GroupMute(
+      id: json['id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      mutedBy: json['muted_by'] as String? ?? '',
+      reason: json['reason'] as String?,
+      muteDurationHours: durationHours,
+      mutedAt: mutedAt,
+      unmutedAt: json['unmuted_at'] != null
+          ? DateTime.tryParse(json['unmuted_at'] as String)
+          : null,
+      isActive: json['is_active'] as bool? ?? true,
+      muteUntil: muteUntil,
+    );
+  }
+}
+
+/// 群规
+class GroupRule {
+  GroupRule({
+    required this.id,
+    required this.roomId,
+    required this.title,
+    required this.content,
+    required this.creatorId,
+    required this.orderIndex,
+    required this.isActive,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String roomId;
+  final String title;
+  final String content;
+  final String creatorId;
+  final int orderIndex;
+  final bool isActive;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory GroupRule.fromJson(Map<String, dynamic> json) {
+    return GroupRule(
+      id: json['id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      creatorId: json['creator_id'] as String? ?? '',
+      orderIndex: json['order_index'] as int? ?? 0,
+      isActive: json['is_active'] as bool? ?? true,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
+/// 操作日志
+class GroupOperationLog {
+  GroupOperationLog({
+    required this.id,
+    required this.roomId,
+    required this.operatorId,
+    this.targetUserId,
+    required this.operationType,
+    this.operationData,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String roomId;
+  final String operatorId;
+  final String? targetUserId;
+  final String operationType;
+  final Map<String, dynamic>? operationData;
+  final DateTime createdAt;
+
+  factory GroupOperationLog.fromJson(Map<String, dynamic> json) {
+    return GroupOperationLog(
+      id: json['id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      operatorId: json['operator_id'] as String? ?? '',
+      targetUserId: json['target_user_id'] as String?,
+      operationType: json['operation_type'] as String? ?? '',
+      operationData: json['operation_data'] as Map<String, dynamic>?,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
 class RoomService {
   RoomService({TokenStorage? tokenStorage})
     : _tokenStorage = tokenStorage ?? const TokenStorage();
@@ -320,5 +527,421 @@ class RoomService {
       // 静默失败，返回 null
     }
     return null;
+  }
+
+  // ===== 群管理员相关 =====
+
+  /// 获取群管理员列表
+  Future<List<GroupAdmin>> listAdmins(String roomId) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/admins');
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final admins = decoded['admins'];
+        if (admins is List) {
+          return admins
+              .whereType<Map<String, dynamic>>()
+              .map((e) => GroupAdmin.fromJson(e))
+              .toList();
+        }
+      }
+      return [];
+    }
+    throw RoomServiceException(
+      _extractErrorMessage(response.body) ?? '获取管理员列表失败',
+    );
+  }
+
+  /// 任命管理员
+  Future<void> appointAdmin({
+    required String roomId,
+    required String userId,
+    String role = 'admin',
+    List<String>? permissions,
+  }) async {
+    if (roomId.isEmpty || userId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/admins');
+    final payload = <String, dynamic>{
+      'user_id': userId,
+      'role': role,
+    };
+    if (permissions != null && permissions.isNotEmpty) {
+      payload['permissions'] = permissions;
+    }
+
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '任命管理员失败',
+      );
+    }
+  }
+
+  /// 移除管理员
+  Future<void> removeAdmin({
+    required String roomId,
+    required String userId,
+  }) async {
+    if (roomId.isEmpty || userId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/admins/$userId');
+    final response = await http.delete(uri, headers: headers);
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '移除管理员失败',
+      );
+    }
+  }
+
+  // ===== 入群申请相关 =====
+
+  /// 获取入群申请列表
+  Future<List<JoinRequest>> listJoinRequests(String roomId) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/join-requests');
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final requests = decoded['requests'];
+        if (requests is List) {
+          return requests
+              .whereType<Map<String, dynamic>>()
+              .map((e) => JoinRequest.fromJson(e))
+              .toList();
+        }
+      }
+      return [];
+    }
+    throw RoomServiceException(
+      _extractErrorMessage(response.body) ?? '获取入群申请失败',
+    );
+  }
+
+  /// 审核入群申请
+  Future<void> reviewJoinRequest({
+    required String roomId,
+    required String requestId,
+    required String status, // 'approved' | 'rejected'
+    String? reviewMessage,
+  }) async {
+    if (roomId.isEmpty || requestId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/join-requests/$requestId/review',
+    );
+    final payload = <String, dynamic>{'status': status};
+    if (reviewMessage != null && reviewMessage.trim().isNotEmpty) {
+      payload['review_message'] = reviewMessage.trim();
+    }
+
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '审核入群申请失败',
+      );
+    }
+  }
+
+  // ===== 禁言管理相关 =====
+
+  /// 获取被禁言成员列表
+  Future<List<GroupMute>> listMutedUsers(String roomId) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/mutes');
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final mutes = decoded['mutes'];
+        if (mutes is List) {
+          return mutes
+              .whereType<Map<String, dynamic>>()
+              .map((e) => GroupMute.fromJson(e))
+              .toList();
+        }
+      }
+      return [];
+    }
+    throw RoomServiceException(
+      _extractErrorMessage(response.body) ?? '获取禁言列表失败',
+    );
+  }
+
+  /// 禁言成员
+  Future<void> muteUser({
+    required String roomId,
+    required String userId,
+    required int durationHours,
+    String? reason,
+  }) async {
+    if (roomId.isEmpty || userId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/mutes');
+    final payload = <String, dynamic>{
+      'user_id': userId,
+      'duration_hours': durationHours,
+    };
+    if (reason != null && reason.trim().isNotEmpty) {
+      payload['reason'] = reason.trim();
+    }
+
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '禁言失败',
+      );
+    }
+  }
+
+  /// 解除禁言
+  Future<void> unmuteUser({
+    required String roomId,
+    required String userId,
+  }) async {
+    if (roomId.isEmpty || userId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/mutes/$userId');
+    final response = await http.delete(uri, headers: headers);
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '解除禁言失败',
+      );
+    }
+  }
+
+  // ===== 群规相关 =====
+
+  /// 获取群规列表
+  Future<List<GroupRule>> listRules(String roomId) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/rules');
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final rules = decoded['rules'];
+        if (rules is List) {
+          return rules
+              .whereType<Map<String, dynamic>>()
+              .map((e) => GroupRule.fromJson(e))
+              .toList();
+        }
+      }
+      return [];
+    }
+    throw RoomServiceException(
+      _extractErrorMessage(response.body) ?? '获取群规失败',
+    );
+  }
+
+  /// 创建群规
+  Future<GroupRule> createRule({
+    required String roomId,
+    required String title,
+    required String content,
+    int orderIndex = 0,
+  }) async {
+    if (roomId.isEmpty || title.trim().isEmpty || content.trim().isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/rules');
+    final payload = <String, dynamic>{
+      'title': title.trim(),
+      'content': content.trim(),
+      'order_index': orderIndex,
+    };
+
+    final response = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final rule = decoded['rule'];
+        if (rule is Map<String, dynamic>) {
+          return GroupRule.fromJson(rule);
+        }
+      }
+      throw RoomServiceException('创建群规返回数据异常');
+    }
+    throw RoomServiceException(
+      _extractErrorMessage(response.body) ?? '创建群规失败',
+    );
+  }
+
+  /// 更新群规
+  Future<void> updateRule({
+    required String roomId,
+    required String ruleId,
+    String? title,
+    String? content,
+    int? orderIndex,
+    bool? isActive,
+  }) async {
+    if (roomId.isEmpty || ruleId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/rules/$ruleId');
+    final payload = <String, dynamic>{};
+    if (title != null) payload['title'] = title.trim();
+    if (content != null) payload['content'] = content.trim();
+    if (orderIndex != null) payload['order_index'] = orderIndex;
+    if (isActive != null) payload['is_active'] = isActive;
+
+    final response = await http.put(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '更新群规失败',
+      );
+    }
+  }
+
+  /// 删除群规
+  Future<void> deleteRule({
+    required String roomId,
+    required String ruleId,
+  }) async {
+    if (roomId.isEmpty || ruleId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/rules/$ruleId');
+    final response = await http.delete(uri, headers: headers);
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '删除群规失败',
+      );
+    }
+  }
+
+  // ===== 操作日志相关 =====
+
+  /// 获取操作日志
+  Future<List<GroupOperationLog>> listOperationLogs({
+    required String roomId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/operation-logs?limit=$limit&offset=$offset',
+    );
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final logs = decoded['logs'];
+        if (logs is List) {
+          return logs
+              .whereType<Map<String, dynamic>>()
+              .map((e) => GroupOperationLog.fromJson(e))
+              .toList();
+        }
+      }
+      return [];
+    }
+    throw RoomServiceException(
+      _extractErrorMessage(response.body) ?? '获取操作日志失败',
+    );
+  }
+
+  // ===== 群设置相关 =====
+
+  /// 更新群设置
+  Future<void> updateGroupSettings({
+    required String roomId,
+    bool? joinApprovalRequired,
+    bool? memberCanInvite,
+    int? maxMembers,
+  }) async {
+    if (roomId.isEmpty) {
+      throw RoomServiceException('无效的群组 ID');
+    }
+    final headers = await _authHeaders();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/settings');
+    final payload = <String, dynamic>{};
+    if (joinApprovalRequired != null) {
+      payload['join_approval_required'] = joinApprovalRequired;
+    }
+    if (memberCanInvite != null) {
+      payload['member_can_invite'] = memberCanInvite;
+    }
+    if (maxMembers != null) {
+      payload['max_members'] = maxMembers;
+    }
+
+    final response = await http.put(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '更新群设置失败',
+      );
+    }
   }
 }
