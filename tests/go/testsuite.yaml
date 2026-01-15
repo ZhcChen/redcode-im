@@ -15,7 +15,18 @@ suites:
         name: 消息搜索：权限边界
         command: ["go", "test", "./backend/messages", "-run", "TestMessageSearch_", "-v"]
 
+      - id: backend.messages.since
+        name: 消息列表：since_id 补拉
+        command: ["go", "test", "./backend/messages", "-run", "TestListMessages_SinceID_", "-v"]
+
+      - id: backend.friends.flow
+        name: 好友：申请/同意/私聊房间
+        command: ["go", "test", "./backend/friends", "-run", "TestFriendRequest_", "-v"]
+
       - id: backend.system.upload_policy
         name: 上传策略：用户端 + 管理端回归
         command: ["go", "test", "./backend/system", "-run", "TestUploadPolicy_", "-v"]
 
+      - id: backend.ws.smoke
+        name: WebSocket：auth/join/message push
+        command: ["go", "test", "./backend/ws", "-run", "TestWebSocket_", "-v"]

@@ -115,6 +115,17 @@ USERNAME="13800138000" PASSWORD="Test123456" ROOM_ID="<ROOM_UUID>" \
 npm run test:ws
 ```
 
+## 可选：Go 黑盒回归（推荐纳入 `./tests/run.sh`）
+
+仓库已提供 Go 端的 WebSocket 冒烟用例（auth → join → message push）：
+
+```bash
+cd tests/go
+API_BASE_URL=http://localhost:8010 go test -v ./backend/ws -run TestWebSocket_
+```
+
+> 通常无需手工起后端：直接运行 `./tests/run.sh` 会自动起测试栈并执行全部 Go 回归。
+
 ## 常见问题
 
 ### 1) 收不到 joined / message

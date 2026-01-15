@@ -24,20 +24,6 @@ type searchResponse struct {
 	HasMore bool `json:"has_more"`
 }
 
-func sendMessage(t *testing.T, c *testutil.Client, token, roomID, content string) {
-	t.Helper()
-	payload := map[string]any{
-		"content": content,
-	}
-	resp, body, err := c.DoJSON("POST", "/rooms/"+roomID+"/messages", payload, token)
-	if err != nil {
-		t.Fatalf("send message http error: %v", err)
-	}
-	if resp.StatusCode != 200 {
-		t.Fatalf("send message status=%d body=%s", resp.StatusCode, string(body))
-	}
-}
-
 func searchMessages(t *testing.T, c *testutil.Client, token, query, roomID string) searchResponse {
 	t.Helper()
 	path := "/messages/search?query=" + url.QueryEscape(query)
@@ -75,8 +61,8 @@ func TestMessageSearch_OnlyReturnsAccessibleRooms(t *testing.T) {
 	sharedContent := "shared " + needle
 	privateContent := "private " + needle
 
-	sendMessage(t, c, login1.Token, sharedRoomID, sharedContent)
-	sendMessage(t, c, login1.Token, privateRoomID, privateContent)
+	_ = testutil.SendMessage(t, c, login1.Token, sharedRoomID, sharedContent)
+	_ = testutil.SendMessage(t, c, login1.Token, privateRoomID, privateContent)
 
 	// user2 只能搜索到自己可见房间内的消息
 	res := searchMessages(t, c, login2.Token, needle, "")
