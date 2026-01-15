@@ -19,6 +19,10 @@ suites:
         name: 消息列表：since_id 补拉
         command: ["go", "test", "./backend/messages", "-run", "TestListMessages_SinceID_", "-v"]
 
+      - id: backend.messages.permissions
+        name: 消息：非成员权限（403）
+        command: ["go", "test", "./backend/messages", "-run", "TestMessages_NonMember_", "-v"]
+
       - id: backend.friends.flow
         name: 好友：申请/同意/私聊房间
         command: ["go", "test", "./backend/friends", "-run", "TestFriendRequest_", "-v"]
@@ -28,5 +32,5 @@ suites:
         command: ["go", "test", "./backend/system", "-run", "TestUploadPolicy_", "-v"]
 
       - id: backend.ws.smoke
-        name: WebSocket：auth/join/message push
+        name: WebSocket：回归（auth/join/push/边界）
         command: ["go", "test", "./backend/ws", "-run", "TestWebSocket_", "-v"]
