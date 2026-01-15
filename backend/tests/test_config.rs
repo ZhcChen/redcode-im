@@ -1,7 +1,11 @@
+use once_cell::sync::OnceCell;
+use redcode_im_backend::database;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres};
 use std::env;
 use std::time::Duration;
+
+static MIGRATIONS_READY: OnceCell<()> = OnceCell::new();
 
 pub struct TestDatabase {
     pub pool: Pool<Postgres>,
@@ -17,8 +21,7 @@ impl TestDatabase {
             .or_else(|_| env::var("DATABASE_URL"))
             .expect("DATABASE_URL or DATABASE_URL_TEST must be set");
 
-        // 直接创建连接池，不运行迁移（假设数据库已初始化）
-        // 增加连接数和超时配置以应对并发测试
+        // 创建连接池（增加连接数和超时配置以应对并发测试）
         let pool = PgPoolOptions::new()
             .max_connections(10)
             .min_connections(1)
@@ -27,6 +30,12 @@ impl TestDatabase {
             .connect(&database_url)
             .await
             .expect("Failed to connect to test database");
+
+        // 仅在当前测试进程内执行一次迁移，避免每个用例重复 migrate（慢且可能有竞争）。
+        if MIGRATIONS_READY.set(()).is_ok() {
+            let database = database::Database { pool: pool.clone() };
+            database.migrate().await.expect("数据库迁移失败");
+        }
 
         Self { pool }
     }

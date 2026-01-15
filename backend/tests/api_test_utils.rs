@@ -18,7 +18,7 @@ static REDIS_READY: OnceCell<()> = OnceCell::new();
 static TRACING_READY: OnceCell<()> = OnceCell::new();
 
 fn ensure_env_defaults() {
-    // 集成测试依赖真实 DB/Redis；这里给出“本地 docker compose”默认值，避免忘记设置导致 NOAUTH。
+    // 集成测试依赖真实 DB/Redis；这里给出“本地 docker-compose”默认值，避免忘记设置导致 NOAUTH。
     if env::var("REDIS_SESSION_URL").is_err() {
         env::set_var("REDIS_SESSION_URL", "redis://:123456@localhost:6381/0");
     }
@@ -63,7 +63,7 @@ async fn build_state() -> AppState {
         redis_manager
             .test_connections()
             .await
-            .expect("Redis 连接测试失败（请确认 docker compose redis-session/redis-cache 已启动，且 URL 包含密码）");
+            .expect("Redis 连接测试失败（请确认 docker-compose redis-session/redis-cache 已启动，且 URL 包含密码）");
     }
 
     services::geolocation::init_geolocation_service(database.pool().clone());

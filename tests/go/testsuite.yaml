@@ -1,0 +1,21 @@
+suites:
+  - id: backend
+    name: Backend 契约/集成测试（Go）
+    kind: integration
+    cases:
+      - id: backend.all
+        name: 全量（go test ./...）
+        command: ["go", "test", "./...", "-v"]
+
+      - id: backend.rooms.add_member
+        name: 群聊：添加成员
+        command: ["go", "test", "./backend/rooms", "-run", "TestAddMembers_", "-v"]
+
+      - id: backend.messages.search
+        name: 消息搜索：权限边界
+        command: ["go", "test", "./backend/messages", "-run", "TestMessageSearch_", "-v"]
+
+      - id: backend.system.upload_policy
+        name: 上传策略：用户端 + 管理端回归
+        command: ["go", "test", "./backend/system", "-run", "TestUploadPolicy_", "-v"]
+

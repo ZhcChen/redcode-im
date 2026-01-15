@@ -3,10 +3,11 @@
 ## 一键启动（终端1：依赖 + 后端）
 
 ```bash
-cd backend
-cp .env.example .env  # 首次运行需要
-docker compose up -d postgres redis-session redis-cache
-cargo run
+# 启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认暴露到宿主 8010）
+docker-compose -f tests/docker-compose.yml up -d --build
+
+# 如宿主 8010 被占用：
+# BACKEND_HOST_PORT=18010 docker-compose -f tests/docker-compose.yml up -d --build
 ```
 
 ## 准备测试数据（终端2）
@@ -65,10 +66,9 @@ flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_UR
 ## 清理数据重新测试
 
 ```bash
-cd backend
-docker compose down -v
-docker compose up -d postgres redis-session redis-cache
-./test_flow.sh
+docker-compose -f tests/docker-compose.yml down -v
+docker-compose -f tests/docker-compose.yml up -d --build
+cd backend && ./test_flow.sh
 ```
 
 ## 问题排查
@@ -79,7 +79,7 @@ docker compose up -d postgres redis-session redis-cache
 
 ### WebSocket 连接失败
 - 确认 `WS_URL` 指向正确地址（Android 模拟器用 `10.0.2.2`）
-- 检查 Redis 是否正常运行（`docker compose ps`）
+- 检查测试栈是否正常运行（`docker-compose -f tests/docker-compose.yml ps`）
 
 ### 消息发送/同步异常
 - 确认已运行 `./test_flow.sh` 准备好友关系与房间

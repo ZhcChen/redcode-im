@@ -14,7 +14,7 @@
 ### 启动后端（开发）
 ```bash
 cd backend
-docker compose up -d postgres redis-session redis-cache
+docker-compose up -d postgres redis-session redis-cache
 RUST_LOG=debug cargo run
 ```
 

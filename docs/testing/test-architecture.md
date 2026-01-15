@@ -28,10 +28,11 @@
 ### 3.1 启动依赖与后端
 
 ```bash
-cd backend
-cp .env.example .env  # 首次运行需要
-docker compose up -d postgres redis-session redis-cache
-cargo run
+# 推荐：一键启动测试栈并跑回归（PG/Redis 不暴露宿主端口）
+./tests/run.sh
+
+# 或：只启动测试栈（Backend 默认暴露到宿主 8010，可用 BACKEND_HOST_PORT 覆盖）
+docker-compose -f tests/docker-compose.yml up -d --build
 ```
 
 ### 3.2 初始化测试数据（统一入口）
@@ -74,17 +75,17 @@ flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_UR
 
 ### 4.2 数据库/存储层集成测试（Rust）
 
-- 入口：`cd backend && cargo test --test database_store_tests -- --test-threads=1`
+- 入口（推荐，无需宿主机暴露 DB 端口）：`docker-compose -f tests/docker-compose.yml run --rm rust-tests cargo test --test database_store_tests -- --test-threads=1`
 - 依赖：PostgreSQL 可用，并配置 `DATABASE_URL_TEST`（或回退 `DATABASE_URL`）。
 
 ### 4.3 HTTP/WS 契约与回归（Go 1.25）
 
-目录：`tests/go/*`（每个子目录是独立 go module）。
+目录：`tests/go/`（单一 go module，按业务域拆包）。
 
 运行示例：
 
 ```bash
-cd tests/go/desktop_add_member
+cd tests/go
 API_BASE_URL=http://localhost:8010 go test -v ./...
 ```
 
@@ -167,7 +168,7 @@ cargo test
 
 ### 7.3 API 契约（复用 Go）
 
-桌面端强依赖后端 API，可复用 `tests/go/*` 做回归基线（例如：群成员管理）。
+桌面端强依赖后端 API，可复用 `tests/go/` 做回归基线（例如：群成员管理）。
 
 ## 8. Website（Nuxt）如何测试
 

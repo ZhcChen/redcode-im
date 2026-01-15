@@ -4,6 +4,7 @@ use aes_gcm::{
 };
 use machine_uid;
 use sha2::{Digest, Sha256};
+use std::env;
 use std::path::PathBuf;
 
 pub mod secret;
@@ -35,8 +36,14 @@ impl TokenCrypto {
     /// 使用 SHA256 生成 32 字节密钥
     fn generate_device_key(app_data_dir: &PathBuf) -> Result<[u8; 32], Box<dyn std::error::Error>> {
         // 获取机器 ID
-        let machine_id =
-            machine_uid::get().map_err(|e| format!("Failed to get machine ID: {}", e))?;
+        //
+        // 说明：
+        // - 生产环境优先使用系统 machine id（更稳定）
+        // - 测试/容器环境如果缺少 /etc/machine-id，可通过环境变量覆盖以保证可运行
+        let machine_id = match env::var("REDCODE_IM_MACHINE_ID") {
+            Ok(v) if !v.trim().is_empty() => v,
+            _ => machine_uid::get().map_err(|e| format!("Failed to get machine ID: {}", e))?,
+        };
 
         // 获取数据目录路径
         let dir_path = app_data_dir
@@ -121,6 +128,7 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt() {
+        std::env::set_var("REDCODE_IM_MACHINE_ID", "test-machine-id");
         let app_data_dir = PathBuf::from("/tmp/test_app");
         let crypto = TokenCrypto::new(&app_data_dir).unwrap();
 
@@ -133,6 +141,7 @@ mod tests {
 
     #[test]
     fn test_different_tokens() {
+        std::env::set_var("REDCODE_IM_MACHINE_ID", "test-machine-id");
         let app_data_dir = PathBuf::from("/tmp/test_app");
         let crypto = TokenCrypto::new(&app_data_dir).unwrap();
 

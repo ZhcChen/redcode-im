@@ -81,7 +81,7 @@
 
 多数跨端测试需要“真实账号 + 好友关系 + 房间”。
 
-统一使用 `backend/test_flow.sh` 初始化（可重复运行）：
+统一使用 `backend/test_flow.sh` 初始化（可重复运行，适合手工/联调）：
 
 ```bash
 cd backend
@@ -95,22 +95,43 @@ cd backend
 ### 依赖服务
 
 ```bash
-# 启动 PostgreSQL + Redis（仅依赖服务，后端建议本地 cargo run）
-cd backend
-docker compose up -d postgres redis-session redis-cache
+# 一键跑测试（推荐：同时跑 Rust 单测 + Go 契约/集成测试；并自动起测试栈）
+./tests/run.sh
+
+# 仅启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认暴露到宿主 8010）
+docker-compose -f tests/docker-compose.yml up -d --build
 
 # 验证服务状态
-docker compose ps
+docker-compose -f tests/docker-compose.yml ps
 ```
+
+`./tests/run.sh` 约定：
+- 默认会自动生成独立 `COMPOSE_PROJECT_NAME`（避免与其他项目/历史残留栈冲突）
+- 默认退出时执行 `docker-compose down -v` 清理（如需保留栈便于调试：`KEEP_STACK=1 ./tests/run.sh`）
+
+> 若你使用 Colima：默认 2GiB 容易导致 Rust 编译在容器内被 OOM kill；建议至少 6GiB。可通过 `colima list` 查看并调整：
+> `colima stop && colima start --cpu 4 --memory 8`
 
 ### 环境变量
 
-建议在 `backend/` 目录下创建 `.env`（可从示例复制）：
+如果宿主 `8010` 被占用，可用环境变量覆盖 Backend 暴露端口：
+
+```bash
+BACKEND_HOST_PORT=18010 ./tests/run.sh
+```
+
+此时宿主机访问 Backend：
+- `http://localhost:18010`
+
+后端 `.env`（`backend/.env`）仍可用于“在宿主机上 cargo run”的开发模式（与测试栈无强绑定），可从示例复制：
 
 ```bash
 cd backend
 cp .env.example .env
 ```
+
+> 注意：`tests/docker-compose.yml` 中 PostgreSQL/Redis 默认不暴露宿主端口，因此**宿主机直接 `cargo run`** 并不能复用该测试栈的 DB/Redis；
+> 若要联调/手工测试，推荐直接使用测试栈启动的 Backend（宿主 `http://localhost:<BACKEND_HOST_PORT>`）。
 
 关键配置项（与 `backend/docker-compose.yml` 默认一致）：
 
@@ -123,6 +144,11 @@ RUST_LOG=debug
 ```
 
 > 注意：`DATABASE_URL` 为必填项；Redis 若启用了密码，URL 必须包含 `:password@`。
+
+### 外部副作用（Push/第三方）策略
+
+- 默认测试栈（`tests/docker-compose.yml`）会设置 `PUSH_ENABLED=false`，避免跑测试时触发真实推送/外部网络依赖。
+- 若需要验证 Push 行为：应启用专用测试配置（开启 `PUSH_ENABLED=true` 并提供测试用 provider 配置），并优先把第三方请求指向可控的 mock（如 `wiremock`）以保证可重复性。
 
 ### 测试数据初始化
 
@@ -156,11 +182,20 @@ cargo test --package backend --lib handlers::auth
 # 运行并显示输出
 cargo test -- --nocapture
 
-# 运行数据库集成测试
-cargo test --test database_store_tests
+# 运行数据库集成测试（需要 PostgreSQL 可用）
+# 若不希望在宿主机暴露 PostgreSQL 端口，推荐在测试栈容器内运行：
+docker-compose -f tests/docker-compose.yml run --rm rust-tests \
+  cargo test --test database_store_tests -- --test-threads=1
 
-# 检查覆盖率 (需安装 cargo-tarpaulin)
-cargo tarpaulin --out Html
+# 覆盖率报告（Rust）
+# - lcov：覆盖率数据文件格式（给工具/CI/报表读取）
+# - html：可在浏览器打开的覆盖率报告
+#
+# 需要：cargo install cargo-llvm-cov
+cargo llvm-cov --html
+
+# 生成 lcov 文件（可用于上传或进一步生成报告）
+cargo llvm-cov --lcov --output-path lcov.info
 ```
 
 ### 2. 前端开发流程
@@ -185,14 +220,9 @@ flutter test test/widget_test.dart
 ### 3. 桌面端开发流程
 
 ```bash
-# 进入桌面端测试目录
-cd tests/go/desktop_add_member
-
-# 运行 Go 集成测试
-go test -v ./...
-
-# 运行特定测试
-go test -v -run TestAddMembers_Smoke
+# 运行 Go 契约/集成测试（需要 Backend 已启动）
+cd tests/go
+API_BASE_URL=http://localhost:8010 go test -v ./...
 ```
 
 ### 4. 快速验证流程
@@ -234,11 +264,11 @@ test('AuthService returns token on successful login', () { });
 ### 测试组织结构
 
 ```
-backend/tests/                    # Rust 集成测试
-tests/go/                         # Go API 集成测试
-  ├── backend_message_search/     # 消息搜索
-  ├── desktop_add_member/         # 群聊添加成员
-  └── upload_policy/              # 上传策略
+backend/src/**                    # Rust 单元测试（#[cfg(test)]）
+backend/tests/**                  # Rust 集成测试（少量；优先 Go 做黑盒回归）
+tests/go/                         # Go 契约/集成测试（单一 go module）
+  ├── internal/testutil/          # 统一 fixtures/http client
+  └── backend/                    # 后端黑盒回归（按业务域拆包）
 ```
 
 ---
@@ -270,7 +300,7 @@ tests/go/                         # Go API 集成测试
 - **运行后端测试**: `cd backend && cargo test`
 - **运行前端测试**: `cd frontend && flutter test`
 - **运行 E2E 测试**: `cd frontend && patrol test`
-- **查看覆盖率**: `cd backend && cargo tarpaulin --out Html`
+- **查看覆盖率**: `cd backend && cargo llvm-cov --html`
 
 ---
 

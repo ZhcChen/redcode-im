@@ -1,5 +1,5 @@
 # 使用官方Rust镜像作为构建环境
-FROM rust:1.75-alpine as builder
+FROM rust:1.90-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -51,11 +51,11 @@ RUN chown -R app:app /app
 USER app
 
 # 暴露端口
-EXPOSE 8080
+EXPOSE 8010
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8010/healthz || exit 1
 
 # 启动应用
 CMD ["./redcode-im-backend"]

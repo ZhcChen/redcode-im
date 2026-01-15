@@ -1,4 +1,4 @@
-package upload_policy
+package testutil
 
 import (
 	"crypto/rand"
@@ -7,20 +7,25 @@ import (
 	"testing"
 )
 
-type loginResponse struct {
-	Token string `json:"token"`
-	User  struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-	} `json:"user"`
-}
-
-type userInfo struct {
+type UserInfo struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 }
 
-func registerUser(t *testing.T, c *Client, username, password string) userInfo {
+type LoginResponse struct {
+	Token string   `json:"token"`
+	User  UserInfo `json:"user"`
+}
+
+func UniquePhone() string {
+	// 1[3-9]XXXXXXXXX
+	var n uint64
+	_ = binary.Read(rand.Reader, binary.LittleEndian, &n)
+	randPart := n % 1_000_000_000
+	return fmt.Sprintf("13%09d", randPart)
+}
+
+func RegisterUser(t *testing.T, c *Client, username, password string) UserInfo {
 	t.Helper()
 	payload := map[string]any{
 		"username": username,
@@ -35,14 +40,14 @@ func registerUser(t *testing.T, c *Client, username, password string) userInfo {
 	if resp.StatusCode != 200 {
 		t.Fatalf("register user status=%d body=%s", resp.StatusCode, string(body))
 	}
-	var ui userInfo
-	if err := Decode(body, &ui); err != nil {
+	var ui UserInfo
+	if err := DecodeJSON(body, &ui); err != nil {
 		t.Fatalf("register decode: %v body=%s", err, string(body))
 	}
 	return ui
 }
 
-func login(t *testing.T, c *Client, username, password string) loginResponse {
+func Login(t *testing.T, c *Client, username, password string) LoginResponse {
 	t.Helper()
 	payload := map[string]any{
 		"username": username,
@@ -55,14 +60,14 @@ func login(t *testing.T, c *Client, username, password string) loginResponse {
 	if resp.StatusCode != 200 {
 		t.Fatalf("login status=%d body=%s", resp.StatusCode, string(body))
 	}
-	var lr loginResponse
-	if err := Decode(body, &lr); err != nil {
+	var lr LoginResponse
+	if err := DecodeJSON(body, &lr); err != nil {
 		t.Fatalf("login decode: %v body=%s", err, string(body))
 	}
 	return lr
 }
 
-func adminLogin(t *testing.T, c *Client, username, password string) loginResponse {
+func AdminLogin(t *testing.T, c *Client, username, password string) LoginResponse {
 	t.Helper()
 	payload := map[string]any{
 		"username": username,
@@ -75,18 +80,15 @@ func adminLogin(t *testing.T, c *Client, username, password string) loginRespons
 	if resp.StatusCode != 200 {
 		t.Fatalf("admin login status=%d body=%s", resp.StatusCode, string(body))
 	}
-	var lr loginResponse
-	if err := Decode(body, &lr); err != nil {
+	var lr LoginResponse
+	if err := DecodeJSON(body, &lr); err != nil {
 		t.Fatalf("admin login decode: %v body=%s", err, string(body))
 	}
 	return lr
 }
 
-func uniquePhone() string {
-	// 1[3-9]XXXXXXXXX
-	var n uint64
-	_ = binary.Read(rand.Reader, binary.LittleEndian, &n)
-	randPart := n % 1_000_000_000
-	return fmt.Sprintf("13%09d", randPart)
+// EnsureDefaultAdmin 尽力而为地初始化默认管理员账号（仅测试环境可用）。
+func EnsureDefaultAdmin(t *testing.T, c *Client) {
+	t.Helper()
+	_, _, _ = c.DoJSON("POST", "/api/admin/init-default-admin", map[string]any{}, "")
 }
-

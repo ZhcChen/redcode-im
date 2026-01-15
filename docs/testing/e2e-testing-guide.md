@@ -65,10 +65,7 @@ patrol doctor
 E2E 测试依赖后端服务可用（默认 `http://localhost:8010`），并建议先准备固定测试账号/好友/房间数据：
 
 ```bash
-cd backend
-cp .env.example .env  # 首次运行需要
-docker compose up -d postgres redis-session redis-cache
-cargo run
+docker-compose -f tests/docker-compose.yml up -d --build
 ```
 
 另开终端：

@@ -1,9 +1,8 @@
-package upload_policy
+package testutil
 
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -23,19 +22,12 @@ func NewClient() *Client {
 	return &Client{
 		BaseURL: base,
 		HTTP: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 15 * time.Second,
 		},
 	}
 }
 
-type ApiResponse[T any] struct {
-	Success bool   `json:"success"`
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    T      `json:"data"`
-}
-
-func Decode[T any](data []byte, target *T) error {
+func DecodeJSON(data []byte, target any) error {
 	return json.Unmarshal(data, target)
 }
 
@@ -71,12 +63,3 @@ func (c *Client) DoJSON(method, path string, body any, token string) (*http.Resp
 	}
 	return resp, bodyBytes, nil
 }
-
-func UnmarshalAPI[T any](data []byte) (ApiResponse[T], error) {
-	var resp ApiResponse[T]
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return resp, fmt.Errorf("decode api response: %w", err)
-	}
-	return resp, nil
-}
-

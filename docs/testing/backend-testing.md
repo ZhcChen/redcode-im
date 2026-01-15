@@ -2,6 +2,11 @@
 
 > 目标：明确 backend 的测试分层、集成测试写法与补齐方向，为后续“按功能补测试、提高覆盖率”提供统一口径。
 
+推荐入口（自动起测试栈并跑回归）：
+```bash
+./tests/run.sh
+```
+
 ## 1. 单元测试（Unit Test）
 
 **范围**：不依赖真实外部资源（DB/Redis/网络），聚焦纯逻辑与确定性规则。
@@ -38,13 +43,16 @@ cargo test
 
 运行（建议串行，避免连接/锁竞争）：
 ```bash
-cd backend
-cargo test --test database_store_tests -- --test-threads=1
+docker-compose -f tests/docker-compose.yml run --rm rust-tests \
+  cargo test --test database_store_tests -- --test-threads=1
 ```
 
 ### 2.2 HTTP 路由/处理器集成测试（Axum In-Process）
 
 **目的**：覆盖 Router + Middleware + Handler + DB/Redis 的组合行为，但不需要真正监听端口（更快、更稳定）。
+
+> `in-process` 不是独立“测试框架”，而是一种测试方式：把 `axum::Router` 当作 `tower::Service`，
+> 用 `tower::ServiceExt::oneshot` 直接发请求并断言响应。
 
 推荐写法：
 - 在 `backend/tests/` 下新增 `*_api_tests.rs`（例如 `auth_api_tests.rs`、`friends_api_tests.rs`）
@@ -82,7 +90,7 @@ cargo test --test database_store_tests -- --test-threads=1
 
 1) **契约测试（Contract Test）**（推荐 Go 1.25）
    - 目标：确保 `docs/api/*` 与真实响应不漂移；防止前端/管理端/桌面端被回归破坏
-   - 落点：`tests/go/*`（按业务域拆目录）
+   - 落点：`tests/go/`（单一 go module，按业务域拆包）
 
 2) **迁移/升级测试（Migration Test）**
    - 目标：验证新迁移可从“空库”与“已有数据”平滑升级；避免生产升级事故

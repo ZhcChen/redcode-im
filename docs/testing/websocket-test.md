@@ -12,17 +12,11 @@
 
 ## 前置条件
 
-1. 启动依赖服务（PostgreSQL/Redis）：
+1. 启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认暴露到宿主 8010）：
    ```bash
-   cd backend
-   docker compose up -d postgres redis-session redis-cache
+   docker-compose -f tests/docker-compose.yml up -d --build
    ```
-2. 启动后端：
-   ```bash
-   cd backend
-   RUST_LOG=debug cargo run
-   ```
-3. 准备测试账号与房间（推荐一键脚本）：
+2. 准备测试账号与房间（推荐一键脚本）：
    ```bash
    cd backend
    ./test_flow.sh

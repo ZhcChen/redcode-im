@@ -1,17 +1,13 @@
-package backend_message_search
+package messages_test
 
 import (
 	"net/url"
 	"strings"
 	"testing"
 	"time"
-)
 
-type roomResponse struct {
-	Room struct {
-		ID string `json:"id"`
-	} `json:"room"`
-}
+	"redcode-im-tests/internal/testutil"
+)
 
 type searchResponse struct {
 	Results []struct {
@@ -28,50 +24,7 @@ type searchResponse struct {
 	HasMore bool `json:"has_more"`
 }
 
-func createGroup(t *testing.T, c *Client, token string, name string, memberIDs []string) string {
-	t.Helper()
-	payload := map[string]any{
-		"name":        name,
-		"description": "go-test",
-		"member_ids":  memberIDs,
-	}
-	resp, body, err := c.DoJSON("POST", "/rooms", payload, token)
-	if err != nil {
-		t.Fatalf("create group http error: %v", err)
-	}
-	if resp.StatusCode != 200 {
-		t.Fatalf("create group status=%d body=%s", resp.StatusCode, string(body))
-	}
-	var rr roomResponse
-	if err := Decode(body, &rr); err != nil {
-		t.Fatalf("create group decode: %v body=%s", err, string(body))
-	}
-	return rr.Room.ID
-}
-
-func createPublicRoom(t *testing.T, c *Client, token string, name string) string {
-	t.Helper()
-	payload := map[string]any{
-		"name":        name,
-		"description": "go-test",
-		"room_type":   "public",
-		"member_ids":  []string{},
-	}
-	resp, body, err := c.DoJSON("POST", "/rooms", payload, token)
-	if err != nil {
-		t.Fatalf("create public room http error: %v", err)
-	}
-	if resp.StatusCode != 200 {
-		t.Fatalf("create public room status=%d body=%s", resp.StatusCode, string(body))
-	}
-	var rr roomResponse
-	if err := Decode(body, &rr); err != nil {
-		t.Fatalf("create public room decode: %v body=%s", err, string(body))
-	}
-	return rr.Room.ID
-}
-
-func sendMessage(t *testing.T, c *Client, token, roomID, content string) {
+func sendMessage(t *testing.T, c *testutil.Client, token, roomID, content string) {
 	t.Helper()
 	payload := map[string]any{
 		"content": content,
@@ -85,7 +38,7 @@ func sendMessage(t *testing.T, c *Client, token, roomID, content string) {
 	}
 }
 
-func searchMessages(t *testing.T, c *Client, token, query, roomID string) searchResponse {
+func searchMessages(t *testing.T, c *testutil.Client, token, query, roomID string) searchResponse {
 	t.Helper()
 	path := "/messages/search?query=" + url.QueryEscape(query)
 	if roomID != "" {
@@ -99,24 +52,24 @@ func searchMessages(t *testing.T, c *Client, token, query, roomID string) search
 		t.Fatalf("search messages status=%d body=%s", resp.StatusCode, string(body))
 	}
 	var sr searchResponse
-	if err := Decode(body, &sr); err != nil {
+	if err := testutil.DecodeJSON(body, &sr); err != nil {
 		t.Fatalf("search messages decode: %v body=%s", err, string(body))
 	}
 	return sr
 }
 
 func TestMessageSearch_OnlyReturnsAccessibleRooms(t *testing.T) {
-	c := NewClient()
+	c := testutil.NewClient()
 	pass := "Passw0rd!"
 
-	user1 := registerUser(t, c, uniquePhone(), pass)
-	user2 := registerUser(t, c, uniquePhone(), pass)
+	user1 := testutil.RegisterUser(t, c, testutil.UniquePhone(), pass)
+	user2 := testutil.RegisterUser(t, c, testutil.UniquePhone(), pass)
 
-	login1 := login(t, c, user1.Username, pass)
-	login2 := login(t, c, user2.Username, pass)
+	login1 := testutil.Login(t, c, user1.Username, pass)
+	login2 := testutil.Login(t, c, user2.Username, pass)
 
-	sharedRoomID := createGroup(t, c, login1.Token, "go-search-shared-"+time.Now().Format("150405"), []string{user2.ID})
-	privateRoomID := createPublicRoom(t, c, login1.Token, "go-search-private-"+time.Now().Format("150405"))
+	sharedRoomID := testutil.CreateGroupRoom(t, c, login1.Token, "go-search-shared-"+time.Now().Format("150405"), []string{user2.ID})
+	privateRoomID := testutil.CreatePublicRoom(t, c, login1.Token, "go-search-private-"+time.Now().Format("150405"))
 
 	needle := "needle_" + time.Now().Format("20060102150405.000000000")
 	sharedContent := "shared " + needle
@@ -140,4 +93,3 @@ func TestMessageSearch_OnlyReturnsAccessibleRooms(t *testing.T) {
 		t.Fatalf("expected 0 result for private room, got total=%d len=%d", res2.Stats.TotalResults, len(res2.Results))
 	}
 }
-

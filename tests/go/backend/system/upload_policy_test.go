@@ -1,9 +1,11 @@
-package upload_policy
+package system_test
 
 import (
 	"os"
 	"testing"
 	"time"
+
+	"redcode-im-tests/internal/testutil"
 )
 
 type uploadPolicyMaxSizeMbByPartType struct {
@@ -27,13 +29,13 @@ type audioOnlyPolicy struct {
 }
 
 type uploadPolicyUserResponse struct {
-	Version                 string                      `json:"version"`
-	MaxTotalSizeMb          int                         `json:"max_total_size_mb"`
-	MaxAttachmentsPerMessage int                        `json:"max_attachments_per_message"`
-	MaxSizeMbByPartType     uploadPolicyMaxSizeMbByPartType `json:"max_size_mb_by_part_type"`
-	MimeByPartType          uploadPolicyMimeByPartType  `json:"mime_by_part_type"`
-	MimeWhitelist           []string                    `json:"mime_whitelist"`
-	AudioOnly               audioOnlyPolicy             `json:"audio_only"`
+	Version                  string                          `json:"version"`
+	MaxTotalSizeMb           int                             `json:"max_total_size_mb"`
+	MaxAttachmentsPerMessage int                             `json:"max_attachments_per_message"`
+	MaxSizeMbByPartType      uploadPolicyMaxSizeMbByPartType `json:"max_size_mb_by_part_type"`
+	MimeByPartType           uploadPolicyMimeByPartType      `json:"mime_by_part_type"`
+	MimeWhitelist            []string                        `json:"mime_whitelist"`
+	AudioOnly                audioOnlyPolicy                 `json:"audio_only"`
 }
 
 type uploadPolicyAdminResponse struct {
@@ -43,20 +45,20 @@ type uploadPolicyAdminResponse struct {
 }
 
 type updateUploadPolicyRequest struct {
-	Version                 string                      `json:"version"`
-	MaxTotalSizeMb          int                         `json:"max_total_size_mb"`
-	MaxAttachmentsPerMessage int                        `json:"max_attachments_per_message"`
-	MaxSizeMbByPartType     uploadPolicyMaxSizeMbByPartType `json:"max_size_mb_by_part_type"`
-	MimeByPartType          uploadPolicyMimeByPartType  `json:"mime_by_part_type"`
-	AudioOnly               audioOnlyPolicy             `json:"audio_only"`
+	Version                  string                          `json:"version"`
+	MaxTotalSizeMb           int                             `json:"max_total_size_mb"`
+	MaxAttachmentsPerMessage int                             `json:"max_attachments_per_message"`
+	MaxSizeMbByPartType      uploadPolicyMaxSizeMbByPartType `json:"max_size_mb_by_part_type"`
+	MimeByPartType           uploadPolicyMimeByPartType      `json:"mime_by_part_type"`
+	AudioOnly                audioOnlyPolicy                 `json:"audio_only"`
 }
 
 func TestUploadPolicy_UserEndpoint_ReturnsPolicy(t *testing.T) {
-	c := NewClient()
+	c := testutil.NewClient()
 	pass := "Passw0rd!"
 
-	user := registerUser(t, c, uniquePhone(), pass)
-	loginRes := login(t, c, user.Username, pass)
+	user := testutil.RegisterUser(t, c, testutil.UniquePhone(), pass)
+	loginRes := testutil.Login(t, c, user.Username, pass)
 
 	resp, body, err := c.DoJSON("GET", "/system/upload-policy", nil, loginRes.Token)
 	if err != nil {
@@ -67,7 +69,7 @@ func TestUploadPolicy_UserEndpoint_ReturnsPolicy(t *testing.T) {
 	}
 
 	var policy uploadPolicyUserResponse
-	if err := Decode(body, &policy); err != nil {
+	if err := testutil.DecodeJSON(body, &policy); err != nil {
 		t.Fatalf("decode upload policy: %v body=%s", err, string(body))
 	}
 
@@ -98,8 +100,9 @@ func TestUploadPolicy_AdminUpdate_PropagatesToUser(t *testing.T) {
 		t.Skip("missing ADMIN_USERNAME / ADMIN_PASSWORD, skip admin update test")
 	}
 
-	c := NewClient()
-	admin := adminLogin(t, c, adminUser, adminPass)
+	c := testutil.NewClient()
+	testutil.EnsureDefaultAdmin(t, c)
+	admin := testutil.AdminLogin(t, c, adminUser, adminPass)
 
 	// 读取当前策略（用于回滚）
 	resp, body, err := c.DoJSON("GET", "/api/admin/settings/upload-policy", nil, admin.Token)
@@ -110,19 +113,19 @@ func TestUploadPolicy_AdminUpdate_PropagatesToUser(t *testing.T) {
 		t.Fatalf("get admin upload policy status=%d body=%s", resp.StatusCode, string(body))
 	}
 	var original uploadPolicyAdminResponse
-	if err := Decode(body, &original); err != nil {
+	if err := testutil.DecodeJSON(body, &original); err != nil {
 		t.Fatalf("decode admin upload policy: %v body=%s", err, string(body))
 	}
 
 	newVersion := "go-test-" + time.Now().Format("20060102150405.000000000")
 
 	restorePayload := updateUploadPolicyRequest{
-		Version:                 original.Policy.Version,
-		MaxTotalSizeMb:          original.Policy.MaxTotalSizeMb,
+		Version:                  original.Policy.Version,
+		MaxTotalSizeMb:           original.Policy.MaxTotalSizeMb,
 		MaxAttachmentsPerMessage: original.Policy.MaxAttachmentsPerMessage,
-		MaxSizeMbByPartType:     original.Policy.MaxSizeMbByPartType,
-		MimeByPartType:          original.Policy.MimeByPartType,
-		AudioOnly:               original.Policy.AudioOnly,
+		MaxSizeMbByPartType:      original.Policy.MaxSizeMbByPartType,
+		MimeByPartType:           original.Policy.MimeByPartType,
+		AudioOnly:                original.Policy.AudioOnly,
 	}
 
 	t.Cleanup(func() {
@@ -143,8 +146,8 @@ func TestUploadPolicy_AdminUpdate_PropagatesToUser(t *testing.T) {
 
 	// 用普通用户验证策略已生效
 	pass := "Passw0rd!"
-	user := registerUser(t, c, uniquePhone(), pass)
-	loginRes := login(t, c, user.Username, pass)
+	user := testutil.RegisterUser(t, c, testutil.UniquePhone(), pass)
+	loginRes := testutil.Login(t, c, user.Username, pass)
 
 	resp3, body3, err := c.DoJSON("GET", "/system/upload-policy", nil, loginRes.Token)
 	if err != nil {
@@ -154,11 +157,10 @@ func TestUploadPolicy_AdminUpdate_PropagatesToUser(t *testing.T) {
 		t.Fatalf("get upload policy status=%d body=%s", resp3.StatusCode, string(body3))
 	}
 	var policy uploadPolicyUserResponse
-	if err := Decode(body3, &policy); err != nil {
+	if err := testutil.DecodeJSON(body3, &policy); err != nil {
 		t.Fatalf("decode upload policy: %v body=%s", err, string(body3))
 	}
 	if policy.Version != newVersion {
 		t.Fatalf("expected version=%q, got %q", newVersion, policy.Version)
 	}
 }
-

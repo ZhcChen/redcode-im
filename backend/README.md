@@ -50,13 +50,13 @@ cargo run
 在 `backend/` 目录下启动依赖服务（PostgreSQL + Redis）：
 
 ```bash
-docker compose up -d postgres redis-session redis-cache
+docker-compose up -d postgres redis-session redis-cache
 ```
 
 如需同时启动后端容器（读取 `backend/.env`）：
 
 ```bash
-docker compose up -d backend
+docker-compose up -d backend
 ```
 
 ---
@@ -99,7 +99,8 @@ cargo test
 运行数据库集成测试（需要 PostgreSQL 可用，并配置 `DATABASE_URL_TEST` 或 `DATABASE_URL`）：
 
 ```bash
-cargo test --test database_store_tests -- --test-threads=1
+docker-compose -f ../tests/docker-compose.yml run --rm rust-tests \
+  cargo test --test database_store_tests -- --test-threads=1
 ```
 
 ---

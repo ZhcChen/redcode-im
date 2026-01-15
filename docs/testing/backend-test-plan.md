@@ -1,257 +1,111 @@
-# Backend 单元测试计划
+# Backend 测试补齐计划（可执行清单）
 
-> 本文档记录 backend 模块的单元测试现状与补充计划。
+> 目标：把“要测什么、怎么测、从哪里开始跑”写清楚，避免只追求数字导致测试不可维护。
+>
+> 说明：本文档不写“当前覆盖率/测试数量”等易过时统计口径；覆盖率以 `cargo llvm-cov` 的结果为准。
 
-## 一、技术栈
+## 1. 当前推荐入口（先能稳定跑通）
 
-- **语言**: Rust
-- **测试框架**: 内置 `#[test]` + `#[cfg(test)]`
-- **数据库测试**: SQLx (需要测试数据库)
-- **Mock**: 待引入 `mockall` 或手动 Mock
+### 1.1 一键回归（本地）
 
----
-
-## 二、当前测试状态
-
-### 2.1 概览
-
-| 指标 | 数值 |
-|------|------|
-| 源文件总数 | 86 个 |
-| 有测试的文件 | 16 个 (19%) |
-| 测试用例总数 | 180 个 |
-| 测试通过率 | 100% |
-
-### 2.2 已有测试
-
-| 模块 | 文件 | 测试数 | 覆盖内容 |
-|------|------|--------|----------|
-| crypto | `mod.rs` | 2 | 加解密基础功能 |
-| crypto | `secret.rs` | 1 | 密钥加解密往返 |
-| error | `error.rs` | 2 | 错误类型处理 |
-| models | `convert.rs` | 4 | 数据模型转换 |
-| storage | `cos.rs` | 5 | COS 签名、头部构建 |
-| services | `push.rs` | 4 | @提及解析 |
-| handlers | `message.rs` | 2 | 消息处理 |
-| handlers | `auth.rs` | 24 | 密码验证、手机号/邮箱格式、用户名规则、自动注册 |
-| handlers | `friend.rs` | 14 | 方向/状态参数解析、自身操作验证 |
-| handlers | `room.rs` | 17 | 房间名称、类型、成员、通知设置、群主转让、头像验证 |
-| handlers | `user.rs` | 23 | 头像扩展名推断、对象键验证、密码/搜索验证 |
-| tests/ | `file_upload_test.rs` | 3 | 文件上传类型限制 |
-| tests/ | `database_store_tests.rs` | 79 | 数据库存储层集成测试 |
-| ↳ | `user_store_tests` | 24 | 用户创建/查询/认证/更新/删除/搜索/批量查询 |
-| ↳ | `friend_store_tests` | 19 | 好友请求/响应/列表/删除/备注 |
-| ↳ | `room_store_tests` | 23 | 房间创建/成员管理/私聊/置顶/更新/解散 |
-| ↳ | `message_store_tests` | 13 | 消息创建/查询/更新/删除/置顶 |
-
-### 2.3 待补充测试模块
-
-| 目录 | 文件数 | 当前测试 | 说明 |
-|------|--------|----------|------|
-| `handlers/` | 24 | 5 | API 处理器（已完成核心模块） |
-| `database/` | 22 | 4 | ✅ 数据库存储层（79 个测试） |
-| `services/` | 7 | 1 | 业务服务 |
-| `websocket/` | 2 | 0 | WebSocket 协议 |
-| `redis/` | 5 | 0 | Redis 操作 |
-| `middleware/` | 3 | 0 | 中间件 |
-
----
-
-## 三、测试补充计划
-
-### 3.1 优先级定义
-
-| 级别 | 说明 | 目标 |
-|------|------|------|
-| P0 | 核心业务逻辑 | 必须覆盖 |
-| P1 | 重要功能 | 应该覆盖 |
-| P2 | 辅助功能 | 可选覆盖 |
-
-### 3.2 P0 - 核心业务 (第一阶段) ✅ 部分完成
-
-#### handlers/ 模块
-
-| 文件 | 测试内容 | 实际用例数 | 状态 |
-|------|----------|------------|------|
-| `auth.rs` | 密码验证、手机号/邮箱格式、用户名规则、自动注册 | 24 | ✅ 完成 |
-| `friend.rs` | 方向/状态参数解析、自身操作验证 | 14 | ✅ 完成 |
-| `room.rs` | 房间名称、类型、成员、通知设置、群主转让、头像验证 | 17 | ✅ 完成 |
-| `user.rs` | 头像扩展名推断、对象键验证、密码/搜索验证 | 23 | ✅ 完成 |
-
-#### database/ 模块 ✅ 已完成
-
-| 文件 | 测试内容 | 实际用例数 | 状态 |
-|------|----------|------------|------|
-| `user_store.rs` | 用户创建/重复检测/查询/认证/更新/删除/搜索/批量查询/密码更新 | 24 | ✅ 完成 |
-| `friend_store.rs` | 好友请求创建/响应/列表/好友关系/删除/备注/计数 | 19 | ✅ 完成 |
-| `room_store.rs` | 房间创建/成员管理/私聊/查询/置顶/更新/解散/转让/收藏夹 | 23 | ✅ 完成 |
-| `message_store.rs` | 消息创建/回复/查询/更新/删除/置顶/权限验证 | 13 | ✅ 完成 |
-
-### 3.3 P1 - 重要功能 (第二阶段)
-
-#### handlers/ 模块
-
-| 文件 | 测试内容 | 预计用例数 |
-|------|----------|------------|
-| `group_management.rs` | 群管理、成员操作、权限 | 8-10 |
-| `message_read.rs` | 消息已读状态 | 3-4 |
-| `emoji_pack.rs` | 表情包管理 | 3-4 |
-| `multipart_upload.rs` | 分片上传流程 | 4-6 |
-
-#### services/ 模块
-
-| 文件 | 测试内容 | 预计用例数 |
-|------|----------|------------|
-| `file_upload_audit.rs` | 文件审计逻辑 | 3-4 |
-| `upload_policy.rs` | 上传策略验证 | 4-6 |
-| `geolocation.rs` | IP 地理位置解析 | 2-3 |
-
-#### websocket/ 模块
-
-| 文件 | 测试内容 | 预计用例数 |
-|------|----------|------------|
-| `protocol.rs` | 消息协议解析、序列化 | 6-8 |
-
-### 3.4 P2 - 辅助功能 (第三阶段)
-
-| 模块 | 文件 | 测试内容 |
-|------|------|----------|
-| redis | `session.rs` | 会话管理 |
-| redis | `cache.rs` | 缓存操作 |
-| redis | `pubsub.rs` | 发布订阅 |
-| middleware | `security.rs` | 安全检查 |
-| handlers | `admin.rs` | 管理接口 |
-| handlers | `version.rs` | 版本管理 |
-
----
-
-## 四、测试策略
-
-### 4.1 单元测试
-
-```rust
-// 纯逻辑测试示例（无外部依赖）
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_password_strength() {
-        assert!(validate_password("Test123456!"));
-        assert!(!validate_password("weak"));
-    }
-}
-```
-
-### 4.2 数据库测试
-
-```rust
-// 需要测试数据库的测试
-#[cfg(test)]
-mod tests {
-    use sqlx::PgPool;
-
-    #[sqlx::test]
-    async fn test_create_user(pool: PgPool) {
-        let user = create_user(&pool, "test@example.com").await;
-        assert!(user.is_ok());
-    }
-}
-```
-
-### 4.3 Mock 测试
-
-```rust
-// 使用 mockall 进行依赖注入测试
-#[cfg(test)]
-mod tests {
-    use mockall::predicate::*;
-
-    #[test]
-    fn test_handler_with_mock_store() {
-        let mut mock_store = MockUserStore::new();
-        mock_store.expect_find_by_id()
-            .returning(|_| Ok(Some(test_user())));
-        // ...
-    }
-}
-```
-
----
-
-## 五、执行计划
-
-### 阶段一：P0 核心业务 ✅ 已完成
-
-- [x] `handlers/auth.rs` 测试 (24 个用例)
-- [x] `handlers/friend.rs` 测试 (14 个用例)
-- [x] `handlers/room.rs` 测试 (17 个用例)
-- [x] `handlers/user.rs` 测试 (23 个用例)
-- [x] `database/user_store.rs` 测试 (24 个用例)
-- [x] `database/friend_store.rs` 测试 (19 个用例)
-- [x] `database/room_store.rs` 测试 (23 个用例)
-- [x] `database/message_store.rs` 测试 (13 个用例)
-
-### 阶段二：P1 重要功能
-
-- [ ] `handlers/group_management.rs` 测试
-- [ ] `services/upload_policy.rs` 测试
-- [ ] `websocket/protocol.rs` 测试
-
-### 阶段三：P2 辅助功能
-
-- [ ] `redis/` 模块测试
-- [ ] `middleware/` 模块测试
-
----
-
-## 六、运行测试
+同时跑：
+- Rust 单元测试（`cargo test --lib`）
+- Go 黑盒/契约测试（`tests/go`）
 
 ```bash
-# 运行所有测试
-cargo test
-
-# 运行指定模块测试
-cargo test handlers::auth
-
-# 运行并显示输出
-cargo test -- --nocapture
-
-# 运行数据库集成测试（需要数据库运行）
-cargo test --test database_store_tests
-
-# 数据库测试建议单线程运行（避免连接竞争）
-cargo test --test database_store_tests -- --test-threads=1
-
-# 生成覆盖率报告（需要 cargo-tarpaulin）
-cargo tarpaulin --out Html
+./tests/run.sh
 ```
 
-### 6.1 数据库测试说明
+如需保留测试栈用于排查：
+```bash
+KEEP_STACK=1 ./tests/run.sh
+```
 
-数据库集成测试位于 `backend/tests/database_store_tests.rs`，需要：
+### 1.2 只跑 Rust 集成测试（需要 PG/Redis）
 
-1. **环境要求**：PostgreSQL 数据库运行中
-2. **配置**：`.env` 文件中设置 `DATABASE_URL` 或 `DATABASE_URL_TEST`
-3. **测试隔离**：使用唯一 UUID 生成测试数据，无需清空表
-4. **测试模块**：
-   - `user_store_tests` - 用户存储测试 (24 个)
-   - `friend_store_tests` - 好友存储测试 (19 个)
-   - `room_store_tests` - 房间存储测试 (23 个)
-   - `message_store_tests` - 消息存储测试 (13 个)
+推荐直接在测试栈容器内跑（PG/Redis 不映射宿主端口）：
+```bash
+export COMPOSE_PROJECT_NAME="redcode_im_rusttests_$(date +%s)"
+docker-compose -f tests/docker-compose.yml up -d --build postgres redis-session redis-cache
+docker-compose -f tests/docker-compose.yml run --rm rust-tests cargo test --tests -- --test-threads=1
+docker-compose -f tests/docker-compose.yml down -v
+```
+
+### 1.3 Go 黑盒/契约测试（需要 Backend 已启动）
+
+```bash
+cd tests/go
+API_BASE_URL=http://localhost:8010 go test -v ./...
+```
+
+> 更推荐用 `./tests/run.sh`（会自动起后端并跑 Go 测试）。
+
+## 2. 现有测试覆盖（按分层）
+
+### 2.1 Rust 单元测试（`backend/src/**`）
+
+重点位置：
+- `backend/src/handlers/*`：参数校验、权限判断等（高回归风险）
+- `backend/src/services/*`：业务规则（如 Push @mention 解析）
+- `backend/src/models/*`：模型转换、序列化/反序列化
+- `backend/src/crypto/*`：纯算法/加解密（应可在容器/本机稳定运行）
+
+### 2.2 Rust 集成测试（`backend/tests/**`）
+
+现有入口（以仓库现状为准）：
+- `backend/tests/database_store_tests.rs`：Store 层（真实 PostgreSQL）
+- `backend/tests/file_upload_test.rs`：上传类型/限制等规则
+- `backend/tests/auth_api_tests.rs`：HTTP in-process（Router/Handler/DB/Redis）
+- `backend/tests/e2ee_key_store_tests.rs`：E2EE KeyStore（仅 key 管理，不涉及加密消息）
+
+### 2.3 Go 黑盒/契约（`tests/go/**`）
+
+现有入口（以仓库现状为准）：
+- `tests/go/backend/messages/*`
+- `tests/go/backend/rooms/*`
+- `tests/go/backend/system/*`
+
+## 3. 补齐策略（按优先级推进）
+
+### P0（先补：回归收益最大）
+
+1) **鉴权与权限边界**
+- 未登录/过期 token/越权访问（401/403）
+- 房间成员权限（owner/admin/member）
+
+2) **消息核心链路**
+- 发消息 → WS 推送 → 多端一致性（至少 1 条核心旅程）
+- `since_id`/分页边界、撤回/删除（如存在）
+
+3) **WebSocket 协议稳定性**
+- auth/join/ping/pong、断线重连
+- Redis Pub/Sub 路径（若后端依赖）
+
+### P1（重要功能）
+
+- 文件上传：policy、分片上传关键校验
+- 搜索：权限隔离、索引/边界输入
+- 管理后台关键接口：管理员初始化、权限保护
+
+### P2（增强质量）
+
+- 迁移升级测试（空库/已有数据升级）
+- 并发一致性（多用户同时操作：加群/发消息/已读）
+- 性质测试/模糊测试（解析器、搜索、富文本 parts）
+- 性能基线（WS 延迟、消息吞吐）
+
+## 4. 覆盖率（以工具结果为准）
+
+Rust（推荐 `cargo-llvm-cov`）：
+```bash
+cd backend
+cargo llvm-cov --html
+cargo llvm-cov --lcov --output-path lcov.info
+```
+
+> `lcov.info` 是覆盖率数据文件；`--html` 会生成可浏览的报告页面（更适合人工定位“哪没测到”）。
 
 ---
 
-## 七、目标
+**文档更新**: 2026-01-16
 
-| 阶段 | 测试覆盖率目标 | 预计测试数 | 当前状态 |
-|------|----------------|------------|----------|
-| 初始 | 9% | 23 | ✅ 已完成 |
-| 阶段一（handlers） | 25% | 100+ | ✅ 已达成 (101) |
-| 阶段一（database） | 40% | 130+ | ✅ 已达成 (180) |
-| 阶段二完成 | 60% | 200+ | ⏳ 待开始 |
-| 阶段三完成 | 75% | 220+ | ⏳ 待开始 |
-
----
-
-**文档更新**: 2026-01-13

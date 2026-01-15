@@ -1,0 +1,15 @@
+# Rust
+target/
+
+# VCS / editor
+.git/
+.idea/
+.vscode/
+
+# Env / secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+
