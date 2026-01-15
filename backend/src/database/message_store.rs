@@ -117,7 +117,7 @@ impl<'a> MessageStore<'a> {
         let message = sqlx::query_as::<_, Message>(
             "INSERT INTO messages (id, room_id, sender_id, content, message_type, quoted_message_id)
              VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+             RETURNING id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
                        forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                        forward_from_sender_username, forward_from_sender_nickname,
                        created_at, updated_at, deleted_at",
@@ -126,6 +126,55 @@ impl<'a> MessageStore<'a> {
         .bind(room_id)
         .bind(sender_id)
         .bind(content_summary)
+        .bind(message_type)
+        .bind(quoted_message_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if !parts.is_empty() {
+            insert_message_parts(&mut tx, message_id, parts).await?;
+        }
+
+        tx.commit().await?;
+        Ok(message)
+    }
+
+    pub async fn create_encrypted_message_with_parts(
+        &self,
+        room_id: Uuid,
+        sender_id: Uuid,
+        content_summary: String,
+        encrypted_content: Vec<u8>,
+        encryption_metadata: Option<Value>,
+        message_type: MessageType,
+        quoted_message_id: Option<Uuid>,
+        parts: &[NewMessagePart],
+    ) -> Result<Message, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+        let message_id = crate::id::generate();
+
+        let message = sqlx::query_as::<_, Message>(
+            "INSERT INTO messages (
+                id,
+                room_id,
+                sender_id,
+                content,
+                encrypted_content,
+                encryption_metadata,
+                message_type,
+                quoted_message_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
+                      forward_from_message_id, forward_from_room_id, forward_from_sender_id,
+                      forward_from_sender_username, forward_from_sender_nickname,
+                      created_at, updated_at, deleted_at",
+        )
+        .bind(message_id)
+        .bind(room_id)
+        .bind(sender_id)
+        .bind(content_summary)
+        .bind(encrypted_content)
+        .bind(encryption_metadata)
         .bind(message_type)
         .bind(quoted_message_id)
         .fetch_one(&mut *tx)
@@ -185,6 +234,8 @@ impl<'a> MessageStore<'a> {
                  m.room_id,
                  m.sender_id,
                  m.content,
+                 m.encrypted_content,
+                 m.encryption_metadata,
                  m.message_type,
                  m.quoted_message_id,
                  m.created_at,
@@ -273,7 +324,7 @@ impl<'a> MessageStore<'a> {
 
     pub async fn get_message(&self, message_id: Uuid) -> Result<Option<Message>, sqlx::Error> {
         let row = sqlx::query_as::<_, Message>(
-            "SELECT id, room_id, sender_id, content, message_type, quoted_message_id,
+            "SELECT id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
                     forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                     forward_from_sender_username, forward_from_sender_nickname,
                     created_at, updated_at, deleted_at
@@ -301,6 +352,8 @@ impl<'a> MessageStore<'a> {
                          m.room_id,
                          m.sender_id,
                          m.content,
+                         m.encrypted_content,
+                         m.encryption_metadata,
                          m.message_type,
                          m.quoted_message_id,
                          m.created_at,
@@ -352,6 +405,8 @@ impl<'a> MessageStore<'a> {
                          m.room_id,
                          m.sender_id,
                          m.content,
+                         m.encrypted_content,
+                         m.encryption_metadata,
                          m.message_type,
                          m.quoted_message_id,
                          m.created_at,
@@ -410,6 +465,8 @@ impl<'a> MessageStore<'a> {
                  m.room_id,
                  m.sender_id,
                  m.content,
+                 m.encrypted_content,
+                 m.encryption_metadata,
                  m.message_type,
                  m.quoted_message_id,
                  m.created_at,
@@ -490,7 +547,7 @@ impl<'a> MessageStore<'a> {
                 forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                 forward_from_sender_username, forward_from_sender_nickname
             ) VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10)
-            RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+            RETURNING id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
                       forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                       forward_from_sender_username, forward_from_sender_nickname,
                       created_at, updated_at, deleted_at",
@@ -617,7 +674,7 @@ impl<'a> MessageStore<'a> {
             "UPDATE messages
              SET deleted_at = NOW()
              WHERE id = $1 AND deleted_at IS NULL
-             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+             RETURNING id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
                        forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                        forward_from_sender_username, forward_from_sender_nickname,
                        created_at, updated_at, deleted_at",
@@ -638,7 +695,7 @@ impl<'a> MessageStore<'a> {
             "UPDATE messages
              SET content = $2, edited_at = NOW(), updated_at = NOW()
              WHERE id = $1 AND deleted_at IS NULL
-             RETURNING id, room_id, sender_id, content, message_type, quoted_message_id,
+             RETURNING id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
                        forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                        forward_from_sender_username, forward_from_sender_nickname,
                        created_at, updated_at, deleted_at",

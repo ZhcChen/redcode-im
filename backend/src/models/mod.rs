@@ -7,6 +7,7 @@
 pub mod convert;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 // ==================== 用户相关模型 ====================
 
@@ -500,6 +501,12 @@ pub struct MessageInfo {
     pub sender_nickname: Option<String>,
     pub sender_avatar_url: Option<String>,
     pub content: String,
+    /// E2EE 密文载荷（Base64 编码）；服务端不解密，仅存储与透传
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_content: Option<String>,
+    /// E2EE 元数据（JSON），如算法/版本/iv/counter 等
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption_metadata: Option<Value>,
     pub message_type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<MessageDeliveryStatus>,

@@ -2,6 +2,8 @@ use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
 };
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -46,6 +48,20 @@ pub struct SendMessagePayload {
     pub content: Option<String>,
     #[serde(default)]
     pub parts: Vec<crate::models::MessagePartPayload>,
+    #[serde(default)]
+    pub quoted_message_id: Option<Uuid>,
+}
+
+#[derive(Deserialize)]
+pub struct SendEncryptedMessagePayload {
+    /// 兼容旧客户端/列表摘要：加密消息可写入占位文本
+    #[serde(default)]
+    pub content_summary: Option<String>,
+    /// E2EE 密文载荷（Base64 编码）
+    pub encrypted_content: String,
+    /// E2EE 元数据（JSON），如算法/版本/iv/counter 等
+    #[serde(default)]
+    pub encryption_metadata: Option<Value>,
     #[serde(default)]
     pub quoted_message_id: Option<Uuid>,
 }
@@ -817,6 +833,165 @@ pub async fn send_message(
             sender_id,
             content_summary.clone(),
             resolved_message_type.clone(),
+            quoted_message_id,
+            &db_parts,
+        )
+        .await?;
+
+    let enriched = store
+        .get_message_with_sender(created.id)
+        .await?
+        .ok_or_else(|| AppError::InternalError("新消息加载失败".to_string()))?;
+
+    let mut part_query_ids = vec![created.id];
+    if let Some(qid) = enriched.quoted_message_id {
+        part_query_ids.push(qid);
+    }
+    let part_map = store.get_message_parts_map(&part_query_ids).await?;
+
+    // 实时广播到房间内所有WebSocket连接（通过Redis Pub/Sub）
+    if let Err(e) = broadcast_message_to_room(&state, &enriched, &part_map).await {
+        error!("广播消息失败: {}", e);
+    }
+
+    crate::services::push::enqueue_new_message(&state, enriched.id).await;
+
+    let api_message = db_message_to_api_message_info(
+        &enriched,
+        &part_map,
+        None,
+        Some(crate::models::MessageDeliveryStatus::Sent),
+    );
+    Ok(Json(SendMessageResponse {
+        message: api_message,
+    }))
+}
+
+pub async fn send_encrypted_message(
+    State(state): State<AppState>,
+    Path(room_id): Path<Uuid>,
+    Extension(claims): Extension<crate::models::Claims>,
+    Json(payload): Json<SendEncryptedMessagePayload>,
+) -> Result<Json<SendMessageResponse>, AppError> {
+    let sender_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = MessageStore::new(state.database.pool());
+
+    // 确认成员资格
+    let in_room = store.user_in_room(room_id, sender_id).await?;
+    if !in_room {
+        return Err(AppError::Forbidden(format!(
+            "User {} is not a member of room {}",
+            sender_id, room_id
+        )));
+    }
+
+    ensure_group_message_permissions(&state, room_id, sender_id).await?;
+
+    // 简单速率限制：用户在房间内每10秒最多发送30条
+    {
+        let mut conn = state
+            .redis
+            .get_session_client()
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+
+        let key = format!("rl:send:{}:{}", sender_id, room_id);
+        let count: i64 = redis::cmd("INCR")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await
+            .map_err(|_| AppError::CacheError("Redis 自增失败".to_string()))?;
+
+        if count == 1 {
+            let _: () = redis::cmd("EXPIRE")
+                .arg(&key)
+                .arg(10)
+                .query_async(&mut conn)
+                .await
+                .map_err(|_| AppError::CacheError("Redis 设置过期时间失败".to_string()))?;
+        }
+
+        if count > 30 {
+            return Err(AppError::RateLimitExceeded(
+                "消息发送过于频繁：每10秒最多发送30条消息".to_string(),
+            ));
+        }
+    }
+
+    let SendEncryptedMessagePayload {
+        content_summary,
+        encrypted_content,
+        encryption_metadata,
+        quoted_message_id,
+    } = payload;
+
+    let content_summary = content_summary
+        .unwrap_or_else(|| "[加密消息]".to_string())
+        .trim()
+        .to_string();
+    let content_summary = if content_summary.is_empty() {
+        "[加密消息]".to_string()
+    } else {
+        content_summary
+    };
+
+    let encrypted_content = BASE64_STANDARD
+        .decode(encrypted_content.trim())
+        .map_err(|_| AppError::ValidationError("encrypted_content 不是有效的 Base64".to_string()))?;
+    if encrypted_content.is_empty() {
+        return Err(AppError::ValidationError(
+            "encrypted_content 不能为空".to_string(),
+        ));
+    }
+
+    let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
+        let quoted = store
+            .get_message(quoted_id)
+            .await?
+            .ok_or_else(|| AppError::ValidationError("引用的消息不存在".to_string()))?;
+
+        if quoted.room_id != room_id {
+            return Err(AppError::ValidationError(
+                "引用消息不属于当前房间".to_string(),
+            ));
+        }
+
+        if quoted.deleted_at.is_some() {
+            return Err(AppError::ValidationError("引用的消息已被删除".to_string()));
+        }
+
+        Some(quoted_id)
+    } else {
+        None
+    };
+
+    // 为兼容旧客户端/统一渲染逻辑，这里仍保存一个占位文本 part
+    let db_parts = [NewMessagePart {
+        position: 0,
+        part_type: MessagePartType::Text,
+        text_content: Some(content_summary.clone()),
+        attachment_key: None,
+        attachment_name: None,
+        attachment_mime: None,
+        attachment_size: None,
+        width: None,
+        height: None,
+        duration_ms: None,
+        thumbnail_key: None,
+        extra: None,
+    }];
+
+    let created = store
+        .create_encrypted_message_with_parts(
+            room_id,
+            sender_id,
+            content_summary.clone(),
+            encrypted_content,
+            encryption_metadata,
+            MessageType::Text,
             quoted_message_id,
             &db_parts,
         )
@@ -2289,6 +2464,8 @@ pub async fn broadcast_message_to_room(
         room_id: message.room_id,
         sender_id: message.sender_id,
         content: message.content.clone(),
+        encrypted_content: message.encrypted_content.clone(),
+        encryption_metadata: message.encryption_metadata.clone(),
         message_type: message.message_type.clone(),
         priority: MessagePriority::Normal,
         timestamp: message.created_at,

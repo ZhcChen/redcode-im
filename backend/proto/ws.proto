@@ -85,6 +85,8 @@ message ServerMessage {
   QuotedMessage quoted_message = 11;
   ForwardMessage forward_message = 12;
   repeated MessagePart parts = 13;
+  bytes encrypted_content = 14;
+  string encryption_metadata_json = 15;
 }
 
 message QuotedMessage {
@@ -280,6 +282,8 @@ message PubSubMessage {
   QuotedMessage quoted_message = 13;
   ForwardMessage forward_message = 14;
   repeated MessagePart parts = 15;
+  bytes encrypted_content = 16;
+  string encryption_metadata_json = 17;
 }
 
 message PubSubReadReceipt {

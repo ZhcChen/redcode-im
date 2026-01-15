@@ -2,6 +2,8 @@
 // 用于在 database::models 和 crate::models 之间转换
 
 use uuid::Uuid;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 
 // ==================== 用户模型转换 ====================
 
@@ -199,6 +201,11 @@ pub fn db_message_to_api_message_info(
         sender_nickname: db_msg.sender_nickname.clone(),
         sender_avatar_url: db_msg.sender_avatar_url.clone(),
         content: db_msg.content.clone(),
+        encrypted_content: db_msg
+            .encrypted_content
+            .as_ref()
+            .map(|data| BASE64_STANDARD.encode(data)),
+        encryption_metadata: db_msg.encryption_metadata.clone(),
         message_type: db_message_type_to_api(&db_msg.message_type),
         status: delivery_status,
         created_at: db_msg.created_at.to_rfc3339(),

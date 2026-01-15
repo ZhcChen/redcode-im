@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use prost::Message;
 use serde_json::{json, Value};
@@ -194,6 +196,11 @@ impl ServerPush {
                 let quoted = data.quoted_message.as_ref().map(quoted_to_json);
                 let forward = data.forward_message.as_ref().map(forward_to_json);
                 let parts: Vec<Value> = data.parts.iter().map(part_to_json).collect();
+                let encrypted_content = data
+                    .encrypted_content
+                    .as_ref()
+                    .map(|raw| BASE64_STANDARD.encode(raw));
+                let encryption_metadata = data.encryption_metadata.clone();
                 json!({
                     "type": "message",
                     "id": data.id,
@@ -204,6 +211,8 @@ impl ServerPush {
                     "sender_nickname": data.sender_nickname,
                     "sender_avatar_url": data.sender_avatar_url,
                     "content": data.content,
+                    "encrypted_content": encrypted_content,
+                    "encryption_metadata": encryption_metadata,
                     "message_type": data.message_type.to_string(),
                     "quoted_message": quoted,
                     "forward_message": forward,
@@ -382,6 +391,12 @@ impl ServerPush {
                 sender_nickname: data.sender_nickname.clone().unwrap_or_default(),
                 sender_avatar_url: data.sender_avatar_url.clone().unwrap_or_default(),
                 content: data.content.clone(),
+                encrypted_content: data.encrypted_content.clone().unwrap_or_default(),
+                encryption_metadata_json: data
+                    .encryption_metadata
+                    .as_ref()
+                    .and_then(|v| serde_json::to_string(v).ok())
+                    .unwrap_or_default(),
                 message_type: data.message_type.to_string(),
                 timestamp: data.timestamp.to_rfc3339(),
                 quoted_message: data.quoted_message.as_ref().map(quoted_to_proto),

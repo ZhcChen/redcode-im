@@ -179,6 +179,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260115170000_create_e2ee_key_tables.sql"
         )),
     ),
+    // 2026-01-15：E2EE 消息加密载荷字段（ciphertext + metadata）
+    (
+        "20260115173000_add_e2ee_message_payload_columns.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260115173000_add_e2ee_message_payload_columns.sql"
+        )),
+    ),
 ];
 
 impl Database {

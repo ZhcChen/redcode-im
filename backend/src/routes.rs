@@ -567,6 +567,10 @@ pub fn create_routes() -> Router<AppState> {
                 .delete(message::clear_room_messages),
         )
         .route(
+            "/rooms/{room_id}/messages/encrypted",
+            post(message::send_encrypted_message),
+        )
+        .route(
             "/rooms/{room_id}/messages/attachments/signature",
             post(message::generate_message_attachment_signature),
         )

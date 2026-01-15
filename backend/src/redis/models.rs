@@ -3,6 +3,7 @@ use crate::proto::ws;
 use chrono::{DateTime, Utc};
 use prost::Message as _;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::convert::TryFrom;
 use uuid::Uuid;
 
@@ -63,6 +64,10 @@ pub struct CrossNodeMessage {
     pub room_id: Uuid,
     pub sender_id: Uuid,
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_content: Option<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption_metadata: Option<Value>,
     pub message_type: MessageType,
     pub priority: MessagePriority,
     pub timestamp: DateTime<Utc>,
@@ -646,6 +651,12 @@ impl From<&CrossNodeMessage> for ws::PubSubMessage {
             room_id: value.room_id.to_string(),
             sender_id: value.sender_id.to_string(),
             content: value.content.clone(),
+            encrypted_content: value.encrypted_content.clone().unwrap_or_default(),
+            encryption_metadata_json: value
+                .encryption_metadata
+                .as_ref()
+                .and_then(|v| serde_json::to_string(v).ok())
+                .unwrap_or_default(),
             message_type: value.message_type.to_string(),
             priority: ws::PubSubPriority::from(value.priority.clone()) as i32,
             timestamp: value.timestamp.to_rfc3339(),
@@ -674,11 +685,24 @@ impl TryFrom<ws::PubSubMessage> for CrossNodeMessage {
         let priority = MessagePriority::from(priority_proto);
         let timestamp = parse_datetime(&value.timestamp, "timestamp")?;
 
+        let encrypted_content = if value.encrypted_content.is_empty() {
+            None
+        } else {
+            Some(value.encrypted_content)
+        };
+        let encryption_metadata = if value.encryption_metadata_json.trim().is_empty() {
+            None
+        } else {
+            serde_json::from_str::<Value>(&value.encryption_metadata_json).ok()
+        };
+
         Ok(CrossNodeMessage {
             id,
             room_id,
             sender_id,
             content: value.content,
+            encrypted_content,
+            encryption_metadata,
             message_type,
             priority,
             timestamp,
