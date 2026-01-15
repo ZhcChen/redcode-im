@@ -72,11 +72,16 @@ playwright-tests/
 
 - 登录功能正常工作
 - 成功跳转到dashboard/workplace页面
-- 用户名: alice
-- 密码: password123
+- 用户名: admin
+- 密码: admin123
 
 ## 注意事项
 
-1. 运行脚本前确保后端服务(localhost:8010)和前端服务(localhost:8011)都已启动
-2. 脚本中使用的用户名和密码是测试环境的默认值
-3. 如需修改测试账号，请更新脚本中的用户名和密码
+1. 运行脚本前确保后端服务（`http://localhost:8010`）和管理后台前端（`http://localhost:8011`）都已启动
+2. 管理后台登录走 `/auth/admin/login`，需要存在管理员账号。推荐本地开启一次性初始化：
+   - 在后端 `.env` 中设置：`ALLOW_INSECURE_ADMIN_BOOTSTRAP=true`
+   - 执行：`curl -sS -X POST "http://localhost:8010/api/admin/init-default-admin"`
+3. 默认管理员账号为 `admin/admin123`；如需修改账号/地址，建议通过环境变量注入（脚本会优先读取）：
+   - `ADMIN_BASE_URL`（默认 `http://localhost:8011`）
+   - `ADMIN_USERNAME`（默认 `admin`）
+   - `ADMIN_PASSWORD`（默认 `admin123`）

@@ -6,7 +6,7 @@
 
 - [测试策略总览](#测试策略总览)
 - [测试金字塔](#测试金字塔)
-- [各模块测试现状](#各模块测试现状)
+- [测试架构（五模块）](#测试架构五模块)
 - [测试环境搭建](#测试环境搭建)
 - [本地开发测试流程](#本地开发测试流程)
 - [测试命名与组织规范](#测试命名与组织规范)
@@ -63,54 +63,30 @@
 
 ---
 
-## 各模块测试现状
+## 测试架构（五模块）
 
-### Backend (Rust)
+详细说明见：[`docs/testing/test-architecture.md`](test-architecture.md)。
 
-| 模块 | 代码行数 | 测试数量 | 覆盖状态 | 详情 |
-|------|----------|----------|----------|------|
-| auth.rs | 1,847 | 24 | ✅ 良好 | 登录/注册/Token 刷新 |
-| user.rs | 1,523 | 23 | ✅ 良好 | 用户信息 CRUD |
-| friend.rs | 1,234 | 14 | ✅ 良好 | 好友关系管理 |
-| room.rs | 2,156 | 17 | ⚠️ 一般 | 房间管理，需补充权限测试 |
-| message.rs | 2,472 | 2 | 🔴 不足 | 消息处理，严重缺失 |
-| admin.rs | 5,324 | 0 | 🔴 缺失 | 管理后台 API |
-| group_management.rs | 1,172 | 0 | 🔴 缺失 | 群组管理 |
-| multipart_upload.rs | 498 | 0 | 🔴 缺失 | 分片上传 |
-| **database_store** | - | 79 | ✅ 良好 | 数据库集成测试 |
+### 模块与测试框架
 
-**总计**: ~180 测试，估算覆盖率 ~24%
+| 模块 | 目录 | 单元测试 | 集成测试 | E2E 测试 |
+|------|------|----------|----------|----------|
+| Backend | `backend/` | Rust `cargo test` | Rust 集成测试 + Go（`tests/go/`） | WebSocket/关键链路（Go/Node） |
+| Frontend (Flutter) | `frontend/` | `flutter test` | 真 API 联调 | Patrol `patrol test` |
+| Desktop (Vue+Tauri) | `desktop/` | Vitest（规划）+ `src-tauri` `cargo test` | Go（复用） | Playwright + Tauri Driver（规划） |
+| Admin (Vue) | `admin/` | Vitest（规划） | Go（复用） | Playwright（已存在脚本，待标准化） |
+| Website (Nuxt) | `website/` | Vitest + Nuxt Test Utils（规划） | - | Playwright（规划） |
 
-**目标**: 2025 Q1 达到 60% 覆盖率
+### 统一测试数据（推荐）
 
-→ 详见 [Backend 单元测试计划](backend-test-plan.md)
+多数跨端测试需要“真实账号 + 好友关系 + 房间”。
 
-### Frontend (Flutter)
+统一使用 `backend/test_flow.sh` 初始化（可重复运行）：
 
-| 类型 | 状态 | 说明 |
-|------|------|------|
-| Widget 单元测试 | ⚠️ 部分 | 核心组件已覆盖 |
-| E2E 测试 (Patrol) | ✅ 框架就绪 | 主流程已编写 |
-| 用户旅程测试 | ✅ 设计完成 | 12 条核心路径 |
-
-→ 详见 [E2E 测试指南](e2e-testing-guide.md)、[测试路径](test-paths.md)
-
-### Desktop (Vue + Tauri)
-
-| 类型 | 状态 | 说明 |
-|------|------|------|
-| 组件单元测试 | 🔴 缺失 | 待补充 |
-| API 集成测试 | ⚠️ 部分 | Go 测试覆盖部分接口 |
-| E2E 测试 | 🔴 缺失 | 待规划 |
-
-→ 详见 [桌面端测试架构](desktop-add-member-go-test-architecture.md)
-
-### Admin (Vue)
-
-| 类型 | 状态 | 说明 |
-|------|------|------|
-| 组件单元测试 | 🔴 缺失 | 待补充 |
-| E2E 测试 | 🔴 缺失 | 待规划 |
+```bash
+cd backend
+./test_flow.sh
+```
 
 ---
 
@@ -274,6 +250,7 @@ tests/go/                         # Go API 集成测试
 | 文档 | 说明 |
 |------|------|
 | [本文档](README.md) | 测试工作流程总纲 |
+| [测试架构（五模块）](test-architecture.md) | 五模块测试边界与框架选择 |
 | [Backend 单元测试计划](backend-test-plan.md) | 后端测试现状与补充计划 |
 
 ### 测试指南

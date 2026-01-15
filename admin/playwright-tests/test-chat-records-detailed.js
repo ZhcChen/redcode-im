@@ -1,6 +1,10 @@
 const { chromium } = require('playwright');
 
 (async () => {
+  const baseUrl = process.env.ADMIN_BASE_URL || 'http://localhost:8011';
+  const username = process.env.ADMIN_USERNAME || 'admin';
+  const password = process.env.ADMIN_PASSWORD || 'admin123';
+
   // 使用本地Chrome浏览器
   const browser = await chromium.launch({
     headless: false, // 设置为false以便观察操作
@@ -49,15 +53,15 @@ const { chromium } = require('playwright');
 
   try {
     // 1. 打开登录页面
-    await page.goto('http://localhost:8011');
+    await page.goto(baseUrl);
     console.log('已打开登录页面');
 
     // 等待页面加载
     await page.waitForTimeout(2000);
 
     // 2. 填写登录信息
-    await page.fill('input[placeholder="用户名：admin"]', 'alice');
-    await page.fill('input[placeholder="密码：admin"]', 'password123');
+    await page.fill('input[placeholder="用户名：admin"]', username);
+    await page.fill('input[placeholder="密码：admin"]', password);
     console.log('已填写登录信息');
 
     // 3. 点击登录按钮

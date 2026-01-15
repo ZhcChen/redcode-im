@@ -61,6 +61,7 @@
 | 文档 | 说明 |
 |------|------|
 | [**测试工作流程指南**](testing/README.md) | **测试策略、流程与规范总纲** |
+| [测试架构（五模块）](testing/test-architecture.md) | 五模块测试边界与框架选择 |
 | [Backend 单元测试计划](testing/backend-test-plan.md) | 后端测试现状与补充计划 |
 | [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用详解 |
 | [E2E 测试路径](testing/test-paths.md) | 移动端用户旅程测试 |

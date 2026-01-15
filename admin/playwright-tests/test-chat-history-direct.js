@@ -2,6 +2,10 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 
 (async () => {
+  const baseUrl = process.env.ADMIN_BASE_URL || 'http://localhost:8011';
+  const username = process.env.ADMIN_USERNAME || 'admin';
+  const password = process.env.ADMIN_PASSWORD || 'admin123';
+
   // 使用本地安装的Chrome浏览器
   const browser = await chromium.launch({
     executablePath:
@@ -69,14 +73,14 @@ const fs = require('fs');
 
   try {
     // 导航到登录页面
-    await page.goto('http://localhost:8011');
+    await page.goto(baseUrl);
     await page.waitForTimeout(2000);
 
     // 填写用户名
-    await page.fill('input[placeholder="用户名：admin"]', 'alice');
+    await page.fill('input[placeholder="用户名：admin"]', username);
 
     // 填写密码
-    await page.fill('input[placeholder="密码：admin"]', 'password123');
+    await page.fill('input[placeholder="密码：admin"]', password);
 
     // 点击登录按钮
     await page.click('button[type="submit"]');
@@ -84,7 +88,7 @@ const fs = require('fs');
 
     // 直接导航到聊天记录列表页面
     console.log('导航到聊天记录列表页面...');
-    await page.goto('http://localhost:8011/chat-history/list');
+    await page.goto(`${baseUrl}/chat-history/list`);
     await page.waitForTimeout(3000);
 
     // 截图保存聊天记录列表页面

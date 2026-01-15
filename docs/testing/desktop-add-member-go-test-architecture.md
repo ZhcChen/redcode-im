@@ -55,10 +55,9 @@ tests/go/desktop_add_member/
   ```
 
 ## 执行规则（backend 端口与进程）
-- 涉及 backend 的测试必须由测试脚本自行启动 backend 服务。
-- 启动前检查目标端口（默认 8010，可由 `PORT` 环境变量覆盖）；若被占用，优先 kill 占用该端口的进程后再启动 backend。
-- 启动时建议使用独立端口以避免影响现有实例，例如 `PORT=18010 cargo run --quiet`。
-- 测试完成后必须关闭本次启动的 backend 进程，保持环境整洁。
+- **默认约定**：Go 集成测试不负责启动/停止 backend 进程（避免误杀本机服务与引入不稳定因素）。
+- **本地运行**：先在独立终端启动依赖与后端（建议按 `docs/testing/test-architecture.md` 的“公共测试环境”执行），再运行 Go 测试。
+- **CI 运行**：由 CI 负责启动依赖容器与 backend 服务（或以容器方式启动 backend），Go 测试仅做 HTTP 调用与断言。
 
 ## 扩展计划
 - 增加 WS 层验证：订阅 `GroupMemberChanged` 事件，确认 joined/kicked 广播。
