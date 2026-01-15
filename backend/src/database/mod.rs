@@ -162,6 +162,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20251229100000_create_push_job_queue.sql"
         )),
     ),
+    // 2026-01-15：第三方登录绑定表（OAuth/OIDC）
+    (
+        "20260115120000_create_user_oauth_accounts.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260115120000_create_user_oauth_accounts.sql"
+        )),
+    ),
 ];
 
 impl Database {

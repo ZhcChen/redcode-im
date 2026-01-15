@@ -47,6 +47,13 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// 第三方登录请求（OAuth/OIDC）
+#[derive(Debug, Deserialize)]
+pub struct OAuthLoginRequest {
+    pub provider: String,
+    pub id_token: String,
+}
+
 /// 登录响应
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {

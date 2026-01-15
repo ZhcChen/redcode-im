@@ -131,6 +131,7 @@ class MessageService with ChangeNotifier {
   // 防抖定时器
   Timer? _fetchChatsDebouncer;
   bool _isLoadingChatsFromCache = false;
+  bool _offlineSyncInProgress = false;
 
   /// 获取房间的消息列表
   List<Message> getMessages(String roomId) {
@@ -376,6 +377,104 @@ class MessageService with ChangeNotifier {
 
     // 强制刷新直接执行
     return _actualFetchChats();
+  }
+
+  /// 离线消息补拉：用于 WebSocket 断线重连后把缺失消息拉齐
+  ///
+  /// 当前策略：
+  /// - 仅对未读会话补拉（避免全量刷爆请求）
+  /// - 以本地最后一条消息 ID（内存/SQLite）或 last_read_message_id 作为 since_id 游标
+  /// - 分页循环直到没有更多数据或达到最大页数
+  Future<void> syncOfflineMessages({
+    int perPage = 100,
+    int maxRooms = 20,
+    int maxPagesPerRoom = 10,
+  }) async {
+    if (_offlineSyncInProgress) return;
+    _offlineSyncInProgress = true;
+
+    try {
+      final candidates = _chats
+          .where((chat) {
+            if (chat.type == ChatType.favorite) return false;
+            if (chat.roomId.trim().isEmpty) return false;
+            return chat.unreadCount > 0;
+          })
+          .toList()
+        ..sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+
+      if (candidates.isEmpty) return;
+
+      final rooms = candidates.take(maxRooms).toList();
+      for (final chat in rooms) {
+        await _syncOfflineMessagesForRoom(
+          chat,
+          perPage: perPage,
+          maxPages: maxPagesPerRoom,
+        );
+      }
+    } catch (e) {
+      debugPrint('[OfflineSync] Failed to sync: $e');
+    } finally {
+      _offlineSyncInProgress = false;
+    }
+  }
+
+  Future<void> _syncOfflineMessagesForRoom(
+    Chat chat, {
+    required int perPage,
+    required int maxPages,
+  }) async {
+    final roomId = chat.roomId.trim();
+    if (roomId.isEmpty) return;
+
+    String? sinceId;
+
+    // 1) 内存缓存（进入过聊天室）
+    final cached = _messagesByRoom[roomId];
+    if (cached != null && cached.isNotEmpty) {
+      cached.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      sinceId = cached.last.id;
+    }
+
+    // 2) SQLite 缓存
+    sinceId ??= await _messageStorage.getLatestMessageId(roomId);
+
+    // 3) 会话列表中的 last_read_message_id（确保最少能补到未读消息）
+    final extra = chat.extra;
+    final lastReadId =
+        extra != null ? (extra['last_read_message_id'] as String?) : null;
+    if (sinceId == null || sinceId!.trim().isEmpty) {
+      sinceId = lastReadId;
+    }
+
+    // 4) 实在拿不到游标，则拉一页最新消息作为兜底
+    if (sinceId == null || sinceId.trim().isEmpty) {
+      await loadMessages(roomId, limit: perPage);
+      return;
+    }
+
+    var cursor = sinceId.trim();
+    for (var page = 0; page < maxPages; page++) {
+      final fetched = await loadMessages(
+        roomId,
+        limit: perPage,
+        sinceId: cursor,
+      );
+      if (fetched.isEmpty) {
+        break;
+      }
+
+      final newestId = fetched.last.id;
+      if (newestId == cursor) {
+        break;
+      }
+
+      cursor = newestId;
+      if (fetched.length < perPage) {
+        break;
+      }
+    }
   }
 
   /// 实际执行拉取会话列表

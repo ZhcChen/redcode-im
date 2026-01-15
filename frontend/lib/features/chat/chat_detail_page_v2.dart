@@ -153,6 +153,13 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   bool _memberCountLoadFailed = false;
   bool _wasKeyboardVisible = false;
 
+  // 群聊 @ 提及
+  bool _showMentionPanel = false;
+  int _mentionStartIndex = -1;
+  String _mentionKeyword = '';
+  bool _mentionMembersLoading = false;
+  List<_MentionMember> _mentionMembers = const <_MentionMember>[];
+
   // 禁言相关状态
   final RoomService _roomService = RoomService();
   final TokenStorage _tokenStorage = const TokenStorage();
@@ -239,6 +246,13 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
       if (!_inputFocusNode.hasFocus) {
         _stopTyping();
+        if (_showMentionPanel) {
+          setState(() {
+            _showMentionPanel = false;
+            _mentionStartIndex = -1;
+            _mentionKeyword = '';
+          });
+        }
       }
     });
 
@@ -296,6 +310,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _handleLocalTextChanged() {
+    _updateMentionSuggestions();
     if (_isInputDisabled) {
       _stopTyping();
       return;
@@ -335,6 +350,267 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _typingIdleTimer?.cancel();
     _typingIdleTimer = null;
     _sendTyping(false);
+  }
+
+  void _hideMentionPanel() {
+    if (!_showMentionPanel) return;
+    setState(() {
+      _showMentionPanel = false;
+      _mentionStartIndex = -1;
+      _mentionKeyword = '';
+    });
+  }
+
+  bool _isEmailLikePrevChar(String ch) {
+    if (ch.isEmpty) return false;
+    final code = ch.codeUnitAt(0);
+    final isAsciiAlphaNum =
+        (code >= 48 && code <= 57) ||
+        (code >= 65 && code <= 90) ||
+        (code >= 97 && code <= 122);
+    return isAsciiAlphaNum || ch == '_' || ch == '.' || ch == '+' || ch == '-';
+  }
+
+  void _updateMentionSuggestions() {
+    if (widget.chatType != ChatType.group) {
+      _hideMentionPanel();
+      return;
+    }
+    if (_isInputDisabled) {
+      _hideMentionPanel();
+      return;
+    }
+    if (!_inputFocusNode.hasFocus) {
+      _hideMentionPanel();
+      return;
+    }
+
+    final text = _textController.text;
+    final selection = _textController.selection;
+    final cursor = selection.baseOffset;
+    if (cursor < 0 || cursor > text.length) {
+      _hideMentionPanel();
+      return;
+    }
+
+    final atIndex = cursor == 0 ? -1 : text.lastIndexOf('@', cursor - 1);
+    if (atIndex < 0) {
+      _hideMentionPanel();
+      return;
+    }
+
+    if (atIndex > 0 && _isEmailLikePrevChar(text[atIndex - 1])) {
+      _hideMentionPanel();
+      return;
+    }
+
+    final keyword = text.substring(atIndex + 1, cursor);
+    if (keyword.contains(RegExp(r'\s'))) {
+      _hideMentionPanel();
+      return;
+    }
+
+    // 与后端 @ 解析规则保持一致：仅允许字母数字/下划线/短横线/常用中文字符
+    final tokenPattern = RegExp(r'^[0-9A-Za-z_\-\u4e00-\u9fff]*$');
+    if (!tokenPattern.hasMatch(keyword)) {
+      _hideMentionPanel();
+      return;
+    }
+
+    if (!_showMentionPanel ||
+        _mentionStartIndex != atIndex ||
+        _mentionKeyword != keyword) {
+      setState(() {
+        _showMentionPanel = true;
+        _mentionStartIndex = atIndex;
+        _mentionKeyword = keyword;
+      });
+    }
+
+    if (!_mentionMembersLoading && _mentionMembers.isEmpty) {
+      unawaited(_loadMentionMembers());
+    }
+  }
+
+  Future<void> _loadMentionMembers() async {
+    if (widget.chatType != ChatType.group) return;
+    if (_mentionMembersLoading) return;
+
+    if (mounted) {
+      setState(() => _mentionMembersLoading = true);
+    } else {
+      _mentionMembersLoading = true;
+    }
+
+    try {
+      final members = await _chatProvider.getRoomMembers(widget.roomId);
+      if (!mounted) return;
+
+      final parsed = <_MentionMember>[];
+      for (final member in members) {
+        final userIdValue = member['user_id'] ?? member['userId'] ?? member['id'];
+        final userId = userIdValue is String ? userIdValue : userIdValue?.toString();
+        if (userId == null || userId.trim().isEmpty) continue;
+        if (_currentUserId != null && userId == _currentUserId) continue;
+
+        final usernameValue = member['username'];
+        final username = usernameValue is String ? usernameValue : usernameValue?.toString();
+        if (username == null || username.trim().isEmpty) continue;
+
+        final nicknameValue = member['nickname'];
+        final nickname = nicknameValue is String ? nicknameValue : nicknameValue?.toString();
+        final displayName =
+            (nickname != null && nickname.trim().isNotEmpty) ? nickname.trim() : username.trim();
+
+        final avatarValue = member['avatar_url'] ?? member['avatarUrl'] ?? member['avatar'];
+        final avatarUrl =
+            avatarValue is String ? avatarValue : avatarValue?.toString();
+
+        parsed.add(
+          _MentionMember(
+            userId: userId,
+            username: username.trim(),
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+          ),
+        );
+      }
+
+      parsed.sort((a, b) => a.displayNameLower.compareTo(b.displayNameLower));
+      setState(() => _mentionMembers = parsed);
+    } catch (e) {
+      debugPrint('[Mention] Failed to load members: $e');
+    } finally {
+      if (!mounted) {
+        _mentionMembersLoading = false;
+        return;
+      }
+      setState(() => _mentionMembersLoading = false);
+    }
+  }
+
+  void _insertMentionToken(String token) {
+    final text = _textController.text;
+    final selection = _textController.selection;
+    final fallbackStart = selection.start.clamp(0, text.length).toInt();
+    final replaceStart =
+        (_mentionStartIndex >= 0 && _mentionStartIndex <= text.length)
+            ? _mentionStartIndex
+            : fallbackStart;
+    final replaceEnd = selection.end.clamp(replaceStart, text.length).toInt();
+
+    final replacement = '@$token ';
+    final updated = text.replaceRange(replaceStart, replaceEnd, replacement);
+    final newCursor = (replaceStart + replacement.length)
+        .clamp(0, updated.length)
+        .toInt();
+
+    _textController.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+
+    _hideMentionPanel();
+    FocusScope.of(context).requestFocus(_inputFocusNode);
+  }
+
+  Widget _buildMentionPanel(ThemeData theme) {
+    final keyword = _mentionKeyword.trim().toLowerCase();
+    final showAll =
+        keyword.isEmpty ||
+        'all'.startsWith(keyword) ||
+        'everyone'.startsWith(keyword) ||
+        'here'.startsWith(keyword) ||
+        '全体'.contains(keyword) ||
+        '全员'.contains(keyword) ||
+        '所有人'.contains(keyword);
+
+    final filtered = keyword.isEmpty
+        ? _mentionMembers
+        : _mentionMembers.where((m) {
+            return m.usernameLower.contains(keyword) ||
+                m.displayNameLower.contains(keyword);
+          }).toList();
+
+    final visible = filtered.take(12).toList();
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 240),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: _mentionMembersLoading
+          ? Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '正在加载群成员...',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : (showAll || visible.isNotEmpty)
+              ? ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: (showAll ? 1 : 0) + visible.length,
+                  separatorBuilder: (_, __) => const Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: AppColors.divider,
+                  ),
+                  itemBuilder: (context, index) {
+                    var effectiveIndex = index;
+                    if (showAll) {
+                      if (effectiveIndex == 0) {
+                        return _MentionTile(
+                          title: '全体成员',
+                          subtitle: '@all',
+                          avatarText: '@',
+                          onTap: () => _insertMentionToken('all'),
+                        );
+                      }
+                      effectiveIndex -= 1;
+                    }
+
+                    final member = visible[effectiveIndex];
+                    return _MentionTile(
+                      title: member.displayName,
+                      subtitle: '@${member.username}',
+                      avatarText: member.displayNameAvatar,
+                      avatarUrl: member.avatarUrl,
+                      onTap: () => _insertMentionToken(member.username),
+                    );
+                  },
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    '未找到匹配的群成员',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+    );
   }
 
   void _handleTypingUpdate(TypingUpdateEvent event) {
@@ -1286,6 +1562,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+            ],
+            if (_showMentionPanel) ...[
+              _buildMentionPanel(theme),
               const SizedBox(height: 8),
             ],
             // 为输入区域添加高度过渡动画，减轻高度瞬间变化带来的突兀感
@@ -3211,6 +3491,15 @@ class _MessageBubbleState extends State<_MessageBubble>
   }
 
   Widget _buildTextWithEmojis(String text, {required bool isSelf}) {
+    final baseStyle = TextStyle(
+      fontSize: 15,
+      color: isSelf ? Colors.white : AppColors.textPrimary,
+    );
+    final mentionStyle = baseStyle.copyWith(
+      color: isSelf ? Colors.white : AppColors.primary,
+      fontWeight: FontWeight.w600,
+    );
+
     // 识别文本中的表情URL（http://或https://开头的URL）
     // 更精确的正则：匹配完整的URL，包括可能的查询参数和片段
     final emojiUrlPattern = RegExp(
@@ -3221,11 +3510,13 @@ class _MessageBubbleState extends State<_MessageBubble>
 
     if (matches.isEmpty) {
       // 没有表情URL，直接显示文本
-      return Text(
-        text,
-        style: TextStyle(
-          fontSize: 15,
-          color: isSelf ? Colors.white : AppColors.textPrimary,
+      return Text.rich(
+        TextSpan(
+          children: _buildTextSpansWithMentions(
+            text,
+            baseStyle: baseStyle,
+            mentionStyle: mentionStyle,
+          ),
         ),
       );
     }
@@ -3238,13 +3529,11 @@ class _MessageBubbleState extends State<_MessageBubble>
       // 添加匹配前的文本
       if (match.start > lastEnd) {
         final beforeText = text.substring(lastEnd, match.start);
-        spans.add(
-          TextSpan(
-            text: beforeText,
-            style: TextStyle(
-              fontSize: 15,
-              color: isSelf ? Colors.white : AppColors.textPrimary,
-            ),
+        spans.addAll(
+          _buildTextSpansWithMentions(
+            beforeText,
+            baseStyle: baseStyle,
+            mentionStyle: mentionStyle,
           ),
         );
       }
@@ -3264,18 +3553,70 @@ class _MessageBubbleState extends State<_MessageBubble>
     // 添加剩余的文本
     if (lastEnd < text.length) {
       final afterText = text.substring(lastEnd);
-      spans.add(
-        TextSpan(
-          text: afterText,
-          style: TextStyle(
-            fontSize: 15,
-            color: isSelf ? Colors.white : AppColors.textPrimary,
-          ),
+      spans.addAll(
+        _buildTextSpansWithMentions(
+          afterText,
+          baseStyle: baseStyle,
+          mentionStyle: mentionStyle,
         ),
       );
     }
 
     return Text.rich(TextSpan(children: spans));
+  }
+
+  List<InlineSpan> _buildTextSpansWithMentions(
+    String text, {
+    required TextStyle baseStyle,
+    required TextStyle mentionStyle,
+  }) {
+    bool isEmailLikePrevChar(String ch) {
+      if (ch.isEmpty) return false;
+      final code = ch.codeUnitAt(0);
+      final isAsciiAlphaNum =
+          (code >= 48 && code <= 57) ||
+          (code >= 65 && code <= 90) ||
+          (code >= 97 && code <= 122);
+      return isAsciiAlphaNum || ch == '_' || ch == '.' || ch == '+' || ch == '-';
+    }
+
+    final mentionPattern = RegExp(r'@([0-9A-Za-z_\u4e00-\u9fff-]+)');
+    final matches = mentionPattern.allMatches(text);
+    if (matches.isEmpty) {
+      return <InlineSpan>[
+        TextSpan(text: text, style: baseStyle),
+      ];
+    }
+
+    final spans = <InlineSpan>[];
+    var lastEnd = 0;
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        spans.add(
+          TextSpan(
+            text: text.substring(lastEnd, match.start),
+            style: baseStyle,
+          ),
+        );
+      }
+
+      final mentionText = match.group(0) ?? '';
+      final start = match.start;
+      final highlight = start == 0 || !isEmailLikePrevChar(text[start - 1]);
+      spans.add(
+        TextSpan(
+          text: mentionText,
+          style: highlight ? mentionStyle : baseStyle,
+        ),
+      );
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd), style: baseStyle));
+    }
+
+    return spans;
   }
 
   Widget _buildDeletedContent(BuildContext context) {
@@ -4454,6 +4795,122 @@ class _ReadReceiptsSheetState extends State<_ReadReceiptsSheet> {
     final month = time.month.toString().padLeft(2, '0');
     final day = time.day.toString().padLeft(2, '0');
     return '$month-$day $hh:$mm';
+  }
+}
+
+class _MentionMember {
+  _MentionMember({
+    required this.userId,
+    required this.username,
+    required this.displayName,
+    this.avatarUrl,
+  }) : usernameLower = username.toLowerCase(),
+       displayNameLower = displayName.toLowerCase();
+
+  final String userId;
+  final String username;
+  final String usernameLower;
+  final String displayName;
+  final String displayNameLower;
+  final String? avatarUrl;
+
+  String get displayNameAvatar {
+    final trimmed = displayName.trim();
+    if (trimmed.isEmpty) return '?';
+    return AvatarColorUtils.getInitial(trimmed);
+  }
+}
+
+class _MentionTile extends StatelessWidget {
+  const _MentionTile({
+    required this.title,
+    required this.subtitle,
+    required this.avatarText,
+    required this.onTap,
+    this.avatarUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final String avatarText;
+  final String? avatarUrl;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              _buildAvatar(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    final bg = AvatarColorUtils.generateBackgroundColor(title);
+    final child = avatarUrl != null && avatarUrl!.trim().isNotEmpty
+        ? ClipOval(
+            child: Image.network(
+              avatarUrl!,
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallbackAvatar(bg),
+            ),
+          )
+        : _fallbackAvatar(bg);
+
+    return SizedBox(width: 36, height: 36, child: child);
+  }
+
+  Widget _fallbackAvatar(Color bg) {
+    return Container(
+      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        avatarText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 

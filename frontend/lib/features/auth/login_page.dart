@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
@@ -43,6 +46,9 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordCtrl = TextEditingController();
   final TextEditingController _smsCtrl = TextEditingController();
   final TextEditingController _emailCtrl = TextEditingController();
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  Future<void>? _googleSignInInit;
 
   @override
   void initState() {
@@ -291,6 +297,10 @@ class _LoginPageState extends State<LoginPage> {
                 _buildAgreeRow(),
                 SizedBox(height: 48.h),
                 _buildSwitchRow(),
+                if (_type != LoginType.register) ...[
+                  SizedBox(height: 24.h),
+                  _buildThirdPartyLoginRow(),
+                ],
                 if (_type != LoginType.register) ...[
                   SizedBox(height: 12.h),
                   Center(
@@ -603,6 +613,51 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Widget _buildThirdPartyLoginRow() {
+    final showApple = Platform.isIOS || Platform.isMacOS;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: Divider(height: 1)),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w),
+              child: Text(
+                '其他登录方式',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const Expanded(child: Divider(height: 1)),
+          ],
+        ),
+        SizedBox(height: 12.h),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _loading ? null : _handleGoogleLogin,
+                child: const Text('Google 登录'),
+              ),
+            ),
+            if (showApple) ...[
+              SizedBox(width: 12.w),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _loading ? null : _handleAppleLogin,
+                  child: const Text('Apple 登录'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   Future<void> _submit() async {
     if (_loading) {
       return;
@@ -695,6 +750,129 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     await _handlePasswordLogin();
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    if (_loading) return;
+    FocusScope.of(context).unfocus();
+
+    if (!_agreed) {
+      await AgreementTipDialog.show(
+        context,
+        content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
+        onConfirm: () async {
+          Navigator.of(context).pop();
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (mounted) {
+            FocusScope.of(context).unfocus();
+          }
+        },
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await (_googleSignInInit ??= _googleSignIn.initialize());
+      final account = await _googleSignIn.authenticate();
+
+      final idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        _showMessage('获取 Google 凭证失败');
+        return;
+      }
+
+      await _authRepository.loginWithOAuth(provider: 'google', idToken: idToken);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShellPage()),
+        (route) => false,
+      );
+    } on AuthException catch (error) {
+      _showMessage(error.message);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        _showMessage('已取消登录');
+      } else {
+        debugPrint('Google 登录失败: $e');
+        _showMessage('Google 登录失败，请稍后重试');
+      }
+    } catch (e) {
+      debugPrint('Google 登录失败: $e');
+      _showMessage('第三方登录失败，请稍后重试');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      } else {
+        _loading = false;
+      }
+    }
+  }
+
+  Future<void> _handleAppleLogin() async {
+    if (_loading) return;
+    FocusScope.of(context).unfocus();
+
+    if (!_agreed) {
+      await AgreementTipDialog.show(
+        context,
+        content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
+        onConfirm: () async {
+          Navigator.of(context).pop();
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (mounted) {
+            FocusScope.of(context).unfocus();
+          }
+        },
+      );
+      return;
+    }
+
+    if (!(Platform.isIOS || Platform.isMacOS)) {
+      _showMessage('当前平台不支持 Apple 登录');
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null || idToken.isEmpty) {
+        _showMessage('获取 Apple 凭证失败');
+        return;
+      }
+
+      await _authRepository.loginWithOAuth(provider: 'apple', idToken: idToken);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShellPage()),
+        (route) => false,
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        _showMessage('已取消登录');
+      } else {
+        debugPrint('Apple 登录失败: $e');
+        _showMessage('Apple 登录失败，请稍后重试');
+      }
+    } on AuthException catch (error) {
+      _showMessage(error.message);
+    } catch (e) {
+      debugPrint('Apple 登录失败: $e');
+      _showMessage('第三方登录失败，请稍后重试');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      } else {
+        _loading = false;
+      }
+    }
   }
 
   Future<void> _handleRegister() async {

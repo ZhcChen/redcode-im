@@ -114,6 +114,52 @@ impl UserStore {
         Ok(user)
     }
 
+    /// 根据第三方账号绑定关系查找用户
+    pub async fn find_by_oauth_account(
+        &self,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<Option<User>, Error> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT u.id, u.username, u.email, u.password_hash, u.nickname, u.avatar_url, u.avatar_object_key, u.status, u.created_at, u.updated_at, u.deleted_at
+            FROM users u
+            INNER JOIN user_oauth_accounts oa ON oa.user_id = u.id
+            WHERE oa.provider = $1 AND oa.provider_user_id = $2
+              AND u.deleted_at IS NULL
+            "#,
+        )
+        .bind(provider)
+        .bind(provider_user_id)
+        .fetch_optional(&self.database.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    /// 绑定第三方账号（provider + provider_user_id -> user_id）
+    pub async fn link_oauth_account(
+        &self,
+        user_id: &Uuid,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            r#"
+            INSERT INTO user_oauth_accounts (user_id, provider, provider_user_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (provider, provider_user_id) DO NOTHING
+            "#,
+        )
+        .bind(user_id)
+        .bind(provider)
+        .bind(provider_user_id)
+        .execute(&self.database.pool)
+        .await?;
+
+        Ok(())
+    }
+
     /// 按用户名查找用户（支持所有状态）
     pub async fn find_by_username_any_status(&self, username: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(

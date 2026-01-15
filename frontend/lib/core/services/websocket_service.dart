@@ -980,7 +980,14 @@ class WebSocketService with ChangeNotifier {
 
     // 认证成功后刷新：
     // 1) 会话列表，确保聊天页立即展示数据
-    unawaited(_messageService.fetchChats());
+    unawaited(() async {
+      try {
+        await _messageService.fetchChats();
+      } catch (e) {
+        debugPrint('Failed to fetch chats after auth: $e');
+      }
+      await _messageService.syncOfflineMessages();
+    }());
     // 2) 好友列表（一次全量），联系人页依赖 WS 增量 + 首屏 HTTP
     unawaited(_refreshFriendsOnce());
   }

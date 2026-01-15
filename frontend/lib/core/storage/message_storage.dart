@@ -33,6 +33,35 @@ class MessageStorage {
     return roomIds;
   }
 
+  Future<String?> getLatestMessageId(String roomId) async {
+    if (roomId.isEmpty) {
+      return null;
+    }
+
+    final db = await _openDatabase();
+    final rows = await db.query(
+      _messageTable,
+      columns: const ['id'],
+      where: 'room_id = ?',
+      whereArgs: [roomId],
+      orderBy: 'timestamp DESC',
+      limit: 1,
+    );
+
+    if (rows.isNotEmpty) {
+      final id = rows.first['id'];
+      return id is String && id.isNotEmpty ? id : null;
+    }
+
+    // 兼容旧版 SharedPreferences 数据：如果 SQLite 为空但旧数据存在，则先迁移再读取
+    final migrated = await _tryMigrateFromSharedPreferences(db, roomId);
+    if (migrated.isEmpty) {
+      return null;
+    }
+    migrated.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return migrated.last.id;
+  }
+
   Future<List<Message>> loadMessages(String roomId) async {
     if (roomId.isEmpty) {
       return const [];

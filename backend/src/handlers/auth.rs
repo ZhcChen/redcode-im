@@ -1,5 +1,6 @@
 use crate::auth::{generate_token, hash_password};
 use crate::database::models::AdminUserStatus;
+use crate::database::models::UpdateUserRequest as DbUpdateUserRequest;
 use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
@@ -8,22 +9,238 @@ use crate::models::convert::{
     api_create_user_to_db, api_login_to_db, db_user_to_api_user_info, string_to_uuid,
 };
 use crate::models::UserStatus;
-use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, UserInfo};
+use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, OAuthLoginRequest, UserInfo};
 use crate::AppState;
 use axum::{
     extract::{Extension, State},
     http::HeaderMap,
     response::Json,
 };
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use once_cell::sync::Lazy;
+use reqwest::Client;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::env;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 use tracing::info;
 
 /// 刷新令牌在 Redis 中的存储前缀
 const REFRESH_TOKEN_PREFIX: &str = "auth:refresh:";
 /// 刷新令牌的滑动有效期（30 天）
 const REFRESH_TOKEN_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
+
+/// Google OIDC JWKS（用于校验 Google ID Token）
+const GOOGLE_JWKS_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
+/// Apple OIDC JWKS（用于校验 Sign in with Apple ID Token）
+const APPLE_JWKS_URL: &str = "https://appleid.apple.com/auth/keys";
+const JWKS_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
+
+static OIDC_HTTP_CLIENT: Lazy<Client> = Lazy::new(Client::new);
+static JWKS_CACHE: Lazy<RwLock<HashMap<&'static str, CachedJwks>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+
+#[derive(Debug, Deserialize)]
+struct JwksResponse {
+    keys: Vec<JwkKey>,
+}
+
+#[derive(Debug, Deserialize)]
+struct JwkKey {
+    kid: String,
+    kty: Option<String>,
+    n: Option<String>,
+    e: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedJwks {
+    fetched_at: Instant,
+    keys: HashMap<String, (String, String)>,
+}
+
+#[derive(Debug)]
+struct ExternalIdentity {
+    provider: &'static str,
+    provider_user_id: String,
+    email: Option<String>,
+    display_name: Option<String>,
+    avatar_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct GoogleIdTokenClaims {
+    sub: String,
+    email: Option<String>,
+    name: Option<String>,
+    picture: Option<String>,
+    exp: usize,
+    iat: usize,
+    iss: Option<String>,
+    aud: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct AppleIdTokenClaims {
+    sub: String,
+    email: Option<String>,
+    exp: usize,
+    iat: usize,
+    iss: Option<String>,
+    aud: Option<String>,
+}
+
+async fn fetch_jwks(jwks_url: &'static str) -> Result<CachedJwks, AppError> {
+    let resp = OIDC_HTTP_CLIENT
+        .get(jwks_url)
+        .send()
+        .await
+        .map_err(|e| AppError::ServiceUnavailable(format!("获取第三方公钥失败: {}", e)))?;
+
+    if !resp.status().is_success() {
+        return Err(AppError::ServiceUnavailable(format!(
+            "获取第三方公钥失败: HTTP {}",
+            resp.status().as_u16()
+        )));
+    }
+
+    let parsed: JwksResponse = resp
+        .json()
+        .await
+        .map_err(|e| AppError::ServiceUnavailable(format!("解析第三方公钥失败: {}", e)))?;
+
+    let mut keys = HashMap::new();
+    for key in parsed.keys {
+        if key.kty.as_deref() != Some("RSA") {
+            continue;
+        }
+        let (Some(n), Some(e)) = (key.n, key.e) else {
+            continue;
+        };
+        keys.insert(key.kid, (n, e));
+    }
+
+    Ok(CachedJwks {
+        fetched_at: Instant::now(),
+        keys,
+    })
+}
+
+async fn get_rsa_components(
+    jwks_url: &'static str,
+    kid: &str,
+) -> Result<(String, String), AppError> {
+    {
+        let cache = JWKS_CACHE.read().await;
+        if let Some(entry) = cache.get(jwks_url) {
+            if entry.fetched_at.elapsed() < JWKS_CACHE_TTL {
+                if let Some((n, e)) = entry.keys.get(kid) {
+                    return Ok((n.clone(), e.clone()));
+                }
+            }
+        }
+    }
+
+    let fetched = fetch_jwks(jwks_url).await?;
+    {
+        let mut cache = JWKS_CACHE.write().await;
+        cache.insert(jwks_url, fetched.clone());
+    }
+
+    fetched
+        .keys
+        .get(kid)
+        .cloned()
+        .ok_or_else(|| AppError::InvalidToken("第三方令牌无效或已过期".to_string()))
+}
+
+fn build_oauth_username(provider: &str, provider_user_id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(provider_user_id.as_bytes());
+    let digest = hasher.finalize();
+    let hex = hex::encode(digest);
+    // provider + '_' + 16 chars = 1 + 16 + provider length，确保 < 50
+    let short = &hex[..16.min(hex.len())];
+    format!("{}_{}", provider, short)
+}
+
+fn build_random_password(len: usize) -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
+}
+
+async fn verify_google_id_token(id_token: &str) -> Result<ExternalIdentity, AppError> {
+    let client_id = env::var("GOOGLE_OAUTH_CLIENT_ID").map_err(|_| {
+        AppError::ServiceUnavailable("GOOGLE_OAUTH_CLIENT_ID 未配置，无法使用 Google 登录".to_string())
+    })?;
+
+    let header = decode_header(id_token)
+        .map_err(|_| AppError::InvalidToken("第三方令牌格式无效".to_string()))?;
+    let kid = header
+        .kid
+        .ok_or_else(|| AppError::InvalidToken("第三方令牌缺少 kid".to_string()))?;
+
+    let (n, e) = get_rsa_components(GOOGLE_JWKS_URL, &kid).await?;
+    let key = DecodingKey::from_rsa_components(&n, &e)
+        .map_err(|_| AppError::InvalidToken("第三方公钥无效".to_string()))?;
+
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_audience(&[client_id.as_str()]);
+    validation.set_issuer(&["accounts.google.com", "https://accounts.google.com"]);
+
+    let claims = decode::<GoogleIdTokenClaims>(id_token, &key, &validation)
+        .map_err(|_| AppError::InvalidToken("第三方令牌校验失败".to_string()))?
+        .claims;
+
+    Ok(ExternalIdentity {
+        provider: "google",
+        provider_user_id: claims.sub,
+        email: claims.email,
+        display_name: claims.name,
+        avatar_url: claims.picture,
+    })
+}
+
+async fn verify_apple_id_token(id_token: &str) -> Result<ExternalIdentity, AppError> {
+    let client_id = env::var("APPLE_OAUTH_CLIENT_ID").map_err(|_| {
+        AppError::ServiceUnavailable("APPLE_OAUTH_CLIENT_ID 未配置，无法使用 Apple 登录".to_string())
+    })?;
+
+    let header = decode_header(id_token)
+        .map_err(|_| AppError::InvalidToken("第三方令牌格式无效".to_string()))?;
+    let kid = header
+        .kid
+        .ok_or_else(|| AppError::InvalidToken("第三方令牌缺少 kid".to_string()))?;
+
+    let (n, e) = get_rsa_components(APPLE_JWKS_URL, &kid).await?;
+    let key = DecodingKey::from_rsa_components(&n, &e)
+        .map_err(|_| AppError::InvalidToken("第三方公钥无效".to_string()))?;
+
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_audience(&[client_id.as_str()]);
+    validation.set_issuer(&["https://appleid.apple.com"]);
+
+    let claims = decode::<AppleIdTokenClaims>(id_token, &key, &validation)
+        .map_err(|_| AppError::InvalidToken("第三方令牌校验失败".to_string()))?
+        .claims;
+
+    Ok(ExternalIdentity {
+        provider: "apple",
+        provider_user_id: claims.sub,
+        email: claims.email,
+        display_name: None,
+        avatar_url: None,
+    })
+}
 
 /// 刷新令牌在 Redis 中存储的内容
 #[derive(Debug, Serialize, Deserialize)]
@@ -223,6 +440,127 @@ pub async fn login(
     };
 
     Ok(Json(response))
+}
+
+pub async fn login_with_oauth(
+    State(state): State<AppState>,
+    Json(payload): Json<OAuthLoginRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    let provider = payload.provider.trim().to_lowercase();
+    let id_token = payload.id_token.trim();
+    if provider.is_empty() {
+        return Err(AppError::ValidationError("provider 不能为空".to_string()));
+    }
+    if id_token.is_empty() {
+        return Err(AppError::ValidationError("id_token 不能为空".to_string()));
+    }
+
+    let identity = match provider.as_str() {
+        "google" => verify_google_id_token(id_token).await?,
+        "apple" => verify_apple_id_token(id_token).await?,
+        _ => {
+            return Err(AppError::ValidationError(
+                "不支持的第三方登录提供方".to_string(),
+            ));
+        }
+    };
+
+    let store = UserStore::new(state.database.clone());
+    let mut db_user = store
+        .find_by_oauth_account(identity.provider, &identity.provider_user_id)
+        .await?;
+
+    if db_user.is_none() {
+        let mut username = build_oauth_username(identity.provider, &identity.provider_user_id);
+        if store.username_exists(&username).await? {
+            let suffix = build_random_password(6).to_lowercase();
+            username = format!("{}_{}", username, suffix);
+        }
+
+        let mut email = identity.email.clone().unwrap_or_else(|| {
+            format!("{}@{}.oauth", username, identity.provider)
+        });
+        if store.email_exists(&email).await? {
+            let suffix = build_random_password(6).to_lowercase();
+            email = format!("{}+{}@{}.oauth", username, suffix, identity.provider);
+        }
+
+        let nickname = identity
+            .display_name
+            .clone()
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| username.clone());
+
+        let create_req = crate::database::models::CreateUserRequest {
+            username: username.clone(),
+            email: email.clone(),
+            password: build_random_password(32),
+            nickname: Some(nickname),
+        };
+        let created = store.create_user(create_req).await?;
+
+        // 绑定第三方账号（如遇并发冲突则以数据库已有绑定为准）
+        store
+            .link_oauth_account(&created.id, identity.provider, &identity.provider_user_id)
+            .await?;
+
+        if let Some(url) = identity
+            .avatar_url
+            .as_ref()
+            .map(|u| u.trim().to_string())
+            .filter(|u| !u.is_empty())
+        {
+            let _ = store
+                .update_user(
+                    &created.id,
+                    DbUpdateUserRequest {
+                        nickname: None,
+                        avatar_url: Some(url),
+                        avatar_object_key: None,
+                        status: None,
+                    },
+                )
+                .await;
+        }
+
+        db_user = store
+            .find_by_oauth_account(identity.provider, &identity.provider_user_id)
+            .await?;
+        if db_user.is_none() {
+            db_user = Some(created);
+        }
+    }
+
+    let db_user = db_user.ok_or_else(|| AppError::InternalError("第三方登录失败".to_string()))?;
+
+    if db_user.status == crate::database::models::UserStatus::Banned {
+        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+    }
+
+    let claims = Claims {
+        sub: db_user.id.to_string(),
+        username: db_user.username.clone(),
+        is_admin: false,
+        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
+        iat: chrono::Utc::now().timestamp() as usize,
+    };
+
+    let token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+
+    let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
+        .await
+        .map_err(|e| {
+            tracing::warn!("生成刷新令牌失败: {:?}", e);
+            AppError::InternalError("生成刷新令牌失败".to_string())
+        })?;
+
+    Ok(Json(LoginResponse {
+        token,
+        user: db_user_to_api_user_info(&db_user),
+        refresh_token: Some(refresh_token),
+    }))
 }
 
 /// 使用刷新令牌为普通用户续签访问令牌（30 天内无感刷新）

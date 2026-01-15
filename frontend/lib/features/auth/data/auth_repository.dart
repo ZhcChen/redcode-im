@@ -30,6 +30,18 @@ class AuthRepository {
 
   Stream<AuthState> get authStateStream => AuthStateBus.stream;
 
+  Future<void> _bootstrapAfterLogin() async {
+    // 切换账号/新登录时重置本地缓存与连接状态
+    try {
+      await WebSocketService.instance.disconnect();
+    } catch (_) {}
+    await MessageService.instance.clearAll();
+    FriendStore.instance.clearAll();
+    AuthStateBus.emit(AuthState.authenticated);
+    unawaited(PushService.instance.registerDevice());
+    unawaited(UploadPolicyService.instance.refresh());
+  }
+
   Future<AuthSession> login({
     required String username,
     required String password,
@@ -45,15 +57,7 @@ class AuthRepository {
       );
       final session = AuthSession(token: 'mock-token', user: user);
       await _storage.saveSession(session);
-      // 切换账号/新登录时重置本地缓存与连接状态
-      try {
-        await WebSocketService.instance.disconnect();
-      } catch (_) {}
-      await MessageService.instance.clearAll();
-      FriendStore.instance.clearAll();
-      AuthStateBus.emit(AuthState.authenticated);
-      unawaited(PushService.instance.registerDevice());
-      unawaited(UploadPolicyService.instance.refresh());
+      await _bootstrapAfterLogin();
       return session;
     }
 
@@ -142,14 +146,7 @@ class AuthRepository {
           rethrow;
         }
 
-        try {
-          await WebSocketService.instance.disconnect();
-        } catch (_) {}
-        await MessageService.instance.clearAll();
-        FriendStore.instance.clearAll();
-        AuthStateBus.emit(AuthState.authenticated);
-        unawaited(PushService.instance.registerDevice());
-        unawaited(UploadPolicyService.instance.refresh());
+        await _bootstrapAfterLogin();
         if (kDebugMode) {
           debugPrint('[Auth] 登录流程完成');
         }
@@ -262,12 +259,7 @@ class AuthRepository {
       );
       final session = AuthSession(token: 'mock-token', user: user);
       await _storage.saveSession(session);
-      try {
-        await WebSocketService.instance.disconnect();
-      } catch (_) {}
-      await MessageService.instance.clearAll();
-      FriendStore.instance.clearAll();
-      AuthStateBus.emit(AuthState.authenticated);
+      await _bootstrapAfterLogin();
       return session;
     }
 
@@ -297,12 +289,7 @@ class AuthRepository {
       final user = AuthUser.fromJson(userJson);
       final session = AuthSession(token: token, user: user, refreshToken: refreshToken);
       await _storage.saveSession(session);
-      try {
-        await WebSocketService.instance.disconnect();
-      } catch (_) {}
-      await MessageService.instance.clearAll();
-      FriendStore.instance.clearAll();
-      AuthStateBus.emit(AuthState.authenticated);
+      await _bootstrapAfterLogin();
       return session;
     }
 
@@ -354,6 +341,75 @@ class AuthRepository {
 
   Future<AuthSession?> loadSession() {
     return _storage.readSession();
+  }
+
+  Future<AuthSession> loginWithOAuth({
+    required String provider,
+    required String idToken,
+  }) async {
+    final normalizedProvider = provider.trim().toLowerCase();
+    final normalizedToken = idToken.trim();
+    if (normalizedProvider.isEmpty) {
+      throw const AuthException('provider 不能为空');
+    }
+    if (normalizedToken.isEmpty) {
+      throw const AuthException('idToken 不能为空');
+    }
+
+    if (AppConfig.useMockData) {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final user = AuthUser(
+        id: 'mock-user-oauth',
+        username: 'oauth_${normalizedProvider}_user',
+        nickname: '第三方用户',
+        email: 'oauth@example.com',
+        status: 'active',
+      );
+      final session = AuthSession(token: 'mock-token', user: user);
+      await _storage.saveSession(session);
+      await _bootstrapAfterLogin();
+      return session;
+    }
+
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/login/oauth');
+    final response = await _makeRequest(
+      () => http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'provider': normalizedProvider,
+          'id_token': normalizedToken,
+        }),
+      ),
+      uri: uri,
+    );
+
+    if (response.statusCode == 200) {
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final token = payload['token'] as String?;
+      final refreshToken = payload['refresh_token'] as String?;
+      final userJson = payload['user'];
+      if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
+        throw const AuthException('登录响应异常');
+      }
+
+      var user = AuthUser.fromJson(userJson);
+      user = await _attachAvatarCache(token, user);
+      final session = AuthSession(
+        token: token,
+        user: user,
+        refreshToken: refreshToken,
+      );
+      await _storage.saveSession(session);
+      await _bootstrapAfterLogin();
+      return session;
+    }
+
+    final message = _extractErrorMessage(response.body);
+    if (response.statusCode == 401) {
+      throw AuthException(message ?? '第三方登录失败');
+    }
+    throw AuthException(message ?? '第三方登录失败，请稍后重试');
   }
 
   Future<AuthUser> updateProfile({String? nickname, String? avatarUrl}) async {
