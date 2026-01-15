@@ -4,6 +4,7 @@ use std::env;
 pub mod account_store;
 pub mod document_store;
 pub mod emoji_pack_store;
+pub mod e2ee_key_store;
 pub mod file_upload_audit_store;
 pub mod file_upload_multipart_store;
 pub mod file_upload_store;
@@ -168,6 +169,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20260115120000_create_user_oauth_accounts.sql"
+        )),
+    ),
+    // 2026-01-15：E2EE 密钥基础设施（Identity Key / Pre-Key）
+    (
+        "20260115170000_create_e2ee_key_tables.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260115170000_create_e2ee_key_tables.sql"
         )),
     ),
 ];

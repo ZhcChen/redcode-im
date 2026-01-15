@@ -8,7 +8,7 @@ use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
     health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
-    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws,
+    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws, e2ee,
 };
 use crate::AppState;
 
@@ -410,6 +410,12 @@ pub fn create_routes() -> Router<AppState> {
     let user_routes = Router::new()
         .route("/auth/me", get(auth::get_current_user))
         .route("/auth/password/reset", post(auth::reset_password_with_sms))
+        // E2EE（端到端加密）密钥管理
+        .route("/e2ee/keys/bundle", post(e2ee::upload_key_bundle))
+        .route(
+            "/e2ee/users/{user_id}/key-bundles",
+            get(e2ee::get_key_bundles),
+        )
         .route(
             "/system/upload-policy",
             get(upload_policy::get_upload_policy_user),

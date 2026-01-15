@@ -2,6 +2,7 @@ pub mod activity_logs;
 pub mod admin;
 pub mod auth;
 pub mod chat_history;
+pub mod e2ee;
 pub mod emoji_pack;
 pub mod feedback;
 pub mod friend;

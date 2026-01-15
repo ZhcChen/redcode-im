@@ -700,6 +700,42 @@ pub struct PushProviderConfig {
     pub updated_by: Option<Uuid>,
 }
 
+/// E2EE 身份公钥（每设备一份）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct E2eeIdentityKey {
+    pub user_id: Uuid,
+    pub device_id: String,
+    pub public_key: Vec<u8>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// E2EE 签名预密钥（Signed Pre-Key）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct E2eeSignedPreKey {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub device_id: String,
+    pub key_id: i32,
+    pub public_key: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// E2EE 一次性预密钥（One-Time Pre-Key）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct E2eeOneTimePreKey {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub device_id: String,
+    pub key_id: i32,
+    pub public_key: Vec<u8>,
+    pub is_used: bool,
+    pub used_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
 /// 会话概要信息（用于列表展示）
 #[derive(Debug, Clone, FromRow)]
 pub struct ChatSummaryRow {
