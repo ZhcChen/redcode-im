@@ -119,35 +119,47 @@
 ### 依赖服务
 
 ```bash
-# 启动 PostgreSQL + Redis
+# 启动 PostgreSQL + Redis（仅依赖服务，后端建议本地 cargo run）
 cd backend
-docker-compose up -d
+docker compose up -d postgres redis-session redis-cache
 
 # 验证服务状态
-docker-compose ps
+docker compose ps
 ```
 
 ### 环境变量
 
+建议在 `backend/` 目录下创建 `.env`（可从示例复制）：
+
 ```bash
-# backend/.env.test (测试专用配置)
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/redcode_test
-REDIS_URL=redis://localhost:6379/1
-JWT_SECRET=test-secret-key
+cd backend
+cp .env.example .env
+```
+
+关键配置项（与 `backend/docker-compose.yml` 默认一致）：
+
+```bash
+DATABASE_URL=postgres://postgres:123456@localhost:5432/redcode_im
+REDIS_SESSION_URL=redis://:123456@localhost:6381/0
+REDIS_CACHE_URL=redis://:123456@localhost:6383/0
+JWT_SECRET=dev-secret-change-me
 RUST_LOG=debug
 ```
+
+> 注意：`DATABASE_URL` 为必填项；Redis 若启用了密码，URL 必须包含 `:password@`。
 
 ### 测试数据初始化
 
 ```bash
-# 创建测试用户
+# 创建测试用户与房间数据（可重复运行）
 cd backend
 ./test_flow.sh
-
-# 预置账号
-# alice / password123
-# bob / password123
 ```
+
+默认会确保以下账号存在并建立关系（脚本输出会包含 room_id）：
+- `13800138000` / `Test123456`
+- `13800138001` / `Test123456`
+- `13800138002` / `Test123456`
 
 ---
 
@@ -183,6 +195,9 @@ cd frontend
 
 # 运行单元测试
 flutter test
+
+# 本地运行（如需连本机后端）
+flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_URL=ws://localhost:8010/ws
 
 # 运行 E2E 测试 (需启动后端)
 patrol test
@@ -243,14 +258,11 @@ test('AuthService returns token on successful login', () { });
 ### 测试组织结构
 
 ```
-tests/
-├── go/                          # Go 集成测试
-│   ├── desktop_add_member/      # 桌面端添加成员
-│   └── backend_message_search/  # 消息搜索
-├── e2e/                         # E2E 测试资源
-│   └── screenshots/             # 测试截图
-└── fixtures/                    # 测试数据
-    └── users.json
+backend/tests/                    # Rust 集成测试
+tests/go/                         # Go API 集成测试
+  ├── backend_message_search/     # 消息搜索
+  ├── desktop_add_member/         # 群聊添加成员
+  └── upload_policy/              # 上传策略
 ```
 
 ---
@@ -304,4 +316,4 @@ tests/
 
 ---
 
-**文档最后更新**: 2026-01-13
+**文档最后更新**: 2026-01-15

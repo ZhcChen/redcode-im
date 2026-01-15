@@ -60,6 +60,34 @@ patrol doctor
 
 ## 运行测试
 
+### 运行前准备（后端与测试数据）
+
+E2E 测试依赖后端服务可用（默认 `http://localhost:8010`），并建议先准备固定测试账号/好友/房间数据：
+
+```bash
+cd backend
+cp .env.example .env  # 首次运行需要
+docker compose up -d postgres redis-session redis-cache
+cargo run
+```
+
+另开终端：
+
+```bash
+cd backend
+./test_flow.sh
+```
+
+如需在本地覆盖 Flutter 的 API/WS 地址，可通过 `--dart-define` 传入：
+
+```bash
+# iOS Simulator / 桌面：localhost
+patrol test --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_URL=ws://localhost:8010/ws
+```
+
+> Android 模拟器访问宿主机后端：把 `localhost` 替换为 `10.0.2.2`；真机请使用宿主机 IP。
+> 若你的 patrol 版本不识别 `--dart-define`，可尝试通过 `--` 透传给 flutter：`patrol test -- --dart-define=...`。
+
 ### 运行所有测试
 
 ```bash

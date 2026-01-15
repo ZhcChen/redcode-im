@@ -6,7 +6,7 @@ class TestConfig {
   TestConfig._();
 
   /// 测试服务器地址
-  static const String baseUrl = 'http://localhost:3000';
+  static const String baseUrl = 'http://localhost:8010';
 
   /// 测试账号 - 普通用户
   static const TestAccount testUser = TestAccount(

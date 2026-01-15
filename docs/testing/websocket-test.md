@@ -22,7 +22,12 @@
    cd backend
    RUST_LOG=debug cargo run
    ```
-3. 准备两个可用的测试账号（或自行注册）与一个可用的房间（room_id）。
+3. 准备测试账号与房间（推荐一键脚本）：
+   ```bash
+   cd backend
+   ./test_flow.sh
+   ```
+   脚本会输出可用账号与房间 `room_id`（私聊/群聊）。
 
 ## 推荐测试方式：websocat
 
@@ -34,12 +39,12 @@
 
 ### 2) 获取 token（示例）
 
-> 以下仅为示例命令，账号规则/密码策略以实际环境为准。
+> 以下示例使用 `test_flow.sh` 的默认账号：`13800138000 / Test123456`。
 
 ```bash
 curl -sS -X POST "http://localhost:8010/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"15300000000","password":"Passw0rd!"}'
+  -d '{"username":"13800138000","password":"Test123456"}'
 ```
 
 响应中获取 `token` 字段。
@@ -104,7 +109,7 @@ curl -sS -X POST "http://localhost:8010/rooms/<ROOM_UUID>/messages" \
 
 ```bash
 cd backend
-USERNAME="15300000000" PASSWORD="Passw0rd!" ROOM_ID="<ROOM_UUID>" npm run test:ws
+USERNAME="13800138000" PASSWORD="Test123456" ROOM_ID="<ROOM_UUID>" npm run test:ws
 ```
 
 如需自定义地址：
@@ -112,7 +117,7 @@ USERNAME="15300000000" PASSWORD="Passw0rd!" ROOM_ID="<ROOM_UUID>" npm run test:w
 cd backend
 API_BASE_URL="http://localhost:8010" \
 WS_URL="ws://localhost:8010/ws?format=json" \
-USERNAME="15300000000" PASSWORD="Passw0rd!" ROOM_ID="<ROOM_UUID>" \
+USERNAME="13800138000" PASSWORD="Test123456" ROOM_ID="<ROOM_UUID>" \
 npm run test:ws
 ```
 
