@@ -66,19 +66,35 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 用户名/密码登录
 - **Handler**: `auth::login`
 
-#### 3. 短信登录
+#### 3. 第三方登录（OAuth/OIDC）
+- **接口**: `POST /auth/login/oauth`
+- **权限**: 公开
+- **功能**: 使用第三方 OIDC `id_token` 登录（Google/Apple）
+- **Handler**: `auth::login_with_oauth`
+
+**请求示例**：
+```json
+{
+  "provider": "google",
+  "id_token": "..."
+}
+```
+
+> 后端需要配置 `GOOGLE_OAUTH_CLIENT_ID` / `APPLE_OAUTH_CLIENT_ID` 用于校验 audience。
+
+#### 4. 短信登录
 - **接口**: `POST /auth/login/sms`
 - **权限**: 公开
 - **功能**: 手机号+验证码登录
 - **Handler**: `auth::login_with_sms`
 
-#### 4. 发送登录短信
+#### 5. 发送登录短信
 - **接口**: `POST /auth/sms/send`
 - **权限**: 公开
 - **功能**: 发送登录验证码短信
 - **Handler**: `auth::send_login_sms`
 
-#### 5. 刷新访问令牌
+#### 6. 刷新访问令牌
 - **接口**: `POST /auth/refresh`
 - **权限**: 公开
 - **功能**: 使用 refresh_token 获取新的 access_token
@@ -99,7 +115,7 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-#### 6. 管理员登录
+#### 7. 管理员登录
 - **接口**: `POST /auth/admin/login`
 - **权限**: 公开
 - **功能**: 管理员账号登录，返回管理员专用 Token
@@ -113,7 +129,7 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-#### 7. 管理员刷新令牌
+#### 8. 管理员刷新令牌
 - **接口**: `POST /auth/admin/refresh`
 - **权限**: 公开
 - **功能**: 刷新管理员访问令牌
@@ -121,13 +137,13 @@ Authorization: Bearer <your-jwt-token>
 
 ### 需要认证的路由
 
-#### 8. 获取当前用户信息
+#### 9. 获取当前用户信息
 - **接口**: `GET /auth/me`
 - **权限**: 需要认证
 - **功能**: 获取当前登录用户的详细信息
 - **Handler**: `auth::get_current_user`
 
-#### 9. 短信重置密码
+#### 10. 短信重置密码
 - **接口**: `POST /auth/password/reset`
 - **权限**: 需要认证
 - **功能**: 通过短信验证码重置密码
@@ -137,19 +153,19 @@ Authorization: Bearer <your-jwt-token>
 
 > 以下接口需要管理员 Token（通过 `/auth/admin/login` 获取）
 
-#### 10. 获取当前管理员信息
+#### 11. 获取当前管理员信息
 - **接口**: `GET /auth/admin/me`
 - **权限**: 管理员
 - **功能**: 获取当前登录管理员的详细信息
 - **Handler**: `auth::get_current_admin_user`
 
-#### 11. 更新当前管理员信息
+#### 12. 更新当前管理员信息
 - **接口**: `PATCH /auth/admin/me`
 - **权限**: 管理员
 - **功能**: 更新当前管理员的昵称等信息
 - **Handler**: `auth::update_current_admin_user`
 
-#### 12. 修改管理员密码
+#### 13. 修改管理员密码
 - **接口**: `POST /auth/admin/me/password`
 - **权限**: 管理员
 - **功能**: 修改当前管理员密码

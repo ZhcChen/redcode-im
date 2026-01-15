@@ -142,6 +142,35 @@
 
 ---
 
+### POST /auth/login/oauth — 第三方登录（OAuth/OIDC）
+
+客户端获取第三方 `id_token` 后，调用该接口完成登录或注册并返回 Token。
+
+- 需要认证：否
+- 标识：login_oauth
+- 支持 provider：`google` / `apple`
+
+#### 请求体
+- Content-Type：application/json
+```json
+{
+  "provider": "google",
+  "id_token": "..."
+}
+```
+
+#### 响应
+##### HTTP 200
+登录成功（返回结构与 `/auth/login` 一致）
+
+#### 环境变量
+后端需要配置对应平台的 Client ID，用于校验 `id_token` 的 audience：
+
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `APPLE_OAUTH_CLIENT_ID`
+
+---
+
 ### POST /auth/sms/send — 发送登录验证码
 
 向指定手机号发送一次性登录验证码，验证码有效期5分钟。

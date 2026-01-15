@@ -186,6 +186,10 @@ WebSocketService.instance.addListener(() {
 | 功能 | 状态 | 备注 |
 |-----|------|------|
 | 用户登录 | ✅ | 对接 /auth/login |
+| 验证码登录 | ✅ | 对接 /auth/login/sms（需后端开启验证码登录开关） |
+| 用户注册 | ✅ | 对接 /auth/register |
+| 找回密码 | ✅ | 对接 /auth/password/reset |
+| 第三方登录 | ✅ | 对接 /auth/login/oauth（Google/Apple，需配置环境变量） |
 | Token存储 | ✅ | SharedPreferences |
 | WebSocket连接 | ✅ | 自动连接 |
 | WebSocket认证 | ✅ | JWT Token |
@@ -201,16 +205,35 @@ WebSocketService.instance.addListener(() {
 1. **登录体验**
    - 添加记住密码功能
    - 实现自动登录
-   - 支持手机号验证码登录
+   - ✅ 支持手机号验证码登录
 
 2. **连接优化**
    - 后台保活策略
    - 消息队列缓存
-   - 离线消息同步
+   - ✅ 离线消息同步
 
 3. **功能扩展**
-   - 用户注册功能
-   - 找回密码功能
-   - 第三方登录
+   - ✅ 用户注册功能
+   - ✅ 找回密码功能
+   - ✅ 第三方登录（Google/Apple）
+
+## 第三方登录（Google / Apple）
+
+客户端获取第三方 `id_token` 后，调用：
+
+- `POST /auth/login/oauth`
+
+请求体：
+```json
+{
+  "provider": "google",
+  "id_token": "..."
+}
+```
+
+后端需要配置环境变量：
+
+- `GOOGLE_OAUTH_CLIENT_ID`（Google）
+- `APPLE_OAUTH_CLIENT_ID`（Apple）
 
 当前登录和WebSocket功能已完全对接，可以进行完整的即时通讯测试。

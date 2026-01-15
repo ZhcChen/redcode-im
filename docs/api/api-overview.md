@@ -37,6 +37,7 @@
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/login/oauth`
 - `POST /auth/login/sms`
 - `POST /auth/refresh`
 - `POST /auth/sms/send`

@@ -72,8 +72,14 @@ await chatProvider.enterChatRoom(roomId, chat);
 // 文本消息
 await chatProvider.sendTextMessage("Hello!");
 
-// 图片消息（待实现）
-await chatProvider.sendImageMessage(imagePath);
+// 图片/文件等富消息：通过 attachments 发送
+final attachment = MessageAttachmentDraft(
+  type: MessagePartType.image,
+  file: File(imagePath),
+  displayName: "photo.jpg",
+  mime: "image/jpeg",
+);
+await chatProvider.sendRichMessage(attachments: [attachment]);
 ```
 
 ### 4. 接收消息
@@ -138,21 +144,21 @@ flutter run
 4. 在另一个设备或模拟器使用bob账号登录
 5. 验证消息实时同步
 
-## 已实现功能（同步日期：2025-12-17）
+## 已实现功能（同步日期：2026-01-15）
 
 - ✅ 图片/文件消息发送
 - ✅ 语音消息录制与发送
 - ✅ 删除消息（对所有人/撤回）
 - ✅ 消息转发（当前仅支持文本）
 - ✅ 消息已读回执（标记已读 + 已读列表）
+- ✅ 消息搜索（本地索引 + 服务端搜索）
+- ✅ 离线消息同步（断线重连后自动补拉缺失消息）
+- ✅ 群聊 @ 功能（输入 @ 选择成员并插入 @username）
+- ✅ typing 状态同步（正在输入提示）
 
 ## 待实现功能
 
-- [ ] 消息搜索
-- [ ] 离线消息同步
 - [ ] 消息加密
-- [ ] 群聊@功能
-- [ ] typing状态同步
 
 ## 性能优化建议
 
