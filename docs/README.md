@@ -36,7 +36,7 @@
 | [版本联动方案](architecture/version-linkage-plan.md) | 整包 + 热更新策略 |
 | [推送通知设计](architecture/push-notification-design.md) | FCM/APNs 推送方案 |
 | [推送配置需求](architecture/push-provider-config-requirements.md) | Push 凭据后台化 |
-| [端到端加密设计](architecture/end-to-end-encryption-design.md) | E2EE 方案（规划中） |
+| [端到端加密设计](architecture/end-to-end-encryption-design.md) | E2EE 方案（设计完成，待实现） |
 | [消息搜索设计](architecture/message-search-design.md) | 搜索实现方案 |
 | [COS 集成](architecture/cos-integration.md) | 腾讯云对象存储 |
 | [Redis 配置](architecture/redis-setup.md) | Redis 部署指南 |
@@ -60,13 +60,14 @@
 
 | 文档 | 说明 |
 |------|------|
+| [**测试工作流程指南**](testing/README.md) | **测试策略、流程与规范总纲** |
 | [Backend 单元测试计划](testing/backend-test-plan.md) | 后端测试现状与补充计划 |
+| [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用详解 |
 | [E2E 测试路径](testing/test-paths.md) | 移动端用户旅程测试 |
-| [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用 |
+| [快速测试指南](testing/quick-test.md) | 5 分钟快速验证 |
 | [WebSocket 测试](testing/websocket-test.md) | WS 实时分发测试 |
-| [快速测试](testing/quick-test.md) | 快速验证指南 |
-| [添加好友测试](testing/add-friend.md) | 好友功能测试 |
-| [桌面端测试架构](testing/desktop-add-member-go-test-architecture.md) | Go 测试设计 |
+| [添加好友测试](testing/add-friend.md) | 好友功能测试用例 |
+| [桌面端测试架构](testing/desktop-add-member-go-test-architecture.md) | Go 集成测试设计 |
 
 ---
 
@@ -77,6 +78,9 @@
 | [部署环境](operations/deployment-env.md) | 环境配置说明 |
 | [开发与构建](operations/dev-and-build.md) | 本地开发指南 |
 | [Docker 部署](operations/docker-deploy.md) | 容器化部署 |
+| [故障排查手册](operations/troubleshooting.md) | 常见问题排查 |
+| [备份与恢复](operations/backup-restore.md) | 数据备份策略 |
+| [升级与迁移](operations/upgrade-migration.md) | 版本升级指南 |
 
 ---
 
@@ -110,4 +114,4 @@
 
 ---
 
-**文档最后更新**: 2025-01-13
+**文档最后更新**: 2026-01-13

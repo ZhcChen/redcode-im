@@ -78,19 +78,90 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 发送登录验证码短信
 - **Handler**: `auth::send_login_sms`
 
+#### 5. 刷新访问令牌
+- **接口**: `POST /auth/refresh`
+- **权限**: 公开
+- **功能**: 使用 refresh_token 获取新的 access_token
+- **Handler**: `auth::refresh_token`
+
+**请求示例**：
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+**响应示例**：
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+#### 6. 管理员登录
+- **接口**: `POST /auth/admin/login`
+- **权限**: 公开
+- **功能**: 管理员账号登录，返回管理员专用 Token
+- **Handler**: `auth::admin_login`
+
+**请求示例**：
+```json
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
+
+#### 7. 管理员刷新令牌
+- **接口**: `POST /auth/admin/refresh`
+- **权限**: 公开
+- **功能**: 刷新管理员访问令牌
+- **Handler**: `auth::admin_refresh_token`
+
 ### 需要认证的路由
 
-#### 5. 获取当前用户信息
+#### 8. 获取当前用户信息
 - **接口**: `GET /auth/me`
 - **权限**: 需要认证
 - **功能**: 获取当前登录用户的详细信息
 - **Handler**: `auth::get_current_user`
 
-#### 6. 短信重置密码
+#### 9. 短信重置密码
 - **接口**: `POST /auth/password/reset`
 - **权限**: 需要认证
 - **功能**: 通过短信验证码重置密码
 - **Handler**: `auth::reset_password_with_sms`
+
+### 管理员认证路由
+
+> 以下接口需要管理员 Token（通过 `/auth/admin/login` 获取）
+
+#### 10. 获取当前管理员信息
+- **接口**: `GET /auth/admin/me`
+- **权限**: 管理员
+- **功能**: 获取当前登录管理员的详细信息
+- **Handler**: `auth::get_current_admin_user`
+
+#### 11. 更新当前管理员信息
+- **接口**: `PATCH /auth/admin/me`
+- **权限**: 管理员
+- **功能**: 更新当前管理员的昵称等信息
+- **Handler**: `auth::update_current_admin_user`
+
+#### 12. 修改管理员密码
+- **接口**: `POST /auth/admin/me/password`
+- **权限**: 管理员
+- **功能**: 修改当前管理员密码
+- **Handler**: `auth::change_current_admin_password`
+
+**请求示例**：
+```json
+{
+  "old_password": "oldpass123",
+  "new_password": "newpass456"
+}
+```
 
 ---
 
@@ -151,6 +222,12 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 获取头像的临时下载链接
 - **Handler**: `user::get_avatar_download_url`
 
+#### 9. 获取其他用户头像下载链接
+- **接口**: `GET /users/:user_id/avatar/url`
+- **权限**: 需要认证
+- **功能**: 获取指定用户头像的临时下载链接
+- **Handler**: `user::get_user_avatar_download_url`
+
 ---
 
 ## 好友系统 API
@@ -189,6 +266,25 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 创建或获取与好友的私聊房间
 - **Handler**: `friend::ensure_private_chat`
 
+#### 6. 更新好友备注
+- **接口**: `PATCH /friends/:friend_user_id/remark`
+- **权限**: 需要认证
+- **功能**: 设置或更新好友的备注名
+- **Handler**: `friend::update_friend_remark`
+
+**请求示例**：
+```json
+{
+  "remark": "小明同学"
+}
+```
+
+#### 7. 删除好友
+- **接口**: `DELETE /friends/:friend_user_id`
+- **权限**: 需要认证
+- **功能**: 删除好友关系（双向删除）
+- **Handler**: `friend::delete_friend`
+
 ---
 
 ## 房间/群组 API
@@ -200,6 +296,12 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 需要认证
 - **功能**: 获取所有聊天的摘要信息（包括最后一条消息、未读数等）
 - **Handler**: `room::list_chat_summaries`
+
+#### 2. 删除聊天会话
+- **接口**: `DELETE /chats/:room_id`
+- **权限**: 需要认证
+- **功能**: 从会话列表中移除指定聊天（不退出群聊）
+- **Handler**: `room::delete_chat`
 
 ### 房间管理
 
@@ -239,6 +341,79 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 设置房间的消息通知（免打扰等）
 - **Handler**: `room::update_notification_settings`
 
+#### 8. 获取房间详情
+- **接口**: `GET /rooms/:room_id`
+- **权限**: 需要认证
+- **功能**: 获取房间的详细信息
+- **Handler**: `room::get_room`
+
+#### 9. 更新房间信息
+- **接口**: `PATCH /rooms/:room_id`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 更新房间名称、描述等信息
+- **Handler**: `room::update_room`
+
+**请求示例**：
+```json
+{
+  "name": "新群名称",
+  "description": "新的群描述"
+}
+```
+
+#### 10. 解散群聊
+- **接口**: `DELETE /rooms/:room_id`
+- **权限**: 需要认证（需要群主权限）
+- **功能**: 解散群聊，删除群组
+- **Handler**: `room::dissolve_room`
+
+#### 11. 转让群主
+- **接口**: `POST /rooms/:room_id/transfer`
+- **权限**: 需要认证（需要群主权限）
+- **功能**: 将群主身份转让给其他成员
+- **Handler**: `room::transfer_room_owner`
+
+**请求示例**：
+```json
+{
+  "new_owner_id": "user-uuid"
+}
+```
+
+### 房间头像管理
+
+#### 12. 生成房间头像直传签名
+- **接口**: `POST /rooms/:room_id/avatar/direct-upload`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 生成房间头像的直传签名
+- **Handler**: `room::generate_room_avatar_direct_upload`
+
+#### 13. 提交房间头像上传
+- **接口**: `POST /rooms/:room_id/avatar/commit`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 确认房间头像上传完成
+- **Handler**: `room::commit_room_avatar_upload`
+
+#### 14. 获取房间头像下载链接
+- **接口**: `GET /rooms/:room_id/avatar/url`
+- **权限**: 需要认证
+- **功能**: 获取房间头像的临时下载链接
+- **Handler**: `room::get_room_avatar_download_url`
+
+### 房间置顶
+
+#### 15. 置顶房间
+- **接口**: `POST /rooms/:room_id/pin`
+- **权限**: 需要认证
+- **功能**: 将房间置顶到聊天列表顶部
+- **Handler**: `room::pin_room`
+
+#### 16. 取消置顶房间
+- **接口**: `DELETE /rooms/:room_id/pin`
+- **权限**: 需要认证
+- **功能**: 取消房间置顶
+- **Handler**: `room::unpin_room`
+
 ---
 
 ## 消息 API
@@ -257,6 +432,12 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 分页获取房间的历史消息
 - **Handler**: `message::list_messages`
 - **查询参数**: `?cursor=xxx&limit=50`
+
+#### 3. 清空房间消息
+- **接口**: `DELETE /rooms/:room_id/messages`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 清空房间的所有消息历史
+- **Handler**: `message::clear_room_messages`
 
 ### 消息操作
 
@@ -373,7 +554,7 @@ Authorization: Bearer <your-jwt-token>
 
 ### 消息附件
 
-#### 7. 生成附件上传签名
+#### 11. 生成附件上传签名
 - **接口**: `POST /rooms/:room_id/messages/attachments/signature`
 - **权限**: 需要认证
 - **功能**: 生成消息附件的直传签名（图片、文件等）
@@ -394,7 +575,35 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-#### 8. 提交附件上传完成
+#### 12. 初始化分片上传
+- **接口**: `POST /rooms/:room_id/messages/attachments/multipart/initiate`
+- **权限**: 需要认证
+- **功能**: 初始化大文件分片上传会话
+- **Handler**: `message::initiate_message_attachment_multipart_upload`
+- **说明**：用于大文件（如视频）的分片上传，返回 session_id 和分片信息
+
+**请求示例**：
+```json
+{
+  "part_type": "video",
+  "filename": "demo.mp4",
+  "content_type": "video/mp4",
+  "file_size": 104857600
+}
+```
+
+**响应示例**：
+```json
+{
+  "session_id": "session-uuid",
+  "key": "messages/{room-id}/videos/xxx.mp4",
+  "upload_id": "cos-upload-id",
+  "part_size": 5242880,
+  "total_parts": 20
+}
+```
+
+#### 13. 提交附件上传完成
 - **接口**: `POST /rooms/:room_id/messages/attachments/commit`
 - **权限**: 需要认证
 - **功能**: 确认附件已上传到对象存储，并写入去重记录
@@ -507,6 +716,33 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 获取群组的完整详情信息
 - **Handler**: `group_management::get_group_detail`
 
+### 成员管理
+
+#### 4. 添加群成员
+- **接口**: `POST /rooms/:room_id/members`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 批量添加用户到群组
+- **Handler**: `group_management::add_group_members`
+
+**请求示例**：
+```json
+{
+  "user_ids": ["user-uuid-1", "user-uuid-2"]
+}
+```
+
+#### 5. 添加群成员（别名）
+- **接口**: `POST /rooms/:room_id/members/add`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 批量添加用户到群组（与上述接口功能相同）
+- **Handler**: `group_management::add_group_members`
+
+#### 6. 移除群成员
+- **接口**: `DELETE /rooms/:room_id/members/:user_id`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 将指定成员移出群组
+- **Handler**: `group_management::remove_group_member`
+
 ### 群规则管理
 
 #### 4. 获取群规则列表
@@ -607,6 +843,21 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 解除用户禁言
 - **Handler**: `group_management::unmute_user`
 
+#### 19. 全员禁言设置
+- **接口**: `POST /rooms/:room_id/mutes/global`
+- **权限**: 需要认证（需要管理员权限）
+- **功能**: 开启或关闭全员禁言模式
+- **Handler**: `group_management::update_global_mute`
+
+**请求示例**：
+```json
+{
+  "enabled": true,
+  "reason": "会议进行中",
+  "until": "2024-01-01T12:00:00Z"
+}
+```
+
 ### 操作日志
 
 #### 19. 获取操作日志
@@ -640,6 +891,32 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 管理员
 - **功能**: 获取详细的数据分析统计
 - **Handler**: `admin::get_data_statistics`
+
+#### 4. 获取存储统计
+- **接口**: `GET /api/dashboard/storage-stats`
+- **权限**: 管理员
+- **功能**: 获取文件存储使用统计
+- **Handler**: `admin::get_dashboard_storage_stats`
+
+#### 5. 获取表情包统计
+- **接口**: `GET /api/dashboard/emoji-stats`
+- **权限**: 管理员
+- **功能**: 获取表情包使用统计
+- **Handler**: `admin::get_dashboard_emoji_stats`
+
+### 节点监控
+
+#### 6. 获取活跃节点列表
+- **接口**: `GET /api/admin/nodes/monitor`
+- **权限**: 管理员
+- **功能**: 获取当前活跃的服务节点监控信息
+- **Handler**: `admin::list_active_nodes_monitor`
+
+#### 7. 获取 API 性能指标
+- **接口**: `GET /api/admin/metrics/performance`
+- **权限**: 管理员
+- **功能**: 获取 API 响应时间、请求量等性能数据
+- **Handler**: `admin::get_api_performance_stats`
 
 ### 用户管理
 
@@ -768,6 +1045,139 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 管理员
 - **功能**: 批量删除多个文件
 - **Handler**: `admin::delete_files_batch`
+
+### 管理员用户管理
+
+#### 24. 获取管理员用户列表
+- **接口**: `GET /api/admin/admin-users`
+- **权限**: 管理员
+- **功能**: 获取所有管理员用户列表
+- **Handler**: `admin::get_admin_user_list`
+
+#### 25. 创建管理员用户
+- **接口**: `POST /api/admin/admin-users`
+- **权限**: 管理员
+- **功能**: 创建新的管理员账号
+- **Handler**: `admin::create_admin_user`
+
+**请求示例**：
+```json
+{
+  "username": "newadmin",
+  "password": "password123",
+  "nickname": "新管理员"
+}
+```
+
+#### 26. 更新管理员状态
+- **接口**: `PATCH /api/admin/admin-users/:admin_user_id/status`
+- **权限**: 管理员
+- **功能**: 启用或禁用管理员账号
+- **Handler**: `admin::update_admin_user_status`
+
+### 反馈管理
+
+#### 27. 获取反馈列表
+- **接口**: `GET /api/admin/feedbacks`
+- **权限**: 管理员
+- **功能**: 获取用户提交的反馈列表
+- **Handler**: `admin::list_feedbacks`
+
+### 举报管理
+
+#### 28. 获取举报列表
+- **接口**: `GET /api/admin/reports`
+- **权限**: 管理员
+- **功能**: 获取用户提交的举报列表
+- **Handler**: `report::list_reports_admin`
+
+### 系统日志管理
+
+#### 29. 获取系统日志列表
+- **接口**: `GET /api/admin/logs`
+- **权限**: 管理员
+- **功能**: 分页获取系统操作日志
+- **Handler**: `admin::list_system_logs`
+
+#### 30. 获取系统日志统计
+- **接口**: `GET /api/admin/logs/stats`
+- **权限**: 管理员
+- **功能**: 获取系统日志统计信息
+- **Handler**: `admin::get_system_log_stats`
+
+#### 31. 清理系统日志
+- **接口**: `POST /api/admin/logs/cleanup`
+- **权限**: 管理员
+- **功能**: 清理过期的系统日志
+- **Handler**: `admin::cleanup_system_logs`
+
+### Push 通知管理
+
+#### 32. 获取 Push 发送日志
+- **接口**: `GET /api/admin/push/logs`
+- **权限**: 管理员
+- **功能**: 获取推送发送日志，用于排障
+- **Handler**: `push_logs::list_push_logs`
+
+#### 33. 清理 Push 发送日志
+- **接口**: `POST /api/admin/push/logs/cleanup`
+- **权限**: 管理员
+- **功能**: 清理过期的推送日志
+- **Handler**: `push_logs::cleanup_push_logs`
+
+#### 34. 获取 Push 队列统计
+- **接口**: `GET /api/admin/push/job-queue/stats`
+- **权限**: 管理员
+- **功能**: 获取推送任务队列的统计信息
+- **Handler**: `push_queue::get_push_job_queue_stats`
+
+### 聊天记录管理
+
+#### 35. 获取聊天记录
+- **接口**: `GET /api/admin/chat-history`
+- **权限**: 管理员
+- **功能**: 搜索和查看聊天记录
+- **Handler**: `chat_history::get_chat_history`
+
+#### 36. 获取用户所在房间
+- **接口**: `GET /api/admin/users/:user_id/rooms`
+- **权限**: 管理员
+- **功能**: 获取指定用户加入的所有房间
+- **Handler**: `chat_history::get_user_rooms`
+
+#### 37. 获取房间聊天记录
+- **接口**: `GET /api/admin/rooms/:room_id/chat-history`
+- **权限**: 管理员
+- **功能**: 获取指定房间的聊天记录
+- **Handler**: `chat_history::get_room_chat_history`
+
+### 用户地理分布
+
+#### 38. 获取用户地理分布
+- **接口**: `GET /api/admin/users/geolocation/distribution`
+- **权限**: 管理员
+- **功能**: 获取全局用户的地理位置分布统计
+- **Handler**: `activity_logs::get_global_user_distribution`
+
+### 文件内容审核
+
+#### 39. 获取文件审核任务列表
+- **接口**: `GET /api/admin/file-upload-audit/tasks`
+- **权限**: 管理员
+- **功能**: 获取文件上传审核任务列表
+- **Handler**: `admin::list_file_upload_audit_tasks`
+
+#### 40. 获取文件审核任务详情
+- **接口**: `GET /api/admin/file-upload-audit/tasks/:task_id`
+- **权限**: 管理员
+- **功能**: 获取指定审核任务的详细信息
+- **Handler**: `admin::get_file_upload_audit_task`
+
+#### 41. 重新审核文件
+- **接口**: `POST /api/admin/file-upload-audit/tasks/:task_id/requeue`
+- **权限**: 管理员
+- **功能**: 将审核任务重新加入队列
+- **Handler**: `admin::requeue_file_upload_audit_task`
 
 ---
 
@@ -915,6 +1325,120 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 停用指定版本
 - **Handler**: `version::deactivate_app_version`
 
+#### 11. 初始化版本分片上传
+- **接口**: `POST /api/admin/app-versions/upload/multipart/initiate`
+- **权限**: 管理员
+- **功能**: 初始化版本文件的分片上传会话
+- **Handler**: `version::initiate_version_multipart_upload`
+
+### 热更新管理
+
+#### 12. 获取最新热更新
+- **接口**: `GET /versions/hot-update`
+- **权限**: 公开
+- **功能**: 检查指定版本是否有热更新
+- **Handler**: `version::latest_hot_update`
+- **查询参数**: `platform`，`channel`，`current_version`，`current_patch_version`
+
+**响应示例**：
+```json
+{
+  "has_update": true,
+  "current_patch_version": "1.0.0-patch1",
+  "patch": {
+    "id": "patch-uuid",
+    "platform": "android",
+    "patch_version": "1.0.0-patch2",
+    "download_url": "https://...",
+    "mandatory": false
+  }
+}
+```
+
+#### 13. 下载热更新
+- **接口**: `GET /versions/hot-update/download`
+- **权限**: 公开
+- **功能**: 获取热更新包的下载链接
+- **Handler**: `version::download_hot_update`
+
+#### 14. 上报热更新事件
+- **接口**: `POST /versions/hot-update/report`
+- **权限**: 公开
+- **功能**: 客户端上报热更新应用结果（成功/失败）
+- **Handler**: `version::report_hot_update_event`
+
+**请求示例**：
+```json
+{
+  "platform": "android",
+  "base_version": "1.0.0",
+  "patch_version": "1.0.0-patch1",
+  "event_type": "success",
+  "message": "热更新应用成功"
+}
+```
+
+#### 15. 获取热更新列表（管理员）
+- **接口**: `GET /api/admin/hot-updates`
+- **权限**: 管理员
+- **功能**: 获取所有热更新记录
+- **Handler**: `version::list_hot_updates`
+
+#### 16. 创建热更新
+- **接口**: `POST /api/admin/hot-updates`
+- **权限**: 管理员
+- **功能**: 创建新的热更新包
+- **Handler**: `version::create_hot_update`
+
+**请求示例**：
+```json
+{
+  "platform": "android",
+  "app_version_id": "version-uuid",
+  "patch_version": "1.0.0-patch1",
+  "channel": "stable",
+  "download_key": "hot-updates/android/1.0.0-patch1.zip",
+  "mandatory": false,
+  "rollout_percentage": 100
+}
+```
+
+#### 17. 获取热更新详情
+- **接口**: `GET /api/admin/hot-updates/:id`
+- **权限**: 管理员
+- **功能**: 获取热更新详细信息
+- **Handler**: `version::get_hot_update`
+
+#### 18. 更新热更新
+- **接口**: `PATCH /api/admin/hot-updates/:id`
+- **权限**: 管理员
+- **功能**: 修改热更新信息
+- **Handler**: `version::update_hot_update`
+
+#### 19. 删除热更新
+- **接口**: `DELETE /api/admin/hot-updates/:id`
+- **权限**: 管理员
+- **功能**: 删除热更新记录
+- **Handler**: `version::delete_hot_update`
+
+#### 20. 激活热更新
+- **接口**: `POST /api/admin/hot-updates/:id/activate`
+- **权限**: 管理员
+- **功能**: 激活热更新，使其对用户可见
+- **Handler**: `version::activate_hot_update`
+
+#### 21. 停用热更新
+- **接口**: `POST /api/admin/hot-updates/:id/deactivate`
+- **权限**: 管理员
+- **功能**: 停用热更新
+- **Handler**: `version::deactivate_hot_update`
+
+#### 22. 获取热更新事件列表
+- **接口**: `GET /api/admin/hot-updates/events`
+- **权限**: 管理员
+- **功能**: 获取客户端上报的热更新事件
+- **Handler**: `version::list_hot_update_events`
+
 ---
 
 ## 系统设置 API
@@ -939,19 +1463,125 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 更新隐私政策内容
 - **Handler**: `settings::update_privacy_policy`
 
+### 用户协议
+
+#### 4. 获取用户协议（公开）
+- **接口**: `GET /settings/user-agreement`
+- **权限**: 公开
+- **功能**: 获取系统用户协议内容
+- **Handler**: `settings::get_user_agreement`
+
+#### 5. 获取用户协议（管理员）
+- **接口**: `GET /api/admin/settings/user-agreement`
+- **权限**: 管理员
+- **功能**: 管理员获取用户协议（含编辑信息）
+- **Handler**: `settings::get_user_agreement_admin`
+
+#### 6. 更新用户协议
+- **接口**: `POST /api/admin/settings/user-agreement`
+- **权限**: 管理员
+- **功能**: 更新用户协议内容
+- **Handler**: `settings::update_user_agreement`
+
+### 通用设置
+
+#### 7. 获取通用设置（公开）
+- **接口**: `GET /settings/general`
+- **权限**: 公开
+- **功能**: 获取系统通用配置（如功能开关）
+- **Handler**: `settings::get_general_settings`
+
+#### 8. 获取应用名称（公开）
+- **接口**: `GET /settings/app-name`
+- **权限**: 公开
+- **功能**: 获取应用显示名称
+- **Handler**: `settings::get_app_name`
+
+#### 9. 更新应用名称
+- **接口**: `PUT /api/admin/settings/app-name`
+- **权限**: 管理员
+- **功能**: 更新应用显示名称
+- **Handler**: `settings::update_app_name`
+
 ### 验证码设置
 
-#### 4. 获取验证码设置
+#### 10. 获取验证码设置（公开）
+- **接口**: `GET /settings/captcha`
+- **权限**: 公开
+- **功能**: 获取验证码配置（是否启用等）
+- **Handler**: `settings::get_captcha_setting_public`
+
+#### 11. 获取验证码设置（管理员）
 - **接口**: `GET /api/admin/settings/captcha`
 - **权限**: 管理员
-- **功能**: 获取验证码配置
+- **功能**: 获取验证码完整配置
 - **Handler**: `admin::get_captcha_setting`
 
-#### 5. 更新验证码设置
+#### 12. 更新验证码设置
 - **接口**: `POST /api/admin/settings/captcha`
 - **权限**: 管理员
 - **功能**: 修改验证码配置
 - **Handler**: `admin::update_captcha_setting`
+
+### 用户账户限制
+
+#### 13. 获取用户账户限制
+- **接口**: `GET /api/admin/settings/user-account-limit`
+- **权限**: 管理员
+- **功能**: 获取用户账户相关限制配置
+- **Handler**: `settings::get_user_account_limit`
+
+#### 14. 更新用户账户限制
+- **接口**: `PUT /api/admin/settings/user-account-limit`
+- **权限**: 管理员
+- **功能**: 更新用户账户限制配置
+- **Handler**: `settings::update_user_account_limit`
+
+### 上传策略配置
+
+#### 15. 获取上传策略（用户）
+- **接口**: `GET /system/upload-policy`
+- **权限**: 需要认证
+- **功能**: 获取当前文件上传策略（大小限制、类型限制等）
+- **Handler**: `upload_policy::get_upload_policy_user`
+
+#### 16. 获取上传策略（管理员）
+- **接口**: `GET /api/admin/settings/upload-policy`
+- **权限**: 管理员
+- **功能**: 获取完整上传策略配置
+- **Handler**: `upload_policy::get_upload_policy_admin`
+
+#### 17. 更新上传策略
+- **接口**: `PUT /api/admin/settings/upload-policy`
+- **权限**: 管理员
+- **功能**: 更新上传策略配置
+- **Handler**: `upload_policy::update_upload_policy_admin`
+
+### Push 平台配置
+
+#### 18. 获取 Push 设置
+- **接口**: `GET /api/admin/settings/push`
+- **权限**: 管理员
+- **功能**: 获取推送服务配置
+- **Handler**: `push_settings::get_push_settings_admin`
+
+#### 19. 更新 Push 设置
+- **接口**: `PUT /api/admin/settings/push`
+- **权限**: 管理员
+- **功能**: 更新推送服务配置
+- **Handler**: `push_settings::update_push_settings_admin`
+
+#### 20. 更新 Push 提供商配置
+- **接口**: `PUT /api/admin/settings/push/providers/:provider`
+- **权限**: 管理员
+- **功能**: 更新指定推送提供商（fcm/apns）的配置
+- **Handler**: `push_settings::upsert_push_provider_admin`
+
+#### 21. 测试 Push 发送
+- **接口**: `POST /api/admin/settings/push/test`
+- **权限**: 管理员
+- **功能**: 发送测试推送消息
+- **Handler**: `push_settings::test_push_admin`
 
 ---
 
@@ -1029,6 +1659,255 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 公开
 - **功能**: 服务健康状态检查
 - **Handler**: `healthz`
+
+#### 3. 就绪检查
+- **接口**: `GET /readyz`
+- **权限**: 公开
+- **功能**: 服务就绪状态检查（包括数据库连接等）
+- **Handler**: `health::readyz`
+
+### 举报
+
+#### 4. 提交举报
+- **接口**: `POST /reports`
+- **权限**: 需要认证
+- **功能**: 用户举报违规内容或用户
+- **Handler**: `report::create_report`
+
+#### 5. 生成举报附件上传签名
+- **接口**: `POST /reports/attachments/signature`
+- **权限**: 需要认证
+- **功能**: 生成举报截图等附件的上传签名
+- **Handler**: `report::generate_report_attachment_signature`
+
+#### 6. 提交举报附件上传完成
+- **接口**: `POST /reports/attachments/commit`
+- **权限**: 需要认证
+- **功能**: 确认举报附件上传完成
+- **Handler**: `report::commit_report_attachment_upload`
+
+---
+
+## Activity Logs API
+
+### 心跳日志
+
+#### 1. 提交心跳日志
+- **接口**: `POST /activity/heartbeat`
+- **权限**: 需要认证
+- **功能**: 客户端定期上报在线状态
+- **Handler**: `activity_logs::create_heartbeat_log`
+
+### 登录历史
+
+#### 2. 创建登录历史
+- **接口**: `POST /activity/login`
+- **权限**: 需要认证
+- **功能**: 记录用户登录信息（设备、IP、位置等）
+- **Handler**: `activity_logs::create_login_history`
+
+**请求示例**：
+```json
+{
+  "device_id": "device-uuid",
+  "device_type": "mobile",
+  "os": "iOS 17.0",
+  "app_version": "1.0.0"
+}
+```
+
+#### 3. 更新登出时间
+- **接口**: `POST /activity/login/:log_id/logout`
+- **权限**: 需要认证
+- **功能**: 更新登录记录的登出时间
+- **Handler**: `activity_logs::update_login_logout`
+
+#### 4. 获取用户登录历史
+- **接口**: `GET /users/:user_id/activity/login-history`
+- **权限**: 需要认证
+- **功能**: 获取指定用户的登录历史记录
+- **Handler**: `activity_logs::get_user_login_history`
+
+#### 5. 获取用户心跳日志
+- **接口**: `GET /users/:user_id/activity/heartbeat-logs`
+- **权限**: 需要认证
+- **功能**: 获取指定用户的心跳日志
+- **Handler**: `activity_logs::get_user_heartbeat_logs`
+
+#### 6. 获取用户地理位置
+- **接口**: `GET /users/:user_id/geolocation`
+- **权限**: 需要认证
+- **功能**: 获取指定用户的最后已知地理位置
+- **Handler**: `activity_logs::get_user_geolocation`
+
+---
+
+## Emoji Pack API（贴纸表情包）
+
+### 用户接口
+
+#### 1. 获取可用贴纸包列表
+- **接口**: `GET /emoji-packs/available`
+- **权限**: 需要认证
+- **功能**: 获取所有公开可用的贴纸包
+- **Handler**: `emoji_pack::list_available_packs`
+
+#### 2. 搜索贴纸包
+- **接口**: `GET /emoji-packs/search`
+- **权限**: 需要认证
+- **功能**: 根据关键词搜索贴纸包
+- **Handler**: `emoji_pack::search_packs`
+- **查询参数**: `?q=keyword`
+
+#### 3. 获取我的贴纸包
+- **接口**: `GET /emoji-packs/my`
+- **权限**: 需要认证
+- **功能**: 获取当前用户已添加的贴纸包
+- **Handler**: `emoji_pack::list_user_packs`
+
+#### 4. 获取贴纸下载链接
+- **接口**: `GET /emoji-packs/download-url`
+- **权限**: 需要认证
+- **功能**: 获取贴纸图片的临时下载链接
+- **Handler**: `emoji_pack::get_emoji_download_url`
+- **查询参数**: `?key=xxx`
+
+#### 5. 添加贴纸包
+- **接口**: `POST /emoji-packs/:pack_id/add`
+- **权限**: 需要认证
+- **功能**: 将贴纸包添加到个人收藏
+- **Handler**: `emoji_pack::add_user_pack`
+
+#### 6. 添加贴纸套件
+- **接口**: `POST /emoji-packs/suites/:suite_id/add`
+- **权限**: 需要认证
+- **功能**: 将整个贴纸套件添加到个人收藏
+- **Handler**: `emoji_pack::add_user_suite`
+
+#### 7. 移除贴纸包
+- **接口**: `DELETE /emoji-packs/:pack_id/remove`
+- **权限**: 需要认证
+- **功能**: 从个人收藏中移除贴纸包
+- **Handler**: `emoji_pack::remove_user_pack`
+
+#### 8. 获取套件内贴纸包
+- **接口**: `GET /emoji-packs/suites/:suite_id/packs`
+- **权限**: 需要认证
+- **功能**: 获取指定套件中的所有贴纸包
+- **Handler**: `emoji_pack::list_user_suite_packs`
+
+### 管理员接口
+
+#### 9. 获取所有贴纸包（管理员）
+- **接口**: `GET /api/admin/emoji-packs`
+- **权限**: 管理员
+- **功能**: 获取所有贴纸包列表
+- **Handler**: `emoji_pack::list_all_packs`
+
+#### 10. 创建贴纸包
+- **接口**: `POST /api/admin/emoji-packs`
+- **权限**: 管理员
+- **功能**: 创建新的贴纸包
+- **Handler**: `emoji_pack::create_pack`
+
+#### 11. 获取贴纸包详情
+- **接口**: `GET /api/admin/emoji-packs/:pack_id`
+- **权限**: 管理员
+- **功能**: 获取贴纸包详细信息
+- **Handler**: `emoji_pack::get_pack`
+
+#### 12. 更新贴纸包
+- **接口**: `PATCH /api/admin/emoji-packs/:pack_id`
+- **权限**: 管理员
+- **功能**: 更新贴纸包信息
+- **Handler**: `emoji_pack::update_pack`
+
+#### 13. 删除贴纸包
+- **接口**: `DELETE /api/admin/emoji-packs/:pack_id`
+- **权限**: 管理员
+- **功能**: 删除贴纸包
+- **Handler**: `emoji_pack::delete_pack`
+
+#### 14. 创建贴纸项
+- **接口**: `POST /api/admin/emoji-items`
+- **权限**: 管理员
+- **功能**: 在贴纸包中添加贴纸项
+- **Handler**: `emoji_pack::create_item`
+
+#### 15. 获取贴纸项详情
+- **接口**: `GET /api/admin/emoji-items/:item_id`
+- **权限**: 管理员
+- **功能**: 获取贴纸项详细信息
+- **Handler**: `emoji_pack::get_item`
+
+#### 16. 更新贴纸项
+- **接口**: `PATCH /api/admin/emoji-items/:item_id`
+- **权限**: 管理员
+- **功能**: 更新贴纸项信息
+- **Handler**: `emoji_pack::update_item`
+
+#### 17. 删除贴纸项
+- **接口**: `DELETE /api/admin/emoji-items/:item_id`
+- **权限**: 管理员
+- **功能**: 删除贴纸项
+- **Handler**: `emoji_pack::delete_item`
+
+---
+
+## 分片上传 API
+
+> 用于大文件的分片上传，支持用户和管理员两种角色
+
+### 用户分片上传
+
+#### 1. 获取分片上传会话
+- **接口**: `GET /uploads/multipart/sessions/:session_id`
+- **权限**: 需要认证
+- **功能**: 获取分片上传会话信息
+- **Handler**: `multipart_upload::get_multipart_session`
+
+#### 2. 生成分片上传签名
+- **接口**: `POST /uploads/multipart/sessions/:session_id/parts/signature`
+- **权限**: 需要认证
+- **功能**: 生成单个分片的上传签名
+- **Handler**: `multipart_upload::generate_multipart_part_signature`
+
+**请求示例**：
+```json
+{
+  "part_number": 1
+}
+```
+
+#### 3. 提交分片上传完成
+- **接口**: `POST /uploads/multipart/sessions/:session_id/parts/commit`
+- **权限**: 需要认证
+- **功能**: 确认单个分片上传完成
+- **Handler**: `multipart_upload::commit_multipart_part`
+
+**请求示例**：
+```json
+{
+  "part_number": 1,
+  "etag": "abc123..."
+}
+```
+
+#### 4. 完成分片上传
+- **接口**: `POST /uploads/multipart/sessions/:session_id/complete`
+- **权限**: 需要认证
+- **功能**: 合并所有分片，完成整个文件上传
+- **Handler**: `multipart_upload::complete_multipart_upload`
+
+#### 5. 取消分片上传
+- **接口**: `POST /uploads/multipart/sessions/:session_id/abort`
+- **权限**: 需要认证
+- **功能**: 取消分片上传，清理已上传的分片
+- **Handler**: `multipart_upload::abort_multipart_upload`
+
+### 管理员分片上传
+
+> 管理员路由前缀为 `/api/admin/uploads/multipart/sessions`，功能与用户路由相同
 
 ---
 
@@ -1231,6 +2110,112 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 ```
 - `expires_in_ms`: 输入状态过期时间（毫秒），客户端应在过期后自动清除显示
 
+#### 14. room_updated - 房间信息更新
+房间名称、头像、描述等信息变更时推送
+```json
+{
+  "type": "room_updated",
+  "room_id": "room-uuid",
+  "room_name": "新群名称",
+  "room_type": "group",
+  "avatar_url": "https://...",
+  "avatar_object_key": "rooms/xxx/avatar.png",
+  "description": "新的群描述"
+}
+```
+
+#### 15. user_banned - 用户被封禁
+当前用户被封禁时推送
+```json
+{
+  "type": "user_banned",
+  "user_id": "user-uuid",
+  "reason": "违规操作"
+}
+```
+
+#### 16. group_dissolved - 群组解散
+群组被解散时推送给所有成员
+```json
+{
+  "type": "group_dissolved",
+  "room_id": "room-uuid"
+}
+```
+
+#### 17. group_owner_transferred - 群主转让
+群主身份转让时推送
+```json
+{
+  "type": "group_owner_transferred",
+  "room_id": "room-uuid",
+  "old_owner_id": "user-uuid",
+  "new_owner_id": "user-uuid"
+}
+```
+
+#### 18. group_settings_updated - 群设置更新
+群组设置（如全员禁言）变更时推送
+```json
+{
+  "type": "group_settings_updated",
+  "room_id": "room-uuid",
+  "global_mute_enabled": true,
+  "global_mute_reason": "会议进行中",
+  "global_mute_until": "2024-01-01T12:00:00Z",
+  "global_mute_set_by": "user-uuid"
+}
+```
+
+#### 19. group_member_changed - 群成员变更
+成员加入、退出、被禁言、角色变更等时推送
+```json
+{
+  "type": "group_member_changed",
+  "room_id": "room-uuid",
+  "member_id": "user-uuid",
+  "change_type": "muted",
+  "new_role": null,
+  "operator_id": "admin-uuid",
+  "reason": "发送广告",
+  "until": "2024-01-01T12:00:00Z"
+}
+```
+- `change_type`: `"joined"` | `"left"` | `"kicked"` | `"muted"` | `"unmuted"` | `"role_changed"`
+
+#### 20. room_history_cleared - 房间历史清除
+房间聊天记录被清空时推送
+```json
+{
+  "type": "room_history_cleared",
+  "room_id": "room-uuid",
+  "cleared_by": "admin-uuid",
+  "cleared_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### 21. friendship_deleted - 好友关系删除
+好友关系被删除时推送
+```json
+{
+  "type": "friendship_deleted",
+  "user_id": "friend-uuid"
+}
+```
+
+#### 22. friend_profile_updated - 好友资料更新
+好友的用户资料变更时推送
+```json
+{
+  "type": "friend_profile_updated",
+  "user_id": "friend-uuid",
+  "username": "newusername",
+  "nickname": "新昵称",
+  "avatar_url": "https://...",
+  "avatar_object_key": "avatars/xxx.png"
+}
+```
+
 ### 客户端发送事件
 
 客户端可以通过 WebSocket 发送以下事件：
@@ -1293,10 +2278,10 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 
 ### API 统计
 
-- **公开路由**: 10+ 个
-- **需要认证的路由**: 120+ 个
-- **管理后台路由**: 50+ 个
-- **WebSocket 事件类型**: 13 种（服务端推送） + 5 种（客户端发送）
+- **公开路由**: 20+ 个
+- **需要认证的路由**: 150+ 个
+- **管理后台路由**: 80+ 个
+- **WebSocket 事件类型**: 22 种（服务端推送） + 5 种（客户端发送）
 
 ### Handler 模块列表
 
@@ -1313,8 +2298,16 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 11. `settings.rs` - 系统设置
 12. `feedback.rs` - 反馈系统
 13. `push.rs` - Push 通知
-14. `report.rs` - 举报系统
-15. `websocket/mod.rs` - WebSocket
+14. `push_settings.rs` - Push 配置
+15. `push_logs.rs` - Push 日志
+16. `push_queue.rs` - Push 队列
+17. `report.rs` - 举报系统
+18. `activity_logs.rs` - 活动日志
+19. `emoji_pack.rs` - 贴纸表情包
+20. `multipart_upload.rs` - 分片上传
+21. `upload_policy.rs` - 上传策略
+22. `chat_history.rs` - 聊天记录管理
+23. `websocket/mod.rs` - WebSocket
 
 ### 技术栈
 
@@ -1329,6 +2322,6 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 
 ---
 
-**文档最后更新**: 2025-12-31
+**文档最后更新**: 2026-01-13
 **API 版本**: v1
 **后端版本**: 0.1.0

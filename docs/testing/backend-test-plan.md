@@ -18,8 +18,8 @@
 | 指标 | 数值 |
 |------|------|
 | 源文件总数 | 86 个 |
-| 有测试的文件 | 12 个 (14%) |
-| 测试用例总数 | 101 个 |
+| 有测试的文件 | 16 个 (19%) |
+| 测试用例总数 | 180 个 |
 | 测试通过率 | 100% |
 
 ### 2.2 已有测试
@@ -38,13 +38,18 @@
 | handlers | `room.rs` | 17 | 房间名称、类型、成员、通知设置、群主转让、头像验证 |
 | handlers | `user.rs` | 23 | 头像扩展名推断、对象键验证、密码/搜索验证 |
 | tests/ | `file_upload_test.rs` | 3 | 文件上传类型限制 |
+| tests/ | `database_store_tests.rs` | 79 | 数据库存储层集成测试 |
+| ↳ | `user_store_tests` | 24 | 用户创建/查询/认证/更新/删除/搜索/批量查询 |
+| ↳ | `friend_store_tests` | 19 | 好友请求/响应/列表/删除/备注 |
+| ↳ | `room_store_tests` | 23 | 房间创建/成员管理/私聊/置顶/更新/解散 |
+| ↳ | `message_store_tests` | 13 | 消息创建/查询/更新/删除/置顶 |
 
 ### 2.3 待补充测试模块
 
 | 目录 | 文件数 | 当前测试 | 说明 |
 |------|--------|----------|------|
 | `handlers/` | 24 | 5 | API 处理器（已完成核心模块） |
-| `database/` | 22 | 0 | 数据库存储层（需要测试数据库） |
+| `database/` | 22 | 4 | ✅ 数据库存储层（79 个测试） |
 | `services/` | 7 | 1 | 业务服务 |
 | `websocket/` | 2 | 0 | WebSocket 协议 |
 | `redis/` | 5 | 0 | Redis 操作 |
@@ -73,14 +78,14 @@
 | `room.rs` | 房间名称、类型、成员、通知设置、群主转让、头像验证 | 17 | ✅ 完成 |
 | `user.rs` | 头像扩展名推断、对象键验证、密码/搜索验证 | 23 | ✅ 完成 |
 
-#### database/ 模块（需要测试数据库环境）
+#### database/ 模块 ✅ 已完成
 
-| 文件 | 测试内容 | 预计用例数 | 状态 |
+| 文件 | 测试内容 | 实际用例数 | 状态 |
 |------|----------|------------|------|
-| `user_store.rs` | 用户 CRUD、查询、更新 | 6-8 | ⏳ 待实现 |
-| `friend_store.rs` | 好友关系存储、查询 | 4-6 | ⏳ 待实现 |
-| `room_store.rs` | 房间 CRUD、成员管理 | 6-8 | ⏳ 待实现 |
-| `message_store.rs` | 消息存储、查询、分页 | 6-8 | ⏳ 待实现 |
+| `user_store.rs` | 用户创建/重复检测/查询/认证/更新/删除/搜索/批量查询/密码更新 | 24 | ✅ 完成 |
+| `friend_store.rs` | 好友请求创建/响应/列表/好友关系/删除/备注/计数 | 19 | ✅ 完成 |
+| `room_store.rs` | 房间创建/成员管理/私聊/查询/置顶/更新/解散/转让/收藏夹 | 23 | ✅ 完成 |
+| `message_store.rs` | 消息创建/回复/查询/更新/删除/置顶/权限验证 | 13 | ✅ 完成 |
 
 ### 3.3 P1 - 重要功能 (第二阶段)
 
@@ -176,16 +181,16 @@ mod tests {
 
 ## 五、执行计划
 
-### 阶段一：P0 核心业务
+### 阶段一：P0 核心业务 ✅ 已完成
 
 - [x] `handlers/auth.rs` 测试 (24 个用例)
 - [x] `handlers/friend.rs` 测试 (14 个用例)
 - [x] `handlers/room.rs` 测试 (17 个用例)
 - [x] `handlers/user.rs` 测试 (23 个用例)
-- [ ] `database/user_store.rs` 测试
-- [ ] `database/friend_store.rs` 测试
-- [ ] `database/room_store.rs` 测试
-- [ ] `database/message_store.rs` 测试
+- [x] `database/user_store.rs` 测试 (24 个用例)
+- [x] `database/friend_store.rs` 测试 (19 个用例)
+- [x] `database/room_store.rs` 测试 (23 个用例)
+- [x] `database/message_store.rs` 测试 (13 个用例)
 
 ### 阶段二：P1 重要功能
 
@@ -212,9 +217,28 @@ cargo test handlers::auth
 # 运行并显示输出
 cargo test -- --nocapture
 
+# 运行数据库集成测试（需要数据库运行）
+cargo test --test database_store_tests
+
+# 数据库测试建议单线程运行（避免连接竞争）
+cargo test --test database_store_tests -- --test-threads=1
+
 # 生成覆盖率报告（需要 cargo-tarpaulin）
 cargo tarpaulin --out Html
 ```
+
+### 6.1 数据库测试说明
+
+数据库集成测试位于 `backend/tests/database_store_tests.rs`，需要：
+
+1. **环境要求**：PostgreSQL 数据库运行中
+2. **配置**：`.env` 文件中设置 `DATABASE_URL` 或 `DATABASE_URL_TEST`
+3. **测试隔离**：使用唯一 UUID 生成测试数据，无需清空表
+4. **测试模块**：
+   - `user_store_tests` - 用户存储测试 (24 个)
+   - `friend_store_tests` - 好友存储测试 (19 个)
+   - `room_store_tests` - 房间存储测试 (23 个)
+   - `message_store_tests` - 消息存储测试 (13 个)
 
 ---
 
@@ -224,9 +248,9 @@ cargo tarpaulin --out Html
 |------|----------------|------------|----------|
 | 初始 | 9% | 23 | ✅ 已完成 |
 | 阶段一（handlers） | 25% | 100+ | ✅ 已达成 (101) |
-| 阶段一（database） | 40% | 130+ | ⏳ 进行中 |
-| 阶段二完成 | 60% | 150+ | ⏳ 待开始 |
-| 阶段三完成 | 75% | 180+ | ⏳ 待开始 |
+| 阶段一（database） | 40% | 130+ | ✅ 已达成 (180) |
+| 阶段二完成 | 60% | 200+ | ⏳ 待开始 |
+| 阶段三完成 | 75% | 220+ | ⏳ 待开始 |
 
 ---
 
