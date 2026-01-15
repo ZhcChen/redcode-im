@@ -251,6 +251,7 @@ tests/go/                         # Go API 集成测试
 |------|------|
 | [本文档](README.md) | 测试工作流程总纲 |
 | [测试架构（五模块）](test-architecture.md) | 五模块测试边界与框架选择 |
+| [Backend 测试说明](backend-testing.md) | 后端单元/集成/契约测试写法 |
 | [Backend 单元测试计划](backend-test-plan.md) | 后端测试现状与补充计划 |
 
 ### 测试指南

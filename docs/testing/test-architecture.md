@@ -62,6 +62,8 @@ flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_UR
 
 ## 4. Backend（Rust）如何测试
 
+更详细说明：`docs/testing/backend-testing.md`
+
 ### 4.1 单元测试（Rust）
 
 - 入口：`cd backend && cargo test`
