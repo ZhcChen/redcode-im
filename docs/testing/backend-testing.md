@@ -51,6 +51,10 @@ cargo test --test database_store_tests -- --test-threads=1
 - 测试中直接构造 `AppState`，再调用 `backend::create_routes()` 生成 Router
 - 使用 `tower::ServiceExt::oneshot` 发送请求并断言响应（JSON、状态码、错误码）
 
+现有落地：
+- `backend/tests/api_test_utils.rs`：共享的测试工具（构建 `AppState`、构造请求、读取响应）
+- `backend/tests/auth_api_tests.rs`：首批示例用例（healthz、注册/登录、鉴权）
+
 适合覆盖：
 - 权限/鉴权（401/403）
 - 参数校验（422/400）
@@ -104,4 +108,3 @@ cargo test --test database_store_tests -- --test-threads=1
 1. 先补齐 **HTTP in-process 集成测试**（覆盖权限/校验/核心流程，回归收益最大）
 2. 再补齐 **WebSocket 真端口集成测试**（至少 1-2 条核心链路：auth→join→message push）
 3. 最后用 **Go 契约测试** 把跨端依赖的 API 全量兜底（与 docs/api 对齐）
-
