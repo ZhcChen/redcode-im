@@ -21,3 +21,6 @@ log
 target/
 node_modules/
 .env
+
+# Coverage reports
+backend/coverage/

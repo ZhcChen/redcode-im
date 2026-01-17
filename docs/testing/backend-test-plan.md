@@ -10,6 +10,7 @@
 
 同时跑：
 - Rust 单元测试（`cargo test --lib`）
+- Rust 集成测试（`cargo test --tests`，串行）
 - Go 黑盒/契约测试（`tests/go`）
 
 ```bash
@@ -19,6 +20,11 @@
 如需保留测试栈用于排查：
 ```bash
 KEEP_STACK=1 ./tests/run.sh
+```
+
+如需跳过 Rust 集成测试（仅跑单测 + Go）：
+```bash
+RUN_RUST_INTEGRATION_TESTS=0 ./tests/run.sh
 ```
 
 ### 1.2 只跑 Rust 集成测试（需要 PG/Redis）
@@ -103,6 +109,14 @@ API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./...
 ## 4. 覆盖率（以工具结果为准）
 
 Rust（推荐 `cargo-llvm-cov`）：
+
+推荐：使用测试容器生成覆盖率（无需本机安装）：
+```bash
+./tests/coverage.sh
+FORMAT=lcov ./tests/coverage.sh
+```
+
+或：本机安装后在 backend/ 目录运行：
 ```bash
 cd backend
 cargo llvm-cov --html

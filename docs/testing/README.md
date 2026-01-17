@@ -108,6 +108,7 @@ docker-compose -f tests/docker-compose.yml ps
 `./tests/run.sh` 约定：
 - 默认会自动生成独立 `COMPOSE_PROJECT_NAME`（避免与其他项目/历史残留栈冲突）
 - 默认退出时执行 `docker-compose down -v` 清理（如需保留栈便于调试：`KEEP_STACK=1 ./tests/run.sh`）
+- 默认会运行 Rust 集成测试（`cargo test --tests`，串行）；如需跳过：`RUN_RUST_INTEGRATION_TESTS=0 ./tests/run.sh`
 
 ### 依赖缓存（Docker volumes）
 
@@ -218,7 +219,13 @@ docker-compose -f tests/docker-compose.yml run --rm rust-tests \
 # - lcov：覆盖率数据文件格式（给工具/CI/报表读取）
 # - html：可在浏览器打开的覆盖率报告
 #
-# 需要：cargo install cargo-llvm-cov
+# 推荐（无需本机安装）：使用测试容器生成覆盖率
+./tests/coverage.sh
+
+# 生成 lcov 文件
+FORMAT=lcov ./tests/coverage.sh
+
+# 或：本机安装后在 backend/ 目录运行（需要：cargo install cargo-llvm-cov）
 cargo llvm-cov --html
 
 # 生成 lcov 文件（可用于上传或进一步生成报告）

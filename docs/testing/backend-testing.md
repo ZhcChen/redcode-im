@@ -7,6 +7,12 @@
 ./tests/run.sh
 ```
 
+覆盖率（Rust）：
+```bash
+./tests/coverage.sh
+FORMAT=lcov ./tests/coverage.sh
+```
+
 ## 1. 单元测试（Unit Test）
 
 **范围**：不依赖真实外部资源（DB/Redis/网络），聚焦纯逻辑与确定性规则。

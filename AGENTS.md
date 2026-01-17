@@ -8,6 +8,7 @@
 - **提交规范**: 遵循 **Conventional Commits**；完成功能或修复后**立即 commit 并 push**。
 - **数据库**: 禁止修改已有迁移文件；新增变更使用 `YYYYMMDDHHMMSS_desc.sql`；**禁用 PostgreSQL 枚举**。
 - **测试**: 核心逻辑修改后必须运行测试（后端 `cargo test`，移动端 `flutter test`；全栈回归入口见 `docs/testing/README.md` 与 `tests/run.sh`）。
+- **覆盖率**: Backend（Rust）覆盖率入口：`tests/coverage.sh`（输出到 `backend/coverage/`，已加入 gitignore）。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；所有测试除非特殊指定否则使用 **Go**。
 - **Docker Compose**: 本机使用 `docker-compose`（不是 `docker compose`）；测试栈要求 PostgreSQL/Redis **不映射宿主端口**（避免端口冲突）。
 

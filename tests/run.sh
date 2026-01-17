@@ -86,6 +86,15 @@ echo "[tests] 运行 Rust 单元测试（cargo test --lib）..." >&2
 # 因此这里先跑完 Rust 单测，再启动 backend（顺序化 cargo 进程）。
 docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests
 
+RUN_RUST_INTEGRATION_TESTS="${RUN_RUST_INTEGRATION_TESTS:-1}"
+if [[ "${RUN_RUST_INTEGRATION_TESTS}" == "1" ]]; then
+  echo "[tests] 运行 Rust 集成测试（cargo test --tests）..." >&2
+  docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests \
+    cargo test --tests -- --test-threads=1
+else
+  echo "[tests] RUN_RUST_INTEGRATION_TESTS!=1，跳过 Rust 集成测试" >&2
+fi
+
 echo "[tests] 启动 Backend（用于 Go 黑盒/契约测试）..." >&2
 docker-compose -f "${COMPOSE_FILE}" up -d backend >/dev/null
 wait_for_backend
