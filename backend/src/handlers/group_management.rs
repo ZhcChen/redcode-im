@@ -468,6 +468,14 @@ pub async fn create_invitations(
 
     let store = GroupManagementStore::new(state.database.pool());
 
+    // 必须是群成员才能邀请（否则会导致非成员借助 member_can_invite 越权邀请）
+    let room_store = RoomStore::new(state.database.pool());
+    if !room_store.is_user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "Only group members can invite users".to_string(),
+        ));
+    }
+
     // 权限检查：只有群主、管理员或有邀请权限的成员可以邀请
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     let settings = store.get_group_settings(room_id).await?;
@@ -508,7 +516,7 @@ pub async fn create_invitations(
 pub async fn respond_to_invitation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(invitation_id): Path<Uuid>,
+    Path((room_id, invitation_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<serde_json::Value>, // { "status": "accepted" | "declined" }
 ) -> Result<StatusCode, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
@@ -526,6 +534,28 @@ pub async fn respond_to_invitation(
     };
 
     let store = GroupManagementStore::new(state.database.pool());
+    let room_store = RoomStore::new(state.database.pool());
+
+    let existing = store
+        .get_invitation_by_id(invitation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
+
+    if existing.room_id != room_id {
+        return Err(AppError::NotFound("Invitation not found".to_string()));
+    }
+
+    if existing.invitee_id != user_id {
+        return Err(AppError::Forbidden(
+            "Only invitation invitee can respond".to_string(),
+        ));
+    }
+
+    if existing.status != crate::database::models::InvitationStatus::Pending {
+        return Err(AppError::NotFound(
+            "Invitation not found or already responded".to_string(),
+        ));
+    }
 
     let invitation = store
         .respond_to_invitation(invitation_id, status)
@@ -536,8 +566,6 @@ pub async fn respond_to_invitation(
 
     // 如果接受了邀请，将用户添加到群组中
     if status == crate::database::models::InvitationStatus::Accepted {
-        use crate::database::room_store::RoomStore;
-        let room_store = RoomStore::new(state.database.pool());
         let _ = room_store
             .add_member(invitation.room_id, user_id, None)
             .await?;
@@ -1026,9 +1054,22 @@ pub struct ListMutedUsersResponse {
 
 pub async fn list_muted_users(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<ListMutedUsersResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
     let store = GroupManagementStore::new(state.database.pool());
+
+    // 权限检查：只有群主或管理员可以查看禁言列表
+    let can_manage = store.can_manage_group(room_id, user_id).await?;
+    if !can_manage {
+        return Err(AppError::Forbidden(
+            "Only group owner or admin can view muted users".to_string(),
+        ));
+    }
+
     let mutes = store.list_muted_users(room_id).await?;
 
     Ok(Json(ListMutedUsersResponse { mutes }))

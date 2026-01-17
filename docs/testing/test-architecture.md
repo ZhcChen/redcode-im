@@ -31,7 +31,7 @@
 # 推荐：一键启动测试栈并跑回归（PG/Redis 不暴露宿主端口）
 ./tests/run.sh
 
-# 或：只启动测试栈（Backend 默认暴露到宿主 8010，可用 BACKEND_HOST_PORT 覆盖）
+# 或：只启动测试栈（Backend 默认随机分配宿主端口；可用 BACKEND_HOST_PORT 固定）
 docker-compose -f tests/docker-compose.yml up -d --build
 ```
 
@@ -58,7 +58,7 @@ cd backend
 Flutter 建议通过 `--dart-define` 覆盖：
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_URL=ws://localhost:8010/ws
+flutter run --dart-define=API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> --dart-define=WS_URL=ws://localhost:<BACKEND_HOST_PORT>/ws
 ```
 
 ## 4. Backend（Rust）如何测试
@@ -86,7 +86,7 @@ flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_UR
 
 ```bash
 cd tests/go
-API_BASE_URL=http://localhost:8010 go test -v ./...
+API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./...
 ```
 
 > 该类测试用于验证“前端/管理端/桌面端会调用到的后端 API”，作为跨端回归的第一道闸门。
@@ -145,7 +145,7 @@ ALLOW_INSECURE_ADMIN_BOOTSTRAP=true
 2) 创建默认管理员（仅开发/测试用）：
 
 ```bash
-curl -sS -X POST "http://localhost:8010/api/admin/init-default-admin"
+curl -sS -X POST "http://localhost:<BACKEND_HOST_PORT>/api/admin/init-default-admin"
 ```
 
 默认管理员账号：

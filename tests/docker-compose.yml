@@ -24,6 +24,9 @@ x-rust-service: &rust_service
     CARGO_BUILD_JOBS: "1"
     CARGO_INCREMENTAL: "0"
     RUSTFLAGS: "-C debuginfo=0 -C codegen-units=1"
+    # 测试环境首次拉依赖时网络可能较慢；放宽 cargo 的低速判定，避免误判超时。
+    CARGO_HTTP_LOW_SPEED_LIMIT: "1"
+    CARGO_HTTP_LOW_SPEED_TIME: "120"
     PORT: "8010"
     DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
     REDIS_SESSION_URL: redis://:123456@redis-session:6381/0
@@ -33,6 +36,8 @@ x-rust-service: &rust_service
     JWT_SECRET: dev-secret-change-me
     PUSH_ENABLED: "false"
     ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
+    # 测试栈不依赖真实 COS/外网：跳过对象存储的网络读写（仅保留签名算法/URL 生成逻辑）。
+    REDCODE_IM_STORAGE_DISABLE_NETWORK: "true"
 
 services:
   postgres:
@@ -102,9 +107,14 @@ services:
   backend:
     <<: *rust_service
     # 仅暴露 Backend（可用于手工/移动端/桌面端联调）；PG/Redis 不暴露宿主端口，避免冲突。
-    # 如宿主 8010 被占用，可通过 BACKEND_HOST_PORT 覆盖：BACKEND_HOST_PORT=18010 ./tests/run.sh
+    #
+    # 默认 published=0：随机分配宿主端口，避免与其他项目冲突。
+    # 如需固定宿主端口（便于手工联调），可覆盖：BACKEND_HOST_PORT=18010 ./tests/run.sh
     ports:
-      - "${BACKEND_HOST_PORT:-8010}:8010"
+      - target: 8010
+        published: "${BACKEND_HOST_PORT:-0}"
+        protocol: tcp
+        mode: host
     command: ["cargo", "run", "--bin", "redcode-im-backend"]
     depends_on:
       postgres:
@@ -117,14 +127,16 @@ services:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8010/healthz >/dev/null || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 40
-      start_period: 10s
+      retries: 80
+      start_period: 300s
 
   go-tests:
     image: golang:1.25
     working_dir: /workspace/tests/go
     volumes:
       - ./go:/workspace/tests/go
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
     environment:
       API_BASE_URL: http://backend:8010
       ADMIN_USERNAME: admin
@@ -142,5 +154,17 @@ volumes:
   postgres_data:
   redis_session_data:
   cargo_target:
+    external: true
+    name: redcode_im_tests_cargo_target
   cargo_registry:
+    external: true
+    name: redcode_im_tests_cargo_registry
   cargo_git:
+    external: true
+    name: redcode_im_tests_cargo_git
+  go_mod_cache:
+    external: true
+    name: redcode_im_tests_go_mod_cache
+  go_build_cache:
+    external: true
+    name: redcode_im_tests_go_build_cache

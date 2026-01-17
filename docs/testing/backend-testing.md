@@ -84,6 +84,31 @@ docker-compose -f tests/docker-compose.yml run --rm rust-tests \
 - `docs/testing/websocket-test.md`
 - `cd backend && npm run test:ws`（需提供账号、room_id）
 
+### 2.4 Go HTTP/WS 契约测试（`tests/go`）如何写
+
+**目的**：用“黑盒”的方式验证后端 API/WS 的对外行为，作为 Flutter/Desktop/Admin 的跨端回归基线。
+
+目录约定：
+- `tests/go/`：单一 go module
+- `tests/go/internal/testutil/`：统一 fixtures / http client / ws client（复用）
+- `tests/go/backend/<domain>/`：按业务域分包（auth/messages/rooms/...）
+
+常用环境变量：
+- `API_BASE_URL`：后端地址（默认 `http://localhost:8010`；在 `./tests/run.sh` 的容器内会自动设为 `http://backend:8010`）
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD`：需要管理员权限的用例会读取；缺失时会 `t.Skip`（`./tests/run.sh` 会自动注入默认值）
+
+推荐写法（示例）：
+```go
+c := testutil.NewClient()
+pass := "Passw0rd!"
+
+u := testutil.RegisterUser(t, c, testutil.UniquePhone(), pass)
+login := testutil.Login(t, c, u.Username, pass)
+
+resp, body, err := c.DoJSON("GET", "/users/me", nil, login.Token)
+// 断言 status code + 关键字段即可，避免对“易变字段”做脆弱断言。
+```
+
 ## 3. 除了集成测试，还需要哪些测试类型（Backend 视角）
 
 建议补齐以下类型来支撑“质量”而不仅是“覆盖率”：

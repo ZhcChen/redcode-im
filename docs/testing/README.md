@@ -55,10 +55,10 @@
 
 ### 各层测试职责
 
-| 层级 | 职责 | 运行频率 | 目标覆盖率 |
+| 层级 | 职责 | 运行频率 | 覆盖目标 |
 |------|------|----------|------------|
-| 单元测试 | 验证单个函数/方法的逻辑正确性 | 每次提交 | ≥80% |
-| 集成测试 | 验证模块间交互、数据库操作、API 调用 | 每次 PR | ≥60% |
+| 单元测试 | 验证单个函数/方法的逻辑正确性 | 每次提交 | 核心逻辑 100%（其余按风险推进） |
+| 集成测试 | 验证模块间交互、数据库操作、API 调用 | 每次 PR | 核心 API 契约 100%（其余按功能推进） |
 | E2E 测试 | 验证完整用户旅程、跨端场景 | 每日/发版前 | 核心路径 100% |
 
 ---
@@ -98,7 +98,7 @@ cd backend
 # 一键跑测试（推荐：同时跑 Rust 单测 + Go 契约/集成测试；并自动起测试栈）
 ./tests/run.sh
 
-# 仅启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认暴露到宿主 8010）
+# 仅启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认随机分配宿主端口）
 docker-compose -f tests/docker-compose.yml up -d --build
 
 # 验证服务状态
@@ -109,19 +109,45 @@ docker-compose -f tests/docker-compose.yml ps
 - 默认会自动生成独立 `COMPOSE_PROJECT_NAME`（避免与其他项目/历史残留栈冲突）
 - 默认退出时执行 `docker-compose down -v` 清理（如需保留栈便于调试：`KEEP_STACK=1 ./tests/run.sh`）
 
+### 依赖缓存（Docker volumes）
+
+为避免每次回归都重新拉取 Rust/Go 依赖，测试栈会使用外部 Docker volumes 缓存依赖与构建产物：
+- `redcode_im_tests_cargo_target` / `redcode_im_tests_cargo_registry` / `redcode_im_tests_cargo_git`
+- `redcode_im_tests_go_mod_cache` / `redcode_im_tests_go_build_cache`
+
+如需彻底清理缓存（会导致下次回归重新下载依赖）：
+```bash
+docker volume rm \
+  redcode_im_tests_cargo_target \
+  redcode_im_tests_cargo_registry \
+  redcode_im_tests_cargo_git \
+  redcode_im_tests_go_mod_cache \
+  redcode_im_tests_go_build_cache
+```
+
 > 若你使用 Colima：默认 2GiB 容易导致 Rust 编译在容器内被 OOM kill；建议至少 6GiB。可通过 `colima list` 查看并调整：
 > `colima stop && colima start --cpu 4 --memory 8`
 
 ### 环境变量
 
-如果宿主 `8010` 被占用，可用环境变量覆盖 Backend 暴露端口：
+测试栈 Backend 默认会随机分配宿主端口（避免与其他项目冲突）。如需固定端口（便于手工联调/Flutter/桌面端配置），可指定 `BACKEND_HOST_PORT`：
 
 ```bash
+# 固定到 18010（示例）
+BACKEND_HOST_PORT=18010 docker-compose -f tests/docker-compose.yml up -d --build
+
+# 或在一键回归时固定
 BACKEND_HOST_PORT=18010 ./tests/run.sh
 ```
 
-此时宿主机访问 Backend：
-- `http://localhost:18010`
+查看当前 Backend 映射到宿主的端口：
+
+```bash
+docker-compose -f tests/docker-compose.yml port backend 8010
+```
+
+> 若你通过 `KEEP_STACK=1 ./tests/run.sh` 保留了栈，请使用运行时输出的 `COMPOSE_PROJECT_NAME`：
+> `COMPOSE_PROJECT_NAME=<name> docker-compose -f tests/docker-compose.yml port backend 8010`
 
 后端 `.env`（`backend/.env`）仍可用于“在宿主机上 cargo run”的开发模式（与测试栈无强绑定），可从示例复制：
 
@@ -149,6 +175,7 @@ RUST_LOG=debug
 
 - 默认测试栈（`tests/docker-compose.yml`）会设置 `PUSH_ENABLED=false`，避免跑测试时触发真实推送/外部网络依赖。
 - 若需要验证 Push 行为：应启用专用测试配置（开启 `PUSH_ENABLED=true` 并提供测试用 provider 配置），并优先把第三方请求指向可控的 mock（如 `wiremock`）以保证可重复性。
+- 默认测试栈会设置 `REDCODE_IM_STORAGE_DISABLE_NETWORK=true`，跳过 COS 的网络读写（仍保留签名算法/下载 URL 生成）；若要验证真实 COS 集成，请在单独的栈中关闭该开关并配置真实存储提供商。
 
 ### 测试数据初始化
 
@@ -208,7 +235,7 @@ cd frontend
 flutter test
 
 # 本地运行（如需连本机后端）
-flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_URL=ws://localhost:8010/ws
+flutter run --dart-define=API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> --dart-define=WS_URL=ws://localhost:<BACKEND_HOST_PORT>/ws
 
 # 运行 E2E 测试 (需启动后端)
 patrol test
@@ -222,7 +249,11 @@ flutter test test/widget_test.dart
 ```bash
 # 运行 Go 契约/集成测试（需要 Backend 已启动）
 cd tests/go
-API_BASE_URL=http://localhost:8010 go test -v ./...
+API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./...
+
+# 部分用例需要管理员账号（缺失 ADMIN_USERNAME / ADMIN_PASSWORD 会自动 skip）
+ADMIN_USERNAME=admin ADMIN_PASSWORD=admin123 \
+  API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./...
 ```
 
 ### 4. 快速验证流程
@@ -324,4 +355,4 @@ tests/go/                         # Go 契约/集成测试（单一 go module）
 
 ---
 
-**文档最后更新**: 2026-01-15
+**文档最后更新**: 2026-01-17

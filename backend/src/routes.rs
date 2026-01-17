@@ -652,7 +652,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/join-requests/{request_id}/review",
-            patch(group_management::review_join_request),
+            patch(group_management::review_join_request).post(group_management::review_join_request),
         )
         .route(
             "/rooms/{room_id}/invitations",

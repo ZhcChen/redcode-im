@@ -1668,18 +1668,13 @@ pub struct RemoveReactionPayload {
     pub reaction_key: String,
 }
 
-/// 删除消息反应（支持 body 或 query 参数）
+/// 删除消息反应（通过 query 参数传入 reaction_key）
 pub async fn remove_message_reaction(
     State(state): State<AppState>,
     Path((room_id, message_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<crate::models::Claims>,
-    Query(query): Query<Option<RemoveReactionPayload>>,
-    Json(body): Json<Option<RemoveReactionPayload>>,
+    Query(payload): Query<RemoveReactionPayload>,
 ) -> Result<Json<ReactionResponse>, AppError> {
-    // 优先使用 body，如果没有则使用 query
-    let payload = body
-        .or(query)
-        .ok_or_else(|| AppError::ValidationError("缺少 reaction_key 参数".to_string()))?;
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 

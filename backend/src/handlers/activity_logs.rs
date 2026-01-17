@@ -67,7 +67,7 @@ pub async fn create_heartbeat_log(
         r#"
         INSERT INTO user_heartbeat_logs (user_id, ip_address, user_agent, connection_id, node_id, device_info)
         VALUES ($1, $2::inet, $3, $4, $5, $6)
-        RETURNING id, user_id, ip_address::text, user_agent, connection_id, heartbeat_at, node_id, device_info
+        RETURNING id, user_id, host(ip_address) AS ip_address, user_agent, connection_id, heartbeat_at, node_id, device_info
         "#,
     )
     .bind(request.user_id)
@@ -105,7 +105,7 @@ pub async fn create_login_history(
         r#"
         INSERT INTO user_login_history (user_id, ip_address, user_agent, login_method, success, failure_reason, device_info)
         VALUES ($1, $2::inet, $3, $4, $5, $6, $7)
-        RETURNING id, user_id, ip_address::text, user_agent, login_method, login_at, logout_at, session_duration, success, failure_reason, device_info, location_info
+        RETURNING id, user_id, host(ip_address) AS ip_address, user_agent, login_method, login_at, logout_at, session_duration::text AS session_duration, success, failure_reason, device_info, location_info
         "#,
     )
     .bind(request.user_id)
@@ -178,8 +178,8 @@ pub async fn get_user_login_history(
 
     let rows = sqlx::query(
         r#"
-        SELECT id, user_id, ip_address::text, user_agent, login_method, login_at, logout_at,
-               session_duration, success, failure_reason, device_info, location_info
+        SELECT id, user_id, host(ip_address) AS ip_address, user_agent, login_method, login_at, logout_at,
+               session_duration::text AS session_duration, success, failure_reason, device_info, location_info
         FROM user_login_history
         WHERE user_id = $1
         ORDER BY login_at DESC
@@ -237,7 +237,7 @@ pub async fn get_user_heartbeat_logs(
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok());
 
     let mut query = r#"
-        SELECT id, user_id, ip_address::text, user_agent, connection_id, heartbeat_at, node_id, device_info
+        SELECT id, user_id, host(ip_address) AS ip_address, user_agent, connection_id, heartbeat_at, node_id, device_info
         FROM user_heartbeat_logs
         WHERE user_id = $1
     "#.to_string();
@@ -264,7 +264,7 @@ pub async fn get_user_heartbeat_logs(
     let rows = if let Some(since_dt) = since {
         sqlx::query(
             r#"
-            SELECT id, user_id, ip_address::text, user_agent, connection_id, heartbeat_at, node_id, device_info
+            SELECT id, user_id, host(ip_address) AS ip_address, user_agent, connection_id, heartbeat_at, node_id, device_info
             FROM user_heartbeat_logs
             WHERE user_id = $1 AND heartbeat_at >= $2
             ORDER BY heartbeat_at DESC
@@ -280,7 +280,7 @@ pub async fn get_user_heartbeat_logs(
     } else {
         sqlx::query(
             r#"
-            SELECT id, user_id, ip_address::text, user_agent, connection_id, heartbeat_at, node_id, device_info
+            SELECT id, user_id, host(ip_address) AS ip_address, user_agent, connection_id, heartbeat_at, node_id, device_info
             FROM user_heartbeat_logs
             WHERE user_id = $1
             ORDER BY heartbeat_at DESC

@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::database::models::{
     AppointAdminRequest, CreateRuleRequest, GroupAdmin, GroupDetailInfo, GroupInvitation,
     GroupMute, GroupOperationLog, GroupRule, GroupSettings, InvitationStatus, InviteToGroupRequest,
-    JoinGroupRequest, JoinRequest, MuteUserRequest, ReviewJoinRequestRequest,
+    JoinGroupRequest, JoinRequest, JoinRequestStatus, MuteUserRequest, ReviewJoinRequestRequest,
     UpdateGroupSettingsRequest, UpdateRuleRequest,
 };
 
@@ -281,6 +281,27 @@ impl<'a> GroupManagementStore<'a> {
         Ok(join_request)
     }
 
+    pub async fn has_approved_join_request(
+        &self,
+        room_id: Uuid,
+        applicant_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let status: Option<JoinRequestStatus> = sqlx::query_scalar(
+            r#"
+            SELECT status
+            FROM join_requests
+            WHERE room_id = $1 AND applicant_id = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(room_id)
+        .bind(applicant_id)
+        .fetch_optional(self.pool)
+        .await?;
+
+        Ok(matches!(status, Some(JoinRequestStatus::Approved)))
+    }
+
     pub async fn list_join_requests(&self, room_id: Uuid) -> Result<Vec<JoinRequest>, sqlx::Error> {
         let requests = sqlx::query_as::<_, JoinRequest>(
             r#"
@@ -363,6 +384,24 @@ impl<'a> GroupManagementStore<'a> {
     }
 
     // ===== 群聊邀请管理 =====
+
+    pub async fn get_invitation_by_id(
+        &self,
+        invitation_id: Uuid,
+    ) -> Result<Option<GroupInvitation>, sqlx::Error> {
+        let invitation = sqlx::query_as::<_, GroupInvitation>(
+            r#"
+            SELECT id, room_id, inviter_id, invitee_id, message, status, invited_at, responded_at, expires_at
+            FROM group_invitations
+            WHERE id = $1
+            "#,
+        )
+        .bind(invitation_id)
+        .fetch_optional(self.pool)
+        .await?;
+
+        Ok(invitation)
+    }
 
     pub async fn create_invitations(
         &self,

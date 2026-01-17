@@ -1015,13 +1015,86 @@ pub struct GroupRule {
 }
 
 /// 入群申请状态
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+///
+/// 说明：
+/// - DB 中存储为 int4（0/1/2）
+/// - API JSON 序列化为数字（兼容客户端的 int 映射）
+/// - 反序列化同时兼容数字与字符串（pending/approved/rejected，大小写不敏感）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 #[repr(i32)]
 #[sqlx(type_name = "int4")]
 pub enum JoinRequestStatus {
     Pending = 0,
     Approved = 1,
     Rejected = 2,
+}
+
+impl Serialize for JoinRequestStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_i32(*self as i32)
+    }
+}
+
+impl<'de> Deserialize<'de> for JoinRequestStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct JoinRequestStatusVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for JoinRequestStatusVisitor {
+            type Value = JoinRequestStatus;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("join request status (0/1/2 or pending/approved/rejected)")
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    0 => Ok(JoinRequestStatus::Pending),
+                    1 => Ok(JoinRequestStatus::Approved),
+                    2 => Ok(JoinRequestStatus::Rejected),
+                    _ => Err(E::custom(format!("invalid join request status: {}", value))),
+                }
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    0 => Ok(JoinRequestStatus::Pending),
+                    1 => Ok(JoinRequestStatus::Approved),
+                    2 => Ok(JoinRequestStatus::Rejected),
+                    _ => Err(E::custom(format!("invalid join request status: {}", value))),
+                }
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let normalized = value.trim().to_ascii_lowercase();
+                match normalized.as_str() {
+                    "pending" | "0" => Ok(JoinRequestStatus::Pending),
+                    "approved" | "1" => Ok(JoinRequestStatus::Approved),
+                    "rejected" | "2" => Ok(JoinRequestStatus::Rejected),
+                    _ => Err(E::custom(format!(
+                        "invalid join request status: {}",
+                        value
+                    ))),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(JoinRequestStatusVisitor)
+    }
 }
 
 impl fmt::Display for JoinRequestStatus {
@@ -1050,7 +1123,12 @@ pub struct JoinRequest {
 }
 
 /// 群聊邀请状态
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
+///
+/// 说明：
+/// - DB 中存储为 int4（0/1/2/3）
+/// - API JSON 序列化为数字
+/// - 反序列化同时兼容数字与字符串（pending/accepted/declined/expired，大小写不敏感）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 #[repr(i32)]
 #[sqlx(type_name = "int4")]
 pub enum InvitationStatus {
@@ -1058,6 +1136,74 @@ pub enum InvitationStatus {
     Accepted = 1,
     Declined = 2,
     Expired = 3,
+}
+
+impl Serialize for InvitationStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_i32(*self as i32)
+    }
+}
+
+impl<'de> Deserialize<'de> for InvitationStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct InvitationStatusVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for InvitationStatusVisitor {
+            type Value = InvitationStatus;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("invitation status (0/1/2/3 or pending/accepted/declined/expired)")
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    0 => Ok(InvitationStatus::Pending),
+                    1 => Ok(InvitationStatus::Accepted),
+                    2 => Ok(InvitationStatus::Declined),
+                    3 => Ok(InvitationStatus::Expired),
+                    _ => Err(E::custom(format!("invalid invitation status: {}", value))),
+                }
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    0 => Ok(InvitationStatus::Pending),
+                    1 => Ok(InvitationStatus::Accepted),
+                    2 => Ok(InvitationStatus::Declined),
+                    3 => Ok(InvitationStatus::Expired),
+                    _ => Err(E::custom(format!("invalid invitation status: {}", value))),
+                }
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let normalized = value.trim().to_ascii_lowercase();
+                match normalized.as_str() {
+                    "pending" | "0" => Ok(InvitationStatus::Pending),
+                    "accepted" | "1" => Ok(InvitationStatus::Accepted),
+                    "declined" | "2" => Ok(InvitationStatus::Declined),
+                    "expired" | "3" => Ok(InvitationStatus::Expired),
+                    _ => Err(E::custom(format!("invalid invitation status: {}", value))),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(InvitationStatusVisitor)
+    }
 }
 
 impl fmt::Display for InvitationStatus {
@@ -1186,6 +1332,7 @@ pub struct AppointAdminRequest {
 pub struct MuteUserRequest {
     pub user_id: String,
     pub reason: Option<String>,
+    #[serde(alias = "duration_hours")]
     pub mute_duration_hours: Option<i32>,
 }
 

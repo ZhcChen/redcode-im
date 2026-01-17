@@ -522,7 +522,7 @@ Authorization: Bearer <your-jwt-token>
     {
       "reaction_key": "👍",
       "count": 3,
-      "reacted_by_me": true
+      "has_self": true
     }
   ]
 }
@@ -533,13 +533,12 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 需要认证
 - **功能**: 删除自己对消息的表情反应
 - **Handler**: `message::remove_message_reaction`
-- **参数传递**: 支持 body 或 query 参数
+- **参数传递**: query 参数（`reaction_key`）
 
-**请求示例**（body 或 query）：
-```json
-{
-  "reaction_key": "👍"
-}
+**请求示例**：
+
+```text
+DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 ```
 
 #### 10. 获取消息反应
@@ -557,12 +556,12 @@ Authorization: Bearer <your-jwt-token>
     {
       "reaction_key": "👍",
       "count": 5,
-      "reacted_by_me": false
+      "has_self": false
     },
     {
       "reaction_key": "❤️",
       "count": 2,
-      "reacted_by_me": true
+      "has_self": true
     }
   ]
 }

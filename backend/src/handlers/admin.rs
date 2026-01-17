@@ -1517,12 +1517,12 @@ pub async fn get_user_detail(
 
     // 获取用户统计信息
     let message_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM messages WHERE user_id = $1 AND deleted_at IS NULL",
+        "SELECT COUNT(*) FROM messages WHERE sender_id = $1 AND deleted_at IS NULL",
     )
     .bind(user_id)
     .fetch_one(pool)
     .await
-    .map_err(|e| AppError::DatabaseError(e))?;
+        .map_err(|e| AppError::DatabaseError(e))?;
 
     let room_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM room_members WHERE user_id = $1 AND deleted_at IS NULL",
@@ -1532,10 +1532,16 @@ pub async fn get_user_detail(
     .await
     .map_err(|e| AppError::DatabaseError(e))?;
 
+    // 统计用户发送消息所产生的附件存储占用（近似：按 message_parts.attachment_size 汇总）
     let storage_usage: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(file_size), 0) FROM message_parts mp
-         INNER JOIN messages m ON mp.message_id = m.id
-         WHERE m.user_id = $1 AND mp.object_key IS NOT NULL AND mp.deleted_at IS NULL",
+        r#"
+        SELECT COALESCE(SUM(mp.attachment_size), 0)::bigint
+        FROM message_parts mp
+        INNER JOIN messages m ON mp.message_id = m.id
+        WHERE m.sender_id = $1
+          AND m.deleted_at IS NULL
+          AND mp.attachment_key IS NOT NULL
+        "#,
     )
     .bind(user_id)
     .fetch_one(pool)
@@ -1631,7 +1637,7 @@ pub async fn create_user(
     sqlx::query(
         r#"
         INSERT INTO users (id, username, email, password_hash, nickname, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, 0, NOW(), NOW())
         "#,
     )
     .bind(user_id)
@@ -1698,28 +1704,37 @@ pub async fn update_user(
         }
     }
 
-    // 构建更新查询
-    let mut updates = Vec::new();
-    let mut params: Vec<String> = Vec::new();
-    let mut param_index = 1;
+    // 构建更新SQL（按类型 bind，避免 smallint/timestamptz 被错误按 String 绑定）
+    let mut query_builder = QueryBuilder::<Postgres>::new("UPDATE users SET ");
+    let mut has_updates = false;
 
     if let Some(email) = &req.email {
-        updates.push(format!("email = ${}", param_index));
-        params.push(email.trim().to_string());
-        param_index += 1;
+        let trimmed = email.trim();
+        if !trimmed.is_empty() {
+            if has_updates {
+                query_builder.push(", ");
+            }
+            query_builder.push("email = ").push_bind(trimmed);
+            has_updates = true;
+        }
     }
 
     if let Some(nickname) = &req.nickname {
-        updates.push(format!("nickname = ${}", param_index));
-        params.push(nickname.trim().to_string());
-        param_index += 1;
+        let trimmed = nickname.trim();
+        if !trimmed.is_empty() {
+            if has_updates {
+                query_builder.push(", ");
+            }
+            query_builder.push("nickname = ").push_bind(trimmed);
+            has_updates = true;
+        }
     }
 
     if let Some(status) = &req.status {
-        let status_enum = match status.as_str() {
-            "active" => DbUserStatus::Active,
-            "inactive" => DbUserStatus::Inactive,
-            "banned" => DbUserStatus::Banned,
+        let status_value: i16 = match status.as_str() {
+            "active" => DbUserStatus::Active as i16,
+            "inactive" => DbUserStatus::Inactive as i16,
+            "banned" => DbUserStatus::Banned as i16,
             _ => {
                 return Ok(Json(UserOperationResponse {
                     success: false,
@@ -1727,35 +1742,26 @@ pub async fn update_user(
                 }));
             }
         };
-        updates.push(format!("status = ${}", param_index));
-        params.push(status_enum.to_string());
-        param_index += 1;
+
+        if has_updates {
+            query_builder.push(", ");
+        }
+        query_builder.push("status = ").push_bind(status_value);
+        has_updates = true;
     }
 
-    if updates.is_empty() {
+    if !has_updates {
         return Ok(Json(UserOperationResponse {
             success: false,
             message: "没有提供要更新的字段".to_string(),
         }));
     }
 
-    updates.push(format!("updated_at = ${}", param_index));
-    params.push(chrono::Utc::now().to_rfc3339());
-    param_index += 1;
-
-    let query = format!(
-        "UPDATE users SET {} WHERE id = ${}",
-        updates.join(", "),
-        param_index
-    );
-
-    let mut query_builder = sqlx::query(&query);
-    for param in params {
-        query_builder = query_builder.bind(param);
-    }
-    query_builder = query_builder.bind(user_id);
+    query_builder.push(", updated_at = NOW()");
+    query_builder.push(" WHERE id = ").push_bind(user_id);
 
     query_builder
+        .build()
         .execute(pool)
         .await
         .map_err(|e| AppError::DatabaseError(e))?;
@@ -2138,8 +2144,9 @@ pub async fn get_file_management_stats(
             .await
             .map_err(|e| AppError::DatabaseError(e))?;
 
+    // 注意：SUM(bigint) 在 PostgreSQL 中返回 numeric（避免溢出），需要显式 cast 才能被 sqlx 解码为 i64。
     let total_size_bytes: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(attachment_size), 0) FROM message_parts WHERE attachment_key IS NOT NULL"
+        "SELECT COALESCE(SUM(attachment_size), 0)::BIGINT FROM message_parts WHERE attachment_key IS NOT NULL"
     )
     .fetch_one(pool)
     .await
@@ -4426,63 +4433,60 @@ pub async fn update_token(
         }
     }
 
-    // 构建更新SQL
-    if request.name.is_none()
-        && request.token.is_none()
-        && request.monthly_limit.is_none()
-        && request.status.is_none()
-    {
-        return Err(AppError::ValidationError("没有需要更新的字段".to_string()));
-    }
-
-    // 动态构建SQL语句
-    let mut set_clauses = Vec::new();
-    let mut param_count = 1;
-    let mut bind_values: Vec<String> = vec![];
+    // 构建更新SQL（注意：sqlx::QueryBuilder::separated 不适合拼接 "field = " + bind 这种多段片段）
+    let mut query_builder = QueryBuilder::<Postgres>::new("UPDATE ipinfo_tokens SET ");
+    let mut has_updates = false;
 
     if let Some(ref name) = request.name {
-        if !name.trim().is_empty() {
-            set_clauses.push(format!("name = ${}", param_count));
-            bind_values.push(name.clone());
-            param_count += 1;
+        let trimmed = name.trim();
+        if !trimmed.is_empty() {
+            if has_updates {
+                query_builder.push(", ");
+            }
+            query_builder.push("name = ").push_bind(trimmed);
+            has_updates = true;
         }
     }
 
     if let Some(ref token) = request.token {
-        if !token.trim().is_empty() {
-            set_clauses.push(format!("token = ${}", param_count));
-            bind_values.push(token.clone());
-            param_count += 1;
+        let trimmed = token.trim();
+        if !trimmed.is_empty() {
+            if has_updates {
+                query_builder.push(", ");
+            }
+            query_builder.push("token = ").push_bind(trimmed);
+            has_updates = true;
         }
     }
 
     if let Some(monthly_limit) = request.monthly_limit {
-        set_clauses.push(format!("monthly_limit = ${}", param_count));
-        bind_values.push(monthly_limit.to_string());
-        param_count += 1;
+        if has_updates {
+            query_builder.push(", ");
+        }
+        query_builder.push("monthly_limit = ").push_bind(monthly_limit);
+        has_updates = true;
     }
 
     if let Some(ref status) = request.status {
-        set_clauses.push(format!("status = ${}", param_count));
-        bind_values.push(status.clone());
-        param_count += 1;
+        let trimmed = status.trim();
+        if !trimmed.is_empty() {
+            if has_updates {
+                query_builder.push(", ");
+            }
+            query_builder.push("status = ").push_bind(trimmed);
+            has_updates = true;
+        }
     }
 
-    set_clauses.push("updated_at = NOW()".to_string());
-
-    let update_sql = format!(
-        "UPDATE ipinfo_tokens SET {} WHERE id = ${}",
-        set_clauses.join(", "),
-        param_count
-    );
-
-    // 执行更新
-    let mut query_builder = sqlx::query(&update_sql);
-    for value in bind_values {
-        query_builder = query_builder.bind(value);
+    if !has_updates {
+        return Err(AppError::ValidationError("没有需要更新的字段".to_string()));
     }
+
+    query_builder.push(", updated_at = NOW()");
+    query_builder.push(" WHERE id = ").push_bind(token_uuid);
+
     query_builder
-        .bind(&token_uuid)
+        .build()
         .execute(&state.database.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e))?;

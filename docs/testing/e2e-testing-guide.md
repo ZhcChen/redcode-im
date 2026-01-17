@@ -62,7 +62,7 @@ patrol doctor
 
 ### 运行前准备（后端与测试数据）
 
-E2E 测试依赖后端服务可用（默认 `http://localhost:8010`），并建议先准备固定测试账号/好友/房间数据：
+E2E 测试依赖后端服务可用（建议固定 `BACKEND_HOST_PORT` 并使用对应地址，如 `http://localhost:<BACKEND_HOST_PORT>`），并建议先准备固定测试账号/好友/房间数据：
 
 ```bash
 docker-compose -f tests/docker-compose.yml up -d --build
@@ -79,7 +79,7 @@ cd backend
 
 ```bash
 # iOS Simulator / 桌面：localhost
-patrol test --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_URL=ws://localhost:8010/ws
+patrol test --dart-define=API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> --dart-define=WS_URL=ws://localhost:<BACKEND_HOST_PORT>/ws
 ```
 
 > Android 模拟器访问宿主机后端：把 `localhost` 替换为 `10.0.2.2`；真机请使用宿主机 IP。

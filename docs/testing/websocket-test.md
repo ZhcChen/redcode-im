@@ -12,7 +12,7 @@
 
 ## 前置条件
 
-1. 启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认暴露到宿主 8010）：
+1. 启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认随机分配宿主端口）：
    ```bash
    docker-compose -f tests/docker-compose.yml up -d --build
    ```
@@ -36,7 +36,7 @@
 > 以下示例使用 `test_flow.sh` 的默认账号：`13800138000 / Test123456`。
 
 ```bash
-curl -sS -X POST "http://localhost:8010/auth/login" \
+curl -sS -X POST "http://localhost:<BACKEND_HOST_PORT>/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username":"13800138000","password":"Test123456"}'
 ```
@@ -46,7 +46,7 @@ curl -sS -X POST "http://localhost:8010/auth/login" \
 ### 3) 连接 WebSocket
 
 ```bash
-websocat "ws://localhost:8010/ws?format=json"
+websocat "ws://localhost:<BACKEND_HOST_PORT>/ws?format=json"
 ```
 
 连接成功后，手动发送 `auth`：
@@ -75,7 +75,7 @@ websocat "ws://localhost:8010/ws?format=json"
 在另一个终端（同一房间内的任一成员 token），调用发送消息接口触发 WS 推送：
 
 ```bash
-curl -sS -X POST "http://localhost:8010/rooms/<ROOM_UUID>/messages" \
+curl -sS -X POST "http://localhost:<BACKEND_HOST_PORT>/rooms/<ROOM_UUID>/messages" \
   -H "Authorization: Bearer <JWT_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -109,8 +109,8 @@ USERNAME="13800138000" PASSWORD="Test123456" ROOM_ID="<ROOM_UUID>" npm run test:
 如需自定义地址：
 ```bash
 cd backend
-API_BASE_URL="http://localhost:8010" \
-WS_URL="ws://localhost:8010/ws?format=json" \
+API_BASE_URL="http://localhost:<BACKEND_HOST_PORT>" \
+WS_URL="ws://localhost:<BACKEND_HOST_PORT>/ws?format=json" \
 USERNAME="13800138000" PASSWORD="Test123456" ROOM_ID="<ROOM_UUID>" \
 npm run test:ws
 ```
@@ -121,7 +121,7 @@ npm run test:ws
 
 ```bash
 cd tests/go
-API_BASE_URL=http://localhost:8010 go test -v ./backend/ws -run TestWebSocket_
+API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./backend/ws -run TestWebSocket_
 ```
 
 > 通常无需手工起后端：直接运行 `./tests/run.sh` 会自动起测试栈并执行全部 Go 回归。

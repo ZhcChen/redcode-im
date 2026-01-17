@@ -28,5 +28,5 @@
 ### 方式 B：手动跑 Go 测试（需确保 Backend 已启动）
 ```bash
 cd tests/go
-API_BASE_URL=http://localhost:8010 go test -v ./backend/rooms -run TestAddMembers_ -v
+API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./backend/rooms -run TestAddMembers_ -v
 ```

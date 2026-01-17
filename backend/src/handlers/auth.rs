@@ -896,11 +896,21 @@ pub async fn reset_password_with_sms(
         .await
         .map_err(|_| AppError::CacheError("Redis 获取失败".to_string()))?;
 
-    if stored.as_deref() != Some(code) {
+    let redis_matched = stored
+        .as_ref()
+        .map(|expected| expected == code)
+        .unwrap_or(false);
+    let universal_matched = admin::is_universal_captcha_code(&state, code).await;
+
+    if !redis_matched && !universal_matched {
         return Err(AppError::ValidationError("验证码错误或已过期".to_string()));
     }
 
-    // 校验完成，删除验证码
+    if universal_matched {
+        info!("用户 {} 使用通用验证码重置密码", phone);
+    }
+
+    // 校验完成，删除验证码（一次性验证码使用后即失效；通用验证码场景也做一次清理，避免遗留脏数据）
     let _: () = conn
         .del(&key)
         .await

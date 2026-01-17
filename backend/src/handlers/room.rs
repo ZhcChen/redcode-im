@@ -140,12 +140,43 @@ pub async fn join_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<JoinRoomResponse>, AppError> {
-    let user = Uuid::parse_str(&claims.sub)
+    let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
     let store = RoomStore::new(state.database.pool());
+
+    // 已在房间内：幂等返回
+    if store.is_user_in_room(room_id, user_id).await? {
+        return Ok(Json(JoinRoomResponse { ok: true }));
+    }
+
+    let room = store
+        .get_room(room_id)
+        .await
+        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+
+    match room.room_type {
+        RoomType::Public => {}
+        RoomType::Group => {
+            let group_store = GroupManagementStore::new(state.database.pool());
+            let settings = group_store.get_or_create_group_settings(room_id).await?;
+
+            // 开启入群审批：必须先审批通过 join request 才能 join
+            if settings.join_approval_required
+                && !group_store.has_approved_join_request(room_id, user_id).await?
+            {
+                return Err(AppError::Forbidden(
+                    "Join request not approved".to_string(),
+                ));
+            }
+        }
+        RoomType::Private | RoomType::Favorite => {
+            return Err(AppError::Forbidden("Room is not joinable".to_string()))
+        }
+    }
+
     let _ = store
-        .add_member(room_id, user, Some(MemberRole::Member))
+        .add_member(room_id, user_id, Some(MemberRole::Member))
         .await?;
 
     Ok(Json(JoinRoomResponse { ok: true }))
@@ -201,9 +232,22 @@ pub struct RoomMemberDto {
 
 pub async fn list_members(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoomMemberDto>>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
     let store = RoomStore::new(state.database.pool());
+
+    // 仅允许房间成员查看成员列表
+    let is_member = store.is_user_in_room(room_id, user_id).await?;
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
+    }
+
     let rows = store.list_members_with_user_info(room_id).await?;
 
     let items = rows

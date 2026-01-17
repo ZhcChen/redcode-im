@@ -227,7 +227,7 @@ impl SettingsStore {
             INSERT INTO user_account_limit_settings (id, enable_phone_validation, enable_email_validation,
                                                     enable_length_validation, min_length, max_length,
                                                     enable_alphanumeric_validation, updated_at)
-            VALUES ($1, FALSE, FALSE, FALSE, 3, 20, FALSE, NOW())
+            VALUES ($1, TRUE, FALSE, FALSE, 3, 20, FALSE, NOW())
             RETURNING id, enable_phone_validation, enable_email_validation, enable_length_validation,
                       min_length, max_length, enable_alphanumeric_validation, updated_at, updated_by
             "#,

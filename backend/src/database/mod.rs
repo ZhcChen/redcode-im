@@ -187,6 +187,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260115173000_add_e2ee_message_payload_columns.sql"
         )),
     ),
+    // 2026-01-17：补齐 group_detail_view（群聊详情视图）
+    (
+        "20260117000000_create_group_detail_view.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260117000000_create_group_detail_view.sql"
+        )),
+    ),
 ];
 
 impl Database {

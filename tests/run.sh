@@ -16,6 +16,19 @@ require_cmd docker-compose
 # 当前环境缺少 buildx 时，Compose 的 Bake 构建会失败；这里强制使用内部构建器。
 export COMPOSE_BAKE=false
 
+ensure_volume() {
+  local name="$1"
+  if ! docker volume inspect "${name}" >/dev/null 2>&1; then
+    docker volume create "${name}" >/dev/null
+  fi
+}
+
+ensure_volume redcode_im_tests_cargo_target
+ensure_volume redcode_im_tests_cargo_registry
+ensure_volume redcode_im_tests_cargo_git
+ensure_volume redcode_im_tests_go_mod_cache
+ensure_volume redcode_im_tests_go_build_cache
+
 if command -v colima >/dev/null 2>&1; then
   # colima list: PROFILE STATUS ARCH CPUS MEMORY DISK RUNTIME ADDRESS
   mem="$(colima list 2>/dev/null | awk 'NR==2 {print $5}')"
@@ -49,13 +62,14 @@ trap cleanup EXIT
 echo "[tests] project=${COMPOSE_PROJECT_NAME}" >&2
 
 wait_for_backend() {
-  local tries=90
+  local tries="${BACKEND_HEALTH_TRIES:-240}"
+  local sleep_seconds="${BACKEND_HEALTH_SLEEP_SECONDS:-2}"
   while [[ "${tries}" -gt 0 ]]; do
     if docker-compose -f "${COMPOSE_FILE}" exec -T backend curl -fsS http://localhost:8010/healthz >/dev/null 2>&1; then
       return 0
     fi
     tries=$((tries - 1))
-    sleep 2
+    sleep "${sleep_seconds}"
   done
 
   echo "[tests] Backend 健康检查超时，输出最近日志：" >&2

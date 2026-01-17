@@ -10,11 +10,18 @@ use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use time::OffsetDateTime;
 use tracing::{debug, error, warn};
+use uuid::Uuid;
 
 type HmacSha1 = Hmac<Sha1>;
 
 const DEFAULT_SIGNATURE_TTL: i64 = 3600;
 const MAX_SIGNATURE_TTL: i64 = 24 * 3600;
+
+fn is_storage_network_disabled() -> bool {
+    std::env::var("REDCODE_IM_STORAGE_DISABLE_NETWORK")
+        .ok()
+        .is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true"))
+}
 
 fn normalize_etag(value: &str) -> String {
     value.trim().trim_matches('"').to_string()
@@ -217,6 +224,12 @@ impl StorageService for TencentCosService {
         content: Bytes,
         content_type: Option<&str>,
     ) -> Result<String, AppError> {
+        if is_storage_network_disabled() {
+            let url = self.get_full_url(key);
+            debug!("跳过 COS upload_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, url={}", key, url);
+            return Ok(url);
+        }
+
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
@@ -271,6 +284,14 @@ impl StorageService for TencentCosService {
     }
 
     async fn delete_file(&self, key: &str) -> Result<(), AppError> {
+        if is_storage_network_disabled() {
+            debug!(
+                "跳过 COS delete_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
+                key
+            );
+            return Ok(());
+        }
+
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
@@ -311,6 +332,14 @@ impl StorageService for TencentCosService {
     }
 
     async fn file_exists(&self, key: &str) -> Result<bool, AppError> {
+        if is_storage_network_disabled() {
+            debug!(
+                "跳过 COS file_exists（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
+                key
+            );
+            return Ok(true);
+        }
+
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
@@ -339,6 +368,17 @@ impl StorageService for TencentCosService {
     }
 
     async fn head_object(&self, key: &str) -> Result<ObjectHead, AppError> {
+        if is_storage_network_disabled() {
+            debug!(
+                "跳过 COS head_object（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
+                key
+            );
+            return Ok(ObjectHead {
+                content_length: None,
+                etag: None,
+            });
+        }
+
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
@@ -393,6 +433,11 @@ impl StorageService for TencentCosService {
     }
 
     async fn list_buckets(&self) -> Result<Vec<BucketInfo>, AppError> {
+        if is_storage_network_disabled() {
+            debug!("跳过 COS list_buckets（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）");
+            return Ok(Vec::new());
+        }
+
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
@@ -445,6 +490,14 @@ impl StorageService for TencentCosService {
     }
 
     async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError> {
+        if is_storage_network_disabled() {
+            debug!(
+                "跳过 COS create_bucket（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: name={}",
+                bucket_name
+            );
+            return Ok(());
+        }
+
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
 
@@ -502,6 +555,11 @@ impl StorageService for TencentCosService {
     }
 
     async fn get_cors_rules(&self) -> Result<Vec<CorsRule>, AppError> {
+        if is_storage_network_disabled() {
+            debug!("跳过 COS get_cors_rules（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）");
+            return Ok(Vec::new());
+        }
+
         if self.bucket_name.is_empty() {
             return Err(AppError::ValidationError(
                 "未配置 bucket 名称，无法获取跨域规则".to_string(),
@@ -561,6 +619,12 @@ impl StorageService for TencentCosService {
     }
 
     async fn set_cors_rules(&self, rules: &[CorsRule]) -> Result<(), AppError> {
+        if is_storage_network_disabled() {
+            debug!("跳过 COS set_cors_rules（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）");
+            let _ = rules;
+            return Ok(());
+        }
+
         if self.bucket_name.is_empty() {
             return Err(AppError::ValidationError(
                 "未配置 bucket 名称，无法设置跨域规则".to_string(),
@@ -666,6 +730,16 @@ impl StorageService for TencentCosService {
         key: &str,
         content_type: Option<&str>,
     ) -> Result<String, AppError> {
+        if is_storage_network_disabled() {
+            let upload_id = Uuid::new_v4().simple().to_string();
+            debug!(
+                "跳过 COS initiate_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}",
+                key, upload_id
+            );
+            let _ = content_type;
+            return Ok(upload_id);
+        }
+
         if self.bucket_name.is_empty() {
             return Err(AppError::ValidationError(
                 "未配置 bucket 名称，无法初始化分片上传".to_string(),
@@ -802,6 +876,16 @@ impl StorageService for TencentCosService {
         upload_id: &str,
         parts: &[(i32, String)],
     ) -> Result<(), AppError> {
+        if is_storage_network_disabled() {
+            debug!(
+                "跳过 COS complete_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}, parts={}",
+                key,
+                upload_id,
+                parts.len()
+            );
+            return Ok(());
+        }
+
         if self.bucket_name.is_empty() {
             return Err(AppError::ValidationError(
                 "未配置 bucket 名称，无法完成分片上传".to_string(),
@@ -872,6 +956,14 @@ impl StorageService for TencentCosService {
     }
 
     async fn abort_multipart_upload(&self, key: &str, upload_id: &str) -> Result<(), AppError> {
+        if is_storage_network_disabled() {
+            debug!(
+                "跳过 COS abort_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}",
+                key, upload_id
+            );
+            return Ok(());
+        }
+
         if self.bucket_name.is_empty() {
             return Err(AppError::ValidationError(
                 "未配置 bucket 名称，无法中止分片上传".to_string(),

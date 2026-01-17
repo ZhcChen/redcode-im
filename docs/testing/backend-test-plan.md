@@ -35,10 +35,10 @@ docker-compose -f tests/docker-compose.yml down -v
 
 ```bash
 cd tests/go
-API_BASE_URL=http://localhost:8010 go test -v ./...
+API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> go test -v ./...
 ```
 
-> 更推荐用 `./tests/run.sh`（会自动起后端并跑 Go 测试）。
+> 更推荐用 `./tests/run.sh`（会自动起后端并跑 Go 测试，且不依赖宿主端口固定为 8010）。
 
 ## 2. 现有测试覆盖（按分层）
 
@@ -61,8 +61,14 @@ API_BASE_URL=http://localhost:8010 go test -v ./...
 ### 2.3 Go 黑盒/契约（`tests/go/**`）
 
 现有入口（以仓库现状为准）：
+- `tests/go/backend/admin/*`：管理后台关键回归（权限/日志/文件/存储/反馈/举报）
+- `tests/go/backend/activity/*`：活动日志（heartbeat/login-history）
 - `tests/go/backend/messages/*`
 - `tests/go/backend/rooms/*`
+- `tests/go/backend/group_management/*`：群管理（群设置/群规等）
+- `tests/go/backend/emoji_packs/*`：贴纸（可用/添加/移除/下载 URL）
+- `tests/go/backend/reports/*`：举报（用户端创建 + 管理端查询）
+- `tests/go/backend/uploads/*`：上传（分片会话：签名/提交/完成/中止）
 - `tests/go/backend/system/*`
 
 ## 3. 补齐策略（按优先级推进）
@@ -108,4 +114,3 @@ cargo llvm-cov --lcov --output-path lcov.info
 ---
 
 **文档更新**: 2026-01-16
-

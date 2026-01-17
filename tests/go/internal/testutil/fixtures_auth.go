@@ -13,8 +13,9 @@ type UserInfo struct {
 }
 
 type LoginResponse struct {
-	Token string   `json:"token"`
-	User  UserInfo `json:"user"`
+	Token        string   `json:"token"`
+	RefreshToken string   `json:"refresh_token"`
+	User         UserInfo `json:"user"`
 }
 
 func UniquePhone() string {

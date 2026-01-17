@@ -3,10 +3,10 @@
 ## 一键启动（终端1：依赖 + 后端）
 
 ```bash
-# 启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认暴露到宿主 8010）
+# 启动测试栈（PG/Redis 不暴露宿主端口；Backend 默认随机分配宿主端口）
 docker-compose -f tests/docker-compose.yml up -d --build
 
-# 如宿主 8010 被占用：
+# 如需固定宿主端口（便于手工联调/配置客户端）：
 # BACKEND_HOST_PORT=18010 docker-compose -f tests/docker-compose.yml up -d --build
 ```
 
@@ -28,7 +28,7 @@ cd backend
 
 ```bash
 cd frontend
-flutter run --dart-define=API_BASE_URL=http://localhost:8010 --dart-define=WS_URL=ws://localhost:8010/ws
+flutter run --dart-define=API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> --dart-define=WS_URL=ws://localhost:<BACKEND_HOST_PORT>/ws
 ```
 
 > Android 模拟器访问宿主机后端：把 `localhost` 替换为 `10.0.2.2`；真机请使用宿主机 IP。
@@ -74,7 +74,7 @@ cd backend && ./test_flow.sh
 ## 问题排查
 
 ### 登录失败
-- 确认后端在 `8010` 端口运行（`GET /healthz` 返回 200）
+- 确认后端端口与健康检查正常（`docker-compose -f tests/docker-compose.yml port backend 8010`；`GET /healthz` 返回 200）
 - 确认 `API_BASE_URL` 指向正确地址（Android 模拟器用 `10.0.2.2`）
 
 ### WebSocket 连接失败
