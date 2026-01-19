@@ -1,0 +1,2029 @@
+{
+  "updatedAt": "2026-01-19T22:47:21+08:00",
+  "summary": {
+    "total": 252,
+    "goCovered": 201,
+    "rustCovered": 5,
+    "bothCovered": 5,
+    "uncovered": 51,
+    "percentage": 79.76190476190477
+  },
+  "routes": [
+    {
+      "method": "DELETE",
+      "path": "/api/admin/app-versions/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/emoji-items/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/emoji-packs/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/files/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/hot-updates/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/ipinfo-tokens/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/roles/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/storage-providers/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/users/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/chats/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/emoji-packs/{}/remove",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/friends/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/push/devices/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/admins/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/members/{}",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/messages",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/messages/{}",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/messages/{}/pin",
+      "goHits": 4,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/messages/{}/reactions",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/mutes/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/pin",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rooms/{}/rules/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/admin-users",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/app-versions",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/app-versions/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/chat-history",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/check-admin-users",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/emoji-items/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/emoji-packs",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/emoji-packs/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/feedbacks",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/file-upload-audit/tasks",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/file-upload-audit/tasks/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/files",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/files/stats",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/hot-updates",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/hot-updates/events",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/hot-updates/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ip-geolocation/enabled",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ipinfo-tokens",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/ipinfo-tokens/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/logs",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/logs/stats",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/metrics/performance",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/nodes/monitor",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/permissions",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/push/job-queue/stats",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/push/logs",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/reports",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/roles",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/rooms/{}/chat-history",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings/captcha",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings/privacy-policy",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings/push",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings/upload-policy",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings/user-account-limit",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings/user-agreement",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/storage-providers",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/storage-providers/default",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/uploads/multipart/sessions/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/geolocation/distribution",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/{}",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/{}/rooms",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/emoji-stats",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/statistics",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/stats",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dashboard/storage-stats",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/auth/admin/me",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "goHits": 1,
+      "rustHits": 3,
+      "status": "covered"
+    },
+    {
+      "method": "GET",
+      "path": "/chats",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/e2ee/users/{}/key-bundles",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/emoji-packs/available",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/emoji-packs/download-url",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/emoji-packs/my",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/emoji-packs/search",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/emoji-packs/suites/{}/packs",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/friends",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/friends/requests",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "goHits": 1,
+      "rustHits": 1,
+      "status": "covered"
+    },
+    {
+      "method": "GET",
+      "path": "/messages/search",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/messages/search/suggestions",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/messages/search/trending",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/readyz",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/admins",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/avatar/url",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/detail",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/join-requests",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/members",
+      "goHits": 5,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/messages",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/messages/attachments/download",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/messages/{}/reactions",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/messages/{}/reads",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/mutes",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/operation-logs",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/rules",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/settings",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/rooms/{}/unread_count",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/settings/app-name",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/settings/captcha",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/settings/general",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/settings/privacy-policy",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/settings/user-agreement",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/system/upload-policy",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/unread_counts",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/uploads/multipart/sessions/{}",
+      "goHits": 5,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/me/avatar/url",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/search",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{}/activity/heartbeat-logs",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{}/activity/login-history",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{}/avatar/url",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{}/geolocation",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "GET",
+      "path": "/versions/download",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/versions/hot-update",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/versions/hot-update/download",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/versions/latest",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/versions/latest/download-url",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "GET",
+      "path": "/ws",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/admin-users/{}/status",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/app-versions/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/emoji-items/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/emoji-packs/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/hot-updates/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/ip-geolocation/enabled",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/ipinfo-tokens/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/roles/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/storage-providers/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/users/{}",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/users/{}/status",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/admin/me",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PATCH",
+      "path": "/friends/{}/remark",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rooms/{}",
+      "goHits": 5,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rooms/{}/invitations/{}/respond",
+      "goHits": 5,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rooms/{}/join-requests/{}/review",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rooms/{}/messages/{}",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rooms/{}/rules/{}",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rooms/{}/settings",
+      "goHits": 5,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/me",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/activity/heartbeat",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/activity/login",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/activity/login/{}/logout",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/admin/data/cleanup/all",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/admin-users",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/app-versions",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/app-versions/upload/multipart/initiate",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/app-versions/upload/signature",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/app-versions/{}/deactivate",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/emoji-items",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/emoji-packs",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/file-upload-audit/tasks/{}/requeue",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/files/batch-delete",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/hot-updates",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/hot-updates/{}/activate",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/hot-updates/{}/deactivate",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/init-default-admin",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/ipinfo-tokens",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/ipinfo-tokens/{}/reset",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/logs/cleanup",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/permissions/check",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/push/logs/cleanup",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/reset-admin-password",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/roles",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/settings/captcha",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/settings/privacy-policy",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/settings/push/test",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/settings/user-agreement",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/buckets",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/buckets/create",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/cors",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/cors/list",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/delete",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/download-url",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/exists",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/upload",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/upload/multipart/initiate",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-providers/test/upload/signature",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/test-geolocation-api",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/uploads/multipart/sessions/{}/abort",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/uploads/multipart/sessions/{}/complete",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/uploads/multipart/sessions/{}/parts/commit",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/uploads/multipart/sessions/{}/parts/signature",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users/{}/password/reset",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/admin/login",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/admin/me/password",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/admin/refresh",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "goHits": 5,
+      "rustHits": 4,
+      "status": "covered"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login/oauth",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login/sms",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/password/reset",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "goHits": 1,
+      "rustHits": 3,
+      "status": "covered"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/sms/send",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/e2ee/keys/bundle",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/emoji-packs/suites/{}/add",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "POST",
+      "path": "/emoji-packs/{}/add",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/feedbacks",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/friends/requests",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/friends/requests/{}/respond",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/friends/{}/chat",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/push/devices",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/reports",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/reports/attachments/commit",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/reports/attachments/signature",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms",
+      "goHits": 2,
+      "rustHits": 5,
+      "status": "covered"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/admins",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/avatar/commit",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/avatar/direct-upload",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/invitations",
+      "goHits": 4,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/join",
+      "goHits": 6,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/join-requests",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/join-requests/{}/review",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/leave",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/members",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/members/add",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages",
+      "goHits": 7,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/attachments/commit",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/attachments/multipart/initiate",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/attachments/signature",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/encrypted",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/forward",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/read",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/read_until",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/{}/pin",
+      "goHits": 3,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/messages/{}/reactions",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/mutes",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/mutes/global",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/notification-settings",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/pin",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/rules",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/rooms/{}/transfer",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/uploads/multipart/sessions/{}/abort",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/uploads/multipart/sessions/{}/complete",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/uploads/multipart/sessions/{}/parts/commit",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/uploads/multipart/sessions/{}/parts/signature",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/avatar/commit",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/avatar/direct-upload",
+      "goHits": 2,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/password",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/versions/hot-update-events",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "POST",
+      "path": "/versions/hot-update/report",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/settings/app-name",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/settings/push",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/settings/push/providers/{}",
+      "goHits": 0,
+      "rustHits": 0,
+      "status": "uncovered"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/settings/upload-policy",
+      "goHits": 1,
+      "rustHits": 0,
+      "status": "partial"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/settings/user-account-limit",
+      "goHits": 4,
+      "rustHits": 0,
+      "status": "partial"
+    }
+  ],
+  "uncovered": [
+    "DELETE /api/admin/app-versions/{}",
+    "DELETE /api/admin/emoji-items/{}",
+    "DELETE /api/admin/emoji-packs/{}",
+    "DELETE /api/admin/files/{}",
+    "DELETE /api/admin/hot-updates/{}",
+    "DELETE /api/admin/roles/{}",
+    "GET /api/admin/app-versions",
+    "GET /api/admin/app-versions/{}",
+    "GET /api/admin/check-admin-users",
+    "GET /api/admin/emoji-items/{}",
+    "GET /api/admin/emoji-packs",
+    "GET /api/admin/emoji-packs/{}",
+    "GET /api/admin/hot-updates",
+    "GET /api/admin/hot-updates/events",
+    "GET /api/admin/hot-updates/{}",
+    "GET /api/admin/ipinfo-tokens/{}",
+    "GET /api/admin/settings/privacy-policy",
+    "GET /api/admin/settings/user-agreement",
+    "GET /api/admin/users/geolocation/distribution",
+    "GET /emoji-packs/suites/{}/packs",
+    "GET /users/{}/geolocation",
+    "GET /ws",
+    "PATCH /api/admin/app-versions/{}",
+    "PATCH /api/admin/emoji-items/{}",
+    "PATCH /api/admin/emoji-packs/{}",
+    "PATCH /api/admin/hot-updates/{}",
+    "PATCH /api/admin/roles/{}",
+    "PATCH /auth/admin/me",
+    "POST /admin/data/cleanup/all",
+    "POST /api/admin/app-versions/upload/signature",
+    "POST /api/admin/app-versions/{}/deactivate",
+    "POST /api/admin/emoji-items",
+    "POST /api/admin/hot-updates/{}/activate",
+    "POST /api/admin/hot-updates/{}/deactivate",
+    "POST /api/admin/reset-admin-password",
+    "POST /api/admin/storage-providers/test/buckets",
+    "POST /api/admin/storage-providers/test/buckets/create",
+    "POST /api/admin/storage-providers/test/cors",
+    "POST /api/admin/storage-providers/test/cors/list",
+    "POST /api/admin/storage-providers/test/delete",
+    "POST /api/admin/storage-providers/test/download-url",
+    "POST /api/admin/storage-providers/test/exists",
+    "POST /api/admin/storage-providers/test/upload",
+    "POST /api/admin/storage-providers/test/upload/multipart/initiate",
+    "POST /api/admin/storage-providers/test/upload/signature",
+    "POST /api/admin/test-geolocation-api",
+    "POST /api/admin/uploads/multipart/sessions/{}/abort",
+    "POST /auth/admin/me/password",
+    "POST /auth/admin/refresh",
+    "POST /emoji-packs/suites/{}/add",
+    "PUT /api/admin/settings/push/providers/{}"
+  ],
+  "onlyGo": [
+    "DELETE /api/admin/ipinfo-tokens/{}",
+    "DELETE /api/admin/storage-providers/{}",
+    "DELETE /api/admin/users/{}",
+    "DELETE /chats/{}",
+    "DELETE /emoji-packs/{}/remove",
+    "DELETE /friends/{}",
+    "DELETE /push/devices/{}",
+    "DELETE /rooms/{}",
+    "DELETE /rooms/{}/admins/{}",
+    "DELETE /rooms/{}/members/{}",
+    "DELETE /rooms/{}/messages",
+    "DELETE /rooms/{}/messages/{}",
+    "DELETE /rooms/{}/messages/{}/pin",
+    "DELETE /rooms/{}/messages/{}/reactions",
+    "DELETE /rooms/{}/mutes/{}",
+    "DELETE /rooms/{}/pin",
+    "DELETE /rooms/{}/rules/{}",
+    "DELETE /users/me",
+    "GET /",
+    "GET /api/admin/admin-users",
+    "GET /api/admin/chat-history",
+    "GET /api/admin/feedbacks",
+    "GET /api/admin/file-upload-audit/tasks",
+    "GET /api/admin/file-upload-audit/tasks/{}",
+    "GET /api/admin/files",
+    "GET /api/admin/files/stats",
+    "GET /api/admin/ip-geolocation/enabled",
+    "GET /api/admin/ipinfo-tokens",
+    "GET /api/admin/logs",
+    "GET /api/admin/logs/stats",
+    "GET /api/admin/metrics/performance",
+    "GET /api/admin/nodes/monitor",
+    "GET /api/admin/permissions",
+    "GET /api/admin/push/job-queue/stats",
+    "GET /api/admin/push/logs",
+    "GET /api/admin/reports",
+    "GET /api/admin/roles",
+    "GET /api/admin/rooms/{}/chat-history",
+    "GET /api/admin/settings/captcha",
+    "GET /api/admin/settings/push",
+    "GET /api/admin/settings/upload-policy",
+    "GET /api/admin/settings/user-account-limit",
+    "GET /api/admin/storage-providers",
+    "GET /api/admin/storage-providers/default",
+    "GET /api/admin/uploads/multipart/sessions/{}",
+    "GET /api/admin/users",
+    "GET /api/admin/users/{}",
+    "GET /api/admin/users/{}/rooms",
+    "GET /api/dashboard/emoji-stats",
+    "GET /api/dashboard/statistics",
+    "GET /api/dashboard/stats",
+    "GET /api/dashboard/storage-stats",
+    "GET /auth/admin/me",
+    "GET /chats",
+    "GET /e2ee/users/{}/key-bundles",
+    "GET /emoji-packs/available",
+    "GET /emoji-packs/download-url",
+    "GET /emoji-packs/my",
+    "GET /emoji-packs/search",
+    "GET /friends",
+    "GET /friends/requests",
+    "GET /messages/search",
+    "GET /messages/search/suggestions",
+    "GET /messages/search/trending",
+    "GET /readyz",
+    "GET /rooms",
+    "GET /rooms/{}",
+    "GET /rooms/{}/admins",
+    "GET /rooms/{}/avatar/url",
+    "GET /rooms/{}/detail",
+    "GET /rooms/{}/join-requests",
+    "GET /rooms/{}/members",
+    "GET /rooms/{}/messages",
+    "GET /rooms/{}/messages/attachments/download",
+    "GET /rooms/{}/messages/{}/reactions",
+    "GET /rooms/{}/messages/{}/reads",
+    "GET /rooms/{}/mutes",
+    "GET /rooms/{}/operation-logs",
+    "GET /rooms/{}/rules",
+    "GET /rooms/{}/settings",
+    "GET /rooms/{}/unread_count",
+    "GET /settings/app-name",
+    "GET /settings/captcha",
+    "GET /settings/general",
+    "GET /settings/privacy-policy",
+    "GET /settings/user-agreement",
+    "GET /system/upload-policy",
+    "GET /unread_counts",
+    "GET /uploads/multipart/sessions/{}",
+    "GET /users/me/avatar/url",
+    "GET /users/search",
+    "GET /users/{}",
+    "GET /users/{}/activity/heartbeat-logs",
+    "GET /users/{}/activity/login-history",
+    "GET /users/{}/avatar/url",
+    "GET /versions/download",
+    "GET /versions/hot-update",
+    "GET /versions/hot-update/download",
+    "GET /versions/latest",
+    "GET /versions/latest/download-url",
+    "PATCH /api/admin/admin-users/{}/status",
+    "PATCH /api/admin/ip-geolocation/enabled",
+    "PATCH /api/admin/ipinfo-tokens/{}",
+    "PATCH /api/admin/storage-providers/{}",
+    "PATCH /api/admin/users/{}",
+    "PATCH /api/admin/users/{}/status",
+    "PATCH /friends/{}/remark",
+    "PATCH /rooms/{}",
+    "PATCH /rooms/{}/invitations/{}/respond",
+    "PATCH /rooms/{}/join-requests/{}/review",
+    "PATCH /rooms/{}/messages/{}",
+    "PATCH /rooms/{}/rules/{}",
+    "PATCH /rooms/{}/settings",
+    "PATCH /users/me",
+    "POST /activity/heartbeat",
+    "POST /activity/login",
+    "POST /activity/login/{}/logout",
+    "POST /api/admin/admin-users",
+    "POST /api/admin/app-versions",
+    "POST /api/admin/app-versions/upload/multipart/initiate",
+    "POST /api/admin/emoji-packs",
+    "POST /api/admin/file-upload-audit/tasks/{}/requeue",
+    "POST /api/admin/files/batch-delete",
+    "POST /api/admin/hot-updates",
+    "POST /api/admin/init-default-admin",
+    "POST /api/admin/ipinfo-tokens",
+    "POST /api/admin/ipinfo-tokens/{}/reset",
+    "POST /api/admin/logs/cleanup",
+    "POST /api/admin/permissions/check",
+    "POST /api/admin/push/logs/cleanup",
+    "POST /api/admin/roles",
+    "POST /api/admin/settings/captcha",
+    "POST /api/admin/settings/privacy-policy",
+    "POST /api/admin/settings/push/test",
+    "POST /api/admin/settings/user-agreement",
+    "POST /api/admin/storage-providers",
+    "POST /api/admin/uploads/multipart/sessions/{}/complete",
+    "POST /api/admin/uploads/multipart/sessions/{}/parts/commit",
+    "POST /api/admin/uploads/multipart/sessions/{}/parts/signature",
+    "POST /api/admin/users",
+    "POST /api/admin/users/{}/password/reset",
+    "POST /auth/admin/login",
+    "POST /auth/login/oauth",
+    "POST /auth/login/sms",
+    "POST /auth/password/reset",
+    "POST /auth/refresh",
+    "POST /auth/sms/send",
+    "POST /e2ee/keys/bundle",
+    "POST /emoji-packs/{}/add",
+    "POST /feedbacks",
+    "POST /friends/requests",
+    "POST /friends/requests/{}/respond",
+    "POST /friends/{}/chat",
+    "POST /push/devices",
+    "POST /reports",
+    "POST /reports/attachments/commit",
+    "POST /reports/attachments/signature",
+    "POST /rooms/{}/admins",
+    "POST /rooms/{}/avatar/commit",
+    "POST /rooms/{}/avatar/direct-upload",
+    "POST /rooms/{}/invitations",
+    "POST /rooms/{}/join",
+    "POST /rooms/{}/join-requests",
+    "POST /rooms/{}/join-requests/{}/review",
+    "POST /rooms/{}/leave",
+    "POST /rooms/{}/members",
+    "POST /rooms/{}/members/add",
+    "POST /rooms/{}/messages",
+    "POST /rooms/{}/messages/attachments/commit",
+    "POST /rooms/{}/messages/attachments/multipart/initiate",
+    "POST /rooms/{}/messages/attachments/signature",
+    "POST /rooms/{}/messages/encrypted",
+    "POST /rooms/{}/messages/forward",
+    "POST /rooms/{}/messages/read",
+    "POST /rooms/{}/messages/read_until",
+    "POST /rooms/{}/messages/{}/pin",
+    "POST /rooms/{}/messages/{}/reactions",
+    "POST /rooms/{}/mutes",
+    "POST /rooms/{}/mutes/global",
+    "POST /rooms/{}/notification-settings",
+    "POST /rooms/{}/pin",
+    "POST /rooms/{}/rules",
+    "POST /rooms/{}/transfer",
+    "POST /uploads/multipart/sessions/{}/abort",
+    "POST /uploads/multipart/sessions/{}/complete",
+    "POST /uploads/multipart/sessions/{}/parts/commit",
+    "POST /uploads/multipart/sessions/{}/parts/signature",
+    "POST /users/me/avatar/commit",
+    "POST /users/me/avatar/direct-upload",
+    "POST /users/me/password",
+    "POST /versions/hot-update-events",
+    "POST /versions/hot-update/report",
+    "PUT /api/admin/settings/app-name",
+    "PUT /api/admin/settings/push",
+    "PUT /api/admin/settings/upload-policy",
+    "PUT /api/admin/settings/user-account-limit"
+  ],
+  "onlyRust": []
+}
