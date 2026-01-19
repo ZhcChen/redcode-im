@@ -1,48 +1,48 @@
 {
-  "updatedAt": "2026-01-19T22:47:21+08:00",
+  "updatedAt": "2026-01-19T23:00:59+08:00",
   "summary": {
     "total": 252,
-    "goCovered": 201,
+    "goCovered": 246,
     "rustCovered": 5,
     "bothCovered": 5,
-    "uncovered": 51,
-    "percentage": 79.76190476190477
+    "uncovered": 6,
+    "percentage": 97.61904761904762
   },
   "routes": [
     {
       "method": "DELETE",
       "path": "/api/admin/app-versions/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "DELETE",
       "path": "/api/admin/emoji-items/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "DELETE",
       "path": "/api/admin/emoji-packs/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "DELETE",
       "path": "/api/admin/files/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "DELETE",
       "path": "/api/admin/hot-updates/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "DELETE",
@@ -54,9 +54,9 @@
     {
       "method": "DELETE",
       "path": "/api/admin/roles/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "DELETE",
@@ -187,23 +187,23 @@
     {
       "method": "GET",
       "path": "/api/admin/admin-users",
-      "goHits": 1,
+      "goHits": 2,
       "rustHits": 0,
       "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/app-versions",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/app-versions/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -215,30 +215,30 @@
     {
       "method": "GET",
       "path": "/api/admin/check-admin-users",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/emoji-items/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/emoji-packs",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/emoji-packs/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -278,23 +278,23 @@
     {
       "method": "GET",
       "path": "/api/admin/hot-updates",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/hot-updates/events",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
       "path": "/api/admin/hot-updates/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -397,9 +397,9 @@
     {
       "method": "GET",
       "path": "/api/admin/settings/privacy-policy",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -425,9 +425,9 @@
     {
       "method": "GET",
       "path": "/api/admin/settings/user-agreement",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -460,9 +460,9 @@
     {
       "method": "GET",
       "path": "/api/admin/users/geolocation/distribution",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -887,30 +887,30 @@
     {
       "method": "PATCH",
       "path": "/api/admin/app-versions/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
       "path": "/api/admin/emoji-items/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
       "path": "/api/admin/emoji-packs/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
       "path": "/api/admin/hot-updates/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
@@ -929,9 +929,9 @@
     {
       "method": "PATCH",
       "path": "/api/admin/roles/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
@@ -957,9 +957,9 @@
     {
       "method": "PATCH",
       "path": "/auth/admin/me",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
@@ -1041,9 +1041,9 @@
     {
       "method": "POST",
       "path": "/admin/data/cleanup/all",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1069,23 +1069,23 @@
     {
       "method": "POST",
       "path": "/api/admin/app-versions/upload/signature",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/app-versions/{}/deactivate",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/emoji-items",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1118,16 +1118,16 @@
     {
       "method": "POST",
       "path": "/api/admin/hot-updates/{}/activate",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/hot-updates/{}/deactivate",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1174,9 +1174,9 @@
     {
       "method": "POST",
       "path": "/api/admin/reset-admin-password",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1223,86 +1223,86 @@
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/buckets",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/buckets/create",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/cors",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/cors/list",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/delete",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/download-url",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/exists",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/upload",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/upload/multipart/initiate",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/storage-providers/test/upload/signature",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/test-geolocation-api",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/uploads/multipart/sessions/{}/abort",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1349,16 +1349,16 @@
     {
       "method": "POST",
       "path": "/auth/admin/me/password",
-      "goHits": 0,
+      "goHits": 2,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
       "path": "/auth/admin/refresh",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1775,60 +1775,21 @@
     }
   ],
   "uncovered": [
+    "GET /api/admin/ipinfo-tokens/{}",
+    "GET /emoji-packs/suites/{}/packs",
+    "GET /users/{}/geolocation",
+    "GET /ws",
+    "POST /emoji-packs/suites/{}/add",
+    "PUT /api/admin/settings/push/providers/{}"
+  ],
+  "onlyGo": [
     "DELETE /api/admin/app-versions/{}",
     "DELETE /api/admin/emoji-items/{}",
     "DELETE /api/admin/emoji-packs/{}",
     "DELETE /api/admin/files/{}",
     "DELETE /api/admin/hot-updates/{}",
-    "DELETE /api/admin/roles/{}",
-    "GET /api/admin/app-versions",
-    "GET /api/admin/app-versions/{}",
-    "GET /api/admin/check-admin-users",
-    "GET /api/admin/emoji-items/{}",
-    "GET /api/admin/emoji-packs",
-    "GET /api/admin/emoji-packs/{}",
-    "GET /api/admin/hot-updates",
-    "GET /api/admin/hot-updates/events",
-    "GET /api/admin/hot-updates/{}",
-    "GET /api/admin/ipinfo-tokens/{}",
-    "GET /api/admin/settings/privacy-policy",
-    "GET /api/admin/settings/user-agreement",
-    "GET /api/admin/users/geolocation/distribution",
-    "GET /emoji-packs/suites/{}/packs",
-    "GET /users/{}/geolocation",
-    "GET /ws",
-    "PATCH /api/admin/app-versions/{}",
-    "PATCH /api/admin/emoji-items/{}",
-    "PATCH /api/admin/emoji-packs/{}",
-    "PATCH /api/admin/hot-updates/{}",
-    "PATCH /api/admin/roles/{}",
-    "PATCH /auth/admin/me",
-    "POST /admin/data/cleanup/all",
-    "POST /api/admin/app-versions/upload/signature",
-    "POST /api/admin/app-versions/{}/deactivate",
-    "POST /api/admin/emoji-items",
-    "POST /api/admin/hot-updates/{}/activate",
-    "POST /api/admin/hot-updates/{}/deactivate",
-    "POST /api/admin/reset-admin-password",
-    "POST /api/admin/storage-providers/test/buckets",
-    "POST /api/admin/storage-providers/test/buckets/create",
-    "POST /api/admin/storage-providers/test/cors",
-    "POST /api/admin/storage-providers/test/cors/list",
-    "POST /api/admin/storage-providers/test/delete",
-    "POST /api/admin/storage-providers/test/download-url",
-    "POST /api/admin/storage-providers/test/exists",
-    "POST /api/admin/storage-providers/test/upload",
-    "POST /api/admin/storage-providers/test/upload/multipart/initiate",
-    "POST /api/admin/storage-providers/test/upload/signature",
-    "POST /api/admin/test-geolocation-api",
-    "POST /api/admin/uploads/multipart/sessions/{}/abort",
-    "POST /auth/admin/me/password",
-    "POST /auth/admin/refresh",
-    "POST /emoji-packs/suites/{}/add",
-    "PUT /api/admin/settings/push/providers/{}"
-  ],
-  "onlyGo": [
     "DELETE /api/admin/ipinfo-tokens/{}",
+    "DELETE /api/admin/roles/{}",
     "DELETE /api/admin/storage-providers/{}",
     "DELETE /api/admin/users/{}",
     "DELETE /chats/{}",
@@ -1848,12 +1809,21 @@
     "DELETE /users/me",
     "GET /",
     "GET /api/admin/admin-users",
+    "GET /api/admin/app-versions",
+    "GET /api/admin/app-versions/{}",
     "GET /api/admin/chat-history",
+    "GET /api/admin/check-admin-users",
+    "GET /api/admin/emoji-items/{}",
+    "GET /api/admin/emoji-packs",
+    "GET /api/admin/emoji-packs/{}",
     "GET /api/admin/feedbacks",
     "GET /api/admin/file-upload-audit/tasks",
     "GET /api/admin/file-upload-audit/tasks/{}",
     "GET /api/admin/files",
     "GET /api/admin/files/stats",
+    "GET /api/admin/hot-updates",
+    "GET /api/admin/hot-updates/events",
+    "GET /api/admin/hot-updates/{}",
     "GET /api/admin/ip-geolocation/enabled",
     "GET /api/admin/ipinfo-tokens",
     "GET /api/admin/logs",
@@ -1867,13 +1837,16 @@
     "GET /api/admin/roles",
     "GET /api/admin/rooms/{}/chat-history",
     "GET /api/admin/settings/captcha",
+    "GET /api/admin/settings/privacy-policy",
     "GET /api/admin/settings/push",
     "GET /api/admin/settings/upload-policy",
     "GET /api/admin/settings/user-account-limit",
+    "GET /api/admin/settings/user-agreement",
     "GET /api/admin/storage-providers",
     "GET /api/admin/storage-providers/default",
     "GET /api/admin/uploads/multipart/sessions/{}",
     "GET /api/admin/users",
+    "GET /api/admin/users/geolocation/distribution",
     "GET /api/admin/users/{}",
     "GET /api/admin/users/{}/rooms",
     "GET /api/dashboard/emoji-stats",
@@ -1929,11 +1902,17 @@
     "GET /versions/latest",
     "GET /versions/latest/download-url",
     "PATCH /api/admin/admin-users/{}/status",
+    "PATCH /api/admin/app-versions/{}",
+    "PATCH /api/admin/emoji-items/{}",
+    "PATCH /api/admin/emoji-packs/{}",
+    "PATCH /api/admin/hot-updates/{}",
     "PATCH /api/admin/ip-geolocation/enabled",
     "PATCH /api/admin/ipinfo-tokens/{}",
+    "PATCH /api/admin/roles/{}",
     "PATCH /api/admin/storage-providers/{}",
     "PATCH /api/admin/users/{}",
     "PATCH /api/admin/users/{}/status",
+    "PATCH /auth/admin/me",
     "PATCH /friends/{}/remark",
     "PATCH /rooms/{}",
     "PATCH /rooms/{}/invitations/{}/respond",
@@ -1945,31 +1924,52 @@
     "POST /activity/heartbeat",
     "POST /activity/login",
     "POST /activity/login/{}/logout",
+    "POST /admin/data/cleanup/all",
     "POST /api/admin/admin-users",
     "POST /api/admin/app-versions",
     "POST /api/admin/app-versions/upload/multipart/initiate",
+    "POST /api/admin/app-versions/upload/signature",
+    "POST /api/admin/app-versions/{}/deactivate",
+    "POST /api/admin/emoji-items",
     "POST /api/admin/emoji-packs",
     "POST /api/admin/file-upload-audit/tasks/{}/requeue",
     "POST /api/admin/files/batch-delete",
     "POST /api/admin/hot-updates",
+    "POST /api/admin/hot-updates/{}/activate",
+    "POST /api/admin/hot-updates/{}/deactivate",
     "POST /api/admin/init-default-admin",
     "POST /api/admin/ipinfo-tokens",
     "POST /api/admin/ipinfo-tokens/{}/reset",
     "POST /api/admin/logs/cleanup",
     "POST /api/admin/permissions/check",
     "POST /api/admin/push/logs/cleanup",
+    "POST /api/admin/reset-admin-password",
     "POST /api/admin/roles",
     "POST /api/admin/settings/captcha",
     "POST /api/admin/settings/privacy-policy",
     "POST /api/admin/settings/push/test",
     "POST /api/admin/settings/user-agreement",
     "POST /api/admin/storage-providers",
+    "POST /api/admin/storage-providers/test/buckets",
+    "POST /api/admin/storage-providers/test/buckets/create",
+    "POST /api/admin/storage-providers/test/cors",
+    "POST /api/admin/storage-providers/test/cors/list",
+    "POST /api/admin/storage-providers/test/delete",
+    "POST /api/admin/storage-providers/test/download-url",
+    "POST /api/admin/storage-providers/test/exists",
+    "POST /api/admin/storage-providers/test/upload",
+    "POST /api/admin/storage-providers/test/upload/multipart/initiate",
+    "POST /api/admin/storage-providers/test/upload/signature",
+    "POST /api/admin/test-geolocation-api",
+    "POST /api/admin/uploads/multipart/sessions/{}/abort",
     "POST /api/admin/uploads/multipart/sessions/{}/complete",
     "POST /api/admin/uploads/multipart/sessions/{}/parts/commit",
     "POST /api/admin/uploads/multipart/sessions/{}/parts/signature",
     "POST /api/admin/users",
     "POST /api/admin/users/{}/password/reset",
     "POST /auth/admin/login",
+    "POST /auth/admin/me/password",
+    "POST /auth/admin/refresh",
     "POST /auth/login/oauth",
     "POST /auth/login/sms",
     "POST /auth/password/reset",

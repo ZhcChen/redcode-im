@@ -5,10 +5,10 @@
 ## 汇总
 
 - 路由条目（按 method+path 计）：252
-- Go 覆盖：201
+- Go 覆盖：246
 - Rust 覆盖：5
 - Go+Rust 均覆盖：5
-- 无测试覆盖：51
+- 无测试覆盖：6
 
 说明：
 
@@ -18,62 +18,29 @@
 
 ## 无测试覆盖（需要补）
 
-- `DELETE /api/admin/app-versions/{}`
-- `DELETE /api/admin/emoji-items/{}`
-- `DELETE /api/admin/emoji-packs/{}`
-- `DELETE /api/admin/files/{}`
-- `DELETE /api/admin/hot-updates/{}`
-- `DELETE /api/admin/roles/{}`
-- `GET /api/admin/app-versions`
-- `GET /api/admin/app-versions/{}`
-- `GET /api/admin/check-admin-users`
-- `GET /api/admin/emoji-items/{}`
-- `GET /api/admin/emoji-packs`
-- `GET /api/admin/emoji-packs/{}`
-- `GET /api/admin/hot-updates`
-- `GET /api/admin/hot-updates/events`
-- `GET /api/admin/hot-updates/{}`
 - `GET /api/admin/ipinfo-tokens/{}`
-- `GET /api/admin/settings/privacy-policy`
-- `GET /api/admin/settings/user-agreement`
-- `GET /api/admin/users/geolocation/distribution`
 - `GET /emoji-packs/suites/{}/packs`
 - `GET /users/{}/geolocation`
 - `GET /ws`
-- `PATCH /api/admin/app-versions/{}`
-- `PATCH /api/admin/emoji-items/{}`
-- `PATCH /api/admin/emoji-packs/{}`
-- `PATCH /api/admin/hot-updates/{}`
-- `PATCH /api/admin/roles/{}`
-- `PATCH /auth/admin/me`
-- `POST /admin/data/cleanup/all`
-- `POST /api/admin/app-versions/upload/signature`
-- `POST /api/admin/app-versions/{}/deactivate`
-- `POST /api/admin/emoji-items`
-- `POST /api/admin/hot-updates/{}/activate`
-- `POST /api/admin/hot-updates/{}/deactivate`
-- `POST /api/admin/reset-admin-password`
-- `POST /api/admin/storage-providers/test/buckets`
-- `POST /api/admin/storage-providers/test/buckets/create`
-- `POST /api/admin/storage-providers/test/cors`
-- `POST /api/admin/storage-providers/test/cors/list`
-- `POST /api/admin/storage-providers/test/delete`
-- `POST /api/admin/storage-providers/test/download-url`
-- `POST /api/admin/storage-providers/test/exists`
-- `POST /api/admin/storage-providers/test/upload`
-- `POST /api/admin/storage-providers/test/upload/multipart/initiate`
-- `POST /api/admin/storage-providers/test/upload/signature`
-- `POST /api/admin/test-geolocation-api`
-- `POST /api/admin/uploads/multipart/sessions/{}/abort`
-- `POST /auth/admin/me/password`
-- `POST /auth/admin/refresh`
 - `POST /emoji-packs/suites/{}/add`
 - `PUT /api/admin/settings/push/providers/{}`
 
 ## 仅 Go 覆盖（Rust 覆盖率目标的主要补齐对象）
 
+- `DELETE /api/admin/app-versions/{}`
+  - Go: 1 (`tests/go/backend/admin/app_versions_test.go:120`)
+- `DELETE /api/admin/emoji-items/{}`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:185`)
+- `DELETE /api/admin/emoji-packs/{}`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:90`)
+- `DELETE /api/admin/files/{}`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:132`)
+- `DELETE /api/admin/hot-updates/{}`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:111`)
 - `DELETE /api/admin/ipinfo-tokens/{}`
   - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:116`)
+- `DELETE /api/admin/roles/{}`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:87`)
 - `DELETE /api/admin/storage-providers/{}`
   - Go: 1 (`tests/go/backend/admin/storage_providers_test.go:119`)
 - `DELETE /api/admin/users/{}`
@@ -111,9 +78,21 @@
 - `GET /`
   - Go: 1 (`tests/go/backend/system/health_test.go:64`)
 - `GET /api/admin/admin-users`
-  - Go: 1 (`tests/go/backend/admin/admin_users_management_test.go:47`)
+  - Go: 2 (`tests/go/backend/admin/admin_auth_test.go:150`, `tests/go/backend/admin/admin_users_management_test.go:47`)
+- `GET /api/admin/app-versions`
+  - Go: 1 (`tests/go/backend/admin/app_versions_test.go:25`)
+- `GET /api/admin/app-versions/{}`
+  - Go: 1 (`tests/go/backend/admin/app_versions_test.go:75`)
 - `GET /api/admin/chat-history`
   - Go: 1 (`tests/go/backend/admin/chat_history_test.go:58`)
+- `GET /api/admin/check-admin-users`
+  - Go: 1 (`tests/go/backend/admin/admin_auth_test.go:127`)
+- `GET /api/admin/emoji-items/{}`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:140`)
+- `GET /api/admin/emoji-packs`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:24`)
+- `GET /api/admin/emoji-packs/{}`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:45`)
 - `GET /api/admin/feedbacks`
   - Go: 3 (`tests/go/backend/admin/feedbacks_test.go:75`, `tests/go/backend/admin/feedbacks_test.go:104`, `tests/go/backend/admin/feedbacks_test.go:120`)
 - `GET /api/admin/file-upload-audit/tasks`
@@ -124,6 +103,12 @@
   - Go: 1 (`tests/go/backend/admin/file_management_test.go:56`)
 - `GET /api/admin/files/stats`
   - Go: 1 (`tests/go/backend/admin/file_management_test.go:41`)
+- `GET /api/admin/hot-updates`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:24`)
+- `GET /api/admin/hot-updates/events`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:45`)
+- `GET /api/admin/hot-updates/{}`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:66`)
 - `GET /api/admin/ip-geolocation/enabled`
   - Go: 1 (`tests/go/backend/admin/push_and_geolocation_test.go:137`)
 - `GET /api/admin/ipinfo-tokens`
@@ -150,12 +135,16 @@
   - Go: 1 (`tests/go/backend/admin/chat_history_test.go:107`)
 - `GET /api/admin/settings/captcha`
   - Go: 2 (`tests/go/backend/auth/password_reset_test.go:27`, `tests/go/backend/auth/sms_oauth_test.go:45`)
+- `GET /api/admin/settings/privacy-policy`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:24`)
 - `GET /api/admin/settings/push`
   - Go: 3 (`tests/go/backend/admin/push_settings_test.go:39`, `tests/go/backend/admin/push_settings_test.go:114`, `tests/go/backend/admin/push_settings_test.go:162`)
 - `GET /api/admin/settings/upload-policy`
   - Go: 1 (`tests/go/backend/system/upload_policy_test.go:108`)
 - `GET /api/admin/settings/user-account-limit`
   - Go: 1 (`tests/go/backend/admin/user_account_limit_test.go:30`)
+- `GET /api/admin/settings/user-agreement`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:45`)
 - `GET /api/admin/storage-providers`
   - Go: 3 (`tests/go/backend/admin/storage_providers_test.go:36`, `tests/go/backend/admin/storage_providers_test.go:131`, `tests/go/internal/testutil/fixtures_storage.go:68`)
 - `GET /api/admin/storage-providers/default`
@@ -164,6 +153,8 @@
   - Go: 2 (`tests/go/backend/versions/version_multipart_upload_test.go:102`, `tests/go/backend/versions/version_multipart_upload_test.go:180`)
 - `GET /api/admin/users`
   - Go: 1 (`tests/go/backend/admin/monitoring_and_users_test.go:109`)
+- `GET /api/admin/users/geolocation/distribution`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:66`)
 - `GET /api/admin/users/{}`
   - Go: 3 (`tests/go/backend/admin/users_crud_test.go:67`, `tests/go/backend/admin/users_crud_test.go:103`, `tests/go/backend/admin/users_crud_test.go:149`)
 - `GET /api/admin/users/{}/rooms`
@@ -274,16 +265,28 @@
   - Go: 1 (`tests/go/backend/versions/version_flow_test.go:145`)
 - `PATCH /api/admin/admin-users/{}/status`
   - Go: 1 (`tests/go/backend/admin/admin_users_management_test.go:95`)
+- `PATCH /api/admin/app-versions/{}`
+  - Go: 1 (`tests/go/backend/admin/app_versions_test.go:99`)
+- `PATCH /api/admin/emoji-items/{}`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:164`)
+- `PATCH /api/admin/emoji-packs/{}`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:69`)
+- `PATCH /api/admin/hot-updates/{}`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:90`)
 - `PATCH /api/admin/ip-geolocation/enabled`
   - Go: 1 (`tests/go/backend/admin/push_and_geolocation_test.go:158`)
 - `PATCH /api/admin/ipinfo-tokens/{}`
   - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:83`)
+- `PATCH /api/admin/roles/{}`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:111`)
 - `PATCH /api/admin/storage-providers/{}`
   - Go: 2 (`tests/go/backend/admin/storage_providers_test.go:99`, `tests/go/internal/testutil/fixtures_storage.go:94`)
 - `PATCH /api/admin/users/{}`
   - Go: 2 (`tests/go/backend/admin/users_crud_test.go:86`, `tests/go/backend/admin/users_crud_test.go:119`)
 - `PATCH /api/admin/users/{}/status`
   - Go: 2 (`tests/go/backend/admin/monitoring_and_users_test.go:132`, `tests/go/backend/admin/monitoring_and_users_test.go:143`)
+- `PATCH /auth/admin/me`
+  - Go: 1 (`tests/go/backend/admin/admin_auth_test.go:64`)
 - `PATCH /friends/{}/remark`
   - Go: 1 (`tests/go/backend/friends/friend_remark_delete_test.go:34`)
 - `PATCH /rooms/{}`
@@ -306,12 +309,20 @@
   - Go: 1 (`tests/go/backend/activity/activity_logs_test.go:83`)
 - `POST /activity/login/{}/logout`
   - Go: 1 (`tests/go/backend/activity/activity_logs_test.go:109`)
+- `POST /admin/data/cleanup/all`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:177`)
 - `POST /api/admin/admin-users`
   - Go: 1 (`tests/go/backend/admin/admin_users_management_test.go:74`)
 - `POST /api/admin/app-versions`
   - Go: 1 (`tests/go/backend/versions/version_flow_test.go:86`)
 - `POST /api/admin/app-versions/upload/multipart/initiate`
   - Go: 1 (`tests/go/backend/versions/version_multipart_upload_test.go:69`)
+- `POST /api/admin/app-versions/upload/signature`
+  - Go: 1 (`tests/go/backend/admin/app_versions_test.go:52`)
+- `POST /api/admin/app-versions/{}/deactivate`
+  - Go: 1 (`tests/go/backend/admin/app_versions_test.go:141`)
+- `POST /api/admin/emoji-items`
+  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:118`)
 - `POST /api/admin/emoji-packs`
   - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:51`)
 - `POST /api/admin/file-upload-audit/tasks/{}/requeue`
@@ -320,6 +331,10 @@
   - Go: 2 (`tests/go/backend/admin/file_management_test.go:91`, `tests/go/backend/admin/file_management_test.go:107`)
 - `POST /api/admin/hot-updates`
   - Go: 1 (`tests/go/backend/versions/version_flow_test.go:180`)
+- `POST /api/admin/hot-updates/{}/activate`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:132`)
+- `POST /api/admin/hot-updates/{}/deactivate`
+  - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:153`)
 - `POST /api/admin/init-default-admin`
   - Go: 1 (`tests/go/internal/testutil/fixtures_auth.go:94`)
 - `POST /api/admin/ipinfo-tokens`
@@ -332,6 +347,8 @@
   - Go: 2 (`tests/go/backend/admin/roles_permissions_test.go:180`, `tests/go/backend/admin/roles_permissions_test.go:194`)
 - `POST /api/admin/push/logs/cleanup`
   - Go: 2 (`tests/go/backend/admin/push_and_geolocation_test.go:70`, `tests/go/backend/admin/push_and_geolocation_test.go:81`)
+- `POST /api/admin/reset-admin-password`
+  - Go: 1 (`tests/go/backend/admin/admin_auth_test.go:163`)
 - `POST /api/admin/roles`
   - Go: 3 (`tests/go/backend/admin/roles_permissions_test.go:85`, `tests/go/backend/admin/roles_permissions_test.go:105`, `tests/go/backend/admin/roles_permissions_test.go:125`)
 - `POST /api/admin/settings/captcha`
@@ -344,6 +361,30 @@
   - Go: 1 (`tests/go/backend/settings/settings_test.go:205`)
 - `POST /api/admin/storage-providers`
   - Go: 2 (`tests/go/backend/admin/storage_providers_test.go:79`, `tests/go/internal/testutil/fixtures_storage.go:45`)
+- `POST /api/admin/storage-providers/test/buckets`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:30`)
+- `POST /api/admin/storage-providers/test/buckets/create`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:59`)
+- `POST /api/admin/storage-providers/test/cors`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:87`)
+- `POST /api/admin/storage-providers/test/cors/list`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:115`)
+- `POST /api/admin/storage-providers/test/delete`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:144`)
+- `POST /api/admin/storage-providers/test/download-url`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:173`)
+- `POST /api/admin/storage-providers/test/exists`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:202`)
+- `POST /api/admin/storage-providers/test/upload`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:232`)
+- `POST /api/admin/storage-providers/test/upload/multipart/initiate`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:261`)
+- `POST /api/admin/storage-providers/test/upload/signature`
+  - Go: 1 (`tests/go/backend/admin/storage_providers_test_api_test.go:290`)
+- `POST /api/admin/test-geolocation-api`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:202`)
+- `POST /api/admin/uploads/multipart/sessions/{}/abort`
+  - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:224`)
 - `POST /api/admin/uploads/multipart/sessions/{}/complete`
   - Go: 1 (`tests/go/backend/versions/version_multipart_upload_test.go:163`)
 - `POST /api/admin/uploads/multipart/sessions/{}/parts/commit`
@@ -356,6 +397,10 @@
   - Go: 1 (`tests/go/backend/admin/user_management_test.go:33`)
 - `POST /auth/admin/login`
   - Go: 2 (`tests/go/backend/admin/admin_users_management_test.go:113`, `tests/go/internal/testutil/fixtures_auth.go:77`)
+- `POST /auth/admin/me/password`
+  - Go: 2 (`tests/go/backend/admin/admin_auth_test.go:92`, `tests/go/backend/admin/admin_auth_test.go:106`)
+- `POST /auth/admin/refresh`
+  - Go: 1 (`tests/go/backend/admin/admin_auth_test.go:28`)
 - `POST /auth/login/oauth`
   - Go: 1 (`tests/go/backend/auth/sms_oauth_test.go:150`)
 - `POST /auth/login/sms`
