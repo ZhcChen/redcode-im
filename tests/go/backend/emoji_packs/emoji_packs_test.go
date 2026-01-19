@@ -9,9 +9,11 @@ import (
 )
 
 type emojiPackResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	IsActive bool   `json:"is_active"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	IsActive bool    `json:"is_active"`
+	PackType int     `json:"pack_type"`
+	ParentID *string `json:"parent_id"`
 }
 
 type userPacksResponseItem struct {

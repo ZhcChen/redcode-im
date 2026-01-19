@@ -80,6 +80,28 @@ func TestAdmin_IpinfoTokens_CRUD(t *testing.T) {
 		t.Fatalf("expected status/resetDate non-empty: %+v body=%s", created, string(bodyCreate))
 	}
 
+	respGet, bodyGet, err := c.DoJSON("GET", "/api/admin/ipinfo-tokens/"+created.ID, nil, admin.Token)
+	if err != nil {
+		t.Fatalf("get ipinfo token list-by-id http error: %v", err)
+	}
+	if respGet.StatusCode != 200 {
+		t.Fatalf("get ipinfo token list-by-id status=%d body=%s", respGet.StatusCode, string(bodyGet))
+	}
+	var listByID tokenListResponse
+	if err := testutil.DecodeJSON(bodyGet, &listByID); err != nil {
+		t.Fatalf("decode ipinfo token list-by-id: %v body=%s", err, string(bodyGet))
+	}
+	found := false
+	for _, item := range listByID.List {
+		if item.ID == created.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected created token id=%s in list-by-id, body=%s", created.ID, string(bodyGet))
+	}
+
 	respUpd, bodyUpd, err := c.DoJSON("PATCH", "/api/admin/ipinfo-tokens/"+created.ID, map[string]any{
 		"monthly_limit": 456,
 		"status":        "exhausted",
@@ -121,4 +143,3 @@ func TestAdmin_IpinfoTokens_CRUD(t *testing.T) {
 		t.Fatalf("expected delete ipinfo token status=204, got %d body=%s", respDel.StatusCode, string(bodyDel))
 	}
 }
-

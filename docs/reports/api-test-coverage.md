@@ -5,10 +5,10 @@
 ## 汇总
 
 - 路由条目（按 method+path 计）：252
-- Go 覆盖：246
+- Go 覆盖：252
 - Rust 覆盖：5
 - Go+Rust 均覆盖：5
-- 无测试覆盖：6
+- 无测试覆盖：0
 
 说明：
 
@@ -18,12 +18,7 @@
 
 ## 无测试覆盖（需要补）
 
-- `GET /api/admin/ipinfo-tokens/{}`
-- `GET /emoji-packs/suites/{}/packs`
-- `GET /users/{}/geolocation`
-- `GET /ws`
-- `POST /emoji-packs/suites/{}/add`
-- `PUT /api/admin/settings/push/providers/{}`
+- （空）
 
 ## 仅 Go 覆盖（Rust 覆盖率目标的主要补齐对象）
 
@@ -38,7 +33,7 @@
 - `DELETE /api/admin/hot-updates/{}`
   - Go: 1 (`tests/go/backend/admin/hot_updates_test.go:111`)
 - `DELETE /api/admin/ipinfo-tokens/{}`
-  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:116`)
+  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:138`)
 - `DELETE /api/admin/roles/{}`
   - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:87`)
 - `DELETE /api/admin/storage-providers/{}`
@@ -48,7 +43,7 @@
 - `DELETE /chats/{}`
   - Go: 2 (`tests/go/backend/chats/chat_list_delete_test.go:67`, `tests/go/backend/chats/chat_list_delete_test.go:75`)
 - `DELETE /emoji-packs/{}/remove`
-  - Go: 2 (`tests/go/backend/emoji_packs/emoji_packs_test.go:163`, `tests/go/backend/emoji_packs/emoji_packs_test.go:179`)
+  - Go: 2 (`tests/go/backend/emoji_packs/emoji_packs_test.go:165`, `tests/go/backend/emoji_packs/emoji_packs_test.go:181`)
 - `DELETE /friends/{}`
   - Go: 1 (`tests/go/backend/friends/friend_remark_delete_test.go:66`)
 - `DELETE /push/devices/{}`
@@ -113,6 +108,8 @@
   - Go: 1 (`tests/go/backend/admin/push_and_geolocation_test.go:137`)
 - `GET /api/admin/ipinfo-tokens`
   - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:40`)
+- `GET /api/admin/ipinfo-tokens/{}`
+  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:83`)
 - `GET /api/admin/logs`
   - Go: 1 (`tests/go/backend/admin/system_logs_test.go:45`)
 - `GET /api/admin/logs/stats`
@@ -138,7 +135,7 @@
 - `GET /api/admin/settings/privacy-policy`
   - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:24`)
 - `GET /api/admin/settings/push`
-  - Go: 3 (`tests/go/backend/admin/push_settings_test.go:39`, `tests/go/backend/admin/push_settings_test.go:114`, `tests/go/backend/admin/push_settings_test.go:162`)
+  - Go: 3 (`tests/go/backend/admin/push_settings_test.go:39`, `tests/go/backend/admin/push_settings_test.go:136`, `tests/go/backend/admin/push_settings_test.go:184`)
 - `GET /api/admin/settings/upload-policy`
   - Go: 1 (`tests/go/backend/system/upload_policy_test.go:108`)
 - `GET /api/admin/settings/user-account-limit`
@@ -174,13 +171,15 @@
 - `GET /e2ee/users/{}/key-bundles`
   - Go: 2 (`tests/go/backend/e2ee/e2ee_test.go:134`, `tests/go/backend/e2ee/e2ee_test.go:171`)
 - `GET /emoji-packs/available`
-  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:76`)
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:78`)
 - `GET /emoji-packs/download-url`
-  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:147`)
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:149`)
 - `GET /emoji-packs/my`
-  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:115`)
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:117`)
 - `GET /emoji-packs/search`
-  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:138`)
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:140`)
+- `GET /emoji-packs/suites/{}/packs`
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_suite_test.go:114`)
 - `GET /friends`
   - Go: 2 (`tests/go/backend/friends/friend_flow_test.go:110`, `tests/go/backend/friends/friend_remark_delete_test.go:50`)
 - `GET /friends/requests`
@@ -253,6 +252,8 @@
   - Go: 1 (`tests/go/backend/activity/activity_logs_test.go:118`)
 - `GET /users/{}/avatar/url`
   - Go: 1 (`tests/go/backend/users/avatar_test.go:117`)
+- `GET /users/{}/geolocation`
+  - Go: 1 (`tests/go/backend/users/geolocation_test.go:16`)
 - `GET /versions/download`
   - Go: 1 (`tests/go/backend/versions/version_flow_test.go:162`)
 - `GET /versions/hot-update`
@@ -263,6 +264,8 @@
   - Go: 1 (`tests/go/backend/versions/version_flow_test.go:111`)
 - `GET /versions/latest/download-url`
   - Go: 1 (`tests/go/backend/versions/version_flow_test.go:145`)
+- `GET /ws`
+  - Go: 1 (`tests/go/backend/ws/ws_http_coverage_test.go:11`)
 - `PATCH /api/admin/admin-users/{}/status`
   - Go: 1 (`tests/go/backend/admin/admin_users_management_test.go:95`)
 - `PATCH /api/admin/app-versions/{}`
@@ -276,7 +279,7 @@
 - `PATCH /api/admin/ip-geolocation/enabled`
   - Go: 1 (`tests/go/backend/admin/push_and_geolocation_test.go:158`)
 - `PATCH /api/admin/ipinfo-tokens/{}`
-  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:83`)
+  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:105`)
 - `PATCH /api/admin/roles/{}`
   - Go: 1 (`tests/go/backend/admin/admin_misc_test.go:111`)
 - `PATCH /api/admin/storage-providers/{}`
@@ -322,9 +325,9 @@
 - `POST /api/admin/app-versions/{}/deactivate`
   - Go: 1 (`tests/go/backend/admin/app_versions_test.go:141`)
 - `POST /api/admin/emoji-items`
-  - Go: 1 (`tests/go/backend/admin/emoji_management_test.go:118`)
+  - Go: 2 (`tests/go/backend/admin/emoji_management_test.go:118`, `tests/go/backend/emoji_packs/emoji_packs_suite_test.go:83`)
 - `POST /api/admin/emoji-packs`
-  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:51`)
+  - Go: 3 (`tests/go/backend/emoji_packs/emoji_packs_suite_test.go:41`, `tests/go/backend/emoji_packs/emoji_packs_suite_test.go:62`, `tests/go/backend/emoji_packs/emoji_packs_test.go:53`)
 - `POST /api/admin/file-upload-audit/tasks/{}/requeue`
   - Go: 1 (`tests/go/backend/admin/file_upload_audit_test.go:128`)
 - `POST /api/admin/files/batch-delete`
@@ -340,7 +343,7 @@
 - `POST /api/admin/ipinfo-tokens`
   - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:58`)
 - `POST /api/admin/ipinfo-tokens/{}/reset`
-  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:101`)
+  - Go: 1 (`tests/go/backend/admin/ipinfo_tokens_test.go:123`)
 - `POST /api/admin/logs/cleanup`
   - Go: 1 (`tests/go/backend/admin/system_logs_test.go:79`)
 - `POST /api/admin/permissions/check`
@@ -356,7 +359,7 @@
 - `POST /api/admin/settings/privacy-policy`
   - Go: 1 (`tests/go/backend/settings/settings_test.go:164`)
 - `POST /api/admin/settings/push/test`
-  - Go: 2 (`tests/go/backend/admin/push_settings_test.go:190`, `tests/go/backend/admin/push_settings_test.go:203`)
+  - Go: 2 (`tests/go/backend/admin/push_settings_test.go:212`, `tests/go/backend/admin/push_settings_test.go:225`)
 - `POST /api/admin/settings/user-agreement`
   - Go: 1 (`tests/go/backend/settings/settings_test.go:205`)
 - `POST /api/admin/storage-providers`
@@ -413,8 +416,10 @@
   - Go: 2 (`tests/go/backend/auth/password_reset_test.go:71`, `tests/go/backend/auth/sms_oauth_test.go:84`)
 - `POST /e2ee/keys/bundle`
   - Go: 3 (`tests/go/backend/e2ee/e2ee_test.go:50`, `tests/go/backend/e2ee/e2ee_test.go:96`, `tests/go/backend/e2ee/e2ee_test.go:125`)
+- `POST /emoji-packs/suites/{}/add`
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_suite_test.go:99`)
 - `POST /emoji-packs/{}/add`
-  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:99`)
+  - Go: 1 (`tests/go/backend/emoji_packs/emoji_packs_test.go:101`)
 - `POST /feedbacks`
   - Go: 2 (`tests/go/backend/admin/feedbacks_test.go:44`, `tests/go/backend/admin/feedbacks_test.go:56`)
 - `POST /friends/requests`
@@ -505,6 +510,8 @@
   - Go: 1 (`tests/go/backend/settings/settings_test.go:131`)
 - `PUT /api/admin/settings/push`
   - Go: 1 (`tests/go/backend/admin/push_settings_test.go:58`)
+- `PUT /api/admin/settings/push/providers/{}`
+  - Go: 1 (`tests/go/backend/admin/push_settings_test.go:113`)
 - `PUT /api/admin/settings/upload-policy`
   - Go: 1 (`tests/go/backend/system/upload_policy_test.go:139`)
 - `PUT /api/admin/settings/user-account-limit`

@@ -99,6 +99,28 @@ func TestAdmin_PushSettings_UpsertProvider_UnsupportedRejected(t *testing.T) {
 	}
 }
 
+func TestAdmin_PushSettings_UpsertProvider_UUIDPath_Unsupported(t *testing.T) {
+	adminUser := os.Getenv("ADMIN_USERNAME")
+	adminPass := os.Getenv("ADMIN_PASSWORD")
+	if adminUser == "" || adminPass == "" {
+		t.Skip("missing ADMIN_USERNAME / ADMIN_PASSWORD, skip admin push provider test")
+	}
+
+	c := testutil.NewClient()
+	testutil.EnsureDefaultAdmin(t, c)
+	admin := testutil.AdminLogin(t, c, adminUser, adminPass)
+
+	resp, body, err := c.DoJSON("PUT", "/api/admin/settings/push/providers/00000000-0000-0000-0000-000000000000", map[string]any{
+		"enabled": true,
+	}, admin.Token)
+	if err != nil {
+		t.Fatalf("upsert push provider (uuid) http error: %v", err)
+	}
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected upsert push provider (uuid)=400, got %d body=%s", resp.StatusCode, string(body))
+	}
+}
+
 func TestAdmin_PushSettings_UpsertProvider_FCM_Minimal(t *testing.T) {
 	adminUser := os.Getenv("ADMIN_USERNAME")
 	adminPass := os.Getenv("ADMIN_PASSWORD")
@@ -212,4 +234,3 @@ func TestAdmin_PushSettings_TestPush_Validations(t *testing.T) {
 		t.Fatalf("expected test push (missing token)=400, got %d body=%s", resp1.StatusCode, string(body1))
 	}
 }
-

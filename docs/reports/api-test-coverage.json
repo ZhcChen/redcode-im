@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-01-19T23:00:59+08:00",
+  "updatedAt": "2026-01-19T23:18:12+08:00",
   "summary": {
     "total": 252,
-    "goCovered": 246,
+    "goCovered": 252,
     "rustCovered": 5,
     "bothCovered": 5,
-    "uncovered": 6,
-    "percentage": 97.61904761904762
+    "uncovered": 0,
+    "percentage": 100
   },
   "routes": [
     {
@@ -313,9 +313,9 @@
     {
       "method": "GET",
       "path": "/api/admin/ipinfo-tokens/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -565,9 +565,9 @@
     {
       "method": "GET",
       "path": "/emoji-packs/suites/{}/packs",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -831,9 +831,9 @@
     {
       "method": "GET",
       "path": "/users/{}/geolocation",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "GET",
@@ -873,9 +873,9 @@
     {
       "method": "GET",
       "path": "/ws",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PATCH",
@@ -1083,14 +1083,14 @@
     {
       "method": "POST",
       "path": "/api/admin/emoji-items",
-      "goHits": 1,
+      "goHits": 2,
       "rustHits": 0,
       "status": "partial"
     },
     {
       "method": "POST",
       "path": "/api/admin/emoji-packs",
-      "goHits": 1,
+      "goHits": 3,
       "rustHits": 0,
       "status": "partial"
     },
@@ -1419,9 +1419,9 @@
     {
       "method": "POST",
       "path": "/emoji-packs/suites/{}/add",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "POST",
@@ -1755,9 +1755,9 @@
     {
       "method": "PUT",
       "path": "/api/admin/settings/push/providers/{}",
-      "goHits": 0,
+      "goHits": 1,
       "rustHits": 0,
-      "status": "uncovered"
+      "status": "partial"
     },
     {
       "method": "PUT",
@@ -1774,14 +1774,7 @@
       "status": "partial"
     }
   ],
-  "uncovered": [
-    "GET /api/admin/ipinfo-tokens/{}",
-    "GET /emoji-packs/suites/{}/packs",
-    "GET /users/{}/geolocation",
-    "GET /ws",
-    "POST /emoji-packs/suites/{}/add",
-    "PUT /api/admin/settings/push/providers/{}"
-  ],
+  "uncovered": [],
   "onlyGo": [
     "DELETE /api/admin/app-versions/{}",
     "DELETE /api/admin/emoji-items/{}",
@@ -1826,6 +1819,7 @@
     "GET /api/admin/hot-updates/{}",
     "GET /api/admin/ip-geolocation/enabled",
     "GET /api/admin/ipinfo-tokens",
+    "GET /api/admin/ipinfo-tokens/{}",
     "GET /api/admin/logs",
     "GET /api/admin/logs/stats",
     "GET /api/admin/metrics/performance",
@@ -1860,6 +1854,7 @@
     "GET /emoji-packs/download-url",
     "GET /emoji-packs/my",
     "GET /emoji-packs/search",
+    "GET /emoji-packs/suites/{}/packs",
     "GET /friends",
     "GET /friends/requests",
     "GET /messages/search",
@@ -1896,11 +1891,13 @@
     "GET /users/{}/activity/heartbeat-logs",
     "GET /users/{}/activity/login-history",
     "GET /users/{}/avatar/url",
+    "GET /users/{}/geolocation",
     "GET /versions/download",
     "GET /versions/hot-update",
     "GET /versions/hot-update/download",
     "GET /versions/latest",
     "GET /versions/latest/download-url",
+    "GET /ws",
     "PATCH /api/admin/admin-users/{}/status",
     "PATCH /api/admin/app-versions/{}",
     "PATCH /api/admin/emoji-items/{}",
@@ -1976,6 +1973,7 @@
     "POST /auth/refresh",
     "POST /auth/sms/send",
     "POST /e2ee/keys/bundle",
+    "POST /emoji-packs/suites/{}/add",
     "POST /emoji-packs/{}/add",
     "POST /feedbacks",
     "POST /friends/requests",
@@ -2022,6 +2020,7 @@
     "POST /versions/hot-update/report",
     "PUT /api/admin/settings/app-name",
     "PUT /api/admin/settings/push",
+    "PUT /api/admin/settings/push/providers/{}",
     "PUT /api/admin/settings/upload-policy",
     "PUT /api/admin/settings/user-account-limit"
   ],
