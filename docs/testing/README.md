@@ -11,6 +11,7 @@
 - [本地开发测试流程](#本地开发测试流程)
 - [测试命名与组织规范](#测试命名与组织规范)
 - [测试文档索引](#测试文档索引)
+- [测试数据与 Dashboard 集成](#测试数据与-dashboard-集成)
 
 ---
 
@@ -342,6 +343,123 @@ tests/go/                         # Go 契约/集成测试（单一 go module）
 
 ---
 
+## 测试数据与 Dashboard 集成
+
+### 覆盖率数据类型
+
+项目维护两种覆盖率数据，均以 JSON 格式存储供 Dashboard 读取：
+
+| 类型 | 文件路径 | 生成命令 | Dashboard 端点 |
+|------|----------|----------|----------------|
+| API 覆盖率 | `docs/reports/api-test-coverage.json` | `go -C tests/go run ./cmd/route_coverage` | `GET /api/coverage` |
+| 代码覆盖率 | `docs/reports/test-coverage.json` | `./tests/update-coverage-json.sh` | `GET /api/code-coverage` |
+| 综合数据 | (实时合并) | - | `GET /api/coverage/all` |
+
+### API 覆盖率 JSON 格式
+
+统计 Go/Rust 测试对后端 API 路由的覆盖情况：
+
+```json
+{
+  "updatedAt": "2026-01-19T18:09:37+08:00",
+  "summary": {
+    "total": 252,
+    "goCovered": 194,
+    "rustCovered": 5,
+    "bothCovered": 4,
+    "uncovered": 57,
+    "percentage": 77.38
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "goHits": 5,
+      "rustHits": 2,
+      "status": "both"
+    }
+  ]
+}
+```
+
+字段说明：
+- `goHits` / `rustHits`：Go/Rust 测试中调用该路由的次数
+- `status`：`go` | `rust` | `both` | `uncovered`
+
+### 代码覆盖率 JSON 格式
+
+统计 Rust 代码行覆盖率与各模块测试数量：
+
+```json
+{
+  "updatedAt": "2026-01-19T14:00:00+08:00",
+  "rust": {
+    "lineCoverage": 45.2,
+    "totalTests": 203,
+    "modules": {
+      "unit": 98,
+      "api": 16,
+      "stores": 79,
+      "websocket": 5,
+      "e2ee": 2,
+      "fileUpload": 3
+    }
+  },
+  "go": {
+    "totalTests": 47
+  },
+  "summary": {
+    "totalTests": 250,
+    "rustTests": 203,
+    "goTests": 47
+  }
+}
+```
+
+### Dashboard 使用说明
+
+Dashboard 运行在 `http://localhost:20000`，提供测试数据可视化。
+
+**启动 Dashboard**：
+
+```bash
+cd dashboard
+bun run --watch src/index.ts
+```
+
+**更新覆盖率数据**：
+
+可通过 Dashboard 界面点击命令，或手动执行：
+
+```bash
+# 更新 API 覆盖率（扫描测试代码中的 API 调用）
+go -C tests/go run ./cmd/route_coverage
+
+# 更新代码覆盖率（运行测试并收集覆盖率）
+./tests/update-coverage-json.sh
+
+# 仅解析现有数据（跳过测试运行）
+SKIP_TESTS=1 ./tests/update-coverage-json.sh
+```
+
+### 数据更新规则
+
+1. **提交前**：运行 `go run ./cmd/route_coverage` 确保 API 覆盖率数据最新
+2. **发版前**：运行 `./tests/update-coverage-json.sh` 生成完整覆盖率报告
+3. **CI 集成**（规划）：在 CI 流程中自动生成并归档覆盖率数据
+
+### 文件存放约定
+
+```
+docs/reports/
+├── api-test-coverage.json    # API 路由覆盖率
+├── api-test-coverage.md      # API 覆盖率 Markdown 报告
+├── test-coverage.json        # 代码覆盖率 + 测试统计
+└── task-list.md              # 任务清单
+```
+
+---
+
 ## 附录：测试检查清单
 
 ### PR 提交前检查
@@ -362,4 +480,4 @@ tests/go/                         # Go 契约/集成测试（单一 go module）
 
 ---
 
-**文档最后更新**: 2026-01-17
+**文档最后更新**: 2026-01-19
