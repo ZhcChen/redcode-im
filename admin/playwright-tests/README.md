@@ -1,21 +1,37 @@
-# Playwright 测试脚本
+# Playwright 测试（Admin E2E）
 
-本目录包含使用 Playwright 进行自动化测试的脚本和资源文件。
+本目录用于管理后台（admin）的 Playwright E2E 测试，分为 **标准化测试** 与 **历史脚本** 两类：
+
+- **标准化测试（推荐）**：`playwright-tests/specs/*.spec.ts`（使用 Playwright Test Runner）
+- **历史脚本**：`playwright-tests/*.js`（node 直跑，保留做参考/排障）
 
 ## 目录结构
 
 ```
 playwright-tests/
-├── README.md                 # 本文件，说明各脚本的作用
-├── test-login.js             # 基础登录页面测试脚本
-├── test-login-full.js        # 完整登录流程测试脚本
-├── test-login-updated.js     # 更新后的登录测试脚本（使用正确的选择器）
-├── check-login-page.js       # 检查登录页面元素属性的脚本
-├── login-page.png            # 登录页面截图
-└── after-login.png           # 登录后页面截图
+├── README.md
+├── specs/                    # Playwright Test Runner 标准化用例
+│   └── login.spec.ts
+├── *.js                      # 历史脚本（node 直跑）
+└── *.png / *.json            # 历史截图与分析文件
 ```
 
-## 脚本说明
+## 推荐运行方式（Test Runner）
+
+```bash
+cd admin
+pnpm install
+pnpm test:e2e
+```
+
+默认会读取以下环境变量（可选）：
+
+- `ADMIN_BASE_URL`（默认 `http://localhost:8011`）
+- `ADMIN_USERNAME`（默认 `admin`）
+- `ADMIN_PASSWORD`（默认 `admin123`）
+- `ADMIN_E2E_ENABLED=true` 才会执行用例（避免环境未就绪时误失败）
+
+## 历史脚本说明（参考/排障）
 
 ### test-login.js
 - **作用**: 基础测试脚本，用于打开登录页面并截图

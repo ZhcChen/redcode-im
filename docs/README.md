@@ -64,6 +64,8 @@
 | [测试架构（五模块）](testing/test-architecture.md) | 五模块测试边界与框架选择 |
 | [Backend 测试说明](testing/backend-testing.md) | 后端单元/集成/契约测试写法 |
 | [Backend 单元测试计划](testing/backend-test-plan.md) | 后端测试现状与补充计划 |
+| [Admin E2E（Playwright）](testing/admin-e2e.md) | 管理后台 E2E 测试规范与路径 |
+| [API 路由测试覆盖清单](reports/api-test-coverage.md) | 路由覆盖统计（Go 黑盒 + Rust in-process） |
 | [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用详解 |
 | [E2E 测试路径](testing/test-paths.md) | 移动端用户旅程测试 |
 | [快速测试指南](testing/quick-test.md) | 5 分钟快速验证 |
@@ -116,4 +118,4 @@
 
 ---
 
-**文档最后更新**: 2026-01-13
+**文档最后更新**: 2026-01-17

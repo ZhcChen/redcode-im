@@ -129,10 +129,12 @@ patrol test
 - 范围：`admin/src/utils/`、`admin/src/api/`、store、页面组件的关键交互逻辑
 - 目标：将“API 封装/拦截器/权限控制”等易回归逻辑用单测固化
 
-### 6.2 E2E（Playwright，现状：脚本为主）
+### 6.2 E2E（Playwright，已标准化为 Test Runner）
 
-- 目录：`admin/playwright-tests/`
-- 当前以 `node *.js` 的方式运行脚本（待后续标准化为 Playwright Test Runner）。
+- 配置：`admin/playwright.config.ts`
+- 用例目录：`admin/playwright-tests/specs/`
+- 历史脚本：`admin/playwright-tests/*.js`（仅保留参考/排障）
+- 文档入口：`docs/testing/admin-e2e.md`
 
 管理后台通常使用独立的管理员账号体系（`/auth/admin/login`）。推荐在本地测试环境中启用一次性初始化接口：
 

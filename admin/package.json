@@ -12,6 +12,10 @@
     "report": "cross-env REPORT=true bun run build",
     "preview": "bun run build && vite preview --host",
     "type:check": "vue-tsc --noEmit --skipLibCheck",
+    "test:e2e:install": "playwright install",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "lint-staged": "bunx lint-staged",
     "prepare": "cd .. && husky install admin/.husky"
   },
