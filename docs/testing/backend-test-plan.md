@@ -127,4 +127,24 @@ cargo llvm-cov --lcov --output-path lcov.info
 
 ---
 
-**文档更新**: 2026-01-16
+## 5. API 路由测试覆盖清单（Go+Rust）
+
+用于追踪 `backend/src/routes.rs` 中注册的路由，哪些已被：
+- Go 黑盒/契约测试（`tests/go`）
+- Rust in-process 集成测试（`backend/tests`）
+
+生成/更新清单：
+
+```bash
+go -C tests/go run ./cmd/route_coverage
+```
+
+输出文件：
+- `docs/reports/api-test-coverage.json`（Dashboard 读取）
+
+> 说明：该清单基于静态扫描（匹配 `DoJSON(method, path, ...)` / `json_request/empty_request` 调用），用于规划补齐方向；
+> 不等同于真实运行覆盖率，最终仍以 `cargo llvm-cov` 与实际回归结果为准。
+
+---
+
+**文档更新**: 2026-01-17

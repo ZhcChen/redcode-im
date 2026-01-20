@@ -453,7 +453,6 @@ SKIP_TESTS=1 ./tests/update-coverage-json.sh
 ```
 docs/reports/
 ├── api-test-coverage.json    # API 路由覆盖率
-├── api-test-coverage.md      # API 覆盖率 Markdown 报告
 ├── test-coverage.json        # 代码覆盖率 + 测试统计
 └── task-list.md              # 任务清单
 ```

@@ -65,7 +65,7 @@
 | [Backend 测试说明](testing/backend-testing.md) | 后端单元/集成/契约测试写法 |
 | [Backend 单元测试计划](testing/backend-test-plan.md) | 后端测试现状与补充计划 |
 | [Admin E2E（Playwright）](testing/admin-e2e.md) | 管理后台 E2E 测试规范与路径 |
-| [API 路由测试覆盖清单](reports/api-test-coverage.md) | 路由覆盖统计（Go 黑盒 + Rust in-process） |
+| [API 路由测试覆盖数据](reports/api-test-coverage.json) | 路由覆盖统计（Go 黑盒 + Rust in-process，Dashboard 读取） |
 | [E2E 测试指南](testing/e2e-testing-guide.md) | Patrol 框架使用详解 |
 | [E2E 测试路径](testing/test-paths.md) | 移动端用户旅程测试 |
 | [快速测试指南](testing/quick-test.md) | 5 分钟快速验证 |
