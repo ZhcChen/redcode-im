@@ -13,6 +13,7 @@
 - **通知**: 每次对话结束调用 **通知 skill**（`devflow-notifier`）发送“对话完成”提醒。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；所有测试除非特殊指定否则使用 **Go**。
 - **Docker Compose**: 本机使用 `docker-compose`（不是 `docker compose`）；测试栈要求 PostgreSQL/Redis **不映射宿主端口**（避免端口冲突）。
+- **面板端口**: Dashboard 启动遇到端口冲突时，必须先停止占用端口的进程再启动，**禁止**改用其他端口。
 
 ## 2. 核心架构入口 (Entry Points)
 - **定义**: 现代化 IM 系统 (Rust + Axum + Vue/Tauri + Flutter + Nuxt)。
