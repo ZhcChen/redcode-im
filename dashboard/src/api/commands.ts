@@ -24,7 +24,7 @@ export const commands = {
     description: "启动 PostgreSQL + Redis 开发环境",
     category: "service",
     type: "oneshot",
-    cmd: ["docker", "compose", "-f", "docker/docker-compose.dev.yml", "up", "-d", "postgres", "redis-session", "redis-cache"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "up", "-d", "postgres", "redis-session", "redis-cache"],
     cwd: BACKEND_DIR,
   },
   "docker:down": {
@@ -32,7 +32,7 @@ export const commands = {
     description: "停止所有 Docker 容器",
     category: "service",
     type: "oneshot",
-    cmd: ["docker", "compose", "-f", "docker/docker-compose.dev.yml", "down"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "down"],
     cwd: BACKEND_DIR,
   },
   "docker:restart": {
@@ -40,7 +40,7 @@ export const commands = {
     description: "重启 PostgreSQL + Redis",
     category: "service",
     type: "oneshot",
-    cmd: ["docker", "compose", "-f", "docker/docker-compose.dev.yml", "restart"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "restart"],
     cwd: BACKEND_DIR,
   },
   "docker:logs": {
@@ -48,7 +48,7 @@ export const commands = {
     description: "查看容器日志（最近 100 行）",
     category: "service",
     type: "oneshot",
-    cmd: ["docker", "compose", "-f", "docker/docker-compose.dev.yml", "logs", "--tail=100", "-f"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "logs", "--tail=100", "-f"],
     cwd: BACKEND_DIR,
   },
   "backend:run": {
@@ -74,7 +74,7 @@ export const commands = {
     description: "启动 Redis Commander (8081)",
     category: "service",
     type: "oneshot",
-    cmd: ["docker", "compose", "-f", "docker/docker-compose.dev.yml", "--profile", "tools", "up", "-d", "redis-commander"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "--profile", "tools", "up", "-d", "redis-commander"],
     cwd: BACKEND_DIR,
   },
 
@@ -108,7 +108,7 @@ export const commands = {
     description: "删除所有数据并重建",
     category: "database",
     type: "oneshot",
-    cmd: ["docker", "compose", "-f", "docker/docker-compose.dev.yml", "down", "-v", "postgres"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "down", "-v"],
     cwd: BACKEND_DIR,
   },
 
