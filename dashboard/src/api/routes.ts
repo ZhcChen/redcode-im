@@ -16,7 +16,8 @@ apiRoutes.get("/commands", (c) => {
     id,
     name: cmd.name,
     description: cmd.description,
-    category: cmd.category,
+    group: cmd.group,
+    section: cmd.section,
     type: cmd.type,
   }));
   return c.json({ commands: list });
