@@ -28,15 +28,22 @@ export function renderDashboard(): string {
 
     <!-- Top Tabs -->
     <div class="mb-6">
-      <div class="flex flex-wrap gap-2">
-        <template x-for="tab in tabs" :key="tab.id">
-          <button
-            @click="setTab(tab.id)"
-            :class="selectedTab === tab.id ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'"
-            class="px-4 py-2 rounded text-sm font-medium transition-colors">
-            <span x-text="tab.name"></span>
-          </button>
-        </template>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap gap-2">
+          <template x-for="tab in tabs" :key="tab.id">
+            <button
+              @click="setTab(tab.id)"
+              :class="selectedTab === tab.id ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'"
+              class="px-4 py-2 rounded text-sm font-medium transition-colors">
+              <span x-text="tab.name"></span>
+            </button>
+          </template>
+        </div>
+        <button
+          @click="stopTabCommands(selectedTab)"
+          class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium transition-colors">
+          停止当前 Tab
+        </button>
       </div>
       <p class="text-xs text-gray-500 mt-2" x-text="tabs.find(t => t.id === selectedTab)?.desc"></p>
     </div>
