@@ -353,7 +353,12 @@ export function renderDashboard(): string {
           this.output = [];
         },
 
-        quickAction(cmdId) {
+        async quickAction(cmdId) {
+          if (cmdId === 'docker:down') {
+            await fetch('/api/stop/backend:run', { method: 'POST' });
+            await fetch('/api/stop/backend:watch', { method: 'POST' });
+          }
+
           const cmd = this.commands.find(c => c.id === cmdId);
           if (cmd) {
             this.selectCommand(cmd);

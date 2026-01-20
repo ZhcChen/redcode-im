@@ -32,7 +32,7 @@ export const commands = {
     description: "停止所有 Docker 容器",
     category: "service",
     type: "oneshot",
-    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "down"],
+    cmd: ["docker-compose", "-f", "docker/docker-compose.dev.yml", "down", "--remove-orphans"],
     cwd: BACKEND_DIR,
   },
   "docker:restart": {
