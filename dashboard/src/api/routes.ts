@@ -137,6 +137,9 @@ apiRoutes.get("/status", async (c) => {
   statuses.redisSession = { running: await checkDocker("redcode-redis-session") };
   statuses.redisCache = { running: await checkDocker("redcode-redis-cache") };
   statuses.backend = { running: await checkPort(8010), port: 8010 };
+  statuses.admin = { running: await checkPort(8011), port: 8011 };
+  statuses.website = { running: await checkPort(8015), port: 8015 };
+  statuses.dashboard = { running: await checkPort(20000), port: 20000 };
 
   return c.json({ statuses });
 });

@@ -139,6 +139,11 @@ export function renderDashboard(): string {
               class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-sm font-medium transition-colors">
               启动 Flutter
             </button>
+            <button
+              @click="stopTabCommands('dev')"
+              class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium transition-colors">
+              停止开发模块
+            </button>
           </div>
         </div>
       </div>
@@ -424,6 +429,9 @@ export function renderDashboard(): string {
           redisSession: 'Redis Session',
           redisCache: 'Redis Cache',
           backend: 'Backend',
+          admin: 'Admin',
+          website: 'Website',
+          dashboard: 'Dashboard',
         },
 
         get envStatusItems() {
@@ -436,7 +444,7 @@ export function renderDashboard(): string {
         },
 
         get devStatusItems() {
-          const keys = ['backend'];
+          const keys = ['backend', 'admin', 'website', 'dashboard'];
           return keys.map((key) => ({
             key,
             label: this.statusLabels[key] || key,
@@ -608,6 +616,19 @@ export function renderDashboard(): string {
             this.selectCommand(cmd);
             this.runCommand();
           }
+        },
+
+        async stopTabCommands(tabId) {
+          const targets = this.commands.filter(
+            (cmd) => cmd.group === tabId && this.runningCommands.includes(cmd.id)
+          );
+          for (const cmd of targets) {
+            await fetch('/api/stop/' + cmd.id, { method: 'POST' });
+          }
+          this.runningCommands = this.runningCommands.filter(
+            (id) => !targets.some((cmd) => cmd.id === id)
+          );
+          this.output.push({ type: 'exit', text: '>>> 已停止当前 Tab 运行中命令' });
         }
       };
     }
