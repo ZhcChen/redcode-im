@@ -15,7 +15,7 @@
   - `docs/reference/testing/test-architecture.md`
 
 ## 文档不一致说明
-- `docs/reference/operations/docker-deploy.md` 仍写 `admin/admin`，与 `base.sql` 不一致，疑似过期。
+- `docs/reference/operations/docker-deploy.md` 的 `admin/admin` 为 Redis Commander 登录账号，与后台管理员账号无关。
 
 ## 备用初始化方式（仅调试/初始化）
 - 临时接口：`POST /api/admin/init-default-admin`
