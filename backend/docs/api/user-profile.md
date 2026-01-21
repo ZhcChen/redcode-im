@@ -180,4 +180,4 @@
 ## 相关文档
 
 - [API 参考（全量路由）](../../../docs/reference/api/api-reference.md)
-- [文件上传排障](../../../docs/file-upload/file-upload-troubleshooting.md)
+- [文件上传排障](../../../docs/reference/operations/troubleshooting.md)

@@ -1,60 +1,6 @@
 # 文档链接巡检报告
 
-- 扫描时间：2026-01-21 16:26:45
-- 扫描文件数：161
-- 发现潜在断链：18
+- 扫描时间：2026-01-21 16:32:48
+- 扫描文件数：152
+- 发现潜在断链：0
 
-1. `desktop/docs/README.md`
-   - 链接：`./分析/API不匹配分析.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/分析/API不匹配分析.md`
-2. `desktop/docs/README.md`
-   - 链接：`./分析/Bug根因分析.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/分析/Bug根因分析.md`
-3. `desktop/docs/README.md`
-   - 链接：`./分析/缺失功能分析.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/分析/缺失功能分析.md`
-4. `desktop/docs/README.md`
-   - 链接：`./修复记录/自动登出问题修复.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/修复记录/自动登出问题修复.md`
-5. `desktop/docs/README.md`
-   - 链接：`./修复记录/多账号头像问题修复.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/修复记录/多账号头像问题修复.md`
-6. `desktop/docs/README.md`
-   - 链接：`./修复记录/头像上传问题.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/修复记录/头像上传问题.md`
-7. `desktop/docs/README.md`
-   - 链接：`./调试指南/自动登出调试.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/调试指南/自动登出调试.md`
-8. `desktop/docs/README.md`
-   - 链接：`./调试指南/头像问题调试.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/调试指南/头像问题调试.md`
-9. `desktop/docs/README.md`
-   - 链接：`./调试指南/窗口大小调试.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/调试指南/窗口大小调试.md`
-10. `desktop/docs/README.md`
-   - 链接：`./调试指南/调试总结.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/调试指南/调试总结.md`
-11. `desktop/docs/README.md`
-   - 链接：`./重构/多账号WebSocket重构.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/重构/多账号WebSocket重构.md`
-12. `desktop/docs/README.md`
-   - 链接：`./技术/腾讯COS私有读取.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/技术/腾讯COS私有读取.md`
-13. `desktop/docs/README.md`
-   - 链接：`./归档/综合分析_已废弃.md`
-   - 解析路径：`/Users/chen/code/redcode-im/desktop/docs/归档/综合分析_已废弃.md`
-14. `backend/docs/api/user-profile.md`
-   - 链接：`../../../docs/file-upload/file-upload-troubleshooting.md`
-   - 解析路径：`/Users/chen/code/redcode-im/docs/file-upload/file-upload-troubleshooting.md`
-15. `docs/reference/security/security-checklist.md`
-   - 链接：`../handbook/agent-guide.md`
-   - 解析路径：`/Users/chen/code/redcode-im/docs/reference/handbook/agent-guide.md`
-16. `docs/reference/api/user-profile.md`
-   - 链接：`../../../docs/file-upload/file-upload-troubleshooting.md`
-   - 解析路径：`/Users/chen/code/redcode-im/docs/file-upload/file-upload-troubleshooting.md`
-17. `skills/devflow-notifier/SKILL.md`
-   - 链接：`../../docs/requirements/PRD-000001.md`
-   - 解析路径：`/Users/chen/code/redcode-im/docs/requirements/PRD-000001.md`
-18. `tmp/chess-games/AGENTS.md`
-   - 链接：`docs/index.md`
-   - 解析路径：`/Users/chen/code/redcode-im/tmp/chess-games/docs/index.md`

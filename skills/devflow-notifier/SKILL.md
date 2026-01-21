@@ -27,5 +27,5 @@ description: Telegram 通知类 skill，在本轮任务全部完成时发送消�
 
 # 参考
 
-- PRD：[docs/requirements/PRD-000001.md](../../docs/requirements/PRD-000001.md)
+- PRD：[docs/requirements/index.md](../../docs/requirements/index.md)
 - SPEC：[docs/specs/SPEC-000001.md](../../docs/specs/SPEC-000001.md)
