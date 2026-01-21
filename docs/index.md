@@ -16,6 +16,7 @@
 | [审查报告](reviews/) | 代码审查报告 |
 | [测试报告](tests/) | 测试报告与验收记录 |
 | [需求池与清单](backlog/) | 需求池/待开发/逻辑问题 |
+| [devflow-core 同步](workflow/sync.md) | devflow 规范同步说明 |
 
 ---
 
