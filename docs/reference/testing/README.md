@@ -66,7 +66,7 @@
 
 ## 测试架构（五模块）
 
-详细说明见：[`docs/testing/test-architecture.md`](test-architecture.md)。
+详细说明见：[`docs/reference/testing/test-architecture.md`](test-architecture.md)。
 
 ### 模块与测试框架
 

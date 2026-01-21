@@ -12,7 +12,7 @@
 
 ## 2. 核心架构入口 (Entry Points)
 - **定义**: 现代化 IM 系统 (Rust + Axum + Vue/Tauri + Flutter + Nuxt)。
-- **[项目索引 (docs/README.md)](docs/README.md)**: 了解项目全貌、技术栈及文档索引。
+- **[项目索引 (docs/index.md)](docs/index.md)**: 了解项目全貌、技术栈及文档索引。
 - **[任务清单 (docs/reports/task-list.md)](docs/reports/task-list.md)**: **AI 进场后首要查阅此处**，了解当前待办事项。
 - **[项目评估报告](docs/reports/project-status-assessment-report-2025-11-08.md)**: 深入了解项目现状与待解决的核心问题。
 

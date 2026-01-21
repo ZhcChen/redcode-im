@@ -13,7 +13,7 @@ RedCode IM 是现代化即时通讯系统，包含：
 - 桌面端：Vue 3 + Tauri
 - 管理后台：Vue 3 + Arco Design
 
-文档统一入口：`docs/README.md`
+文档统一入口：`docs/index.md`
 
 ---
 
@@ -37,17 +37,17 @@ RedCode IM 是现代化即时通讯系统，包含：
 ## 三、主要缺口与风险（补录）
 
 1. **E2EE 端到端加密未实现**
-   - 设计文档已完成：`docs/architecture/end-to-end-encryption-design.md`
+   - 设计文档已完成：`docs/reference/architecture/end-to-end-encryption-design.md`
    - 当前缺失：数据库迁移、后端 API、端侧实现、密钥管理与兼容策略落地
 
 2. **文档入口一致性**
-   - 建议以 `docs/README.md` 为统一索引；旧入口仅做兼容与重定向说明。
+   - 建议以 `docs/index.md` 为统一索引；旧入口仅做兼容与重定向说明。
 
 ---
 
 ## 四、建议下一步
 
 1. 补齐/修复文档入口引用（本文件与 `docs/reports/task-list.md` 用于稳定入口）
-2. 创建 `backend/README.md` 并在 `docs/README.md` 作为模块入口引用
+2. 创建 `backend/README.md` 并在 `docs/index.md` 作为模块入口引用
 3. 若推进 E2EE：按设计文档分阶段落地（先迁移/后端 API/再客户端协议与密钥生命周期）
 

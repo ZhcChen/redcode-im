@@ -2,7 +2,7 @@
 
 > 后端服务基于 **Axum + SQLx + Redis**，提供 REST API 与 WebSocket 能力。
 >
-> 文档统一入口请优先查看：`docs/README.md`（仓库根目录下的 `docs/`）。
+> 文档统一入口请优先查看：`docs/index.md`（仓库根目录下的 `docs/`）。
 
 ---
 
@@ -116,4 +116,4 @@ docker-compose -f ../tests/docker-compose.yml run --rm rust-tests \
 更多文档：
 
 - `backend/docs/README.md`（已迁移说明）
-- `docs/api/`、`docs/guides/`、`docs/operations/`
+- `docs/reference/api/`、`docs/reference/guides/`、`docs/reference/operations/`

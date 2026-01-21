@@ -9,7 +9,7 @@
 ## P0（阻塞/高优先级）
 
 1. **一键回归入口稳定**
-   - 统一入口：`docs/testing/README.md`、`tests/run.sh`（自动起测试栈并跑 Rust+Go 回归）。
+   - 统一入口：`docs/reference/testing/README.md`、`tests/run.sh`（自动起测试栈并跑 Rust+Go 回归）。
 2. **补齐 API 路由测试覆盖**
    - 覆盖数据：`docs/reports/api-test-coverage.json`（生成：`go -C tests/go run ./cmd/route_coverage`；Dashboard 读取）
    - 目标：持续减少 “无测试覆盖” 路由数量（优先 admin/版本/emoji/存储等高回归接口）。
@@ -19,7 +19,7 @@
 ## P1（重要）
 
 1. **E2EE（端到端加密）落地实现**
-   - 设计文档：`docs/architecture/end-to-end-encryption-design.md`（设计完成，待实现）
+   - 设计文档：`docs/reference/architecture/end-to-end-encryption-design.md`（设计完成，待实现）
    - 当前状态：无数据库迁移、无 API、无端侧实现
    - 备注：当前阶段可暂缓（优先保证现有功能测试覆盖与回归稳定）。
 

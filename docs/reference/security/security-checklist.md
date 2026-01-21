@@ -290,8 +290,8 @@
 - [API 概览](../api/api-overview.md)
 - [API 参考](../api/api-reference.md)
 - [代理指南](../handbook/agent-guide.md)
-- 运维手册：待补充（建议新增 `docs/operations/`）
-- 事件响应流程：待补充（建议新增 `docs/security/incident-response.md`）
+- 运维手册：待补充（建议新增 `docs/reference/operations/`）
+- 事件响应流程：待补充（建议新增 `docs/reference/security/incident-response.md`）
 
 ## 📞 安全联系方式
 

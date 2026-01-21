@@ -1,16 +1,38 @@
 # Backend 测试说明（Rust）
 
-> 目标：明确 backend 的测试分层、集成测试写法与补齐方向，为后续“按功能补测试、提高覆盖率”提供统一口径。
+> 目标：明确 backend 的测试分层、集成测试写法与补齐方向，为后续"按功能补测试、提高覆盖率"提供统一口径。
 
-推荐入口（自动起测试栈并跑回归）：
+## 快速入口
+
 ```bash
+# 一键回归（推荐）
 ./tests/run.sh
-```
 
-覆盖率（Rust）：
-```bash
+# 覆盖率报告
 ./tests/coverage.sh
 FORMAT=lcov ./tests/coverage.sh
+```
+
+## 测试目录结构
+
+```
+backend/tests/
+├── api.rs                    # API 测试入口
+├── api/
+│   ├── common.rs             # API 测试共享工具
+│   ├── auth_tests.rs         # 认证 API 测试
+│   ├── rooms_tests.rs        # 房间 API 测试
+│   └── messages_tests.rs     # 消息 API 测试
+├── stores.rs                 # Store 测试入口
+├── stores/
+│   ├── common.rs             # Store 测试共享工具
+│   ├── user_store_tests.rs   # 用户 Store 测试
+│   ├── friend_store_tests.rs # 好友 Store 测试
+│   ├── room_store_tests.rs   # 房间 Store 测试
+│   └── message_store_tests.rs# 消息 Store 测试
+├── ws_tests.rs               # WebSocket 集成测试
+├── e2ee_key_store_tests.rs   # E2EE 密钥测试
+└── file_upload_test.rs       # 文件上传测试
 ```
 
 ## 1. 单元测试（Unit Test）
@@ -28,66 +50,95 @@ FORMAT=lcov ./tests/coverage.sh
 运行：
 ```bash
 cd backend
-cargo test
+cargo test --lib
 ```
 
-## 2. 集成测试（Integration Test）如何写
-
-在本项目中，建议把“集成测试”拆成 3 类（从快到慢）：
+## 2. 集成测试（Integration Test）
 
 ### 2.1 数据库/存储层集成测试（DB Store）
 
 **目的**：验证 SQLx 存储层（CRUD、事务、一致性约束）在真实 PostgreSQL 上工作正常。
 
-现状入口：
-- `backend/tests/database_store_tests.rs`
-- `backend/tests/file_upload_test.rs`
+**目录**：`backend/tests/stores/`（按 Store 类型拆分为独立模块）
 
-特点：
-- 直接调用 `database/*_store.rs`，不走 HTTP
-- 对于复杂业务（消息、房间、好友），优先把“数据一致性”用这一层测试固化
-
-运行（建议串行，避免连接/锁竞争）：
+运行：
 ```bash
-docker-compose -f tests/docker-compose.yml run --rm rust-tests \
-  cargo test --test database_store_tests -- --test-threads=1
+# 全部 Store 测试
+cargo test --test stores
+
+# 单个 Store 测试
+cargo test --test stores user_store
+cargo test --test stores friend_store
+cargo test --test stores room_store
+cargo test --test stores message_store
 ```
 
-### 2.2 HTTP 路由/处理器集成测试（Axum In-Process）
+### 2.2 HTTP API 集成测试（Axum In-Process）
 
 **目的**：覆盖 Router + Middleware + Handler + DB/Redis 的组合行为，但不需要真正监听端口（更快、更稳定）。
 
-> `in-process` 不是独立“测试框架”，而是一种测试方式：把 `axum::Router` 当作 `tower::Service`，
+**目录**：`backend/tests/api/`（按业务域拆分为独立模块）
+
+> `in-process` 不是独立"测试框架"，而是一种测试方式：把 `axum::Router` 当作 `tower::Service`，
 > 用 `tower::ServiceExt::oneshot` 直接发请求并断言响应。
 
-推荐写法：
-- 在 `backend/tests/` 下新增 `*_api_tests.rs`（例如 `auth_api_tests.rs`、`friends_api_tests.rs`）
-- 测试中直接构造 `AppState`，再调用 `backend::create_routes()` 生成 Router
-- 使用 `tower::ServiceExt::oneshot` 发送请求并断言响应（JSON、状态码、错误码）
+运行：
+```bash
+# 全部 API 测试
+cargo test --test api
 
-现有落地：
-- `backend/tests/api_test_utils.rs`：共享的测试工具（构建 `AppState`、构造请求、读取响应）
-- `backend/tests/auth_api_tests.rs`：首批示例用例（healthz、注册/登录、鉴权）
+# 单个模块测试
+cargo test --test api auth
+cargo test --test api rooms
+cargo test --test api messages
+```
 
-适合覆盖：
-- 权限/鉴权（401/403）
-- 参数校验（422/400）
-- 业务流程（注册→登录→建房→发消息）
-- 幂等性与边界条件
+**写法示例**：
+```rust
+use super::common::{test_state, test_router, json_request, read_json};
+
+#[tokio::test]
+async fn test_login_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let body = json!({"username": "...", "password": "..."});
+    let response = app
+        .oneshot(json_request(Method::POST, "/auth/login", None, body))
+        .await
+        .unwrap();
+
+    let (status, json) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+}
+```
 
 注意：
-- `/ws` 路由使用 `ConnectInfo` 提取 client addr，不适合 in-process 方式；WebSocket 请用 2.3 的“真端口”方式测试。
+- `/ws` 路由使用 `ConnectInfo` 提取 client addr，不适合 in-process 方式；WebSocket 请用 2.3 的"真端口"方式测试。
 
 ### 2.3 WebSocket/跨进程集成测试（Axum 真端口）
 
 **目的**：覆盖真实 WebSocket 握手、`auth/join/ping` 协议与推送分发（包含 Redis Pub/Sub 路径）。
 
-推荐写法（两种任选其一）：
-1) **Rust**：测试里启动 axum server 监听 `127.0.0.1:0`（随机端口），用 `tokio-tungstenite` 连接并断言收到的帧。
-2) **Go 1.25**：在 `tests/go/` 新增 `ws_smoke/`，用 `nhooyr.io/websocket` 做黑盒验证（更贴近“跨端契约”）。
+**目录**：`backend/tests/ws_tests.rs`
 
-已有可用脚本（适合先做连通性回归）：
-- `docs/testing/websocket-test.md`
+运行：
+```bash
+# 运行 WebSocket 测试
+cargo test --test ws_tests
+```
+
+**已实现的测试用例**：
+- `ws_auth_and_ping_pong` - 认证与心跳
+- `ws_join_room_and_receive_message` - 加入房间并接收消息推送
+- `ws_join_without_auth_returns_error` - 未认证时加入房间返回错误
+- `ws_invalid_auth_returns_error` - 无效 token 认证返回错误
+- `ws_join_nonmember_room_returns_error` - 非成员加入房间返回错误
+
+**写法**：使用 `tokio-tungstenite` 作为 WebSocket 客户端，启动 axum server 监听随机端口（`127.0.0.1:0`）。
+
+其他可用脚本（适合手工验证）：
+- `docs/reference/testing/websocket-test.md`
 - `cd backend && npm run test:ws`（需提供账号、room_id）
 
 ### 2.4 Go HTTP/WS 契约测试（`tests/go`）如何写
@@ -120,7 +171,7 @@ resp, body, err := c.DoJSON("GET", "/users/me", nil, login.Token)
 建议补齐以下类型来支撑“质量”而不仅是“覆盖率”：
 
 1) **契约测试（Contract Test）**（推荐 Go 1.25）
-   - 目标：确保 `docs/api/*` 与真实响应不漂移；防止前端/管理端/桌面端被回归破坏
+   - 目标：确保 `docs/reference/api/*` 与真实响应不漂移；防止前端/管理端/桌面端被回归破坏
    - 落点：`tests/go/`（单一 go module，按业务域拆包）
 
 2) **迁移/升级测试（Migration Test）**

@@ -10,12 +10,12 @@
   - username: `admin`
   - password: `admin123`
 - 文档中一致的账号说明：
-  - `docs/api/auth.md`
-  - `docs/api/api-reference.md`
-  - `docs/testing/test-architecture.md`
+  - `docs/reference/api/auth.md`
+  - `docs/reference/api/api-reference.md`
+  - `docs/reference/testing/test-architecture.md`
 
 ## 文档不一致说明
-- `docs/operations/docker-deploy.md` 仍写 `admin/admin`，与 `base.sql` 不一致，疑似过期。
+- `docs/reference/operations/docker-deploy.md` 仍写 `admin/admin`，与 `base.sql` 不一致，疑似过期。
 
 ## 备用初始化方式（仅调试/初始化）
 - 临时接口：`POST /api/admin/init-default-admin`

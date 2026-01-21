@@ -63,7 +63,7 @@ flutter run --dart-define=API_BASE_URL=http://localhost:<BACKEND_HOST_PORT> --da
 
 ## 4. Backend（Rust）如何测试
 
-更详细说明：`docs/testing/backend-testing.md`
+更详细说明：`docs/reference/testing/backend-testing.md`
 
 ### 4.1 单元测试（Rust）
 
@@ -100,7 +100,7 @@ cd backend
 USERNAME="13800138000" PASSWORD="Test123456" ROOM_ID="<ROOM_UUID>" npm run test:ws
 ```
 
-也可参考：`docs/testing/websocket-test.md`
+也可参考：`docs/reference/testing/websocket-test.md`
 
 ## 5. Frontend（Flutter）如何测试
 
@@ -120,7 +120,7 @@ patrol test
 
 运行前建议先按第 3 节启动后端并执行 `backend/test_flow.sh`。
 
-文档入口：`docs/testing/e2e-testing-guide.md`、`docs/testing/test-paths.md`
+文档入口：`docs/reference/testing/e2e-testing-guide.md`、`docs/reference/testing/test-paths.md`
 
 ## 6. Admin（Vue）如何测试
 
@@ -134,7 +134,7 @@ patrol test
 - 配置：`admin/playwright.config.ts`
 - 用例目录：`admin/playwright-tests/specs/`
 - 历史脚本：`admin/playwright-tests/*.js`（仅保留参考/排障）
-- 文档入口：`docs/testing/admin-e2e.md`
+- 文档入口：`docs/reference/testing/admin-e2e.md`
 
 管理后台通常使用独立的管理员账号体系（`/auth/admin/login`）。推荐在本地测试环境中启用一次性初始化接口：
 
@@ -188,6 +188,6 @@ cargo test
 
 当本架构确认后，下一步按以下顺序推进“接近 100% 覆盖”：
 
-1. 以 `docs/api/*` 与 `backend/src/routes.rs` 为基线生成“API 契约测试清单”（Go）
-2. 以 `docs/testing/test-paths.md` 的用户旅程为基线补齐 E2E（Flutter/Playwright）
+1. 以 `docs/reference/api/*` 与 `backend/src/routes.rs` 为基线生成“API 契约测试清单”（Go）
+2. 以 `docs/reference/testing/test-paths.md` 的用户旅程为基线补齐 E2E（Flutter/Playwright）
 3. 对后端 `services/`、`database/`、`websocket/` 补齐单元/集成测试，覆盖高风险逻辑
