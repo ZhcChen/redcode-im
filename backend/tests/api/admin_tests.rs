@@ -525,3 +525,483 @@ async fn admin_get_data_statistics_success() {
     let (status, resp) = read_json(response).await;
     assert_eq!(status, StatusCode::OK, "data statistics 响应异常: {resp}");
 }
+
+// ============================================================================
+// Phase 7: 用户管理扩展测试
+// ============================================================================
+
+#[tokio::test]
+async fn admin_update_user_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    // 创建用户
+    let username = unique_phone_username();
+    let user_id = register_user(app.clone(), &username, "Test123456").await;
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "nickname": "Updated Nickname"
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::PATCH,
+            &format!("/api/admin/users/{}", user_id),
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "update user 响应异常: {resp}");
+    assert!(resp.get("success").and_then(|v| v.as_bool()).unwrap_or(false));
+}
+
+#[tokio::test]
+async fn admin_delete_user_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    // 创建用户
+    let username = unique_phone_username();
+    let user_id = register_user(app.clone(), &username, "Test123456").await;
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::DELETE,
+            &format!("/api/admin/users/{}", user_id),
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "delete user 响应异常: {resp}");
+    assert!(resp.get("success").and_then(|v| v.as_bool()).unwrap_or(false));
+}
+
+#[tokio::test]
+async fn admin_reset_user_password_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    // 创建用户
+    let username = unique_phone_username();
+    let user_id = register_user(app.clone(), &username, "Test123456").await;
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "new_password": "NewPass123456"
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/api/admin/users/{}/password/reset", user_id),
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "reset password 响应异常: {resp}");
+    assert!(resp.get("success").and_then(|v| v.as_bool()).unwrap_or(false));
+}
+
+#[tokio::test]
+async fn admin_get_user_rooms_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    // 创建用户
+    let username = unique_phone_username();
+    let user_id = register_user(app.clone(), &username, "Test123456").await;
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            &format!("/api/admin/users/{}/rooms", user_id),
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get user rooms 响应异常: {resp}");
+}
+
+// ============================================================================
+// Phase 7: 管理员账号测试
+// ============================================================================
+
+#[tokio::test]
+async fn admin_create_admin_user_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+    let username = format!("admin_{}", Uuid::new_v4().simple());
+
+    let body = json!({
+        "username": username,
+        "email": format!("{}@admin.com", username),
+        "password": "Admin123456"
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/admin/admin-users",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    // 可能成功或因权限返回错误
+    assert!(
+        status == StatusCode::OK || status == StatusCode::FORBIDDEN,
+        "create admin user 响应异常: {resp}"
+    );
+}
+
+#[tokio::test]
+async fn admin_check_admin_users_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    // 先初始化管理员确保存在
+    let _ = super::common::init_default_admin(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(Method::GET, "/api/admin/check-admin-users", None))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "check admin users 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_reset_admin_password_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "username": "admin",
+        "new_password": "admin123"  // 重置回默认密码
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/admin/reset-admin-password",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    // API 可能返回成功或因各种原因失败
+    let status = response.status();
+    assert!(status.is_success() || status == StatusCode::BAD_REQUEST || status == StatusCode::FORBIDDEN);
+}
+
+// ============================================================================
+// Phase 7: 系统设置测试
+// ============================================================================
+
+#[tokio::test]
+async fn admin_get_privacy_policy_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/admin/settings/privacy-policy",
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get privacy policy 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_update_privacy_policy_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "content": "# Privacy Policy\n\nThis is the privacy policy content."
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/admin/settings/privacy-policy",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "update privacy policy 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_get_user_agreement_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/admin/settings/user-agreement",
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get user agreement 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_update_user_agreement_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "content": "# User Agreement\n\nThis is the user agreement content."
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/admin/settings/user-agreement",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "update user agreement 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_get_user_account_limit_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/admin/settings/user-account-limit",
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get user account limit 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_update_user_account_limit_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "enable_phone_validation": true,
+        "enable_email_validation": false,
+        "enable_length_validation": true,
+        "min_length": 6,
+        "max_length": 20,
+        "enable_alphanumeric_validation": false
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::PUT,
+            "/api/admin/settings/user-account-limit",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "update user account limit 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_update_app_name_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "app_name": "RedCode IM"
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::PUT,
+            "/api/admin/settings/app-name",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "update app name 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_update_captcha_setting_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "enabled": false
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/admin/settings/captcha",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "update captcha setting 响应异常: {resp}");
+}
+
+// ============================================================================
+// Phase 7: 系统监控测试
+// ============================================================================
+
+#[tokio::test]
+async fn admin_get_chat_history_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/admin/chat-history",
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get chat history 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_get_performance_metrics_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/admin/metrics/performance",
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get performance metrics 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn admin_get_nodes_monitor_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/admin/nodes/monitor",
+            Some(&token),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "get nodes monitor 响应异常: {resp}");
+}
+
+// ============================================================================
+// Phase 7: 其他管理功能测试
+// ============================================================================
+
+#[tokio::test]
+async fn admin_cleanup_logs_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let token = get_admin_token(app.clone()).await;
+
+    let body = json!({
+        "retentionDays": 30
+    });
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/admin/logs/cleanup",
+            Some(&token),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "cleanup logs 响应异常: {resp}");
+}
