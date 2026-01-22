@@ -27,3 +27,5 @@ mod health_tests;
 mod settings_tests;
 #[path = "api/users_tests.rs"]
 mod users_tests;
+#[path = "api/friends_tests.rs"]
+mod friends_tests;
