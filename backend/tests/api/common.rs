@@ -320,8 +320,32 @@ pub async fn send_message(app: Router, token: &str, room_id: &str, content: &str
 
     let (status, resp) = read_json(response).await;
     assert_eq!(status, StatusCode::OK, "send message 响应异常: {resp}");
-    resp.get("id")
+    resp.get("message")
+        .and_then(|v| v.get("id"))
         .and_then(Value::as_str)
-        .expect("send message 响应缺少 id")
+        .expect("send message 响应缺少 message.id")
+        .to_string()
+}
+
+/// 创建私密群组并返回房间 ID
+pub async fn create_private_group(app: Router, token: &str, name: &str, member_ids: &[&str]) -> String {
+    let body = serde_json::json!({
+        "name": name,
+        "description": "rust-test-private",
+        "room_type": "group",
+        "member_ids": member_ids,
+        "is_private": true
+    });
+    let response = app
+        .oneshot(json_request(Method::POST, "/rooms", Some(token), body))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "create private group 响应异常: {resp}");
+    resp.get("room")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("create private group 响应缺少 room.id")
         .to_string()
 }

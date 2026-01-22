@@ -3,8 +3,8 @@
 //! 覆盖消息发送、列表查询、分页等功能。
 
 use super::common::{
-    create_public_room, empty_request, json_request, login_user, read_json, register_user,
-    test_router, test_state, unique_phone_username,
+    create_group_room, create_public_room, empty_request, json_request, login_user, read_json,
+    register_user, send_message, test_router, test_state, unique_phone_username,
 };
 use axum::http::{Method, StatusCode};
 use serde_json::{json, Value};
@@ -484,4 +484,274 @@ async fn pin_message_success() {
 
     let (status, resp) = read_json(response).await;
     assert_eq!(status, StatusCode::OK, "pin message 响应异常: {resp}");
+}
+
+// ============================================================================
+// Phase 6: 消息扩展测试
+// ============================================================================
+
+#[tokio::test]
+async fn unpin_message_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-unpin-msg").await;
+    let message_id = send_message(app.clone(), &token1, &room_id, "pin-then-unpin").await;
+
+    // 先置顶
+    let response = app
+        .clone()
+        .oneshot(empty_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/{}/pin", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 取消置顶
+    let response = app
+        .oneshot(empty_request(
+            Method::DELETE,
+            &format!("/rooms/{}/messages/{}/pin", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "取消置顶失败: {resp}");
+}
+
+#[tokio::test]
+async fn remove_reaction_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-remove-reaction").await;
+    let message_id = send_message(app.clone(), &token1, &room_id, "react-me").await;
+
+    // 先添加反应
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/{}/reactions", room_id, message_id),
+            Some(&token1),
+            json!({"reaction_key": "👍"}),
+        ))
+        .await
+        .expect("请求失败");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 移除反应 (使用 query 参数)
+    let response = app
+        .oneshot(empty_request(
+            Method::DELETE,
+            &format!("/rooms/{}/messages/{}/reactions?reaction_key=%F0%9F%91%8D", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "移除反应失败: {resp}");
+}
+
+#[tokio::test]
+async fn list_reactions_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-list-reactions").await;
+    let message_id = send_message(app.clone(), &token1, &room_id, "react-list").await;
+
+    // 添加反应
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/{}/reactions", room_id, message_id),
+            Some(&token1),
+            json!({"reaction_key": "👍"}),
+        ))
+        .await
+        .expect("请求失败");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 获取反应列表
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            &format!("/rooms/{}/messages/{}/reactions", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "获取反应列表失败: {resp}");
+}
+
+#[tokio::test]
+async fn list_message_reads_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+    let token2 = login_user(app.clone(), &user2, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-read-list", &[&user2_id]).await;
+    let message_id = send_message(app.clone(), &token1, &room_id, "read-me").await;
+
+    // user2 标记已读
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/read", room_id),
+            Some(&token2),
+            json!({"message_id": message_id}),
+        ))
+        .await
+        .expect("请求失败");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 获取已读列表
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            &format!("/rooms/{}/messages/{}/reads", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "获取已读列表失败: {resp}");
+}
+
+#[tokio::test]
+async fn mark_read_until_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+    let token2 = login_user(app.clone(), &user2, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-read-until", &[&user2_id]).await;
+    let message_id = send_message(app.clone(), &token1, &room_id, "read-until-me").await;
+
+    // user2 批量标记已读
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/read_until", room_id),
+            Some(&token2),
+            json!({"message_id": message_id}),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "批量已读失败: {resp}");
+}
+
+#[tokio::test]
+async fn forward_message_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    // 创建两个房间
+    let room1_id = create_group_room(app.clone(), &token1, "rust-forward-src", &[&user2_id]).await;
+    let room2_id = create_group_room(app.clone(), &token1, "rust-forward-dst", &[&user2_id]).await;
+
+    let message_id = send_message(app.clone(), &token1, &room1_id, "forward-me").await;
+
+    // 转发消息到 room2
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/forward", room2_id),
+            Some(&token1),
+            json!({
+                "original_message_id": message_id
+            }),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "转发消息失败: {resp}");
+}
+
+#[tokio::test]
+async fn batch_delete_messages_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-batch-delete", &[&user2_id]).await;
+    let msg1 = send_message(app.clone(), &token1, &room_id, "delete-me-1").await;
+    let msg2 = send_message(app.clone(), &token1, &room_id, "delete-me-2").await;
+
+    // 批量删除
+    let response = app
+        .oneshot(json_request(
+            Method::DELETE,
+            &format!("/rooms/{}/messages", room_id),
+            Some(&token1),
+            json!({"message_ids": [msg1, msg2]}),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "批量删除失败: {resp}");
 }
