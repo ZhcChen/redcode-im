@@ -45,3 +45,5 @@ mod search_tests;
 mod feedback_tests;
 #[path = "api/activity_tests.rs"]
 mod activity_tests;
+#[path = "api/version_tests.rs"]
+mod version_tests;
