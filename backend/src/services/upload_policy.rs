@@ -285,3 +285,105 @@ pub async fn invalidate_upload_policy_cache() {
     let mut guard = upload_policy_lock().write().await;
     guard.loaded_at = Utc::now() - Duration::seconds(UPLOAD_POLICY_RUNTIME_TTL_SECONDS * 10);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_audio_only_policy_default() {
+        let policy = AudioOnlyPolicy::default();
+        assert!(policy.enabled);
+        assert!(policy.force_single_attachment);
+        assert!(!policy.allow_text);
+    }
+
+    #[test]
+    fn test_upload_policy_default() {
+        let policy = UploadPolicy::default_policy();
+        assert!(!policy.version.is_empty());
+        assert!(policy.max_total_size_mb > 0);
+        assert!(policy.max_attachments_per_message > 0);
+
+        // 验证各类型大小限制
+        assert!(policy.max_size_mb_by_part_type.image > 0);
+        assert!(policy.max_size_mb_by_part_type.video > 0);
+        assert!(policy.max_size_mb_by_part_type.audio > 0);
+        assert!(policy.max_size_mb_by_part_type.file > 0);
+
+        // 验证 MIME 类型列表不为空
+        assert!(!policy.mime_by_part_type.image.is_empty());
+        assert!(!policy.mime_by_part_type.video.is_empty());
+        assert!(!policy.mime_by_part_type.audio.is_empty());
+    }
+
+    #[test]
+    fn test_mime_whitelist() {
+        let policy = UploadPolicy::default_policy();
+        let whitelist = policy.mime_whitelist();
+
+        // 应该包含各种类型
+        assert!(!whitelist.is_empty());
+        // 不应有重复
+        let set: std::collections::HashSet<_> = whitelist.iter().collect();
+        assert_eq!(set.len(), whitelist.len());
+        // 应该是小写
+        for mime in &whitelist {
+            assert_eq!(mime.to_lowercase(), *mime);
+        }
+    }
+
+    #[test]
+    fn test_max_size_bytes_for_part_type() {
+        let policy = UploadPolicy::default_policy();
+
+        // 有效类型
+        assert!(policy.max_size_bytes_for_part_type("image").is_some());
+        assert!(policy.max_size_bytes_for_part_type("video").is_some());
+        assert!(policy.max_size_bytes_for_part_type("audio").is_some());
+        assert!(policy.max_size_bytes_for_part_type("file").is_some());
+
+        // 无效类型
+        assert!(policy.max_size_bytes_for_part_type("unknown").is_none());
+        assert!(policy.max_size_bytes_for_part_type("").is_none());
+
+        // 验证返回的是字节数（应该是 MB * 1024 * 1024）
+        let image_bytes = policy.max_size_bytes_for_part_type("image").unwrap();
+        assert!(image_bytes >= 1024 * 1024); // 至少 1MB
+    }
+
+    #[test]
+    fn test_is_mime_allowed_for_part_type() {
+        let policy = UploadPolicy::default_policy();
+
+        // 图片类型
+        assert!(policy.is_mime_allowed_for_part_type("image", "image/jpeg"));
+        assert!(policy.is_mime_allowed_for_part_type("image", "image/png"));
+
+        // 大小写不敏感
+        assert!(policy.is_mime_allowed_for_part_type("image", "IMAGE/JPEG"));
+        assert!(policy.is_mime_allowed_for_part_type("image", " image/jpeg "));
+
+        // 视频类型
+        assert!(policy.is_mime_allowed_for_part_type("video", "video/mp4"));
+
+        // 音频类型
+        assert!(policy.is_mime_allowed_for_part_type("audio", "audio/mpeg"));
+
+        // 空输入
+        assert!(!policy.is_mime_allowed_for_part_type("image", ""));
+        assert!(!policy.is_mime_allowed_for_part_type("image", "   "));
+
+        // 无效的 part_type
+        assert!(!policy.is_mime_allowed_for_part_type("unknown", "image/jpeg"));
+    }
+
+    #[test]
+    fn test_upload_policy_runtime_default() {
+        let runtime = UploadPolicyRuntime::default();
+        // loaded_at 应该在过去（触发重新加载）
+        assert!(runtime.loaded_at < Utc::now());
+        // policy 应该是默认策略
+        assert!(!runtime.policy.version.is_empty());
+    }
+}

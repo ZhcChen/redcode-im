@@ -67,3 +67,98 @@ pub fn plan_multipart_upload(file_size: i64) -> Result<(i32, i32), AppError> {
 
     Ok((part_size as i32, total_parts as i32))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_div_ceil_i64_basic() {
+        assert_eq!(div_ceil_i64(10, 3), 4);
+        assert_eq!(div_ceil_i64(9, 3), 3);
+        assert_eq!(div_ceil_i64(1, 1), 1);
+        assert_eq!(div_ceil_i64(0, 5), 0);
+    }
+
+    #[test]
+    fn test_div_ceil_i64_zero_divisor() {
+        assert_eq!(div_ceil_i64(10, 0), 0);
+        assert_eq!(div_ceil_i64(10, -1), 0);
+    }
+
+    #[test]
+    fn test_round_up_to_multiple_basic() {
+        assert_eq!(round_up_to_multiple(10, 5), 10);
+        assert_eq!(round_up_to_multiple(11, 5), 15);
+        assert_eq!(round_up_to_multiple(1, 1024), 1024);
+    }
+
+    #[test]
+    fn test_round_up_to_multiple_edge_cases() {
+        assert_eq!(round_up_to_multiple(10, 0), 10);
+        assert_eq!(round_up_to_multiple(10, -1), 10);
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_small_file_rejected() {
+        // 小于阈值的文件应该被拒绝
+        let result = plan_multipart_upload(MULTIPART_THRESHOLD_BYTES);
+        assert!(result.is_err());
+
+        let result = plan_multipart_upload(1024 * 1024); // 1MB
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_zero_or_negative() {
+        let result = plan_multipart_upload(0);
+        assert!(result.is_err());
+
+        let result = plan_multipart_upload(-100);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_normal_file() {
+        // 10MB 文件
+        let file_size = 10 * 1024 * 1024;
+        let result = plan_multipart_upload(file_size);
+        assert!(result.is_ok());
+
+        let (part_size, total_parts) = result.unwrap();
+        assert!(part_size >= MIN_PART_SIZE_BYTES as i32);
+        assert!(total_parts > 0);
+        assert!(total_parts <= MAX_PARTS as i32);
+        // 验证分片能覆盖整个文件
+        assert!((part_size as i64) * (total_parts as i64) >= file_size);
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_large_file() {
+        // 100GB 文件
+        let file_size: i64 = 100 * 1024 * 1024 * 1024;
+        let result = plan_multipart_upload(file_size);
+        assert!(result.is_ok());
+
+        let (part_size, total_parts) = result.unwrap();
+        assert!(total_parts <= MAX_PARTS as i32);
+        assert!((part_size as i64) * (total_parts as i64) >= file_size);
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_exact_threshold() {
+        // 正好超过阈值 1 字节
+        let file_size = MULTIPART_THRESHOLD_BYTES + 1;
+        let result = plan_multipart_upload(file_size);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_constants() {
+        // 验证常量值合理
+        assert!(MULTIPART_THRESHOLD_BYTES > 0);
+        assert!(DEFAULT_PART_SIZE_BYTES >= MIN_PART_SIZE_BYTES);
+        assert!(MAX_PARTS > 0);
+        assert_eq!(MIN_PART_SIZE_BYTES, 1024 * 1024); // 1MB
+    }
+}

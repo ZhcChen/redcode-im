@@ -28,3 +28,47 @@ impl IdGenerator for UuidV7Generator {
         Uuid::now_v7()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_generate_returns_valid_uuid() {
+        let id = generate();
+        // UUID v7 的版本号应该是 7
+        assert_eq!(id.get_version_num(), 7);
+    }
+
+    #[test]
+    fn test_generate_returns_unique_ids() {
+        let mut ids = HashSet::new();
+        for _ in 0..1000 {
+            let id = generate();
+            assert!(ids.insert(id), "生成的 ID 应该唯一");
+        }
+    }
+
+    #[test]
+    fn test_generate_is_time_ordered() {
+        let id1 = generate();
+        let id2 = generate();
+        // UUID v7 是时间有序的，后生成的应该大于等于先生成的
+        assert!(id2 >= id1, "后生成的 ID 应该大于等于先生成的");
+    }
+
+    #[test]
+    fn test_uuid_v7_generator_trait() {
+        let generator = UuidV7Generator;
+        let id = generator.generate();
+        assert_eq!(id.get_version_num(), 7);
+    }
+
+    #[test]
+    fn test_uuid_v7_generator_default() {
+        let generator = UuidV7Generator::default();
+        let id = generator.generate();
+        assert_eq!(id.get_version_num(), 7);
+    }
+}

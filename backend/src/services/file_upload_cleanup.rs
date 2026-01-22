@@ -358,3 +358,80 @@ pub async fn run_file_upload_cleanup(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_infer_audit_scene_from_object_key() {
+        assert_eq!(infer_audit_scene_from_object_key("avatars/user123.png"), "avatar");
+        assert_eq!(infer_audit_scene_from_object_key("room_avatars/room456.jpg"), "room_avatar");
+        assert_eq!(infer_audit_scene_from_object_key("messages/abc/file.pdf"), "message_attachment");
+        assert_eq!(infer_audit_scene_from_object_key("reports/evidence.png"), "report_attachment");
+        assert_eq!(infer_audit_scene_from_object_key("releases/v1.0.0.apk"), "version");
+        assert_eq!(infer_audit_scene_from_object_key("unknown/path/file.txt"), "unknown");
+        assert_eq!(infer_audit_scene_from_object_key(""), "unknown");
+    }
+
+    #[test]
+    fn test_infer_audit_scene_with_whitespace() {
+        assert_eq!(infer_audit_scene_from_object_key("  avatars/user.png  "), "avatar");
+        assert_eq!(infer_audit_scene_from_object_key("\n messages/file.pdf \t"), "message_attachment");
+    }
+
+    #[test]
+    fn test_infer_media_kind_from_message_attachment_object_key() {
+        assert_eq!(infer_media_kind_from_message_attachment_object_key("messages/images_123.png"), "image");
+        assert_eq!(infer_media_kind_from_message_attachment_object_key("messages/videos_456.mp4"), "video");
+        assert_eq!(infer_media_kind_from_message_attachment_object_key("messages/audios_789.mp3"), "audio");
+        assert_eq!(infer_media_kind_from_message_attachment_object_key("messages/files_abc.pdf"), "document");
+        assert_eq!(infer_media_kind_from_message_attachment_object_key("messages/other.bin"), "unknown");
+    }
+
+    #[test]
+    fn test_infer_media_kind_from_object_key_with_content_type() {
+        assert_eq!(infer_media_kind_from_object_key("any/path.jpg", Some("image/jpeg")), "image");
+        assert_eq!(infer_media_kind_from_object_key("any/path.mp4", Some("video/mp4")), "video");
+        assert_eq!(infer_media_kind_from_object_key("any/path.mp3", Some("audio/mpeg")), "audio");
+        assert_eq!(infer_media_kind_from_object_key("any/path.txt", Some("text/plain")), "text");
+        assert_eq!(infer_media_kind_from_object_key("any/path.pdf", Some("application/pdf")), "document");
+    }
+
+    #[test]
+    fn test_infer_media_kind_from_object_key_without_content_type() {
+        // 头像
+        assert_eq!(infer_media_kind_from_object_key("avatars/user.png", None), "image");
+        assert_eq!(infer_media_kind_from_object_key("room_avatars/room.jpg", None), "image");
+
+        // 举报附件
+        assert_eq!(infer_media_kind_from_object_key("reports/evidence.png", None), "image");
+
+        // 版本发布
+        assert_eq!(infer_media_kind_from_object_key("releases/v1.0.apk", None), "document");
+
+        // 消息附件
+        assert_eq!(infer_media_kind_from_object_key("messages/images_123.png", None), "image");
+        assert_eq!(infer_media_kind_from_object_key("messages/videos_456.mp4", None), "video");
+
+        // 未知路径
+        assert_eq!(infer_media_kind_from_object_key("unknown/path.bin", None), "unknown");
+    }
+
+    #[test]
+    fn test_infer_media_kind_content_type_case_insensitive() {
+        assert_eq!(infer_media_kind_from_object_key("test.jpg", Some("IMAGE/JPEG")), "image");
+        assert_eq!(infer_media_kind_from_object_key("test.mp4", Some("Video/MP4")), "video");
+        assert_eq!(infer_media_kind_from_object_key("test.mp3", Some(" Audio/MPEG ")), "audio");
+    }
+
+    #[test]
+    fn test_file_upload_cleanup_config_defaults() {
+        // 使用 from_env 时，如果环境变量未设置，应该使用默认值
+        let config = FileUploadCleanupConfig::from_env();
+        assert!(config.pending_timeout_seconds > 0);
+        assert!(config.orphan_delete_after_seconds > 0);
+        assert!(config.unreferenced_retention_seconds > 0);
+        assert!(config.batch_size > 0);
+    }
+}
