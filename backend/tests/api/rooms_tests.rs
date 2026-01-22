@@ -953,3 +953,392 @@ async fn update_notification_settings_success() {
     let (status, resp) = read_json(response).await;
     assert_eq!(status, StatusCode::OK, "更新通知设置失败: {resp}");
 }
+
+// ============================================================================
+// Phase 8: 邀请/加入请求/规则/全局禁言测试
+// ============================================================================
+
+#[tokio::test]
+async fn send_invitation_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+    let user3 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let user3_id = register_user(app.clone(), &user3, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-invite-room", &[&user2_id]).await;
+
+    // 邀请 user3
+    let body = json!({
+        "user_ids": [user3_id],
+        "message": "Welcome to our group!"
+    });
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/invitations", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "发送邀请失败: {resp}");
+}
+
+#[tokio::test]
+async fn respond_invitation_accept() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+    let user3 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let user3_id = register_user(app.clone(), &user3, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+    let token3 = login_user(app.clone(), &user3, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-respond-invite", &[&user2_id]).await;
+
+    // 邀请 user3
+    let body = json!({
+        "user_ids": [user3_id],
+        "message": "Join us!"
+    });
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/invitations", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "发送邀请失败: {resp}");
+
+    let invitation_id = resp
+        .get("invitations")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .expect("响应缺少 invitations[0].id");
+
+    // user3 接受邀请
+    let body = json!({ "status": "accepted" });
+    let response = app
+        .oneshot(json_request(
+            Method::PATCH,
+            &format!("/rooms/{}/invitations/{}/respond", room_id, invitation_id),
+            Some(&token3),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    assert!(response.status().is_success(), "接受邀请失败: {}", response.status());
+}
+
+#[tokio::test]
+async fn create_join_request_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+    let user3 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user3, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+    let token3 = login_user(app.clone(), &user3, pass).await;
+
+    // 创建需要审批的群组
+    let room_id = create_group_room(app.clone(), &token1, "rust-join-request", &[&user2_id]).await;
+
+    // 更新群设置：需要审批
+    let body = json!({ "join_approval_required": true });
+    let _ = app
+        .clone()
+        .oneshot(json_request(
+            Method::PATCH,
+            &format!("/rooms/{}/settings", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    // user3 申请加入
+    let body = json!({ "message": "Please let me join!" });
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/join-requests", room_id),
+            Some(&token3),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "申请加入失败: {resp}");
+}
+
+#[tokio::test]
+async fn list_join_requests_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-list-requests", &[&user2_id]).await;
+
+    let response = app
+        .oneshot(empty_request(
+            Method::GET,
+            &format!("/rooms/{}/join-requests", room_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "获取加入请求列表失败: {resp}");
+}
+
+#[tokio::test]
+async fn add_members_batch_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+    let user3 = unique_phone_username();
+    let user4 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let user3_id = register_user(app.clone(), &user3, pass).await;
+    let user4_id = register_user(app.clone(), &user4, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-batch-add", &[&user2_id]).await;
+
+    // 批量添加 user3 和 user4
+    let body = json!({
+        "user_ids": [user3_id, user4_id]
+    });
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/members/add", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "批量添加成员失败: {resp}");
+}
+
+#[tokio::test]
+async fn create_room_rule_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-create-rule", &[&user2_id]).await;
+
+    let body = json!({
+        "title": "群规第一条",
+        "content": "请保持友善交流",
+        "order_index": 1
+    });
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/rules", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "创建规则失败: {resp}");
+    assert!(resp.get("rule").is_some(), "响应缺少 rule 字段");
+}
+
+#[tokio::test]
+async fn update_room_rule_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-update-rule", &[&user2_id]).await;
+
+    // 先创建规则
+    let body = json!({
+        "title": "原始标题",
+        "content": "原始内容"
+    });
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/rules", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let rule_id = resp
+        .get("rule")
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .expect("响应缺少 rule.id");
+
+    // 更新规则
+    let body = json!({
+        "title": "更新后的标题",
+        "content": "更新后的内容"
+    });
+    let response = app
+        .oneshot(json_request(
+            Method::PATCH,
+            &format!("/rooms/{}/rules/{}", room_id, rule_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "更新规则失败: {resp}");
+}
+
+#[tokio::test]
+async fn delete_room_rule_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-delete-rule", &[&user2_id]).await;
+
+    // 先创建规则
+    let body = json!({
+        "title": "待删除规则",
+        "content": "这条规则将被删除"
+    });
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/rules", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let rule_id = resp
+        .get("rule")
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .expect("响应缺少 rule.id");
+
+    // 删除规则
+    let response = app
+        .oneshot(empty_request(
+            Method::DELETE,
+            &format!("/rooms/{}/rules/{}", room_id, rule_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT, "删除规则应返回 204");
+}
+
+#[tokio::test]
+async fn global_mute_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_group_room(app.clone(), &token1, "rust-global-mute", &[&user2_id]).await;
+
+    // 开启全局禁言
+    let body = json!({
+        "enabled": true,
+        "reason": "群会议中，请勿发言"
+    });
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/mutes/global", room_id),
+            Some(&token1),
+            body,
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "全局禁言失败: {resp}");
+}

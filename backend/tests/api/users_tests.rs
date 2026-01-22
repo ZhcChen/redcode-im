@@ -338,3 +338,40 @@ async fn deactivate_me_success() {
         "注销后应无法登录"
     );
 }
+
+// ============================================================================
+// Phase 8: 全局未读数测试
+// ============================================================================
+
+#[tokio::test]
+async fn get_global_unread_counts_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let username = unique_phone_username();
+    let password = "Test123456";
+
+    let _ = register_user(app.clone(), &username, password).await;
+    let token = login_user(app.clone(), &username, password).await;
+
+    let response = app
+        .oneshot(empty_request(Method::GET, "/unread_counts", Some(&token)))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "获取全局未读数失败: {resp}");
+}
+
+#[tokio::test]
+async fn get_global_unread_counts_requires_auth() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let response = app
+        .oneshot(empty_request(Method::GET, "/unread_counts", None))
+        .await
+        .expect("请求失败");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
