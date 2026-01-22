@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-01-22T16:25:44+08:00",
+  "updatedAt": "2026-01-22T17:34:46+08:00",
   "summary": {
     "total": 252,
     "goCovered": 252,
-    "rustCovered": 57,
-    "bothCovered": 57,
+    "rustCovered": 78,
+    "bothCovered": 78,
     "uncovered": 0,
     "percentage": 100
   },
@@ -209,15 +209,15 @@
       "method": "GET",
       "path": "/api/admin/chat-history",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/check-admin-users",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -335,15 +335,15 @@
       "method": "GET",
       "path": "/api/admin/metrics/performance",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/nodes/monitor",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -398,8 +398,8 @@
       "method": "GET",
       "path": "/api/admin/settings/privacy-policy",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -419,15 +419,15 @@
       "method": "GET",
       "path": "/api/admin/settings/user-account-limit",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/settings/user-agreement",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -776,8 +776,8 @@
       "method": "GET",
       "path": "/unread_counts",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -958,8 +958,8 @@
       "method": "PATCH",
       "path": "/auth/admin/me",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "PATCH",
@@ -1028,8 +1028,8 @@
       "method": "POST",
       "path": "/activity/login",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1049,8 +1049,8 @@
       "method": "POST",
       "path": "/api/admin/admin-users",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1133,7 +1133,7 @@
       "method": "POST",
       "path": "/api/admin/init-default-admin",
       "goHits": 1,
-      "rustHits": 1,
+      "rustHits": 4,
       "status": "covered"
     },
     {
@@ -1154,8 +1154,8 @@
       "method": "POST",
       "path": "/api/admin/logs/cleanup",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1175,8 +1175,8 @@
       "method": "POST",
       "path": "/api/admin/reset-admin-password",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1189,15 +1189,15 @@
       "method": "POST",
       "path": "/api/admin/settings/captcha",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/api/admin/settings/privacy-policy",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1210,8 +1210,8 @@
       "method": "POST",
       "path": "/api/admin/settings/user-agreement",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1343,28 +1343,28 @@
       "method": "POST",
       "path": "/auth/admin/login",
       "goHits": 2,
-      "rustHits": 2,
+      "rustHits": 6,
       "status": "covered"
     },
     {
       "method": "POST",
       "path": "/auth/admin/me/password",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/auth/admin/refresh",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/auth/login",
       "goHits": 5,
-      "rustHits": 5,
+      "rustHits": 6,
       "status": "covered"
     },
     {
@@ -1392,14 +1392,14 @@
       "method": "POST",
       "path": "/auth/refresh",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/auth/register",
       "goHits": 1,
-      "rustHits": 7,
+      "rustHits": 8,
       "status": "covered"
     },
     {
@@ -1490,7 +1490,7 @@
       "method": "POST",
       "path": "/rooms",
       "goHits": 2,
-      "rustHits": 9,
+      "rustHits": 10,
       "status": "covered"
     },
     {
@@ -1742,8 +1742,8 @@
       "method": "PUT",
       "path": "/api/admin/settings/app-name",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "PUT",
@@ -1770,8 +1770,8 @@
       "method": "PUT",
       "path": "/api/admin/settings/user-account-limit",
       "goHits": 4,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     }
   ],
   "uncovered": [],
@@ -1801,8 +1801,6 @@
     "DELETE /rooms/{}/rules/{}",
     "GET /",
     "GET /api/admin/app-versions/{}",
-    "GET /api/admin/chat-history",
-    "GET /api/admin/check-admin-users",
     "GET /api/admin/emoji-items/{}",
     "GET /api/admin/emoji-packs",
     "GET /api/admin/emoji-packs/{}",
@@ -1811,16 +1809,11 @@
     "GET /api/admin/hot-updates/{}",
     "GET /api/admin/ip-geolocation/enabled",
     "GET /api/admin/ipinfo-tokens/{}",
-    "GET /api/admin/metrics/performance",
-    "GET /api/admin/nodes/monitor",
     "GET /api/admin/push/job-queue/stats",
     "GET /api/admin/push/logs",
     "GET /api/admin/rooms/{}/chat-history",
-    "GET /api/admin/settings/privacy-policy",
     "GET /api/admin/settings/push",
     "GET /api/admin/settings/upload-policy",
-    "GET /api/admin/settings/user-account-limit",
-    "GET /api/admin/settings/user-agreement",
     "GET /api/admin/uploads/multipart/sessions/{}",
     "GET /api/admin/users/geolocation/distribution",
     "GET /api/admin/users/{}",
@@ -1844,7 +1837,6 @@
     "GET /rooms/{}/settings",
     "GET /rooms/{}/unread_count",
     "GET /system/upload-policy",
-    "GET /unread_counts",
     "GET /uploads/multipart/sessions/{}",
     "GET /users/me/avatar/url",
     "GET /users/{}",
@@ -1868,7 +1860,6 @@
     "PATCH /api/admin/storage-providers/{}",
     "PATCH /api/admin/users/{}",
     "PATCH /api/admin/users/{}/status",
-    "PATCH /auth/admin/me",
     "PATCH /friends/{}/remark",
     "PATCH /rooms/{}",
     "PATCH /rooms/{}/invitations/{}/respond",
@@ -1876,10 +1867,8 @@
     "PATCH /rooms/{}/messages/{}",
     "PATCH /rooms/{}/rules/{}",
     "PATCH /rooms/{}/settings",
-    "POST /activity/login",
     "POST /activity/login/{}/logout",
     "POST /admin/data/cleanup/all",
-    "POST /api/admin/admin-users",
     "POST /api/admin/app-versions",
     "POST /api/admin/app-versions/upload/multipart/initiate",
     "POST /api/admin/app-versions/upload/signature",
@@ -1893,15 +1882,10 @@
     "POST /api/admin/hot-updates/{}/deactivate",
     "POST /api/admin/ipinfo-tokens",
     "POST /api/admin/ipinfo-tokens/{}/reset",
-    "POST /api/admin/logs/cleanup",
     "POST /api/admin/permissions/check",
     "POST /api/admin/push/logs/cleanup",
-    "POST /api/admin/reset-admin-password",
     "POST /api/admin/roles",
-    "POST /api/admin/settings/captcha",
-    "POST /api/admin/settings/privacy-policy",
     "POST /api/admin/settings/push/test",
-    "POST /api/admin/settings/user-agreement",
     "POST /api/admin/storage-providers",
     "POST /api/admin/storage-providers/test/buckets",
     "POST /api/admin/storage-providers/test/buckets/create",
@@ -1919,12 +1903,9 @@
     "POST /api/admin/uploads/multipart/sessions/{}/parts/commit",
     "POST /api/admin/uploads/multipart/sessions/{}/parts/signature",
     "POST /api/admin/users/{}/password/reset",
-    "POST /auth/admin/me/password",
-    "POST /auth/admin/refresh",
     "POST /auth/login/oauth",
     "POST /auth/login/sms",
     "POST /auth/password/reset",
-    "POST /auth/refresh",
     "POST /auth/sms/send",
     "POST /e2ee/keys/bundle",
     "POST /emoji-packs/suites/{}/add",
@@ -1966,11 +1947,9 @@
     "POST /users/me/avatar/commit",
     "POST /users/me/avatar/direct-upload",
     "POST /versions/hot-update-events",
-    "PUT /api/admin/settings/app-name",
     "PUT /api/admin/settings/push",
     "PUT /api/admin/settings/push/providers/{}",
-    "PUT /api/admin/settings/upload-policy",
-    "PUT /api/admin/settings/user-account-limit"
+    "PUT /api/admin/settings/upload-policy"
   ],
   "onlyRust": []
 }

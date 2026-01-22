@@ -21,7 +21,7 @@ if [[ -z "${COMPOSE_PROJECT_NAME:-}" ]]; then
 fi
 
 KEEP_STACK="${KEEP_STACK:-0}"
-FORMAT="${FORMAT:-html}" # html | lcov | all
+FORMAT="${FORMAT:-html}" # html | lcov | json | all
 CLEAN="${CLEAN:-1}"      # 1=先清理 llvm-cov 产物，避免 "mismatched data" 警告
 
 cleanup() {
@@ -58,16 +58,28 @@ case "${FORMAT}" in
       cargo llvm-cov --lib --tests --lcov --output-path coverage/lcov.info
     echo "[coverage] 输出: backend/coverage/lcov.info" >&2
     ;;
+  json)
+    docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests \
+      cargo llvm-cov --lib --tests --json --output-path coverage/coverage.json
+    # 生成简化版 JSON 供 dashboard 使用
+    docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests \
+      cargo llvm-cov --lib --tests --summary-only --json > "${ROOT_DIR}/backend/coverage/summary.json" 2>/dev/null || true
+    echo "[coverage] 输出: backend/coverage/coverage.json" >&2
+    echo "[coverage] 输出: backend/coverage/summary.json" >&2
+    ;;
   all)
     docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests \
       cargo llvm-cov --lib --tests --html --output-dir coverage
     docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests \
       cargo llvm-cov --lib --tests --lcov --output-path coverage/lcov.info
+    docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests \
+      cargo llvm-cov --lib --tests --json --output-path coverage/coverage.json
     echo "[coverage] 输出: backend/coverage/html/index.html" >&2
     echo "[coverage] 输出: backend/coverage/lcov.info" >&2
+    echo "[coverage] 输出: backend/coverage/coverage.json" >&2
     ;;
   *)
-    echo "[coverage] 不支持的 FORMAT=${FORMAT}（可选: html | lcov | all）" >&2
+    echo "[coverage] 不支持的 FORMAT=${FORMAT}（可选: html | lcov | json | all）" >&2
     exit 1
     ;;
 esac
