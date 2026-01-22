@@ -33,3 +33,15 @@ mod friends_tests;
 mod admin_tests;
 #[path = "api/group_tests.rs"]
 mod group_tests;
+#[path = "api/emoji_tests.rs"]
+mod emoji_tests;
+#[path = "api/chat_tests.rs"]
+mod chat_tests;
+#[path = "api/report_tests.rs"]
+mod report_tests;
+#[path = "api/search_tests.rs"]
+mod search_tests;
+#[path = "api/feedback_tests.rs"]
+mod feedback_tests;
+#[path = "api/activity_tests.rs"]
+mod activity_tests;
