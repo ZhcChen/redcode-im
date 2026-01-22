@@ -1,0 +1,114 @@
+# 本地开发环境 - 所有服务运行在 Docker 内部网络，不映射端口到物理机
+# 用法: docker-compose -f backend/docker/dev/docker-compose.yml up -d
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:17-alpine
+    container_name: redcode-dev-postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../migrations:/docker-entrypoint-initdb.d:ro
+    environment:
+      POSTGRES_DB: redcode_im
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      TZ: Asia/Shanghai
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Session 专用 Redis - 持久化模式
+  redis-session:
+    image: redis:7-alpine
+    container_name: redcode-dev-redis-session
+    volumes:
+      - redis_session_data:/data
+    command: >
+      redis-server
+      --port 6379
+      --requirepass 123456
+      --appendonly yes
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 128mb
+      --maxmemory-policy volatile-lru
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Cache 专用 Redis - 纯缓存模式
+  redis-cache:
+    image: redis:7-alpine
+    container_name: redcode-dev-redis-cache
+    command: >
+      redis-server
+      --port 6379
+      --requirepass 123456
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # 后端服务
+  backend:
+    build:
+      context: ../..
+      dockerfile: docker/dev/Dockerfile
+    container_name: redcode-dev-backend
+    ports:
+      - "8010:8010"  # 仅 backend 对外暴露，供调试访问
+    environment:
+      PORT: "8010"
+      RUST_LOG: debug
+      DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
+      REDIS_SESSION_URL: redis://:123456@redis-session:6379/0
+      REDIS_CACHE_URL: redis://:123456@redis-cache:6379/0
+      JWT_SECRET: dev-secret-change-me
+      ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
+      TZ: Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-session:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  postgres_data:
+    name: redcode_dev_postgres_data
+  redis_session_data:
+    name: redcode_dev_redis_session_data
+
+networks:
+  dev-network:
+    name: redcode_dev_network
+    driver: bridge
