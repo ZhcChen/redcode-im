@@ -29,3 +29,7 @@ mod settings_tests;
 mod users_tests;
 #[path = "api/friends_tests.rs"]
 mod friends_tests;
+#[path = "api/admin_tests.rs"]
+mod admin_tests;
+#[path = "api/group_tests.rs"]
+mod group_tests;

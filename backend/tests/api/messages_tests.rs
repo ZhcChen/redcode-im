@@ -228,15 +228,260 @@ async fn messages_send_requires_auth() {
 
 // ============================================================================
 // 消息删除/编辑/已读/反应/置顶测试
-// Note: 这些测试需要了解准确的 API 响应结构，暂时跳过
-// 待 Phase 3 完善后启用
+// Phase 3 实现
 // ============================================================================
 
-// 以下测试暂时跳过：
-// - delete_message_success: 需要确认删除端点路径
-// - edit_message_success: 需要确认编辑端点路径
-// - mark_messages_read_success: 需要确认已读端点请求格式
-// - add_message_reaction_success: 需要确认反应端点路径
-// - remove_message_reaction_success: 需要确认反应删除端点
-// - pin_message_success: 需要确认置顶端点路径
-// - unpin_message_success: 需要确认取消置顶端点
+#[tokio::test]
+async fn delete_message_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-delete-msg-room").await;
+
+    // 发送消息
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages", room_id),
+            Some(&token1),
+            json!({"content":"to-be-deleted"}),
+        ))
+        .await
+        .expect("请求失败");
+    let (status, msg_resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "send message 响应异常: {msg_resp}");
+    let message_id = msg_resp
+        .get("message")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("响应缺少 message.id");
+
+    // 删除消息
+    let response = app
+        .oneshot(empty_request(
+            Method::DELETE,
+            &format!("/rooms/{}/messages/{}", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "delete message 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn edit_message_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-edit-msg-room").await;
+
+    // 发送消息
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages", room_id),
+            Some(&token1),
+            json!({"content":"original"}),
+        ))
+        .await
+        .expect("请求失败");
+    let (status, msg_resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "send message 响应异常: {msg_resp}");
+    let message_id = msg_resp
+        .get("message")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("响应缺少 message.id");
+
+    // 编辑消息
+    let response = app
+        .oneshot(json_request(
+            Method::PATCH,
+            &format!("/rooms/{}/messages/{}", room_id, message_id),
+            Some(&token1),
+            json!({"content":"edited"}),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "edit message 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn mark_messages_read_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+    let user2 = unique_phone_username();
+
+    let user2_id = register_user(app.clone(), &user2, pass).await;
+    let _ = register_user(app.clone(), &user1, pass).await;
+
+    let token1 = login_user(app.clone(), &user1, pass).await;
+    let token2 = login_user(app.clone(), &user2, pass).await;
+
+    // 创建群组房间
+    let body = json!({
+        "name": "rust-read-test",
+        "description": "rust-test",
+        "room_type": "group",
+        "member_ids": [user2_id]
+    });
+    let response = app
+        .clone()
+        .oneshot(json_request(Method::POST, "/rooms", Some(&token1), body))
+        .await
+        .expect("请求失败");
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let room_id = resp
+        .get("room")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("响应缺少 room.id");
+
+    // user1 发送消息
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages", room_id),
+            Some(&token1),
+            json!({"content":"hello"}),
+        ))
+        .await
+        .expect("请求失败");
+    let (status, msg_resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let message_id = msg_resp
+        .get("message")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("响应缺少 message.id");
+
+    // user2 标记已读
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/read", room_id),
+            Some(&token2),
+            json!({"message_id": message_id}),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "mark read 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn add_message_reaction_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-reaction-room").await;
+
+    // 发送消息
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages", room_id),
+            Some(&token1),
+            json!({"content":"react-me"}),
+        ))
+        .await
+        .expect("请求失败");
+    let (status, msg_resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let message_id = msg_resp
+        .get("message")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("响应缺少 message.id");
+
+    // 添加反应
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/{}/reactions", room_id, message_id),
+            Some(&token1),
+            json!({"reaction_key": "👍"}),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "add reaction 响应异常: {resp}");
+}
+
+#[tokio::test]
+async fn pin_message_success() {
+    let state = test_state().await;
+    let app = test_router(state);
+
+    let pass = "Passw0rd!";
+    let user1 = unique_phone_username();
+
+    let _ = register_user(app.clone(), &user1, pass).await;
+    let token1 = login_user(app.clone(), &user1, pass).await;
+
+    let room_id = create_public_room(app.clone(), &token1, "rust-pin-msg-room").await;
+
+    // 发送消息
+    let response = app
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            &format!("/rooms/{}/messages", room_id),
+            Some(&token1),
+            json!({"content":"pin-me"}),
+        ))
+        .await
+        .expect("请求失败");
+    let (status, msg_resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let message_id = msg_resp
+        .get("message")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .expect("响应缺少 message.id");
+
+    // 置顶消息
+    let response = app
+        .oneshot(empty_request(
+            Method::POST,
+            &format!("/rooms/{}/messages/{}/pin", room_id, message_id),
+            Some(&token1),
+        ))
+        .await
+        .expect("请求失败");
+
+    let (status, resp) = read_json(response).await;
+    assert_eq!(status, StatusCode::OK, "pin message 响应异常: {resp}");
+}
