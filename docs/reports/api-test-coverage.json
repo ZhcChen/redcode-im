@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-01-19T23:18:12+08:00",
+  "updatedAt": "2026-01-22T16:25:44+08:00",
   "summary": {
     "total": 252,
     "goCovered": 252,
-    "rustCovered": 5,
-    "bothCovered": 5,
+    "rustCovered": 57,
+    "bothCovered": 57,
     "uncovered": 0,
     "percentage": 100
   },
@@ -174,8 +174,8 @@
       "method": "DELETE",
       "path": "/users/me",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -188,15 +188,15 @@
       "method": "GET",
       "path": "/api/admin/admin-users",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/app-versions",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -244,8 +244,8 @@
       "method": "GET",
       "path": "/api/admin/feedbacks",
       "goHits": 3,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -265,29 +265,29 @@
       "method": "GET",
       "path": "/api/admin/files",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/files/stats",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/hot-updates",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/hot-updates/events",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -307,8 +307,8 @@
       "method": "GET",
       "path": "/api/admin/ipinfo-tokens",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -321,15 +321,15 @@
       "method": "GET",
       "path": "/api/admin/logs",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/logs/stats",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -349,8 +349,8 @@
       "method": "GET",
       "path": "/api/admin/permissions",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -370,15 +370,15 @@
       "method": "GET",
       "path": "/api/admin/reports",
       "goHits": 3,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/roles",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -391,8 +391,8 @@
       "method": "GET",
       "path": "/api/admin/settings/captcha",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -433,15 +433,15 @@
       "method": "GET",
       "path": "/api/admin/storage-providers",
       "goHits": 3,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/admin/storage-providers/default",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -454,8 +454,8 @@
       "method": "GET",
       "path": "/api/admin/users",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -482,36 +482,36 @@
       "method": "GET",
       "path": "/api/dashboard/emoji-stats",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/dashboard/statistics",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/dashboard/stats",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/api/dashboard/storage-stats",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/auth/admin/me",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -524,8 +524,8 @@
       "method": "GET",
       "path": "/chats",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -538,8 +538,8 @@
       "method": "GET",
       "path": "/emoji-packs/available",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -552,15 +552,15 @@
       "method": "GET",
       "path": "/emoji-packs/my",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/emoji-packs/search",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -573,15 +573,15 @@
       "method": "GET",
       "path": "/friends",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/friends/requests",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -594,36 +594,36 @@
       "method": "GET",
       "path": "/messages/search",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/messages/search/suggestions",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/messages/search/trending",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/readyz",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 4,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/rooms",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -734,36 +734,36 @@
       "method": "GET",
       "path": "/settings/app-name",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/settings/captcha",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/settings/general",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/settings/privacy-policy",
       "goHits": 3,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
       "path": "/settings/user-agreement",
       "goHits": 3,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -797,8 +797,8 @@
       "method": "GET",
       "path": "/users/search",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -860,8 +860,8 @@
       "method": "GET",
       "path": "/versions/latest",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "GET",
@@ -1014,15 +1014,15 @@
       "method": "PATCH",
       "path": "/users/me",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/activity/heartbeat",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1133,8 +1133,8 @@
       "method": "POST",
       "path": "/api/admin/init-default-admin",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1329,8 +1329,8 @@
       "method": "POST",
       "path": "/api/admin/users",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 1,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1343,8 +1343,8 @@
       "method": "POST",
       "path": "/auth/admin/login",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1364,7 +1364,7 @@
       "method": "POST",
       "path": "/auth/login",
       "goHits": 5,
-      "rustHits": 4,
+      "rustHits": 5,
       "status": "covered"
     },
     {
@@ -1399,7 +1399,7 @@
       "method": "POST",
       "path": "/auth/register",
       "goHits": 1,
-      "rustHits": 3,
+      "rustHits": 7,
       "status": "covered"
     },
     {
@@ -1434,15 +1434,15 @@
       "method": "POST",
       "path": "/feedbacks",
       "goHits": 2,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/friends/requests",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 10,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1469,8 +1469,8 @@
       "method": "POST",
       "path": "/reports",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1483,14 +1483,14 @@
       "method": "POST",
       "path": "/reports/attachments/signature",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "POST",
       "path": "/rooms",
       "goHits": 2,
-      "rustHits": 5,
+      "rustHits": 9,
       "status": "covered"
     },
     {
@@ -1721,8 +1721,8 @@
       "method": "POST",
       "path": "/users/me/password",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 3,
+      "status": "covered"
     },
     {
       "method": "POST",
@@ -1735,8 +1735,8 @@
       "method": "POST",
       "path": "/versions/hot-update/report",
       "goHits": 1,
-      "rustHits": 0,
-      "status": "partial"
+      "rustHits": 2,
+      "status": "covered"
     },
     {
       "method": "PUT",
@@ -1799,69 +1799,35 @@
     "DELETE /rooms/{}/mutes/{}",
     "DELETE /rooms/{}/pin",
     "DELETE /rooms/{}/rules/{}",
-    "DELETE /users/me",
     "GET /",
-    "GET /api/admin/admin-users",
-    "GET /api/admin/app-versions",
     "GET /api/admin/app-versions/{}",
     "GET /api/admin/chat-history",
     "GET /api/admin/check-admin-users",
     "GET /api/admin/emoji-items/{}",
     "GET /api/admin/emoji-packs",
     "GET /api/admin/emoji-packs/{}",
-    "GET /api/admin/feedbacks",
     "GET /api/admin/file-upload-audit/tasks",
     "GET /api/admin/file-upload-audit/tasks/{}",
-    "GET /api/admin/files",
-    "GET /api/admin/files/stats",
-    "GET /api/admin/hot-updates",
-    "GET /api/admin/hot-updates/events",
     "GET /api/admin/hot-updates/{}",
     "GET /api/admin/ip-geolocation/enabled",
-    "GET /api/admin/ipinfo-tokens",
     "GET /api/admin/ipinfo-tokens/{}",
-    "GET /api/admin/logs",
-    "GET /api/admin/logs/stats",
     "GET /api/admin/metrics/performance",
     "GET /api/admin/nodes/monitor",
-    "GET /api/admin/permissions",
     "GET /api/admin/push/job-queue/stats",
     "GET /api/admin/push/logs",
-    "GET /api/admin/reports",
-    "GET /api/admin/roles",
     "GET /api/admin/rooms/{}/chat-history",
-    "GET /api/admin/settings/captcha",
     "GET /api/admin/settings/privacy-policy",
     "GET /api/admin/settings/push",
     "GET /api/admin/settings/upload-policy",
     "GET /api/admin/settings/user-account-limit",
     "GET /api/admin/settings/user-agreement",
-    "GET /api/admin/storage-providers",
-    "GET /api/admin/storage-providers/default",
     "GET /api/admin/uploads/multipart/sessions/{}",
-    "GET /api/admin/users",
     "GET /api/admin/users/geolocation/distribution",
     "GET /api/admin/users/{}",
     "GET /api/admin/users/{}/rooms",
-    "GET /api/dashboard/emoji-stats",
-    "GET /api/dashboard/statistics",
-    "GET /api/dashboard/stats",
-    "GET /api/dashboard/storage-stats",
-    "GET /auth/admin/me",
-    "GET /chats",
     "GET /e2ee/users/{}/key-bundles",
-    "GET /emoji-packs/available",
     "GET /emoji-packs/download-url",
-    "GET /emoji-packs/my",
-    "GET /emoji-packs/search",
     "GET /emoji-packs/suites/{}/packs",
-    "GET /friends",
-    "GET /friends/requests",
-    "GET /messages/search",
-    "GET /messages/search/suggestions",
-    "GET /messages/search/trending",
-    "GET /readyz",
-    "GET /rooms",
     "GET /rooms/{}",
     "GET /rooms/{}/admins",
     "GET /rooms/{}/avatar/url",
@@ -1877,16 +1843,10 @@
     "GET /rooms/{}/rules",
     "GET /rooms/{}/settings",
     "GET /rooms/{}/unread_count",
-    "GET /settings/app-name",
-    "GET /settings/captcha",
-    "GET /settings/general",
-    "GET /settings/privacy-policy",
-    "GET /settings/user-agreement",
     "GET /system/upload-policy",
     "GET /unread_counts",
     "GET /uploads/multipart/sessions/{}",
     "GET /users/me/avatar/url",
-    "GET /users/search",
     "GET /users/{}",
     "GET /users/{}/activity/heartbeat-logs",
     "GET /users/{}/activity/login-history",
@@ -1895,7 +1855,6 @@
     "GET /versions/download",
     "GET /versions/hot-update",
     "GET /versions/hot-update/download",
-    "GET /versions/latest",
     "GET /versions/latest/download-url",
     "GET /ws",
     "PATCH /api/admin/admin-users/{}/status",
@@ -1917,8 +1876,6 @@
     "PATCH /rooms/{}/messages/{}",
     "PATCH /rooms/{}/rules/{}",
     "PATCH /rooms/{}/settings",
-    "PATCH /users/me",
-    "POST /activity/heartbeat",
     "POST /activity/login",
     "POST /activity/login/{}/logout",
     "POST /admin/data/cleanup/all",
@@ -1934,7 +1891,6 @@
     "POST /api/admin/hot-updates",
     "POST /api/admin/hot-updates/{}/activate",
     "POST /api/admin/hot-updates/{}/deactivate",
-    "POST /api/admin/init-default-admin",
     "POST /api/admin/ipinfo-tokens",
     "POST /api/admin/ipinfo-tokens/{}/reset",
     "POST /api/admin/logs/cleanup",
@@ -1962,9 +1918,7 @@
     "POST /api/admin/uploads/multipart/sessions/{}/complete",
     "POST /api/admin/uploads/multipart/sessions/{}/parts/commit",
     "POST /api/admin/uploads/multipart/sessions/{}/parts/signature",
-    "POST /api/admin/users",
     "POST /api/admin/users/{}/password/reset",
-    "POST /auth/admin/login",
     "POST /auth/admin/me/password",
     "POST /auth/admin/refresh",
     "POST /auth/login/oauth",
@@ -1975,14 +1929,10 @@
     "POST /e2ee/keys/bundle",
     "POST /emoji-packs/suites/{}/add",
     "POST /emoji-packs/{}/add",
-    "POST /feedbacks",
-    "POST /friends/requests",
     "POST /friends/requests/{}/respond",
     "POST /friends/{}/chat",
     "POST /push/devices",
-    "POST /reports",
     "POST /reports/attachments/commit",
-    "POST /reports/attachments/signature",
     "POST /rooms/{}/admins",
     "POST /rooms/{}/avatar/commit",
     "POST /rooms/{}/avatar/direct-upload",
@@ -2015,9 +1965,7 @@
     "POST /uploads/multipart/sessions/{}/parts/signature",
     "POST /users/me/avatar/commit",
     "POST /users/me/avatar/direct-upload",
-    "POST /users/me/password",
     "POST /versions/hot-update-events",
-    "POST /versions/hot-update/report",
     "PUT /api/admin/settings/app-name",
     "PUT /api/admin/settings/push",
     "PUT /api/admin/settings/push/providers/{}",
