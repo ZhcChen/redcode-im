@@ -14,7 +14,7 @@
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；所有测试除非特殊指定否则使用 **Go**。
 - **文档结构**: `docs/` 根目录仅保留 `index.md`，其他文档需放在子目录（如 `docs/reference/`、`docs/workflow/`）。
 - **Docker Compose**: 本机使用 `docker-compose`（不是 `docker compose`）；测试栈要求 PostgreSQL/Redis **不映射宿主端口**（避免端口冲突）。
-- **面板端口**: Dashboard 启动遇到端口冲突时，必须先停止占用端口的进程再启动，**禁止**改用其他端口。
+- **端口占用处理**: 启动任意模块遇到端口冲突时，必须先停止占用端口的进程再启动，**禁止**改用其他端口（Dashboard 亦同）。
 - **本地 Backend 环境**:  
   - **开发调试（dev）**：`backend/docker/dev/docker-compose.yml`（源码挂载 + 容器内 `cargo run`）  
   - **发布构建验证（release）**：`backend/docker/release/docker-compose.yml`（多阶段构建 + 二进制运行）  
