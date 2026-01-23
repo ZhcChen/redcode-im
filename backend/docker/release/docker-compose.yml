@@ -8,7 +8,8 @@ services:
     container_name: redcode-release-postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../../migrations:/docker-entrypoint-initdb.d:ro
+      - ../initdb/000_pgcrypto.sql:/docker-entrypoint-initdb.d/000_pgcrypto.sql:ro
+      - ../../sql/base.sql:/docker-entrypoint-initdb.d/010_base.sql:ro
     environment:
       POSTGRES_DB: redcode_im
       POSTGRES_USER: postgres
