@@ -15,6 +15,20 @@
 - **文档结构**: `docs/` 根目录仅保留 `index.md`，其他文档需放在子目录（如 `docs/reference/`、`docs/workflow/`）。
 - **Docker Compose**: 本机使用 `docker-compose`（不是 `docker compose`）；测试栈要求 PostgreSQL/Redis **不映射宿主端口**（避免端口冲突）。
 - **面板端口**: Dashboard 启动遇到端口冲突时，必须先停止占用端口的进程再启动，**禁止**改用其他端口。
+- **本地 Backend 环境**:  
+  - **开发调试（dev）**：`backend/docker/dev/docker-compose.yml`（源码挂载 + 容器内 `cargo run`）  
+  - **发布构建验证（release）**：`backend/docker/release/docker-compose.yml`（多阶段构建 + 二进制运行）  
+  - **数据库迁移**：由 backend 自身执行，不在 PostgreSQL 容器挂载 init SQL  
+  - **端口策略**：PG/Redis 不映射宿主端口；Backend 可映射 `8010:8010`
+- **本地开发重启规则（dev）**：  
+  - 修改 Rust 代码：仅重启 backend  
+    `docker-compose -f backend/docker/dev/docker-compose.yml restart backend`  
+  - 修改依赖（`Cargo.toml`/Dockerfile）：重新构建并启动  
+    `docker-compose -f backend/docker/dev/docker-compose.yml up -d --build backend`  
+  - 需要全新数据库：`docker-compose -f backend/docker/dev/docker-compose.yml down -v`
+- **测试栈（不要复用 dev）**：  
+  - `tests/docker-compose.yml` / `./tests/run.sh`  
+  - 测试栈默认不映射 PG/Redis 端口，Backend 宿主端口可用 `BACKEND_HOST_PORT` 指定（详见 `docs/reference/testing/README.md`）
 
 ## 2. 核心架构入口 (Entry Points)
 - **定义**: 现代化 IM 系统 (Rust + Axum + Vue/Tauri + Flutter + Nuxt)。
@@ -30,4 +44,4 @@
 - **管理后台**: Vue 3 (Arco Design) -> `admin/src/`
 
 ---
-*上次更新: 2026-01-21*
+*上次更新: 2026-01-23*
