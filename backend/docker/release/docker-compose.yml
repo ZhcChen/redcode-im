@@ -1,11 +1,11 @@
-# 本地开发环境 - 源码运行（容器内 cargo run）
-# 用法: docker-compose -f backend/docker/dev/docker-compose.yml up -d
+# 本地 release 环境 - 镜像内构建并运行二进制
+# 用法: docker-compose -f backend/docker/release/docker-compose.yml up -d
 
 services:
   # PostgreSQL 数据库
   postgres:
     image: postgres:17-alpine
-    container_name: redcode-dev-postgres
+    container_name: redcode-release-postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../migrations:/docker-entrypoint-initdb.d:ro
@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: 123456
       TZ: Asia/Shanghai
     networks:
-      - dev-network
+      - release-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -26,7 +26,7 @@ services:
   # Session 专用 Redis - 持久化模式
   redis-session:
     image: redis:7-alpine
-    container_name: redcode-dev-redis-session
+    container_name: redcode-release-redis-session
     volumes:
       - redis_session_data:/data
     command: >
@@ -40,7 +40,7 @@ services:
       --maxmemory 128mb
       --maxmemory-policy volatile-lru
     networks:
-      - dev-network
+      - release-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "123456", "ping"]
@@ -51,7 +51,7 @@ services:
   # Cache 专用 Redis - 纯缓存模式
   redis-cache:
     image: redis:7-alpine
-    container_name: redcode-dev-redis-cache
+    container_name: redcode-release-redis-cache
     command: >
       redis-server
       --port 6379
@@ -60,7 +60,7 @@ services:
       --maxmemory-policy allkeys-lru
       --save ""
     networks:
-      - dev-network
+      - release-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "123456", "ping"]
@@ -72,28 +72,19 @@ services:
   backend:
     build:
       context: ../..
-      dockerfile: docker/dev/Dockerfile
-    container_name: redcode-dev-backend
-    working_dir: /app
-    command: ["cargo", "run", "--bin", "redcode-im-backend"]
+      dockerfile: docker/release/Dockerfile
+    container_name: redcode-release-backend
     ports:
       - "8010:8010"  # 仅 backend 对外暴露，供调试访问
-    volumes:
-      - ../..:/app
-      - cargo_target:/app/target
-      - cargo_registry:/usr/local/cargo/registry
-      - cargo_git:/usr/local/cargo/git
     environment:
       PORT: "8010"
       RUST_LOG: debug
       DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
       REDIS_SESSION_URL: redis://:123456@redis-session:6379/0
       REDIS_CACHE_URL: redis://:123456@redis-cache:6379/0
-      SQLX_OFFLINE: "true"
       JWT_SECRET: dev-secret-change-me
       ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
       TZ: Asia/Shanghai
-      CARGO_TARGET_DIR: /app/target
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,28 +93,22 @@ services:
       redis-cache:
         condition: service_healthy
     networks:
-      - dev-network
+      - release-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 300s
+      start_period: 60s
 
 volumes:
   postgres_data:
-    name: redcode_dev_postgres_data
+    name: redcode_release_postgres_data
   redis_session_data:
-    name: redcode_dev_redis_session_data
-  cargo_target:
-    name: redcode_dev_cargo_target
-  cargo_registry:
-    name: redcode_dev_cargo_registry
-  cargo_git:
-    name: redcode_dev_cargo_git
+    name: redcode_release_redis_session_data
 
 networks:
-  dev-network:
-    name: redcode_dev_network
+  release-network:
+    name: redcode_release_network
     driver: bridge
