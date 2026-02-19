@@ -27,9 +27,13 @@
     `docker-compose -f backend/docker/dev/docker-compose.yml up -d --build backend`  
   - 需要全新数据库：`docker-compose -f backend/docker/dev/docker-compose.yml down -v`
 - **本地 Admin 开发**：  
-  - 使用 `screen` 后台启动：`screen -dmS admin bash -c 'cd admin && npm run dev'`  
-  - 查看日志：`screen -r admin`（`Ctrl+A D` 退出回后台）  
-  - 停止服务：`screen -S admin -X quit`
+  - **启动**：`screen -dmS admin bash -c 'cd admin && npm run dev'`  
+  - **查看日志**：`screen -r admin`（`Ctrl+A D` 退出回后台）  
+  - **停止**：`screen -S admin -X quit`  
+  - **重启流程**（按顺序执行）：  
+    1. 停止旧会话：`screen -S admin -X quit`  
+    2. 检测并释放端口：`lsof -ti:5173 | xargs kill -9`（Vite 默认端口）  
+    3. 重新启动：`screen -dmS admin bash -c 'cd admin && npm run dev'`
 - **测试栈（不要复用 dev）**：  
   - `tests/docker-compose.yml` / `./tests/run.sh`  
   - 测试栈默认不映射 PG/Redis 端口，Backend 宿主端口可用 `BACKEND_HOST_PORT` 指定（详见 `docs/reference/testing/README.md`）
