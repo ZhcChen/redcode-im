@@ -106,6 +106,9 @@
 |------|------|
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |
+| [模块功能清单（2026-03-01）](reports/module-function-inventory-2026-03-01.md) | 五大模块功能基线 |
+| [批次A验收报告（2026-03-01）](reports/2026-03-01-batch-a-acceptance.md) | 外部模拟与测试栈接入验收 |
+| [批次B-1验收报告（2026-03-01）](reports/2026-03-01-batch-b1-auth-users-friends-acceptance.md) | Backend auth/users/friends 测试重建验收 |
 
 ---
 

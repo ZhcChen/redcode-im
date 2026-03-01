@@ -49,6 +49,7 @@ const PUSH_DB_QUEUE_RETENTION_DAYS: i64 = 7;
 const PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS: u64 = 86400;
 const PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE: i64 = 10_000;
 const PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES: i64 = 20;
+const DEFAULT_FCM_BASE_URL: &str = "https://fcm.googleapis.com";
 
 const PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY: i64 = 0x7075_7368_6a6f_625f; // "pushjob_"
 
@@ -345,7 +346,8 @@ impl FcmClient {
         let access_token = self.access_token().await?;
 
         let url = format!(
-            "https://fcm.googleapis.com/v1/projects/{}/messages:send",
+            "{}/v1/projects/{}/messages:send",
+            fcm_base_url(),
             self.sa.project_id
         );
 
@@ -467,6 +469,14 @@ fn env_i32(name: &str, default: i32) -> i32 {
         .ok()
         .and_then(|v| v.trim().parse::<i32>().ok())
         .unwrap_or(default)
+}
+
+fn fcm_base_url() -> String {
+    env::var("PUSH_FCM_BASE_URL")
+        .ok()
+        .map(|v| v.trim().trim_end_matches('/').to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| DEFAULT_FCM_BASE_URL.to_string())
 }
 
 fn parse_bool_value(value: &str, default: bool) -> bool {

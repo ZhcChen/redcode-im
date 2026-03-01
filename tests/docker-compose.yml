@@ -24,11 +24,34 @@ x-rust-service: &rust_service
     REDIS_CACHE_URL: redis://:123456@redis-cache:6383/0
     REDCODE_IM_MACHINE_ID: docker-test-machine-id
     JWT_SECRET: dev-secret-change-me
-    PUSH_ENABLED: "false"
+    PUSH_ENABLED: "true"
     ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
-    REDCODE_IM_STORAGE_DISABLE_NETWORK: "true"
+    REDCODE_IM_STORAGE_DISABLE_NETWORK: "false"
+    REDCODE_IM_STORAGE_SCHEME: "http"
+    GOOGLE_OAUTH_CLIENT_ID: "mock-google-client-id"
+    APPLE_OAUTH_CLIENT_ID: "mock-apple-client-id"
+    GOOGLE_OIDC_JWKS_URL: "http://external-mock:19080/google/oauth2/v3/certs"
+    APPLE_OIDC_JWKS_URL: "http://external-mock:19080/apple/auth/keys"
+    IPINFO_BASE_URL: "http://external-mock:19080/ipinfo"
+    PUSH_FCM_BASE_URL: "http://external-mock:19080/fcm"
+    FILE_UPLOAD_AUDIT_TENCENT_CI_BASE_URL: "http://external-mock:19080/tencentci"
 
 services:
+  external-mock:
+    image: golang:1.25
+    working_dir: /workspace/tests/mocks/external
+    volumes:
+      - ./mocks/external:/workspace/tests/mocks/external
+    command: ["go", "run", "./cmd/external-mock"]
+    environment:
+      EXTERNAL_MOCK_ADDR: ":19080"
+      MOCK_GOOGLE_OAUTH_CLIENT_ID: "mock-google-client-id"
+      MOCK_APPLE_OAUTH_CLIENT_ID: "mock-apple-client-id"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:19080/healthz >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
   postgres:
     image: postgres:17.6-alpine3.22
     environment:
@@ -68,6 +91,8 @@ services:
     <<: *rust_service
     command: ["cargo", "test", "--lib"]
     depends_on:
+      external-mock:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis-session:
@@ -79,6 +104,8 @@ services:
     <<: *rust_service
     command: ["cargo", "run", "--bin", "redcode-im-backend"]
     depends_on:
+      external-mock:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis-session:
@@ -101,7 +128,10 @@ services:
       - go_build_cache:/root/.cache/go-build
     environment:
       API_BASE_URL: http://backend:8010
+      EXTERNAL_MOCK_BASE_URL: http://external-mock:19080
     depends_on:
+      external-mock:
+        condition: service_healthy
       backend:
         condition: service_healthy
     command: ["go", "test", "./...", "-v"]

@@ -8,6 +8,16 @@ use tracing::{debug, error, info, warn};
 use crate::database::Database;
 use crate::error::AppError;
 
+const DEFAULT_IPINFO_BASE_URL: &str = "https://ipinfo.io";
+
+fn ipinfo_base_url() -> String {
+    std::env::var("IPINFO_BASE_URL")
+        .ok()
+        .map(|v| v.trim().trim_end_matches('/').to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| DEFAULT_IPINFO_BASE_URL.to_string())
+}
+
 /// 检查IP地理位置解析功能是否启用
 /// 通过数据库 general_settings 表中的 ip_geolocation_enabled 配置控制
 /// 如果配置不存在或值为 "0"，则表示关闭
@@ -281,7 +291,7 @@ impl GeolocationService {
             }
         };
 
-        let url = format!("https://ipinfo.io/{}/json?token={}", ip, token.token);
+        let url = format!("{}/{}/json?token={}", ipinfo_base_url(), ip, token.token);
         info!("构建请求URL: {}", url);
 
         debug!("发送地理位置API请求...");

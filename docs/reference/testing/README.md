@@ -46,7 +46,7 @@
 ```
 
 该入口会：
-1. 启动测试依赖（PostgreSQL / Redis）
+1. 启动测试依赖（External Mock / PostgreSQL / Redis）
 2. 运行 Backend Rust 单元测试
 3. 运行 Backend Rust 集成测试
 4. 启动 Backend 服务
@@ -74,16 +74,26 @@ cd admin && ADMIN_E2E_ENABLED=true pnpm test:e2e
 ```
 backend/tests/                  # Rust 集成测试
 tests/go/                       # Go 黑盒契约测试
+tests/mocks/external/           # 外部依赖模拟 + Go 测试
 frontend/test/                  # Flutter 单元测试
 frontend/integration_test/      # Flutter 集成测试
 frontend/patrol_test/           # Flutter E2E（Patrol）
 admin/playwright-tests/specs/   # Admin E2E（Playwright）
+docs/reference/testing/matrix/  # 功能-测试-验收追踪矩阵
 ```
+
+矩阵文件：
+- `docs/reference/testing/matrix/backend.csv`
+- `docs/reference/testing/matrix/admin.csv`
+- `docs/reference/testing/matrix/frontend.csv`
+- `docs/reference/testing/matrix/desktop.csv`
+- `docs/reference/testing/matrix/website.csv`
 
 ## 5. 本次重构决策
 
 - 已移除测试可视化 Dashboard 模块，测试执行不再依赖额外可视化服务。
 - 已清理旧测试与旧覆盖率统计脚本，改为“单入口 + 分层执行”的基础架构。
+- 已引入第三方依赖本地模拟（External Mock），用于在无公网/无云资源场景下回归 OAuth、Push、COS/CI、IP 地理位置链路。
 
 ---
 
