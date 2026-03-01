@@ -2,7 +2,7 @@ import { get, post } from './http';
 import type { ApiResponse } from './http';
 
 // 收集客户端详细信息的辅助函数
-function collectClientDetails(): Partial<UpdateEventReport> {
+export function collectClientDetails(): Partial<UpdateEventReport> {
   const details: Partial<UpdateEventReport> = {
     client_type: 'desktop', // 桌面端固定为desktop
     trigger_source: 'manual', // 默认手动触发，后续可根据实际情况修改
@@ -76,9 +76,9 @@ function collectClientDetails(): Partial<UpdateEventReport> {
   return details;
 }
 
-type SupportedPlatform = 'windows' | 'macos' | 'linux';
+export type SupportedPlatform = 'windows' | 'macos' | 'linux';
 
-const detectPlatform = (): SupportedPlatform => {
+export const detectPlatform = (): SupportedPlatform => {
   if (typeof navigator !== 'undefined') {
     const ua = navigator.userAgent?.toLowerCase?.() ?? '';
     if (ua.includes('mac') || ua.includes('darwin')) {

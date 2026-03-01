@@ -111,6 +111,9 @@
 | [批次B-1验收报告（2026-03-01）](reports/2026-03-01-batch-b1-auth-users-friends-acceptance.md) | Backend auth/users/friends 测试重建验收 |
 | [批次B-2验收报告（2026-03-01）](reports/2026-03-01-batch-b2-rooms-messages-uploads-acceptance.md) | Backend rooms/messages/uploads 测试重建验收 |
 | [批次B-3验收报告（2026-03-01）](reports/2026-03-01-batch-b3-versions-admin-ws-acceptance.md) | Backend versions/admin/ws 测试重建验收 |
+| [批次C验收报告（2026-03-01）](reports/2026-03-01-batch-c-admin-acceptance.md) | Admin 测试重建验收 |
+| [批次D验收报告（2026-03-01）](reports/2026-03-01-batch-d-frontend-acceptance.md) | Frontend Flutter 测试重建验收 |
+| [批次E验收报告（2026-03-01）](reports/2026-03-01-batch-e-desktop-website-acceptance.md) | Desktop + Website 测试重建验收 |
 
 ---
 

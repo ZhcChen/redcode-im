@@ -132,4 +132,7 @@
 - 批次 B-1（`auth/users/friends`）已完成并验收通过。
 - 批次 B-2（`rooms/messages/uploads`）已完成并验收通过。
 - 批次 B-3（`versions/admin/ws`）已完成并验收通过。
-- 当前进入 **批次 C/D/E**：Admin（前端）/Frontend（Flutter）/Desktop/Website 模块测试重建。
+- 批次 C（Admin）已完成并验收通过。
+- 批次 D（Frontend Flutter）已完成并验收通过。
+- 批次 E（Desktop + Website）已完成并验收通过。
+- 当前状态：**全模块测试重建任务已完成，进入持续回归维护阶段**。

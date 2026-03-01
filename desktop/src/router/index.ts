@@ -10,7 +10,7 @@ import Settings from '../views/Settings.vue'
 import Privacy from '../views/Privacy.vue'
 import GeneralSettings from '../views/GeneralSettings.vue'
 
-const routes = [
+export const routes = [
   {
     path: '/',
     redirect: '/login'  // 应用启动时默认跳转到登录页

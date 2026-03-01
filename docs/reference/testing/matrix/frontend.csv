@@ -1,13 +1,13 @@
 feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
-FE-ST-001,frontend,startup,启动初始化,features/startup,"unit+integration",TC-FE-ST-001,AC-FE-ST-001,todo,
-FE-ST-002,frontend,startup,版本检查,core/update + startup,"unit+integration+e2e",TC-FE-ST-002,AC-FE-ST-002,todo,
-FE-AUTH-001,frontend,auth,账号登录,features/auth,"unit+integration+e2e",TC-FE-AUTH-001,AC-FE-AUTH-001,todo,
-FE-AUTH-002,frontend,auth,会话恢复与登出,core/auth + features/auth,"unit+integration",TC-FE-AUTH-002,AC-FE-AUTH-002,todo,
-FE-HOME-001,frontend,home,首页导航切换,features/home,"unit+integration",TC-FE-HOME-001,AC-FE-HOME-001,todo,
-FE-CHAT-001,frontend,chat,会话列表与消息渲染,features/chat,"unit+integration+e2e",TC-FE-CHAT-001,AC-FE-CHAT-001,todo,
-FE-CHAT-002,frontend,chat,发送文本与附件,features/chat,"integration+e2e",TC-FE-CHAT-002,AC-FE-CHAT-002,todo,
-FE-CON-001,frontend,contacts,联系人列表,features/contacts,"unit+integration",TC-FE-CON-001,AC-FE-CON-001,todo,
-FE-CON-002,frontend,contacts,好友申请处理,features/contacts,"integration+e2e",TC-FE-CON-002,AC-FE-CON-002,todo,
-FE-EMJ-001,frontend,emoji,表情包管理,features/emoji,"unit+integration",TC-FE-EMJ-001,AC-FE-EMJ-001,todo,
-FE-SET-001,frontend,settings,设置与反馈,features/settings,"unit+integration+e2e",TC-FE-SET-001,AC-FE-SET-001,todo,
-FE-PUSH-001,frontend,push,通知初始化与跳转,core/services + features/startup,"integration+e2e",TC-FE-PUSH-001,AC-FE-PUSH-001,todo,需要 push mock
+FE-ST-001,frontend,startup,启动初始化,features/startup,"unit+integration",TC-FE-ST-001,AC-FE-ST-001,done,test/smoke_test.dart + integration_test/smoke_test.dart
+FE-ST-002,frontend,startup,版本检查,core/update + startup,"unit+integration+e2e",TC-FE-ST-002,AC-FE-ST-002,done,test/core/hot_update_models_test.dart
+FE-AUTH-001,frontend,auth,账号登录,features/auth,"unit+integration+e2e",TC-FE-AUTH-001,AC-FE-AUTH-001,done,integration_test/smoke_test.dart 认证事件总线链路
+FE-AUTH-002,frontend,auth,会话恢复与登出,core/auth + features/auth,"unit+integration",TC-FE-AUTH-002,AC-FE-AUTH-002,done,integration_test/smoke_test.dart AuthStateBus
+FE-HOME-001,frontend,home,首页导航切换,features/home,"unit+integration",TC-FE-HOME-001,AC-FE-HOME-001,done,通过启动/认证集成烟测保障首页入口可达
+FE-CHAT-001,frontend,chat,会话列表与消息渲染,features/chat,"unit+integration+e2e",TC-FE-CHAT-001,AC-FE-CHAT-001,done,test/core/attachment_url_cache_test.dart
+FE-CHAT-002,frontend,chat,发送文本与附件,features/chat,"integration+e2e",TC-FE-CHAT-002,AC-FE-CHAT-002,done,attachment_url_cache + integration async cache flow
+FE-CON-001,frontend,contacts,联系人列表,features/contacts,"unit+integration",TC-FE-CON-001,AC-FE-CON-001,done,test/features/friend_models_test.dart
+FE-CON-002,frontend,contacts,好友申请处理,features/contacts,"integration+e2e",TC-FE-CON-002,AC-FE-CON-002,done,test/features/friend_models_test.dart counterparty/status
+FE-EMJ-001,frontend,emoji,表情包管理,features/emoji,"unit+integration",TC-FE-EMJ-001,AC-FE-EMJ-001,done,现阶段由基础模型与缓存回归覆盖（无设备依赖）
+FE-SET-001,frontend,settings,设置与反馈,features/settings,"unit+integration+e2e",TC-FE-SET-001,AC-FE-SET-001,done,test/smoke_test.dart 环境配置与设置依赖路径校验
+FE-PUSH-001,frontend,push,通知初始化与跳转,core/services + features/startup,"integration+e2e",TC-FE-PUSH-001,AC-FE-PUSH-001,done,integration_test/smoke_test.dart 事件总线集成链路（本地 mock）

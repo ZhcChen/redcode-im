@@ -1,11 +1,11 @@
 feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
-DE-AUTH-001,desktop,auth,登录与账号切换,views/Login.vue + store/modules/accounts.ts,"unit+integration+e2e",TC-DE-AUTH-001,AC-DE-AUTH-001,todo,
-DE-HOME-001,desktop,navigation,主导航与页面切换,views/Home.vue,"unit+integration",TC-DE-HOME-001,AC-DE-HOME-001,todo,
-DE-CHAT-001,desktop,chat,聊天消息收发,views/Chat.vue + api/message.ts,"unit+integration+e2e",TC-DE-CHAT-001,AC-DE-CHAT-001,todo,
-DE-CHAT-002,desktop,chat,消息搜索,api/message-search.ts + components/MessageSearch.vue,"unit+integration",TC-DE-CHAT-002,AC-DE-CHAT-002,todo,
-DE-CON-001,desktop,contacts,联系人与好友操作,views/Contact.vue + api/friend.ts,"unit+integration+e2e",TC-DE-CON-001,AC-DE-CON-001,todo,
-DE-SET-001,desktop,settings,通用设置与下载目录,views/Settings.vue + utils/download-settings.ts,"unit+integration",TC-DE-SET-001,AC-DE-SET-001,todo,
-DE-SET-002,desktop,settings,隐私协议展示,views/Privacy.vue,"unit+e2e",TC-DE-SET-002,AC-DE-SET-002,todo,
-DE-WS-001,desktop,websocket,实时连接与重连,utils/websocket.ts + api/websocket.ts,"unit+integration",TC-DE-WS-001,AC-DE-WS-001,todo,
-DE-NTF-001,desktop,notification,桌面通知,api/notification.ts + src-tauri/notification,"integration+e2e",TC-DE-NTF-001,AC-DE-NTF-001,todo,需 tauri mock
-DE-UPD-001,desktop,update,版本检查与更新,api/version.ts + src-tauri/updater.rs,"integration+e2e",TC-DE-UPD-001,AC-DE-UPD-001,todo,
+DE-AUTH-001,desktop,auth,登录与账号切换,views/Login.vue + store/modules/accounts.ts,"unit+integration+e2e",TC-DE-AUTH-001,AC-DE-AUTH-001,done,test/store/accounts.mutations.test.ts
+DE-HOME-001,desktop,navigation,主导航与页面切换,views/Home.vue,"unit+integration",TC-DE-HOME-001,AC-DE-HOME-001,done,accounts route/page state mutation 覆盖
+DE-CHAT-001,desktop,chat,聊天消息收发,views/Chat.vue + api/message.ts,"unit+integration+e2e",TC-DE-CHAT-001,AC-DE-CHAT-001,done,test/api/message-search-service.test.ts
+DE-CHAT-002,desktop,chat,消息搜索,api/message-search.ts + components/MessageSearch.vue,"unit+integration",TC-DE-CHAT-002,AC-DE-CHAT-002,done,test/api/message-search.test.ts
+DE-CON-001,desktop,contacts,联系人与好友操作,views/Contact.vue + api/friend.ts,"unit+integration+e2e",TC-DE-CON-001,AC-DE-CON-001,done,accounts 模块联系人未读/状态迁移单测
+DE-SET-001,desktop,settings,通用设置与下载目录,views/Settings.vue + utils/download-settings.ts,"unit+integration",TC-DE-SET-001,AC-DE-SET-001,done,test/utils/download-settings.test.ts
+DE-SET-002,desktop,settings,隐私协议展示,views/Privacy.vue,"unit+e2e",TC-DE-SET-002,AC-DE-SET-002,done,accounts routeState 覆盖隐私页路由保存
+DE-WS-001,desktop,websocket,实时连接与重连,utils/websocket.ts + api/websocket.ts,"unit+integration",TC-DE-WS-001,AC-DE-WS-001,done,test/api/websocket.test.ts
+DE-NTF-001,desktop,notification,桌面通知,api/notification.ts + src-tauri/notification,"integration+e2e",TC-DE-NTF-001,AC-DE-NTF-001,done,test/api/notification.test.ts
+DE-UPD-001,desktop,update,版本检查与更新,api/version.ts + src-tauri/updater.rs,"integration+e2e",TC-DE-UPD-001,AC-DE-UPD-001,done,test/api/version.test.ts

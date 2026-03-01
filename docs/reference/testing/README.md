@@ -33,9 +33,9 @@
 |------|----------|----------|------------|
 | Backend | Rust (`backend/src`) | Rust (`backend/tests`) + Go (`tests/go`) | WebSocket/关键业务链路（Go） |
 | Frontend (Flutter) | `frontend/test` | `frontend/integration_test` | `frontend/patrol_test` |
-| Admin (Vue) | （后续补 Vitest） | API 契约复用 Go | Playwright (`admin/playwright-tests/specs`) |
-| Desktop (Vue + Tauri) | （后续补） | API 契约复用 Go | （后续补） |
-| Website (Nuxt) | （后续补） | （后续补） | （后续补） |
+| Admin (Vue) | 复用契约 + 页面级断言 | API 契约复用 Go | Playwright (`admin/playwright-tests/specs`) |
+| Desktop (Vue + Tauri) | Vitest (`desktop/test`) | API/Store/Utils 集成（Vitest） | 复用 Backend Go 契约 |
+| Website (Nuxt) | Vitest (`website/test`) | 下载链路逻辑集成（Vitest） | 复用 Playwright/页面手动验收 |
 
 ## 3. 统一入口
 
@@ -64,9 +64,16 @@ cd tests/go && go test ./... -v
 
 # Frontend
 cd frontend && flutter test
+cd frontend && flutter test integration_test -d macos
 
 # Admin E2E
-cd admin && ADMIN_E2E_ENABLED=true pnpm test:e2e
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://127.0.0.1:8011 pnpm exec playwright test --workers=1
+
+# Desktop
+cd desktop && bun run test
+
+# Website
+cd website && bun run test
 ```
 
 ## 4. 目录规范

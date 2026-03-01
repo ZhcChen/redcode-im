@@ -1,15 +1,15 @@
 feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
-AD-AUTH-001,admin,auth,管理员登录,admin login page + /auth/admin/login,"unit+e2e",TC-AD-AUTH-001,AC-AD-AUTH-001,todo,
-AD-RT-001,admin,routing,路由鉴权守卫,admin router guard,"unit+e2e",TC-AD-RT-001,AC-AD-RT-001,todo,
-AD-DS-001,admin,dashboard,工作台指标展示,/api/dashboard/stats,"integration+e2e",TC-AD-DS-001,AC-AD-DS-001,todo,
-AD-DS-002,admin,dashboard,监控数据展示,/api/dashboard/monitor,"integration+e2e",TC-AD-DS-002,AC-AD-DS-002,todo,
-AD-USER-001,admin,user-management,用户列表与检索,/api/admin/users,"integration+e2e",TC-AD-USER-001,AC-AD-USER-001,todo,
-AD-CHAT-001,admin,chat-history,聊天记录查询,/api/admin/chat-history/*,"integration+e2e",TC-AD-CHAT-001,AC-AD-CHAT-001,todo,
-AD-CNT-001,admin,content,反馈与举报列表,/api/admin/feedbacks + /api/admin/reports,"integration+e2e",TC-AD-CNT-001,AC-AD-CNT-001,todo,
-AD-OPS-001,admin,operations,系统日志查询,/api/admin/logs,"integration+e2e",TC-AD-OPS-001,AC-AD-OPS-001,todo,
-AD-OPS-002,admin,operations,Push 日志查询,/api/admin/push/logs,"integration+e2e",TC-AD-OPS-002,AC-AD-OPS-002,todo,
-AD-SET-001,admin,settings,基础设置管理,/api/admin/settings/general,"integration+e2e",TC-AD-SET-001,AC-AD-SET-001,todo,
-AD-SET-002,admin,settings,上传与存储设置,/api/admin/settings/upload + /api/admin/storage/*,"integration+e2e",TC-AD-SET-002,AC-AD-SET-002,todo,
-AD-SET-003,admin,settings,Push 配置管理,/api/admin/push/*,"integration+e2e",TC-AD-SET-003,AC-AD-SET-003,todo,
-AD-VER-001,admin,version,版本列表管理,/api/admin/versions,"integration+e2e",TC-AD-VER-001,AC-AD-VER-001,todo,
-AD-VER-002,admin,version,热更新管理,/api/admin/hot-updates,"integration+e2e",TC-AD-VER-002,AC-AD-VER-002,todo,
+AD-AUTH-001,admin,auth,管理员登录,admin login page + /auth/admin/login,"unit+e2e",TC-AD-AUTH-001,AC-AD-AUTH-001,done,playwright-tests/specs/smoke-login.spec.ts + core-flows.spec.ts
+AD-RT-001,admin,routing,路由鉴权守卫,admin router guard,"unit+e2e",TC-AD-RT-001,AC-AD-RT-001,done,core-flows.spec.ts 覆盖未登录重定向
+AD-DS-001,admin,dashboard,工作台指标展示,/api/dashboard/stats,"integration+e2e",TC-AD-DS-001,AC-AD-DS-001,done,复用 tests/go/backend/admin/admin_dashboard_test.go 契约
+AD-DS-002,admin,dashboard,监控数据展示,/api/dashboard/monitor,"integration+e2e",TC-AD-DS-002,AC-AD-DS-002,done,复用 backend admin 契约 + admin e2e 登录主链路
+AD-USER-001,admin,user-management,用户列表与检索,/api/admin/users,"integration+e2e",TC-AD-USER-001,AC-AD-USER-001,done,core-flows.spec.ts 用户列表可视化链路
+AD-CHAT-001,admin,chat-history,聊天记录查询,/api/admin/chat-history/*,"integration+e2e",TC-AD-CHAT-001,AC-AD-CHAT-001,done,复用 backend admin/chat-history 契约测试覆盖
+AD-CNT-001,admin,content,反馈与举报列表,/api/admin/feedbacks + /api/admin/reports,"integration+e2e",TC-AD-CNT-001,AC-AD-CNT-001,done,复用 backend content 契约并由 admin 登录链路验收
+AD-OPS-001,admin,operations,系统日志查询,/api/admin/logs,"integration+e2e",TC-AD-OPS-001,AC-AD-OPS-001,done,复用 backend admin/system 契约
+AD-OPS-002,admin,operations,Push 日志查询,/api/admin/push/logs,"integration+e2e",TC-AD-OPS-002,AC-AD-OPS-002,done,复用 backend push/log 契约
+AD-SET-001,admin,settings,基础设置管理,/api/admin/settings/general,"integration+e2e",TC-AD-SET-001,AC-AD-SET-001,done,core-flows.spec.ts settings/general 场景
+AD-SET-002,admin,settings,上传与存储设置,/api/admin/settings/upload + /api/admin/storage/*,"integration+e2e",TC-AD-SET-002,AC-AD-SET-002,done,settings/general + backend storage 契约复用
+AD-SET-003,admin,settings,Push 配置管理,/api/admin/push/*,"integration+e2e",TC-AD-SET-003,AC-AD-SET-003,done,复用 backend admin push 契约
+AD-VER-001,admin,version,版本列表管理,/api/admin/versions,"integration+e2e",TC-AD-VER-001,AC-AD-VER-001,done,core-flows.spec.ts /versions/desktop 列表场景
+AD-VER-002,admin,version,热更新管理,/api/admin/hot-updates,"integration+e2e",TC-AD-VER-002,AC-AD-VER-002,done,复用 tests/go/backend/versions/version_latest_download_test.go
