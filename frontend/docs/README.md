@@ -4,6 +4,5 @@
 
 ## 相关文档
 
-- [E2E 测试路径](../../docs/reference/testing/test-paths.md)
-- [E2E 测试指南](../../docs/reference/testing/e2e-testing-guide.md)
+- [测试工作流程指南](../../docs/reference/testing/README.md)
 - [WebSocket 集成](../../docs/reference/guides/websocket-integration.md)

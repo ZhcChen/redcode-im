@@ -1,13 +1,7 @@
-# 测试栈说明：
-# - 仅使用 docker-compose（本机环境）
-# - PostgreSQL / Redis 不映射到宿主端口（避免与其他项目冲突）
-# - 通过同一 docker network 在容器内互通：backend / go-tests / rust-tests
+# 重构后的最小测试栈：
+# - 统一为 tests/run.sh 入口
+# - 不依赖测试可视化 Dashboard
 
-# Rust 工具链容器（用于启动 backend 与运行 Rust 测试）
-#
-# 说明：
-# - 不使用 backend/Dockerfile 做 release 构建（在本机资源较小的 Docker VM 上容易 OOM）
-# - 使用 docker volume 存放 cargo registry/git/target，避免污染宿主 backend/target（且避免把 44G 的 target 打进 build context）
 x-rust-service: &rust_service
   build:
     context: .
@@ -24,19 +18,14 @@ x-rust-service: &rust_service
     CARGO_BUILD_JOBS: "1"
     CARGO_INCREMENTAL: "0"
     RUSTFLAGS: "-C debuginfo=0 -C codegen-units=1"
-    # 测试环境首次拉依赖时网络可能较慢；放宽 cargo 的低速判定，避免误判超时。
-    CARGO_HTTP_LOW_SPEED_LIMIT: "1"
-    CARGO_HTTP_LOW_SPEED_TIME: "120"
     PORT: "8010"
     DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
     REDIS_SESSION_URL: redis://:123456@redis-session:6381/0
     REDIS_CACHE_URL: redis://:123456@redis-cache:6383/0
-    # 容器环境可能缺少 /etc/machine-id；单测/开发栈统一覆盖，避免依赖宿主机差异。
     REDCODE_IM_MACHINE_ID: docker-test-machine-id
     JWT_SECRET: dev-secret-change-me
     PUSH_ENABLED: "false"
     ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
-    # 测试栈不依赖真实 COS/外网：跳过对象存储的网络读写（仅保留签名算法/URL 生成逻辑）。
     REDCODE_IM_STORAGE_DISABLE_NETWORK: "true"
 
 services:
@@ -57,23 +46,9 @@ services:
 
   redis-session:
     image: redis:8.2.2-alpine
-    command: >
-      redis-server
-      --port 6381
-      --requirepass 123456
-      --appendonly yes
-      --aof-use-rdb-preamble yes
-      --save 900 1
-      --save 300 10
-      --save 60 10000
-      --maxmemory 128mb
-      --maxmemory-policy volatile-lru
-      --timeout 300
-      --tcp-keepalive 60
+    command: ["redis-server", "--port", "6381", "--requirepass", "123456", "--appendonly", "yes"]
     volumes:
       - redis_session_data:/data
-    environment:
-      TZ: Asia/Shanghai
     healthcheck:
       test: ["CMD", "redis-cli", "-p", "6381", "-a", "123456", "ping"]
       interval: 5s
@@ -82,39 +57,26 @@ services:
 
   redis-cache:
     image: redis:8.2.2-alpine
-    command: >
-      redis-server
-      --port 6383
-      --requirepass 123456
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --timeout 300
-      --tcp-keepalive 60
-      --rdbcompression yes
-      --active-defrag-threshold-lower 10
-      --active-defrag-threshold-upper 100
-      --active-defrag-cycle-min 25
-      --active-defrag-cycle-max 75
-    environment:
-      TZ: Asia/Shanghai
+    command: ["redis-server", "--port", "6383", "--requirepass", "123456"]
     healthcheck:
       test: ["CMD", "redis-cli", "-p", "6383", "-a", "123456", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
 
+  rust-tests:
+    <<: *rust_service
+    command: ["cargo", "test", "--lib"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-session:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+
   backend:
     <<: *rust_service
-    # 仅暴露 Backend（可用于手工/移动端/桌面端联调）；PG/Redis 不暴露宿主端口，避免冲突。
-    #
-    # 默认 published=0：随机分配宿主端口，避免与其他项目冲突。
-    # 如需固定宿主端口（便于手工联调），可覆盖：BACKEND_HOST_PORT=18010 ./tests/run.sh
-    ports:
-      - target: 8010
-        published: "${BACKEND_HOST_PORT:-0}"
-        protocol: tcp
-        mode: host
     command: ["cargo", "run", "--bin", "redcode-im-backend"]
     depends_on:
       postgres:
@@ -139,32 +101,16 @@ services:
       - go_build_cache:/root/.cache/go-build
     environment:
       API_BASE_URL: http://backend:8010
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: admin123
     depends_on:
       backend:
         condition: service_healthy
     command: ["go", "test", "./...", "-v"]
 
-  rust-tests:
-    <<: *rust_service
-    command: ["cargo", "test", "--lib"]
-
 volumes:
   postgres_data:
   redis_session_data:
   cargo_target:
-    external: true
-    name: redcode_im_tests_cargo_target
   cargo_registry:
-    external: true
-    name: redcode_im_tests_cargo_registry
   cargo_git:
-    external: true
-    name: redcode_im_tests_cargo_git
   go_mod_cache:
-    external: true
-    name: redcode_im_tests_go_mod_cache
   go_build_cache:
-    external: true
-    name: redcode_im_tests_go_build_cache

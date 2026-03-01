@@ -55,4 +55,10 @@ bun install
 bun run dev
 ```
 
+### 运行测试（重构版）
+```bash
+# 统一回归入口（Rust 单元 + Rust 集成 + Go 黑盒）
+./tests/run.sh
+```
+
 更多文档与规范请从 `docs/index.md` 开始阅读。

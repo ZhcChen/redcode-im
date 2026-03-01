@@ -12,7 +12,7 @@
 - 文档中一致的账号说明：
   - `docs/reference/api/auth.md`
   - `docs/reference/api/api-reference.md`
-  - `docs/reference/testing/test-architecture.md`
+  - `docs/reference/testing/README.md`
 
 ## 文档不一致说明
 - `docs/reference/operations/docker-deploy.md` 的 `admin/admin` 为 Redis Commander 登录账号，与后台管理员账号无关。

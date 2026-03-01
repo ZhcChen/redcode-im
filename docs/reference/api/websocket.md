@@ -6,7 +6,7 @@
 
 - 需要认证：否（连接时不需要，但需要发送 auth 事件完成认证）
 - 标识：ws-connection
-> 说明：当前实现中，连接建立后仍需发送一次 `auth` 事件完成绑定（收到 `authed` 推送才算认证完成）；可参考 `docs/reference/testing/websocket-test.md` 的可执行步骤。
+> 说明：当前实现中，连接建立后仍需发送一次 `auth` 事件完成绑定（收到 `authed` 推送才算认证完成）；测试入口请参考 `docs/reference/testing/README.md`。
 
 ### 连接参数
 

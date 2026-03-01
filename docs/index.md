@@ -71,17 +71,7 @@
 
 | 文档 | 说明 |
 |------|------|
-| [**测试工作流程指南**](reference/testing/README.md) | **测试策略、流程与规范总纲** |
-| [测试架构（五模块）](reference/testing/test-architecture.md) | 五模块测试边界与框架选择 |
-| [Backend 测试说明](reference/testing/backend-testing.md) | 后端单元/集成/契约测试写法 |
-| [Backend 单元测试计划](reference/testing/backend-test-plan.md) | 后端测试现状与补充计划 |
-| [Admin E2E（Playwright）](reference/testing/admin-e2e.md) | 管理后台 E2E 测试规范与路径 |
-| [E2E 测试指南](reference/testing/e2e-testing-guide.md) | Patrol 框架使用详解 |
-| [E2E 测试路径](reference/testing/test-paths.md) | 移动端用户旅程测试 |
-| [快速测试指南](reference/testing/quick-test.md) | 5 分钟快速验证 |
-| [WebSocket 测试](reference/testing/websocket-test.md) | WS 实时分发测试 |
-| [添加好友测试](reference/testing/add-friend.md) | 好友功能测试用例 |
-| [桌面端测试架构](reference/testing/desktop-add-member-go-test-architecture.md) | Go 集成测试设计 |
+| [**测试工作流程指南（重构版）**](reference/testing/README.md) | **单入口、分层执行、按模块推进补齐** |
 
 ### 运维部署
 
@@ -114,8 +104,6 @@
 
 | 文档 | 说明 |
 |------|------|
-| [API 路由测试覆盖数据](reports/api-test-coverage.json) | 路由覆盖统计（Go 黑盒 + Rust in-process，Dashboard 读取） |
-| [测试覆盖率汇总](reports/test-coverage.json) | Rust 行覆盖率与测试统计 |
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |
 
