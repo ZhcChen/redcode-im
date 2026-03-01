@@ -1,21 +1,31 @@
 # 文档索引
 
-> 本文档用于索引 `docs/` 目录下的所有文档。快速开始请查看仓库根目录 `README.md`。
+> 本文档用于索引 `docs/` 目录下的核心文档。快速开始请查看仓库根目录 `README.md`。
 
-## 开发流程（devflow）
+## AI 工作流（Superpowers）
 
 | 文档 | 说明 |
 |------|------|
-| [流程](workflow/) | 开发流程与阶段流转 |
-| [角色职责](workflow/roles/) | 各角色职责与产出 |
-| [模板](templates/) | PRD/SPEC/DEV/REVIEW/TEST 模板 |
-| [命名规范](conventions/) | 文档命名与用例规则 |
-| [需求文档](requirements/) | PRD 存放与规范 |
-| [技术方案](specs/) | 技术方案存放与规范 |
-| [开发记录](development/) | 开发记录存放与规范 |
-| [审查报告](reviews/) | 代码审查报告 |
-| [测试报告](tests/) | 测试报告与验收记录 |
-| [需求池与清单](backlog/) | 需求池/待开发/逻辑问题 |
+| [Codex 使用说明](README.codex.md) | Superpowers 在 Codex 的安装与使用方式 |
+| [规划文档目录](plans/) | brainstorming 与 writing-plans 产出目录 |
+| [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
+
+### 工作流骨架
+
+1. `using-superpowers`
+2. `brainstorming`
+3. `using-git-worktrees`
+4. `writing-plans`
+5. `subagent-driven-development` 或 `executing-plans`
+6. `test-driven-development`
+7. `requesting-code-review` / `receiving-code-review`
+8. `verification-before-completion` + `finishing-a-development-branch`
+
+### 命令入口
+
+- `../commands/brainstorm.md`
+- `../commands/write-plan.md`
+- `../commands/execute-plan.md`
 
 ---
 
@@ -128,4 +138,4 @@
 
 ---
 
-**文档最后更新**: 2026-01-21
+**文档最后更新**: 2026-03-01

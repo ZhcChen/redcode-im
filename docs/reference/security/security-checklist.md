@@ -289,7 +289,7 @@
 - [安全说明](security-overview.md)
 - [API 概览](../api/api-overview.md)
 - [API 参考](../api/api-reference.md)
-- [代理指南](../../workflow/roles/orchestrator/index.md)
+- [代理指南](../../../AGENTS.md)
 - 运维手册：待补充（建议新增 `docs/reference/operations/`）
 - 事件响应流程：待补充（建议新增 `docs/reference/security/incident-response.md`）
 

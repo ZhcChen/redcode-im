@@ -2,6 +2,15 @@
 
 项目文档入口：`docs/index.md`。
 
+## AI 工作流
+
+仓库已切换到 **Superpowers** 工作流，旧 `devflow` 架构已移除。
+
+- 技能目录：`skills/`
+- 命令入口：`commands/`
+- 规划文档：`docs/plans/`
+- 使用说明：`docs/README.codex.md`
+
 ## 快速开始
 
 ### 环境要求
