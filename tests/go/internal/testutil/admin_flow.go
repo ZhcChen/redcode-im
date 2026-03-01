@@ -22,29 +22,9 @@ func EnsureDefaultStorageProvider(t TestingT, c *Client) {
 }
 
 func ensureDefaultStorageProvider(c *Client) error {
-	_, _ = c.HTTP.Post(c.BaseURL+"/api/admin/init-default-admin", "application/json", bytes.NewReader([]byte("{}")))
-
-	loginPayload := map[string]any{
-		"username": "admin",
-		"password": "admin123",
-	}
-	raw, _ := json.Marshal(loginPayload)
-	loginResp, err := c.HTTP.Post(c.BaseURL+"/auth/admin/login", "application/json", bytes.NewReader(raw))
+	loginResult, err := adminLogin(c)
 	if err != nil {
 		return err
-	}
-	defer loginResp.Body.Close()
-	if loginResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(loginResp.Body)
-		return &simpleError{msg: "admin login failed: " + string(body)}
-	}
-
-	var loginResult LoginResponse
-	if err := json.NewDecoder(loginResp.Body).Decode(&loginResult); err != nil {
-		return err
-	}
-	if loginResult.Token == "" {
-		return &simpleError{msg: "admin token empty"}
 	}
 
 	defaultReq := NewAuthedJSONRequestWithToken(http.MethodGet, c.BaseURL+"/api/admin/storage-providers/default", loginResult.Token, nil)
@@ -81,6 +61,46 @@ func ensureDefaultStorageProvider(c *Client) error {
 	}
 
 	return nil
+}
+
+func AdminLogin(t TestingT, c *Client) LoginResponse {
+	t.Helper()
+	loginResult, err := adminLogin(c)
+	if err != nil {
+		t.Fatalf("admin login failed: %v", err)
+	}
+	return loginResult
+}
+
+func adminLogin(c *Client) (LoginResponse, error) {
+	initResp, _ := c.HTTP.Post(c.BaseURL+"/api/admin/init-default-admin", "application/json", bytes.NewReader([]byte("{}")))
+	if initResp != nil {
+		_ = initResp.Body.Close()
+	}
+
+	loginPayload := map[string]any{
+		"username": "admin",
+		"password": "admin123",
+	}
+	raw, _ := json.Marshal(loginPayload)
+	loginResp, err := c.HTTP.Post(c.BaseURL+"/auth/admin/login", "application/json", bytes.NewReader(raw))
+	if err != nil {
+		return LoginResponse{}, err
+	}
+	defer loginResp.Body.Close()
+	if loginResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(loginResp.Body)
+		return LoginResponse{}, &simpleError{msg: "admin login failed: " + string(body)}
+	}
+
+	var loginResult LoginResponse
+	if err := json.NewDecoder(loginResp.Body).Decode(&loginResult); err != nil {
+		return LoginResponse{}, err
+	}
+	if loginResult.Token == "" {
+		return LoginResponse{}, &simpleError{msg: "admin token empty"}
+	}
+	return loginResult, nil
 }
 
 func NewAuthedJSONRequestWithToken(method, url, token string, body any) *http.Request {
