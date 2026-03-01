@@ -6,10 +6,10 @@
 
 仓库已切换到 **Superpowers** 工作流，旧 `devflow` 架构已移除。
 
-- 技能目录：`skills/`
-- 命令入口：`commands/`
+- Superpowers 使用全局安装：`~/.codex/superpowers`
+- 技能发现路径：`~/.agents/skills/superpowers -> ~/.codex/superpowers/skills`
 - 规划文档：`docs/plans/`
-- 使用说明：`docs/README.codex.md`
+- 安装说明：`https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.codex/INSTALL.md`
 
 ## 快速开始
 

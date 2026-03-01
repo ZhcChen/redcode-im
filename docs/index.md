@@ -6,9 +6,10 @@
 
 | 文档 | 说明 |
 |------|------|
-| [Codex 使用说明](README.codex.md) | Superpowers 在 Codex 的安装与使用方式 |
 | [规划文档目录](plans/) | brainstorming 与 writing-plans 产出目录 |
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
+
+> Superpowers 采用全局安装：`~/.codex/superpowers`，技能发现路径：`~/.agents/skills/superpowers -> ~/.codex/superpowers/skills`。
 
 ### 工作流骨架
 
@@ -20,12 +21,6 @@
 6. `test-driven-development`
 7. `requesting-code-review` / `receiving-code-review`
 8. `verification-before-completion` + `finishing-a-development-branch`
-
-### 命令入口
-
-- `../commands/brainstorm.md`
-- `../commands/write-plan.md`
-- `../commands/execute-plan.md`
 
 ---
 

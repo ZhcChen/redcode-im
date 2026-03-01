@@ -37,6 +37,10 @@
 
 ## 2. AI 工作流（Superpowers）
 - 当前仓库统一采用 **Superpowers**，不再使用 devflow 角色流转。
+- Superpowers 以 **全局安装** 方式使用，不在本仓库存放 `skills/` 与 `commands/`。
+- 全局路径约定：
+  - `~/.codex/superpowers`
+  - `~/.agents/skills/superpowers -> ~/.codex/superpowers/skills`
 - 标准执行链路：
   1. `using-superpowers`
   2. `brainstorming`
@@ -46,9 +50,10 @@
   6. `test-driven-development`
   7. `requesting-code-review` / `receiving-code-review`
   8. `verification-before-completion` + `finishing-a-development-branch`
-- 命令入口：`commands/brainstorm.md`、`commands/write-plan.md`、`commands/execute-plan.md`
-- 技能目录：`skills/*`（全部与 superpowers 对齐）
-- 规划文档统一落在：`docs/plans/`
+- 安装与升级：
+  - 安装：按官方 `https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.codex/INSTALL.md` 执行
+  - 升级：`cd ~/.codex/superpowers && git pull`
+- 本仓库仅保留流程产出目录：`docs/plans/`
 
 ## 3. 核心入口 (Entry Points)
 - 项目索引：`docs/index.md`

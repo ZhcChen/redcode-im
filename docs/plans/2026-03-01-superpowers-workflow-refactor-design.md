@@ -4,7 +4,7 @@
 
 ## 目标
 
-将仓库 AI 工作流从旧 `devflow` 架构切换为 `obra/superpowers`，并移除旧流程目录与技能，避免双轨并存。
+将仓库 AI 工作流从旧 `devflow` 架构切换为 `obra/superpowers`，并移除旧流程目录与技能，避免双轨并存。最终采用 **全局安装 superpowers**，不在仓库内存放 skills 与 commands。
 
 ## 迁移范围
 
@@ -21,12 +21,11 @@
   - `docs/backlog/`
 - 删除旧技能目录：
   - `skills/devflow-*`
-- 引入 superpowers 核心结构：
-  - `skills/*`（superpowers 全量技能）
-  - `commands/*`（`brainstorm` / `write-plan` / `execute-plan`）
+- 引入/保留 superpowers 相关结构：
   - `docs/plans/`（新流程产出目录）
-  - `docs/README.codex.md`（Codex 使用说明）
-  - `.codex/INSTALL.md`（安装说明）
+- 全局 superpowers 约定：
+  - `~/.codex/superpowers`
+  - `~/.agents/skills/superpowers -> ~/.codex/superpowers/skills`
 
 ## 入口改造
 
@@ -35,9 +34,9 @@
   - 移除 devflow 角色流转与旧通知依赖
 - 重写 `docs/index.md`：
   - 删除 devflow 导航
-  - 新增 superpowers 工作流、命令入口与 plans 目录入口
+  - 新增 superpowers 工作流与 plans 目录入口（全局安装说明）
 - 更新 `README.md`：
-  - 增加 AI 工作流章节，声明已切换 superpowers
+  - 增加 AI 工作流章节，声明已切换 superpowers 全局安装模式
 
 ## 兼容策略
 
