@@ -32,7 +32,7 @@
 
 - 重写 `AGENTS.md`：
   - 明确统一使用 superpowers
-  - 移除 devflow 角色流转与 `devflow-notifier` 依赖
+  - 移除 devflow 角色流转与旧通知依赖
 - 重写 `docs/index.md`：
   - 删除 devflow 导航
   - 新增 superpowers 工作流、命令入口与 plans 目录入口
