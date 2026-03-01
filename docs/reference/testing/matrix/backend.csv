@@ -14,15 +14,15 @@ BE-FRIEND-001,backend,friends,发送好友申请,/friends/requests,"integration+
 BE-FRIEND-002,backend,friends,处理好友申请,/friends/requests/{id}/respond,"integration+e2e",TC-BE-FRIEND-002,AC-BE-FRIEND-002,done,go friends 集成用例已覆盖
 BE-FRIEND-003,backend,friends,好友列表,/friends,"integration",TC-BE-FRIEND-003,AC-BE-FRIEND-003,done,go friends 集成用例已覆盖
 BE-FRIEND-004,backend,friends,确保好友私聊房间,/friends/{friend_user_id}/chat,"integration+e2e",TC-BE-FRIEND-004,AC-BE-FRIEND-004,done,go friends 集成用例已覆盖
-BE-ROOM-001,backend,rooms,创建房间,/rooms,"integration+e2e",TC-BE-ROOM-001,AC-BE-ROOM-001,todo,
-BE-ROOM-002,backend,rooms,加入房间,/rooms/{room_id}/join,"integration+e2e",TC-BE-ROOM-002,AC-BE-ROOM-002,todo,
-BE-ROOM-003,backend,rooms,退出房间,/rooms/{room_id}/leave,"integration+e2e",TC-BE-ROOM-003,AC-BE-ROOM-003,todo,
-BE-MSG-001,backend,messages,发送消息,/rooms/{room_id}/messages,"integration+e2e",TC-BE-MSG-001,AC-BE-MSG-001,todo,
-BE-MSG-002,backend,messages,编辑消息,/messages/{id},"integration",TC-BE-MSG-002,AC-BE-MSG-002,todo,
-BE-MSG-003,backend,messages,删除消息,/messages/{id},"integration",TC-BE-MSG-003,AC-BE-MSG-003,todo,
+BE-ROOM-001,backend,rooms,创建房间,/rooms,"integration+e2e",TC-BE-ROOM-001,AC-BE-ROOM-001,done,go rooms 集成用例已覆盖
+BE-ROOM-002,backend,rooms,加入房间,/rooms/{room_id}/join,"integration+e2e",TC-BE-ROOM-002,AC-BE-ROOM-002,done,go rooms 集成用例已覆盖
+BE-ROOM-003,backend,rooms,退出房间,/rooms/{room_id}/leave,"integration+e2e",TC-BE-ROOM-003,AC-BE-ROOM-003,done,go rooms 集成用例已覆盖
+BE-MSG-001,backend,messages,发送消息,/rooms/{room_id}/messages,"integration+e2e",TC-BE-MSG-001,AC-BE-MSG-001,done,go messages 集成用例已覆盖
+BE-MSG-002,backend,messages,编辑消息,/messages/{id},"integration",TC-BE-MSG-002,AC-BE-MSG-002,done,go messages 集成用例已覆盖
+BE-MSG-003,backend,messages,删除消息,/messages/{id},"integration",TC-BE-MSG-003,AC-BE-MSG-003,done,go messages 集成用例已覆盖
 BE-MSG-004,backend,messages,未读计数,/unread_counts,"integration",TC-BE-MSG-004,AC-BE-MSG-004,todo,
 BE-MSG-005,backend,messages,消息搜索,/messages/search,"integration+e2e",TC-BE-MSG-005,AC-BE-MSG-005,todo,
-BE-UPL-001,backend,uploads,对象上传与访问,/upload/*,"integration+e2e",TC-BE-UPL-001,AC-BE-UPL-001,todo,需要 COS mock
+BE-UPL-001,backend,uploads,对象上传与访问,/rooms/{room_id}/messages/attachments/*,"integration+e2e",TC-BE-UPL-001,AC-BE-UPL-001,done,go uploads 集成用例已覆盖
 BE-UPL-002,backend,uploads,分片上传完整流程,/multipart/*,"integration+e2e",TC-BE-UPL-002,AC-BE-UPL-002,todo,需要 COS mock
 BE-UPL-003,backend,uploads,上传审核流程,/file-audit/*,"integration",TC-BE-UPL-003,AC-BE-UPL-003,todo,需要腾讯 CI mock
 BE-PUSH-001,backend,push,设备注册与推送发送,/push/devices + push service,"integration+e2e",TC-BE-PUSH-001,AC-BE-PUSH-001,todo,需要 FCM mock

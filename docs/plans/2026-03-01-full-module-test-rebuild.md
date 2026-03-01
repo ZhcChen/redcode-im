@@ -130,4 +130,5 @@
 
 - 批次 A（基础设施与模拟层）已完成并验收通过。
 - 批次 B-1（`auth/users/friends`）已完成并验收通过。
-- 当前进入 **批次 B-2**：`rooms/messages/uploads` 域测试重建。
+- 批次 B-2（`rooms/messages/uploads`）已完成并验收通过。
+- 当前进入 **批次 B-3**：`versions/admin/ws` 域测试重建。
