@@ -64,10 +64,23 @@ cd tests/go && go test ./... -v
 
 # Frontend
 cd frontend && flutter test
-cd frontend && flutter test integration_test -d macos
+# 先设置本机局域网 IP（确保与真机在同一网段）
+LAN_IP=$(ipconfig getifaddr en0)
+# 默认 smoke（推荐，真机：Pixel 8 Pro）
+cd frontend && flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN \
+  --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \
+  --dart-define=WS_URL=ws://${LAN_IP}:8010/ws
+# 发布前真机联调（包含 network_connectivity_test）
+cd frontend && flutter test integration_test -d 3A091FDJG001DN \
+  --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \
+  --dart-define=WS_URL=ws://${LAN_IP}:8010/ws \
+  --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true
 
 # Admin E2E
-cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://127.0.0.1:8011 pnpm exec playwright test --workers=1
+# 先在另一个终端启动 Admin
+cd admin && pnpm dev
+# 再执行真实联调 E2E
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1
 
 # Desktop
 cd desktop && bun run test
@@ -104,4 +117,4 @@ docs/reference/testing/matrix/  # 功能-测试-验收追踪矩阵
 
 ---
 
-**最后更新**: 2026-03-01
+**最后更新**: 2026-03-04
