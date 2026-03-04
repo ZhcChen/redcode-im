@@ -81,6 +81,12 @@ cd frontend && flutter test integration_test -d 3A091FDJG001DN \
 cd admin && pnpm dev
 # 再执行真实联调 E2E
 cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1
+# 仅执行 Admin 全路由冒烟（default 可达集合）
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
+  ADMIN_ROUTE_PROFILE=default pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1
+# 执行 data-cleanup 可达集合（需 dev 以 VITE_ENABLE_DATA_CLEANUP=true 启动）
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
+  ADMIN_ROUTE_PROFILE=data-cleanup pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1
 
 # Desktop
 cd desktop && bun run test
@@ -117,4 +123,4 @@ docs/reference/testing/matrix/  # 功能-测试-验收追踪矩阵
 
 ---
 
-**最后更新**: 2026-03-04
+**最后更新**: 2026-03-05

@@ -1,6 +1,7 @@
 feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
 AD-AUTH-001,admin,auth,管理员登录,admin login page + /auth/admin/login,"unit+e2e",TC-AD-AUTH-001,AC-AD-AUTH-001,done,playwright-tests/specs/smoke-login.spec.ts + core-flows.spec.ts
 AD-RT-001,admin,routing,路由鉴权守卫,admin router guard,"unit+e2e",TC-AD-RT-001,AC-AD-RT-001,done,core-flows.spec.ts 覆盖未登录重定向
+AD-RT-002,admin,routing,全可达路由冒烟与异常可恢复,/dashboard/* + /operations/* + /settings/* + /user-management/* + /versions/*,"e2e",TC-AD-RT-002,AC-AD-RT-002,done,route-smoke.spec.ts 覆盖 default(26) + data-cleanup(27) 路由可达/交互/4xx-5xx 注入恢复
 AD-DS-001,admin,dashboard,工作台指标展示,/api/dashboard/stats,"integration+e2e",TC-AD-DS-001,AC-AD-DS-001,done,复用 tests/go/backend/admin/admin_dashboard_test.go 契约
 AD-DS-002,admin,dashboard,监控数据展示,/api/dashboard/monitor,"integration+e2e",TC-AD-DS-002,AC-AD-DS-002,done,复用 backend admin 契约 + admin e2e 登录主链路
 AD-USER-001,admin,user-management,用户列表与检索,/api/admin/users,"integration+e2e",TC-AD-USER-001,AC-AD-USER-001,done,core-flows.spec.ts 用户列表可视化链路

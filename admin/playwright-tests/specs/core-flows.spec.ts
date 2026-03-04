@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
-
-const enabled = process.env.ADMIN_E2E_ENABLED === 'true';
-const username = process.env.ADMIN_USERNAME || 'admin';
-const password = process.env.ADMIN_PASSWORD || 'admin123';
+import {
+  adminE2EEnabled,
+  adminPassword,
+  adminUsername,
+} from '../support/test-context';
 
 const adminUser = {
   id: 'admin-1',
@@ -45,7 +46,7 @@ async function setToken(page: Page) {
 
 test.describe('admin core flows', () => {
   test.beforeEach(async () => {
-    if (!enabled) {
+    if (!adminE2EEnabled) {
       test.skip();
     }
   });
@@ -84,8 +85,8 @@ test.describe('admin core flows', () => {
     });
 
     await page.goto('/login?redirect=UserList');
-    await page.getByPlaceholder('用户名：admin').fill(username);
-    await page.getByPlaceholder('密码：admin').fill(password);
+    await page.getByPlaceholder('用户名：admin').fill(adminUsername);
+    await page.getByPlaceholder('密码：admin').fill(adminPassword);
     await page.getByRole('button', { name: '登录' }).click();
 
     await expect(page).toHaveURL(/\/user-management\/list/);
