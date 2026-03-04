@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -43,7 +46,7 @@ func ensureDefaultStorageProvider(c *Client) error {
 		"secret_id":     "mock-secret-id",
 		"secret_key":    "mock-secret-key",
 		"region":        "ap-shanghai",
-		"endpoint":      "external-mock:19080",
+		"endpoint":      externalMockEndpoint(),
 		"bucket_name":   "mock-bucket",
 		"is_active":     true,
 		"is_default":    true,
@@ -123,4 +126,22 @@ type simpleError struct {
 
 func (e *simpleError) Error() string {
 	return e.msg
+}
+
+func externalMockEndpoint() string {
+	base := strings.TrimSpace(os.Getenv("EXTERNAL_MOCK_BASE_URL"))
+	if base == "" {
+		return "external-mock:19080"
+	}
+
+	if !strings.Contains(base, "://") {
+		base = "http://" + base
+	}
+
+	parsed, err := url.Parse(base)
+	if err != nil || strings.TrimSpace(parsed.Host) == "" {
+		return "external-mock:19080"
+	}
+
+	return parsed.Host
 }

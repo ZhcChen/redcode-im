@@ -2,11 +2,12 @@ package testutil
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
-	"time"
 )
 
 type UserInfo struct {
@@ -23,8 +24,14 @@ type LoginResponse struct {
 
 func UniqueUsername(prefix string) string {
 	_ = prefix
-	// 后端在某些环境会开启“手机号用户名”校验，这里统一生成合法手机号格式，避免环境依赖导致用例不稳定。
-	return fmt.Sprintf("13%09d", time.Now().UnixNano()%1_000_000_000)
+	// 后端在某些环境会开启“手机号用户名”校验，这里统一生成合法手机号格式，
+	// 并使用随机值避免跨测试轮次（持久化数据库）产生重复用户名。
+	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000_000))
+	if err != nil {
+		// 极端情况下退化为固定可用范围内值，确保函数不返回空字符串。
+		return "13000000000"
+	}
+	return fmt.Sprintf("13%09d", n.Int64())
 }
 
 func RegisterUser(t TestingT, c *Client, username, password string) UserInfo {
