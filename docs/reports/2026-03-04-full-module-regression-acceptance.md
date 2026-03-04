@@ -1,7 +1,7 @@
 # 全模块回归验收报告
 
 **日期**: 2026-03-04  
-**补充更新**: 2026-03-05（Admin 全路由冒烟增强）  
+**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend 核心服务测试 + Pixel 8 Pro 真机链路）  
 **范围**: Backend / Frontend / Admin / Desktop / Website 全模块回归  
 **执行分支**: `feat/full-test-rebuild`  
 **关联提交**: `d451295`、`5b19065`
@@ -20,10 +20,10 @@
 - Rust/Cargo: `cargo 1.90.0`
 - Bun: `1.3.6`
 - pnpm: `10.20.0`
-- Android 真机: `Mi MIX 2S (2b252911)`
+- Android 真机: `Mi MIX 2S (2b252911)`、`Pixel 8 Pro (3A091FDJG001DN)`
 - Backend 联调地址:
-  - API: `http://192.168.31.248:8010`
-  - WS: `ws://192.168.31.248:8010/ws`
+  - API: `http://192.168.31.107:8010`
+  - WS: `ws://192.168.31.107:8010/ws`
 
 ## 3. 全模块结果总览
 
@@ -32,8 +32,9 @@
 | Backend（Rust 单元） | `cargo test --lib` | 通过（`126 passed`） |
 | Backend（Rust 集成） | `cargo test --tests -- --test-threads=1` | 通过 |
 | Backend（Go 黑盒） | `go test ./... -v`（`tests/go`） | 通过（全部业务域） |
-| Frontend（单测） | `flutter test` | 通过 |
-| Frontend（真机集成） | `flutter test integration_test -d 2b252911 ...` | 通过（`network_connectivity_test` + `smoke_test`） |
+| Frontend（单测） | `flutter test` | 通过（`24 passed`） |
+| Frontend（真机 smoke） | `flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN ...` | 通过（`2 passed`） |
+| Frontend（真机网络） | `flutter test integration_test/network_connectivity_test.dart -d 3A091FDJG001DN ... --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true` | 通过（`2 passed`） |
 | Desktop | `bun run test` | 通过（`9 files, 22 tests`） |
 | Website | `bun run test` | 通过（`1 file, 9 tests`） |
 | Admin E2E（全量） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1` | 通过（`61 passed`） |
@@ -74,6 +75,20 @@
   - `pnpm test:e2e:routes:default`
   - `pnpm test:e2e:routes:data-cleanup`
 
+### 4.4 Frontend 核心服务单元测试增强（TDD）
+
+- 新增：
+  - `frontend/test/core/token_storage_test.dart`
+  - `frontend/test/core/app_config_service_test.dart`
+  - `frontend/test/core/version_service_test.dart`
+- 修复：
+  - `frontend/lib/core/storage/token_storage.dart`
+  - `readSession()` 在用户 JSON 损坏时同步清理 `refresh_token`，防止残留脏会话。
+- 覆盖新增：
+  - 会话存储完整性（token/user/refresh）
+  - 应用名配置回退链路（内存 -> SQLite -> API）
+  - 版本检查与下载链接契约（query 参数、异常映射）
+
 ## 5. 执行过程中的关键问题与处理
 
 - 问题 1：`tests/run.sh` 依赖的 Docker 镜像构建在本机出现 `apk add` 长时间阻塞。  
@@ -81,6 +96,9 @@
 
 - 问题 2：Admin Playwright 首次使用 `127.0.0.1:8011` 出现连接拒绝。  
   处理：固定使用 `http://localhost:8011` 并确认 dev server 监听后重跑，全部通过。
+
+- 问题 3：Frontend 真机联调脚本在当前机器 `en0` 无地址（默认网卡为 `en1`）。  
+  处理：改为“先解析默认路由网卡再取 IP”（`route -n get default` + `ipconfig getifaddr`），已写入测试文档。
 
 ## 6. 可追溯性
 

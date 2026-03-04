@@ -64,8 +64,11 @@ cd tests/go && go test ./... -v
 
 # Frontend
 cd frontend && flutter test
-# 先设置本机局域网 IP（确保与真机在同一网段）
-LAN_IP=$(ipconfig getifaddr en0)
+# 仅执行核心服务单测（会话存储/配置回退/版本契约）
+cd frontend && flutter test test/core/token_storage_test.dart test/core/app_config_service_test.dart test/core/version_service_test.dart
+# 先设置本机局域网 IP（确保与真机在同一网段，自动识别默认网卡）
+LAN_IFACE=$(route -n get default | awk '/interface:/{print $2}')
+LAN_IP=$(ipconfig getifaddr ${LAN_IFACE})
 # 默认 smoke（推荐，真机：Pixel 8 Pro）
 cd frontend && flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN \
   --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \

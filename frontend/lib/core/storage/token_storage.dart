@@ -40,6 +40,7 @@ class TokenStorage {
     } catch (_) {
       await prefs.remove(_tokenKey);
       await prefs.remove(_userKey);
+      await prefs.remove(_refreshTokenKey);
       return null;
     }
   }
