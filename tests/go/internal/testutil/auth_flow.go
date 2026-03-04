@@ -8,6 +8,8 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"os"
+	"time"
 )
 
 type UserInfo struct {
@@ -28,8 +30,12 @@ func UniqueUsername(prefix string) string {
 	// 并使用随机值避免跨测试轮次（持久化数据库）产生重复用户名。
 	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000_000))
 	if err != nil {
-		// 极端情况下退化为固定可用范围内值，确保函数不返回空字符串。
-		return "13000000000"
+		// 随机源异常时，降级为时间戳+进程号组合，尽量避免重复用户名冲突。
+		fallback := (time.Now().UnixNano() + int64(os.Getpid())) % 1_000_000_000
+		if fallback < 0 {
+			fallback = -fallback
+		}
+		return fmt.Sprintf("13%09d", fallback)
 	}
 	return fmt.Sprintf("13%09d", n.Int64())
 }
