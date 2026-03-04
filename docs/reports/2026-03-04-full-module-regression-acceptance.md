@@ -37,7 +37,8 @@
 | Frontend（真机网络） | `flutter test integration_test/network_connectivity_test.dart -d 3A091FDJG001DN ... --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true` | 通过（`2 passed`） |
 | Desktop | `bun run test` | 通过（`12 files, 37 tests`） |
 | Website | `bun run test` | 通过（`1 file, 12 tests`） |
-| Admin E2E（全量） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1` | 通过（`61 passed`） |
+| Admin E2E（全量） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1` | 通过（`64 passed`） |
+| Admin 鉴权韧性 | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test playwright-tests/specs/auth-resilience.spec.ts --workers=1` | 通过（`3 passed`） |
 | Admin 全路由冒烟（default） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=default pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1` | 通过（`54 passed`） |
 | Admin 全路由冒烟（data-cleanup） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=data-cleanup pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1` | 通过（`56 passed`） |
 
@@ -102,6 +103,15 @@
 - Website 增强：
   - `website/test/download-utils.test.ts` 扩展至 12 条用例
   - 覆盖商店链接缺失、安装包回退、默认错误文案、linux/unknown 平台边界。
+
+### 4.6 Admin 鉴权韧性测试扩展
+
+- 新增：
+  - `admin/playwright-tests/specs/auth-resilience.spec.ts`
+- 覆盖新增：
+  - 登录失败后保持登录页且不写入 token
+  - access token 过期 + refresh 成功自动续签并留在业务页
+  - access token 过期 + 无 refresh token 时清理会话并回登录页
 
 ## 5. 执行过程中的关键问题与处理
 

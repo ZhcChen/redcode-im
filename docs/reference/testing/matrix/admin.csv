@@ -1,5 +1,7 @@
 feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
 AD-AUTH-001,admin,auth,管理员登录,admin login page + /auth/admin/login,"unit+e2e",TC-AD-AUTH-001,AC-AD-AUTH-001,done,playwright-tests/specs/smoke-login.spec.ts + core-flows.spec.ts
+AD-AUTH-002,admin,auth,登录失败与错误反馈,admin login page + /auth/admin/login(401),"e2e",TC-AD-AUTH-002,AC-AD-AUTH-002,done,auth-resilience.spec.ts 覆盖失败后停留登录页且不落 token
+AD-AUTH-003,admin,auth,token 续签恢复与失效回登录,/auth/admin/me + /auth/admin/refresh,"e2e",TC-AD-AUTH-003,AC-AD-AUTH-003,done,auth-resilience.spec.ts 覆盖续签成功留在业务页与无 refresh 回登录
 AD-RT-001,admin,routing,路由鉴权守卫,admin router guard,"unit+e2e",TC-AD-RT-001,AC-AD-RT-001,done,core-flows.spec.ts 覆盖未登录重定向
 AD-RT-002,admin,routing,全可达路由冒烟与异常可恢复,/dashboard/* + /operations/* + /settings/* + /user-management/* + /versions/*,"e2e",TC-AD-RT-002,AC-AD-RT-002,done,route-smoke.spec.ts 覆盖 default(26) + data-cleanup(27) 路由可达/交互/4xx-5xx 注入恢复
 AD-DS-001,admin,dashboard,工作台指标展示,/api/dashboard/stats,"integration+e2e",TC-AD-DS-001,AC-AD-DS-001,done,复用 tests/go/backend/admin/admin_dashboard_test.go 契约

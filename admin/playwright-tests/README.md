@@ -4,6 +4,7 @@
 
 - `specs/smoke-login.spec.ts`：登录主链路 smoke
 - `specs/core-flows.spec.ts`：核心功能链路
+- `specs/auth-resilience.spec.ts`：登录失败/续签成功/续签失败鉴权韧性
 - `specs/route-smoke.spec.ts`：全路由可达 + 关键交互 + 4xx/5xx 异常冒烟
 - `support/`：路由清单、统一 mock、运行上下文
 
@@ -21,6 +22,13 @@ pnpm dev
 ```bash
 cd admin
 ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm test:e2e
+```
+
+2.1) 仅运行鉴权韧性用例：
+
+```bash
+cd admin
+ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test playwright-tests/specs/auth-resilience.spec.ts --workers=1
 ```
 
 3) 仅运行全路由冒烟（默认 profile）：
