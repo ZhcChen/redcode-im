@@ -64,8 +64,8 @@ cd tests/go && go test ./... -v
 
 # Frontend
 cd frontend && flutter test
-# 仅执行核心服务单测（会话存储/配置回退/版本契约）
-cd frontend && flutter test test/core/token_storage_test.dart test/core/app_config_service_test.dart test/core/version_service_test.dart
+# 仅执行核心服务单测（会话存储/配置回退/设置服务/版本契约）
+cd frontend && flutter test test/core/token_storage_test.dart test/core/app_config_service_test.dart test/core/settings_service_test.dart test/core/version_service_test.dart
 # 先设置本机局域网 IP（确保与真机在同一网段，自动识别默认网卡）
 LAN_IFACE=$(route -n get default | awk '/interface:/{print $2}')
 LAN_IP=$(ipconfig getifaddr ${LAN_IFACE})
@@ -93,9 +93,13 @@ cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
 
 # Desktop
 cd desktop && bun run test
+# 定向执行新增高价值链路
+cd desktop && bun run test -- test/store/accounts.actions.test.ts test/utils/cache.test.ts test/api/message.transform-and-send.test.ts
 
 # Website
 cd website && bun run test
+# Website 下载边界与回退逻辑
+cd website && bun run test -- test/download-utils.test.ts
 ```
 
 ## 4. 目录规范

@@ -65,4 +65,60 @@ describe('message search api', () => {
     expect(result.stats.totalResults).toBe(1)
     expect(result.hasMore).toBe(false)
   })
+
+  it('falls back to Date.now when server timestamp is invalid', async () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_123_456_789)
+
+    getMock.mockResolvedValue({
+      success: true,
+      data: {
+        results: [
+          {
+            id: 'm2',
+            room_id: 'r2',
+            room_name: '测试群2',
+            sender_id: 'u2',
+            sender_name: 'bob',
+            content: 'invalid ts',
+            message_type: 'text',
+            timestamp: 'not-a-date',
+            relevance_score: 0.8
+          }
+        ],
+        stats: {
+          total_results: 1,
+          search_time_ms: 10,
+          query: 'invalid'
+        },
+        has_more: true
+      }
+    })
+
+    const result = await searchMessagesFromServer({
+      query: 'invalid',
+      limit: 10,
+      offset: 0
+    })
+
+    expect(result.results[0].timestamp).toBe(1_700_123_456_789)
+    expect(result.hasMore).toBe(true)
+
+    nowSpy.mockRestore()
+  })
+
+  it('throws when server response is unsuccessful', async () => {
+    getMock.mockResolvedValue({
+      success: false,
+      message: 'search failed',
+      data: null
+    })
+
+    await expect(
+      searchMessagesFromServer({
+        query: 'hello',
+        limit: 10,
+        offset: 0
+      })
+    ).rejects.toThrow('search failed')
+  })
 })

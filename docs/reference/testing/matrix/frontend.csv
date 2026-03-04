@@ -13,5 +13,6 @@ FE-CON-002,frontend,contacts,好友申请处理,features/contacts,"integration+e
 FE-EMJ-001,frontend,emoji,表情包管理,features/emoji,"unit+integration",TC-FE-EMJ-001,AC-FE-EMJ-001,done,现阶段由基础模型与缓存回归覆盖（无设备依赖）
 FE-SET-001,frontend,settings,设置与反馈,features/settings,"unit+integration+e2e",TC-FE-SET-001,AC-FE-SET-001,done,test/smoke_test.dart 环境配置与设置依赖路径校验
 FE-SET-002,frontend,settings,应用名称配置回退链路,core/services/app_config_service,"unit",TC-FE-SET-002,AC-FE-SET-002,done,test/core/app_config_service_test.dart（内存/SQLite/API 优先级）
+FE-SET-003,frontend,settings,协议与验证码配置服务容错,core/services/settings_service,"unit",TC-FE-SET-003,AC-FE-SET-003,done,test/core/settings_service_test.dart（成功/失败/格式异常分支）
 FE-UPD-001,frontend,update,整包版本检查与下载链接契约,core/services/version_service,"unit",TC-FE-UPD-001,AC-FE-UPD-001,done,test/core/version_service_test.dart（query/解析/错误映射）
 FE-PUSH-001,frontend,push,通知初始化与跳转,core/services + features/startup,"integration+e2e",TC-FE-PUSH-001,AC-FE-PUSH-001,done,integration_test/smoke_test.dart 事件总线集成链路（本地 mock）

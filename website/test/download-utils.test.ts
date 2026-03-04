@@ -79,6 +79,34 @@ describe('download utils', () => {
     expect(item.versionText).toBe('未配置安装包')
   })
 
+  it('applyLatestVersionToItem marks store item unavailable when app store url missing', () => {
+    const item = createItem({ key: 'iosStore', kind: 'store', platform: 'ios' })
+
+    applyLatestVersionToItem(
+      item,
+      { version: '2.0.1', build_number: 12, app_store_url: null },
+      'stable'
+    )
+
+    expect(item.unavailable).toBe(true)
+    expect(item.href).toBe('')
+    expect(item.versionText).toBe('未配置商店链接')
+  })
+
+  it('applyLatestVersionToItem keeps package available when download_url exists', () => {
+    const item = createItem({ kind: 'package' })
+
+    applyLatestVersionToItem(
+      item,
+      { version: '2.1.0', build_number: 13, download_url: 'https://example.com/app.pkg' },
+      'stable'
+    )
+
+    expect(item.unavailable).toBe(false)
+    expect(item.href).toBe('')
+    expect(item.versionText).toBe('v2.1.0 (build 13)')
+  })
+
   it('resolveLatestDownloadUrlPayload returns success payload with updated version text', () => {
     const result = resolveLatestDownloadUrlPayload({
       success: true,
@@ -97,6 +125,25 @@ describe('download utils', () => {
     const result = resolveLatestDownloadUrlPayload({ success: false, message: 'no package' })
 
     expect(result).toEqual({ ok: false, error: 'no package' })
+  })
+
+  it('resolveLatestDownloadUrlPayload uses currentVersionText fallback and default error', () => {
+    const successWithFallback = resolveLatestDownloadUrlPayload(
+      {
+        success: true,
+        download_url: 'https://download.example.com/latest'
+      },
+      'v1.0.0'
+    )
+
+    expect(successWithFallback).toEqual({
+      ok: true,
+      downloadUrl: 'https://download.example.com/latest',
+      versionText: 'v1.0.0'
+    })
+
+    const defaultError = resolveLatestDownloadUrlPayload({ success: false })
+    expect(defaultError).toEqual({ ok: false, error: '暂无可用安装包' })
   })
 
   it('detectPlatformKey detects common platform variants', () => {
@@ -127,11 +174,18 @@ describe('download utils', () => {
 
     expect(
       detectPlatformKey({
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64)'
+      })
+    ).toBe('linux')
+
+    expect(
+      detectPlatformKey({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
       })
     ).toBe('windows')
 
     expect(detectPlatformKey({ isClient: false })).toBe('windows')
+    expect(detectPlatformKey({ userAgent: 'CustomAgent/1.0' })).toBe('windows')
   })
 
   it('resolvePrimaryDownloadKeys follows expected priority per platform', () => {
@@ -150,6 +204,12 @@ describe('download utils', () => {
     expect(resolvePrimaryDownloadKeys('windows').slice(0, 2)).toEqual([
       'windows',
       'windows'
+    ])
+
+    expect(resolvePrimaryDownloadKeys('linux').slice(0, 3)).toEqual([
+      'linux',
+      'windows',
+      'macosArm'
     ])
   })
 })

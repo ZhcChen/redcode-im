@@ -1,7 +1,7 @@
 # 全模块回归验收报告
 
 **日期**: 2026-03-04  
-**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend 核心服务测试 + Pixel 8 Pro 真机链路）  
+**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend/ Desktop / Website 测试扩展与真机链路）  
 **范围**: Backend / Frontend / Admin / Desktop / Website 全模块回归  
 **执行分支**: `feat/full-test-rebuild`  
 **关联提交**: `d451295`、`5b19065`
@@ -32,11 +32,11 @@
 | Backend（Rust 单元） | `cargo test --lib` | 通过（`126 passed`） |
 | Backend（Rust 集成） | `cargo test --tests -- --test-threads=1` | 通过 |
 | Backend（Go 黑盒） | `go test ./... -v`（`tests/go`） | 通过（全部业务域） |
-| Frontend（单测） | `flutter test` | 通过（`24 passed`） |
+| Frontend（单测） | `flutter test` | 通过（`27 passed`） |
 | Frontend（真机 smoke） | `flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN ...` | 通过（`2 passed`） |
 | Frontend（真机网络） | `flutter test integration_test/network_connectivity_test.dart -d 3A091FDJG001DN ... --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true` | 通过（`2 passed`） |
-| Desktop | `bun run test` | 通过（`9 files, 22 tests`） |
-| Website | `bun run test` | 通过（`1 file, 9 tests`） |
+| Desktop | `bun run test` | 通过（`12 files, 37 tests`） |
+| Website | `bun run test` | 通过（`1 file, 12 tests`） |
 | Admin E2E（全量） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1` | 通过（`61 passed`） |
 | Admin 全路由冒烟（default） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=default pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1` | 通过（`54 passed`） |
 | Admin 全路由冒烟（data-cleanup） | `ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=data-cleanup pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1` | 通过（`56 passed`） |
@@ -88,6 +88,20 @@
   - 会话存储完整性（token/user/refresh）
   - 应用名配置回退链路（内存 -> SQLite -> API）
   - 版本检查与下载链接契约（query 参数、异常映射）
+
+### 4.5 Frontend/Desktop/Website 跨模块测试扩展
+
+- Frontend 新增：
+  - `frontend/test/core/settings_service_test.dart`
+  - 覆盖 `fetchAppName`、`fetchPrivacyPolicy`、`fetchRequireCaptchaForLogin` 的成功/失败/格式异常分支。
+- Desktop 新增：
+  - `desktop/test/store/accounts.actions.test.ts`
+  - `desktop/test/utils/cache.test.ts`
+  - `desktop/test/api/message.transform-and-send.test.ts`
+  - `desktop/test/api/message-search.test.ts`（新增错误分支与时间戳兜底用例）
+- Website 增强：
+  - `website/test/download-utils.test.ts` 扩展至 12 条用例
+  - 覆盖商店链接缺失、安装包回退、默认错误文案、linux/unknown 平台边界。
 
 ## 5. 执行过程中的关键问题与处理
 
