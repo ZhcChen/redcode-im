@@ -114,7 +114,7 @@
 | [批次C验收报告（2026-03-01）](reports/2026-03-01-batch-c-admin-acceptance.md) | Admin 测试重建验收 |
 | [批次D验收报告（2026-03-01）](reports/2026-03-01-batch-d-frontend-acceptance.md) | Frontend Flutter 测试重建验收 |
 | [批次E验收报告（2026-03-01）](reports/2026-03-01-batch-e-desktop-website-acceptance.md) | Desktop + Website 测试重建验收 |
-| [全模块回归验收报告草稿（2026-03-04）](reports/2026-03-04-full-module-regression-acceptance-draft.md) | 全模块回归执行结果与问题处理记录 |
+| [全模块回归验收报告（2026-03-04）](reports/2026-03-04-full-module-regression-acceptance.md) | 全模块回归执行结果与问题处理记录 |
 
 ---
 
@@ -130,4 +130,4 @@
 
 ---
 
-**文档最后更新**: 2026-03-01
+**文档最后更新**: 2026-03-04
