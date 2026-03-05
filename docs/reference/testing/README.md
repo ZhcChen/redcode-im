@@ -78,6 +78,9 @@ cd tests/go && go test ./backend/admin -run 'TestAdminSettings_(UserAccountLimit
 cd tests/go && go test ./backend/auth -run TestSMSLogin_WithCaptchaSetting_OK -v
 # 头像上传依赖 external-mock 与 http 签名链路，建议使用隔离栈执行
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests
+# 仅执行 Wave D（分片上传/审核链路/Push）回归
+cd tests/go && go test ./backend/uploads -run 'Test(MessageAttachmentMultipartUploadAndDownload_OK|FileUploadAuditTaskLifecycle_WithViolationMock)$' -v
+cd tests/go && go test ./backend/push -run TestPushDeviceRegisterSendAndUnregister_OK -v
 # 若本机 backend 未配置 OAuth/COS mock，使用隔离测试栈执行完整 Go 套件
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests

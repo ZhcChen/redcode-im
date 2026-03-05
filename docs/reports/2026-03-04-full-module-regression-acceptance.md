@@ -172,6 +172,21 @@
   - `go test ./backend/auth -run TestSMSLogin_WithCaptchaSetting_OK -v` 通过
   - 隔离栈 `docker-compose -f tests/docker-compose.yml run --rm go-tests` 通过（包含头像上传链路）
 
+### 4.11 Backend Wave D（分片上传 / 审核链路 / Push）补测
+
+- 新增 Go 黑盒用例：
+  - `tests/go/backend/uploads/multipart_flow_test.go`
+  - `tests/go/backend/uploads/file_audit_flow_test.go`
+  - `tests/go/backend/push/push_device_flow_test.go`
+- 覆盖新增：
+  - `/rooms/{room_id}/messages/attachments/multipart/initiate` + `/uploads/multipart/sessions/*`：分片签名、分片上传、分片提交、合并完成、消息发送与下载回读全链路
+  - `/api/admin/file-upload-audit/tasks*`：管理员上传触发审核、任务 list/detail、违规拒绝与对象删除、requeue 契约
+  - `/push/devices` + push service：管理员配置 FCM、设备注册、消息触发推送、`/api/admin/push/logs` 成功日志、设备注销
+- 波次执行结果：
+  - `go test ./backend/uploads -run 'Test(MessageAttachmentMultipartUploadAndDownload_OK|FileUploadAuditTaskLifecycle_WithViolationMock)$' -v` 通过
+  - `go test ./backend/push -run TestPushDeviceRegisterSendAndUnregister_OK -v` 通过
+  - 隔离栈 `docker-compose -f tests/docker-compose.yml run --rm go-tests` 通过（含新增 Wave D 全部用例）
+
 ## 5. 执行过程中的关键问题与处理
 
 - 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  

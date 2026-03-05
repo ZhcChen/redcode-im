@@ -23,10 +23,10 @@ BE-MSG-003,backend,messages,删除消息,/messages/{id},"integration",TC-BE-MSG-
 BE-MSG-004,backend,messages,未读计数,/unread_counts,"integration",TC-BE-MSG-004,AC-BE-MSG-004,done,go unread_counts_test 覆盖多消息未读累计与 read_until 后清零
 BE-MSG-005,backend,messages,消息搜索,/messages/search,"integration+e2e",TC-BE-MSG-005,AC-BE-MSG-005,done,go message_search_test 覆盖成员隔离(limit+has_more)与空查询校验
 BE-UPL-001,backend,uploads,对象上传与访问,/rooms/{room_id}/messages/attachments/*,"integration+e2e",TC-BE-UPL-001,AC-BE-UPL-001,done,go uploads 集成用例已覆盖
-BE-UPL-002,backend,uploads,分片上传完整流程,/multipart/*,"integration+e2e",TC-BE-UPL-002,AC-BE-UPL-002,todo,需要 COS mock
-BE-UPL-003,backend,uploads,上传审核流程,/file-audit/*,"integration",TC-BE-UPL-003,AC-BE-UPL-003,todo,需要腾讯 CI mock
+BE-UPL-002,backend,uploads,分片上传完整流程,/multipart/*,"integration+e2e",TC-BE-UPL-002,AC-BE-UPL-002,done,go multipart_flow_test 覆盖 initiate/parts-signature/upload/commit/complete + 消息发送下载全链路
+BE-UPL-003,backend,uploads,上传审核流程,/file-audit/*,"integration",TC-BE-UPL-003,AC-BE-UPL-003,done,go file_audit_flow_test 覆盖 admin test upload + audit tasks list/detail/requeue + 违规对象删除
 BE-UPL-004,backend,uploads,附件清理配置解析与保留期控制,backend/src/services/file_upload_cleanup.rs,"unit",TC-BE-UPL-004,AC-BE-UPL-004,done,file_upload_cleanup_config 单测覆盖 2 天配置与非法值回退
-BE-PUSH-001,backend,push,设备注册与推送发送,/push/devices + push service,"integration+e2e",TC-BE-PUSH-001,AC-BE-PUSH-001,todo,需要 FCM mock
+BE-PUSH-001,backend,push,设备注册与推送发送,/push/devices + push service,"integration+e2e",TC-BE-PUSH-001,AC-BE-PUSH-001,done,go push_device_flow_test 覆盖 push 配置 + 设备注册 + 消息触发推送日志 + 注销
 BE-PUSH-002,backend,push,push 队列清理配置边界,backend/src/services/push.rs,"unit",TC-BE-PUSH-002,AC-BE-PUSH-002,done,push_db_queue_cleanup_config 单测覆盖 2 天保留与 clamp 边界
 BE-VER-001,backend,version,最新版本查询,/versions/latest,"integration+e2e",TC-BE-VER-001,AC-BE-VER-001,done,go versions 集成用例已覆盖
 BE-VER-002,backend,version,下载链接生成,/versions/latest/download-url,"integration+e2e",TC-BE-VER-002,AC-BE-VER-002,done,go versions 集成用例已覆盖
