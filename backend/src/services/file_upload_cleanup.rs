@@ -362,6 +362,39 @@ pub async fn run_file_upload_cleanup(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use once_cell::sync::Lazy;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    struct EnvVarGuard {
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn apply(entries: &[(&'static str, Option<&str>)]) -> Self {
+            let mut saved = Vec::with_capacity(entries.len());
+            for (name, value) in entries {
+                saved.push((*name, std::env::var(name).ok()));
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_infer_audit_scene_from_object_key() {
@@ -428,10 +461,51 @@ mod tests {
     #[test]
     fn test_file_upload_cleanup_config_defaults() {
         // 使用 from_env 时，如果环境变量未设置，应该使用默认值
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("FILE_UPLOAD_PENDING_TIMEOUT_SECONDS", None),
+            ("FILE_UPLOAD_ORPHAN_DELETE_AFTER_SECONDS", None),
+            ("FILE_UPLOAD_UNREFERENCED_RETENTION_SECONDS", None),
+            ("FILE_UPLOAD_CLEANUP_BATCH_SIZE", None),
+        ]);
         let config = FileUploadCleanupConfig::from_env();
         assert!(config.pending_timeout_seconds > 0);
         assert!(config.orphan_delete_after_seconds > 0);
         assert!(config.unreferenced_retention_seconds > 0);
         assert!(config.batch_size > 0);
+    }
+
+    #[test]
+    fn test_file_upload_cleanup_config_from_env_custom_values() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("FILE_UPLOAD_PENDING_TIMEOUT_SECONDS", Some("7200")),
+            ("FILE_UPLOAD_ORPHAN_DELETE_AFTER_SECONDS", Some("172800")),
+            ("FILE_UPLOAD_UNREFERENCED_RETENTION_SECONDS", Some("172800")),
+            ("FILE_UPLOAD_CLEANUP_BATCH_SIZE", Some("500")),
+        ]);
+
+        let config = FileUploadCleanupConfig::from_env();
+        assert_eq!(config.pending_timeout_seconds, 7200);
+        assert_eq!(config.orphan_delete_after_seconds, 172800);
+        assert_eq!(config.unreferenced_retention_seconds, 172800);
+        assert_eq!(config.batch_size, 500);
+    }
+
+    #[test]
+    fn test_file_upload_cleanup_config_from_env_invalid_values_use_defaults() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("FILE_UPLOAD_PENDING_TIMEOUT_SECONDS", Some("0")),
+            ("FILE_UPLOAD_ORPHAN_DELETE_AFTER_SECONDS", Some("-1")),
+            ("FILE_UPLOAD_UNREFERENCED_RETENTION_SECONDS", Some("invalid")),
+            ("FILE_UPLOAD_CLEANUP_BATCH_SIZE", Some(" ")),
+        ]);
+
+        let config = FileUploadCleanupConfig::from_env();
+        assert_eq!(config.pending_timeout_seconds, 6 * 3600);
+        assert_eq!(config.orphan_delete_after_seconds, 7 * 24 * 3600);
+        assert_eq!(config.unreferenced_retention_seconds, 30 * 24 * 3600);
+        assert_eq!(config.batch_size, 200);
     }
 }

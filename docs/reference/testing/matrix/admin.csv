@@ -11,6 +11,8 @@ AD-CHAT-001,admin,chat-history,聊天记录查询,/api/admin/chat-history/*,"int
 AD-CNT-001,admin,content,反馈与举报列表,/api/admin/feedbacks + /api/admin/reports,"integration+e2e",TC-AD-CNT-001,AC-AD-CNT-001,done,复用 backend content 契约并由 admin 登录链路验收
 AD-OPS-001,admin,operations,系统日志查询,/api/admin/logs,"integration+e2e",TC-AD-OPS-001,AC-AD-OPS-001,done,复用 backend admin/system 契约
 AD-OPS-002,admin,operations,Push 日志查询,/api/admin/push/logs,"integration+e2e",TC-AD-OPS-002,AC-AD-OPS-002,done,复用 backend push/log 契约
+AD-OPS-003,admin,operations,系统日志清理,/api/admin/logs/cleanup,"integration",TC-AD-OPS-003,AC-AD-OPS-003,done,复用 tests/go/backend/admin/admin_cleanup_contract_test.go 覆盖 retentionDays 成功/失败边界
+AD-OPS-004,admin,operations,Push 日志清理,/api/admin/push/logs/cleanup,"integration",TC-AD-OPS-004,AC-AD-OPS-004,done,复用 tests/go/backend/admin/admin_cleanup_contract_test.go 覆盖 retentionDays 成功/失败边界
 AD-SET-001,admin,settings,基础设置管理,/api/admin/settings/general,"integration+e2e",TC-AD-SET-001,AC-AD-SET-001,done,core-flows.spec.ts settings/general 场景
 AD-SET-002,admin,settings,上传与存储设置,/api/admin/settings/upload + /api/admin/storage/*,"integration+e2e",TC-AD-SET-002,AC-AD-SET-002,done,settings/general + backend storage 契约复用
 AD-SET-003,admin,settings,Push 配置管理,/api/admin/push/*,"integration+e2e",TC-AD-SET-003,AC-AD-SET-003,done,复用 backend admin push 契约

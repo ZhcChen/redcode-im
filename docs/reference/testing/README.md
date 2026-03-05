@@ -57,10 +57,20 @@
 ```bash
 # Backend
 cd backend && cargo test --lib
+# 仅执行成本/生命周期清理配置边界单测
+cd backend && cargo test file_upload_cleanup_config --lib
+cd backend && cargo test log_writer_config --lib
+cd backend && cargo test push_db_queue_cleanup_config --lib
 cd backend && cargo test --tests -- --test-threads=1
 
 # Go 契约
 cd tests/go && go test ./... -v
+# 仅执行管理端清理接口契约（系统日志/Push 日志）
+cd tests/go && go test ./backend/admin -run TestAdminLogCleanupContract_OKAndValidationError -v
+# 若本机 backend 未配置 OAuth/COS mock，使用隔离测试栈执行完整 Go 套件
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml down -v --remove-orphans
 
 # Frontend
 cd frontend && flutter test

@@ -25,15 +25,20 @@ BE-MSG-005,backend,messages,消息搜索,/messages/search,"integration+e2e",TC-B
 BE-UPL-001,backend,uploads,对象上传与访问,/rooms/{room_id}/messages/attachments/*,"integration+e2e",TC-BE-UPL-001,AC-BE-UPL-001,done,go uploads 集成用例已覆盖
 BE-UPL-002,backend,uploads,分片上传完整流程,/multipart/*,"integration+e2e",TC-BE-UPL-002,AC-BE-UPL-002,todo,需要 COS mock
 BE-UPL-003,backend,uploads,上传审核流程,/file-audit/*,"integration",TC-BE-UPL-003,AC-BE-UPL-003,todo,需要腾讯 CI mock
+BE-UPL-004,backend,uploads,附件清理配置解析与保留期控制,backend/src/services/file_upload_cleanup.rs,"unit",TC-BE-UPL-004,AC-BE-UPL-004,done,file_upload_cleanup_config 单测覆盖 2 天配置与非法值回退
 BE-PUSH-001,backend,push,设备注册与推送发送,/push/devices + push service,"integration+e2e",TC-BE-PUSH-001,AC-BE-PUSH-001,todo,需要 FCM mock
+BE-PUSH-002,backend,push,push 队列清理配置边界,backend/src/services/push.rs,"unit",TC-BE-PUSH-002,AC-BE-PUSH-002,done,push_db_queue_cleanup_config 单测覆盖 2 天保留与 clamp 边界
 BE-VER-001,backend,version,最新版本查询,/versions/latest,"integration+e2e",TC-BE-VER-001,AC-BE-VER-001,done,go versions 集成用例已覆盖
 BE-VER-002,backend,version,下载链接生成,/versions/latest/download-url,"integration+e2e",TC-BE-VER-002,AC-BE-VER-002,done,go versions 集成用例已覆盖
 BE-ADM-001,backend,admin,管理员登录,/auth/admin/login,"integration+e2e",TC-BE-ADM-001,AC-BE-ADM-001,done,go admin 集成用例已覆盖
 BE-ADM-002,backend,admin,仪表盘统计,/api/dashboard/*,"integration",TC-BE-ADM-002,AC-BE-ADM-002,done,go admin 集成用例已覆盖
 BE-ADM-003,backend,admin,用户管理,/api/admin/users,"integration+e2e",TC-BE-ADM-003,AC-BE-ADM-003,done,go admin 集成用例已覆盖
 BE-ADM-004,backend,admin,系统设置管理,/api/admin/settings/*,"integration+e2e",TC-BE-ADM-004,AC-BE-ADM-004,todo,
+BE-ADM-005,backend,admin,系统日志清理,/api/admin/logs/cleanup,"integration",TC-BE-ADM-005,AC-BE-ADM-005,done,go admin_cleanup_contract_test 覆盖 retentionDays=2 与 0 的契约边界
+BE-ADM-006,backend,admin,Push 日志清理,/api/admin/push/logs/cleanup,"integration",TC-BE-ADM-006,AC-BE-ADM-006,done,go admin_cleanup_contract_test 覆盖 retentionDays=2 与 0 的契约边界
 BE-WS-001,backend,websocket,WebSocket 连接与消息分发,/ws,"integration+e2e",TC-BE-WS-001,AC-BE-WS-001,done,go ws 集成用例已覆盖（无效token握手校验）
 BE-SYS-001,backend,system,健康检查,/healthz,"integration",TC-BE-SYS-001,AC-BE-SYS-001,done,已有 smoke
 BE-SYS-002,backend,system,就绪检查,/readyz,"integration",TC-BE-SYS-002,AC-BE-SYS-002,todo,
+BE-SYS-003,backend,system,系统日志清理配置解析,backend/src/logging/writer.rs,"unit",TC-BE-SYS-003,AC-BE-SYS-003,done,log_writer_config 单测覆盖正向读取与非法值回退
 BE-EXT-001,backend,external-mock,外部模拟服务健康检查,/healthz@external-mock,"integration",TC-BE-EXT-001,AC-BE-EXT-001,done,Go system 测试已覆盖
 BE-EXT-002,backend,external-mock,外部模拟服务能力自测,tests/mocks/external/cmd/external-mock/main_test.go,"unit+integration",TC-BE-EXT-002,AC-BE-EXT-002,done,COS/CI/JWKS/FCM/IPInfo 已覆盖

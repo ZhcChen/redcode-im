@@ -11,6 +11,13 @@ import (
 	"sync"
 )
 
+type storageProviderResponse struct {
+	ID        string `json:"id"`
+	Endpoint  string `json:"endpoint"`
+	IsActive  bool   `json:"is_active"`
+	IsDefault bool   `json:"is_default"`
+}
+
 var ensureDefaultStorageProviderOnce sync.Once
 var ensureDefaultStorageProviderErr error
 
@@ -29,16 +36,49 @@ func ensureDefaultStorageProvider(c *Client) error {
 	if err != nil {
 		return err
 	}
+	expectedEndpoint := externalMockEndpoint()
 
 	defaultReq := NewAuthedJSONRequestWithToken(http.MethodGet, c.BaseURL+"/api/admin/storage-providers/default", loginResult.Token, nil)
 	defaultResp, err := c.HTTP.Do(defaultReq)
 	if err != nil {
 		return err
 	}
-	defaultResp.Body.Close()
 	if defaultResp.StatusCode == http.StatusOK {
+		defer defaultResp.Body.Close()
+		var existing storageProviderResponse
+		if err := json.NewDecoder(defaultResp.Body).Decode(&existing); err != nil {
+			return err
+		}
+
+		// 历史测试可能遗留 docker DNS endpoint（external-mock:19080），
+		// 本机直连执行时需要自动切回当前可访问 endpoint。
+		if existing.Endpoint == expectedEndpoint && existing.IsActive && existing.IsDefault {
+			return nil
+		}
+
+		patchPayload := map[string]any{
+			"endpoint":   expectedEndpoint,
+			"is_active":  true,
+			"is_default": true,
+		}
+		patchReq := NewAuthedJSONRequestWithToken(
+			http.MethodPatch,
+			c.BaseURL+"/api/admin/storage-providers/"+existing.ID,
+			loginResult.Token,
+			patchPayload,
+		)
+		patchResp, err := c.HTTP.Do(patchReq)
+		if err != nil {
+			return err
+		}
+		defer patchResp.Body.Close()
+		if patchResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(patchResp.Body)
+			return &simpleError{msg: "patch default storage provider failed: " + string(body)}
+		}
 		return nil
 	}
+	defaultResp.Body.Close()
 
 	createPayload := map[string]any{
 		"provider_type": "tencent_cos",
@@ -46,7 +86,7 @@ func ensureDefaultStorageProvider(c *Client) error {
 		"secret_id":     "mock-secret-id",
 		"secret_key":    "mock-secret-key",
 		"region":        "ap-shanghai",
-		"endpoint":      externalMockEndpoint(),
+		"endpoint":      expectedEndpoint,
 		"bucket_name":   "mock-bucket",
 		"is_active":     true,
 		"is_default":    true,

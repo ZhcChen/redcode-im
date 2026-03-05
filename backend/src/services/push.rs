@@ -1722,6 +1722,39 @@ mod tests {
     use super::*;
     use crate::database::models::MemberRole;
     use chrono::Utc;
+    use once_cell::sync::Lazy;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    struct EnvVarGuard {
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn apply(entries: &[(&'static str, Option<&str>)]) -> Self {
+            let mut saved = Vec::with_capacity(entries.len());
+            for (name, value) in entries {
+                saved.push((*name, std::env::var(name).ok()));
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
 
     fn member(user_id: Uuid, username: &str, nickname: Option<&str>) -> RoomMemberWithUserInfo {
         RoomMemberWithUserInfo {
@@ -1787,5 +1820,43 @@ mod tests {
             &bob,
             &decision
         ));
+    }
+
+    #[test]
+    fn push_db_queue_cleanup_config_should_accept_two_day_retention() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("PUSH_DB_QUEUE_CLEANUP_ENABLED", Some("true")),
+            ("PUSH_DB_QUEUE_RETENTION_DAYS", Some("2")),
+            ("PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS", Some("3600")),
+            ("PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE", Some("1000")),
+            ("PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES", Some("20")),
+        ]);
+
+        let cfg = PushDbQueueCleanupConfig::from_env();
+        assert!(cfg.enabled);
+        assert_eq!(cfg.retention_days, 2);
+        assert_eq!(cfg.interval_seconds, 3600);
+        assert_eq!(cfg.batch_size, 1000);
+        assert_eq!(cfg.max_batches, 20);
+    }
+
+    #[test]
+    fn push_db_queue_cleanup_config_should_clamp_invalid_values() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("PUSH_DB_QUEUE_CLEANUP_ENABLED", Some("false")),
+            ("PUSH_DB_QUEUE_RETENTION_DAYS", Some("0")),
+            ("PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS", Some("10")),
+            ("PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE", Some("999999999")),
+            ("PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES", Some("-5")),
+        ]);
+
+        let cfg = PushDbQueueCleanupConfig::from_env();
+        assert!(!cfg.enabled);
+        assert_eq!(cfg.retention_days, 1);
+        assert_eq!(cfg.interval_seconds, 60);
+        assert_eq!(cfg.batch_size, 200_000);
+        assert_eq!(cfg.max_batches, 1);
     }
 }

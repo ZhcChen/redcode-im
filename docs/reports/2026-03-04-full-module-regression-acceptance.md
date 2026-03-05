@@ -1,7 +1,7 @@
 # 全模块回归验收报告
 
 **日期**: 2026-03-04  
-**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend/ Desktop / Website 测试扩展与真机链路）  
+**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend/Desktop/Website 测试扩展与真机链路；Backend 成本与生命周期清理链路补测）  
 **范围**: Backend / Frontend / Admin / Desktop / Website 全模块回归  
 **执行分支**: `feat/full-test-rebuild`  
 **关联提交**: `d451295`、`5b19065`
@@ -29,9 +29,9 @@
 
 | 模块 | 命令 | 结果 |
 |------|------|------|
-| Backend（Rust 单元） | `cargo test --lib` | 通过（`126 passed`） |
+| Backend（Rust 单元） | `cargo test --lib` | 通过（`132 passed`） |
 | Backend（Rust 集成） | `cargo test --tests -- --test-threads=1` | 通过 |
-| Backend（Go 黑盒） | `go test ./... -v`（`tests/go`） | 通过（全部业务域） |
+| Backend（Go 黑盒） | `docker-compose -f tests/docker-compose.yml run --rm go-tests` | 通过（全部业务域） |
 | Frontend（单测） | `flutter test` | 通过（`27 passed`） |
 | Frontend（真机 smoke） | `flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN ...` | 通过（`2 passed`） |
 | Frontend（真机网络） | `flutter test integration_test/network_connectivity_test.dart -d 3A091FDJG001DN ... --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true` | 通过（`2 passed`） |
@@ -113,16 +113,37 @@
   - access token 过期 + refresh 成功自动续签并留在业务页
   - access token 过期 + 无 refresh token 时清理会话并回登录页
 
+### 4.7 Backend 成本与生命周期清理链路补测
+
+- 新增 Go 黑盒契约：
+  - `tests/go/backend/admin/admin_cleanup_contract_test.go`
+  - 覆盖 `POST /api/admin/logs/cleanup` 与 `POST /api/admin/push/logs/cleanup`
+  - 覆盖 `retentionDays=2` 成功契约与 `retentionDays=0` 参数校验失败契约
+- 新增 Rust 单测（配置边界）：
+  - `backend/src/services/file_upload_cleanup.rs`
+  - `backend/src/services/push.rs`
+  - `backend/src/logging/writer.rs`
+- 修复 1 处配置解析缺陷（测试驱动）：
+  - `LogWriterConfig::from_env` 以前会接受 `0/-1` 等非法值；
+  - 现改为仅接受 `>0`，非法值回退默认值，避免误配置导致清理策略异常。
+- 测试基线结果：
+  - `cargo test file_upload_cleanup_config --lib` -> `3 passed`
+  - `cargo test log_writer_config --lib` -> `2 passed`
+  - `cargo test push_db_queue_cleanup_config --lib` -> `2 passed`
+
 ## 5. 执行过程中的关键问题与处理
 
-- 问题 1：`tests/run.sh` 依赖的 Docker 镜像构建在本机出现 `apk add` 长时间阻塞。  
-  处理：采用等价本机执行路径（本机启动 external-mock + backend，连接本地 PostgreSQL/Redis）完成回归。
+- 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  
+  处理：使用隔离测试栈执行全量 Go 套件（`docker-compose -f tests/docker-compose.yml run --rm go-tests`），并增强 `EnsureDefaultStorageProvider` 自动修正 endpoint 到当前 `EXTERNAL_MOCK_BASE_URL` 对应 host。
 
 - 问题 2：Admin Playwright 首次使用 `127.0.0.1:8011` 出现连接拒绝。  
   处理：固定使用 `http://localhost:8011` 并确认 dev server 监听后重跑，全部通过。
 
 - 问题 3：Frontend 真机联调脚本在当前机器 `en0` 无地址（默认网卡为 `en1`）。  
   处理：改为“先解析默认路由网卡再取 IP”（`route -n get default` + `ipconfig getifaddr`），已写入测试文档。
+
+- 问题 4：`LogWriterConfig::from_env` 会接受 `0/-1` 等非法值，可能导致日志清理策略异常。  
+  处理：新增失败测试后修复解析逻辑，仅接受 `>0`，非法值回退默认值。
 
 ## 6. 可追溯性
 

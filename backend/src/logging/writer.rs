@@ -32,25 +32,37 @@ impl Default for LogWriterConfig {
 impl LogWriterConfig {
     /// 从环境变量读取配置
     pub fn from_env() -> Self {
-        let batch_size = std::env::var("LOG_DB_BATCH_SIZE")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(100);
+        fn read_positive_usize(name: &str, default: usize) -> usize {
+            std::env::var(name)
+                .ok()
+                .and_then(|v| v.trim().parse::<usize>().ok())
+                .filter(|v| *v > 0)
+                .unwrap_or(default)
+        }
 
-        let flush_interval_ms = std::env::var("LOG_DB_FLUSH_INTERVAL_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(5000);
+        fn read_positive_u64(name: &str, default: u64) -> u64 {
+            std::env::var(name)
+                .ok()
+                .and_then(|v| v.trim().parse::<u64>().ok())
+                .filter(|v| *v > 0)
+                .unwrap_or(default)
+        }
 
-        let retention_days = std::env::var("LOG_DB_RETENTION_DAYS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(7);
+        fn read_positive_i64(name: &str, default: i64) -> i64 {
+            std::env::var(name)
+                .ok()
+                .and_then(|v| v.trim().parse::<i64>().ok())
+                .filter(|v| *v > 0)
+                .unwrap_or(default)
+        }
 
         Self {
-            batch_size,
-            flush_interval: Duration::from_millis(flush_interval_ms),
-            retention_days,
+            batch_size: read_positive_usize("LOG_DB_BATCH_SIZE", 100),
+            flush_interval: Duration::from_millis(read_positive_u64(
+                "LOG_DB_FLUSH_INTERVAL_MS",
+                5000,
+            )),
+            retention_days: read_positive_i64("LOG_DB_RETENTION_DAYS", 7),
             cleanup_interval_secs: 86400,
         }
     }
@@ -150,12 +162,84 @@ pub async fn start_log_cleanup_task(store: Arc<dyn LogStore>, retention_days: i6
         match store.cleanup(retention_days).await {
             Ok(deleted) => {
                 if deleted > 0 {
-                    info!("日志清理完成: 删除了 {} 条过期日志 (保留 {} 天)", deleted, retention_days);
+                    info!(
+                        "日志清理完成: 删除了 {} 条过期日志 (保留 {} 天)",
+                        deleted, retention_days
+                    );
                 }
             }
             Err(e) => {
                 error!("日志清理失败: {:?}", e);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use once_cell::sync::Lazy;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    struct EnvVarGuard {
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn apply(entries: &[(&'static str, Option<&str>)]) -> Self {
+            let mut saved = Vec::with_capacity(entries.len());
+            for (name, value) in entries {
+                saved.push((*name, std::env::var(name).ok()));
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_log_writer_config_from_env_custom_values() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("LOG_DB_BATCH_SIZE", Some("500")),
+            ("LOG_DB_FLUSH_INTERVAL_MS", Some("2000")),
+            ("LOG_DB_RETENTION_DAYS", Some("2")),
+        ]);
+
+        let config = LogWriterConfig::from_env();
+        assert_eq!(config.batch_size, 500);
+        assert_eq!(config.flush_interval, Duration::from_millis(2000));
+        assert_eq!(config.retention_days, 2);
+        assert_eq!(config.cleanup_interval_secs, 86400);
+    }
+
+    #[test]
+    fn test_log_writer_config_from_env_invalid_values_use_defaults() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("LOG_DB_BATCH_SIZE", Some("0")),
+            ("LOG_DB_FLUSH_INTERVAL_MS", Some("-1")),
+            ("LOG_DB_RETENTION_DAYS", Some("0")),
+        ]);
+
+        let config = LogWriterConfig::from_env();
+        assert_eq!(config.batch_size, 100);
+        assert_eq!(config.flush_interval, Duration::from_millis(5000));
+        assert_eq!(config.retention_days, 7);
     }
 }
