@@ -160,6 +160,18 @@
   - `go test ./backend/messages -run TestMessageSearch_MembershipIsolationAndValidation_OK -v` 通过
   - `go test ./backend/admin -run 'TestAdminSettings_(UserAccountLimitAndUploadPolicy_OK|NonAdminShouldBeForbidden)$' -v` 通过
 
+### 4.10 Backend Wave C（短信登录 / 头像上传）补测
+
+- 新增 Go 黑盒用例：
+  - `tests/go/backend/auth/sms_login_test.go`
+  - `tests/go/backend/users/user_avatar_flow_test.go`
+- 覆盖新增：
+  - `/auth/login/sms`：错误验证码失败、通用验证码成功登录（自动注册）与 `/auth/me` 可用性
+  - `/users/me/avatar/*`：非法 key 拦截、`direct-upload -> commit -> avatar/url -> 内容下载` 全链路
+- 波次执行结果：
+  - `go test ./backend/auth -run TestSMSLogin_WithCaptchaSetting_OK -v` 通过
+  - 隔离栈 `docker-compose -f tests/docker-compose.yml run --rm go-tests` 通过（包含头像上传链路）
+
 ## 5. 执行过程中的关键问题与处理
 
 - 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  

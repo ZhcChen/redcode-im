@@ -74,6 +74,10 @@ cd tests/go && go test ./backend/messages -run TestUnreadCounts_MultiMessageRead
 # 仅执行 Wave B（消息搜索/系统设置）回归
 cd tests/go && go test ./backend/messages -run TestMessageSearch_MembershipIsolationAndValidation_OK -v
 cd tests/go && go test ./backend/admin -run 'TestAdminSettings_(UserAccountLimitAndUploadPolicy_OK|NonAdminShouldBeForbidden)$' -v
+# 仅执行 Wave C（短信登录/头像上传）回归
+cd tests/go && go test ./backend/auth -run TestSMSLogin_WithCaptchaSetting_OK -v
+# 头像上传依赖 external-mock 与 http 签名链路，建议使用隔离栈执行
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests
 # 若本机 backend 未配置 OAuth/COS mock，使用隔离测试栈执行完整 Go 套件
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests

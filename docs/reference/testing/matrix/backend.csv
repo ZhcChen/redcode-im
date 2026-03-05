@@ -1,13 +1,13 @@
 feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
 BE-AUTH-001,backend,auth,用户注册,/auth/register,"unit+integration+e2e",TC-BE-AUTH-001,AC-BE-AUTH-001,done,go auth 集成用例已覆盖
 BE-AUTH-002,backend,auth,密码登录,/auth/login,"unit+integration+e2e",TC-BE-AUTH-002,AC-BE-AUTH-002,done,go auth 集成用例已覆盖
-BE-AUTH-003,backend,auth,短信登录,/auth/login/sms,"integration+e2e",TC-BE-AUTH-003,AC-BE-AUTH-003,todo,
+BE-AUTH-003,backend,auth,短信登录,/auth/login/sms,"integration+e2e",TC-BE-AUTH-003,AC-BE-AUTH-003,done,go sms_login_test 覆盖验证码错误与通用验证码成功登录（含自动注册）链路
 BE-AUTH-004,backend,auth,OAuth 登录（Google/Apple）,/auth/login/oauth,"integration+e2e",TC-BE-AUTH-004,AC-BE-AUTH-004,done,已通过 external-mock 集成测试
 BE-AUTH-005,backend,auth,Token 刷新,/auth/refresh,"unit+integration",TC-BE-AUTH-005,AC-BE-AUTH-005,done,go auth 集成用例已覆盖
 BE-USER-001,backend,user,获取当前用户,/auth/me,"integration",TC-BE-USER-001,AC-BE-USER-001,done,go auth 集成用例已覆盖
 BE-USER-002,backend,user,更新个人资料,/users/me,"integration+e2e",TC-BE-USER-002,AC-BE-USER-002,done,go users 集成用例已覆盖
 BE-USER-003,backend,user,修改密码,/users/me/password,"integration",TC-BE-USER-003,AC-BE-USER-003,done,go user_password_test 覆盖错误旧密码校验与改密后新旧密码登录行为
-BE-USER-004,backend,user,头像上传提交流程,/users/me/avatar/*,"integration+e2e",TC-BE-USER-004,AC-BE-USER-004,todo,
+BE-USER-004,backend,user,头像上传提交流程,/users/me/avatar/*,"integration+e2e",TC-BE-USER-004,AC-BE-USER-004,done,go user_avatar_flow_test 覆盖 direct-upload/commit/avatar-url 下载与非法key校验
 BE-USER-005,backend,user,用户搜索,/users/search,"integration+e2e",TC-BE-USER-005,AC-BE-USER-005,done,go users 集成用例已覆盖
 BE-USER-006,backend,user,按ID查询用户,/users/{user_id},"integration",TC-BE-USER-006,AC-BE-USER-006,done,go users 集成用例已覆盖
 BE-FRIEND-001,backend,friends,发送好友申请,/friends/requests,"integration+e2e",TC-BE-FRIEND-001,AC-BE-FRIEND-001,done,go friends 集成用例已覆盖
