@@ -21,7 +21,7 @@ BE-MSG-001,backend,messages,发送消息,/rooms/{room_id}/messages,"integration+
 BE-MSG-002,backend,messages,编辑消息,/messages/{id},"integration",TC-BE-MSG-002,AC-BE-MSG-002,done,go messages 集成用例已覆盖
 BE-MSG-003,backend,messages,删除消息,/messages/{id},"integration",TC-BE-MSG-003,AC-BE-MSG-003,done,go messages 集成用例已覆盖
 BE-MSG-004,backend,messages,未读计数,/unread_counts,"integration",TC-BE-MSG-004,AC-BE-MSG-004,done,go unread_counts_test 覆盖多消息未读累计与 read_until 后清零
-BE-MSG-005,backend,messages,消息搜索,/messages/search,"integration+e2e",TC-BE-MSG-005,AC-BE-MSG-005,todo,
+BE-MSG-005,backend,messages,消息搜索,/messages/search,"integration+e2e",TC-BE-MSG-005,AC-BE-MSG-005,done,go message_search_test 覆盖成员隔离(limit+has_more)与空查询校验
 BE-UPL-001,backend,uploads,对象上传与访问,/rooms/{room_id}/messages/attachments/*,"integration+e2e",TC-BE-UPL-001,AC-BE-UPL-001,done,go uploads 集成用例已覆盖
 BE-UPL-002,backend,uploads,分片上传完整流程,/multipart/*,"integration+e2e",TC-BE-UPL-002,AC-BE-UPL-002,todo,需要 COS mock
 BE-UPL-003,backend,uploads,上传审核流程,/file-audit/*,"integration",TC-BE-UPL-003,AC-BE-UPL-003,todo,需要腾讯 CI mock
@@ -33,7 +33,7 @@ BE-VER-002,backend,version,下载链接生成,/versions/latest/download-url,"int
 BE-ADM-001,backend,admin,管理员登录,/auth/admin/login,"integration+e2e",TC-BE-ADM-001,AC-BE-ADM-001,done,go admin 集成用例已覆盖
 BE-ADM-002,backend,admin,仪表盘统计,/api/dashboard/*,"integration",TC-BE-ADM-002,AC-BE-ADM-002,done,go admin 集成用例已覆盖
 BE-ADM-003,backend,admin,用户管理,/api/admin/users,"integration+e2e",TC-BE-ADM-003,AC-BE-ADM-003,done,go admin 集成用例已覆盖
-BE-ADM-004,backend,admin,系统设置管理,/api/admin/settings/*,"integration+e2e",TC-BE-ADM-004,AC-BE-ADM-004,todo,
+BE-ADM-004,backend,admin,系统设置管理,/api/admin/settings/*,"integration+e2e",TC-BE-ADM-004,AC-BE-ADM-004,done,go admin_settings_test 覆盖 user-account-limit/get+put/upload-policy/get 与非管理员403
 BE-ADM-005,backend,admin,系统日志清理,/api/admin/logs/cleanup,"integration",TC-BE-ADM-005,AC-BE-ADM-005,done,go admin_cleanup_contract_test 覆盖 retentionDays=2 与 0 的契约边界
 BE-ADM-006,backend,admin,Push 日志清理,/api/admin/push/logs/cleanup,"integration",TC-BE-ADM-006,AC-BE-ADM-006,done,go admin_cleanup_contract_test 覆盖 retentionDays=2 与 0 的契约边界
 BE-WS-001,backend,websocket,WebSocket 连接与消息分发,/ws,"integration+e2e",TC-BE-WS-001,AC-BE-WS-001,done,go ws 集成用例已覆盖（无效token握手校验）

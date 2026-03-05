@@ -71,6 +71,9 @@ cd tests/go && go test ./backend/admin -run TestAdminLogCleanupContract_OKAndVal
 cd tests/go && go test ./backend/system -run 'Test(Healthz_OK|Readyz_OK)$' -v
 cd tests/go && go test ./backend/users -run TestChangePassword_WrongOldThenSuccess -v
 cd tests/go && go test ./backend/messages -run TestUnreadCounts_MultiMessageReadUntil_OK -v
+# 仅执行 Wave B（消息搜索/系统设置）回归
+cd tests/go && go test ./backend/messages -run TestMessageSearch_MembershipIsolationAndValidation_OK -v
+cd tests/go && go test ./backend/admin -run 'TestAdminSettings_(UserAccountLimitAndUploadPolicy_OK|NonAdminShouldBeForbidden)$' -v
 # 若本机 backend 未配置 OAuth/COS mock，使用隔离测试栈执行完整 Go 套件
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests

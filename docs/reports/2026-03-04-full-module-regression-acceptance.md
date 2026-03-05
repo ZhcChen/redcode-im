@@ -146,6 +146,20 @@
   - `go test ./backend/users -run TestChangePassword_WrongOldThenSuccess -v` 通过
   - `go test ./backend/messages -run TestUnreadCounts_MultiMessageReadUntil_OK -v` 通过
 
+### 4.9 Backend Wave B（消息搜索 / 系统设置）补测
+
+- 新增 Go 黑盒用例：
+  - `tests/go/backend/messages/message_search_test.go`
+  - `tests/go/backend/admin/admin_settings_test.go`
+- 覆盖新增：
+  - `/messages/search`：成员隔离（不可越权看到非成员房间消息）、分页 `limit/has_more`、空查询校验
+  - `/api/admin/settings/user-account-limit`：无效规则组合校验（全关闭 -> 400）+ 有效回写契约
+  - `/api/admin/settings/upload-policy`：管理员读取契约
+  - 管理员设置接口鉴权：普通用户访问 `/api/admin/settings/*` 返回 403
+- 波次执行结果：
+  - `go test ./backend/messages -run TestMessageSearch_MembershipIsolationAndValidation_OK -v` 通过
+  - `go test ./backend/admin -run 'TestAdminSettings_(UserAccountLimitAndUploadPolicy_OK|NonAdminShouldBeForbidden)$' -v` 通过
+
 ## 5. 执行过程中的关键问题与处理
 
 - 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  
