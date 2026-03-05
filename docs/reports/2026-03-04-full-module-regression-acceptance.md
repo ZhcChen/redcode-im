@@ -131,6 +131,21 @@
   - `cargo test log_writer_config --lib` -> `2 passed`
   - `cargo test push_db_queue_cleanup_config --lib` -> `2 passed`
 
+### 4.8 Backend Wave A（readyz / 改密 / 未读计数）补测
+
+- 新增 Go 黑盒用例：
+  - `tests/go/backend/system/readyz_test.go`
+  - `tests/go/backend/users/user_password_test.go`
+  - `tests/go/backend/messages/unread_counts_test.go`
+- 覆盖新增：
+  - `/readyz` 的状态契约（`status/checks/latencyMs`）
+  - `/users/me/password` 的错误旧密码校验 + 改密后新旧密码登录行为
+  - `/unread_counts` 的多消息未读累计 + `read_until` 后清零
+- 波次执行结果：
+  - `go test ./backend/system -run 'Test(Healthz_OK|Readyz_OK)$' -v` 通过
+  - `go test ./backend/users -run TestChangePassword_WrongOldThenSuccess -v` 通过
+  - `go test ./backend/messages -run TestUnreadCounts_MultiMessageReadUntil_OK -v` 通过
+
 ## 5. 执行过程中的关键问题与处理
 
 - 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  

@@ -6,7 +6,7 @@ BE-AUTH-004,backend,auth,OAuth 登录（Google/Apple）,/auth/login/oauth,"integ
 BE-AUTH-005,backend,auth,Token 刷新,/auth/refresh,"unit+integration",TC-BE-AUTH-005,AC-BE-AUTH-005,done,go auth 集成用例已覆盖
 BE-USER-001,backend,user,获取当前用户,/auth/me,"integration",TC-BE-USER-001,AC-BE-USER-001,done,go auth 集成用例已覆盖
 BE-USER-002,backend,user,更新个人资料,/users/me,"integration+e2e",TC-BE-USER-002,AC-BE-USER-002,done,go users 集成用例已覆盖
-BE-USER-003,backend,user,修改密码,/users/me/password,"integration",TC-BE-USER-003,AC-BE-USER-003,todo,
+BE-USER-003,backend,user,修改密码,/users/me/password,"integration",TC-BE-USER-003,AC-BE-USER-003,done,go user_password_test 覆盖错误旧密码校验与改密后新旧密码登录行为
 BE-USER-004,backend,user,头像上传提交流程,/users/me/avatar/*,"integration+e2e",TC-BE-USER-004,AC-BE-USER-004,todo,
 BE-USER-005,backend,user,用户搜索,/users/search,"integration+e2e",TC-BE-USER-005,AC-BE-USER-005,done,go users 集成用例已覆盖
 BE-USER-006,backend,user,按ID查询用户,/users/{user_id},"integration",TC-BE-USER-006,AC-BE-USER-006,done,go users 集成用例已覆盖
@@ -20,7 +20,7 @@ BE-ROOM-003,backend,rooms,退出房间,/rooms/{room_id}/leave,"integration+e2e",
 BE-MSG-001,backend,messages,发送消息,/rooms/{room_id}/messages,"integration+e2e",TC-BE-MSG-001,AC-BE-MSG-001,done,go messages 集成用例已覆盖
 BE-MSG-002,backend,messages,编辑消息,/messages/{id},"integration",TC-BE-MSG-002,AC-BE-MSG-002,done,go messages 集成用例已覆盖
 BE-MSG-003,backend,messages,删除消息,/messages/{id},"integration",TC-BE-MSG-003,AC-BE-MSG-003,done,go messages 集成用例已覆盖
-BE-MSG-004,backend,messages,未读计数,/unread_counts,"integration",TC-BE-MSG-004,AC-BE-MSG-004,todo,
+BE-MSG-004,backend,messages,未读计数,/unread_counts,"integration",TC-BE-MSG-004,AC-BE-MSG-004,done,go unread_counts_test 覆盖多消息未读累计与 read_until 后清零
 BE-MSG-005,backend,messages,消息搜索,/messages/search,"integration+e2e",TC-BE-MSG-005,AC-BE-MSG-005,todo,
 BE-UPL-001,backend,uploads,对象上传与访问,/rooms/{room_id}/messages/attachments/*,"integration+e2e",TC-BE-UPL-001,AC-BE-UPL-001,done,go uploads 集成用例已覆盖
 BE-UPL-002,backend,uploads,分片上传完整流程,/multipart/*,"integration+e2e",TC-BE-UPL-002,AC-BE-UPL-002,todo,需要 COS mock
@@ -38,7 +38,7 @@ BE-ADM-005,backend,admin,系统日志清理,/api/admin/logs/cleanup,"integration
 BE-ADM-006,backend,admin,Push 日志清理,/api/admin/push/logs/cleanup,"integration",TC-BE-ADM-006,AC-BE-ADM-006,done,go admin_cleanup_contract_test 覆盖 retentionDays=2 与 0 的契约边界
 BE-WS-001,backend,websocket,WebSocket 连接与消息分发,/ws,"integration+e2e",TC-BE-WS-001,AC-BE-WS-001,done,go ws 集成用例已覆盖（无效token握手校验）
 BE-SYS-001,backend,system,健康检查,/healthz,"integration",TC-BE-SYS-001,AC-BE-SYS-001,done,已有 smoke
-BE-SYS-002,backend,system,就绪检查,/readyz,"integration",TC-BE-SYS-002,AC-BE-SYS-002,todo,
+BE-SYS-002,backend,system,就绪检查,/readyz,"integration",TC-BE-SYS-002,AC-BE-SYS-002,done,go readyz_test 覆盖 status/checks/latency 契约
 BE-SYS-003,backend,system,系统日志清理配置解析,backend/src/logging/writer.rs,"unit",TC-BE-SYS-003,AC-BE-SYS-003,done,log_writer_config 单测覆盖正向读取与非法值回退
 BE-EXT-001,backend,external-mock,外部模拟服务健康检查,/healthz@external-mock,"integration",TC-BE-EXT-001,AC-BE-EXT-001,done,Go system 测试已覆盖
 BE-EXT-002,backend,external-mock,外部模拟服务能力自测,tests/mocks/external/cmd/external-mock/main_test.go,"unit+integration",TC-BE-EXT-002,AC-BE-EXT-002,done,COS/CI/JWKS/FCM/IPInfo 已覆盖

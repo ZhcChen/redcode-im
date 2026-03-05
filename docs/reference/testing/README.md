@@ -67,6 +67,10 @@ cd backend && cargo test --tests -- --test-threads=1
 cd tests/go && go test ./... -v
 # 仅执行管理端清理接口契约（系统日志/Push 日志）
 cd tests/go && go test ./backend/admin -run TestAdminLogCleanupContract_OKAndValidationError -v
+# 仅执行 Wave A（readyz/改密/未读计数）回归
+cd tests/go && go test ./backend/system -run 'Test(Healthz_OK|Readyz_OK)$' -v
+cd tests/go && go test ./backend/users -run TestChangePassword_WrongOldThenSuccess -v
+cd tests/go && go test ./backend/messages -run TestUnreadCounts_MultiMessageReadUntil_OK -v
 # 若本机 backend 未配置 OAuth/COS mock，使用隔离测试栈执行完整 Go 套件
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker-compose.yml run --rm go-tests
