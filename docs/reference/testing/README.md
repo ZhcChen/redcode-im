@@ -90,6 +90,28 @@ cd tests && COMPOSE_PROJECT_NAME=redcode_im_tests_local docker-compose -f docker
 cd frontend && flutter test
 # 仅执行核心服务单测（会话存储/配置回退/设置服务/版本契约）
 cd frontend && flutter test test/core/token_storage_test.dart test/core/app_config_service_test.dart test/core/settings_service_test.dart test/core/version_service_test.dart
+# 聊天与弹窗关键 UI/模型回归（会话项/气泡/消息模型/确认弹窗）
+cd frontend && flutter test \
+  test/chat/chat_list_item_test.dart \
+  test/chat/chat_message_bubble_test.dart \
+  test/chat/chat_input_widget_test.dart \
+  test/chat/chat_message_model_test.dart \
+  test/chat/chat_conversation_test.dart \
+  test/chat/chat_provider_test.dart \
+  test/chat/voice_message_widget_test.dart \
+  test/chat/message_reader_test.dart \
+  test/chat/reaction_picker_test.dart \
+  test/chat/message_model_test.dart \
+  test/widgets/confirm_action_dialog_test.dart \
+  test/widgets/tip_dialog_test.dart
+# 上传策略与反馈服务回归（配置解析、缓存回退、错误映射）
+cd frontend && flutter test test/core/upload_policy_service_test.dart test/core/feedback_service_test.dart
+# 核心工具/基础组件回归（文件哈希、角标组件、表情模型）
+cd frontend && flutter test test/core/file_hash_test.dart test/core/chat_cache_test.dart test/core/environment_config_test.dart test/widgets/app_badge_test.dart test/features/emoji_pack_models_test.dart
+# 表单与交互基础组件回归（开关/输入框/输入弹窗/底部选择器）
+cd frontend && flutter test test/widgets/custom_switch_test.dart test/widgets/styled_text_field_test.dart test/widgets/input_dialog_test.dart test/widgets/bottom_picker_test.dart
+# macOS 端内集成 smoke（无真机时可用）
+cd frontend && flutter test integration_test/smoke_test.dart -d macos
 # 先设置本机局域网 IP（确保与真机在同一网段，自动识别默认网卡）
 LAN_IFACE=$(route -n get default | awk '/interface:/{print $2}')
 LAN_IP=$(ipconfig getifaddr ${LAN_IFACE})
