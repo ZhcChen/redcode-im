@@ -33,8 +33,8 @@ trap cleanup EXIT
 
 echo "[tests] project=${COMPOSE_PROJECT_NAME}" >&2
 
-echo "[tests] 启动测试依赖（PostgreSQL / Redis）..." >&2
-docker-compose -f "${COMPOSE_FILE}" up -d --build postgres redis-session redis-cache >/dev/null
+echo "[tests] 启动测试依赖（External Mock / PostgreSQL / Redis）..." >&2
+docker-compose -f "${COMPOSE_FILE}" up -d --build external-mock postgres redis-session redis-cache >/dev/null
 
 echo "[tests] 运行 Rust 单元测试（cargo test --lib）..." >&2
 docker-compose -f "${COMPOSE_FILE}" run --rm rust-tests cargo test --lib

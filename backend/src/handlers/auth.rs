@@ -35,13 +35,13 @@ const REFRESH_TOKEN_PREFIX: &str = "auth:refresh:";
 const REFRESH_TOKEN_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
 
 /// Google OIDC JWKS（用于校验 Google ID Token）
-const GOOGLE_JWKS_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
+const DEFAULT_GOOGLE_JWKS_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
 /// Apple OIDC JWKS（用于校验 Sign in with Apple ID Token）
-const APPLE_JWKS_URL: &str = "https://appleid.apple.com/auth/keys";
+const DEFAULT_APPLE_JWKS_URL: &str = "https://appleid.apple.com/auth/keys";
 const JWKS_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 
 static OIDC_HTTP_CLIENT: Lazy<Client> = Lazy::new(Client::new);
-static JWKS_CACHE: Lazy<RwLock<HashMap<&'static str, CachedJwks>>> =
+static JWKS_CACHE: Lazy<RwLock<HashMap<String, CachedJwks>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Debug, Deserialize)]
@@ -96,7 +96,15 @@ struct AppleIdTokenClaims {
     aud: Option<String>,
 }
 
-async fn fetch_jwks(jwks_url: &'static str) -> Result<CachedJwks, AppError> {
+fn google_jwks_url() -> String {
+    env::var("GOOGLE_OIDC_JWKS_URL").unwrap_or_else(|_| DEFAULT_GOOGLE_JWKS_URL.to_string())
+}
+
+fn apple_jwks_url() -> String {
+    env::var("APPLE_OIDC_JWKS_URL").unwrap_or_else(|_| DEFAULT_APPLE_JWKS_URL.to_string())
+}
+
+async fn fetch_jwks(jwks_url: &str) -> Result<CachedJwks, AppError> {
     let resp = OIDC_HTTP_CLIENT
         .get(jwks_url)
         .send()
@@ -132,10 +140,7 @@ async fn fetch_jwks(jwks_url: &'static str) -> Result<CachedJwks, AppError> {
     })
 }
 
-async fn get_rsa_components(
-    jwks_url: &'static str,
-    kid: &str,
-) -> Result<(String, String), AppError> {
+async fn get_rsa_components(jwks_url: &str, kid: &str) -> Result<(String, String), AppError> {
     {
         let cache = JWKS_CACHE.read().await;
         if let Some(entry) = cache.get(jwks_url) {
@@ -150,7 +155,7 @@ async fn get_rsa_components(
     let fetched = fetch_jwks(jwks_url).await?;
     {
         let mut cache = JWKS_CACHE.write().await;
-        cache.insert(jwks_url, fetched.clone());
+        cache.insert(jwks_url.to_string(), fetched.clone());
     }
 
     fetched
@@ -189,7 +194,8 @@ async fn verify_google_id_token(id_token: &str) -> Result<ExternalIdentity, AppE
         .kid
         .ok_or_else(|| AppError::InvalidToken("第三方令牌缺少 kid".to_string()))?;
 
-    let (n, e) = get_rsa_components(GOOGLE_JWKS_URL, &kid).await?;
+    let jwks_url = google_jwks_url();
+    let (n, e) = get_rsa_components(&jwks_url, &kid).await?;
     let key = DecodingKey::from_rsa_components(&n, &e)
         .map_err(|_| AppError::InvalidToken("第三方公钥无效".to_string()))?;
 
@@ -221,7 +227,8 @@ async fn verify_apple_id_token(id_token: &str) -> Result<ExternalIdentity, AppEr
         .kid
         .ok_or_else(|| AppError::InvalidToken("第三方令牌缺少 kid".to_string()))?;
 
-    let (n, e) = get_rsa_components(APPLE_JWKS_URL, &kid).await?;
+    let jwks_url = apple_jwks_url();
+    let (n, e) = get_rsa_components(&jwks_url, &kid).await?;
     let key = DecodingKey::from_rsa_components(&n, &e)
         .map_err(|_| AppError::InvalidToken("第三方公钥无效".to_string()))?;
 

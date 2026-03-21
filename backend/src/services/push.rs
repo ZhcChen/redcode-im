@@ -49,6 +49,7 @@ const PUSH_DB_QUEUE_RETENTION_DAYS: i64 = 7;
 const PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS: u64 = 86400;
 const PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE: i64 = 10_000;
 const PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES: i64 = 20;
+const DEFAULT_FCM_BASE_URL: &str = "https://fcm.googleapis.com";
 
 const PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY: i64 = 0x7075_7368_6a6f_625f; // "pushjob_"
 
@@ -345,7 +346,8 @@ impl FcmClient {
         let access_token = self.access_token().await?;
 
         let url = format!(
-            "https://fcm.googleapis.com/v1/projects/{}/messages:send",
+            "{}/v1/projects/{}/messages:send",
+            fcm_base_url(),
             self.sa.project_id
         );
 
@@ -467,6 +469,14 @@ fn env_i32(name: &str, default: i32) -> i32 {
         .ok()
         .and_then(|v| v.trim().parse::<i32>().ok())
         .unwrap_or(default)
+}
+
+fn fcm_base_url() -> String {
+    env::var("PUSH_FCM_BASE_URL")
+        .ok()
+        .map(|v| v.trim().trim_end_matches('/').to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| DEFAULT_FCM_BASE_URL.to_string())
 }
 
 fn parse_bool_value(value: &str, default: bool) -> bool {
@@ -1712,6 +1722,39 @@ mod tests {
     use super::*;
     use crate::database::models::MemberRole;
     use chrono::Utc;
+    use once_cell::sync::Lazy;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    struct EnvVarGuard {
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn apply(entries: &[(&'static str, Option<&str>)]) -> Self {
+            let mut saved = Vec::with_capacity(entries.len());
+            for (name, value) in entries {
+                saved.push((*name, std::env::var(name).ok()));
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                match value {
+                    Some(v) => std::env::set_var(name, v),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
 
     fn member(user_id: Uuid, username: &str, nickname: Option<&str>) -> RoomMemberWithUserInfo {
         RoomMemberWithUserInfo {
@@ -1777,5 +1820,43 @@ mod tests {
             &bob,
             &decision
         ));
+    }
+
+    #[test]
+    fn push_db_queue_cleanup_config_should_accept_two_day_retention() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("PUSH_DB_QUEUE_CLEANUP_ENABLED", Some("true")),
+            ("PUSH_DB_QUEUE_RETENTION_DAYS", Some("2")),
+            ("PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS", Some("3600")),
+            ("PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE", Some("1000")),
+            ("PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES", Some("20")),
+        ]);
+
+        let cfg = PushDbQueueCleanupConfig::from_env();
+        assert!(cfg.enabled);
+        assert_eq!(cfg.retention_days, 2);
+        assert_eq!(cfg.interval_seconds, 3600);
+        assert_eq!(cfg.batch_size, 1000);
+        assert_eq!(cfg.max_batches, 20);
+    }
+
+    #[test]
+    fn push_db_queue_cleanup_config_should_clamp_invalid_values() {
+        let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+        let _guard = EnvVarGuard::apply(&[
+            ("PUSH_DB_QUEUE_CLEANUP_ENABLED", Some("false")),
+            ("PUSH_DB_QUEUE_RETENTION_DAYS", Some("0")),
+            ("PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS", Some("10")),
+            ("PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE", Some("999999999")),
+            ("PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES", Some("-5")),
+        ]);
+
+        let cfg = PushDbQueueCleanupConfig::from_env();
+        assert!(!cfg.enabled);
+        assert_eq!(cfg.retention_days, 1);
+        assert_eq!(cfg.interval_seconds, 60);
+        assert_eq!(cfg.batch_size, 200_000);
+        assert_eq!(cfg.max_batches, 1);
     }
 }

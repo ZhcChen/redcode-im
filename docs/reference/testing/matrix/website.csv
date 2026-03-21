@@ -1,0 +1,12 @@
+feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance_id,status,notes
+WE-LP-001,website,landing,首页渲染与核心模块展示,app/app.vue,"unit+e2e",TC-WE-LP-001,AC-WE-LP-001,done,website/test/download-utils.test.ts 覆盖核心交互逻辑
+WE-DL-001,website,download,动态拉取最新版本,/versions/latest,"integration+e2e",TC-WE-DL-001,AC-WE-DL-001,done,app/utils/download.ts + 单测覆盖版本解析路径
+WE-DL-002,website,download,拉取临时下载链接,/versions/latest/download-url,"integration+e2e",TC-WE-DL-002,AC-WE-DL-002,done,resolveLatestDownloadUrlPayload 单测
+WE-DL-003,website,download,下载按钮按平台优先级命中,handlePrimaryDownload,"unit+e2e",TC-WE-DL-003,AC-WE-DL-003,done,resolvePrimaryDownloadKeys 单测
+WE-DL-004,website,download,商店链接与安装包双路径,handleDownloadClick,"unit+integration+e2e",TC-WE-DL-004,AC-WE-DL-004,done,applyLatestVersionToItem 单测
+WE-DL-005,website,download,下载版本回退与默认错误文案,resolveLatestDownloadUrlPayload,"unit",TC-WE-DL-005,AC-WE-DL-005,done,download-utils.test.ts 覆盖 versionText fallback + 默认错误
+WE-DL-006,website,download,商店链接缺失与安装包可用判定,applyLatestVersionToItem,"unit",TC-WE-DL-006,AC-WE-DL-006,done,download-utils.test.ts 覆盖 store unavailable 与 package download_url 分支
+WE-PF-001,website,platform,UA 平台识别,detectPlatformKey,"unit",TC-WE-PF-001,AC-WE-PF-001,done,detectPlatformKey 多平台单测
+WE-PF-002,website,platform,未知 UA 与 Linux 平台识别边界,detectPlatformKey + resolvePrimaryDownloadKeys,"unit",TC-WE-PF-002,AC-WE-PF-002,done,download-utils.test.ts 覆盖 linux/unknown 与优先级排序
+WE-ERR-001,website,error,无可用版本时提示,markUnavailable + alert,"unit+e2e",TC-WE-ERR-001,AC-WE-ERR-001,done,markUnavailable 单测
+WE-CFG-001,website,config,运行时 API 配置,nuxt runtime config,"unit+integration",TC-WE-CFG-001,AC-WE-CFG-001,done,app.vue runtimeConfig + test 框架编译回归

@@ -308,6 +308,14 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import {
+  applyLatestVersionToItem,
+  detectPlatformKey as detectPlatform,
+  markUnavailable,
+  resolveChannels,
+  resolveLatestDownloadUrlPayload,
+  resolvePrimaryDownloadKeys
+} from './utils/download'
 
 const runtimeConfig = useRuntimeConfig()
 const apiBase = runtimeConfig.public.apiBase
@@ -413,28 +421,17 @@ const allDownloadItems = computed(() => [
   ...desktopDownloads.value
 ])
 
-const formatVersionText = (version) => {
-  if (!version?.version) return ''
-  const build = version?.build_number
-  return build ? `v${version.version} (build ${build})` : `v${version.version}`
-}
-
-const markUnavailable = (item, reason = '暂无可用版本') => {
-  item.href = ''
-  item.versionText = reason
-  item.unavailable = true
-}
-
 const fetchLatestVersionForItem = async (item) => {
   if (!apiBase) {
     markUnavailable(item, '未配置 API 地址')
     return
   }
 
-  const channels =
-    item.channelCandidates && item.channelCandidates.length > 0
-      ? item.channelCandidates
-      : [item.channel]
+  const channels = resolveChannels(item)
+  if (!channels.length) {
+    markUnavailable(item)
+    return
+  }
 
   for (const channel of channels) {
     try {
@@ -449,30 +446,7 @@ const fetchLatestVersionForItem = async (item) => {
         continue
       }
 
-      item.resolvedChannel = channel
-      item.href = ''
-      item.versionText = formatVersionText(version)
-
-      if (item.kind === 'store') {
-        const storeUrl = version.app_store_url
-        if (storeUrl) {
-          item.unavailable = false
-          item.href = storeUrl
-        } else {
-          markUnavailable(item, '未配置商店链接')
-        }
-      } else {
-        const hasDownloadKey =
-          version.download_key && version.download_key.trim().length > 0
-        const hasDownloadUrl =
-          version.download_url && version.download_url.trim().length > 0
-        if (!hasDownloadKey && !hasDownloadUrl) {
-          markUnavailable(item, '未配置安装包')
-        } else {
-          item.unavailable = false
-        }
-      }
-
+      applyLatestVersionToItem(item, version, channel)
       return
     } catch (error) {
       console.error(
@@ -511,50 +485,24 @@ const fetchLatestDownloadUrl = async (item) => {
     }
   })
 
-  if (data?.success && data.download_url) {
-    if (data.version) {
-      item.versionText = formatVersionText(data.version) || item.versionText
-    }
-    return data.download_url
+  const resolved = resolveLatestDownloadUrlPayload(data, item.versionText)
+  if (resolved.ok && resolved.downloadUrl) {
+    item.versionText = resolved.versionText || item.versionText
+    return resolved.downloadUrl
   }
 
-  throw new Error(data?.message || '暂无可用安装包')
-}
-
-const detectPlatformKey = () => {
-  if (!process.client) return 'windows'
-  const ua = (navigator.userAgent || '').toLowerCase()
-  const archRaw = navigator.userAgentData?.architecture || ''
-  const arch = typeof archRaw === 'string' ? archRaw.toLowerCase() : ''
-
-  if (/iphone|ipad|ipod/.test(ua)) return 'ios'
-  if (/android/.test(ua)) return 'android'
-  if (/mac os x/.test(ua)) {
-    if ((arch && arch.includes('arm')) || /arm|aarch64|apple silicon/.test(ua)) {
-      return 'macosArm'
-    }
-    return 'macosIntel'
-  }
-  if (/linux/.test(ua)) return 'linux'
-  if (/win/.test(ua)) return 'windows'
-  return 'windows'
+  throw new Error(resolved.error || '暂无可用安装包')
 }
 
 const primaryDownloadKeys = computed(() => {
-  const detected = detectPlatformKey()
-  if (detected === 'ios') {
-    return ['iosStore', 'iosOnline', 'android', 'windows', 'macosArm', 'macosIntel', 'linux']
-  }
-  if (detected === 'macosArm') {
-    return ['macosArm', 'macosStore', 'macosIntel', 'windows', 'linux']
-  }
-  if (detected === 'macosIntel') {
-    return ['macosIntel', 'macosStore', 'macosArm', 'windows', 'linux']
-  }
-  if (detected === 'android') {
-    return ['android', 'windows', 'macosArm', 'macosIntel', 'linux']
-  }
-  return [detected, 'windows', 'macosArm', 'macosIntel', 'linux', 'android', 'iosStore', 'iosOnline']
+  const detected = detectPlatform({
+    isClient: process.client,
+    userAgent: process.client ? navigator.userAgent || '' : '',
+    architecture: process.client
+      ? navigator.userAgentData?.architecture || ''
+      : ''
+  })
+  return resolvePrimaryDownloadKeys(detected)
 })
 
 const findItemByKey = (key) =>

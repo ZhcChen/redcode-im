@@ -106,6 +106,15 @@
 |------|------|
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |
+| [模块功能清单（2026-03-01）](reports/module-function-inventory-2026-03-01.md) | 五大模块功能基线 |
+| [批次A验收报告（2026-03-01）](reports/2026-03-01-batch-a-acceptance.md) | 外部模拟与测试栈接入验收 |
+| [批次B-1验收报告（2026-03-01）](reports/2026-03-01-batch-b1-auth-users-friends-acceptance.md) | Backend auth/users/friends 测试重建验收 |
+| [批次B-2验收报告（2026-03-01）](reports/2026-03-01-batch-b2-rooms-messages-uploads-acceptance.md) | Backend rooms/messages/uploads 测试重建验收 |
+| [批次B-3验收报告（2026-03-01）](reports/2026-03-01-batch-b3-versions-admin-ws-acceptance.md) | Backend versions/admin/ws 测试重建验收 |
+| [批次C验收报告（2026-03-01）](reports/2026-03-01-batch-c-admin-acceptance.md) | Admin 测试重建验收 |
+| [批次D验收报告（2026-03-01）](reports/2026-03-01-batch-d-frontend-acceptance.md) | Frontend Flutter 测试重建验收 |
+| [批次E验收报告（2026-03-01）](reports/2026-03-01-batch-e-desktop-website-acceptance.md) | Desktop + Website 测试重建验收 |
+| [全模块回归验收报告（2026-03-04）](reports/2026-03-04-full-module-regression-acceptance.md) | 全模块回归执行结果与问题处理记录 |
 
 ---
 
@@ -121,4 +130,4 @@
 
 ---
 
-**文档最后更新**: 2026-03-01
+**文档最后更新**: 2026-03-04

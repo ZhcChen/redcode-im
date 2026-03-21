@@ -493,6 +493,54 @@ struct TencentCiClient {
     bucket_name: String,
     region: String,
     http: reqwest::Client,
+    ci_base_url: Option<String>,
+    ci_base_host: Option<String>,
+    ci_base_path_prefix: String,
+}
+
+fn read_tencent_ci_base_url() -> Option<String> {
+    let raw = std::env::var("FILE_UPLOAD_AUDIT_TENCENT_CI_BASE_URL").ok()?;
+    let trimmed = raw.trim().trim_end_matches('/').to_string();
+    if trimmed.is_empty() {
+        return None;
+    }
+    reqwest::Url::parse(&trimmed).ok()?;
+    Some(trimmed)
+}
+
+fn read_tencent_ci_base_host() -> Option<String> {
+    let raw = std::env::var("FILE_UPLOAD_AUDIT_TENCENT_CI_BASE_URL").ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let parsed = reqwest::Url::parse(trimmed).ok()?;
+    let host = parsed.host_str()?;
+    let with_port = match parsed.port() {
+        Some(port) => format!("{}:{}", host, port),
+        None => host.to_string(),
+    };
+    Some(with_port)
+}
+
+fn read_tencent_ci_base_path_prefix() -> String {
+    let raw = std::env::var("FILE_UPLOAD_AUDIT_TENCENT_CI_BASE_URL").ok();
+    let Some(raw) = raw else {
+        return String::new();
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let Ok(parsed) = reqwest::Url::parse(trimmed) else {
+        return String::new();
+    };
+    let path = parsed.path().trim_end_matches('/');
+    if path == "/" {
+        return String::new();
+    }
+    path.to_string()
 }
 
 impl TencentCiClient {
@@ -520,11 +568,33 @@ impl TencentCiClient {
             bucket_name,
             region,
             http,
+            ci_base_url: read_tencent_ci_base_url(),
+            ci_base_host: read_tencent_ci_base_host(),
+            ci_base_path_prefix: read_tencent_ci_base_path_prefix(),
         })
     }
 
     fn ci_host(&self) -> String {
+        if let Some(host) = &self.ci_base_host {
+            return host.clone();
+        }
         format!("{}.ci.{}.myqcloud.com", self.bucket_name, self.region)
+    }
+
+    fn ci_url_and_signed_path(&self, path: &str) -> (String, String) {
+        if let Some(base_url) = &self.ci_base_url {
+            let prefix = self.ci_base_path_prefix.trim_end_matches('/');
+            let signed_path = if prefix.is_empty() {
+                path.to_string()
+            } else {
+                format!("{}{}", prefix, path)
+            };
+            let url = format!("{}{}", base_url, path);
+            (url, signed_path)
+        } else {
+            let host = self.ci_host();
+            (format!("https://{}{}", host, path), path.to_string())
+        }
     }
 
     async fn submit_auditing_job(
@@ -535,7 +605,7 @@ impl TencentCiClient {
     ) -> Result<CiSubmitted, AppError> {
         let host = self.ci_host();
         let path = kind.auditing_path();
-        let url = format!("https://{}{}", host, path);
+        let (url, signed_path) = self.ci_url_and_signed_path(path);
 
         let xml_body = build_ci_auditing_request_xml(object_key, kind, cfg);
 
@@ -545,7 +615,7 @@ impl TencentCiClient {
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp();
         let authorization = self
             .signer
-            .generate_signature_v1_with_host("POST", path, &headers, timestamp, &host, None);
+            .generate_signature_v1_with_host("POST", &signed_path, &headers, timestamp, &host, None);
 
         let response = self
             .http
@@ -608,13 +678,13 @@ impl TencentCiClient {
         let host = self.ci_host();
         let base = kind.auditing_path();
         let path = format!("{}/{}", base, job_id);
-        let url = format!("https://{}{}", host, path);
+        let (url, signed_path) = self.ci_url_and_signed_path(&path);
 
         let headers = BTreeMap::new();
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp();
         let authorization = self
             .signer
-            .generate_signature_v1_with_host("GET", &path, &headers, timestamp, &host, None);
+            .generate_signature_v1_with_host("GET", &signed_path, &headers, timestamp, &host, None);
 
         let response = self
             .http

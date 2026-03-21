@@ -35,8 +35,7 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   @override
   void initState() {
     super.initState();
-    _playerStateSubscription =
-        _voiceService.playerStateStream.listen((state) {
+    _playerStateSubscription = _voiceService.playerStateStream.listen((state) {
       if (mounted) {
         // 检查是否是当前音频在播放
         final isCurrentPlaying = _currentPlayingUrl == widget.audioUrl;
@@ -44,7 +43,8 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
         setState(() {
           if (isCurrentPlaying) {
             _isPlaying = state.playing;
-            _isLoading = state.processingState == ProcessingState.loading ||
+            _isLoading =
+                state.processingState == ProcessingState.loading ||
                 state.processingState == ProcessingState.buffering;
           } else if (!state.playing) {
             // 其他音频停止播放时，重置本组件状态
@@ -54,7 +54,8 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
         });
 
         // 播放完成后重置状态
-        if (state.processingState == ProcessingState.completed && isCurrentPlaying) {
+        if (state.processingState == ProcessingState.completed &&
+            isCurrentPlaying) {
           setState(() {
             _isPlaying = false;
             _progress = 0.0;
@@ -70,7 +71,10 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
         final totalDuration = widget.duration;
         if (totalDuration > 0) {
           setState(() {
-            _progress = (position.inMilliseconds / totalDuration).clamp(0.0, 1.0);
+            _progress = (position.inMilliseconds / totalDuration).clamp(
+              0.0,
+              1.0,
+            );
           });
         }
       }
@@ -102,9 +106,9 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
           _currentPlayingUrl = null;
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('播放失败')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('播放失败')));
         }
       }
     }
@@ -126,12 +130,20 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
 
     // 根据时长计算宽度（最小100，最大200）
     final width = (100 + (widget.duration / 1000) * 3).clamp(100.0, 200.0);
+    final isCompact = width <= 120;
+    final horizontalPadding = isCompact ? 8.0 : 12.0;
+    final iconSize = isCompact ? 20.0 : 24.0;
+    final gap = isCompact ? 4.0 : 8.0;
+    final durationFontSize = isCompact ? 11.0 : 12.0;
 
     return GestureDetector(
       onTap: _togglePlay,
       child: Container(
         width: width,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 8,
+        ),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
@@ -146,13 +158,14 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
                 ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          // 与 Expanded 子组件配合时保持 max，避免小时长/大字重场景溢出
+          mainAxisSize: MainAxisSize.max,
           children: [
             // 播放/暂停按钮
             _isLoading
                 ? SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: iconSize,
+                    height: iconSize,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: iconColor,
@@ -161,28 +174,39 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
                 : Icon(
                     _isPlaying ? Icons.pause : Icons.play_arrow,
                     color: iconColor,
-                    size: 24,
+                    size: iconSize,
                   ),
-            const SizedBox(width: 8),
+            SizedBox(width: gap),
             // 波形进度条
             Expanded(
-              child: _VoiceWaveformProgress(
-                isPlaying: _isPlaying,
-                progress: _progress,
-                playedColor: widget.isMine
-                    ? Colors.white
-                    : AppColors.primary,
-                unplayedColor: textColor.withValues(alpha: 0.3),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 24) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return _VoiceWaveformProgress(
+                    isPlaying: _isPlaying,
+                    progress: _progress,
+                    playedColor: widget.isMine
+                        ? Colors.white
+                        : AppColors.primary,
+                    unplayedColor: textColor.withValues(alpha: 0.3),
+                  );
+                },
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: gap),
             // 时长
             Text(
               durationText,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: durationFontSize,
                 color: textColor.withValues(alpha: 0.7),
               ),
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
             ),
           ],
         ),
@@ -214,7 +238,20 @@ class _VoiceWaveformProgressState extends State<_VoiceWaveformProgress>
   late AnimationController _controller;
 
   // 波形条的基础高度比例
-  static const List<double> _baseHeights = [0.4, 0.7, 0.5, 0.8, 0.6, 0.9, 0.5, 0.7, 0.4, 0.6, 0.8, 0.5];
+  static const List<double> _baseHeights = [
+    0.4,
+    0.7,
+    0.5,
+    0.8,
+    0.6,
+    0.9,
+    0.5,
+    0.7,
+    0.4,
+    0.6,
+    0.8,
+    0.5,
+  ];
   static const int _barCount = 12;
 
   @override
@@ -303,8 +340,9 @@ class _VoiceRecordingPanelState extends State<VoiceRecordingPanel> {
   @override
   void initState() {
     super.initState();
-    _durationSubscription =
-        _voiceService.recordingDurationStream.listen((duration) {
+    _durationSubscription = _voiceService.recordingDurationStream.listen((
+      duration,
+    ) {
       if (mounted) {
         setState(() {
           _recordingDuration = duration;
@@ -331,9 +369,9 @@ class _VoiceRecordingPanelState extends State<VoiceRecordingPanel> {
       });
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法开始录音，请检查麦克风权限')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法开始录音，请检查麦克风权限')));
       }
     }
   }
@@ -410,18 +448,12 @@ class _VoiceRecordingPanelState extends State<VoiceRecordingPanel> {
               const SizedBox(height: 8),
               Text(
                 '松开发送，上滑取消',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ] else ...[
               Text(
                 '按住录音',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
             ],
             const SizedBox(height: 16),
@@ -480,7 +512,9 @@ class _VoiceRecordingPanelState extends State<VoiceRecordingPanel> {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: _isRecording ? AppColors.primary : Colors.grey[200],
+                      color: _isRecording
+                          ? AppColors.primary
+                          : Colors.grey[200],
                       shape: BoxShape.circle,
                     ),
                     child: Icon(

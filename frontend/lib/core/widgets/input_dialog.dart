@@ -157,7 +157,7 @@ class _InputDialogState extends State<InputDialog> {
       ),
       confirmText: widget.confirmText,
       cancelText: widget.cancelText,
-      onConfirm: _isValid ? _handleConfirm : null,
+      onConfirm: _handleConfirm,
       onCancel: widget.onCancel,
     );
   }

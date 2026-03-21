@@ -23,6 +23,13 @@ fn is_storage_network_disabled() -> bool {
         .is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true"))
 }
 
+fn storage_request_scheme() -> &'static str {
+    match std::env::var("REDCODE_IM_STORAGE_SCHEME") {
+        Ok(v) if v.trim().eq_ignore_ascii_case("http") => "http",
+        _ => "https",
+    }
+}
+
 fn normalize_etag(value: &str) -> String {
     value.trim().trim_matches('"').to_string()
 }
@@ -194,7 +201,7 @@ impl TencentCosService {
     fn get_full_url(&self, key: &str) -> String {
         let host = self.resolve_object_host();
         let encoded_key = encode_object_key(key);
-        format!("https://{}/{}", host, encoded_key)
+        format!("{}://{}/{}", storage_request_scheme(), host, encoded_key)
     }
 
     fn resolve_object_host(&self) -> String {
@@ -458,7 +465,7 @@ impl StorageService for TencentCosService {
             None,
         );
 
-        let url = format!("https://{}", service_endpoint);
+        let url = format!("{}://{}", storage_request_scheme(), service_endpoint);
 
         let response = self
             .client
@@ -522,7 +529,7 @@ impl StorageService for TencentCosService {
             None,
         );
 
-        let url = format!("https://{}", bucket_endpoint);
+        let url = format!("{}://{}", storage_request_scheme(), bucket_endpoint);
 
         let response = self
             .client
@@ -582,7 +589,7 @@ impl StorageService for TencentCosService {
             Some(&query_params),
         );
 
-        let url = format!("https://{}/?cors", bucket_endpoint);
+        let url = format!("{}://{}/?cors", storage_request_scheme(), bucket_endpoint);
         let response = self
             .client
             .get(&url)
@@ -658,7 +665,7 @@ impl StorageService for TencentCosService {
             Some(&query_params),
         );
 
-        let url = format!("https://{}/?cors", bucket_endpoint);
+        let url = format!("{}://{}/?cors", storage_request_scheme(), bucket_endpoint);
         let response = self
             .client
             .put(&url)
@@ -707,7 +714,7 @@ impl StorageService for TencentCosService {
         let authorization = self.generate_signature_v1("PUT", &path, &headers_map, timestamp);
         let host = self.resolve_object_host();
         let encoded_key = encode_object_key(key);
-        let url = format!("https://{}/{}", host, encoded_key);
+        let url = format!("{}://{}/{}", storage_request_scheme(), host, encoded_key);
 
         let mut response_headers = BTreeMap::new();
         response_headers.insert("Authorization".to_string(), authorization);
@@ -771,7 +778,12 @@ impl StorageService for TencentCosService {
         );
 
         let encoded_key = encode_object_key(key);
-        let url = format!("https://{}/{}?uploads", host, encoded_key);
+        let url = format!(
+            "{}://{}/{}?uploads",
+            storage_request_scheme(),
+            host,
+            encoded_key
+        );
 
         let mut request = self
             .client
@@ -847,7 +859,8 @@ impl StorageService for TencentCosService {
 
         let encoded_key = encode_object_key(key);
         let url = format!(
-            "https://{}/{}?partNumber={}&uploadId={}",
+            "{}://{}/{}?partNumber={}&uploadId={}",
+            storage_request_scheme(),
             host,
             encoded_key,
             part_number,
@@ -920,7 +933,8 @@ impl StorageService for TencentCosService {
 
         let encoded_key = encode_object_key(key);
         let url = format!(
-            "https://{}/{}?uploadId={}",
+            "{}://{}/{}?uploadId={}",
+            storage_request_scheme(),
             host,
             encoded_key,
             urlencoding::encode(upload_id)
@@ -990,7 +1004,8 @@ impl StorageService for TencentCosService {
 
         let encoded_key = encode_object_key(key);
         let url = format!(
-            "https://{}/{}?uploadId={}",
+            "{}://{}/{}?uploadId={}",
+            storage_request_scheme(),
             host,
             encoded_key,
             urlencoding::encode(upload_id)
@@ -1055,7 +1070,7 @@ impl StorageService for TencentCosService {
         );
 
         let encoded_key = encode_object_key(key);
-        let base_url = format!("https://{}/{}", host, encoded_key);
+        let base_url = format!("{}://{}/{}", storage_request_scheme(), host, encoded_key);
         let separator = if base_url.contains('?') { '&' } else { '?' };
         Ok(format!("{}{}{}", base_url, separator, authorization))
     }
