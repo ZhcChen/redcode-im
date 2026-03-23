@@ -23,7 +23,7 @@
 ### 启动后端（开发）
 ```bash
 cd backend
-docker-compose up -d postgres redis-session redis-cache
+docker compose up -d postgres redis-session redis-cache
 RUST_LOG=debug cargo run
 ```
 
@@ -39,6 +39,13 @@ pnpm dev
 cd desktop
 bun install
 bun run tauri dev
+```
+
+### 启动新桌面端骨架（desktop-el）
+```bash
+cd desktop-el
+bun install
+bun run dev
 ```
 
 ### 启动移动端（frontend）
@@ -59,6 +66,12 @@ bun run dev
 ```bash
 # 统一回归入口（Rust 单元 + Rust 集成 + Go 黑盒）
 ./tests/run.sh
+```
+
+### 统一命令入口（Makefile）
+```bash
+# 查看全部入口（含 api/admin/desktop/website/tests/desktop-el）
+make help
 ```
 
 更多文档与规范请从 `docs/index.md` 开始阅读。

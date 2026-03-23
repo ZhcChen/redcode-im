@@ -1,0 +1,37 @@
+{
+  "name": "redcode-im-desktop-el",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "electron/main/index.ts",
+  "scripts": {
+    "dev": "concurrently -k -n renderer,core,electron \"bun run dev:renderer\" \"bun run dev:core\" \"bun run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron --require tsx/cjs ./electron/main/index.ts",
+    "dev:core": "cd go-core && go run ./cmd/desktop-el-core",
+    "build": "bun run type-check && vite build && bunx tsc -p tsconfig.node.json",
+    "type-check": "bunx vue-tsc --noEmit -p tsconfig.json && bunx tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint . --ext .ts,.vue"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/tsconfig": "^0.5.1",
+    "@vue/typescript-plugin": "^2.1.10",
+    "concurrently": "^9.1.2",
+    "cross-env": "^10.1.0",
+    "electron": "^35.1.4",
+    "eslint": "^9.38.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.6.2",
+    "vite": "^6.0.3",
+    "vue-tsc": "^2.1.10",
+    "wait-on": "^9.0.1"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
