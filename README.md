@@ -16,6 +16,7 @@
 ### 环境要求
 - Rust 1.75+
 - Node.js 18+（管理后台使用 pnpm；桌面端/官网使用 bun）
+- Go 1.25+（`desktop-el` core 依赖）
 - Flutter 3.9+
 - PostgreSQL 15+
 - Redis 7+
