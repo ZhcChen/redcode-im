@@ -17,6 +17,11 @@ type RespondFriendRequestParams struct {
 	Action    string `json:"action"`
 }
 
+type CreateFriendRequestParams struct {
+	TargetUserID string `json:"target_user_id"`
+	Message      string `json:"message,omitempty"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -54,6 +59,17 @@ func (s *Service) RespondFriendRequest(ctx context.Context, params RespondFriend
 		Path:   "/friends/requests/" + params.RequestID + "/respond",
 		Body: map[string]string{
 			"action": params.Action,
+		},
+	})
+}
+
+func (s *Service) CreateFriendRequest(ctx context.Context, params CreateFriendRequestParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/friends/requests",
+		Body: map[string]string{
+			"target_user_id": params.TargetUserID,
+			"message":        params.Message,
 		},
 	})
 }

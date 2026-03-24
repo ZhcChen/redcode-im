@@ -839,6 +839,138 @@ func TestAppFriendRequestRespondPostsAction(t *testing.T) {
 	}
 }
 
+func TestAppUserSearchUsesKeywordAndLimit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/search" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		if got := r.URL.Query().Get("keyword"); got != "alice" {
+			t.Fatalf("unexpected keyword query: %s", got)
+		}
+		if got := r.URL.Query().Get("limit"); got != "5" {
+			t.Fatalf("unexpected limit query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"id":         "u-2",
+				"username":   "alice",
+				"email":      "alice@example.com",
+				"nickname":   "Alice",
+				"avatar_url": nil,
+				"status":     "active",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-user-search",
+		Method: "user.search",
+		Params: mustJSONRaw(map[string]any{
+			"keyword": "alice",
+			"limit":   5,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected user.search to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode user.search response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected user.search envelope: %+v", envelope)
+	}
+}
+
+func TestAppFriendRequestCreatePostsTargetUserIDAndMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/friends/requests" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["target_user_id"] != "u-2" {
+			t.Fatalf("unexpected target_user_id payload: %+v", payload)
+		}
+		if payload["message"] != "你好，我是 Alice" {
+			t.Fatalf("unexpected message payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "request-2",
+			"requester": map[string]any{
+				"id":       "u-1",
+				"username": "me",
+				"email":    "me@example.com",
+				"nickname": "Me",
+				"status":   "active",
+			},
+			"addressee": map[string]any{
+				"id":       "u-2",
+				"username": "alice",
+				"email":    "alice@example.com",
+				"nickname": "Alice",
+				"status":   "active",
+			},
+			"status":      "pending",
+			"message":     "你好，我是 Alice",
+			"created_at":  "2026-03-24T00:00:00Z",
+			"is_incoming": false,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-friend-request-create",
+		Method: "friend.request.create",
+		Params: mustJSONRaw(map[string]any{
+			"target_user_id": "u-2",
+			"message":        "你好，我是 Alice",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected friend.request.create to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode friend.request.create response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected friend.request.create envelope: %+v", envelope)
+	}
+}
+
 func TestAppChatListReturnsWrappedPayload(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/chats" {

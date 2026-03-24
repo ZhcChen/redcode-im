@@ -11,6 +11,16 @@ interface BackendUserInfo {
   status: "active" | "inactive" | "banned";
 }
 
+export interface SearchUserInfo {
+  id: string;
+  username: string;
+  email: string | null;
+  nickname: string | null;
+  avatarUrl: string | null;
+  avatarObjectKey: string | null;
+  status: "active" | "inactive" | "banned" | null;
+}
+
 const mapBackendToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   id: user.id,
   username: user.username,
@@ -35,6 +45,16 @@ const mapBackendToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   powerList: null
 });
 
+const mapBackendToSearchUser = (user: BackendUserInfo): SearchUserInfo => ({
+  id: user.id,
+  username: user.username,
+  email: user.email || null,
+  nickname: user.nickname || null,
+  avatarUrl: user.avatar_url || null,
+  avatarObjectKey: user.avatar_object_key || null,
+  status: user.status || null
+});
+
 const requireDesktopRuntime = () => {
   if (!window.desktopEl) {
     throw new Error("desktop-el runtime is not available");
@@ -43,6 +63,27 @@ const requireDesktopRuntime = () => {
 };
 
 export class UserApi {
+  static async searchUsers(params: { keyword: string; limit?: number }): Promise<ApiResponse<SearchUserInfo[]>> {
+    const keyword = params.keyword.trim();
+    if (!keyword) {
+      return {
+        code: 400,
+        success: false,
+        message: "请输入搜索关键词",
+        data: []
+      };
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendUserInfo[]>>("user.search", {
+      keyword,
+      limit: params.limit
+    });
+    return {
+      ...response,
+      data: response.data ? response.data.map(mapBackendToSearchUser) : []
+    };
+  }
+
   static async getUserAccountInfo(params: { userId?: string } = {}): Promise<ApiResponse<LegacyUserInfo>> {
     const path = params.userId && params.userId !== "me" ? `/users/${params.userId}` : "/auth/me";
     const response = await get<BackendUserInfo>(path);

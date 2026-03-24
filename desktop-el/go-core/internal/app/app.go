@@ -208,6 +208,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("user.search", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload user.SearchUsersParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.userService.SearchUsers(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("settings.captcha.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
 		result, err := a.settings.GetCaptchaSetting(ctx)
 		if err != nil {
@@ -438,6 +450,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
 		}
 		result, err := a.friend.RespondFriendRequest(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("friend.request.create", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload friend.CreateFriendRequestParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.friend.CreateFriendRequest(ctx, payload)
 		if err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}

@@ -434,3 +434,98 @@
 
 - 只有在 renderer 实际上传了文件字节时才调用本 RPC。
 - 若附件对象直接被 backend 复用（无 `signature` / 无 `session_id`），renderer 直接使用 `key` 发送消息即可。
+
+### 6.10 `user.search`
+
+用途：让 renderer 通过 Go core 搜索可添加的用户，搜索条件仍由 backend 统一解释，桌面端不额外开启本地 HTTP 查询端口。
+
+请求参数：
+
+```json
+{
+  "keyword": "alice",
+  "limit": 20
+}
+```
+
+- `keyword`: 必填，搜索关键词；可传账号、手机号或昵称。
+- `limit`: 可选，结果条数上限；当前 renderer 默认传 `20`。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "ok",
+  "data": [
+    {
+      "id": "u-2",
+      "username": "alice",
+      "email": "alice@example.com",
+      "nickname": "Alice",
+      "avatar_url": "https://example.com/alice.png",
+      "avatar_object_key": "avatars/u-2.png",
+      "status": "active"
+    }
+  ]
+}
+```
+
+约束：
+
+- 搜索请求由 renderer 调用 `user.search`，再由 Go core 转发到 backend `GET /users/search`。
+- 结果中的好友关系状态不依赖 backend 额外字段；renderer 结合当前联系人列表与 outgoing pending 请求，本地计算 `self` / `friend` / `pending` / `addable`。
+
+### 6.11 `friend.request.create`
+
+用途：向目标用户发送好友申请。renderer 只提交目标用户 ID 和可选留言，业务仍由 Go core 统一代理到 backend。
+
+请求参数：
+
+```json
+{
+  "target_user_id": "u-2",
+  "message": "我是Alice"
+}
+```
+
+- `target_user_id`: 必填，目标用户 ID。
+- `message`: 可选，好友申请留言。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "ok",
+  "data": {
+    "id": "request-1",
+    "requester": {
+      "id": "u-1",
+      "username": "me",
+      "email": "me@example.com",
+      "nickname": "Me",
+      "status": "active"
+    },
+    "addressee": {
+      "id": "u-2",
+      "username": "alice",
+      "email": "alice@example.com",
+      "nickname": "Alice",
+      "status": "active"
+    },
+    "status": "pending",
+    "message": "我是Alice",
+    "created_at": "2026-03-25T11:00:00Z",
+    "responded_at": null,
+    "is_incoming": false
+  }
+}
+```
+
+约束：
+
+- renderer 只能通过 `friend.request.create` 发起好友申请，不直接访问 backend `POST /friends/requests`。
+- 成功后 renderer 需要刷新 outgoing pending 请求列表，以更新联系人搜索结果上的状态徽标。

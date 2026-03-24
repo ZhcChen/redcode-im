@@ -143,4 +143,21 @@ export class FriendApi {
       data: response.data ? mapFriendRequest(response.data) : null
     };
   }
+
+  static async createFriendRequest(params: {
+    targetUserId: string;
+    message?: string;
+  }): Promise<ApiResponse<FriendRequestInfo>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendFriendRequestInfo>>(
+      "friend.request.create",
+      {
+        target_user_id: params.targetUserId,
+        message: params.message
+      }
+    );
+    return {
+      ...response,
+      data: response.data ? mapFriendRequest(response.data) : null
+    };
+  }
 }

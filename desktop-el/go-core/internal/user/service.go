@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/session"
@@ -23,6 +24,11 @@ type BackendUser struct {
 type UpdateMeParams struct {
 	Nickname  string `json:"nickname,omitempty"`
 	AvatarURL string `json:"avatar_url,omitempty"`
+}
+
+type SearchUsersParams struct {
+	Keyword string `json:"keyword"`
+	Limit   int    `json:"limit,omitempty"`
 }
 
 type Service struct {
@@ -59,6 +65,21 @@ func (s *Service) UpdateMe(ctx context.Context, params UpdateMeParams) (httpclie
 	return response, nil
 }
 
+func (s *Service) SearchUsers(ctx context.Context, params SearchUsersParams) (httpclient.Response, error) {
+	query := map[string]string{
+		"keyword": params.Keyword,
+	}
+	if params.Limit > 0 {
+		query["limit"] = stringInt(params.Limit)
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/users/search",
+		Query:  query,
+	})
+}
+
 func mapBackendUserToSnapshot(user BackendUser) state.UserSnapshot {
 	return state.UserSnapshot{
 		ID:        user.ID,
@@ -75,4 +96,8 @@ func decodeData(data json.RawMessage, target any) error {
 		return nil
 	}
 	return json.Unmarshal(data, target)
+}
+
+func stringInt(value int) string {
+	return strconv.Itoa(value)
 }
