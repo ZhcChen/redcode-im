@@ -7,6 +7,7 @@ interface BackendUserInfo {
   email: string;
   nickname?: string | null;
   avatar_url?: string | null;
+  avatar_object_key?: string | null;
   status: "active" | "inactive" | "banned";
 }
 
@@ -15,17 +16,47 @@ const mapBackendToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   username: user.username,
   nickname: user.nickname || user.username,
   avatar: user.avatar_url || "",
+  avatarObjectKey: user.avatar_object_key || null,
+  avatarLocalPath: null,
   mobile: user.username,
   email: user.email || "",
   isLoggedIn: true,
   realName: user.nickname || user.username,
-  chatNumber: user.username
+  chatNumber: user.username,
+  address: "",
+  createTime: null,
+  lastLoginTime: null,
+  activeStatus: user.status === "active" ? 1 : user.status === "inactive" ? 0 : -1,
+  delFlag: null,
+  level: null,
+  userDeviceId: null,
+  userSign: null,
+  trcSdkAppId: null,
+  powerList: null
 });
+
+const requireDesktopRuntime = () => {
+  if (!window.desktopEl) {
+    throw new Error("desktop-el runtime is not available");
+  }
+  return window.desktopEl;
+};
 
 export class UserApi {
   static async getUserAccountInfo(params: { userId?: string } = {}): Promise<ApiResponse<LegacyUserInfo>> {
     const path = params.userId && params.userId !== "me" ? `/users/${params.userId}` : "/auth/me";
     const response = await get<BackendUserInfo>(path);
+    return {
+      ...response,
+      data: response.data ? mapBackendToLegacy(response.data) : null
+    };
+  }
+
+  static async updateMe(params: { nickname?: string; avatarUrl?: string }): Promise<ApiResponse<LegacyUserInfo>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendUserInfo>>("user.me.update", {
+      nickname: params.nickname,
+      avatar_url: params.avatarUrl
+    });
     return {
       ...response,
       data: response.data ? mapBackendToLegacy(response.data) : null

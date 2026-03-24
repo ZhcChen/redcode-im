@@ -17,6 +17,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "navigate", view: HomeView): void;
   (event: "logout"): void;
+  (event: "profile-updated", user: LegacyUserInfo): void;
 }>();
 
 const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; desc: string }> = [
@@ -213,6 +214,7 @@ const pageSummary = computed(() => {
         :host-version="props.hostVersion"
         :ws-status="props.wsStatus"
         :last-event="props.lastEvent"
+        @profile-updated="emit('profile-updated', $event)"
         @logout="emit('logout')"
       />
     </section>

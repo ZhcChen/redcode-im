@@ -570,6 +570,79 @@ func TestAppSettingsGeneralGetReturnsWrappedPayload(t *testing.T) {
 	}
 }
 
+func TestAppUserMeUpdateReturnsWrappedUserInfoAndUpdatesSessionSnapshot(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/me" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["nickname"] != "新的昵称" {
+			t.Fatalf("unexpected nickname payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"code":    200,
+			"message": "ok",
+			"data": map[string]any{
+				"id":        "u-1",
+				"username":  "13800000000",
+				"email":     "demo@example.com",
+				"nickname":  "新的昵称",
+				"avatar_url": nil,
+				"status":    "active",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.session.SetCurrentUser(state.UserSnapshot{
+		ID:       "u-1",
+		Username: "13800000000",
+		Email:    "demo@example.com",
+		Status:   "active",
+	})
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-user-update",
+		Method: "user.me.update",
+		Params: mustJSONRaw(map[string]any{
+			"nickname": "新的昵称",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected user.me.update to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode user update response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected user update envelope: %+v", envelope)
+	}
+
+	currentUser := application.session.CurrentUser()
+	if currentUser == nil || currentUser.Nickname == nil || *currentUser.Nickname != "新的昵称" {
+		t.Fatalf("expected current user snapshot nickname to be updated, got: %+v", currentUser)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

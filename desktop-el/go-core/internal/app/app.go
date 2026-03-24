@@ -14,6 +14,7 @@ import (
 	"desktop-el-core/internal/settings"
 	"desktop-el-core/internal/session"
 	"desktop-el-core/internal/state"
+	"desktop-el-core/internal/user"
 	"desktop-el-core/internal/ws"
 )
 
@@ -26,6 +27,7 @@ type App struct {
 	session      *session.Service
 	authService  *auth.Service
 	settings     *settings.Service
+	userService  *user.Service
 	wsClient     *ws.Client
 	wsDispatcher *ws.Dispatcher
 }
@@ -65,6 +67,7 @@ func New(cfg config.Config, bus *eventbus.Bus, bootstrapService *bootstrap.Servi
 		session:      sessionService,
 		authService:  auth.New(httpTransport, sessionService),
 		settings:     settings.New(httpTransport),
+		userService:  user.New(httpTransport, sessionService),
 		wsClient:     ws.NewClient(),
 		wsDispatcher: ws.NewDispatcher(bus),
 	}
@@ -185,6 +188,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 		}
 		_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
 		return map[string]any{"success": true}, nil
+	})
+
+	server.Register("user.me.update", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload user.UpdateMeParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.userService.UpdateMe(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
 	})
 
 	server.Register("settings.captcha.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {

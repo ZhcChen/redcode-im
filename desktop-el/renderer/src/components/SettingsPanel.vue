@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import { SettingsApi, type AppNameResponse, type DocumentContent, type GeneralSettingsResponse } from "@/api/settings";
+import { UserApi } from "@/api/user";
 import { VersionApi, type AppVersionInfo } from "@/api/version";
 import AgreementModal from "./AgreementModal.vue";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
@@ -18,6 +19,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "logout"): void;
+  (event: "profile-updated", user: LegacyUserInfo): void;
 }>();
 
 const generalSettings = ref<GeneralSettingsResponse | null>(null);
@@ -30,6 +32,9 @@ const noticeMessage = ref("设置页已切回真实业务面板，后续继续�
 const agreementVisible = ref(false);
 const agreementTitle = ref("文档");
 const agreementContent = ref("");
+const isEditingNickname = ref(false);
+const isSavingNickname = ref(false);
+const nicknameDraft = ref("");
 
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
@@ -44,6 +49,50 @@ const featureFlags = computed(() => Object.entries(props.bootstrap?.feature_flag
 const setNotice = (tone: NoticeTone, message: string) => {
   noticeTone.value = tone;
   noticeMessage.value = message;
+};
+
+const beginEditNickname = () => {
+  nicknameDraft.value = props.currentUser.nickname || props.currentUser.username;
+  isEditingNickname.value = true;
+};
+
+const cancelEditNickname = () => {
+  isEditingNickname.value = false;
+  nicknameDraft.value = "";
+};
+
+const saveNickname = async () => {
+  const nickname = nicknameDraft.value.trim();
+  if (!nickname) {
+    setNotice("error", "昵称不能为空");
+    return;
+  }
+  if (nickname.length > 20) {
+    setNotice("error", "昵称不能超过 20 个字符");
+    return;
+  }
+  if (nickname === (props.currentUser.nickname || props.currentUser.username)) {
+    setNotice("error", "新昵称与当前昵称相同");
+    return;
+  }
+
+  isSavingNickname.value = true;
+  try {
+    const response = await UserApi.updateMe({ nickname });
+    if (!response.success || !response.data) {
+      setNotice("error", response.message || "昵称修改失败");
+      return;
+    }
+
+    emit("profile-updated", response.data);
+    isEditingNickname.value = false;
+    nicknameDraft.value = "";
+    setNotice("success", `昵称已更新为 ${response.data.nickname}`);
+  } catch (error) {
+    setNotice("error", error instanceof Error ? error.message : "昵称修改失败");
+  } finally {
+    isSavingNickname.value = false;
+  }
 };
 
 const loadGeneralSettings = async () => {
@@ -144,7 +193,30 @@ onMounted(() => {
             <p>{{ props.currentUser.mobile }}</p>
             <span>{{ props.currentUser.email || "未绑定邮箱" }}</span>
           </div>
-          <div class="settings-card__tag">资料编辑下一批接入</div>
+          <div class="settings-profile-actions">
+            <button
+              v-if="!isEditingNickname"
+              type="button"
+              class="settings-card__tag settings-card__tag--action"
+              @click="beginEditNickname"
+            >
+              修改昵称
+            </button>
+            <div v-else class="nickname-editor">
+              <input v-model="nicknameDraft" class="nickname-editor__input" maxlength="20" placeholder="请输入新昵称" />
+              <div class="nickname-editor__actions">
+                <button type="button" class="nickname-editor__button" @click="cancelEditNickname">取消</button>
+                <button
+                  type="button"
+                  class="nickname-editor__button nickname-editor__button--primary"
+                  :disabled="isSavingNickname"
+                  @click="saveNickname"
+                >
+                  {{ isSavingNickname ? "保存中..." : "保存" }}
+                </button>
+              </div>
+            </div>
+          </div>
         </article>
 
         <article class="settings-card">
@@ -392,6 +464,60 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.settings-card__tag--action {
+  cursor: pointer;
+}
+
+.settings-profile-actions {
+  display: grid;
+  justify-items: end;
+}
+
+.nickname-editor {
+  display: grid;
+  gap: 10px;
+  min-width: 220px;
+}
+
+.nickname-editor__input {
+  height: 40px;
+  border: 1px solid rgba(0, 155, 143, 0.18);
+  border-radius: 14px;
+  padding: 0 14px;
+  background: #f8fffe;
+  outline: none;
+}
+
+.nickname-editor__input:focus {
+  border-color: rgba(0, 155, 143, 0.34);
+  box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
+}
+
+.nickname-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nickname-editor__button {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.nickname-editor__button--primary {
+  background: rgba(0, 194, 179, 0.12);
+  color: var(--primary-color-strong);
+}
+
+.nickname-editor__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .settings-card__header {
   display: flex;
   justify-content: space-between;
@@ -520,6 +646,16 @@ onMounted(() => {
   .settings-card--profile {
     grid-template-columns: 1fr;
     justify-items: start;
+  }
+
+  .settings-profile-actions {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .nickname-editor {
+    min-width: 0;
+    width: 100%;
   }
 }
 </style>

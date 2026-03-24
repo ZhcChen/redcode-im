@@ -98,6 +98,13 @@ const handleLogout = async () => {
   });
 };
 
+const handleProfileUpdated = async (user: LegacyUserInfo) => {
+  sessionStore.setAuthenticated(user, sessionStore.state.accessToken);
+  await refreshBootstrap().catch((error) => {
+    console.warn("[desktop-el-renderer] bootstrap refresh after profile update failed", error);
+  });
+};
+
 onMounted(() => {
   if (!window.desktopEl) {
     runtimeAvailable.value = false;
@@ -134,6 +141,7 @@ onUnmounted(() => {
     :bootstrap="bootstrap"
     :active-view="sessionStore.state.activeView"
     @navigate="sessionStore.setActiveView"
+    @profile-updated="handleProfileUpdated"
     @logout="handleLogout"
   />
 </template>
