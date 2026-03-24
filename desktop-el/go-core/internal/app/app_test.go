@@ -763,6 +763,78 @@ func TestAppFriendRequestsListUsesQueryParams(t *testing.T) {
 	}
 }
 
+func TestAppFriendRequestRespondPostsAction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/friends/requests/request-1/respond" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["action"] != "accept" {
+			t.Fatalf("unexpected action payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "request-1",
+			"requester": map[string]any{
+				"id":       "u-3",
+				"username": "bob",
+				"email":    "bob@example.com",
+				"nickname": "Bob",
+				"status":   "active",
+			},
+			"addressee": map[string]any{
+				"id":       "u-1",
+				"username": "me",
+				"email":    "me@example.com",
+				"nickname": "Me",
+				"status":   "active",
+			},
+			"status":      "accepted",
+			"message":     "hi",
+			"created_at":  "2026-03-24T00:00:00Z",
+			"responded_at": "2026-03-24T00:05:00Z",
+			"is_incoming": true,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-friend-respond",
+		Method: "friend.request.respond",
+		Params: mustJSONRaw(map[string]any{
+			"request_id": "request-1",
+			"action":     "accept",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected friend.request.respond to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode friend.request.respond response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected friend.request.respond envelope: %+v", envelope)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

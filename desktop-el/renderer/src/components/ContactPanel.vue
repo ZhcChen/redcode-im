@@ -11,6 +11,7 @@ const requests = ref<FriendRequestInfo[]>([]);
 const selectedContactId = ref<string | null>(null);
 const selectedRequestId = ref<string | null>(null);
 const isLoading = ref(true);
+const isHandlingRequest = ref(false);
 const notice = ref("联系人页已接到 Go core，当前先恢复好友列表与好友申请查看。");
 
 const displayName = (user: FriendInfo["user"] | FriendRequestInfo["requester"]) =>
@@ -80,7 +81,7 @@ const formatDate = (value: Date | null) => {
   }).format(value);
 };
 
-const loadData = async () => {
+const loadData = async (options: { preferredFriendUserId?: string; preferredRequestId?: string } = {}) => {
   isLoading.value = true;
   try {
     const [friendsResponse, requestResponse] = await Promise.all([
@@ -90,12 +91,18 @@ const loadData = async () => {
 
     if (friendsResponse.success && friendsResponse.data) {
       contacts.value = friendsResponse.data;
-      selectedContactId.value = friendsResponse.data[0]?.id ?? null;
+      selectedContactId.value =
+        friendsResponse.data.find((friend) => friend.user.id === options.preferredFriendUserId)?.id ||
+        friendsResponse.data[0]?.id ||
+        null;
     }
 
     if (requestResponse.success && requestResponse.data) {
       requests.value = requestResponse.data;
-      selectedRequestId.value = requestResponse.data[0]?.id ?? null;
+      selectedRequestId.value =
+        requestResponse.data.find((request) => request.id === options.preferredRequestId)?.id ||
+        requestResponse.data[0]?.id ||
+        null;
     }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "联系人数据加载失败";
@@ -111,6 +118,39 @@ const switchMode = (nextMode: ContactMode) => {
   }
   if (nextMode === "requests" && !selectedRequestId.value) {
     selectedRequestId.value = incomingRequests.value[0]?.id ?? null;
+  }
+};
+
+const handleRespondRequest = async (action: "accept" | "decline") => {
+  if (!selectedRequest.value || isHandlingRequest.value) {
+    return;
+  }
+
+  isHandlingRequest.value = true;
+  try {
+    const response = await FriendApi.handleFriendRequest({
+      requestId: selectedRequest.value.id,
+      action
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "处理好友申请失败";
+      return;
+    }
+
+    if (action === "accept") {
+      notice.value = `已通过 ${displayName(response.data.requester)} 的好友申请`;
+      mode.value = "contacts";
+      await loadData({ preferredFriendUserId: response.data.requester.id });
+      return;
+    }
+
+    notice.value = `已拒绝 ${displayName(response.data.requester)} 的好友申请`;
+    await loadData();
+    mode.value = "requests";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "处理好友申请失败";
+  } finally {
+    isHandlingRequest.value = false;
   }
 };
 
@@ -271,8 +311,27 @@ onMounted(() => {
           </dl>
 
           <div class="contact-placeholder">
-            <strong>好友申请详情已接入</strong>
-            <p>响应申请的业务交互放在下一批继续下沉到 Go core。</p>
+            <strong>好友申请操作已接回 Go core</strong>
+            <p>现在可以直接通过或拒绝申请，下一批继续接“发起聊天”和“好友备注”。</p>
+          </div>
+
+          <div class="request-actions">
+            <button
+              type="button"
+              class="request-actions__button request-actions__button--ghost"
+              :disabled="isHandlingRequest"
+              @click="handleRespondRequest('decline')"
+            >
+              {{ isHandlingRequest ? "处理中..." : "拒绝" }}
+            </button>
+            <button
+              type="button"
+              class="request-actions__button request-actions__button--primary"
+              :disabled="isHandlingRequest"
+              @click="handleRespondRequest('accept')"
+            >
+              {{ isHandlingRequest ? "处理中..." : "通过验证" }}
+            </button>
           </div>
         </template>
 
@@ -518,6 +577,34 @@ onMounted(() => {
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.7;
+}
+
+.request-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.request-actions__button {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.request-actions__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.request-actions__button--ghost {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
+}
+
+.request-actions__button--primary {
+  background: rgba(0, 194, 179, 0.14);
+  color: var(--primary-color-strong);
 }
 
 @media (max-width: 980px) {

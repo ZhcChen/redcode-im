@@ -12,6 +12,11 @@ type ListFriendRequestsParams struct {
 	Status    string `json:"status,omitempty"`
 }
 
+type RespondFriendRequestParams struct {
+	RequestID string `json:"request_id"`
+	Action    string `json:"action"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -40,5 +45,15 @@ func (s *Service) ListFriendRequests(ctx context.Context, params ListFriendReque
 		Method: http.MethodGet,
 		Path:   "/friends/requests",
 		Query:  query,
+	})
+}
+
+func (s *Service) RespondFriendRequest(ctx context.Context, params RespondFriendRequestParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/friends/requests/" + params.RequestID + "/respond",
+		Body: map[string]string{
+			"action": params.Action,
+		},
 	})
 }
