@@ -63,6 +63,20 @@ interface BackendMessagePart {
   attachment?: BackendMessageAttachment | null;
 }
 
+interface BackendQuotedMessage {
+  id: string;
+  room_id: string;
+  sender_id: string;
+  sender_username: string;
+  sender_nickname?: string | null;
+  sender_avatar_url?: string | null;
+  content?: string | null;
+  message_type: BackendMessageType;
+  created_at?: string | null;
+  is_deleted: boolean;
+  parts?: BackendMessagePart[];
+}
+
 interface BackendAttachmentDownloadPayload {
   success?: boolean;
   message?: string;
@@ -112,6 +126,7 @@ interface BackendMessageInfo {
   message_type: BackendMessageType;
   status?: BackendMessageDeliveryStatus | null;
   created_at: string;
+  quoted_message?: BackendQuotedMessage | null;
   is_deleted?: boolean;
   is_edited?: boolean;
   parts?: BackendMessagePart[];
@@ -163,6 +178,21 @@ export interface ChatMessage {
   isDeleted: boolean;
   isEdited: boolean;
   isSelf: boolean;
+  quotedMessage: ChatQuotedMessage | null;
+  parts: ChatMessagePart[];
+}
+
+export interface ChatQuotedMessage {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderUsername: string;
+  senderName: string;
+  senderAvatarUrl: string | null;
+  content: string | null;
+  messageType: BackendMessageType;
+  createdAt: Date | null;
+  isDeleted: boolean;
   parts: ChatMessagePart[];
 }
 
@@ -254,6 +284,7 @@ interface BackendPushMessage {
   content: string;
   message_type: BackendMessageType;
   timestamp: string;
+  quoted_message?: BackendQuotedMessage | null;
   parts?: BackendMessagePart[];
 }
 
@@ -509,6 +540,26 @@ const mapChatMessagePart = (part: BackendMessagePart): ChatMessagePart => ({
   attachment: mapChatMessageAttachment(part.attachment)
 });
 
+const mapQuotedMessage = (quoted?: BackendQuotedMessage | null): ChatQuotedMessage | null => {
+  if (!quoted) {
+    return null;
+  }
+
+  return {
+    id: quoted.id,
+    roomId: quoted.room_id,
+    senderId: quoted.sender_id,
+    senderUsername: quoted.sender_username,
+    senderName: quoted.sender_nickname?.trim() || quoted.sender_username,
+    senderAvatarUrl: quoted.sender_avatar_url ?? null,
+    content: quoted.content ?? null,
+    messageType: quoted.message_type,
+    createdAt: parseTimestamp(quoted.created_at),
+    isDeleted: Boolean(quoted.is_deleted),
+    parts: (quoted.parts ?? []).slice().sort((left, right) => left.position - right.position).map(mapChatMessagePart)
+  };
+};
+
 const mapPartPayloadInput = (part: ChatMessagePartInput): Record<string, unknown> => {
   if (part.type === "text") {
     return {
@@ -590,7 +641,7 @@ const mapSimpleSuccessData = (
   };
 };
 
-const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): ChatMessage => {
+export const mapChatMessagePayload = (message: BackendMessageInfo, currentUserId?: string): ChatMessage => {
   const senderName = message.sender_nickname?.trim() || message.sender_username;
   const preview = buildMessagePreview({
     content: message.content,
@@ -618,12 +669,13 @@ const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): Ch
     isDeleted: Boolean(message.is_deleted),
     isEdited: Boolean(message.is_edited),
     isSelf: currentUserId === message.sender_id,
+    quotedMessage: mapQuotedMessage(message.quoted_message),
     parts
   };
 };
 
 const mapPushMessage = (message: BackendPushMessage, currentUserId?: string): ChatMessage =>
-  mapChatMessage(
+  mapChatMessagePayload(
     {
       id: message.message_id || message.id,
       room_id: message.room_id,
@@ -634,6 +686,7 @@ const mapPushMessage = (message: BackendPushMessage, currentUserId?: string): Ch
       content: message.content,
       message_type: message.message_type,
       created_at: message.timestamp,
+      quoted_message: message.quoted_message,
       parts: message.parts ?? []
     },
     currentUserId
@@ -717,7 +770,7 @@ export class ChatApi {
     });
     return {
       ...response,
-      data: response.data ? response.data.map((message) => mapChatMessage(message, params.currentUserId)).reverse() : null
+      data: response.data ? response.data.map((message) => mapChatMessagePayload(message, params.currentUserId)).reverse() : null
     };
   }
 
@@ -754,13 +807,14 @@ export class ChatApi {
 
     return {
       ...response,
-      data: mapChatMessage(payload as BackendMessageInfo, params.currentUserId)
+      data: mapChatMessagePayload(payload as BackendMessageInfo, params.currentUserId)
     };
   }
 
   static async sendTextMessage(params: {
     roomId: string;
     content: string;
+    quotedMessageId?: string;
     currentUserId?: string;
   }): Promise<ApiResponse<ChatMessage>> {
     return this.sendMessage(params);
@@ -784,7 +838,7 @@ export class ChatApi {
     });
     return {
       ...response,
-      data: response.data ? mapChatMessage(response.data, undefined) : null
+      data: response.data ? mapChatMessagePayload(response.data, undefined) : null
     };
   }
 

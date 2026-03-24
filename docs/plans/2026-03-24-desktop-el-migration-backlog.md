@@ -26,9 +26,14 @@
 **目标:** 把当前“只支持文本消息”的聊天能力推进到日常可用级别。
 
 **当前缺口:**
-- 消息引用、转发、撤回、删除、重发未迁移。
-- `message_update`、`pin_update`、`reaction_update`、`typing_update` 等 websocket 事件未接入。
+- 转发、撤回、重发未迁移。
+- `pin_update`、`reaction_update`、`typing_update` 等 websocket 事件未接入。
 - 已读成员列表和更细的消息状态展示未接入。
+
+**当前进度:**
+- [x] 已完成消息删除与 `message_update` 最小同步闭环。
+- [x] 已完成引用回复最小闭环：renderer 已能展示 quoted block、在 composer 中设置 / 取消回复目标，并通过 `quoted_message_id` 发送文本、附件或 mixed message。
+- [ ] 转发、撤回、重发与更完整的消息操作菜单仍未迁移。
 
 **建议切口:**
 - [ ] 先补 Go core chat RPC 与 WS 事件透传，不在 renderer 直接拼业务请求。

@@ -6,6 +6,7 @@ import {
   mapChatRealtimeEvent,
   type ChatMessage,
   type ChatMessagePart,
+  type ChatQuotedMessage,
   type ChatRealtimeEvent,
   type ChatSummary,
   type ChatWebSocketPush
@@ -18,6 +19,7 @@ import {
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
 import { buildOutgoingChatMessageParts, uploadAttachmentsAndBuildParts } from "@/utils/chat-message-compose";
+import { formatQuotedMessagePreview, getQuotedSenderDisplayName } from "@/utils/chat-quoted-message";
 
 interface OpenChatRequest {
   requestId: number;
@@ -79,6 +81,8 @@ const mediaPreview = ref<{
   name: string;
   meta: string;
 } | null>(null);
+const replyingMessage = ref<ChatMessage | null>(null);
+const highlightedQuotedMessageId = ref<string | null>(null);
 const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。");
 const attachmentPreviewUrlStore = createAttachmentPreviewUrlStore();
 
@@ -142,6 +146,17 @@ const sendButtonLabel = computed(() => {
     return "发送附件";
   }
   return "发送";
+});
+const replyingSummary = computed(() => {
+  if (!replyingMessage.value) {
+    return null;
+  }
+
+  return formatQuotedMessagePreview({
+    content: replyingMessage.value.content,
+    isDeleted: replyingMessage.value.isDeleted,
+    parts: replyingMessage.value.parts
+  });
 });
 
 const formatTime = (value: Date | null) => {
@@ -266,6 +281,20 @@ const getAttachmentMeta = (part: ChatMessagePart) => {
   segments.push(formatAttachmentSize(part.attachment?.size ?? null));
   return segments.join(" / ");
 };
+
+const toQuotedMessage = (message: ChatMessage): ChatQuotedMessage => ({
+  id: message.id,
+  roomId: message.roomId,
+  senderId: message.senderId,
+  senderUsername: message.senderUsername,
+  senderName: message.senderName,
+  senderAvatarUrl: message.senderAvatarUrl,
+  content: message.content,
+  messageType: message.messageType,
+  createdAt: message.createdAt,
+  isDeleted: message.isDeleted,
+  parts: message.parts
+});
 
 const getMessageTextParts = (message: ChatMessage) =>
   message.parts.filter((part) => part.partType === "text" && part.text?.trim());
@@ -547,6 +576,7 @@ const loadChats = async (
 };
 
 const selectChat = async (chatId: string) => {
+  replyingMessage.value = null;
   selectedChatId.value = chatId;
   await loadMessages(chatId);
 };
@@ -581,6 +611,7 @@ const handleSend = async () => {
   const roomId = selectedChatId.value;
   const content = draftMessage.value.trim();
   const attachments = [...pendingAttachments.value];
+  const quotedMessageId = replyingMessage.value?.id;
   if (!roomId || isSending.value || (!content && !attachments.length)) {
     return;
   }
@@ -592,6 +623,7 @@ const handleSend = async () => {
       const response = await ChatApi.sendTextMessage({
         roomId,
         content,
+        quotedMessageId,
         currentUserId: props.currentUser.id
       });
       if (!response.success || !response.data) {
@@ -600,6 +632,7 @@ const handleSend = async () => {
       }
 
       draftMessage.value = "";
+      replyingMessage.value = null;
       await loadChats({
         preferredRoomId: roomId,
         preserveNotice: true
@@ -634,6 +667,7 @@ const handleSend = async () => {
         text: content,
         attachments: attachmentParts
       }),
+      quotedMessageId,
       currentUserId: props.currentUser.id
     });
     if (!response.success || !response.data) {
@@ -643,6 +677,7 @@ const handleSend = async () => {
 
     const attachmentCount = attachments.length;
     draftMessage.value = "";
+    replyingMessage.value = null;
     resetPendingAttachments();
     await loadChats({
       preferredRoomId: roomId,
@@ -700,6 +735,39 @@ const handleComposerKeydown = (event: KeyboardEvent) => {
   }
   event.preventDefault();
   void handleSend();
+};
+
+const handleReplyToMessage = (message: ChatMessage) => {
+  if (message.messageType === "system" || message.isDeleted) {
+    return;
+  }
+  replyingMessage.value = message;
+  notice.value = `正在回复 ${message.isSelf ? "我" : message.senderName} 的消息。`;
+};
+
+const clearReplyingMessage = () => {
+  replyingMessage.value = null;
+};
+
+const scrollToQuotedMessage = (quoted: ChatQuotedMessage | null) => {
+  if (!quoted?.id) {
+    return;
+  }
+  const target = document.querySelector<HTMLElement>(`[data-message-id="${quoted.id}"]`);
+  if (!target) {
+    return;
+  }
+
+  target.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+  highlightedQuotedMessageId.value = quoted.id;
+  window.setTimeout(() => {
+    if (highlightedQuotedMessageId.value === quoted.id) {
+      highlightedQuotedMessageId.value = null;
+    }
+  }, 2400);
 };
 
 const handleDeleteMessage = async (message: ChatMessage) => {
@@ -890,6 +958,15 @@ watch(
   }
 );
 
+watch(
+  () => selectedChatId.value,
+  (nextRoomId, previousRoomId) => {
+    if (nextRoomId && previousRoomId && nextRoomId !== previousRoomId) {
+      replyingMessage.value = null;
+    }
+  }
+);
+
 onMounted(() => {
   if (props.openChatRequest) {
     void handleOpenChatRequest(props.openChatRequest);
@@ -1007,13 +1084,24 @@ onMounted(() => {
                 class="message-card"
                 :class="{
                   'message-card--self': message.isSelf,
-                  'message-card--system': message.messageType === 'system'
+                  'message-card--system': message.messageType === 'system',
+                  'message-card--quoted-highlight': highlightedQuotedMessageId === message.id
                 }"
+                :data-message-id="message.id"
               >
                 <div class="message-card__meta">
                   <strong>{{ message.isSelf ? "我" : message.senderName }}</strong>
                   <span>{{ formatDetailTime(message.createdAt) }}</span>
                 </div>
+                <button
+                  v-if="message.quotedMessage"
+                  type="button"
+                  class="quoted-block"
+                  @click="scrollToQuotedMessage(message.quotedMessage)"
+                >
+                  <strong>{{ getQuotedSenderDisplayName(message.quotedMessage) }}</strong>
+                  <small>{{ formatQuotedMessagePreview(message.quotedMessage) }}</small>
+                </button>
                 <template v-if="message.isDeleted || !message.parts.length">
                   <p class="message-card__body">{{ message.preview || message.content || "[空消息]" }}</p>
                 </template>
@@ -1124,8 +1212,17 @@ onMounted(() => {
                     {{ message.preview || message.content || "[空消息]" }}
                   </p>
                 </template>
-                <div v-if="message.isSelf && message.messageType !== 'system'" class="message-card__actions">
+                <div v-if="message.messageType !== 'system'" class="message-card__actions">
                   <button
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="message.isDeleted"
+                    @click="handleReplyToMessage(message)"
+                  >
+                    引用
+                  </button>
+                  <button
+                    v-if="message.isSelf"
                     type="button"
                     class="message-card__action"
                     :disabled="deletingMessageId === message.id"
@@ -1164,6 +1261,20 @@ onMounted(() => {
               :disabled="isSending"
               @keydown="handleComposerKeydown"
             />
+            <div v-if="replyingMessage" class="reply-bar">
+              <div class="reply-bar__copy">
+                <strong>回复 {{ replyingMessage.isSelf ? "我" : replyingMessage.senderName }}</strong>
+                <small>{{ replyingSummary }}</small>
+              </div>
+              <button
+                type="button"
+                class="reply-bar__close"
+                :disabled="isSending"
+                @click="clearReplyingMessage"
+              >
+                取消
+              </button>
+            </div>
             <div v-if="hasPendingAttachments" class="composer-panel__attachments">
               <div class="composer-panel__attachments-summary">{{ pendingAttachmentSummary }}</div>
               <div
@@ -1532,6 +1643,29 @@ onMounted(() => {
   word-break: break-word;
 }
 
+.quoted-block {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.64);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quoted-block strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.quoted-block small {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .attachment-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1688,6 +1822,12 @@ onMounted(() => {
   cursor: pointer;
 }
 
+.message-card__action--secondary {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+}
+
 .message-card__action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -1695,6 +1835,10 @@ onMounted(() => {
 
 .message-card__footer {
   color: var(--text-secondary);
+}
+
+.message-card--quoted-highlight {
+  box-shadow: 0 0 0 3px rgba(0, 194, 179, 0.2);
 }
 
 .composer-panel {
@@ -1741,6 +1885,54 @@ onMounted(() => {
 .composer-panel__input:focus {
   border-color: rgba(0, 155, 143, 0.28);
   box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
+}
+
+.reply-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 155, 143, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.reply-bar__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reply-bar__copy strong,
+.reply-bar__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-bar__copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.reply-bar__copy small {
+  color: var(--text-secondary);
+}
+
+.reply-bar__close {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.reply-bar__close:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .composer-panel__attachments {
