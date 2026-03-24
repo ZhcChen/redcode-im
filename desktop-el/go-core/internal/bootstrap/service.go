@@ -19,6 +19,11 @@ func (s *Service) BuildSnapshot() state.BootstrapSnapshot {
 		Config: state.ConfigSnapshot{
 			AppName:     s.config.AppName,
 			Environment: s.config.Environment,
+			APIBaseURL:  s.config.APIBaseURL,
+			WSURL:       s.config.WSURL,
+			Version:     s.config.AppVersion,
+			BuildNumber: s.config.BuildNumber,
+			Channel:     s.config.Channel,
 		},
 		RecentConversations: []state.ConversationSnapshot{},
 		Connection: state.ConnectionSnapshot{

@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"desktop-el-core/internal/auth"
 	"desktop-el-core/internal/bootstrap"
 	"desktop-el-core/internal/config"
 	"desktop-el-core/internal/eventbus"
+	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/rpc"
 )
 
@@ -19,6 +23,11 @@ func TestAppRegistersBootstrapRPCAndEmitsSnapshotEvent(t *testing.T) {
 		config.Config{
 			AppName:     "RedCode IM",
 			Environment: "development",
+			APIBaseURL:  "http://127.0.0.1:8010",
+			WSURL:       "ws://127.0.0.1:8010/ws",
+			AppVersion:  "0.1.0",
+			BuildNumber: 1,
+			Channel:     "stable",
 			FeatureFlags: map[string]bool{
 				"desktop_el": true,
 			},
@@ -27,6 +36,11 @@ func TestAppRegistersBootstrapRPCAndEmitsSnapshotEvent(t *testing.T) {
 		bootstrap.New(config.Config{
 			AppName:     "RedCode IM",
 			Environment: "development",
+			APIBaseURL:  "http://127.0.0.1:8010",
+			WSURL:       "ws://127.0.0.1:8010/ws",
+			AppVersion:  "0.1.0",
+			BuildNumber: 1,
+			Channel:     "stable",
 			FeatureFlags: map[string]bool{
 				"desktop_el": true,
 			},
@@ -64,4 +78,239 @@ func TestAppRegistersBootstrapRPCAndEmitsSnapshotEvent(t *testing.T) {
 	if event.Event != "core.bootstrap.snapshot" {
 		t.Fatalf("unexpected emitted event: %+v", event)
 	}
+}
+
+func TestAppAuthLoginReturnsEnvelopeAndStoresSession(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/login" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"code":    200,
+			"message": "ok",
+			"data": map[string]any{
+				"token":         "access-token",
+				"refresh_token": "refresh-token",
+				"user": map[string]any{
+					"id":       "u-1",
+					"username": "13800000000",
+					"email":    "demo@example.com",
+					"status":   "active",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	rpcServer := application.RegisterRPC()
+
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-login-success",
+		Method: "auth.login",
+		Params: mustJSONRaw(map[string]any{
+			"username": "13800000000",
+			"password": "secret",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected login request to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode login response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 || envelope.Message != "ok" {
+		t.Fatalf("unexpected login envelope: %+v", envelope)
+	}
+
+	var result auth.LoginResponse
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode login data failed: %v", err)
+	}
+	if result.Token != "access-token" {
+		t.Fatalf("unexpected login token: %+v", result)
+	}
+	if application.session.AccessToken() != "access-token" {
+		t.Fatalf("expected session access token to be stored")
+	}
+	if application.session.RefreshToken() != "refresh-token" {
+		t.Fatalf("expected session refresh token to be stored")
+	}
+}
+
+func TestAppAuthLoginPreservesFailureEnvelopeAndDoesNotStoreSession(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"code":    401,
+			"message": "invalid credentials",
+			"data":    nil,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	rpcServer := application.RegisterRPC()
+
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-login-failure",
+		Method: "auth.login",
+		Params: mustJSONRaw(map[string]any{
+			"username": "13800000000",
+			"password": "wrong-password",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected login failure to stay in envelope, got rpc error: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode failed login response failed: %v", err)
+	}
+	if envelope.Success {
+		t.Fatalf("expected failed login envelope, got: %+v", envelope)
+	}
+	if envelope.Code != 401 || envelope.Message != "invalid credentials" {
+		t.Fatalf("unexpected failed login envelope: %+v", envelope)
+	}
+	if application.session.AccessToken() != "" || application.session.RefreshToken() != "" {
+		t.Fatalf("expected failed login not to mutate session")
+	}
+}
+
+func TestAppAuthMeGetReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"code":    200,
+			"message": "ok",
+			"data": map[string]any{
+				"id":       "u-1",
+				"username": "13800000000",
+				"email":    "demo@example.com",
+				"status":   "active",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-me",
+		Method: "auth.me.get",
+	})
+	if response.Error != nil {
+		t.Fatalf("expected auth.me.get to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode current user response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected current user envelope: %+v", envelope)
+	}
+}
+
+func TestAppVersionLatestUsesProvidedPlatform(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/versions/latest" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("platform"); got != "linux" {
+			t.Fatalf("unexpected platform query: %s", got)
+		}
+		if got := r.URL.Query().Get("channel"); got != "nightly" {
+			t.Fatalf("unexpected channel query: %s", got)
+		}
+		if got := r.URL.Query().Get("current_version"); got != "1.2.3" {
+			t.Fatalf("unexpected current_version query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"code":    200,
+			"message": "ok",
+			"data": map[string]any{
+				"has_update": true,
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-version-latest",
+		Method: "version.latest.get",
+		Params: mustJSONRaw(map[string]any{
+			"platform":        "linux",
+			"channel":         "nightly",
+			"current_version": "1.2.3",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected version.latest.get to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode latest version response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected latest version envelope: %+v", envelope)
+	}
+}
+
+func newTestApp(baseURL string) *App {
+	return New(
+		config.Config{
+			AppName:     "RedCode IM",
+			Environment: "development",
+			APIBaseURL:  baseURL,
+			WSURL:       "ws://127.0.0.1:8010/ws",
+			AppVersion:  "0.1.0",
+			BuildNumber: 1,
+			Channel:     "stable",
+			FeatureFlags: map[string]bool{
+				"desktop_el": true,
+				"go_transport": true,
+			},
+		},
+		eventbus.New(),
+		bootstrap.New(config.Config{
+			AppName:     "RedCode IM",
+			Environment: "development",
+			APIBaseURL:  baseURL,
+			WSURL:       "ws://127.0.0.1:8010/ws",
+			AppVersion:  "0.1.0",
+			BuildNumber: 1,
+			Channel:     "stable",
+			FeatureFlags: map[string]bool{
+				"desktop_el": true,
+				"go_transport": true,
+			},
+		}),
+		rpc.NewEncoder(&bytes.Buffer{}),
+	)
 }

@@ -8,6 +8,11 @@ type AccountSnapshot struct {
 type ConfigSnapshot struct {
 	AppName     string `json:"app_name"`
 	Environment string `json:"environment"`
+	APIBaseURL  string `json:"api_base_url"`
+	WSURL       string `json:"ws_url"`
+	Version     string `json:"version"`
+	BuildNumber int    `json:"build_number"`
+	Channel     string `json:"channel"`
 }
 
 type ConversationSnapshot struct {
