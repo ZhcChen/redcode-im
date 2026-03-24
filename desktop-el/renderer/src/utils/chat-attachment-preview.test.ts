@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { createAttachmentPreviewUrlStore, shouldInlinePreviewAttachment } from "./chat-attachment-preview";
+import {
+  createAttachmentPreviewUrlStore,
+  getInlinePreviewAssetKey,
+  shouldInlinePreviewAttachment
+} from "./chat-attachment-preview";
 
 describe("chat attachment preview helpers", () => {
   test("marks image, video and audio attachments as inline-previewable", () => {
@@ -7,6 +11,28 @@ describe("chat attachment preview helpers", () => {
     expect(shouldInlinePreviewAttachment("video")).toBe(true);
     expect(shouldInlinePreviewAttachment("audio")).toBe(true);
     expect(shouldInlinePreviewAttachment("file")).toBe(false);
+  });
+
+  test("prefers video thumbnail key for inline preview asset when available", () => {
+    expect(
+      getInlinePreviewAssetKey({
+        partType: "video",
+        attachment: {
+          key: "messages/room-2/video.mp4",
+          thumbnailKey: "messages/room-2/video-thumb.jpg"
+        }
+      })
+    ).toBe("messages/room-2/video-thumb.jpg");
+
+    expect(
+      getInlinePreviewAssetKey({
+        partType: "video",
+        attachment: {
+          key: "messages/room-2/video.mp4",
+          thumbnailKey: null
+        }
+      })
+    ).toBe("messages/room-2/video.mp4");
   });
 
   test("deduplicates concurrent preview URL requests and caches successful responses", async () => {

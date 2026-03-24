@@ -13,6 +13,7 @@ import {
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 import {
   createAttachmentPreviewUrlStore,
+  getInlinePreviewAssetKey,
   shouldInlinePreviewAttachment
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
@@ -70,6 +71,7 @@ const downloadedAttachmentPaths = ref<Record<string, string>>({});
 const loadingAttachmentPreviewKeys = ref<Record<string, boolean>>({});
 const failedAttachmentPreviewMessages = ref<Record<string, string>>({});
 const attachmentPreviewUrls = ref<Record<string, string>>({});
+const attachmentPlayableUrls = ref<Record<string, string>>({});
 const lastReadUntilMessageByRoom = ref<Record<string, string>>({});
 const mediaPreview = ref<{
   type: "image" | "video";
@@ -275,7 +277,10 @@ const getAttachmentActionKey = (message: ChatMessage, part: ChatMessagePart) =>
   `${message.id}:${part.attachment?.key ?? `part-${part.position}`}`;
 
 const getAttachmentPreviewKey = (message: ChatMessage, part: ChatMessagePart) =>
-  `${message.roomId}:${part.attachment?.key ?? `part-${part.position}`}`;
+  `${message.roomId}:${getInlinePreviewAssetKey(part) ?? `part-${part.position}`}`;
+
+const getAttachmentPlayableKey = (message: ChatMessage, part: ChatMessagePart) =>
+  `${message.roomId}:${part.attachment?.key ?? `playable-${part.position}`}`;
 
 const isAttachmentDownloading = (message: ChatMessage, part: ChatMessagePart) =>
   Boolean(downloadingAttachmentKeys.value[getAttachmentActionKey(message, part)]);
@@ -285,6 +290,9 @@ const getAttachmentLocalPath = (message: ChatMessage, part: ChatMessagePart) =>
 
 const getAttachmentPreviewUrl = (message: ChatMessage, part: ChatMessagePart) =>
   attachmentPreviewUrls.value[getAttachmentPreviewKey(message, part)] ?? null;
+
+const getAttachmentPlayableUrl = (message: ChatMessage, part: ChatMessagePart) =>
+  attachmentPlayableUrls.value[getAttachmentPlayableKey(message, part)] ?? null;
 
 const isAttachmentPreviewLoading = (message: ChatMessage, part: ChatMessagePart) =>
   Boolean(loadingAttachmentPreviewKeys.value[getAttachmentPreviewKey(message, part)]);
@@ -339,8 +347,8 @@ const removePendingAttachment = (attachmentId: string) => {
 };
 
 const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessagePart) => {
-  const attachment = part.attachment;
-  if (!attachment?.key || !shouldInlinePreviewAttachment(part.partType)) {
+  const previewAssetKey = getInlinePreviewAssetKey(part);
+  if (!previewAssetKey || !shouldInlinePreviewAttachment(part.partType)) {
     return null;
   }
 
@@ -358,7 +366,7 @@ const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessag
   try {
     const previewUrl = await attachmentPreviewUrlStore.resolve({
       roomId: message.roomId,
-      key: attachment.key,
+      key: previewAssetKey,
       expiresInSeconds: 900
     });
     attachmentPreviewUrls.value = {
@@ -373,6 +381,37 @@ const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessag
     return null;
   } finally {
     setAttachmentPreviewLoading(previewKey, false);
+  }
+};
+
+const ensureAttachmentPlayableUrl = async (message: ChatMessage, part: ChatMessagePart) => {
+  const attachmentKey = part.attachment?.key;
+  if (!attachmentKey || !shouldInlinePreviewAttachment(part.partType)) {
+    return null;
+  }
+
+  const playableKey = getAttachmentPlayableKey(message, part);
+  const existing = attachmentPlayableUrls.value[playableKey];
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    const playableUrl = await attachmentPreviewUrlStore.resolve({
+      roomId: message.roomId,
+      key: attachmentKey,
+      expiresInSeconds: 900
+    });
+    attachmentPlayableUrls.value = {
+      ...attachmentPlayableUrls.value,
+      [playableKey]: playableUrl
+    };
+    return playableUrl;
+  } catch (error) {
+    const fallbackMessage = error instanceof Error ? error.message : "加载附件媒体失败";
+    notice.value = fallbackMessage;
+    console.warn("[desktop-el-renderer] attachment playable load failed", error);
+    return null;
   }
 };
 
@@ -712,15 +751,19 @@ const handleOpenAttachmentPreview = async (message: ChatMessage, part: ChatMessa
     return;
   }
 
-  const previewUrl = getAttachmentPreviewUrl(message, part) ?? (await ensureAttachmentPreviewUrl(message, part));
-  if (!previewUrl) {
+  const mediaUrl =
+    getAttachmentPlayableUrl(message, part) ??
+    (part.partType === "video"
+      ? await ensureAttachmentPlayableUrl(message, part)
+      : getAttachmentPreviewUrl(message, part) ?? (await ensureAttachmentPlayableUrl(message, part)));
+  if (!mediaUrl) {
     notice.value = getAttachmentPreviewFailure(message, part) || "附件预览加载失败";
     return;
   }
 
   mediaPreview.value = {
     type: part.partType,
-    url: previewUrl,
+    url: mediaUrl,
     name: getAttachmentName(part),
     meta: getAttachmentMeta(part)
   };
@@ -1001,6 +1044,19 @@ onMounted(() => {
                         class="attachment-card__media attachment-card__media--image"
                       />
                     </button>
+                    <button
+                      v-else-if="part.partType === 'video' && part.attachment?.thumbnailKey && getAttachmentPreviewUrl(message, part)"
+                      type="button"
+                      class="attachment-card__media-button attachment-card__media-button--video"
+                      @click="void handleOpenAttachmentPreview(message, part)"
+                    >
+                      <img
+                        :src="getAttachmentPreviewUrl(message, part) || ''"
+                        :alt="getAttachmentName(part)"
+                        class="attachment-card__media attachment-card__media--video-thumb"
+                      />
+                      <span class="attachment-card__play-badge">播放</span>
+                    </button>
                     <video
                       v-else-if="part.partType === 'video' && getAttachmentPreviewUrl(message, part)"
                       class="attachment-card__media attachment-card__media--video"
@@ -1009,9 +1065,9 @@ onMounted(() => {
                       preload="metadata"
                     />
                     <audio
-                      v-else-if="part.partType === 'audio' && getAttachmentPreviewUrl(message, part)"
+                      v-else-if="part.partType === 'audio' && (getAttachmentPlayableUrl(message, part) || getAttachmentPreviewUrl(message, part))"
                       class="attachment-card__audio"
-                      :src="getAttachmentPreviewUrl(message, part) || undefined"
+                      :src="getAttachmentPlayableUrl(message, part) || getAttachmentPreviewUrl(message, part) || undefined"
                       controls
                       preload="none"
                     />
@@ -1162,7 +1218,7 @@ onMounted(() => {
 
           <div class="chat-placeholder">
             <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件收发都已经接回 Go core</strong>
-            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持多附件与文本混发、signed URL 直传 multipart/direct upload、commit 后发送，以及图片放大预览、视频/语音内联播放与本地保存打开。</p>
+            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持多附件与文本混发、signed URL 直传 multipart/direct upload、commit 后发送，以及图片放大预览、视频缩略图预览、语音内联播放与本地保存打开。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -1501,6 +1557,7 @@ onMounted(() => {
 
 .attachment-card__media-button {
   grid-column: 1 / -1;
+  position: relative;
   padding: 0;
   border: none;
   background: transparent;
@@ -1521,8 +1578,29 @@ onMounted(() => {
   background: rgba(15, 23, 42, 0.06);
 }
 
+.attachment-card__media-button--video::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0.3));
+}
+
 .attachment-card__audio {
   width: 100%;
+}
+
+.attachment-card__play-badge {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .attachment-card__preview-state {

@@ -53,7 +53,8 @@
 - [x] 已完成附件消息写侧最小闭环：`ChatPanel` 已接入文件选择，renderer 通过 Go core 获取 direct upload / multipart upload envelope，浏览器直传 object storage，必要时执行 `chat.attachment.upload.commit`，最后调用 `chat.send(parts)` 发送单附件消息。
 - [x] 已完成最近消息的图片放大预览、视频内联播放、语音内联播放最小闭环；预览 URL 仍通过 Go core `chat.attachment.download_url` 获取 signed URL，不增加本地 HTTP 端口。
 - [x] 已完成多附件发送与文本 + 附件混发：composer 支持多文件选择、顺序上传、聚合进度展示，并通过一次 `chat.send(parts)` 发出 mixed message。
-- [ ] 视频缩略图、本地媒体缓存与更完整的预览体验仍未迁移。
+- [x] 已完成视频消息缩略图优先展示：存在 `thumbnail_key` 时优先拉取缩略图 signed URL，点击后再加载真实视频 URL 进入预览。
+- [ ] 本地媒体缓存与更完整的预览体验仍未迁移。
 
 **建议切口:**
 - [x] 先补图片 / 视频 / 语音 / 文件消息的最小下载与打开闭环。

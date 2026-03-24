@@ -22,6 +22,16 @@ const buildCacheKey = (request: AttachmentPreviewRequest) => `${request.roomId}:
 export const shouldInlinePreviewAttachment = (partType: ChatMessagePart["partType"]) =>
   INLINE_PREVIEW_PART_TYPES.has(partType);
 
+export const getInlinePreviewAssetKey = (part: Pick<ChatMessagePart, "partType" | "attachment">) => {
+  if (!part.attachment?.key) {
+    return null;
+  }
+  if (part.partType === "video" && part.attachment.thumbnailKey) {
+    return part.attachment.thumbnailKey;
+  }
+  return part.attachment.key;
+};
+
 export const createAttachmentPreviewUrlStore = (dependencies: AttachmentPreviewUrlStoreDependencies = {}) => {
   const getAttachmentDownloadUrl = dependencies.getAttachmentDownloadUrl ?? ChatApi.getAttachmentDownloadUrl;
   const resolvedCache = new Map<string, string>();
