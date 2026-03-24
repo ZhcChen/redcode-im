@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { RpcEvent } from "../../electron/preload/types.js";
 import { getRuntimeConfig } from "./api/config";
+import type { ChatWebSocketPush } from "./api/chat";
 import { SystemApi, type LegacyUserInfo } from "./api/system";
 import LoginScreen from "./components/LoginScreen.vue";
 import HomeShell from "./components/HomeShell.vue";
@@ -14,6 +15,7 @@ const hostVersion = ref<string | null>(null);
 const lastEvent = ref("尚未收到事件");
 const runtimeAvailable = ref(false);
 const wsStatus = ref("disconnected");
+const lastWsPush = ref<ChatWebSocketPush | null>(null);
 const sessionStore = useSessionStore();
 
 let cleanupEventListener: (() => void) | undefined;
@@ -64,6 +66,10 @@ const handleRpcEvent = (event: RpcEvent) => {
     if (data.status) {
       wsStatus.value = data.status;
     }
+  }
+
+  if (event.event === "ws.push") {
+    lastWsPush.value = (event.data as ChatWebSocketPush | null) ?? null;
   }
 };
 
@@ -139,6 +145,7 @@ onUnmounted(() => {
     :last-event="lastEvent"
     :ws-status="wsStatus"
     :bootstrap="bootstrap"
+    :last-ws-push="lastWsPush"
     :active-view="sessionStore.state.activeView"
     @navigate="sessionStore.setActiveView"
     @profile-updated="handleProfileUpdated"

@@ -292,6 +292,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.read_until", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.MarkReadUntilParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.MarkReadUntil(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("friend.list", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
 		result, err := a.friend.ListFriends(ctx)
 		if err != nil {
@@ -369,6 +381,7 @@ func (a *App) RegisterRPC() *rpc.Server {
 		}); err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}
+		a.startWSPump()
 		_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
 		return map[string]any{"status": string(a.wsClient.Status())}, nil
 	})
@@ -409,6 +422,33 @@ func (a *App) emitEvent(ctx context.Context, name string, data any) error {
 		Event: name,
 		Data:  mustJSONRaw(data),
 	})
+}
+
+func (a *App) emitWSPush(ctx context.Context, data map[string]any) error {
+	a.wsDispatcher.PublishPush(ctx, data)
+	return a.encoder.EncodeEvent(rpc.Event{
+		Type:  rpc.TypeEvent,
+		Event: "ws.push",
+		Data:  mustJSONRaw(data),
+	})
+}
+
+func (a *App) startWSPump() {
+	go func() {
+		for {
+			payload, err := a.wsClient.ReadMessage(context.Background())
+			if err != nil {
+				return
+			}
+
+			var data map[string]any
+			if err := json.Unmarshal(payload, &data); err != nil {
+				continue
+			}
+
+			_ = a.emitWSPush(context.Background(), data)
+		}
+	}()
 }
 
 func (a *App) buildBootstrapSnapshot() state.BootstrapSnapshot {

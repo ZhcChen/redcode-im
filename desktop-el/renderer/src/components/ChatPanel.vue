@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
-import { ChatApi, type ChatMessage, type ChatSummary } from "@/api/chat";
+import {
+  ChatApi,
+  mapChatRealtimeEvent,
+  type ChatMessage,
+  type ChatRealtimeEvent,
+  type ChatSummary,
+  type ChatWebSocketPush
+} from "@/api/chat";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 
 interface OpenChatRequest {
@@ -16,6 +23,7 @@ const props = defineProps<{
   lastEvent: string;
   wsStatus: string;
   bootstrap: BootstrapSnapshot | null;
+  lastWsPush?: ChatWebSocketPush | null;
   openChatRequest?: OpenChatRequest | null;
 }>();
 
@@ -32,7 +40,8 @@ const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isSending = ref(false);
-const notice = ref("聊天主区已接到 Go core，当前继续恢复真实消息列表。");
+const lastReadUntilMessageByRoom = ref<Record<string, string>>({});
+const notice = ref("聊天主区已接到 Go core，当前继续恢复实时消息与已读回写。");
 
 const filteredChats = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -106,6 +115,49 @@ const pickSelectedChatId = (list: ChatSummary[], preferredRoomId?: string | null
   return list[0]?.roomId ?? null;
 };
 
+const setChatUnreadCount = (roomId: string, unreadCount: number) => {
+  chats.value = chats.value.map((chat) =>
+    chat.roomId === roomId
+      ? {
+          ...chat,
+          unreadCount
+        }
+      : chat
+  );
+};
+
+const markRoomRead = async (roomId: string | null, roomMessages: ChatMessage[]) => {
+  if (!roomId || !roomMessages.length) {
+    return;
+  }
+
+  const latestMessage = roomMessages[roomMessages.length - 1];
+  if (!latestMessage?.id) {
+    return;
+  }
+  if (lastReadUntilMessageByRoom.value[roomId] === latestMessage.id) {
+    return;
+  }
+
+  try {
+    const response = await ChatApi.readUntil({
+      roomId,
+      messageId: latestMessage.id
+    });
+    if (!response.success) {
+      return;
+    }
+
+    lastReadUntilMessageByRoom.value = {
+      ...lastReadUntilMessageByRoom.value,
+      [roomId]: latestMessage.id
+    };
+    setChatUnreadCount(roomId, 0);
+  } catch (error) {
+    console.warn("[desktop-el-renderer] chat.read_until failed", error);
+  }
+};
+
 const loadMessages = async (roomId: string | null) => {
   if (!roomId) {
     messages.value = [];
@@ -126,6 +178,7 @@ const loadMessages = async (roomId: string | null) => {
     }
 
     messages.value = response.data;
+    await markRoomRead(roomId, response.data);
   } catch (error) {
     messages.value = [];
     notice.value = error instanceof Error ? error.message : "消息列表加载失败";
@@ -134,7 +187,9 @@ const loadMessages = async (roomId: string | null) => {
   }
 };
 
-const loadChats = async (options: { preferredRoomId?: string | null; preserveNotice?: boolean } = {}) => {
+const loadChats = async (
+  options: { preferredRoomId?: string | null; preserveNotice?: boolean; reloadMessages?: boolean } = {}
+) => {
   isLoadingChats.value = true;
   try {
     const response = await ChatApi.list();
@@ -146,9 +201,15 @@ const loadChats = async (options: { preferredRoomId?: string | null; preserveNot
       return;
     }
 
+    const previousSelectedRoomId = selectedChatId.value;
+    const nextSelectedRoomId = pickSelectedChatId(response.data, options.preferredRoomId);
     chats.value = response.data;
-    selectedChatId.value = pickSelectedChatId(response.data, options.preferredRoomId);
-    await loadMessages(selectedChatId.value);
+    selectedChatId.value = nextSelectedRoomId;
+    if (!nextSelectedRoomId) {
+      messages.value = [];
+    } else if (options.reloadMessages !== false || nextSelectedRoomId !== previousSelectedRoomId) {
+      await loadMessages(nextSelectedRoomId);
+    }
 
     if (!options.preserveNotice) {
       notice.value = `已从 Go core 同步 ${response.data.length} 个会话与最近 50 条历史消息。`;
@@ -234,6 +295,33 @@ const handleComposerKeydown = (event: KeyboardEvent) => {
   void handleSend();
 };
 
+const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
+  const activeRoomId = selectedChatId.value;
+
+  if (event.type === "message") {
+    const isCurrentRoom = event.message.roomId === activeRoomId;
+    await loadChats({
+      preferredRoomId: activeRoomId,
+      preserveNotice: true,
+      reloadMessages: isCurrentRoom
+    });
+    return;
+  }
+
+  if (event.readerId === props.currentUser.id && event.roomId && event.messageId) {
+    lastReadUntilMessageByRoom.value = {
+      ...lastReadUntilMessageByRoom.value,
+      [event.roomId]: event.messageId
+    };
+  }
+
+  await loadChats({
+    preferredRoomId: activeRoomId,
+    preserveNotice: true,
+    reloadMessages: event.roomId === activeRoomId
+  });
+};
+
 watch(
   () => props.openChatRequest?.requestId,
   (requestId, previousRequestId) => {
@@ -241,6 +329,22 @@ watch(
       return;
     }
     void handleOpenChatRequest(props.openChatRequest);
+  }
+);
+
+watch(
+  () => props.lastWsPush,
+  (push, previousPush) => {
+    if (!push || push === previousPush) {
+      return;
+    }
+
+    const event = mapChatRealtimeEvent(push, props.currentUser.id);
+    if (!event) {
+      return;
+    }
+
+    void handleRealtimeEvent(event);
   }
 );
 
@@ -404,8 +508,8 @@ onMounted(() => {
           </section>
 
           <div class="chat-placeholder">
-            <strong>联系人发起聊天与历史消息列表已经接回 Go core</strong>
-            <p>现在文本发送也已经进入闭环，下一批继续接已读状态、消息操作与实时推送，但 renderer 仍只通过 stdio RPC 使用 Go core 能力。</p>
+            <strong>联系人发起聊天、历史消息、文本发送、实时刷新都已经接回 Go core</strong>
+            <p>当前会话现在会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；后续再继续补消息操作与更细的状态展示。</p>
           </div>
 
           <dl class="chat-runtime-list">

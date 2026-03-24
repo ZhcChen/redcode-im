@@ -25,3 +25,13 @@ func (d *Dispatcher) PublishStatus(ctx context.Context, status Status) {
 		},
 	})
 }
+
+func (d *Dispatcher) PublishPush(ctx context.Context, data map[string]any) {
+	if d == nil || d.bus == nil {
+		return
+	}
+	d.bus.Publish(ctx, eventbus.Event{
+		Name: "ws.push",
+		Data: data,
+	})
+}

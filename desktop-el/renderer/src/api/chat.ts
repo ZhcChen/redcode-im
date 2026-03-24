@@ -130,6 +130,50 @@ interface BackendSendMessagePayload {
   message?: BackendMessageInfo;
 }
 
+interface BackendPushMessage {
+  type: "message";
+  id: string;
+  message_id: string;
+  room_id: string;
+  sender_id: string;
+  sender_username: string;
+  sender_nickname?: string | null;
+  sender_avatar_url?: string | null;
+  content: string;
+  message_type: BackendMessageType;
+  timestamp: string;
+  parts?: BackendMessagePart[];
+}
+
+interface BackendPushMessageRead {
+  type: "message_read";
+  room_id: string;
+  message_id: string;
+  reader_id: string;
+  read_at: string;
+}
+
+export type ChatWebSocketPush =
+  | BackendPushMessage
+  | BackendPushMessageRead
+  | {
+      type: string;
+      [key: string]: unknown;
+    };
+
+export type ChatRealtimeEvent =
+  | {
+      type: "message";
+      message: ChatMessage;
+    }
+  | {
+      type: "message_read";
+      roomId: string;
+      messageId: string;
+      readerId: string;
+      readAt: Date | null;
+    };
+
 const requireDesktopRuntime = () => {
   if (!window.desktopEl) {
     throw new Error("desktop-el runtime is not available");
@@ -147,6 +191,27 @@ const parseTimestamp = (value?: string | null): Date | null => {
   }
   return parsed;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isBackendPushMessage = (value: unknown): value is BackendPushMessage =>
+  isRecord(value) &&
+  value.type === "message" &&
+  typeof value.room_id === "string" &&
+  typeof value.message_id === "string" &&
+  typeof value.sender_id === "string" &&
+  typeof value.sender_username === "string" &&
+  typeof value.content === "string" &&
+  typeof value.message_type === "string" &&
+  typeof value.timestamp === "string";
+
+const isBackendPushMessageRead = (value: unknown): value is BackendPushMessageRead =>
+  isRecord(value) &&
+  value.type === "message_read" &&
+  typeof value.room_id === "string" &&
+  typeof value.message_id === "string" &&
+  typeof value.reader_id === "string";
 
 const isEmojiOnlyPreviewText = (text: string): boolean => {
   const trimmed = text.trim();
@@ -313,6 +378,53 @@ const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): Ch
   };
 };
 
+const mapPushMessage = (message: BackendPushMessage, currentUserId?: string): ChatMessage =>
+  mapChatMessage(
+    {
+      id: message.message_id || message.id,
+      room_id: message.room_id,
+      sender_id: message.sender_id,
+      sender_username: message.sender_username,
+      sender_nickname: message.sender_nickname,
+      sender_avatar_url: message.sender_avatar_url,
+      content: message.content,
+      message_type: message.message_type,
+      created_at: message.timestamp,
+      parts: message.parts ?? []
+    },
+    currentUserId
+  );
+
+export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): ChatRealtimeEvent | null => {
+  if (!isRecord(payload) || typeof payload.type !== "string") {
+    return null;
+  }
+
+  switch (payload.type) {
+    case "message":
+      if (!isBackendPushMessage(payload)) {
+        return null;
+      }
+      return {
+        type: "message",
+        message: mapPushMessage(payload, currentUserId)
+      };
+    case "message_read":
+      if (!isBackendPushMessageRead(payload)) {
+        return null;
+      }
+      return {
+        type: "message_read",
+        roomId: payload.room_id,
+        messageId: payload.message_id,
+        readerId: payload.reader_id,
+        readAt: parseTimestamp(typeof payload.read_at === "string" ? payload.read_at : null)
+      };
+    default:
+      return null;
+  }
+};
+
 export class ChatApi {
   static async list(): Promise<ApiResponse<ChatSummary[]>> {
     const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendChatSummary[]>>("chat.list");
@@ -384,6 +496,17 @@ export class ChatApi {
     return {
       ...response,
       data: mapChatMessage(payload as BackendMessageInfo, params.currentUserId)
+    };
+  }
+
+  static async readUntil(params: { roomId: string; messageId: string }): Promise<ApiResponse<null>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<unknown>>("chat.read_until", {
+      room_id: params.roomId,
+      message_id: params.messageId
+    });
+    return {
+      ...response,
+      data: null
     };
   }
 }

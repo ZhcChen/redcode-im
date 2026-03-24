@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import type { ChatWebSocketPush } from "@/api/chat";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
@@ -13,6 +14,7 @@ const props = defineProps<{
   lastEvent: string;
   wsStatus: string;
   bootstrap: BootstrapSnapshot | null;
+  lastWsPush: ChatWebSocketPush | null;
   activeView: HomeView;
 }>();
 
@@ -142,6 +144,7 @@ const handleChatRequestConsumed = (requestId: number) => {
         :last-event="props.lastEvent"
         :ws-status="props.wsStatus"
         :bootstrap="props.bootstrap"
+        :last-ws-push="props.lastWsPush"
         :open-chat-request="openChatRequest"
         @chat-request-consumed="handleChatRequestConsumed"
       />

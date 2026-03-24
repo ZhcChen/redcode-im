@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"desktop-el-core/internal/auth"
 	"desktop-el-core/internal/bootstrap"
@@ -15,6 +17,8 @@ import (
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/rpc"
 	"desktop-el-core/internal/state"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestAppRegistersBootstrapRPCAndEmitsSnapshotEvent(t *testing.T) {
@@ -1112,6 +1116,130 @@ func TestAppChatSendPostsMessagePayload(t *testing.T) {
 	}
 }
 
+func TestAppChatReadUntilPostsMessageID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/read_until" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["message_id"] != "msg-11" {
+			t.Fatalf("unexpected message_id payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "已标记 3 条消息为已读",
+			"count":   3,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-read-until",
+		Method: "chat.read_until",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-11",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.read_until to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.read_until response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.read_until envelope: %+v", envelope)
+	}
+	if envelope.Message != "已标记 3 条消息为已读" {
+		t.Fatalf("unexpected chat.read_until message: %+v", envelope)
+	}
+}
+
+func TestAppWSConnectEmitsPushEvent(t *testing.T) {
+	var stdout bytes.Buffer
+
+	upgrader := websocket.Upgrader{}
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("token"); got != "access-token" {
+			t.Fatalf("unexpected token query: %s", got)
+		}
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade failed: %v", err)
+		}
+		defer conn.Close()
+
+		if err := conn.WriteJSON(map[string]any{
+			"type":       "message",
+			"room_id":    "room-2",
+			"message_id": "msg-12",
+			"content":    "来自 websocket 的消息",
+		}); err != nil {
+			t.Fatalf("write websocket payload failed: %v", err)
+		}
+
+		<-done
+	}))
+	defer func() {
+		close(done)
+		server.Close()
+	}()
+
+	application := newTestApp("http://127.0.0.1:8010")
+	application.encoder = rpc.NewEncoder(&stdout)
+
+	rpcServer := application.RegisterRPC()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-connect",
+		Method: "ws.connect",
+		Params: mustJSONRaw(map[string]any{
+			"url":   wsURL,
+			"token": "access-token",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected ws.connect to succeed, got: %+v", response.Error)
+	}
+	defer func() {
+		if err := application.wsClient.Disconnect(); err != nil {
+			t.Fatalf("disconnect websocket failed: %v", err)
+		}
+	}()
+
+	event := waitForEmittedEvent(t, &stdout, "ws.push")
+
+	var payload map[string]any
+	if err := json.Unmarshal(event.Data, &payload); err != nil {
+		t.Fatalf("decode ws.push payload failed: %v", err)
+	}
+	if payload["type"] != "message" || payload["message_id"] != "msg-12" {
+		t.Fatalf("unexpected ws.push payload: %+v", payload)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{
@@ -1143,4 +1271,38 @@ func newTestApp(baseURL string) *App {
 		}),
 		rpc.NewEncoder(&bytes.Buffer{}),
 	)
+}
+
+func waitForEmittedEvent(t *testing.T, stdout *bytes.Buffer, eventName string) rpc.Event {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if event, ok := findEmittedEvent(stdout.Bytes(), eventName); ok {
+			return event
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("expected emitted event %q, got: %s", eventName, stdout.String())
+	return rpc.Event{}
+}
+
+func findEmittedEvent(output []byte, eventName string) (rpc.Event, bool) {
+	for _, line := range bytes.Split(output, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+
+		var event rpc.Event
+		if err := json.Unmarshal(line, &event); err != nil {
+			continue
+		}
+		if event.Type == rpc.TypeEvent && event.Event == eventName {
+			return event, true
+		}
+	}
+
+	return rpc.Event{}, false
 }

@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,6 +18,8 @@ const (
 	StatusConnecting    Status = "connecting"
 	StatusAuthenticated Status = "authenticated"
 )
+
+var ErrNotConnected = errors.New("websocket not connected")
 
 type ConnectParams struct {
 	URL   string
@@ -68,15 +71,16 @@ func (c *Client) Connect(ctx context.Context, params ConnectParams) error {
 
 func (c *Client) Disconnect() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	conn := c.conn
+	c.conn = nil
+	c.status = StatusDisconnected
+	c.mu.Unlock()
 
-	if c.conn != nil {
-		if err := c.conn.Close(); err != nil {
+	if conn != nil {
+		if err := conn.Close(); err != nil {
 			return err
 		}
-		c.conn = nil
 	}
-	c.status = StatusDisconnected
 	return nil
 }
 
@@ -90,6 +94,29 @@ func (c *Client) setStatus(status Status) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.status = status
+}
+
+func (c *Client) ReadMessage(_ context.Context) ([]byte, error) {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+
+	if conn == nil {
+		return nil, ErrNotConnected
+	}
+
+	_, payload, err := conn.ReadMessage()
+	if err != nil {
+		c.mu.Lock()
+		if c.conn == conn {
+			c.conn = nil
+			c.status = StatusDisconnected
+		}
+		c.mu.Unlock()
+		return nil, err
+	}
+
+	return payload, nil
 }
 
 func withToken(rawURL, token string) (string, error) {

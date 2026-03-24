@@ -24,6 +24,11 @@ type SendMessageParams struct {
 	Content string `json:"content"`
 }
 
+type MarkReadUntilParams struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -72,6 +77,16 @@ func (s *Service) SendMessage(ctx context.Context, params SendMessageParams) (ht
 		Path:   "/rooms/" + params.RoomID + "/messages",
 		Body: map[string]any{
 			"content": params.Content,
+		},
+	})
+}
+
+func (s *Service) MarkReadUntil(ctx context.Context, params MarkReadUntilParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/read_until",
+		Body: map[string]any{
+			"message_id": params.MessageID,
 		},
 	})
 }
