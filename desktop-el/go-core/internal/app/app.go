@@ -468,6 +468,30 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("friend.remark.update", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload friend.UpdateFriendRemarkParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.friend.UpdateFriendRemark(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("friend.delete", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload friend.DeleteFriendParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.friend.DeleteFriend(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("version.latest.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload latestVersionParams
 		if err := unmarshalParams(params, &payload); err != nil {

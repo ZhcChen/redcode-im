@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { FriendApi, type FriendInfo, type FriendRequestInfo } from "@/api/friend";
 import { SystemApi, type LegacyUserInfo } from "@/api/system";
 import { UserApi, type SearchUserInfo } from "@/api/user";
@@ -30,8 +30,11 @@ const isLoading = ref(true);
 const isHandlingRequest = ref(false);
 const isSearchingUsers = ref(false);
 const isSendingFriendRequest = ref(false);
+const isSavingRemark = ref(false);
+const isDeletingFriend = ref(false);
 const hasSearchedUsers = ref(false);
 const friendRequestMessage = ref("");
+const remarkDraft = ref("");
 const notice = ref("联系人页已接到 Go core，当前已恢复好友列表、好友申请与搜人入口。");
 
 const displayName = (user: { nickname?: string | null; username: string }) =>
@@ -267,6 +270,70 @@ const handleOpenChat = () => {
   });
 };
 
+const handleSaveRemark = async () => {
+  if (!selectedContact.value || isSavingRemark.value) {
+    return;
+  }
+
+  const friendUserId = selectedContact.value.user.id;
+  const targetName = displayName(selectedContact.value.user);
+  const nextRemark = remarkDraft.value.trim();
+
+  isSavingRemark.value = true;
+  try {
+    const response = await FriendApi.updateRemark({
+      friendUserId,
+      remark: nextRemark || null
+    });
+    if (!response.success) {
+      notice.value = response.message || "保存好友备注失败";
+      return;
+    }
+
+    notice.value = nextRemark ? `已更新 ${targetName} 的好友备注` : `已清空 ${targetName} 的好友备注`;
+    await loadData({ preferredFriendUserId: friendUserId });
+    mode.value = "contacts";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "保存好友备注失败";
+  } finally {
+    isSavingRemark.value = false;
+  }
+};
+
+const handleDeleteFriend = async () => {
+  if (!selectedContact.value || isDeletingFriend.value) {
+    return;
+  }
+
+  const friendUserId = selectedContact.value.user.id;
+  const targetName = displayName(selectedContact.value.user);
+  const confirmed =
+    typeof window !== "undefined" &&
+    window.confirm(`确定要删除好友「${targetName}」吗？删除后双方将不再出现在彼此联系人列表中。`);
+  if (!confirmed) {
+    return;
+  }
+
+  isDeletingFriend.value = true;
+  try {
+    const response = await FriendApi.deleteFriend({
+      friendUserId
+    });
+    if (!response.success) {
+      notice.value = response.message || "删除好友失败";
+      return;
+    }
+
+    notice.value = `已删除好友 ${targetName}`;
+    await loadData();
+    mode.value = "contacts";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "删除好友失败";
+  } finally {
+    isDeletingFriend.value = false;
+  }
+};
+
 const handleSearchUsers = async () => {
   const keyword = discoverKeyword.value.trim();
   mode.value = "discover";
@@ -353,6 +420,14 @@ const handleOpenSearchUserChat = () => {
 onMounted(() => {
   void loadData();
 });
+
+watch(
+  selectedContact,
+  (contact) => {
+    remarkDraft.value = contact?.friendRemark ?? "";
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -545,10 +620,37 @@ onMounted(() => {
 
           <div class="contact-placeholder">
             <strong>联系人详情区已接回主壳</strong>
-            <p>现在可以直接从联系人详情发起聊天，后续继续补备注编辑与更多联系人操作。</p>
+            <p>现在可以直接编辑备注、删除好友或从联系人详情发起聊天。</p>
           </div>
 
+          <label class="contact-form-field">
+            <span>好友备注</span>
+            <input
+              v-model="remarkDraft"
+              type="text"
+              maxlength="64"
+              placeholder="请输入好友备注"
+              :disabled="isSavingRemark || isDeletingFriend"
+            />
+          </label>
+
           <div class="detail-actions">
+            <button
+              type="button"
+              class="detail-actions__button detail-actions__button--ghost"
+              :disabled="isDeletingFriend || isSavingRemark"
+              @click="handleDeleteFriend"
+            >
+              {{ isDeletingFriend ? "删除中..." : "删除好友" }}
+            </button>
+            <button
+              type="button"
+              class="detail-actions__button detail-actions__button--ghost"
+              :disabled="isSavingRemark || isDeletingFriend"
+              @click="handleSaveRemark"
+            >
+              {{ isSavingRemark ? "保存中..." : "保存备注" }}
+            </button>
             <button type="button" class="detail-actions__button detail-actions__button--primary" @click="handleOpenChat">
               发消息
             </button>
@@ -997,7 +1099,8 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.contact-form-field textarea {
+.contact-form-field textarea,
+.contact-form-field input {
   width: 100%;
   min-height: 110px;
   box-sizing: border-box;
@@ -1009,7 +1112,13 @@ onMounted(() => {
   resize: vertical;
 }
 
-.contact-form-field textarea:focus {
+.contact-form-field input {
+  min-height: 44px;
+  resize: none;
+}
+
+.contact-form-field textarea:focus,
+.contact-form-field input:focus {
   border-color: rgba(0, 155, 143, 0.34);
   box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
 }
@@ -1023,6 +1132,8 @@ onMounted(() => {
 .detail-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .detail-actions__button {
@@ -1035,6 +1146,11 @@ onMounted(() => {
 .detail-actions__button--primary {
   background: rgba(0, 194, 179, 0.14);
   color: var(--primary-color-strong);
+}
+
+.detail-actions__button--ghost {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
 }
 
 .detail-actions__button--disabled {

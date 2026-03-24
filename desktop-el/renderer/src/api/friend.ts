@@ -58,6 +58,10 @@ export interface FriendRequestInfo {
   isIncoming: boolean;
 }
 
+export interface FriendRemarkPayload {
+  remark: string | null;
+}
+
 const requireDesktopRuntime = () => {
   if (!window.desktopEl) {
     throw new Error("desktop-el runtime is not available");
@@ -158,6 +162,31 @@ export class FriendApi {
     return {
       ...response,
       data: response.data ? mapFriendRequest(response.data) : null
+    };
+  }
+
+  static async updateRemark(params: {
+    friendUserId: string;
+    remark: string | null;
+  }): Promise<ApiResponse<FriendRemarkPayload>> {
+    return requireDesktopRuntime().rpc.invoke<ApiResponse<FriendRemarkPayload>>("friend.remark.update", {
+      friend_user_id: params.friendUserId,
+      remark: params.remark
+    });
+  }
+
+  static async deleteFriend(params: {
+    friendUserId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<{ success: boolean; message: string }>>(
+      "friend.delete",
+      {
+        friend_user_id: params.friendUserId
+      }
+    );
+    return {
+      ...response,
+      data: null
     };
   }
 }

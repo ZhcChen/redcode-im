@@ -529,3 +529,70 @@
 
 - renderer 只能通过 `friend.request.create` 发起好友申请，不直接访问 backend `POST /friends/requests`。
 - 成功后 renderer 需要刷新 outgoing pending 请求列表，以更新联系人搜索结果上的状态徽标。
+
+### 6.12 `friend.remark.update`
+
+用途：更新联系人备注。renderer 只传好友用户 ID 与备注文本，Go core 负责转发到 backend 备注接口。
+
+请求参数：
+
+```json
+{
+  "friend_user_id": "u-2",
+  "remark": "Alice 同事"
+}
+```
+
+- `friend_user_id`: 必填，好友用户 ID。
+- `remark`: 可选；为空或空字符串时表示清空备注。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "ok",
+  "data": {
+    "remark": "Alice 同事"
+  }
+}
+```
+
+约束：
+
+- renderer 只能通过 `friend.remark.update` 修改备注，不直接请求 backend `PATCH /friends/:friend_user_id/remark`。
+- 更新完成后 renderer 需要刷新联系人列表，保证联系人详情与列表摘要中的备注一致。
+
+### 6.13 `friend.delete`
+
+用途：删除当前联系人关系。删除动作由 Go core 统一代理到 backend，renderer 不额外开本地业务端口。
+
+请求参数：
+
+```json
+{
+  "friend_user_id": "u-2"
+}
+```
+
+- `friend_user_id`: 必填，目标好友用户 ID。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "删除好友成功",
+  "data": {
+    "success": true,
+    "message": "删除好友成功"
+  }
+}
+```
+
+约束：
+
+- renderer 通过 `friend.delete` 删除好友后，需要刷新联系人列表与当前详情选择态。
+- 删除好友不会删除历史消息；聊天会话如何收口由后续聊天 / 事件刷新切口继续处理。

@@ -74,4 +74,77 @@ describe("friend api request creation", () => {
     expect(response.data?.addressee.id).toBe("u-2");
     expect(response.data?.message).toBe("你好，我是 Alice");
   });
+
+  test("updates friend remark through go-core rpc", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                remark: "Alice 同事"
+              }
+            };
+          }
+        }
+      }
+    } as Window;
+
+    const response = await FriendApi.updateRemark({
+      friendUserId: "u-2",
+      remark: "Alice 同事"
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "friend.remark.update",
+        params: {
+          friend_user_id: "u-2",
+          remark: "Alice 同事"
+        }
+      }
+    ]);
+    expect(response.success).toBe(true);
+    expect(response.data?.remark).toBe("Alice 同事");
+  });
+
+  test("deletes friend through go-core rpc", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "删除好友成功",
+              data: {
+                success: true,
+                message: "删除好友成功"
+              }
+            };
+          }
+        }
+      }
+    } as Window;
+
+    const response = await FriendApi.deleteFriend({
+      friendUserId: "u-2"
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "friend.delete",
+        params: {
+          friend_user_id: "u-2"
+        }
+      }
+    ]);
+    expect(response.success).toBe(true);
+    expect(response.message).toBe("删除好友成功");
+  });
 });

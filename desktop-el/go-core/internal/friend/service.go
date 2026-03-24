@@ -22,6 +22,15 @@ type CreateFriendRequestParams struct {
 	Message      string `json:"message,omitempty"`
 }
 
+type UpdateFriendRemarkParams struct {
+	FriendUserID string `json:"friend_user_id"`
+	Remark       string `json:"remark,omitempty"`
+}
+
+type DeleteFriendParams struct {
+	FriendUserID string `json:"friend_user_id"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -71,5 +80,22 @@ func (s *Service) CreateFriendRequest(ctx context.Context, params CreateFriendRe
 			"target_user_id": params.TargetUserID,
 			"message":        params.Message,
 		},
+	})
+}
+
+func (s *Service) UpdateFriendRemark(ctx context.Context, params UpdateFriendRemarkParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPatch,
+		Path:   "/friends/" + params.FriendUserID + "/remark",
+		Body: map[string]string{
+			"remark": params.Remark,
+		},
+	})
+}
+
+func (s *Service) DeleteFriend(ctx context.Context, params DeleteFriendParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/friends/" + params.FriendUserID,
 	})
 }
