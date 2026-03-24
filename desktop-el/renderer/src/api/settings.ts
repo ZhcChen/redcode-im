@@ -1,4 +1,4 @@
-import { request, type ApiResponse } from "./http";
+import type { ApiResponse } from "./http";
 
 export interface DocumentContent {
   key: string;
@@ -41,7 +41,7 @@ export class SettingsApi {
   }
 
   static async getGeneralSettings(): Promise<ApiResponse<GeneralSettingsResponse>> {
-    return request<GeneralSettingsResponse>("/settings/general", { method: "GET", injectToken: false });
+    return requireDesktopRuntime().rpc.invoke<ApiResponse<GeneralSettingsResponse>>("settings.general.get");
   }
 
   static async getCaptchaSetting(): Promise<ApiResponse<CaptchaSettingPublicResponse>> {

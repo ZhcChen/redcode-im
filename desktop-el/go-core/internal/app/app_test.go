@@ -535,6 +535,41 @@ func TestAppSettingsPrivacyGetReturnsWrappedDocument(t *testing.T) {
 	}
 }
 
+func TestAppSettingsGeneralGetReturnsWrappedPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/settings/general" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"app_name": "Chatly",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-settings-general",
+		Method: "settings.general.get",
+	})
+	if response.Error != nil {
+		t.Fatalf("expected settings.general.get to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode general settings response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected general settings envelope: %+v", envelope)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

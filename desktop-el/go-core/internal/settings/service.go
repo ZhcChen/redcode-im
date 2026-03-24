@@ -31,6 +31,10 @@ func (s *Service) GetAppName(ctx context.Context) (httpclient.Response, error) {
 	return s.request(ctx, "/settings/app-name")
 }
 
+func (s *Service) GetGeneralSettings(ctx context.Context) (httpclient.Response, error) {
+	return s.request(ctx, "/settings/general")
+}
+
 func (s *Service) request(ctx context.Context, path string) (httpclient.Response, error) {
 	return s.client.Do(ctx, httpclient.Request{
 		Method:      http.MethodGet,

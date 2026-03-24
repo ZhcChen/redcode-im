@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+import SettingsPanel from "./SettingsPanel.vue";
 
 const props = defineProps<{
   currentUser: LegacyUserInfo;
@@ -205,78 +206,15 @@ const pageSummary = computed(() => {
         </article>
       </section>
 
-      <section v-else class="content-grid content-grid--settings">
-        <article class="panel">
-          <div class="panel__header">
-            <h2>账号信息</h2>
-            <span>Settings</span>
-          </div>
-          <dl class="detail-list">
-            <div>
-              <dt>昵称</dt>
-              <dd>{{ userDisplayName }}</dd>
-            </div>
-            <div>
-              <dt>账号</dt>
-              <dd>{{ props.currentUser.username }}</dd>
-            </div>
-            <div>
-              <dt>邮箱</dt>
-              <dd>{{ props.currentUser.email || "未设置" }}</dd>
-            </div>
-            <div>
-              <dt>手机号</dt>
-              <dd>{{ props.currentUser.mobile }}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <article class="panel">
-          <div class="panel__header">
-            <h2>版本与环境</h2>
-            <span>Runtime</span>
-          </div>
-          <dl class="detail-list">
-            <div>
-              <dt>App Name</dt>
-              <dd>{{ props.bootstrap?.config.app_name ?? "RedCode IM" }}</dd>
-            </div>
-            <div>
-              <dt>Version</dt>
-              <dd>{{ props.bootstrap?.config.version ?? "0.1.0" }}</dd>
-            </div>
-            <div>
-              <dt>Build</dt>
-              <dd>{{ props.bootstrap?.config.build_number ?? 0 }}</dd>
-            </div>
-            <div>
-              <dt>Channel</dt>
-              <dd>{{ props.bootstrap?.config.channel ?? "stable" }}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <article class="panel panel--wide">
-          <div class="panel__header">
-            <h2>Feature Flags</h2>
-            <span>{{ featureFlags.length }} 项</span>
-          </div>
-          <div v-if="featureFlags.length" class="flag-list">
-            <span
-              v-for="[name, enabled] in featureFlags"
-              :key="name"
-              class="flag-pill"
-              :class="{ 'flag-pill--enabled': enabled }"
-            >
-              {{ name }} / {{ enabled ? "on" : "off" }}
-            </span>
-          </div>
-          <div v-else class="empty-state">
-            <strong>暂无 Feature Flag</strong>
-            <p>当前环境没有额外特性开关。</p>
-          </div>
-        </article>
-      </section>
+      <SettingsPanel
+        v-else
+        :current-user="props.currentUser"
+        :bootstrap="props.bootstrap"
+        :host-version="props.hostVersion"
+        :ws-status="props.wsStatus"
+        :last-event="props.lastEvent"
+        @logout="emit('logout')"
+      />
     </section>
   </main>
 </template>

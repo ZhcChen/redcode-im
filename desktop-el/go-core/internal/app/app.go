@@ -219,6 +219,14 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("settings.general.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.settings.GetGeneralSettings(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("version.latest.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload latestVersionParams
 		if err := unmarshalParams(params, &payload); err != nil {
