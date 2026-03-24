@@ -51,12 +51,13 @@
 **当前进度:**
 - [x] 已完成附件消息读侧最小闭环：renderer 可识别附件 part，经 Go core `chat.attachment.download_url` 获取 signed URL，再通过 Electron 宿主保存到本地并打开。
 - [x] 已完成附件消息写侧最小闭环：`ChatPanel` 已接入文件选择，renderer 通过 Go core 获取 direct upload / multipart upload envelope，浏览器直传 object storage，必要时执行 `chat.attachment.upload.commit`，最后调用 `chat.send(parts)` 发送单附件消息。
-- [ ] 多附件混发、文本 + 附件混发、图片 / 视频缩略预览、语音播放与本地缓存策略仍未迁移。
+- [x] 已完成最近消息的图片放大预览、视频内联播放、语音内联播放最小闭环；预览 URL 仍通过 Go core `chat.attachment.download_url` 获取 signed URL，不增加本地 HTTP 端口。
+- [ ] 多附件混发、文本 + 附件混发、视频缩略图、本地媒体缓存与更完整的预览体验仍未迁移。
 
 **建议切口:**
 - [x] 先补图片 / 视频 / 语音 / 文件消息的最小下载与打开闭环。
 - [x] 再补文件选择与上传签名 / 分片 / 发送闭环。
-- [ ] 继续补图片 / 视频预览与语音播放。
+- [x] 继续补图片 / 视频预览与语音播放（最小内联版本）。
 - [ ] 语音消息播放先于录音迁移，录音可放到后续批次。
 
 **关键参考:**

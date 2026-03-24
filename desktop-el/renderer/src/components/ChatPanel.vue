@@ -11,6 +11,10 @@ import {
   type ChatWebSocketPush
 } from "@/api/chat";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+import {
+  createAttachmentPreviewUrlStore,
+  shouldInlinePreviewAttachment
+} from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
 import { uploadAttachmentAndBuildPart } from "@/utils/chat-attachment-send";
 
@@ -57,8 +61,18 @@ const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
 const downloadedAttachmentPaths = ref<Record<string, string>>({});
+const loadingAttachmentPreviewKeys = ref<Record<string, boolean>>({});
+const failedAttachmentPreviewMessages = ref<Record<string, string>>({});
+const attachmentPreviewUrls = ref<Record<string, string>>({});
 const lastReadUntilMessageByRoom = ref<Record<string, string>>({});
+const mediaPreview = ref<{
+  type: "image" | "video";
+  url: string;
+  name: string;
+  meta: string;
+} | null>(null);
 const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息上传与下载闭环。");
+const attachmentPreviewUrlStore = createAttachmentPreviewUrlStore();
 
 const filteredChats = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -234,11 +248,23 @@ const getMessageAttachmentParts = (message: ChatMessage) =>
 const getAttachmentActionKey = (message: ChatMessage, part: ChatMessagePart) =>
   `${message.id}:${part.attachment?.key ?? `part-${part.position}`}`;
 
+const getAttachmentPreviewKey = (message: ChatMessage, part: ChatMessagePart) =>
+  `${message.roomId}:${part.attachment?.key ?? `part-${part.position}`}`;
+
 const isAttachmentDownloading = (message: ChatMessage, part: ChatMessagePart) =>
   Boolean(downloadingAttachmentKeys.value[getAttachmentActionKey(message, part)]);
 
 const getAttachmentLocalPath = (message: ChatMessage, part: ChatMessagePart) =>
   downloadedAttachmentPaths.value[getAttachmentActionKey(message, part)] ?? null;
+
+const getAttachmentPreviewUrl = (message: ChatMessage, part: ChatMessagePart) =>
+  attachmentPreviewUrls.value[getAttachmentPreviewKey(message, part)] ?? null;
+
+const isAttachmentPreviewLoading = (message: ChatMessage, part: ChatMessagePart) =>
+  Boolean(loadingAttachmentPreviewKeys.value[getAttachmentPreviewKey(message, part)]);
+
+const getAttachmentPreviewFailure = (message: ChatMessage, part: ChatMessagePart) =>
+  failedAttachmentPreviewMessages.value[getAttachmentPreviewKey(message, part)] ?? null;
 
 const setAttachmentDownloading = (key: string, value: boolean) => {
   const next = { ...downloadingAttachmentKeys.value };
@@ -250,12 +276,81 @@ const setAttachmentDownloading = (key: string, value: boolean) => {
   downloadingAttachmentKeys.value = next;
 };
 
+const setAttachmentPreviewLoading = (key: string, value: boolean) => {
+  const next = { ...loadingAttachmentPreviewKeys.value };
+  if (value) {
+    next[key] = true;
+  } else {
+    delete next[key];
+  }
+  loadingAttachmentPreviewKeys.value = next;
+};
+
+const setAttachmentPreviewFailure = (key: string, message: string | null) => {
+  const next = { ...failedAttachmentPreviewMessages.value };
+  if (message) {
+    next[key] = message;
+  } else {
+    delete next[key];
+  }
+  failedAttachmentPreviewMessages.value = next;
+};
+
 const resetPendingAttachment = () => {
   pendingAttachment.value = null;
   attachmentUploadProgress.value = null;
   if (attachmentInputRef.value) {
     attachmentInputRef.value.value = "";
   }
+};
+
+const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessagePart) => {
+  const attachment = part.attachment;
+  if (!attachment?.key || !shouldInlinePreviewAttachment(part.partType)) {
+    return null;
+  }
+
+  const previewKey = getAttachmentPreviewKey(message, part);
+  const existing = attachmentPreviewUrls.value[previewKey];
+  if (existing) {
+    return existing;
+  }
+  if (loadingAttachmentPreviewKeys.value[previewKey]) {
+    return null;
+  }
+
+  setAttachmentPreviewLoading(previewKey, true);
+  setAttachmentPreviewFailure(previewKey, null);
+  try {
+    const previewUrl = await attachmentPreviewUrlStore.resolve({
+      roomId: message.roomId,
+      key: attachment.key,
+      expiresInSeconds: 900
+    });
+    attachmentPreviewUrls.value = {
+      ...attachmentPreviewUrls.value,
+      [previewKey]: previewUrl
+    };
+    return previewUrl;
+  } catch (error) {
+    const fallbackMessage = error instanceof Error ? error.message : "加载附件预览失败";
+    setAttachmentPreviewFailure(previewKey, fallbackMessage);
+    console.warn("[desktop-el-renderer] attachment preview load failed", error);
+    return null;
+  } finally {
+    setAttachmentPreviewLoading(previewKey, false);
+  }
+};
+
+const primeAttachmentPreviews = (roomMessages: ChatMessage[]) => {
+  roomMessages.forEach((message) => {
+    getMessageAttachmentParts(message).forEach((part) => {
+      if (!shouldInlinePreviewAttachment(part.partType)) {
+        return;
+      }
+      void ensureAttachmentPreviewUrl(message, part);
+    });
+  });
 };
 
 const pickSelectedChatId = (list: ChatSummary[], preferredRoomId?: string | null) => {
@@ -331,6 +426,7 @@ const loadMessages = async (roomId: string | null) => {
     }
 
     messages.value = response.data;
+    primeAttachmentPreviews(response.data);
     await markRoomRead(roomId, response.data);
   } catch (error) {
     messages.value = [];
@@ -562,6 +658,29 @@ const handleOpenAttachment = async (message: ChatMessage, part: ChatMessagePart)
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "打开附件失败";
   }
+};
+
+const handleOpenAttachmentPreview = async (message: ChatMessage, part: ChatMessagePart) => {
+  if (part.partType !== "image" && part.partType !== "video") {
+    return;
+  }
+
+  const previewUrl = getAttachmentPreviewUrl(message, part) ?? (await ensureAttachmentPreviewUrl(message, part));
+  if (!previewUrl) {
+    notice.value = getAttachmentPreviewFailure(message, part) || "附件预览加载失败";
+    return;
+  }
+
+  mediaPreview.value = {
+    type: part.partType,
+    url: previewUrl,
+    name: getAttachmentName(part),
+    meta: getAttachmentMeta(part)
+  };
+};
+
+const closeMediaPreview = () => {
+  mediaPreview.value = null;
 };
 
 const handleDownloadAttachment = async (message: ChatMessage, part: ChatMessagePart) => {
@@ -823,12 +942,58 @@ onMounted(() => {
                     class="attachment-card"
                     :class="`attachment-card--${part.partType}`"
                   >
+                    <button
+                      v-if="part.partType === 'image' && getAttachmentPreviewUrl(message, part)"
+                      type="button"
+                      class="attachment-card__media-button"
+                      @click="void handleOpenAttachmentPreview(message, part)"
+                    >
+                      <img
+                        :src="getAttachmentPreviewUrl(message, part) || ''"
+                        :alt="getAttachmentName(part)"
+                        class="attachment-card__media attachment-card__media--image"
+                      />
+                    </button>
+                    <video
+                      v-else-if="part.partType === 'video' && getAttachmentPreviewUrl(message, part)"
+                      class="attachment-card__media attachment-card__media--video"
+                      :src="getAttachmentPreviewUrl(message, part) || undefined"
+                      controls
+                      preload="metadata"
+                    />
+                    <audio
+                      v-else-if="part.partType === 'audio' && getAttachmentPreviewUrl(message, part)"
+                      class="attachment-card__audio"
+                      :src="getAttachmentPreviewUrl(message, part) || undefined"
+                      controls
+                      preload="none"
+                    />
+                    <div
+                      v-else-if="part.partType !== 'file' && isAttachmentPreviewLoading(message, part)"
+                      class="attachment-card__preview-state"
+                    >
+                      正在加载{{ formatAttachmentType(part.partType) }}预览...
+                    </div>
+                    <div
+                      v-else-if="part.partType !== 'file' && getAttachmentPreviewFailure(message, part)"
+                      class="attachment-card__preview-state attachment-card__preview-state--error"
+                    >
+                      {{ getAttachmentPreviewFailure(message, part) }}
+                    </div>
                     <div class="attachment-card__badge">{{ formatAttachmentType(part.partType) }}</div>
                     <div class="attachment-card__copy">
                       <strong>{{ getAttachmentName(part) }}</strong>
                       <small>{{ getAttachmentMeta(part) }}</small>
                     </div>
                     <div class="attachment-card__actions">
+                      <button
+                        v-if="part.partType === 'image' || part.partType === 'video'"
+                        type="button"
+                        class="attachment-card__action attachment-card__action--secondary"
+                        @click="void handleOpenAttachmentPreview(message, part)"
+                      >
+                        预览
+                      </button>
                       <button
                         v-if="getAttachmentLocalPath(message, part)"
                         type="button"
@@ -944,7 +1109,7 @@ onMounted(() => {
 
           <div class="chat-placeholder">
             <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件收发都已经接回 Go core</strong>
-            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持获取 signed URL、浏览器直传 multipart/direct upload、commit 后发送与本地保存打开。</p>
+            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持获取 signed URL、浏览器直传 multipart/direct upload、commit 后发送，以及图片放大预览、视频/语音内联播放与本地保存打开。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -972,6 +1137,25 @@ onMounted(() => {
           <p>去联系人页点“发消息”，或者从左侧已有会话进入。</p>
         </div>
       </article>
+    </div>
+
+    <div v-if="mediaPreview" class="media-preview" @click.self="closeMediaPreview">
+      <div class="media-preview__dialog">
+        <div class="media-preview__header">
+          <div>
+            <strong>{{ mediaPreview.name }}</strong>
+            <small>{{ mediaPreview.meta }}</small>
+          </div>
+          <button type="button" class="media-preview__close" @click="closeMediaPreview">关闭</button>
+        </div>
+        <img
+          v-if="mediaPreview.type === 'image'"
+          :src="mediaPreview.url"
+          :alt="mediaPreview.name"
+          class="media-preview__image"
+        />
+        <video v-else class="media-preview__video" :src="mediaPreview.url" controls autoplay />
+      </div>
     </div>
   </section>
 </template>
@@ -1262,6 +1446,45 @@ onMounted(() => {
   border-color: rgba(16, 185, 129, 0.18);
 }
 
+.attachment-card__media-button {
+  grid-column: 1 / -1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.attachment-card__media,
+.attachment-card__audio,
+.attachment-card__preview-state {
+  grid-column: 1 / -1;
+}
+
+.attachment-card__media {
+  width: 100%;
+  max-height: 260px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.attachment-card__audio {
+  width: 100%;
+}
+
+.attachment-card__preview-state {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.attachment-card__preview-state--error {
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--error-color);
+}
+
 .attachment-card__badge {
   min-width: 48px;
   padding: 6px 10px;
@@ -1507,6 +1730,75 @@ onMounted(() => {
 .chat-empty--detail {
   align-content: center;
   min-height: 100%;
+}
+
+.media-preview {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+}
+
+.media-preview__dialog {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 56px);
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.24);
+}
+
+.media-preview__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.media-preview__header div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.media-preview__header strong,
+.media-preview__header small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-preview__header strong {
+  color: var(--text-primary);
+}
+
+.media-preview__header small {
+  color: var(--text-secondary);
+}
+
+.media-preview__close {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.media-preview__image,
+.media-preview__video {
+  width: 100%;
+  max-height: calc(100vh - 180px);
+  border-radius: 18px;
+  object-fit: contain;
+  background: rgba(15, 23, 42, 0.06);
 }
 
 @media (max-width: 1080px) {

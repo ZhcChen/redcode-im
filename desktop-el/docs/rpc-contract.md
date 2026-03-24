@@ -183,7 +183,7 @@
 
 ### 6.2 `chat.attachment.download_url`
 
-用途：为当前房间内已存在于消息中的附件生成临时下载链接，供 renderer 后续通过 Electron 宿主能力保存到本地。
+用途：为当前房间内已存在于消息中的附件生成临时下载链接，供 renderer 后续用于图片 / 视频 / 音频预览，或通过 Electron 宿主能力保存到本地。
 
 请求参数：
 
@@ -218,6 +218,7 @@
 
 - renderer 不直接请求 backend 附件下载接口，必须经由 Go core 调用。
 - `data.download_url` 来自 backend 原始成功对象；Go core 仅负责桥接与 envelope 统一，不在本地开启 HTTP 服务。
+- renderer 既可把该 URL 绑定到 `img` / `video` / `audio` 进行内联预览，也可交给 Electron 壳层保存到本地。
 
 ### 6.3 `chat.attachment.signature`
 
