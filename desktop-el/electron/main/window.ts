@@ -27,8 +27,8 @@ export class MainWindowController implements DesktopWindowService {
       return this.window;
     }
 
-    const preloadFromDist = join(__dirname, "../preload/index.js");
-    const preloadFromSource = join(process.cwd(), "electron/preload/index.ts");
+    const preloadFromDist = join(__dirname, "../preload/index.cjs");
+    const preloadFromSource = join(process.cwd(), "electron/preload/index.cts");
     const preloadPath = existsSync(preloadFromDist) ? preloadFromDist : preloadFromSource;
 
     const win = new BrowserWindow({
@@ -40,7 +40,8 @@ export class MainWindowController implements DesktopWindowService {
       webPreferences: {
         preload: preloadPath,
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        sandbox: false
       }
     });
 
@@ -55,6 +56,12 @@ export class MainWindowController implements DesktopWindowService {
     win.on("closed", () => {
       this.window = undefined;
     });
+
+    if (this.options.devServerURL) {
+      win.webContents.on("console-message", (_event, _level, message) => {
+        console.log(`[desktop-el-renderer] ${message}`);
+      });
+    }
 
     win.once("ready-to-show", () => {
       win.show();

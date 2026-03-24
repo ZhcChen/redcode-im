@@ -31,7 +31,7 @@ mock.module("electron", () => ({
 }));
 
 const { RPC_CANCEL_CHANNEL, RPC_INVOKE_CHANNEL } = await import("./types.js");
-await import("./api.js");
+await import("./api.cts");
 
 describe("desktopEl preload rpc api", () => {
   beforeEach(() => {

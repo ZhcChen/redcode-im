@@ -10,6 +10,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"desktop-el-core/internal/app"
+	"desktop-el-core/internal/bootstrap"
+	"desktop-el-core/internal/config"
+	"desktop-el-core/internal/eventbus"
 	"desktop-el-core/internal/rpc"
 )
 
@@ -24,25 +28,29 @@ func main() {
 }
 
 func run(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	cfg := config.Load()
 	encoder := rpc.NewEncoder(stdout)
 	decoder := rpc.NewDecoder(stdin)
-	server := rpc.NewServer()
-
-	server.Register("core.ping", func(_ context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
-		return map[string]any{
-			"ok":  true,
-			"pid": os.Getpid(),
-		}, nil
-	})
+	bus := eventbus.New()
+	bootstrapService := bootstrap.New(cfg)
+	application := app.New(cfg, bus, bootstrapService, encoder)
+	server := application.RegisterRPC()
 
 	if err := encoder.EncodeEvent(rpc.Event{
 		Type:  rpc.TypeEvent,
 		Event: "core.ready",
-		Data:  mustJSONRaw(map[string]any{"pid": os.Getpid()}),
+		Data: mustJSONRaw(map[string]any{
+			"pid":         os.Getpid(),
+			"app_name":    cfg.AppName,
+			"environment": cfg.Environment,
+		}),
 	}); err != nil {
 		return err
 	}
-	logf(stderr, "go core ready pid=%d", os.Getpid())
+	if err := application.EmitBootstrapSnapshot(ctx); err != nil {
+		return err
+	}
+	logf(stderr, "go core ready pid=%d env=%s", os.Getpid(), cfg.Environment)
 
 	if err := server.Serve(ctx, decoder, encoder); err != nil {
 		if errors.Is(err, context.Canceled) {

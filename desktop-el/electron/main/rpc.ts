@@ -104,6 +104,9 @@ export const registerRpcIpc = (dispatcher: RpcDispatcher): (() => void) => {
     pendingCancels.set(payload.id, controller);
 
     try {
+      if (process.env.VITE_DEV_SERVER_URL) {
+        console.log(`[desktop-el] rpc invoke ${payload.method}`);
+      }
       const result = await dispatcher.invokeRequest(payload, controller.signal);
       const response: RpcResponse = {
         type: "response",

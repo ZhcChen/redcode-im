@@ -1,22 +1,23 @@
 import { contextBridge, ipcRenderer } from "electron";
-import {
-  SHELL_INVOKE_CHANNEL,
-  RPC_CANCEL_CHANNEL,
-  RPC_EVENT_CHANNEL,
-  RPC_INVOKE_CHANNEL,
-  type DesktopElAPI,
-  type DesktopDialogOpenOptions,
-  type DesktopDialogOpenResult,
-  type DesktopDialogSaveOptions,
-  type DesktopDialogSaveResult,
-  type DesktopNotificationPayload,
-  type RpcError,
-  type RpcEvent,
-  type RpcInvokeOptions,
-  type RpcParams,
-  type RpcRequest,
-  type RpcResponse
+import type {
+  DesktopDialogOpenOptions,
+  DesktopDialogOpenResult,
+  DesktopDialogSaveOptions,
+  DesktopDialogSaveResult,
+  DesktopElAPI,
+  DesktopNotificationPayload,
+  RpcError,
+  RpcEvent,
+  RpcInvokeOptions,
+  RpcParams,
+  RpcRequest,
+  RpcResponse
 } from "./types.js";
+
+const RPC_INVOKE_CHANNEL = "desktop-el:rpc:invoke";
+const RPC_EVENT_CHANNEL = "desktop-el:rpc:event";
+const RPC_CANCEL_CHANNEL = "desktop-el:rpc:cancel";
+const SHELL_INVOKE_CHANNEL = "desktop-el:shell:invoke";
 
 let requestCounter = 0;
 
@@ -127,7 +128,7 @@ const createRequestID = (): string => {
   return `renderer-${Date.now()}-${requestCounter}`;
 };
 
-const invokeShell = <T>(
+const invokeShell = <T,>(
   namespace: "app" | "window" | "dialog" | "notification",
   method: string,
   params?: Record<string, unknown>
@@ -139,7 +140,7 @@ const invokeShell = <T>(
   }) as Promise<T>;
 };
 
-const unwrapRendererResponse = <T>(response: RpcResponse): T => {
+const unwrapRendererResponse = <T,>(response: RpcResponse): T => {
   if (response.type !== "response" || typeof response.id !== "string") {
     throw new RpcInvokeError({
       code: "internal",

@@ -21,8 +21,8 @@ func TestRunEmitsReadyEventAndRespondsToPing(t *testing.T) {
 	}
 
 	lines := bytes.Split(bytes.TrimSpace(stdout.Bytes()), []byte("\n"))
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 protocol lines, got %d: %q", len(lines), stdout.String())
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 protocol lines, got %d: %q", len(lines), stdout.String())
 	}
 
 	var ready rpc.Event
@@ -33,8 +33,16 @@ func TestRunEmitsReadyEventAndRespondsToPing(t *testing.T) {
 		t.Fatalf("unexpected ready event: %+v", ready)
 	}
 
+	var bootstrap rpc.Event
+	if err := json.Unmarshal(lines[1], &bootstrap); err != nil {
+		t.Fatalf("decode bootstrap event failed: %v", err)
+	}
+	if bootstrap.Type != rpc.TypeEvent || bootstrap.Event != "core.bootstrap.snapshot" {
+		t.Fatalf("unexpected bootstrap event: %+v", bootstrap)
+	}
+
 	var response rpc.Response
-	if err := json.Unmarshal(lines[1], &response); err != nil {
+	if err := json.Unmarshal(lines[2], &response); err != nil {
 		t.Fatalf("decode response failed: %v", err)
 	}
 	if response.Type != rpc.TypeResponse || response.ID != "req-1" {
@@ -50,6 +58,9 @@ func TestRunEmitsReadyEventAndRespondsToPing(t *testing.T) {
 	}
 	if result["ok"] != true {
 		t.Fatalf("expected ping result ok=true, got: %+v", result)
+	}
+	if result["app_name"] != "RedCode IM" {
+		t.Fatalf("expected app_name in ping result, got: %+v", result)
 	}
 
 	if strings.Contains(stdout.String(), "scaffold is running") {
