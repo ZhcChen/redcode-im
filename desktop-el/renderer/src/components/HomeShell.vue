@@ -149,7 +149,7 @@ const handleChatRequestConsumed = (requestId: number) => {
         @chat-request-consumed="handleChatRequestConsumed"
       />
 
-      <ContactPanel v-else-if="props.activeView === 'contact'" @open-chat="handleOpenChat" />
+      <ContactPanel v-else-if="props.activeView === 'contact'" :last-ws-push="props.lastWsPush" @open-chat="handleOpenChat" />
 
       <SettingsPanel
         v-else

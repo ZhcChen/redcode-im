@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import type { ChatWebSocketPush } from "@/api/chat";
 import { FriendApi, type FriendInfo, type FriendRequestInfo } from "@/api/friend";
 import { SystemApi, type LegacyUserInfo } from "@/api/system";
 import { UserApi, type SearchUserInfo } from "@/api/user";
@@ -8,8 +9,13 @@ import {
   resolveRelationshipState,
   type RelationshipState
 } from "@/utils/contact-discovery";
+import { mapContactRealtimeEvent } from "@/utils/contact-realtime";
 
 type ContactMode = "contacts" | "requests" | "discover";
+
+const props = defineProps<{
+  lastWsPush?: ChatWebSocketPush | null;
+}>();
 
 const emit = defineEmits<{
   (event: "open-chat", payload: { friendUserId: string; displayName: string }): void;
@@ -417,6 +423,14 @@ const handleOpenSearchUserChat = () => {
   });
 };
 
+const handleRealtimeEvent = async () => {
+  await loadData({
+    preferredFriendUserId: selectedContact.value?.user.id,
+    preferredRequestId: selectedRequest.value?.id,
+    preferredSearchUserId: selectedSearchUser.value?.id
+  });
+};
+
 onMounted(() => {
   void loadData();
 });
@@ -427,6 +441,37 @@ watch(
     remarkDraft.value = contact?.friendRemark ?? "";
   },
   { immediate: true }
+);
+
+watch(
+  () => props.lastWsPush,
+  (push, previousPush) => {
+    if (!push || push === previousPush) {
+      return;
+    }
+
+    const event = mapContactRealtimeEvent(push);
+    if (!event) {
+      return;
+    }
+
+    if (event.type === "friend_request_update") {
+      notice.value =
+        typeof event.pendingCount === "number"
+          ? `好友申请有更新，当前待处理 ${event.pendingCount} 条`
+          : "好友申请有更新";
+    }
+
+    if (event.type === "friendship_deleted") {
+      notice.value = "好友关系有更新，联系人列表已刷新。";
+    }
+
+    if (event.type === "friend_profile_updated") {
+      notice.value = "好友资料有更新，联系人信息已刷新。";
+    }
+
+    void handleRealtimeEvent();
+  }
 );
 </script>
 

@@ -16,6 +16,7 @@
 - [x] 主壳 `HomeShell`、聊天 / 联系人 / 设置三栏骨架已落地。
 - [x] 联系人列表、好友申请列表、通过 / 拒绝申请、从联系人详情发起私聊已完成。
 - [x] 联系人模块已完成全局搜人、发送好友申请，以及 `self` / `friend` / `pending` 状态识别的最小闭环。
+- [x] 联系人模块已完成备注编辑、删除好友，以及 `friend_request_update` / `friend_profile_updated` / `friendship_deleted` 的最小实时刷新。
 - [x] 聊天会话列表、私聊房间 ensure、最近 50 条历史消息、文本发送已完成。
 - [x] Go core 已打通 websocket 读循环，renderer 已接入 `message` / `message_read` 的最小实时闭环。
 - [x] 当前房间已支持 `read_until` 回写。
@@ -97,19 +98,18 @@
 **目标:** 让联系人模块从“查看和处理申请”升级到完整可操作。
 
 **当前缺口:**
-- 删除好友、修改好友备注未迁移。
-- 好友资料变更事件未接入。
+- 联系人模块主流程已打通；后续主要是更细粒度的全局同步和体验增强，不再是 P0 主阻塞。
 
 **当前进度:**
 - [x] 已完成搜索用户与发起好友申请：renderer 通过 `user.search` / `friend.request.create` 调用 Go core，联系人页已支持全局搜人、填写申请留言、发送好友申请。
 - [x] 已完成搜索结果关系态识别：联系人页会结合当前联系人列表和 outgoing pending 请求，区分 `自己` / `已是好友` / `已发申请` / `可添加`。
 - [x] 已完成删除好友、修改好友备注：联系人详情区可直接保存备注，或经宿主确认后删除好友，并刷新联系人列表。
-- [ ] `friend_profile_updated` 等联系人事件刷新未迁移。
+- [x] 已完成 `friend_request_update` / `friend_profile_updated` / `friendship_deleted` 的联系人页最小刷新：联系人视图活跃时会基于 `ws.push` 重新拉取数据并保持当前选择态。
 
 **建议切口:**
 - [x] 先补搜索用户与发起好友申请。
 - [x] 再补删除好友与好友备注编辑。
-- [ ] 接入 `friend_profile_updated` 等最小事件刷新。
+- [x] 接入 `friend_profile_updated` 等最小事件刷新。
 
 **关键参考:**
 - [ContactPanel.vue](/Users/chen/code/redcode-im/.worktrees/desktop-el/desktop-el/renderer/src/components/ContactPanel.vue)
