@@ -181,4 +181,8 @@ export class SystemApi {
       data: mapBackendUserToLegacy(response.data)
     };
   }
+
+  static async logout(): Promise<{ success: boolean }> {
+    return requireDesktopRuntime().rpc.invoke<{ success: boolean }>("auth.logout");
+  }
 }

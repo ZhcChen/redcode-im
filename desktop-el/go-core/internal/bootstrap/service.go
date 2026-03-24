@@ -30,6 +30,9 @@ func (s *Service) BuildSnapshot() state.BootstrapSnapshot {
 			Status: "idle",
 		},
 		FeatureFlags: cloneFeatureFlags(s.config.FeatureFlags),
+		Auth: state.AuthSnapshot{
+			LoggedIn: false,
+		},
 	}
 }
 

@@ -1,40 +1,43 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { RpcEvent } from "../../electron/preload/types.js";
-import LoginScreen from "./components/LoginScreen.vue";
-import WorkspaceShell from "./components/WorkspaceShell.vue";
 import { getRuntimeConfig } from "./api/config";
-import type { LegacyUserInfo } from "./api/system";
+import { SystemApi, type LegacyUserInfo } from "./api/system";
+import LoginScreen from "./components/LoginScreen.vue";
+import HomeShell from "./components/HomeShell.vue";
+import { useSessionStore } from "./store/session";
+import type { BootstrapSnapshot } from "./types/bootstrap";
 import { WebSocketApi } from "./api/websocket";
-
-interface BootstrapSnapshot {
-  accounts: Array<{ id: string; display_name: string }>;
-  config: {
-    app_name: string;
-    environment: string;
-    api_base_url?: string;
-    ws_url?: string;
-    version?: string;
-    build_number?: number;
-    channel?: string;
-  };
-  recent_conversations: Array<{ id: string; title: string }>;
-  connection: {
-    status: string;
-  };
-  feature_flags: Record<string, boolean>;
-}
 
 const bootstrap = ref<BootstrapSnapshot | null>(null);
 const hostVersion = ref<string | null>(null);
 const lastEvent = ref("尚未收到事件");
 const runtimeAvailable = ref(false);
-const currentUser = ref<LegacyUserInfo | null>(null);
 const wsStatus = ref("disconnected");
+const sessionStore = useSessionStore();
 
 let cleanupEventListener: (() => void) | undefined;
 
 const appName = computed(() => bootstrap.value?.config.app_name || "CHATLY");
+const currentUser = computed<LegacyUserInfo | null>(() => sessionStore.state.currentUser);
+
+const syncBootstrapState = (snapshot: BootstrapSnapshot | null) => {
+  if (!snapshot) {
+    return;
+  }
+
+  sessionStore.hydrateFromBootstrap(snapshot);
+  wsStatus.value = snapshot.connection.status || "disconnected";
+};
+
+const refreshBootstrap = async () => {
+  if (!window.desktopEl) {
+    return;
+  }
+
+  bootstrap.value = await window.desktopEl.rpc.invoke<BootstrapSnapshot>("core.bootstrap.get");
+  syncBootstrapState(bootstrap.value);
+};
 
 const loadRuntimeState = async () => {
   if (!window.desktopEl) {
@@ -44,7 +47,7 @@ const loadRuntimeState = async () => {
 
   runtimeAvailable.value = true;
   hostVersion.value = await window.desktopEl.app.getVersion();
-  bootstrap.value = await window.desktopEl.rpc.invoke<BootstrapSnapshot>("core.bootstrap.get");
+  await refreshBootstrap();
   await getRuntimeConfig();
 };
 
@@ -53,6 +56,7 @@ const handleRpcEvent = (event: RpcEvent) => {
 
   if (event.event === "core.bootstrap.snapshot" && event.data) {
     bootstrap.value = event.data as BootstrapSnapshot;
+    syncBootstrapState(bootstrap.value);
   }
 
   if (event.event === "ws.status.updated" && event.data) {
@@ -64,7 +68,7 @@ const handleRpcEvent = (event: RpcEvent) => {
 };
 
 const handleLoginSuccess = async (payload: { token: string; user: LegacyUserInfo }) => {
-  currentUser.value = payload.user;
+  sessionStore.setAuthenticated(payload.user, payload.token);
 
   if (!window.desktopEl) {
     return;
@@ -73,6 +77,7 @@ const handleLoginSuccess = async (payload: { token: string; user: LegacyUserInfo
   try {
     await WebSocketApi.connect({ userId: payload.user.id, token: payload.token });
     wsStatus.value = await WebSocketApi.getStatus();
+    await refreshBootstrap();
   } catch (error) {
     wsStatus.value = "disconnected";
     console.warn("[desktop-el-renderer] websocket connect failed", error);
@@ -81,13 +86,16 @@ const handleLoginSuccess = async (payload: { token: string; user: LegacyUserInfo
 
 const handleLogout = async () => {
   try {
-    await WebSocketApi.disconnect();
+    await SystemApi.logout();
   } catch (error) {
-    console.warn("[desktop-el-renderer] websocket disconnect failed", error);
+    console.warn("[desktop-el-renderer] logout failed", error);
   }
 
-  currentUser.value = null;
+  sessionStore.clear();
   wsStatus.value = "disconnected";
+  await refreshBootstrap().catch((error) => {
+    console.warn("[desktop-el-renderer] bootstrap refresh after logout failed", error);
+  });
 };
 
 onMounted(() => {
@@ -117,13 +125,15 @@ onUnmounted(() => {
     :runtime-available="runtimeAvailable"
     @login-success="handleLoginSuccess"
   />
-  <WorkspaceShell
+  <HomeShell
     v-else
     :current-user="currentUser"
     :host-version="hostVersion"
     :last-event="lastEvent"
     :ws-status="wsStatus"
     :bootstrap="bootstrap"
+    :active-view="sessionStore.state.activeView"
+    @navigate="sessionStore.setActiveView"
     @logout="handleLogout"
   />
 </template>

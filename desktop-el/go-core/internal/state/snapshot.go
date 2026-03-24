@@ -24,10 +24,25 @@ type ConnectionSnapshot struct {
 	Status string `json:"status"`
 }
 
+type UserSnapshot struct {
+	ID        string  `json:"id"`
+	Username  string  `json:"username"`
+	Email     string  `json:"email"`
+	Nickname  *string `json:"nickname,omitempty"`
+	AvatarURL *string `json:"avatar_url,omitempty"`
+	Status    string  `json:"status"`
+}
+
+type AuthSnapshot struct {
+	LoggedIn    bool          `json:"logged_in"`
+	CurrentUser *UserSnapshot `json:"current_user"`
+}
+
 type BootstrapSnapshot struct {
 	Accounts            []AccountSnapshot      `json:"accounts"`
 	Config              ConfigSnapshot         `json:"config"`
 	RecentConversations []ConversationSnapshot `json:"recent_conversations"`
 	Connection          ConnectionSnapshot     `json:"connection"`
 	FeatureFlags        map[string]bool        `json:"feature_flags"`
+	Auth                AuthSnapshot           `json:"auth"`
 }

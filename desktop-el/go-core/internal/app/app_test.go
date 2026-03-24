@@ -14,6 +14,7 @@ import (
 	"desktop-el-core/internal/eventbus"
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/rpc"
+	"desktop-el-core/internal/state"
 )
 
 func TestAppRegistersBootstrapRPCAndEmitsSnapshotEvent(t *testing.T) {
@@ -144,6 +145,10 @@ func TestAppAuthLoginReturnsEnvelopeAndStoresSession(t *testing.T) {
 	if application.session.RefreshToken() != "refresh-token" {
 		t.Fatalf("expected session refresh token to be stored")
 	}
+	currentUser := application.session.CurrentUser()
+	if currentUser == nil || currentUser.ID != "u-1" {
+		t.Fatalf("expected current user snapshot to be stored, got: %+v", currentUser)
+	}
 }
 
 func TestAppAuthLoginPreservesFailureEnvelopeAndDoesNotStoreSession(t *testing.T) {
@@ -228,6 +233,130 @@ func TestAppAuthMeGetReturnsEnvelope(t *testing.T) {
 	}
 	if !envelope.Success || envelope.Code != 200 {
 		t.Fatalf("unexpected current user envelope: %+v", envelope)
+	}
+}
+
+func TestAppBootstrapGetIncludesCurrentAuthSnapshot(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"code":    200,
+			"message": "ok",
+			"data": map[string]any{
+				"token":         "access-token",
+				"refresh_token": "refresh-token",
+				"user": map[string]any{
+					"id":       "u-1",
+					"username": "13800000000",
+					"email":    "demo@example.com",
+					"status":   "active",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	rpcServer := application.RegisterRPC()
+
+	loginResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-login-bootstrap",
+		Method: "auth.login",
+		Params: mustJSONRaw(map[string]any{
+			"username": "13800000000",
+			"password": "secret",
+		}),
+	})
+	if loginResponse.Error != nil {
+		t.Fatalf("expected login request to succeed, got: %+v", loginResponse.Error)
+	}
+
+	bootstrapResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-bootstrap-auth",
+		Method: "core.bootstrap.get",
+	})
+	if bootstrapResponse.Error != nil {
+		t.Fatalf("expected bootstrap request to succeed, got: %+v", bootstrapResponse.Error)
+	}
+
+	var snapshot map[string]any
+	if err := json.Unmarshal(bootstrapResponse.Result, &snapshot); err != nil {
+		t.Fatalf("decode bootstrap result failed: %v", err)
+	}
+
+	authSnapshot, ok := snapshot["auth"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth snapshot in bootstrap result, got: %+v", snapshot)
+	}
+	if authSnapshot["logged_in"] != true {
+		t.Fatalf("expected logged_in to be true, got: %+v", authSnapshot)
+	}
+
+	currentUser, ok := authSnapshot["current_user"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected current_user in auth snapshot, got: %+v", authSnapshot)
+	}
+	if currentUser["id"] != "u-1" {
+		t.Fatalf("unexpected current user snapshot: %+v", currentUser)
+	}
+}
+
+func TestAppAuthLogoutClearsSessionAndBootstrapAuthSnapshot(t *testing.T) {
+	application := newTestApp("http://127.0.0.1:8010")
+	application.session.Set("access-token", "refresh-token")
+	application.session.SetCurrentUser(state.UserSnapshot{
+		ID:       "u-1",
+		Username: "13800000000",
+		Email:    "demo@example.com",
+		Status:   "active",
+	})
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	logoutResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-logout",
+		Method: "auth.logout",
+	})
+	if logoutResponse.Error != nil {
+		t.Fatalf("expected auth.logout to succeed, got: %+v", logoutResponse.Error)
+	}
+
+	if application.session.AccessToken() != "" || application.session.RefreshToken() != "" {
+		t.Fatalf("expected auth.logout to clear session tokens")
+	}
+	if application.session.CurrentUser() != nil {
+		t.Fatalf("expected auth.logout to clear current user snapshot")
+	}
+	if application.httpClient.AccessToken() != "" {
+		t.Fatalf("expected auth.logout to clear http client token")
+	}
+
+	bootstrapResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-bootstrap-post-logout",
+		Method: "core.bootstrap.get",
+	})
+	if bootstrapResponse.Error != nil {
+		t.Fatalf("expected bootstrap request to succeed, got: %+v", bootstrapResponse.Error)
+	}
+
+	var snapshot map[string]any
+	if err := json.Unmarshal(bootstrapResponse.Result, &snapshot); err != nil {
+		t.Fatalf("decode bootstrap result failed: %v", err)
+	}
+
+	authSnapshot, ok := snapshot["auth"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth snapshot in bootstrap result, got: %+v", snapshot)
+	}
+	if authSnapshot["logged_in"] != false {
+		t.Fatalf("expected logged_in to be false after logout, got: %+v", authSnapshot)
+	}
+	if authSnapshot["current_user"] != nil {
+		t.Fatalf("expected current_user to be nil after logout, got: %+v", authSnapshot)
 	}
 }
 

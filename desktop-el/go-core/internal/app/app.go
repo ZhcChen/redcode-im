@@ -13,6 +13,7 @@ import (
 	"desktop-el-core/internal/rpc"
 	"desktop-el-core/internal/settings"
 	"desktop-el-core/internal/session"
+	"desktop-el-core/internal/state"
 	"desktop-el-core/internal/ws"
 )
 
@@ -81,7 +82,7 @@ func (a *App) RegisterRPC() *rpc.Server {
 	})
 
 	server.Register("core.bootstrap.get", func(_ context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
-		return a.bootstrap.BuildSnapshot(), nil
+		return a.buildBootstrapSnapshot(), nil
 	})
 
 	server.Register("core.config.get", func(_ context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
@@ -174,6 +175,16 @@ func (a *App) RegisterRPC() *rpc.Server {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}
 		return result, nil
+	})
+
+	server.Register("auth.logout", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		a.session.Clear()
+		a.httpClient.SetToken("")
+		if err := a.wsClient.Disconnect(); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
+		return map[string]any{"success": true}, nil
 	})
 
 	server.Register("settings.captcha.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
@@ -273,7 +284,7 @@ func (a *App) RegisterRPC() *rpc.Server {
 }
 
 func (a *App) EmitBootstrapSnapshot(ctx context.Context) error {
-	snapshot := a.bootstrap.BuildSnapshot()
+	snapshot := a.buildBootstrapSnapshot()
 	a.bus.Publish(ctx, eventbus.Event{
 		Name: "core.bootstrap.snapshot",
 		Data: snapshot,
@@ -293,6 +304,18 @@ func (a *App) emitEvent(ctx context.Context, name string, data any) error {
 		Event: name,
 		Data:  mustJSONRaw(data),
 	})
+}
+
+func (a *App) buildBootstrapSnapshot() state.BootstrapSnapshot {
+	snapshot := a.bootstrap.BuildSnapshot()
+	snapshot.Connection.Status = string(a.wsClient.Status())
+	snapshot.Auth = state.AuthSnapshot{
+		LoggedIn: a.session.AccessToken() != "",
+	}
+	if currentUser := a.session.CurrentUser(); currentUser != nil {
+		snapshot.Auth.CurrentUser = currentUser
+	}
+	return snapshot
 }
 
 func mustJSONRaw(v any) json.RawMessage {

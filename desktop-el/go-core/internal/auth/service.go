@@ -7,6 +7,7 @@ import (
 
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/session"
+	"desktop-el-core/internal/state"
 )
 
 type BackendUser struct {
@@ -149,8 +150,20 @@ func (s *Service) login(ctx context.Context, path string, payload any) (httpclie
 		return httpclient.Response{}, err
 	}
 	s.session.Set(result.Token, result.RefreshToken)
+	s.session.SetCurrentUser(mapBackendUserToSnapshot(result.User))
 	s.client.SetToken(result.Token)
 	return response, nil
+}
+
+func mapBackendUserToSnapshot(user BackendUser) state.UserSnapshot {
+	return state.UserSnapshot{
+		ID:        user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		Nickname:  user.Nickname,
+		AvatarURL: user.AvatarURL,
+		Status:    user.Status,
+	}
 }
 
 func decodeData(data json.RawMessage, target any) error {
