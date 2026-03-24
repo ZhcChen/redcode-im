@@ -908,6 +908,134 @@ func TestAppChatListReturnsWrappedPayload(t *testing.T) {
 	}
 }
 
+func TestAppChatEnsurePrivatePostsFriendChat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/friends/u-2/chat" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"room_id":                  "room-2",
+			"room_name":                "Alice",
+			"room_type":                "private",
+			"friend_id":                "u-2",
+			"friend_name":              "Alice",
+			"friend_avatar":            nil,
+			"friend_avatar_object_key": nil,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-private-ensure",
+		Method: "chat.private.ensure",
+		Params: mustJSONRaw(map[string]any{
+			"friend_user_id": "u-2",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.private.ensure to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.private.ensure response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.private.ensure envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.private.ensure data failed: %v", err)
+	}
+	if result["room_id"] != "room-2" {
+		t.Fatalf("unexpected ensured chat payload: %+v", result)
+	}
+}
+
+func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		if got := r.URL.Query().Get("limit"); got != "50" {
+			t.Fatalf("unexpected limit query: %s", got)
+		}
+		if got := r.URL.Query().Get("before_id"); got != "msg-9" {
+			t.Fatalf("unexpected before_id query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"id":              "msg-10",
+				"room_id":         "room-2",
+				"sender_id":       "u-2",
+				"sender_username": "alice",
+				"sender_nickname": "Alice",
+				"content":         "你好",
+				"message_type":    "text",
+				"created_at":      "2026-03-24T01:00:00Z",
+				"parts":           []map[string]any{},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-messages-list",
+		Method: "chat.messages.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":   "room-2",
+			"limit":     50,
+			"before_id": "msg-9",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.messages.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.messages.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.messages.list envelope: %+v", envelope)
+	}
+
+	var messages []map[string]any
+	if err := json.Unmarshal(envelope.Data, &messages); err != nil {
+		t.Fatalf("decode chat.messages.list data failed: %v", err)
+	}
+	if len(messages) != 1 || messages[0]["id"] != "msg-10" {
+		t.Fatalf("unexpected chat.messages.list payload: %+v", messages)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

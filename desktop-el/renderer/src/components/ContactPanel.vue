@@ -4,6 +4,10 @@ import { FriendApi, type FriendInfo, type FriendRequestInfo } from "@/api/friend
 
 type ContactMode = "contacts" | "requests";
 
+const emit = defineEmits<{
+  (event: "open-chat", payload: { friendUserId: string; displayName: string }): void;
+}>();
+
 const searchQuery = ref("");
 const mode = ref<ContactMode>("contacts");
 const contacts = ref<FriendInfo[]>([]);
@@ -154,6 +158,19 @@ const handleRespondRequest = async (action: "accept" | "decline") => {
   }
 };
 
+const handleOpenChat = () => {
+  if (!selectedContact.value) {
+    return;
+  }
+
+  const targetName = displayName(selectedContact.value.user);
+  notice.value = `准备打开与 ${targetName} 的聊天...`;
+  emit("open-chat", {
+    friendUserId: selectedContact.value.user.id,
+    displayName: targetName
+  });
+};
+
 onMounted(() => {
   void loadData();
 });
@@ -278,7 +295,13 @@ onMounted(() => {
 
           <div class="contact-placeholder">
             <strong>联系人详情区已接回主壳</strong>
-            <p>下一批会继续接“发起聊天”、“修改备注”、“接受/拒绝申请”等交互。</p>
+            <p>现在可以直接从联系人详情发起聊天，后续继续补备注编辑与更多联系人操作。</p>
+          </div>
+
+          <div class="detail-actions">
+            <button type="button" class="detail-actions__button detail-actions__button--primary" @click="handleOpenChat">
+              发消息
+            </button>
           </div>
         </template>
 
@@ -583,6 +606,23 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detail-actions__button {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.detail-actions__button--primary {
+  background: rgba(0, 194, 179, 0.14);
+  color: var(--primary-color-strong);
 }
 
 .request-actions__button {

@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
-import { ChatApi, type ChatSummary } from "@/api/chat";
+import { ChatApi, type ChatMessage, type ChatSummary } from "@/api/chat";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+
+interface OpenChatRequest {
+  requestId: number;
+  friendUserId: string;
+  displayName: string;
+}
 
 const props = defineProps<{
   currentUser: LegacyUserInfo;
@@ -10,13 +16,21 @@ const props = defineProps<{
   lastEvent: string;
   wsStatus: string;
   bootstrap: BootstrapSnapshot | null;
+  openChatRequest?: OpenChatRequest | null;
+}>();
+
+const emit = defineEmits<{
+  (event: "chat-request-consumed", requestId: number): void;
 }>();
 
 const searchQuery = ref("");
 const chats = ref<ChatSummary[]>([]);
+const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
-const isLoading = ref(true);
-const notice = ref("聊天主区已接到 Go core，当前先恢复真实会话列表与摘要。");
+const isLoadingChats = ref(true);
+const isLoadingMessages = ref(false);
+const isOpeningPrivateChat = ref(false);
+const notice = ref("聊天主区已接到 Go core，当前继续恢复真实消息列表。");
 
 const filteredChats = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -38,10 +52,7 @@ const filteredChats = computed(() => {
   });
 });
 
-const selectedChat = computed(() =>
-  filteredChats.value.find((chat) => chat.id === selectedChatId.value) || filteredChats.value[0] || null
-);
-
+const selectedChat = computed(() => chats.value.find((chat) => chat.id === selectedChatId.value) || chats.value[0] || null);
 const pinnedCount = computed(() => chats.value.filter((chat) => chat.isPinned).length);
 
 const formatTime = (value: Date | null) => {
@@ -49,6 +60,19 @@ const formatTime = (value: Date | null) => {
     return "暂无";
   }
   return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(value);
+};
+
+const formatDetailTime = (value: Date | null) => {
+  if (!value) {
+    return "暂无";
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -70,30 +94,119 @@ const formatRoomType = (value: ChatSummary["roomType"]) => {
   }
 };
 
-const loadChats = async () => {
-  isLoading.value = true;
+const pickSelectedChatId = (list: ChatSummary[], preferredRoomId?: string | null) => {
+  if (preferredRoomId && list.some((chat) => chat.roomId === preferredRoomId)) {
+    return preferredRoomId;
+  }
+  if (selectedChatId.value && list.some((chat) => chat.roomId === selectedChatId.value)) {
+    return selectedChatId.value;
+  }
+  return list[0]?.roomId ?? null;
+};
+
+const loadMessages = async (roomId: string | null) => {
+  if (!roomId) {
+    messages.value = [];
+    return;
+  }
+
+  isLoadingMessages.value = true;
+  try {
+    const response = await ChatApi.listMessages({
+      roomId,
+      limit: 50,
+      currentUserId: props.currentUser.id
+    });
+    if (!response.success || !response.data) {
+      messages.value = [];
+      notice.value = response.message || "消息列表加载失败";
+      return;
+    }
+
+    messages.value = response.data;
+  } catch (error) {
+    messages.value = [];
+    notice.value = error instanceof Error ? error.message : "消息列表加载失败";
+  } finally {
+    isLoadingMessages.value = false;
+  }
+};
+
+const loadChats = async (options: { preferredRoomId?: string | null; preserveNotice?: boolean } = {}) => {
+  isLoadingChats.value = true;
   try {
     const response = await ChatApi.list();
     if (!response.success || !response.data) {
-      notice.value = response.message || "会话列表加载失败";
       chats.value = [];
       selectedChatId.value = null;
+      messages.value = [];
+      notice.value = response.message || "会话列表加载失败";
       return;
     }
 
     chats.value = response.data;
-    selectedChatId.value = response.data[0]?.id ?? null;
-    notice.value = `已从 Go core 同步 ${response.data.length} 个会话，下一批继续接消息详情。`;
+    selectedChatId.value = pickSelectedChatId(response.data, options.preferredRoomId);
+    await loadMessages(selectedChatId.value);
+
+    if (!options.preserveNotice) {
+      notice.value = `已从 Go core 同步 ${response.data.length} 个会话与最近 50 条历史消息。`;
+    }
   } catch (error) {
-    notice.value = error instanceof Error ? error.message : "会话列表加载失败";
     chats.value = [];
     selectedChatId.value = null;
+    messages.value = [];
+    notice.value = error instanceof Error ? error.message : "会话列表加载失败";
   } finally {
-    isLoading.value = false;
+    isLoadingChats.value = false;
   }
 };
 
+const selectChat = async (chatId: string) => {
+  selectedChatId.value = chatId;
+  await loadMessages(chatId);
+};
+
+const handleOpenChatRequest = async (request: OpenChatRequest) => {
+  isOpeningPrivateChat.value = true;
+  notice.value = `正在为 ${request.displayName} 打开私聊...`;
+
+  try {
+    const response = await ChatApi.ensurePrivateChat({
+      friendUserId: request.friendUserId
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || `打开 ${request.displayName} 的聊天失败`;
+      return;
+    }
+
+    await loadChats({
+      preferredRoomId: response.data.roomId,
+      preserveNotice: true
+    });
+    notice.value = `已打开与 ${response.data.friendName} 的聊天，历史消息已同步。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : `打开 ${request.displayName} 的聊天失败`;
+  } finally {
+    isOpeningPrivateChat.value = false;
+    emit("chat-request-consumed", request.requestId);
+  }
+};
+
+watch(
+  () => props.openChatRequest?.requestId,
+  (requestId, previousRequestId) => {
+    if (!requestId || requestId === previousRequestId || !props.openChatRequest) {
+      return;
+    }
+    void handleOpenChatRequest(props.openChatRequest);
+  }
+);
+
 onMounted(() => {
+  if (props.openChatRequest) {
+    void handleOpenChatRequest(props.openChatRequest);
+    return;
+  }
   void loadChats();
 });
 </script>
@@ -110,19 +223,19 @@ onMounted(() => {
         <div class="chat-panel__header">
           <div>
             <h2>会话</h2>
-            <p>先恢复旧 desktop 的聊天列表信息架构。</p>
+            <p>先恢复旧 desktop 的会话列表与联系人发起聊天链路。</p>
           </div>
           <input v-model="searchQuery" class="chat-panel__search" placeholder="搜索会话..." />
         </div>
 
-        <div v-if="isLoading" class="chat-empty">
+        <div v-if="isLoadingChats" class="chat-empty">
           <strong>加载中</strong>
-          <p>正在通过 Go core 同步 `/chats` 会话摘要。</p>
+          <p>正在通过 Go core 同步 `/chats`。</p>
         </div>
 
         <div v-else-if="!filteredChats.length" class="chat-empty">
           <strong>暂无会话</strong>
-          <p>当前账号还没有会话，后续会继续接“发起聊天”和消息详情。</p>
+          <p>当前账号还没有会话，先去联系人页发起一条新的私聊。</p>
         </div>
 
         <div v-else class="chat-list">
@@ -132,7 +245,7 @@ onMounted(() => {
             type="button"
             class="chat-row"
             :class="{ 'chat-row--active': selectedChat?.id === chat.id }"
-            @click="selectedChatId = chat.id"
+            @click="void selectChat(chat.id)"
           >
             <span class="chat-row__avatar">{{ chat.title.slice(0, 1).toUpperCase() }}</span>
             <span class="chat-row__copy">
@@ -170,11 +283,7 @@ onMounted(() => {
             </div>
             <div>
               <dt>最后活动</dt>
-              <dd>{{ formatTime(selectedChat.lastMessageAt) }}</dd>
-            </div>
-            <div>
-              <dt>消息预览</dt>
-              <dd>{{ selectedChat.lastMessagePreview || "暂无消息" }}</dd>
+              <dd>{{ formatDetailTime(selectedChat.lastMessageAt) }}</dd>
             </div>
             <div>
               <dt>置顶 / 免打扰</dt>
@@ -186,9 +295,50 @@ onMounted(() => {
             </div>
           </dl>
 
+          <section class="message-stage">
+            <div class="message-stage__header">
+              <h4>历史消息</h4>
+              <small v-if="isOpeningPrivateChat">正在准备私聊房间...</small>
+              <small v-else>{{ messages.length }} 条</small>
+            </div>
+
+            <div v-if="isLoadingMessages" class="chat-empty">
+              <strong>加载中</strong>
+              <p>正在拉取最近消息。</p>
+            </div>
+
+            <div v-else-if="!messages.length" class="chat-empty">
+              <strong>暂无消息</strong>
+              <p>这个会话还没有历史消息，可以先从联系人页发起新的聊天。</p>
+            </div>
+
+            <div v-else class="message-feed">
+              <article
+                v-for="message in messages"
+                :key="message.id"
+                class="message-card"
+                :class="{
+                  'message-card--self': message.isSelf,
+                  'message-card--system': message.messageType === 'system'
+                }"
+              >
+                <div class="message-card__meta">
+                  <strong>{{ message.isSelf ? "我" : message.senderName }}</strong>
+                  <span>{{ formatDetailTime(message.createdAt) }}</span>
+                </div>
+                <p class="message-card__body">{{ message.preview || message.content || "[空消息]" }}</p>
+                <small class="message-card__footer">
+                  {{ message.messageType }}
+                  <template v-if="message.isEdited"> / 已编辑</template>
+                  <template v-if="message.deliveryStatus"> / {{ message.deliveryStatus }}</template>
+                </small>
+              </article>
+            </div>
+          </section>
+
           <div class="chat-placeholder">
-            <strong>会话摘要已经通过 stdio RPC 落到 renderer</strong>
-            <p>下一批继续接消息列表、会话详情和发送链路，仍然保持业务核心在 Go core，不回退到 renderer 直连业务接口。</p>
+            <strong>联系人发起聊天与历史消息列表已经接回 Go core</strong>
+            <p>下一批继续接发送框、已读状态、消息操作与实时推送，但 renderer 仍只通过 stdio RPC 使用 Go core 能力。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -213,7 +363,7 @@ onMounted(() => {
 
         <div v-else class="chat-empty chat-empty--detail">
           <strong>暂无选中的会话</strong>
-          <p>会话列表可用后，这里会继续承接消息详情和输入区。</p>
+          <p>去联系人页点“发消息”，或者从左侧已有会话进入。</p>
         </div>
       </article>
     </div>
@@ -267,7 +417,8 @@ onMounted(() => {
 }
 
 .chat-panel__header h2,
-.chat-hero h3 {
+.chat-hero h3,
+.message-stage__header h4 {
   margin: 0;
   color: var(--text-primary);
 }
@@ -413,6 +564,77 @@ onMounted(() => {
   margin: 0;
   color: var(--text-primary);
   word-break: break-word;
+}
+
+.message-stage {
+  display: grid;
+  gap: 14px;
+}
+
+.message-stage__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.message-stage__header small {
+  color: var(--text-secondary);
+}
+
+.message-feed {
+  display: grid;
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.message-card {
+  display: grid;
+  gap: 8px;
+  max-width: 78%;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(241, 245, 249, 0.88);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.message-card--self {
+  justify-self: end;
+  background: rgba(0, 194, 179, 0.12);
+  border-color: rgba(0, 155, 143, 0.16);
+}
+
+.message-card--system {
+  justify-self: center;
+  max-width: 100%;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.message-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.message-card__meta strong {
+  color: var(--text-primary);
+}
+
+.message-card__body {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-card__footer {
+  color: var(--text-secondary);
 }
 
 .chat-placeholder,

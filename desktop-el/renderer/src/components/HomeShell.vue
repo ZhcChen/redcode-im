@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
@@ -22,6 +22,12 @@ const emit = defineEmits<{
   (event: "profile-updated", user: LegacyUserInfo): void;
 }>();
 
+interface OpenChatRequest {
+  requestId: number;
+  friendUserId: string;
+  displayName: string;
+}
+
 const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; desc: string }> = [
   { value: "chat", title: "聊天", shortLabel: "聊", desc: "会话与消息" },
   { value: "contact", title: "联系人", shortLabel: "联", desc: "好友与群组" },
@@ -30,6 +36,8 @@ const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; des
 
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
+const openChatRequest = ref<OpenChatRequest | null>(null);
+let nextOpenChatRequestId = 1;
 const pageTitle = computed(() => {
   switch (props.activeView) {
     case "chat":
@@ -54,6 +62,22 @@ const pageSummary = computed(() => {
       return "主壳迁移中。";
   }
 });
+
+const handleOpenChat = (payload: { friendUserId: string; displayName: string }) => {
+  openChatRequest.value = {
+    requestId: nextOpenChatRequestId,
+    friendUserId: payload.friendUserId,
+    displayName: payload.displayName
+  };
+  nextOpenChatRequestId += 1;
+  emit("navigate", "chat");
+};
+
+const handleChatRequestConsumed = (requestId: number) => {
+  if (openChatRequest.value?.requestId === requestId) {
+    openChatRequest.value = null;
+  }
+};
 </script>
 
 <template>
@@ -118,9 +142,11 @@ const pageSummary = computed(() => {
         :last-event="props.lastEvent"
         :ws-status="props.wsStatus"
         :bootstrap="props.bootstrap"
+        :open-chat-request="openChatRequest"
+        @chat-request-consumed="handleChatRequestConsumed"
       />
 
-      <ContactPanel v-else-if="props.activeView === 'contact'" />
+      <ContactPanel v-else-if="props.activeView === 'contact'" @open-chat="handleOpenChat" />
 
       <SettingsPanel
         v-else
