@@ -29,6 +29,11 @@
     1. `screen -S admin -X quit`
     2. `lsof -ti:5173 | xargs kill -9`
     3. `screen -dmS admin bash -c 'cd admin && npm run dev'`
+- **本地 Desktop-EL 开发**:
+  - 启动前必须先停止旧实例，禁止连续执行启动命令导致多个 Electron 客户端并存。
+  - 启动/重启统一先执行：`make desktop-el-down`
+  - 再执行：`make desktop-el-up`
+  - 若手工调试 Electron，结束后也必须清理残留 `screen` 会话与 Electron 主进程，确认无旧实例后再重新启动。
 - **测试栈（不要复用 dev）**:
   - `tests/docker-compose.yml` / `./tests/run.sh`
   - 测试栈默认不映射 PG/Redis 端口（详见 `docs/reference/testing/README.md`）
@@ -66,4 +71,4 @@
 - 管理后台: Vue 3 (Arco Design) -> `admin/src/`
 
 ---
-*上次更新: 2026-03-01（测试架构重建）*
+*上次更新: 2026-03-24（补充 Desktop-EL 启停规则）*

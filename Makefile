@@ -1,4 +1,6 @@
 SHELL := /bin/bash
+ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+DESKTOP_EL_SCREEN := desktop-el-$(shell printf '%s' "$(ROOT_DIR)" | cksum | awk '{print $$1}')
 
 .PHONY: help status \
 	api-up api-down api-logs \
@@ -67,11 +69,14 @@ tests-down: ## 停止测试栈（tests/docker-compose.yml）
 tests-logs: ## 查看测试栈日志（tests/docker-compose.yml）
 	docker compose -f tests/docker-compose.yml logs -f --tail=200
 
-desktop-el-up: ## 启动 desktop-el 全部开发进程（renderer/core/electron）
-	screen -dmS desktop-el bash -lc 'cd desktop-el && bun install && bun run dev'
+desktop-el-up: ## 启动 desktop-el 全部开发进程（当前 worktree 独立 screen 会话）
+	@$(MAKE) desktop-el-down >/dev/null
+	screen -dmS $(DESKTOP_EL_SCREEN) bash -lc 'cd desktop-el && bun install && bun run dev'
 
-desktop-el-down: ## 停止 desktop-el 开发进程（screen 会话：desktop-el）
-	screen -S desktop-el -X quit || true
+desktop-el-down: ## 停止当前 worktree 的 desktop-el 开发进程
+	@screen -ls 2>/dev/null | awk '/\.$(DESKTOP_EL_SCREEN)[[:space:]]/ {print $$1}' | xargs -I{} screen -S {} -X quit || true
+	@pkill -f '$(ROOT_DIR)/desktop-el/node_modules/.bin/electron' || true
+	@pkill -f '$(ROOT_DIR)/desktop-el/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron' || true
 
-desktop-el-logs: ## 连接到 desktop-el 日志（screen -r desktop-el）
-	screen -r desktop-el
+desktop-el-logs: ## 连接到当前 worktree 的 desktop-el 日志
+	screen -r $(DESKTOP_EL_SCREEN)

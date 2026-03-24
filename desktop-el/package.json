@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "main": "electron/main/index.ts",
+  "main": "dist/electron/electron/main/index.js",
   "scripts": {
     "dev": "concurrently -k -n renderer,core,electron \"bun run dev:renderer\" \"bun run dev:core\" \"bun run dev:electron\"",
     "dev:renderer": "vite",
