@@ -9,6 +9,7 @@ import (
 	"desktop-el-core/internal/bootstrap"
 	"desktop-el-core/internal/config"
 	"desktop-el-core/internal/eventbus"
+	"desktop-el-core/internal/friend"
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/rpc"
 	"desktop-el-core/internal/settings"
@@ -27,6 +28,7 @@ type App struct {
 	session      *session.Service
 	authService  *auth.Service
 	settings     *settings.Service
+	friend       *friend.Service
 	userService  *user.Service
 	wsClient     *ws.Client
 	wsDispatcher *ws.Dispatcher
@@ -67,6 +69,7 @@ func New(cfg config.Config, bus *eventbus.Bus, bootstrapService *bootstrap.Servi
 		session:      sessionService,
 		authService:  auth.New(httpTransport, sessionService),
 		settings:     settings.New(httpTransport),
+		friend:       friend.New(httpTransport),
 		userService:  user.New(httpTransport, sessionService),
 		wsClient:     ws.NewClient(),
 		wsDispatcher: ws.NewDispatcher(bus),
@@ -236,6 +239,26 @@ func (a *App) RegisterRPC() *rpc.Server {
 
 	server.Register("settings.general.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
 		result, err := a.settings.GetGeneralSettings(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("friend.list", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.friend.ListFriends(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("friend.requests.list", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload friend.ListFriendRequestsParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.friend.ListFriendRequests(ctx, payload)
 		if err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}

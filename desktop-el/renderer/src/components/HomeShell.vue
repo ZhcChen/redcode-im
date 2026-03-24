@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+import ContactPanel from "./ContactPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 
 const props = defineProps<{
@@ -28,7 +29,6 @@ const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; des
 
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
-const featureFlags = computed(() => Object.entries(props.bootstrap?.feature_flags ?? {}));
 const recentConversations = computed(() => props.bootstrap?.recent_conversations ?? []);
 const pageTitle = computed(() => {
   switch (props.activeView) {
@@ -163,49 +163,7 @@ const pageSummary = computed(() => {
         </article>
       </section>
 
-      <section v-else-if="props.activeView === 'contact'" class="content-grid content-grid--contact">
-        <article class="panel panel--sidebar">
-          <div class="panel__header">
-            <h2>固定入口</h2>
-            <span>Contact</span>
-          </div>
-          <div class="shortcut-list">
-            <button type="button" class="shortcut-card">
-              <strong>新的朋友</strong>
-              <small>好友申请与验证</small>
-            </button>
-            <button type="button" class="shortcut-card">
-              <strong>群组</strong>
-              <small>群聊与成员关系</small>
-            </button>
-          </div>
-        </article>
-
-        <article class="panel panel--stage">
-          <div class="panel__header">
-            <h2>联系人详情</h2>
-            <span>待接业务</span>
-          </div>
-          <div class="hero-card">
-            <strong>联系人页主框架已挂入 desktop-el</strong>
-            <p>下一步会把旧联系人列表、好友申请面板和详情区分批平移过来。</p>
-          </div>
-          <dl class="detail-list">
-            <div>
-              <dt>当前用户</dt>
-              <dd>{{ props.currentUser.username }}</dd>
-            </div>
-            <div>
-              <dt>账号数</dt>
-              <dd>{{ props.bootstrap?.accounts.length ?? 0 }}</dd>
-            </div>
-            <div>
-              <dt>Feature Flags</dt>
-              <dd>{{ featureFlags.length }}</dd>
-            </div>
-          </dl>
-        </article>
-      </section>
+      <ContactPanel v-else-if="props.activeView === 'contact'" />
 
       <SettingsPanel
         v-else

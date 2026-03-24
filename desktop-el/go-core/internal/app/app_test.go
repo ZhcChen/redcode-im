@@ -643,6 +643,126 @@ func TestAppUserMeUpdateReturnsWrappedUserInfoAndUpdatesSessionSnapshot(t *testi
 	}
 }
 
+func TestAppFriendListReturnsWrappedPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/friends" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"id": "friend-1",
+				"user": map[string]any{
+					"id":         "u-2",
+					"username":   "alice",
+					"email":      "alice@example.com",
+					"nickname":   "Alice",
+					"avatar_url": nil,
+					"status":     "active",
+				},
+				"created_at":    "2026-03-24T00:00:00Z",
+				"friend_remark": "同事",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-friend-list",
+		Method: "friend.list",
+	})
+	if response.Error != nil {
+		t.Fatalf("expected friend.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode friend.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected friend.list envelope: %+v", envelope)
+	}
+}
+
+func TestAppFriendRequestsListUsesQueryParams(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/friends/requests" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("direction"); got != "incoming" {
+			t.Fatalf("unexpected direction query: %s", got)
+		}
+		if got := r.URL.Query().Get("status"); got != "pending" {
+			t.Fatalf("unexpected status query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"id": "request-1",
+				"requester": map[string]any{
+					"id":         "u-3",
+					"username":   "bob",
+					"email":      "bob@example.com",
+					"nickname":   "Bob",
+					"avatar_url": nil,
+					"status":     "active",
+				},
+				"addressee": map[string]any{
+					"id":         "u-1",
+					"username":   "me",
+					"email":      "me@example.com",
+					"nickname":   "Me",
+					"avatar_url": nil,
+					"status":     "active",
+				},
+				"status":      "pending",
+				"message":     "hi",
+				"created_at":  "2026-03-24T00:00:00Z",
+				"is_incoming": true,
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-friend-requests-list",
+		Method: "friend.requests.list",
+		Params: mustJSONRaw(map[string]any{
+			"direction": "incoming",
+			"status":    "pending",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected friend.requests.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode friend.requests.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected friend.requests.list envelope: %+v", envelope)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{
