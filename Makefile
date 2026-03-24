@@ -74,7 +74,8 @@ desktop-el-up: ## 启动 desktop-el 全部开发进程（当前 worktree 独立 
 	screen -dmS $(DESKTOP_EL_SCREEN) bash -lc 'cd desktop-el && bun install && bun run dev'
 
 desktop-el-down: ## 停止当前 worktree 的 desktop-el 开发进程
-	@screen -ls 2>/dev/null | awk '/\.$(DESKTOP_EL_SCREEN)[[:space:]]/ {print $$1}' | xargs -I{} screen -S {} -X quit || true
+	@screen -ls 2>/dev/null | awk '/\.$(DESKTOP_EL_SCREEN)[[:space:]]/ {print $$1}' | xargs -I{} sh -c 'screen -S "$$1" -X quit >/dev/null 2>&1 || true' _ {} || true
+	@screen -wipe >/dev/null 2>&1 || true
 	@pkill -f '$(ROOT_DIR)/desktop-el/node_modules/.bin/electron' || true
 	@pkill -f '$(ROOT_DIR)/desktop-el/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron' || true
 
