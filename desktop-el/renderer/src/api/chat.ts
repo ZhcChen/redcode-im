@@ -153,9 +153,18 @@ interface BackendPushMessageRead {
   read_at: string;
 }
 
+interface BackendPushMessageUpdate {
+  type: "message_update";
+  room_id: string;
+  message_id: string;
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+}
+
 export type ChatWebSocketPush =
   | BackendPushMessage
   | BackendPushMessageRead
+  | BackendPushMessageUpdate
   | {
       type: string;
       [key: string]: unknown;
@@ -172,6 +181,13 @@ export type ChatRealtimeEvent =
       messageId: string;
       readerId: string;
       readAt: Date | null;
+    }
+  | {
+      type: "message_update";
+      roomId: string;
+      messageId: string;
+      isDeleted: boolean;
+      deletedAt: Date | null;
     };
 
 const requireDesktopRuntime = () => {
@@ -212,6 +228,12 @@ const isBackendPushMessageRead = (value: unknown): value is BackendPushMessageRe
   typeof value.room_id === "string" &&
   typeof value.message_id === "string" &&
   typeof value.reader_id === "string";
+
+const isBackendPushMessageUpdate = (value: unknown): value is BackendPushMessageUpdate =>
+  isRecord(value) &&
+  value.type === "message_update" &&
+  typeof value.room_id === "string" &&
+  typeof value.message_id === "string";
 
 const isEmojiOnlyPreviewText = (text: string): boolean => {
   const trimmed = text.trim();
@@ -420,6 +442,17 @@ export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): 
         readerId: payload.reader_id,
         readAt: parseTimestamp(typeof payload.read_at === "string" ? payload.read_at : null)
       };
+    case "message_update":
+      if (!isBackendPushMessageUpdate(payload)) {
+        return null;
+      }
+      return {
+        type: "message_update",
+        roomId: payload.room_id,
+        messageId: payload.message_id,
+        isDeleted: payload.is_deleted === true,
+        deletedAt: parseTimestamp(typeof payload.deleted_at === "string" ? payload.deleted_at : null)
+      };
     default:
       return null;
   }
@@ -507,6 +540,17 @@ export class ChatApi {
     return {
       ...response,
       data: null
+    };
+  }
+
+  static async deleteMessage(params: { roomId: string; messageId: string }): Promise<ApiResponse<ChatMessage>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMessageInfo>>("chat.delete", {
+      room_id: params.roomId,
+      message_id: params.messageId
+    });
+    return {
+      ...response,
+      data: response.data ? mapChatMessage(response.data, undefined) : null
     };
   }
 }

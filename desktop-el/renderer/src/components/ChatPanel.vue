@@ -40,6 +40,7 @@ const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isSending = ref(false);
+const deletingMessageId = ref<string | null>(null);
 const lastReadUntilMessageByRoom = ref<Record<string, string>>({});
 const notice = ref("聊天主区已接到 Go core，当前继续恢复实时消息与已读回写。");
 
@@ -295,6 +296,35 @@ const handleComposerKeydown = (event: KeyboardEvent) => {
   void handleSend();
 };
 
+const handleDeleteMessage = async (message: ChatMessage) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !message.isSelf || deletingMessageId.value) {
+    return;
+  }
+
+  deletingMessageId.value = message.id;
+  try {
+    const response = await ChatApi.deleteMessage({
+      roomId,
+      messageId: message.id
+    });
+    if (!response.success) {
+      notice.value = response.message || "删除消息失败";
+      return;
+    }
+
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true
+    });
+    notice.value = "消息已删除。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "删除消息失败";
+  } finally {
+    deletingMessageId.value = null;
+  }
+};
+
 const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
   const activeRoomId = selectedChatId.value;
 
@@ -304,6 +334,15 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
       preferredRoomId: activeRoomId,
       preserveNotice: true,
       reloadMessages: isCurrentRoom
+    });
+    return;
+  }
+
+  if (event.type === "message_update") {
+    await loadChats({
+      preferredRoomId: activeRoomId,
+      preserveNotice: true,
+      reloadMessages: event.roomId === activeRoomId
     });
     return;
   }
@@ -473,6 +512,16 @@ onMounted(() => {
                   <span>{{ formatDetailTime(message.createdAt) }}</span>
                 </div>
                 <p class="message-card__body">{{ message.preview || message.content || "[空消息]" }}</p>
+                <div v-if="message.isSelf && message.messageType !== 'system'" class="message-card__actions">
+                  <button
+                    type="button"
+                    class="message-card__action"
+                    :disabled="deletingMessageId === message.id"
+                    @click="void handleDeleteMessage(message)"
+                  >
+                    {{ deletingMessageId === message.id ? "删除中..." : "删除" }}
+                  </button>
+                </div>
                 <small class="message-card__footer">
                   {{ message.messageType }}
                   <template v-if="message.isEdited"> / 已编辑</template>
@@ -802,6 +851,27 @@ onMounted(() => {
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-card__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.message-card__action {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(220, 38, 38, 0.12);
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--error-color);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.message-card__action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .message-card__footer {

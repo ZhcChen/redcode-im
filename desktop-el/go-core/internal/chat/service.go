@@ -29,6 +29,11 @@ type MarkReadUntilParams struct {
 	MessageID string `json:"message_id"`
 }
 
+type DeleteMessageParams struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -88,5 +93,12 @@ func (s *Service) MarkReadUntil(ctx context.Context, params MarkReadUntilParams)
 		Body: map[string]any{
 			"message_id": params.MessageID,
 		},
+	})
+}
+
+func (s *Service) DeleteMessage(ctx context.Context, params DeleteMessageParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID,
 	})
 }

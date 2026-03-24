@@ -1174,6 +1174,67 @@ func TestAppChatReadUntilPostsMessageID(t *testing.T) {
 	}
 }
 
+func TestAppChatDeleteDeletesMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-11" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":              "msg-11",
+			"room_id":         "room-2",
+			"sender_id":       "u-1",
+			"sender_username": "me",
+			"sender_nickname": "我",
+			"content":         "已删除消息",
+			"message_type":    "text",
+			"created_at":      "2026-03-24T02:00:00Z",
+			"is_deleted":      true,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-delete",
+		Method: "chat.delete",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-11",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.delete to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.delete response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.delete envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.delete data failed: %v", err)
+	}
+	if result["id"] != "msg-11" || result["is_deleted"] != true {
+		t.Fatalf("unexpected chat.delete payload: %+v", result)
+	}
+}
+
 func TestAppWSConnectEmitsPushEvent(t *testing.T) {
 	var stdout bytes.Buffer
 
