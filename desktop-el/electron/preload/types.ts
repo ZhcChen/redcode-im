@@ -95,6 +95,15 @@ export interface DesktopNotificationPayload {
   silent?: boolean;
 }
 
+export interface DesktopFileSaveFromURLOptions {
+  url: string;
+  filePath: string;
+}
+
+export interface DesktopFileSaveFromURLResult {
+  filePath: string;
+}
+
 export interface DesktopAppAPI {
   getVersion(): Promise<string>;
   quit(): Promise<void>;
@@ -117,7 +126,12 @@ export interface DesktopNotificationAPI {
   show(payload: DesktopNotificationPayload): Promise<void>;
 }
 
-export type ShellNamespace = "app" | "window" | "dialog" | "notification";
+export interface DesktopFileAPI {
+  saveFromURL(options: DesktopFileSaveFromURLOptions): Promise<DesktopFileSaveFromURLResult>;
+  openPath(path: string): Promise<void>;
+}
+
+export type ShellNamespace = "app" | "window" | "dialog" | "notification" | "file";
 
 export interface ShellInvokePayload {
   namespace: ShellNamespace;
@@ -131,6 +145,7 @@ export interface DesktopElAPI {
   window: DesktopWindowAPI;
   dialog: DesktopDialogAPI;
   notification: DesktopNotificationAPI;
+  file: DesktopFileAPI;
 }
 
 export const RPC_INVOKE_CHANNEL = "desktop-el:rpc:invoke";

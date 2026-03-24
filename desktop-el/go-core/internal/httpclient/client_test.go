@@ -72,6 +72,38 @@ func TestClientDoWrapsRawJSONSuccessBody(t *testing.T) {
 	}
 }
 
+func TestClientDoPreservesTopLevelSuccessBodyWithoutDataField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true,"message":"生成附件下载链接成功","download_url":"https://download.example.com/file.pdf"}`))
+	}))
+	defer server.Close()
+
+	client := New(Config{BaseURL: server.URL})
+	response, err := client.Do(context.Background(), Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/room-1/messages/attachments/download",
+	})
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if !response.Success || response.Code != http.StatusOK {
+		t.Fatalf("unexpected response envelope: %+v", response)
+	}
+	if len(response.Data) == 0 || string(response.Data) == "null" {
+		t.Fatalf("expected top-level success body to be preserved in data: %+v", response)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(response.Data, &payload); err != nil {
+		t.Fatalf("decode preserved data failed: %v", err)
+	}
+	if payload["download_url"] != "https://download.example.com/file.pdf" {
+		t.Fatalf("unexpected preserved payload: %+v", payload)
+	}
+}
+
 func TestClientDoWrapsEmptyUnauthorizedResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

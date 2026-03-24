@@ -193,7 +193,11 @@ func decodeResponse(statusCode int, payload []byte) (Response, error) {
 				response.Message = defaultMessage(statusCode)
 			}
 			if len(response.Data) == 0 {
-				response.Data = json.RawMessage("null")
+				if _, hasData := object["data"]; hasData {
+					response.Data = json.RawMessage("null")
+				} else {
+					response.Data = json.RawMessage(trimmed)
+				}
 			}
 			return response, nil
 		}

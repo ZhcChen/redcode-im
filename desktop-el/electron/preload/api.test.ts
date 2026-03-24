@@ -6,6 +6,10 @@ let exposedAPI: {
   rpc: {
     invoke: (method: string, params?: unknown, options?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<unknown>;
   };
+  file: {
+    saveFromURL: (options: { url: string; filePath: string }) => Promise<unknown>;
+    openPath: (path: string) => Promise<unknown>;
+  };
 } | undefined;
 let resolveInvoke: ((value: unknown) => void) | undefined;
 
@@ -76,5 +80,32 @@ describe("desktopEl preload rpc api", () => {
     });
 
     await expect(invokePromise).resolves.toEqual({ ok: true });
+  });
+
+  test("forwards file shell calls through shell invoke channel", async () => {
+    expect(exposedAPI).toBeDefined();
+
+    const savePromise = exposedAPI!.file.saveFromURL({
+      url: "https://download.example.com/file.txt",
+      filePath: "/tmp/file.txt"
+    });
+
+    expect(invokeArgs).toBeDefined();
+    expect(invokeArgs).toEqual([
+      "desktop-el:shell:invoke",
+      {
+        namespace: "file",
+        method: "saveFromURL",
+        params: {
+          options: {
+            url: "https://download.example.com/file.txt",
+            filePath: "/tmp/file.txt"
+          }
+        }
+      }
+    ]);
+
+    resolveInvoke?.({ filePath: "/tmp/file.txt" });
+    await expect(savePromise).resolves.toEqual({ filePath: "/tmp/file.txt" });
   });
 });

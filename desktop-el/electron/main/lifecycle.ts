@@ -9,6 +9,7 @@ import {
   waitUntilReady
 } from "./app.js";
 import { createDialogService } from "./dialog.js";
+import { createFileService } from "./file.js";
 import { GoCoreBridge } from "./go-core.js";
 import { createNotificationService } from "./notification.js";
 import { registerRpcIpc, RpcDispatcher } from "./rpc.js";
@@ -32,6 +33,7 @@ export const createDesktopLifecycle = (): DesktopLifecycle => {
   const rpcDispatcher = new RpcDispatcher(goCore);
   const appService = createAppService();
   const dialogService = createDialogService(windowController);
+  const fileService = createFileService();
   const notificationService = createNotificationService();
   const trayController = new AppTrayController({
     onShow: () => {
@@ -140,7 +142,8 @@ export const createDesktopLifecycle = (): DesktopLifecycle => {
         app: appService,
         window: windowController,
         dialog: dialogService,
-        notification: notificationService
+        notification: notificationService,
+        file: fileService
       });
 
       trayController.create();

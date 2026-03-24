@@ -34,6 +34,12 @@ type DeleteMessageParams struct {
 	MessageID string `json:"message_id"`
 }
 
+type AttachmentDownloadURLParams struct {
+	RoomID           string `json:"room_id"`
+	Key              string `json:"key"`
+	ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -100,5 +106,20 @@ func (s *Service) DeleteMessage(ctx context.Context, params DeleteMessageParams)
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID,
+	})
+}
+
+func (s *Service) GetAttachmentDownloadURL(ctx context.Context, params AttachmentDownloadURLParams) (httpclient.Response, error) {
+	query := map[string]string{
+		"key": params.Key,
+	}
+	if params.ExpiresInSeconds > 0 {
+		query["expires_in_seconds"] = strconv.Itoa(params.ExpiresInSeconds)
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/messages/attachments/download",
+		Query:  query,
 	})
 }

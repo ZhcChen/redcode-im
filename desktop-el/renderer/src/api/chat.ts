@@ -62,6 +62,13 @@ interface BackendMessagePart {
   attachment?: BackendMessageAttachment | null;
 }
 
+interface BackendAttachmentDownloadPayload {
+  success?: boolean;
+  message?: string;
+  download_url?: string | null;
+  downloadUrl?: string | null;
+}
+
 interface BackendMessageInfo {
   id: string;
   room_id: string;
@@ -124,6 +131,31 @@ export interface ChatMessage {
   isDeleted: boolean;
   isEdited: boolean;
   isSelf: boolean;
+  parts: ChatMessagePart[];
+}
+
+export interface ChatMessageAttachment {
+  key: string;
+  name: string | null;
+  mime: string | null;
+  size: number | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  thumbnailKey: string | null;
+}
+
+export interface ChatMessagePart {
+  position: number;
+  partType: BackendMessagePartType;
+  text: string | null;
+  attachment: ChatMessageAttachment | null;
+}
+
+export interface AttachmentDownloadData {
+  success: boolean;
+  message: string;
+  downloadUrl: string;
 }
 
 interface BackendSendMessagePayload {
@@ -373,6 +405,30 @@ const mapEnsuredPrivateChat = (response: BackendEnsurePrivateChatResponse): Ensu
   friendAvatarObjectKey: response.friend_avatar_object_key ?? null
 });
 
+const mapChatMessageAttachment = (attachment?: BackendMessageAttachment | null): ChatMessageAttachment | null => {
+  if (!attachment?.key) {
+    return null;
+  }
+
+  return {
+    key: attachment.key,
+    name: attachment.name ?? null,
+    mime: attachment.mime ?? null,
+    size: typeof attachment.size === "number" ? attachment.size : null,
+    width: typeof attachment.width === "number" ? attachment.width : null,
+    height: typeof attachment.height === "number" ? attachment.height : null,
+    durationMs: typeof attachment.duration_ms === "number" ? attachment.duration_ms : null,
+    thumbnailKey: attachment.thumbnail_key ?? null
+  };
+};
+
+const mapChatMessagePart = (part: BackendMessagePart): ChatMessagePart => ({
+  position: part.position,
+  partType: part.part_type,
+  text: part.text ?? null,
+  attachment: mapChatMessageAttachment(part.attachment)
+});
+
 const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): ChatMessage => {
   const senderName = message.sender_nickname?.trim() || message.sender_username;
   const preview = buildMessagePreview({
@@ -381,6 +437,10 @@ const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): Ch
     parts: message.parts ?? [],
     isDeleted: message.is_deleted
   });
+  const parts = (message.parts ?? [])
+    .slice()
+    .sort((left, right) => left.position - right.position)
+    .map(mapChatMessagePart);
 
   return {
     id: message.id,
@@ -396,7 +456,8 @@ const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): Ch
     createdAt: parseTimestamp(message.created_at),
     isDeleted: Boolean(message.is_deleted),
     isEdited: Boolean(message.is_edited),
-    isSelf: currentUserId === message.sender_id
+    isSelf: currentUserId === message.sender_id,
+    parts
   };
 };
 
@@ -551,6 +612,53 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? mapChatMessage(response.data, undefined) : null
+    };
+  }
+
+  static async getAttachmentDownloadUrl(params: {
+    roomId: string;
+    key: string;
+    expiresInSeconds?: number;
+  }): Promise<ApiResponse<AttachmentDownloadData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentDownloadPayload>>(
+      "chat.attachment.download_url",
+      {
+        room_id: params.roomId,
+        key: params.key,
+        expires_in_seconds: params.expiresInSeconds
+      }
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
+    const payload = response.data;
+    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const downloadUrl = payload.download_url ?? payload.downloadUrl ?? null;
+    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+
+    if (!successFlag || typeof downloadUrl !== "string" || downloadUrl.length === 0) {
+      return {
+        code: response.code,
+        success: false,
+        message: message || "获取附件下载链接失败",
+        data: null
+      };
+    }
+
+    return {
+      code: response.code,
+      success: true,
+      message,
+      data: {
+        success: true,
+        message,
+        downloadUrl
+      }
     };
   }
 }

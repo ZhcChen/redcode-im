@@ -5,6 +5,7 @@ import {
   ChatApi,
   mapChatRealtimeEvent,
   type ChatMessage,
+  type ChatMessagePart,
   type ChatRealtimeEvent,
   type ChatSummary,
   type ChatWebSocketPush
@@ -16,6 +17,13 @@ interface OpenChatRequest {
   friendUserId: string;
   displayName: string;
 }
+
+type DesktopRuntimeWithFile = NonNullable<Window["desktopEl"]> & {
+  file: {
+    saveFromURL(options: { url: string; filePath: string }): Promise<{ filePath: string }>;
+    openPath(path: string): Promise<void>;
+  };
+};
 
 const props = defineProps<{
   currentUser: LegacyUserInfo;
@@ -41,8 +49,10 @@ const isLoadingMessages = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isSending = ref(false);
 const deletingMessageId = ref<string | null>(null);
+const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
+const downloadedAttachmentPaths = ref<Record<string, string>>({});
 const lastReadUntilMessageByRoom = ref<Record<string, string>>({});
-const notice = ref("聊天主区已接到 Go core，当前继续恢复实时消息与已读回写。");
+const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息下载闭环。");
 
 const filteredChats = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -104,6 +114,109 @@ const formatRoomType = (value: ChatSummary["roomType"]) => {
     default:
       return "单聊";
   }
+};
+
+const requireDesktopRuntime = (): DesktopRuntimeWithFile => {
+  if (!window.desktopEl) {
+    throw new Error("desktop-el runtime is not available");
+  }
+  return window.desktopEl as DesktopRuntimeWithFile;
+};
+
+const formatAttachmentType = (partType: ChatMessagePart["partType"]) => {
+  switch (partType) {
+    case "image":
+      return "图片";
+    case "video":
+      return "视频";
+    case "audio":
+      return "语音";
+    case "file":
+    default:
+      return "附件";
+  }
+};
+
+const formatAttachmentSize = (size: number | null) => {
+  if (typeof size !== "number" || !Number.isFinite(size) || size <= 0) {
+    return "大小未知";
+  }
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let nextSize = size;
+  let unitIndex = 0;
+  while (nextSize >= 1024 && unitIndex < units.length - 1) {
+    nextSize /= 1024;
+    unitIndex += 1;
+  }
+
+  const digits = nextSize >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${nextSize.toFixed(digits)} ${units[unitIndex]}`;
+};
+
+const formatDuration = (durationMs: number | null) => {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
+const getAttachmentName = (part: ChatMessagePart) => {
+  const directName = part.attachment?.name?.trim();
+  if (directName) {
+    return directName;
+  }
+
+  const key = part.attachment?.key ?? "";
+  const fallback = key.split("/").pop()?.trim();
+  return fallback || `${formatAttachmentType(part.partType)}-${part.position + 1}`;
+};
+
+const getAttachmentMeta = (part: ChatMessagePart) => {
+  const segments = [formatAttachmentType(part.partType)];
+  if (part.partType === "image" && part.attachment?.width && part.attachment?.height) {
+    segments.push(`${part.attachment.width} x ${part.attachment.height}`);
+  }
+  if (part.partType === "video" && part.attachment?.width && part.attachment?.height) {
+    segments.push(`${part.attachment.width} x ${part.attachment.height}`);
+  }
+  if (part.partType === "audio") {
+    const duration = formatDuration(part.attachment?.durationMs ?? null);
+    if (duration) {
+      segments.push(duration);
+    }
+  }
+  segments.push(formatAttachmentSize(part.attachment?.size ?? null));
+  return segments.join(" / ");
+};
+
+const getMessageTextParts = (message: ChatMessage) =>
+  message.parts.filter((part) => part.partType === "text" && part.text?.trim());
+
+const getMessageAttachmentParts = (message: ChatMessage) =>
+  message.parts.filter((part) => part.partType !== "text" && part.attachment?.key);
+
+const getAttachmentActionKey = (message: ChatMessage, part: ChatMessagePart) =>
+  `${message.id}:${part.attachment?.key ?? `part-${part.position}`}`;
+
+const isAttachmentDownloading = (message: ChatMessage, part: ChatMessagePart) =>
+  Boolean(downloadingAttachmentKeys.value[getAttachmentActionKey(message, part)]);
+
+const getAttachmentLocalPath = (message: ChatMessage, part: ChatMessagePart) =>
+  downloadedAttachmentPaths.value[getAttachmentActionKey(message, part)] ?? null;
+
+const setAttachmentDownloading = (key: string, value: boolean) => {
+  const next = { ...downloadingAttachmentKeys.value };
+  if (value) {
+    next[key] = true;
+  } else {
+    delete next[key];
+  }
+  downloadingAttachmentKeys.value = next;
 };
 
 const pickSelectedChatId = (list: ChatSummary[], preferredRoomId?: string | null) => {
@@ -325,6 +438,76 @@ const handleDeleteMessage = async (message: ChatMessage) => {
   }
 };
 
+const handleOpenAttachment = async (message: ChatMessage, part: ChatMessagePart) => {
+  const localPath = getAttachmentLocalPath(message, part);
+  if (!localPath) {
+    await handleDownloadAttachment(message, part);
+    return;
+  }
+
+  try {
+    await requireDesktopRuntime().file.openPath(localPath);
+    notice.value = `${getAttachmentName(part)} 已打开。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "打开附件失败";
+  }
+};
+
+const handleDownloadAttachment = async (message: ChatMessage, part: ChatMessagePart) => {
+  const attachment = part.attachment;
+  if (!attachment?.key) {
+    notice.value = "附件信息不完整，无法下载。";
+    return;
+  }
+
+  const actionKey = getAttachmentActionKey(message, part);
+  if (isAttachmentDownloading(message, part)) {
+    return;
+  }
+
+  setAttachmentDownloading(actionKey, true);
+  try {
+    const response = await ChatApi.getAttachmentDownloadUrl({
+      roomId: message.roomId,
+      key: attachment.key,
+      expiresInSeconds: 900
+    });
+    if (!response.success || !response.data?.downloadUrl) {
+      notice.value = response.message || "获取附件下载链接失败";
+      return;
+    }
+
+    const runtime = requireDesktopRuntime();
+    const fileName = getAttachmentName(part);
+    const saveResult = await runtime.dialog.save({
+      title: `保存${formatAttachmentType(part.partType)}`,
+      defaultPath: fileName,
+      buttonLabel: "保存"
+    });
+    if (saveResult.canceled || !saveResult.filePath) {
+      notice.value = `已取消保存 ${fileName}。`;
+      return;
+    }
+
+    const saved = await runtime.file.saveFromURL({
+      url: response.data.downloadUrl,
+      filePath: saveResult.filePath
+    });
+
+    downloadedAttachmentPaths.value = {
+      ...downloadedAttachmentPaths.value,
+      [actionKey]: saved.filePath
+    };
+
+    await runtime.file.openPath(saved.filePath);
+    notice.value = `${fileName} 已保存并打开。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "下载附件失败";
+  } finally {
+    setAttachmentDownloading(actionKey, false);
+  }
+};
+
 const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
   const activeRoomId = selectedChatId.value;
 
@@ -511,7 +694,57 @@ onMounted(() => {
                   <strong>{{ message.isSelf ? "我" : message.senderName }}</strong>
                   <span>{{ formatDetailTime(message.createdAt) }}</span>
                 </div>
-                <p class="message-card__body">{{ message.preview || message.content || "[空消息]" }}</p>
+                <template v-if="message.isDeleted || !message.parts.length">
+                  <p class="message-card__body">{{ message.preview || message.content || "[空消息]" }}</p>
+                </template>
+                <template v-else>
+                  <p
+                    v-for="part in getMessageTextParts(message)"
+                    :key="`${message.id}-text-${part.position}`"
+                    class="message-card__body"
+                  >
+                    {{ part.text }}
+                  </p>
+
+                  <div
+                    v-for="part in getMessageAttachmentParts(message)"
+                    :key="`${message.id}-attachment-${part.position}`"
+                    class="attachment-card"
+                    :class="`attachment-card--${part.partType}`"
+                  >
+                    <div class="attachment-card__badge">{{ formatAttachmentType(part.partType) }}</div>
+                    <div class="attachment-card__copy">
+                      <strong>{{ getAttachmentName(part) }}</strong>
+                      <small>{{ getAttachmentMeta(part) }}</small>
+                    </div>
+                    <div class="attachment-card__actions">
+                      <button
+                        v-if="getAttachmentLocalPath(message, part)"
+                        type="button"
+                        class="attachment-card__action attachment-card__action--secondary"
+                        @click="void handleOpenAttachment(message, part)"
+                      >
+                        打开
+                      </button>
+                      <button
+                        v-else
+                        type="button"
+                        class="attachment-card__action"
+                        :disabled="isAttachmentDownloading(message, part)"
+                        @click="void handleDownloadAttachment(message, part)"
+                      >
+                        {{ isAttachmentDownloading(message, part) ? "下载中..." : "下载" }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p
+                    v-if="!getMessageTextParts(message).length && !getMessageAttachmentParts(message).length"
+                    class="message-card__body"
+                  >
+                    {{ message.preview || message.content || "[空消息]" }}
+                  </p>
+                </template>
                 <div v-if="message.isSelf && message.messageType !== 'system'" class="message-card__actions">
                   <button
                     type="button"
@@ -557,8 +790,8 @@ onMounted(() => {
           </section>
 
           <div class="chat-placeholder">
-            <strong>联系人发起聊天、历史消息、文本发送、实时刷新都已经接回 Go core</strong>
-            <p>当前会话现在会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；后续再继续补消息操作与更细的状态展示。</p>
+            <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件下载都已经接回 Go core</strong>
+            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在可以获取 signed URL、保存到本地并直接打开。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -851,6 +1084,85 @@ onMounted(() => {
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.attachment-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.attachment-card--image {
+  border-color: rgba(14, 116, 144, 0.18);
+}
+
+.attachment-card--video {
+  border-color: rgba(249, 115, 22, 0.18);
+}
+
+.attachment-card--audio {
+  border-color: rgba(16, 185, 129, 0.18);
+}
+
+.attachment-card__badge {
+  min-width: 48px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.attachment-card__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.attachment-card__copy strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-card__copy small {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-card__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.attachment-card__action {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 194, 179, 0.16);
+  color: var(--primary-color-strong);
+  cursor: pointer;
+}
+
+.attachment-card__action--secondary {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-primary);
+}
+
+.attachment-card__action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .message-card__actions {

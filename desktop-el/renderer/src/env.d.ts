@@ -1,4 +1,4 @@
-import type { DesktopElAPI } from "../../electron/preload/types.js";
+import type { DesktopElAPI } from "../../electron/preload/types";
 
 declare global {
   interface Window {

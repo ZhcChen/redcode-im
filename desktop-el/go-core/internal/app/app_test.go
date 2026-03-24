@@ -1235,6 +1235,68 @@ func TestAppChatDeleteDeletesMessage(t *testing.T) {
 	}
 }
 
+func TestAppChatAttachmentDownloadURLReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/attachments/download" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		if got := r.URL.Query().Get("key"); got != "messages/room-2/demo.pdf" {
+			t.Fatalf("unexpected key query: %s", got)
+		}
+		if got := r.URL.Query().Get("expires_in_seconds"); got != "900" {
+			t.Fatalf("unexpected expires_in_seconds query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":      true,
+			"message":      "生成附件下载链接成功",
+			"download_url": "https://download.example.com/messages/room-2/demo.pdf?signature=abc",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-download-url",
+		Method: "chat.attachment.download_url",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":            "room-2",
+			"key":                "messages/room-2/demo.pdf",
+			"expires_in_seconds": 900,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.download_url to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.attachment.download_url response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.attachment.download_url envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.attachment.download_url data failed: %v", err)
+	}
+	if result["download_url"] != "https://download.example.com/messages/room-2/demo.pdf?signature=abc" {
+		t.Fatalf("unexpected chat.attachment.download_url payload: %+v", result)
+	}
+}
+
 func TestAppWSConnectEmitsPushEvent(t *testing.T) {
 	var stdout bytes.Buffer
 

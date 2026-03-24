@@ -103,3 +103,43 @@
 - 协议消息：**仅允许**出现在 `stdin/stdout` NDJSON 流中。
 - `stderr`: **仅用于日志**（诊断、调试、告警），禁止输出协议消息。
 - Electron Main 读取 `stderr` 时只做日志记录，不进行协议反序列化。
+
+## 6. 当前已落地的业务 RPC
+
+### 6.1 `chat.attachment.download_url`
+
+用途：为当前房间内已存在于消息中的附件生成临时下载链接，供 renderer 后续通过 Electron 宿主能力保存到本地。
+
+请求参数：
+
+```json
+{
+  "room_id": "room-2",
+  "key": "messages/room-2/demo.pdf",
+  "expires_in_seconds": 900
+}
+```
+
+- `room_id`: 必填，房间 ID。
+- `key`: 必填，消息附件 object key。
+- `expires_in_seconds`: 可选，临时下载 URL 有效期（秒）。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "生成附件下载链接成功",
+  "data": {
+    "success": true,
+    "message": "生成附件下载链接成功",
+    "download_url": "https://example.com/signed-download-url"
+  }
+}
+```
+
+约束：
+
+- renderer 不直接请求 backend 附件下载接口，必须经由 Go core 调用。
+- `data.download_url` 来自 backend 原始成功对象；Go core 仅负责桥接与 envelope 统一，不在本地开启 HTTP 服务。

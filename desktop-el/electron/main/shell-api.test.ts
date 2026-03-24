@@ -39,6 +39,10 @@ describe("registerShellIpc", () => {
         open: async () => ({ canceled: false, filePaths: ["/tmp/file.txt"] }),
         save: async () => ({ canceled: false, filePath: "/tmp/file.txt" })
       },
+      file: {
+        saveFromURL: async () => ({ filePath: "/tmp/file.txt" }),
+        openPath: async () => {}
+      },
       notification: {
         isSupported: async () => true,
         show: async () => {}
@@ -53,6 +57,19 @@ describe("registerShellIpc", () => {
     });
 
     expect(version).toBe("0.1.0");
+
+    const saved = await registeredHandler?.(undefined, {
+      namespace: "file",
+      method: "saveFromURL",
+      params: {
+        options: {
+          url: "https://download.example.com/file.txt",
+          filePath: "/tmp/file.txt"
+        }
+      }
+    });
+
+    expect(saved).toEqual({ filePath: "/tmp/file.txt" });
 
     cleanup();
     expect(registeredHandler).toBeUndefined();

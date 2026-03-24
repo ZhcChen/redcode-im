@@ -102,6 +102,14 @@ const desktopElAPI: DesktopElAPI = {
     show(payload: DesktopNotificationPayload): Promise<void> {
       return invokeShell("notification", "show", { payload });
     }
+  },
+  file: {
+    saveFromURL(options) {
+      return invokeShell("file", "saveFromURL", { options });
+    },
+    openPath(path: string): Promise<void> {
+      return invokeShell("file", "openPath", { path });
+    }
   }
 };
 
@@ -129,7 +137,7 @@ const createRequestID = (): string => {
 };
 
 const invokeShell = <T,>(
-  namespace: "app" | "window" | "dialog" | "notification",
+  namespace: "app" | "window" | "dialog" | "notification" | "file",
   method: string,
   params?: Record<string, unknown>
 ): Promise<T> => {
