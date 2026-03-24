@@ -27,9 +27,11 @@ const searchQuery = ref("");
 const chats = ref<ChatSummary[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
+const draftMessage = ref("");
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isOpeningPrivateChat = ref(false);
+const isSending = ref(false);
 const notice = ref("聊天主区已接到 Go core，当前继续恢复真实消息列表。");
 
 const filteredChats = computed(() => {
@@ -192,6 +194,46 @@ const handleOpenChatRequest = async (request: OpenChatRequest) => {
   }
 };
 
+const handleSend = async () => {
+  const roomId = selectedChatId.value;
+  const content = draftMessage.value.trim();
+  if (!roomId || !content || isSending.value) {
+    return;
+  }
+
+  isSending.value = true;
+  try {
+    const response = await ChatApi.sendTextMessage({
+      roomId,
+      content,
+      currentUserId: props.currentUser.id
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "消息发送失败";
+      return;
+    }
+
+    draftMessage.value = "";
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true
+    });
+    notice.value = `消息已发送到 ${selectedChat.value?.title || "当前会话"}。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "消息发送失败";
+  } finally {
+    isSending.value = false;
+  }
+};
+
+const handleComposerKeydown = (event: KeyboardEvent) => {
+  if (event.key !== "Enter" || event.shiftKey) {
+    return;
+  }
+  event.preventDefault();
+  void handleSend();
+};
+
 watch(
   () => props.openChatRequest?.requestId,
   (requestId, previousRequestId) => {
@@ -336,9 +378,34 @@ onMounted(() => {
             </div>
           </section>
 
+          <section class="composer-panel">
+            <div class="composer-panel__header">
+              <h4>发送消息</h4>
+              <small>{{ isSending ? "发送中..." : "Enter 发送，Shift+Enter 换行" }}</small>
+            </div>
+            <textarea
+              v-model="draftMessage"
+              class="composer-panel__input"
+              rows="4"
+              placeholder="输入一条文本消息..."
+              :disabled="isSending"
+              @keydown="handleComposerKeydown"
+            />
+            <div class="composer-panel__actions">
+              <button
+                type="button"
+                class="composer-panel__button"
+                :disabled="isSending || !draftMessage.trim()"
+                @click="void handleSend()"
+              >
+                {{ isSending ? "发送中..." : "发送" }}
+              </button>
+            </div>
+          </section>
+
           <div class="chat-placeholder">
             <strong>联系人发起聊天与历史消息列表已经接回 Go core</strong>
-            <p>下一批继续接发送框、已读状态、消息操作与实时推送，但 renderer 仍只通过 stdio RPC 使用 Go core 能力。</p>
+            <p>现在文本发送也已经进入闭环，下一批继续接已读状态、消息操作与实时推送，但 renderer 仍只通过 stdio RPC 使用 Go core 能力。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -635,6 +702,67 @@ onMounted(() => {
 
 .message-card__footer {
   color: var(--text-secondary);
+}
+
+.composer-panel {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(241, 245, 249, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.composer-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.composer-panel__header h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.composer-panel__header small {
+  color: var(--text-secondary);
+}
+
+.composer-panel__input {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.composer-panel__input:focus {
+  border-color: rgba(0, 155, 143, 0.28);
+  box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
+}
+
+.composer-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.composer-panel__button {
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: rgba(0, 194, 179, 0.14);
+  color: var(--primary-color-strong);
+  cursor: pointer;
+}
+
+.composer-panel__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chat-placeholder,

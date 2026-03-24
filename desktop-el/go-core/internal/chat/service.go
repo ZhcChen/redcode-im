@@ -19,6 +19,11 @@ type ListMessagesParams struct {
 	SinceID  string `json:"since_id,omitempty"`
 }
 
+type SendMessageParams struct {
+	RoomID  string `json:"room_id"`
+	Content string `json:"content"`
+}
+
 type Service struct {
 	client *httpclient.Client
 }
@@ -58,5 +63,15 @@ func (s *Service) ListMessages(ctx context.Context, params ListMessagesParams) (
 		Method: http.MethodGet,
 		Path:   "/rooms/" + params.RoomID + "/messages",
 		Query:  query,
+	})
+}
+
+func (s *Service) SendMessage(ctx context.Context, params SendMessageParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages",
+		Body: map[string]any{
+			"content": params.Content,
+		},
 	})
 }

@@ -1036,6 +1036,82 @@ func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	}
 }
 
+func TestAppChatSendPostsMessagePayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["content"] != "你好，desktop-el" {
+			t.Fatalf("unexpected content payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": map[string]any{
+				"id":              "msg-11",
+				"room_id":         "room-2",
+				"sender_id":       "u-1",
+				"sender_username": "me",
+				"sender_nickname": "我",
+				"content":         "你好，desktop-el",
+				"message_type":    "text",
+				"status":          "sent",
+				"created_at":      "2026-03-24T02:00:00Z",
+				"parts":           []map[string]any{},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-send",
+		Method: "chat.send",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-2",
+			"content": "你好，desktop-el",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.send to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.send response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.send envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.send data failed: %v", err)
+	}
+	messagePayload, ok := result["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected wrapped message payload, got: %+v", result)
+	}
+	if messagePayload["id"] != "msg-11" {
+		t.Fatalf("unexpected sent message payload: %+v", messagePayload)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

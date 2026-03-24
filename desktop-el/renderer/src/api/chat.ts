@@ -126,6 +126,10 @@ export interface ChatMessage {
   isSelf: boolean;
 }
 
+interface BackendSendMessagePayload {
+  message?: BackendMessageInfo;
+}
+
 const requireDesktopRuntime = () => {
   if (!window.desktopEl) {
     throw new Error("desktop-el runtime is not available");
@@ -347,6 +351,39 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? response.data.map((message) => mapChatMessage(message, params.currentUserId)).reverse() : null
+    };
+  }
+
+  static async sendTextMessage(params: {
+    roomId: string;
+    content: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<ChatMessage>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMessageInfo | BackendSendMessagePayload>>(
+      "chat.send",
+      {
+        room_id: params.roomId,
+        content: params.content
+      }
+    );
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
+    const payload =
+      typeof response.data === "object" &&
+      response.data !== null &&
+      "message" in response.data &&
+      response.data.message
+        ? response.data.message
+        : response.data;
+
+    return {
+      ...response,
+      data: mapChatMessage(payload as BackendMessageInfo, params.currentUserId)
     };
   }
 }

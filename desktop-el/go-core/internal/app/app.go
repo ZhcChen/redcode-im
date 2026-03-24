@@ -280,6 +280,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.send", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.SendMessageParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.SendMessage(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("friend.list", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
 		result, err := a.friend.ListFriends(ctx)
 		if err != nil {
