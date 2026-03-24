@@ -10,5 +10,6 @@
     "types": ["node"],
     "outDir": "dist/electron"
   },
-  "include": ["vite.config.ts", "electron/main/**/*.ts", "electron/preload/**/*.ts"]
+  "include": ["vite.config.ts", "electron/main/**/*.ts", "electron/preload/**/*.ts"],
+  "exclude": ["electron/**/*.test.ts"]
 }
