@@ -1,0 +1,45 @@
+:root {
+  color-scheme: light;
+  --primary-color: #00c2b3;
+  --primary-color-strong: #009b8f;
+  --bg-color: #ffffff;
+  --bg-soft: #f3f7f8;
+  --panel-border: rgba(15, 23, 42, 0.08);
+  --panel-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-white-color: #ffffff;
+  --success-color: #16a34a;
+  --error-color: #dc2626;
+  --warning-color: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+  font-family:
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans SC",
+    sans-serif;
+  color: var(--text-primary);
+  background: #e8fbf8;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+}

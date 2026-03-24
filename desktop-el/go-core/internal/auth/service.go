@@ -43,6 +43,13 @@ type SendSMSResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+type RegisterParams struct {
+	Username string `json:"username"`
+	Email    string `json:"email,omitempty"`
+	Password string `json:"password"`
+	Nickname string `json:"nickname,omitempty"`
+}
+
 type Service struct {
 	client  *httpclient.Client
 	session *session.Service
@@ -111,6 +118,15 @@ func (s *Service) LoginEnvelope(ctx context.Context, params LoginParams) (httpcl
 
 func (s *Service) LoginWithSMSEnvelope(ctx context.Context, params SMSLoginParams) (httpclient.Response, error) {
 	return s.login(ctx, "/auth/login/sms", params)
+}
+
+func (s *Service) Register(ctx context.Context, params RegisterParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method:      http.MethodPost,
+		Path:        "/auth/register",
+		Body:        params,
+		InjectToken: boolPtr(false),
+	})
 }
 
 func (s *Service) login(ctx context.Context, path string, payload any) (httpclient.Response, error) {

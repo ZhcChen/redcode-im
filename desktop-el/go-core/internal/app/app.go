@@ -11,6 +11,7 @@ import (
 	"desktop-el-core/internal/eventbus"
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/rpc"
+	"desktop-el-core/internal/settings"
 	"desktop-el-core/internal/session"
 	"desktop-el-core/internal/ws"
 )
@@ -23,6 +24,7 @@ type App struct {
 	httpClient   *httpclient.Client
 	session      *session.Service
 	authService  *auth.Service
+	settings     *settings.Service
 	wsClient     *ws.Client
 	wsDispatcher *ws.Dispatcher
 }
@@ -61,6 +63,7 @@ func New(cfg config.Config, bus *eventbus.Bus, bootstrapService *bootstrap.Servi
 		httpClient:   httpTransport,
 		session:      sessionService,
 		authService:  auth.New(httpTransport, sessionService),
+		settings:     settings.New(httpTransport),
 		wsClient:     ws.NewClient(),
 		wsDispatcher: ws.NewDispatcher(bus),
 	}
@@ -141,6 +144,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("auth.register", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload auth.RegisterParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.authService.Register(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("auth.sms.send", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload auth.SendSMSParams
 		if err := unmarshalParams(params, &payload); err != nil {
@@ -155,6 +170,38 @@ func (a *App) RegisterRPC() *rpc.Server {
 
 	server.Register("auth.me.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
 		result, err := a.authService.GetCurrentUser(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("settings.captcha.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.settings.GetCaptchaSetting(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("settings.privacy.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.settings.GetPrivacyPolicy(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("settings.user-agreement.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.settings.GetUserAgreement(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("settings.app-name.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.settings.GetAppName(ctx)
 		if err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}

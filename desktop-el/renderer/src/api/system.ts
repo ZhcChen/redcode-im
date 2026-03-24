@@ -6,6 +6,7 @@ interface BackendUserInfo {
   email: string;
   nickname?: string | null;
   avatar_url?: string | null;
+  avatar_object_key?: string | null;
   status: "active" | "inactive" | "banned";
 }
 
@@ -19,6 +20,8 @@ export interface LoginParams {
   username?: string;
   mobile?: string;
   password: string;
+  captcha?: string;
+  userDeviceId?: number;
 }
 
 export interface SmsLoginParams {
@@ -31,11 +34,23 @@ export interface LegacyUserInfo {
   username: string;
   nickname: string;
   avatar: string;
+  avatarObjectKey?: string | null;
+  avatarLocalPath?: string | null;
   mobile: string;
   email: string;
   isLoggedIn: boolean;
   realName?: string | null;
   chatNumber?: string | null;
+  address?: string | null;
+  createTime?: string | null;
+  lastLoginTime?: string | null;
+  activeStatus?: number | null;
+  delFlag?: number | null;
+  level?: number | null;
+  userDeviceId?: string | null;
+  userSign?: string | null;
+  trcSdkAppId?: number | null;
+  powerList?: any[] | null;
 }
 
 export interface LoginResponse {
@@ -51,16 +66,41 @@ const requireDesktopRuntime = () => {
   return window.desktopEl;
 };
 
+const mapStatusToActiveFlag = (status: BackendUserInfo["status"]): number | null => {
+  switch (status) {
+    case "active":
+      return 1;
+    case "inactive":
+      return 0;
+    case "banned":
+      return -1;
+    default:
+      return null;
+  }
+};
+
 const mapBackendUserToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   id: user.id,
   username: user.username,
   nickname: user.nickname || user.username,
   avatar: user.avatar_url || "",
+  avatarObjectKey: user.avatar_object_key || null,
+  avatarLocalPath: null,
   mobile: user.username,
   email: user.email || "",
   isLoggedIn: true,
   realName: user.nickname || user.username,
-  chatNumber: user.username
+  chatNumber: user.username,
+  address: "",
+  createTime: null,
+  lastLoginTime: null,
+  activeStatus: mapStatusToActiveFlag(user.status),
+  delFlag: null,
+  level: null,
+  userDeviceId: null,
+  userSign: null,
+  trcSdkAppId: null,
+  powerList: null
 });
 
 const wrapLoginResponse = (response: BackendLoginResponse): LoginResponse => ({
@@ -116,6 +156,26 @@ export class SystemApi {
         data: null
       };
     }
+    return {
+      ...response,
+      data: mapBackendUserToLegacy(response.data)
+    };
+  }
+
+  static async register(params: {
+    username: string;
+    email: string;
+    password: string;
+    nickname?: string;
+  }): Promise<ApiResponse<LegacyUserInfo>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendUserInfo>>("auth.register", params);
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
     return {
       ...response,
       data: mapBackendUserToLegacy(response.data)
