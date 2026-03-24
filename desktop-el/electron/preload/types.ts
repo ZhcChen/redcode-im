@@ -51,10 +51,89 @@ export interface RpcAPI {
   onEvent(listener: (event: RpcEvent) => void): () => void;
 }
 
+export interface DesktopDialogFilter {
+  name: string;
+  extensions: string[];
+}
+
+export type DesktopDialogProperty =
+  | "openFile"
+  | "openDirectory"
+  | "multiSelections"
+  | "showHiddenFiles"
+  | "createDirectory"
+  | "promptToCreate";
+
+export interface DesktopDialogOpenOptions {
+  title?: string;
+  defaultPath?: string;
+  buttonLabel?: string;
+  filters?: DesktopDialogFilter[];
+  properties?: DesktopDialogProperty[];
+}
+
+export interface DesktopDialogOpenResult {
+  canceled: boolean;
+  filePaths: string[];
+}
+
+export interface DesktopDialogSaveOptions {
+  title?: string;
+  defaultPath?: string;
+  buttonLabel?: string;
+  filters?: DesktopDialogFilter[];
+}
+
+export interface DesktopDialogSaveResult {
+  canceled: boolean;
+  filePath?: string;
+}
+
+export interface DesktopNotificationPayload {
+  title: string;
+  body?: string;
+  silent?: boolean;
+}
+
+export interface DesktopAppAPI {
+  getVersion(): Promise<string>;
+  quit(): Promise<void>;
+}
+
+export interface DesktopWindowAPI {
+  show(): Promise<void>;
+  hide(): Promise<void>;
+  focus(): Promise<void>;
+  setTitle(title: string): Promise<void>;
+}
+
+export interface DesktopDialogAPI {
+  open(options?: DesktopDialogOpenOptions): Promise<DesktopDialogOpenResult>;
+  save(options?: DesktopDialogSaveOptions): Promise<DesktopDialogSaveResult>;
+}
+
+export interface DesktopNotificationAPI {
+  isSupported(): Promise<boolean>;
+  show(payload: DesktopNotificationPayload): Promise<void>;
+}
+
+export type ShellNamespace = "app" | "window" | "dialog" | "notification";
+
+export interface ShellInvokePayload {
+  namespace: ShellNamespace;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
 export interface DesktopElAPI {
   rpc: RpcAPI;
+  app: DesktopAppAPI;
+  window: DesktopWindowAPI;
+  dialog: DesktopDialogAPI;
+  notification: DesktopNotificationAPI;
 }
 
 export const RPC_INVOKE_CHANNEL = "desktop-el:rpc:invoke";
 export const RPC_EVENT_CHANNEL = "desktop-el:rpc:event";
 export const RPC_CANCEL_CHANNEL = "desktop-el:rpc:cancel";
+export const SHELL_INVOKE_CHANNEL = "desktop-el:shell:invoke";

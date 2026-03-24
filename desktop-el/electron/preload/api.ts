@@ -1,9 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  SHELL_INVOKE_CHANNEL,
   RPC_CANCEL_CHANNEL,
   RPC_EVENT_CHANNEL,
   RPC_INVOKE_CHANNEL,
   type DesktopElAPI,
+  type DesktopDialogOpenOptions,
+  type DesktopDialogOpenResult,
+  type DesktopDialogSaveOptions,
+  type DesktopDialogSaveResult,
+  type DesktopNotificationPayload,
   type RpcError,
   type RpcEvent,
   type RpcInvokeOptions,
@@ -57,6 +63,44 @@ const desktopElAPI: DesktopElAPI = {
         ipcRenderer.off(RPC_EVENT_CHANNEL, wrapped);
       };
     }
+  },
+  app: {
+    getVersion(): Promise<string> {
+      return invokeShell("app", "getVersion");
+    },
+    quit(): Promise<void> {
+      return invokeShell("app", "quit");
+    }
+  },
+  window: {
+    show(): Promise<void> {
+      return invokeShell("window", "show");
+    },
+    hide(): Promise<void> {
+      return invokeShell("window", "hide");
+    },
+    focus(): Promise<void> {
+      return invokeShell("window", "focus");
+    },
+    setTitle(title: string): Promise<void> {
+      return invokeShell("window", "setTitle", { title });
+    }
+  },
+  dialog: {
+    open(options?: DesktopDialogOpenOptions): Promise<DesktopDialogOpenResult> {
+      return invokeShell("dialog", "open", { options });
+    },
+    save(options?: DesktopDialogSaveOptions): Promise<DesktopDialogSaveResult> {
+      return invokeShell("dialog", "save", { options });
+    }
+  },
+  notification: {
+    isSupported(): Promise<boolean> {
+      return invokeShell("notification", "isSupported");
+    },
+    show(payload: DesktopNotificationPayload): Promise<void> {
+      return invokeShell("notification", "show", { payload });
+    }
   }
 };
 
@@ -81,6 +125,18 @@ class RpcInvokeError extends Error {
 const createRequestID = (): string => {
   requestCounter += 1;
   return `renderer-${Date.now()}-${requestCounter}`;
+};
+
+const invokeShell = <T>(
+  namespace: "app" | "window" | "dialog" | "notification",
+  method: string,
+  params?: Record<string, unknown>
+): Promise<T> => {
+  return ipcRenderer.invoke(SHELL_INVOKE_CHANNEL, {
+    namespace,
+    method,
+    params
+  }) as Promise<T>;
 };
 
 const unwrapRendererResponse = <T>(response: RpcResponse): T => {
