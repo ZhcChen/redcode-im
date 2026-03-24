@@ -16,12 +16,17 @@ import {
   shouldInlinePreviewAttachment
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
-import { uploadAttachmentAndBuildPart } from "@/utils/chat-attachment-send";
+import { buildOutgoingChatMessageParts, uploadAttachmentsAndBuildParts } from "@/utils/chat-message-compose";
 
 interface OpenChatRequest {
   requestId: number;
   friendUserId: string;
   displayName: string;
+}
+
+interface PendingComposerAttachment {
+  id: string;
+  file: File;
 }
 
 type DesktopRuntimeWithFile = NonNullable<Window["desktopEl"]> & {
@@ -51,8 +56,9 @@ const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
-const pendingAttachment = ref<File | null>(null);
+const pendingAttachments = ref<PendingComposerAttachment[]>([]);
 const attachmentUploadProgress = ref<number | null>(null);
+const attachmentUploadProgressById = ref<Record<string, number>>({});
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isOpeningPrivateChat = ref(false);
@@ -71,7 +77,7 @@ const mediaPreview = ref<{
   name: string;
   meta: string;
 } | null>(null);
-const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息上传与下载闭环。");
+const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。");
 const attachmentPreviewUrlStore = createAttachmentPreviewUrlStore();
 
 const filteredChats = computed(() => {
@@ -96,18 +102,17 @@ const filteredChats = computed(() => {
 
 const selectedChat = computed(() => chats.value.find((chat) => chat.id === selectedChatId.value) || chats.value[0] || null);
 const pinnedCount = computed(() => chats.value.filter((chat) => chat.isPinned).length);
+const hasPendingAttachments = computed(() => pendingAttachments.value.length > 0);
 const attachmentProgressPercent = computed(() =>
   attachmentUploadProgress.value === null ? null : Math.max(0, Math.min(100, Math.round(attachmentUploadProgress.value * 100)))
 );
 const pendingAttachmentSummary = computed(() => {
-  const file = pendingAttachment.value;
-  if (!file) {
+  if (!pendingAttachments.value.length) {
     return null;
   }
 
-  const typeLabel = formatAttachmentType(inferAttachmentPartType(file));
-  const mimeLabel = file.type ? ` / ${file.type}` : "";
-  return `${typeLabel} / ${formatAttachmentSize(file.size)}${mimeLabel}`;
+  const totalSize = pendingAttachments.value.reduce((sum, item) => sum + item.file.size, 0);
+  return `${pendingAttachments.value.length} 个附件 / ${formatAttachmentSize(totalSize)}`;
 });
 const composerStatusText = computed(() => {
   if (isSending.value && sendingMode.value === "attachment") {
@@ -116,10 +121,25 @@ const composerStatusText = computed(() => {
   if (isSending.value) {
     return "发送中...";
   }
-  if (pendingAttachment.value) {
-    return "当前版本仅支持单文件独立发送";
+  if (hasPendingAttachments.value) {
+    return "当前版本支持多附件与文本混发";
   }
   return "Enter 发送，Shift+Enter 换行";
+});
+const sendButtonLabel = computed(() => {
+  if (isSending.value && sendingMode.value === "attachment") {
+    return attachmentProgressPercent.value === null ? "发送中..." : `发送中 ${attachmentProgressPercent.value}%`;
+  }
+  if (isSending.value) {
+    return "发送中...";
+  }
+  if (hasPendingAttachments.value && draftMessage.value.trim()) {
+    return "发送消息";
+  }
+  if (hasPendingAttachments.value) {
+    return "发送附件";
+  }
+  return "发送";
 });
 
 const formatTime = (value: Date | null) => {
@@ -197,6 +217,12 @@ const formatAttachmentSize = (size: number | null) => {
 
   const digits = nextSize >= 10 || unitIndex === 0 ? 0 : 1;
   return `${nextSize.toFixed(digits)} ${units[unitIndex]}`;
+};
+
+const describePendingAttachment = (file: File) => {
+  const typeLabel = formatAttachmentType(inferAttachmentPartType(file));
+  const mimeLabel = file.type ? ` / ${file.type}` : "";
+  return `${typeLabel} / ${formatAttachmentSize(file.size)}${mimeLabel}`;
 };
 
 const formatDuration = (durationMs: number | null) => {
@@ -296,12 +322,20 @@ const setAttachmentPreviewFailure = (key: string, message: string | null) => {
   failedAttachmentPreviewMessages.value = next;
 };
 
-const resetPendingAttachment = () => {
-  pendingAttachment.value = null;
+const resetPendingAttachments = () => {
+  pendingAttachments.value = [];
   attachmentUploadProgress.value = null;
+  attachmentUploadProgressById.value = {};
   if (attachmentInputRef.value) {
     attachmentInputRef.value.value = "";
   }
+};
+
+const removePendingAttachment = (attachmentId: string) => {
+  pendingAttachments.value = pendingAttachments.value.filter((item) => item.id !== attachmentId);
+  const next = { ...attachmentUploadProgressById.value };
+  delete next[attachmentId];
+  attachmentUploadProgressById.value = next;
 };
 
 const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessagePart) => {
@@ -507,16 +541,60 @@ const handleOpenChatRequest = async (request: OpenChatRequest) => {
 const handleSend = async () => {
   const roomId = selectedChatId.value;
   const content = draftMessage.value.trim();
-  if (!roomId || !content || isSending.value) {
+  const attachments = [...pendingAttachments.value];
+  if (!roomId || isSending.value || (!content && !attachments.length)) {
     return;
   }
 
   isSending.value = true;
-  sendingMode.value = "text";
+  sendingMode.value = attachments.length ? "attachment" : "text";
   try {
-    const response = await ChatApi.sendTextMessage({
+    if (!attachments.length) {
+      const response = await ChatApi.sendTextMessage({
+        roomId,
+        content,
+        currentUserId: props.currentUser.id
+      });
+      if (!response.success || !response.data) {
+        notice.value = response.message || "消息发送失败";
+        return;
+      }
+
+      draftMessage.value = "";
+      await loadChats({
+        preferredRoomId: roomId,
+        preserveNotice: true
+      });
+      notice.value = `消息已发送到 ${selectedChat.value?.title || "当前会话"}。`;
+      return;
+    }
+
+    attachmentUploadProgress.value = 0;
+    attachmentUploadProgressById.value = Object.fromEntries(attachments.map((item) => [item.id, 0]));
+    const attachmentParts = await uploadAttachmentsAndBuildParts({
       roomId,
-      content,
+      files: attachments.map((item) => item.file),
+      onFileProgress: (index, progress) => {
+        const attachment = attachments[index];
+        if (!attachment) {
+          return;
+        }
+        attachmentUploadProgressById.value = {
+          ...attachmentUploadProgressById.value,
+          [attachment.id]: progress
+        };
+      },
+      onOverallProgress: (progress) => {
+        attachmentUploadProgress.value = progress;
+      }
+    });
+
+    const response = await ChatApi.sendMessage({
+      roomId,
+      parts: buildOutgoingChatMessageParts({
+        text: content,
+        attachments: attachmentParts
+      }),
       currentUserId: props.currentUser.id
     });
     if (!response.success || !response.data) {
@@ -524,12 +602,20 @@ const handleSend = async () => {
       return;
     }
 
+    const attachmentCount = attachments.length;
     draftMessage.value = "";
+    resetPendingAttachments();
     await loadChats({
       preferredRoomId: roomId,
       preserveNotice: true
     });
-    notice.value = `消息已发送到 ${selectedChat.value?.title || "当前会话"}。`;
+    if (content) {
+      notice.value = `已发送文本和 ${attachmentCount} 个附件到 ${selectedChat.value?.title || "当前会话"}。`;
+    } else if (attachmentCount === 1) {
+      notice.value = `附件 ${attachments[0].file.name} 已发送到 ${selectedChat.value?.title || "当前会话"}。`;
+    } else {
+      notice.value = `已发送 ${attachmentCount} 个附件到 ${selectedChat.value?.title || "当前会话"}。`;
+    }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "消息发送失败";
   } finally {
@@ -547,64 +633,25 @@ const handlePickAttachment = () => {
 
 const handleAttachmentSelected = (event: Event) => {
   const input = event.target as HTMLInputElement | null;
-  const file = input?.files?.[0];
-  if (!file) {
+  const files = Array.from(input?.files ?? []);
+  if (!files.length) {
     return;
   }
 
-  pendingAttachment.value = file;
+  const nextAttachments = files.map((file, index) => ({
+    id: `${Date.now()}-${index}-${file.name}-${file.size}`,
+    file
+  }));
+  pendingAttachments.value = [...pendingAttachments.value, ...nextAttachments];
   attachmentUploadProgress.value = null;
-  notice.value = `已选择附件 ${file.name}，当前版本会发送为单条附件消息。`;
+  attachmentUploadProgressById.value = {};
+  notice.value =
+    files.length === 1
+      ? `已添加附件 ${files[0].name}，可直接发送，也可继续输入文本混发。`
+      : `已添加 ${files.length} 个附件，可直接发送，也可继续输入文本混发。`;
 
   if (input) {
     input.value = "";
-  }
-};
-
-const handleSendAttachment = async () => {
-  const roomId = selectedChatId.value;
-  const file = pendingAttachment.value;
-  if (!roomId || !file || isSending.value) {
-    return;
-  }
-
-  isSending.value = true;
-  sendingMode.value = "attachment";
-  attachmentUploadProgress.value = 0;
-
-  try {
-    const attachmentPart = await uploadAttachmentAndBuildPart({
-      roomId,
-      file,
-      onProgress: (progress) => {
-        attachmentUploadProgress.value = progress;
-      }
-    });
-
-    const response = await ChatApi.sendMessage({
-      roomId,
-      parts: [attachmentPart],
-      currentUserId: props.currentUser.id
-    });
-    if (!response.success || !response.data) {
-      notice.value = response.message || "附件消息发送失败";
-      attachmentUploadProgress.value = null;
-      return;
-    }
-
-    const sentFileName = file.name;
-    resetPendingAttachment();
-    await loadChats({
-      preferredRoomId: roomId,
-      preserveNotice: true
-    });
-    notice.value = `附件 ${sentFileName} 已发送到 ${selectedChat.value?.title || "当前会话"}。`;
-  } catch (error) {
-    attachmentUploadProgress.value = null;
-    notice.value = error instanceof Error ? error.message : "附件消息发送失败";
-  } finally {
-    isSending.value = false;
-    sendingMode.value = null;
   }
 };
 
@@ -1049,6 +1096,7 @@ onMounted(() => {
               ref="attachmentInputRef"
               class="composer-panel__file-input"
               type="file"
+              multiple
               :disabled="isSending"
               @change="handleAttachmentSelected"
             />
@@ -1060,23 +1108,36 @@ onMounted(() => {
               :disabled="isSending"
               @keydown="handleComposerKeydown"
             />
-            <div v-if="pendingAttachment" class="composer-panel__attachment">
-              <div class="composer-panel__attachment-copy">
-                <strong>{{ pendingAttachment.name }}</strong>
-                <small>{{ pendingAttachmentSummary }}</small>
-              </div>
-              <button
-                type="button"
-                class="composer-panel__attachment-remove"
-                :disabled="isSending"
-                @click="resetPendingAttachment"
+            <div v-if="hasPendingAttachments" class="composer-panel__attachments">
+              <div class="composer-panel__attachments-summary">{{ pendingAttachmentSummary }}</div>
+              <div
+                v-for="item in pendingAttachments"
+                :key="item.id"
+                class="composer-panel__attachment"
               >
-                移除
-              </button>
-              <div v-if="attachmentProgressPercent !== null" class="composer-panel__progress">
+                <div class="composer-panel__attachment-copy">
+                  <strong>{{ item.file.name }}</strong>
+                  <small>{{ describePendingAttachment(item.file) }}</small>
+                </div>
+                <button
+                  type="button"
+                  class="composer-panel__attachment-remove"
+                  :disabled="isSending"
+                  @click="removePendingAttachment(item.id)"
+                >
+                  移除
+                </button>
+                <div
+                  v-if="isSending && attachmentUploadProgressById[item.id] !== undefined"
+                  class="composer-panel__progress"
+                >
+                  <span :style="{ width: `${Math.max(0, Math.min(100, Math.round((attachmentUploadProgressById[item.id] || 0) * 100)))}%` }" />
+                </div>
+              </div>
+              <div v-if="attachmentProgressPercent !== null" class="composer-panel__progress composer-panel__progress--overall">
                 <span :style="{ width: `${attachmentProgressPercent}%` }" />
               </div>
-              <p class="composer-panel__attachment-tip">当前版本只发送单个附件消息，文本不会与附件合并发送。</p>
+              <p class="composer-panel__attachment-tip">当前版本支持多附件与文本混发，附件会按选择顺序依次上传。</p>
             </div>
             <div class="composer-panel__actions">
               <button
@@ -1088,28 +1149,20 @@ onMounted(() => {
                 选择附件
               </button>
               <button
-                v-if="pendingAttachment"
-                type="button"
-                class="composer-panel__button composer-panel__button--primary"
-                :disabled="isSending"
-                @click="void handleSendAttachment()"
-              >
-                {{ isSending && sendingMode === "attachment" ? "上传中..." : "发送附件" }}
-              </button>
-              <button
                 type="button"
                 class="composer-panel__button"
-                :disabled="isSending || !draftMessage.trim()"
+                :class="{ 'composer-panel__button--primary': hasPendingAttachments }"
+                :disabled="isSending || (!draftMessage.trim() && !hasPendingAttachments)"
                 @click="void handleSend()"
               >
-                {{ isSending && sendingMode === "text" ? "发送中..." : "发送" }}
+                {{ sendButtonLabel }}
               </button>
             </div>
           </section>
 
           <div class="chat-placeholder">
             <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件收发都已经接回 Go core</strong>
-            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持获取 signed URL、浏览器直传 multipart/direct upload、commit 后发送，以及图片放大预览、视频/语音内联播放与本地保存打开。</p>
+            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持多附件与文本混发、signed URL 直传 multipart/direct upload、commit 后发送，以及图片放大预览、视频/语音内联播放与本地保存打开。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -1612,6 +1665,16 @@ onMounted(() => {
   box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
 }
 
+.composer-panel__attachments {
+  display: grid;
+  gap: 10px;
+}
+
+.composer-panel__attachments-summary {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .composer-panel__attachment {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1673,6 +1736,10 @@ onMounted(() => {
   border-radius: inherit;
   background: linear-gradient(90deg, #00c2b3, #009b8f);
   transition: width 0.2s ease;
+}
+
+.composer-panel__progress--overall {
+  margin-top: 4px;
 }
 
 .composer-panel__attachment-tip {
