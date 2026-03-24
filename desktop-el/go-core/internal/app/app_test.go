@@ -1116,6 +1116,99 @@ func TestAppChatSendPostsMessagePayload(t *testing.T) {
 	}
 }
 
+func TestAppChatSendPostsAttachmentPartsPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+
+		parts, ok := payload["parts"].([]any)
+		if !ok || len(parts) != 1 {
+			t.Fatalf("unexpected parts payload: %+v", payload)
+		}
+
+		part, ok := parts[0].(map[string]any)
+		if !ok {
+			t.Fatalf("unexpected part item: %+v", parts[0])
+		}
+		if part["type"] != "file" || part["key"] != "messages/room-2/files_demo.pdf" {
+			t.Fatalf("unexpected attachment part payload: %+v", part)
+		}
+		if part["name"] != "demo.pdf" || part["mime"] != "application/pdf" {
+			t.Fatalf("unexpected attachment metadata payload: %+v", part)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": map[string]any{
+				"id":              "msg-attachment-1",
+				"room_id":         "room-2",
+				"sender_id":       "u-1",
+				"sender_username": "me",
+				"sender_nickname": "我",
+				"content":         "[附件]",
+				"message_type":    "file",
+				"status":          "sent",
+				"created_at":      "2026-03-24T03:00:00Z",
+				"parts": []map[string]any{
+					{
+						"position":  0,
+						"part_type": "file",
+						"attachment": map[string]any{
+							"key":  "messages/room-2/files_demo.pdf",
+							"name": "demo.pdf",
+							"mime": "application/pdf",
+							"size": 1024,
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-send-attachment",
+		Method: "chat.send",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-2",
+			"parts": []map[string]any{
+				{
+					"type": "file",
+					"key":  "messages/room-2/files_demo.pdf",
+					"name": "demo.pdf",
+					"mime": "application/pdf",
+					"size": 1024,
+				},
+			},
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.send with attachment parts to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.send attachment response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.send attachment envelope: %+v", envelope)
+	}
+}
+
 func TestAppChatReadUntilPostsMessageID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages/read_until" {
@@ -1294,6 +1387,360 @@ func TestAppChatAttachmentDownloadURLReturnsEnvelope(t *testing.T) {
 	}
 	if result["download_url"] != "https://download.example.com/messages/room-2/demo.pdf?signature=abc" {
 		t.Fatalf("unexpected chat.attachment.download_url payload: %+v", result)
+	}
+}
+
+func TestAppChatAttachmentSignatureReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/attachments/signature" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["part_type"] != "file" || payload["filename"] != "demo.pdf" {
+			t.Fatalf("unexpected attachment signature payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "生成消息附件直传签名成功",
+			"key":     "messages/room-2/files_demo.pdf",
+			"signature": map[string]any{
+				"url":    "https://upload.example.com/direct",
+				"method": "PUT",
+				"headers": map[string]any{
+					"Content-Type": "application/pdf",
+				},
+				"key": "messages/room-2/files_demo.pdf",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-signature",
+		Method: "chat.attachment.signature",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":      "room-2",
+			"part_type":    "file",
+			"filename":     "demo.pdf",
+			"content_type": "application/pdf",
+			"file_size":    1024,
+			"hash_value":   "abc123",
+			"hash_alg":     2,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.signature to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.attachment.signature response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.attachment.signature envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.attachment.signature data failed: %v", err)
+	}
+	if result["key"] != "messages/room-2/files_demo.pdf" {
+		t.Fatalf("unexpected chat.attachment.signature payload: %+v", result)
+	}
+}
+
+func TestAppChatAttachmentMultipartInitiateReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/attachments/multipart/initiate" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["part_type"] != "video" || payload["file_size"] != float64(8*1024*1024) {
+			t.Fatalf("unexpected multipart initiate payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":     true,
+			"message":     "初始化分片上传会话成功",
+			"key":         "messages/room-2/videos_demo.mp4",
+			"session_id":  "session-1",
+			"part_size":   1048576,
+			"total_parts": 8,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-multipart-initiate",
+		Method: "chat.attachment.multipart.initiate",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":      "room-2",
+			"part_type":    "video",
+			"filename":     "demo.mp4",
+			"content_type": "video/mp4",
+			"file_size":    8 * 1024 * 1024,
+			"hash_value":   "def456",
+			"hash_alg":     2,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.multipart.initiate to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.attachment.multipart.initiate response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.attachment.multipart.initiate envelope: %+v", envelope)
+	}
+}
+
+func TestAppChatAttachmentMultipartPartSignatureReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/uploads/multipart/sessions/session-1/parts/signature" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["part_number"] != float64(2) {
+			t.Fatalf("unexpected multipart part signature payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "ok",
+			"signature": map[string]any{
+				"url":    "https://upload.example.com/multipart/2",
+				"method": "PUT",
+				"headers": map[string]any{
+					"Content-Type": "video/mp4",
+				},
+				"key": "messages/room-2/videos_demo.mp4",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-multipart-part-signature",
+		Method: "chat.attachment.multipart.part_signature",
+		Params: mustJSONRaw(map[string]any{
+			"session_id":  "session-1",
+			"part_number": 2,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.multipart.part_signature to succeed, got: %+v", response.Error)
+	}
+}
+
+func TestAppChatAttachmentMultipartPartCommitReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/uploads/multipart/sessions/session-1/parts/commit" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["part_number"] != float64(2) || payload["etag"] != "etag-2" {
+			t.Fatalf("unexpected multipart part commit payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "ok",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-multipart-part-commit",
+		Method: "chat.attachment.multipart.part_commit",
+		Params: mustJSONRaw(map[string]any{
+			"session_id":  "session-1",
+			"part_number": 2,
+			"etag":        "etag-2",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.multipart.part_commit to succeed, got: %+v", response.Error)
+	}
+}
+
+func TestAppChatAttachmentMultipartCompleteReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/uploads/multipart/sessions/session-1/complete" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		parts, ok := payload["parts"].([]any)
+		if !ok || len(parts) != 2 {
+			t.Fatalf("unexpected multipart complete payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "完成分片上传成功",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-multipart-complete",
+		Method: "chat.attachment.multipart.complete",
+		Params: mustJSONRaw(map[string]any{
+			"session_id": "session-1",
+			"parts": []map[string]any{
+				{"part_number": 1, "etag": "etag-1"},
+				{"part_number": 2, "etag": "etag-2"},
+			},
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.multipart.complete to succeed, got: %+v", response.Error)
+	}
+}
+
+func TestAppChatAttachmentUploadCommitReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/attachments/commit" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["key"] != "messages/room-2/files_demo.pdf" {
+			t.Fatalf("unexpected attachment upload commit payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "附件上传完成已登记",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-upload-commit",
+		Method: "chat.attachment.upload.commit",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"key":        "messages/room-2/files_demo.pdf",
+			"file_size":  1024,
+			"hash_value": "abc123",
+			"hash_alg":   2,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.upload.commit to succeed, got: %+v", response.Error)
+	}
+}
+
+func TestAppChatAttachmentMultipartAbortReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/uploads/multipart/sessions/session-1/abort" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "已中止分片上传",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-attachment-multipart-abort",
+		Method: "chat.attachment.multipart.abort",
+		Params: mustJSONRaw(map[string]any{
+			"session_id": "session-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.attachment.multipart.abort to succeed, got: %+v", response.Error)
 	}
 }
 

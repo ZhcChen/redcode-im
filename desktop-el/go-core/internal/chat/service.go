@@ -20,8 +20,10 @@ type ListMessagesParams struct {
 }
 
 type SendMessageParams struct {
-	RoomID  string `json:"room_id"`
-	Content string `json:"content"`
+	RoomID          string               `json:"room_id"`
+	Content         string               `json:"content,omitempty"`
+	Parts           []MessagePartPayload `json:"parts,omitempty"`
+	QuotedMessageID string               `json:"quoted_message_id,omitempty"`
 }
 
 type MarkReadUntilParams struct {
@@ -38,6 +40,72 @@ type AttachmentDownloadURLParams struct {
 	RoomID           string `json:"room_id"`
 	Key              string `json:"key"`
 	ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
+}
+
+type MessagePartPayload struct {
+	Type         string `json:"type"`
+	Text         string `json:"text,omitempty"`
+	Key          string `json:"key,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Mime         string `json:"mime,omitempty"`
+	Size         int64  `json:"size,omitempty"`
+	Width        int    `json:"width,omitempty"`
+	Height       int    `json:"height,omitempty"`
+	DurationMS   int    `json:"duration_ms,omitempty"`
+	ThumbnailKey string `json:"thumbnail_key,omitempty"`
+}
+
+type AttachmentSignatureParams struct {
+	RoomID      string `json:"room_id"`
+	PartType    string `json:"part_type"`
+	Filename    string `json:"filename,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	FileSize    int64  `json:"file_size,omitempty"`
+	HashValue   string `json:"hash_value,omitempty"`
+	HashAlg     int    `json:"hash_alg,omitempty"`
+}
+
+type AttachmentMultipartInitiateParams struct {
+	RoomID      string `json:"room_id"`
+	PartType    string `json:"part_type"`
+	Filename    string `json:"filename,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	FileSize    int64  `json:"file_size"`
+	HashValue   string `json:"hash_value,omitempty"`
+	HashAlg     int    `json:"hash_alg,omitempty"`
+}
+
+type MultipartPartSignatureParams struct {
+	SessionID  string `json:"session_id"`
+	PartNumber int    `json:"part_number"`
+}
+
+type MultipartPartCommitParams struct {
+	SessionID  string `json:"session_id"`
+	PartNumber int    `json:"part_number"`
+	ETag       string `json:"etag"`
+}
+
+type MultipartCompletedPart struct {
+	PartNumber int    `json:"part_number"`
+	ETag       string `json:"etag"`
+}
+
+type MultipartCompleteParams struct {
+	SessionID string                   `json:"session_id"`
+	Parts     []MultipartCompletedPart `json:"parts"`
+}
+
+type AttachmentUploadCommitParams struct {
+	RoomID    string `json:"room_id"`
+	Key       string `json:"key"`
+	HashValue string `json:"hash_value,omitempty"`
+	HashAlg   int    `json:"hash_alg,omitempty"`
+	FileSize  int64  `json:"file_size,omitempty"`
+}
+
+type MultipartAbortParams struct {
+	SessionID string `json:"session_id"`
 }
 
 type Service struct {
@@ -83,12 +151,21 @@ func (s *Service) ListMessages(ctx context.Context, params ListMessagesParams) (
 }
 
 func (s *Service) SendMessage(ctx context.Context, params SendMessageParams) (httpclient.Response, error) {
+	body := map[string]any{}
+	if params.Content != "" {
+		body["content"] = params.Content
+	}
+	if len(params.Parts) > 0 {
+		body["parts"] = params.Parts
+	}
+	if params.QuotedMessageID != "" {
+		body["quoted_message_id"] = params.QuotedMessageID
+	}
+
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodPost,
 		Path:   "/rooms/" + params.RoomID + "/messages",
-		Body: map[string]any{
-			"content": params.Content,
-		},
+		Body:   body,
 	})
 }
 
@@ -121,5 +198,117 @@ func (s *Service) GetAttachmentDownloadURL(ctx context.Context, params Attachmen
 		Method: http.MethodGet,
 		Path:   "/rooms/" + params.RoomID + "/messages/attachments/download",
 		Query:  query,
+	})
+}
+
+func (s *Service) RequestAttachmentSignature(ctx context.Context, params AttachmentSignatureParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"part_type": params.PartType,
+	}
+	if params.Filename != "" {
+		body["filename"] = params.Filename
+	}
+	if params.ContentType != "" {
+		body["content_type"] = params.ContentType
+	}
+	if params.FileSize > 0 {
+		body["file_size"] = params.FileSize
+	}
+	if params.HashValue != "" {
+		body["hash_value"] = params.HashValue
+	}
+	if params.HashAlg > 0 {
+		body["hash_alg"] = params.HashAlg
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/attachments/signature",
+		Body:   body,
+	})
+}
+
+func (s *Service) InitiateAttachmentMultipartUpload(ctx context.Context, params AttachmentMultipartInitiateParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"part_type": params.PartType,
+		"file_size": params.FileSize,
+	}
+	if params.Filename != "" {
+		body["filename"] = params.Filename
+	}
+	if params.ContentType != "" {
+		body["content_type"] = params.ContentType
+	}
+	if params.HashValue != "" {
+		body["hash_value"] = params.HashValue
+	}
+	if params.HashAlg > 0 {
+		body["hash_alg"] = params.HashAlg
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/attachments/multipart/initiate",
+		Body:   body,
+	})
+}
+
+func (s *Service) GenerateMultipartPartSignature(ctx context.Context, params MultipartPartSignatureParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/uploads/multipart/sessions/" + params.SessionID + "/parts/signature",
+		Body: map[string]any{
+			"part_number": params.PartNumber,
+		},
+	})
+}
+
+func (s *Service) CommitMultipartPart(ctx context.Context, params MultipartPartCommitParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/uploads/multipart/sessions/" + params.SessionID + "/parts/commit",
+		Body: map[string]any{
+			"part_number": params.PartNumber,
+			"etag":        params.ETag,
+		},
+	})
+}
+
+func (s *Service) CompleteMultipartUpload(ctx context.Context, params MultipartCompleteParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/uploads/multipart/sessions/" + params.SessionID + "/complete",
+		Body: map[string]any{
+			"parts": params.Parts,
+		},
+	})
+}
+
+func (s *Service) AbortMultipartUpload(ctx context.Context, params MultipartAbortParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/uploads/multipart/sessions/" + params.SessionID + "/abort",
+		Body:   map[string]any{},
+	})
+}
+
+func (s *Service) CommitAttachmentUpload(ctx context.Context, params AttachmentUploadCommitParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"key": params.Key,
+	}
+	if params.HashValue != "" {
+		body["hash_value"] = params.HashValue
+	}
+	if params.HashAlg > 0 {
+		body["hash_alg"] = params.HashAlg
+	}
+	if params.FileSize > 0 {
+		body["file_size"] = params.FileSize
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/attachments/commit",
+		Body:   body,
 	})
 }

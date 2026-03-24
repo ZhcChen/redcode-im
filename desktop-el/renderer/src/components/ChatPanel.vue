@@ -11,6 +11,8 @@ import {
   type ChatWebSocketPush
 } from "@/api/chat";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
+import { uploadAttachmentAndBuildPart } from "@/utils/chat-attachment-send";
 
 interface OpenChatRequest {
   requestId: number;
@@ -44,15 +46,19 @@ const chats = ref<ChatSummary[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
 const draftMessage = ref("");
+const attachmentInputRef = ref<HTMLInputElement | null>(null);
+const pendingAttachment = ref<File | null>(null);
+const attachmentUploadProgress = ref<number | null>(null);
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isSending = ref(false);
+const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
 const downloadedAttachmentPaths = ref<Record<string, string>>({});
 const lastReadUntilMessageByRoom = ref<Record<string, string>>({});
-const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息下载闭环。");
+const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息上传与下载闭环。");
 
 const filteredChats = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -76,6 +82,31 @@ const filteredChats = computed(() => {
 
 const selectedChat = computed(() => chats.value.find((chat) => chat.id === selectedChatId.value) || chats.value[0] || null);
 const pinnedCount = computed(() => chats.value.filter((chat) => chat.isPinned).length);
+const attachmentProgressPercent = computed(() =>
+  attachmentUploadProgress.value === null ? null : Math.max(0, Math.min(100, Math.round(attachmentUploadProgress.value * 100)))
+);
+const pendingAttachmentSummary = computed(() => {
+  const file = pendingAttachment.value;
+  if (!file) {
+    return null;
+  }
+
+  const typeLabel = formatAttachmentType(inferAttachmentPartType(file));
+  const mimeLabel = file.type ? ` / ${file.type}` : "";
+  return `${typeLabel} / ${formatAttachmentSize(file.size)}${mimeLabel}`;
+});
+const composerStatusText = computed(() => {
+  if (isSending.value && sendingMode.value === "attachment") {
+    return attachmentProgressPercent.value === null ? "附件处理中..." : `附件处理中 ${attachmentProgressPercent.value}%`;
+  }
+  if (isSending.value) {
+    return "发送中...";
+  }
+  if (pendingAttachment.value) {
+    return "当前版本仅支持单文件独立发送";
+  }
+  return "Enter 发送，Shift+Enter 换行";
+});
 
 const formatTime = (value: Date | null) => {
   if (!value) {
@@ -217,6 +248,14 @@ const setAttachmentDownloading = (key: string, value: boolean) => {
     delete next[key];
   }
   downloadingAttachmentKeys.value = next;
+};
+
+const resetPendingAttachment = () => {
+  pendingAttachment.value = null;
+  attachmentUploadProgress.value = null;
+  if (attachmentInputRef.value) {
+    attachmentInputRef.value.value = "";
+  }
 };
 
 const pickSelectedChatId = (list: ChatSummary[], preferredRoomId?: string | null) => {
@@ -377,6 +416,7 @@ const handleSend = async () => {
   }
 
   isSending.value = true;
+  sendingMode.value = "text";
   try {
     const response = await ChatApi.sendTextMessage({
       roomId,
@@ -398,6 +438,77 @@ const handleSend = async () => {
     notice.value = error instanceof Error ? error.message : "消息发送失败";
   } finally {
     isSending.value = false;
+    sendingMode.value = null;
+  }
+};
+
+const handlePickAttachment = () => {
+  if (isSending.value || !selectedChatId.value) {
+    return;
+  }
+  attachmentInputRef.value?.click();
+};
+
+const handleAttachmentSelected = (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  pendingAttachment.value = file;
+  attachmentUploadProgress.value = null;
+  notice.value = `已选择附件 ${file.name}，当前版本会发送为单条附件消息。`;
+
+  if (input) {
+    input.value = "";
+  }
+};
+
+const handleSendAttachment = async () => {
+  const roomId = selectedChatId.value;
+  const file = pendingAttachment.value;
+  if (!roomId || !file || isSending.value) {
+    return;
+  }
+
+  isSending.value = true;
+  sendingMode.value = "attachment";
+  attachmentUploadProgress.value = 0;
+
+  try {
+    const attachmentPart = await uploadAttachmentAndBuildPart({
+      roomId,
+      file,
+      onProgress: (progress) => {
+        attachmentUploadProgress.value = progress;
+      }
+    });
+
+    const response = await ChatApi.sendMessage({
+      roomId,
+      parts: [attachmentPart],
+      currentUserId: props.currentUser.id
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "附件消息发送失败";
+      attachmentUploadProgress.value = null;
+      return;
+    }
+
+    const sentFileName = file.name;
+    resetPendingAttachment();
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true
+    });
+    notice.value = `附件 ${sentFileName} 已发送到 ${selectedChat.value?.title || "当前会话"}。`;
+  } catch (error) {
+    attachmentUploadProgress.value = null;
+    notice.value = error instanceof Error ? error.message : "附件消息发送失败";
+  } finally {
+    isSending.value = false;
+    sendingMode.value = null;
   }
 };
 
@@ -767,8 +878,15 @@ onMounted(() => {
           <section class="composer-panel">
             <div class="composer-panel__header">
               <h4>发送消息</h4>
-              <small>{{ isSending ? "发送中..." : "Enter 发送，Shift+Enter 换行" }}</small>
+              <small>{{ composerStatusText }}</small>
             </div>
+            <input
+              ref="attachmentInputRef"
+              class="composer-panel__file-input"
+              type="file"
+              :disabled="isSending"
+              @change="handleAttachmentSelected"
+            />
             <textarea
               v-model="draftMessage"
               class="composer-panel__input"
@@ -777,21 +895,56 @@ onMounted(() => {
               :disabled="isSending"
               @keydown="handleComposerKeydown"
             />
+            <div v-if="pendingAttachment" class="composer-panel__attachment">
+              <div class="composer-panel__attachment-copy">
+                <strong>{{ pendingAttachment.name }}</strong>
+                <small>{{ pendingAttachmentSummary }}</small>
+              </div>
+              <button
+                type="button"
+                class="composer-panel__attachment-remove"
+                :disabled="isSending"
+                @click="resetPendingAttachment"
+              >
+                移除
+              </button>
+              <div v-if="attachmentProgressPercent !== null" class="composer-panel__progress">
+                <span :style="{ width: `${attachmentProgressPercent}%` }" />
+              </div>
+              <p class="composer-panel__attachment-tip">当前版本只发送单个附件消息，文本不会与附件合并发送。</p>
+            </div>
             <div class="composer-panel__actions">
+              <button
+                type="button"
+                class="composer-panel__button composer-panel__button--secondary"
+                :disabled="isSending || !selectedChat"
+                @click="handlePickAttachment"
+              >
+                选择附件
+              </button>
+              <button
+                v-if="pendingAttachment"
+                type="button"
+                class="composer-panel__button composer-panel__button--primary"
+                :disabled="isSending"
+                @click="void handleSendAttachment()"
+              >
+                {{ isSending && sendingMode === "attachment" ? "上传中..." : "发送附件" }}
+              </button>
               <button
                 type="button"
                 class="composer-panel__button"
                 :disabled="isSending || !draftMessage.trim()"
                 @click="void handleSend()"
               >
-                {{ isSending ? "发送中..." : "发送" }}
+                {{ isSending && sendingMode === "text" ? "发送中..." : "发送" }}
               </button>
             </div>
           </section>
 
           <div class="chat-placeholder">
-            <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件下载都已经接回 Go core</strong>
-            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在可以获取 signed URL、保存到本地并直接打开。</p>
+            <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件收发都已经接回 Go core</strong>
+            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持获取 signed URL、浏览器直传 multipart/direct upload、commit 后发送与本地保存打开。</p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -1215,6 +1368,10 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
+.composer-panel__file-input {
+  display: none;
+}
+
 .composer-panel__input {
   width: 100%;
   min-height: 110px;
@@ -1232,18 +1389,99 @@ onMounted(() => {
   box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
 }
 
+.composer-panel__attachment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 155, 143, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.composer-panel__attachment-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.composer-panel__attachment-copy strong,
+.composer-panel__attachment-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-panel__attachment-copy strong {
+  color: var(--text-primary);
+}
+
+.composer-panel__attachment-copy small,
+.composer-panel__attachment-tip {
+  color: var(--text-secondary);
+}
+
+.composer-panel__attachment-remove {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.composer-panel__attachment-remove:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.composer-panel__progress {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.composer-panel__progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #00c2b3, #009b8f);
+  transition: width 0.2s ease;
+}
+
+.composer-panel__attachment-tip {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
 .composer-panel__actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .composer-panel__button {
   height: 42px;
   padding: 0 20px;
+  border: 1px solid transparent;
   border-radius: 999px;
   background: rgba(0, 194, 179, 0.14);
   color: var(--primary-color-strong);
   cursor: pointer;
+}
+
+.composer-panel__button--secondary {
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--text-primary);
+}
+
+.composer-panel__button--primary {
+  background: linear-gradient(135deg, rgba(0, 194, 179, 0.18), rgba(0, 155, 143, 0.18));
 }
 
 .composer-panel__button:disabled {

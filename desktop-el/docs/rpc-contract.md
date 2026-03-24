@@ -106,7 +106,82 @@
 
 ## 6. 当前已落地的业务 RPC
 
-### 6.1 `chat.attachment.download_url`
+### 6.1 `chat.send`
+
+用途：发送文本消息，或发送由 renderer 先完成上传后再提交的附件消息。`desktop-el` 当前最小闭环已经支持纯文本消息与单附件消息。
+
+请求参数：
+
+```json
+{
+  "room_id": "room-2",
+  "content": "",
+  "parts": [
+    {
+      "type": "image",
+      "key": "messages/room-2/demo.png",
+      "name": "demo.png",
+      "mime": "image/png",
+      "size": 2048,
+      "width": 1280,
+      "height": 720
+    }
+  ],
+  "quoted_message_id": "msg-100"
+}
+```
+
+- `room_id`: 必填，房间 ID。
+- `content`: 可选，纯文本消息内容。
+- `parts`: 可选，消息分片数组；当前 renderer 已使用它发送附件消息。
+- `quoted_message_id`: 可选，引用消息 ID。
+
+`parts` 约束：
+
+- `parts[*].type` 允许：`text`、`image`、`audio`、`video`、`file`。
+- `text` part 使用 `text` 字段。
+- 附件 part 使用 `key`，并可选带上 `name`、`mime`、`size`、`width`、`height`、`duration_ms`、`thumbnail_key`。
+- 调用方至少要提供 `content` 或 `parts` 之一。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "消息发送成功",
+  "data": {
+    "id": "msg-101",
+    "room_id": "room-2",
+    "sender_id": "user-1",
+    "sender_username": "alice",
+    "content": "",
+    "message_type": "image",
+    "created_at": "2026-03-24T09:30:00Z",
+    "parts": [
+      {
+        "position": 0,
+        "part_type": "image",
+        "attachment": {
+          "key": "messages/room-2/demo.png",
+          "name": "demo.png",
+          "mime": "image/png",
+          "size": 2048,
+          "width": 1280,
+          "height": 720
+        }
+      }
+    ]
+  }
+}
+```
+
+约束：
+
+- 附件消息必须先走上传相关 RPC 拿到 `key`，必要时完成 direct upload / multipart upload 与 `chat.attachment.upload.commit`，最后再调用 `chat.send(parts)`。
+- 文件字节不通过 stdio 传输，不经 Electron main / Go core 中转。
+
+### 6.2 `chat.attachment.download_url`
 
 用途：为当前房间内已存在于消息中的附件生成临时下载链接，供 renderer 后续通过 Electron 宿主能力保存到本地。
 
@@ -143,3 +218,218 @@
 
 - renderer 不直接请求 backend 附件下载接口，必须经由 Go core 调用。
 - `data.download_url` 来自 backend 原始成功对象；Go core 仅负责桥接与 envelope 统一，不在本地开启 HTTP 服务。
+
+### 6.3 `chat.attachment.signature`
+
+用途：为 direct upload 场景申请对象 key 与 signed URL。
+
+请求参数：
+
+```json
+{
+  "room_id": "room-2",
+  "part_type": "image",
+  "filename": "demo.png",
+  "content_type": "image/png",
+  "file_size": 2048,
+  "hash_value": "sha256-hex",
+  "hash_alg": 2
+}
+```
+
+- `room_id`: 必填，房间 ID。
+- `part_type`: 必填，`image` / `audio` / `video` / `file`。
+- `filename`、`content_type`、`file_size`: 用于 backend 生成上传签名与落库元数据。
+- `hash_value`、`hash_alg`: 可选，用于对象复用 / 去重；当前 renderer 默认使用 `SHA-256`，`hash_alg = 2`。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "获取附件上传签名成功",
+  "data": {
+    "success": true,
+    "message": "获取附件上传签名成功",
+    "key": "messages/room-2/demo.png",
+    "signature": {
+      "url": "https://example.com/signed-upload-url",
+      "method": "PUT",
+      "headers": {
+        "Authorization": "signed-token"
+      },
+      "key": "messages/room-2/demo.png"
+    }
+  }
+}
+```
+
+约束：
+
+- `data.signature` 可能为空，表示 backend 命中可复用对象；renderer 直接复用 `key` 发送消息，不再上传文件字节，也不再调用 `chat.attachment.upload.commit`。
+- direct upload 由 renderer 直接请求 object storage signed URL。
+
+### 6.4 `chat.attachment.multipart.initiate`
+
+用途：初始化 multipart upload，会返回对象 key 和分片上传会话。
+
+请求参数与 `chat.attachment.signature` 基本一致，但 `file_size` 为必填。
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "初始化分片上传成功",
+  "data": {
+    "success": true,
+    "message": "初始化分片上传成功",
+    "key": "messages/room-2/demo.zip",
+    "session_id": "upload-session-1",
+    "part_size": 5242880,
+    "total_parts": 3
+  }
+}
+```
+
+约束：
+
+- `session_id` 为空表示 backend 已命中可复用对象，renderer 直接复用 `key`。
+- renderer 负责按 `part_size` 切片并逐片直传，不通过 stdio 传大文件。
+
+### 6.5 `chat.attachment.multipart.part_signature`
+
+用途：为 multipart upload 的单个分片申请 signed URL。
+
+请求参数：
+
+```json
+{
+  "session_id": "upload-session-1",
+  "part_number": 1
+}
+```
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "获取分片上传签名成功",
+  "data": {
+    "success": true,
+    "message": "获取分片上传签名成功",
+    "signature": {
+      "url": "https://example.com/signed-part-url",
+      "method": "PUT",
+      "headers": {
+        "Authorization": "signed-token"
+      }
+    }
+  }
+}
+```
+
+### 6.6 `chat.attachment.multipart.part_commit`
+
+用途：在某个分片上传完成后，把该片的 `etag` 回写给 backend。
+
+请求参数：
+
+```json
+{
+  "session_id": "upload-session-1",
+  "part_number": 1,
+  "etag": "etag-1"
+}
+```
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "分片提交成功",
+  "data": {
+    "success": true,
+    "message": "分片提交成功"
+  }
+}
+```
+
+### 6.7 `chat.attachment.multipart.complete`
+
+用途：所有分片上传完成后，通知 backend 完成 multipart upload。
+
+请求参数：
+
+```json
+{
+  "session_id": "upload-session-1",
+  "parts": [
+    {
+      "part_number": 1,
+      "etag": "etag-1"
+    },
+    {
+      "part_number": 2,
+      "etag": "etag-2"
+    }
+  ]
+}
+```
+
+成功返回：与 `chat.attachment.multipart.part_commit` 相同的简单成功 envelope。
+
+### 6.8 `chat.attachment.multipart.abort`
+
+用途：multipart upload 过程中某片失败时，中止上传会话。
+
+请求参数：
+
+```json
+{
+  "session_id": "upload-session-1"
+}
+```
+
+成功返回：与 `chat.attachment.multipart.part_commit` 相同的简单成功 envelope。
+
+### 6.9 `chat.attachment.upload.commit`
+
+用途：当 renderer 已完成 direct upload / multipart upload 后，通知 backend 将该对象标记为已完成上传，以便进入后续消息发送与哈希去重链路。
+
+请求参数：
+
+```json
+{
+  "room_id": "room-2",
+  "key": "messages/room-2/demo.png",
+  "file_size": 2048,
+  "hash_value": "sha256-hex",
+  "hash_alg": 2
+}
+```
+
+成功返回：
+
+```json
+{
+  "code": 200,
+  "success": true,
+  "message": "附件上传确认成功",
+  "data": {
+    "success": true,
+    "message": "附件上传确认成功"
+  }
+}
+```
+
+约束：
+
+- 只有在 renderer 实际上传了文件字节时才调用本 RPC。
+- 若附件对象直接被 backend 复用（无 `signature` / 无 `session_id`），renderer 直接使用 `key` 发送消息即可。

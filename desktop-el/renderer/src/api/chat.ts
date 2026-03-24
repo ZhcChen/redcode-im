@@ -4,6 +4,7 @@ type BackendRoomType = "private" | "group" | "public" | "favorite";
 type BackendMessageType = "text" | "image" | "audio" | "video" | "file" | "system" | "mixed";
 type BackendMessagePartType = "text" | "image" | "audio" | "video" | "file";
 type BackendMessageDeliveryStatus = "sent" | "read";
+type AttachmentPartType = Exclude<BackendMessagePartType, "text">;
 
 interface BackendChatMessagePreview {
   id: string;
@@ -67,6 +68,37 @@ interface BackendAttachmentDownloadPayload {
   message?: string;
   download_url?: string | null;
   downloadUrl?: string | null;
+}
+
+interface BackendDirectUploadSignature {
+  url?: string | null;
+  method?: string | null;
+  headers?: Record<string, string> | null;
+  key?: string | null;
+}
+
+interface BackendAttachmentSignaturePayload {
+  success?: boolean;
+  message?: string;
+  key?: string | null;
+  signature?: BackendDirectUploadSignature | null;
+}
+
+interface BackendAttachmentMultipartInitiatePayload {
+  success?: boolean;
+  message?: string;
+  key?: string | null;
+  session_id?: string | null;
+  sessionId?: string | null;
+  part_size?: number | null;
+  partSize?: number | null;
+  total_parts?: number | null;
+  totalParts?: number | null;
+}
+
+interface BackendMultipartSimplePayload {
+  success?: boolean;
+  message?: string;
 }
 
 interface BackendMessageInfo {
@@ -157,6 +189,54 @@ export interface AttachmentDownloadData {
   message: string;
   downloadUrl: string;
 }
+
+export interface DirectUploadSignatureInfo {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  key: string;
+}
+
+export interface AttachmentSignatureData {
+  key: string;
+  signature: DirectUploadSignatureInfo | null;
+  message?: string;
+}
+
+export interface AttachmentMultipartInitiateData {
+  key: string;
+  sessionId: string | null;
+  partSize?: number;
+  totalParts?: number;
+  message?: string;
+}
+
+export interface MultipartCompletedPart {
+  partNumber: number;
+  etag: string;
+}
+
+export interface SimpleSuccessData {
+  success: boolean;
+  message: string;
+}
+
+export type ChatMessagePartInput =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: AttachmentPartType;
+      key: string;
+      name?: string | null;
+      mime?: string | null;
+      size?: number | null;
+      width?: number | null;
+      height?: number | null;
+      durationMs?: number | null;
+      thumbnailKey?: string | null;
+    };
 
 interface BackendSendMessagePayload {
   message?: BackendMessageInfo;
@@ -429,6 +509,87 @@ const mapChatMessagePart = (part: BackendMessagePart): ChatMessagePart => ({
   attachment: mapChatMessageAttachment(part.attachment)
 });
 
+const mapPartPayloadInput = (part: ChatMessagePartInput): Record<string, unknown> => {
+  if (part.type === "text") {
+    return {
+      type: "text",
+      text: part.text
+    };
+  }
+
+  const payload: Record<string, unknown> = {
+    type: part.type,
+    key: part.key
+  };
+  if (part.name) {
+    payload.name = part.name;
+  }
+  if (part.mime) {
+    payload.mime = part.mime;
+  }
+  if (typeof part.size === "number") {
+    payload.size = part.size;
+  }
+  if (typeof part.width === "number") {
+    payload.width = part.width;
+  }
+  if (typeof part.height === "number") {
+    payload.height = part.height;
+  }
+  if (typeof part.durationMs === "number") {
+    payload.duration_ms = part.durationMs;
+  }
+  if (part.thumbnailKey) {
+    payload.thumbnail_key = part.thumbnailKey;
+  }
+  return payload;
+};
+
+const normalizeDirectUploadSignature = (
+  rawSignature: BackendDirectUploadSignature | null | undefined,
+  key: string
+): DirectUploadSignatureInfo | null => {
+  if (!rawSignature || typeof rawSignature.url !== "string" || !rawSignature.url) {
+    return null;
+  }
+
+  const headers: Record<string, string> = {};
+  if (rawSignature.headers && typeof rawSignature.headers === "object") {
+    Object.entries(rawSignature.headers).forEach(([headerKey, headerValue]) => {
+      if (typeof headerKey === "string" && typeof headerValue === "string") {
+        headers[headerKey] = headerValue;
+      }
+    });
+  }
+
+  const method = typeof rawSignature.method === "string" ? rawSignature.method.trim().toUpperCase() : "PUT";
+
+  return {
+    url: rawSignature.url,
+    method: method || "PUT",
+    headers,
+    key: rawSignature.key ?? key
+  };
+};
+
+const mapSimpleSuccessData = (
+  response: ApiResponse<BackendMultipartSimplePayload>
+): ApiResponse<SimpleSuccessData> => {
+  const payload = response.data;
+  const successFlag = typeof payload?.success === "boolean" ? payload.success : response.success;
+  const message = typeof payload?.message === "string" ? payload.message : response.message || "";
+
+  return {
+    code: response.code,
+    success: successFlag,
+    message,
+    data: {
+      success: successFlag,
+      message
+    }
+  };
+};
+
 const mapChatMessage = (message: BackendMessageInfo, currentUserId?: string): ChatMessage => {
   const senderName = message.sender_nickname?.trim() || message.sender_username;
   const preview = buildMessagePreview({
@@ -560,16 +721,20 @@ export class ChatApi {
     };
   }
 
-  static async sendTextMessage(params: {
+  static async sendMessage(params: {
     roomId: string;
-    content: string;
+    content?: string;
+    parts?: ChatMessagePartInput[];
+    quotedMessageId?: string;
     currentUserId?: string;
   }): Promise<ApiResponse<ChatMessage>> {
     const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMessageInfo | BackendSendMessagePayload>>(
       "chat.send",
       {
         room_id: params.roomId,
-        content: params.content
+        content: params.content,
+        parts: params.parts?.map(mapPartPayloadInput),
+        quoted_message_id: params.quotedMessageId
       }
     );
     if (!response.success || !response.data) {
@@ -591,6 +756,14 @@ export class ChatApi {
       ...response,
       data: mapChatMessage(payload as BackendMessageInfo, params.currentUserId)
     };
+  }
+
+  static async sendTextMessage(params: {
+    roomId: string;
+    content: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<ChatMessage>> {
+    return this.sendMessage(params);
   }
 
   static async readUntil(params: { roomId: string; messageId: string }): Promise<ApiResponse<null>> {
@@ -660,5 +833,249 @@ export class ChatApi {
         downloadUrl
       }
     };
+  }
+
+  static async requestAttachmentSignature(params: {
+    roomId: string;
+    partType: AttachmentPartType;
+    fileName?: string;
+    contentType?: string;
+    fileSize?: number;
+    hashValue?: string;
+    hashAlg?: number;
+  }): Promise<ApiResponse<AttachmentSignatureData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentSignaturePayload>>(
+      "chat.attachment.signature",
+      {
+        room_id: params.roomId,
+        part_type: params.partType,
+        filename: params.fileName,
+        content_type: params.contentType,
+        file_size: params.fileSize,
+        hash_value: params.hashValue,
+        hash_alg: params.hashAlg
+      }
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
+    const payload = response.data;
+    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const key = payload.key ?? payload.signature?.key ?? null;
+    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+
+    if (!successFlag || typeof key !== "string" || key.length === 0) {
+      return {
+        code: response.code,
+        success: false,
+        message: message || "获取附件上传签名失败",
+        data: null
+      };
+    }
+
+    return {
+      code: response.code,
+      success: true,
+      message,
+      data: {
+        key,
+        signature: normalizeDirectUploadSignature(payload.signature, key),
+        message
+      }
+    };
+  }
+
+  static async initiateAttachmentMultipartUpload(params: {
+    roomId: string;
+    partType: AttachmentPartType;
+    fileName?: string;
+    contentType?: string;
+    fileSize: number;
+    hashValue?: string;
+    hashAlg?: number;
+  }): Promise<ApiResponse<AttachmentMultipartInitiateData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentMultipartInitiatePayload>>(
+      "chat.attachment.multipart.initiate",
+      {
+        room_id: params.roomId,
+        part_type: params.partType,
+        filename: params.fileName,
+        content_type: params.contentType,
+        file_size: params.fileSize,
+        hash_value: params.hashValue,
+        hash_alg: params.hashAlg
+      }
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
+    const payload = response.data;
+    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const key = payload.key ?? null;
+    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+
+    if (!successFlag || typeof key !== "string" || key.length === 0) {
+      return {
+        code: response.code,
+        success: false,
+        message: message || "初始化分片上传失败",
+        data: null
+      };
+    }
+
+    const sessionIdRaw = payload.session_id ?? payload.sessionId ?? null;
+    const partSizeRaw = payload.part_size ?? payload.partSize ?? null;
+    const totalPartsRaw = payload.total_parts ?? payload.totalParts ?? null;
+
+    return {
+      code: response.code,
+      success: true,
+      message,
+      data: {
+        key,
+        sessionId: typeof sessionIdRaw === "string" && sessionIdRaw.length > 0 ? sessionIdRaw : null,
+        partSize: typeof partSizeRaw === "number" && partSizeRaw > 0 ? partSizeRaw : undefined,
+        totalParts: typeof totalPartsRaw === "number" && totalPartsRaw > 0 ? totalPartsRaw : undefined,
+        message
+      }
+    };
+  }
+
+  static async generateMultipartPartSignature(params: {
+    sessionId: string;
+    partNumber: number;
+  }): Promise<ApiResponse<{ signature: DirectUploadSignatureInfo }>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentSignaturePayload>>(
+      "chat.attachment.multipart.part_signature",
+      {
+        session_id: params.sessionId,
+        part_number: params.partNumber
+      }
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
+    const payload = response.data;
+    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const signature = normalizeDirectUploadSignature(payload.signature, payload.signature?.key ?? "");
+    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+
+    if (!successFlag || !signature) {
+      return {
+        code: response.code,
+        success: false,
+        message: message || "获取分片上传签名失败",
+        data: null
+      };
+    }
+
+    return {
+      code: response.code,
+      success: true,
+      message,
+      data: { signature }
+    };
+  }
+
+  static async commitMultipartPart(params: {
+    sessionId: string;
+    partNumber: number;
+    etag: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
+      "chat.attachment.multipart.part_commit",
+      {
+        session_id: params.sessionId,
+        part_number: params.partNumber,
+        etag: params.etag
+      }
+    );
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+    return mapSimpleSuccessData(response);
+  }
+
+  static async completeMultipartUpload(params: {
+    sessionId: string;
+    parts: MultipartCompletedPart[];
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
+      "chat.attachment.multipart.complete",
+      {
+        session_id: params.sessionId,
+        parts: params.parts.map((part) => ({
+          part_number: part.partNumber,
+          etag: part.etag
+        }))
+      }
+    );
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+    return mapSimpleSuccessData(response);
+  }
+
+  static async abortMultipartUpload(params: { sessionId: string }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
+      "chat.attachment.multipart.abort",
+      {
+        session_id: params.sessionId
+      }
+    );
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+    return mapSimpleSuccessData(response);
+  }
+
+  static async commitAttachmentUpload(params: {
+    roomId: string;
+    key: string;
+    hashValue?: string;
+    hashAlg?: number;
+    fileSize?: number;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
+      "chat.attachment.upload.commit",
+      {
+        room_id: params.roomId,
+        key: params.key,
+        hash_value: params.hashValue,
+        hash_alg: params.hashAlg,
+        file_size: params.fileSize
+      }
+    );
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+    return mapSimpleSuccessData(response);
   }
 }

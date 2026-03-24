@@ -14,6 +14,6 @@
     ]
   },
   "include": ["renderer/src/**/*", "renderer/src/**/*.vue", "electron/preload/types.ts"],
-  "exclude": ["dist", "node_modules"],
+  "exclude": ["dist", "node_modules", "renderer/src/**/*.test.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

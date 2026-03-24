@@ -316,12 +316,96 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.attachment.signature", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.AttachmentSignatureParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.RequestAttachmentSignature(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.attachment.multipart.initiate", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.AttachmentMultipartInitiateParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.InitiateAttachmentMultipartUpload(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.attachment.multipart.part_signature", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.MultipartPartSignatureParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.GenerateMultipartPartSignature(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.attachment.multipart.part_commit", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.MultipartPartCommitParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.CommitMultipartPart(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.attachment.multipart.complete", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.MultipartCompleteParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.CompleteMultipartUpload(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.attachment.multipart.abort", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.MultipartAbortParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.AbortMultipartUpload(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.attachment.download_url", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.AttachmentDownloadURLParams
 		if err := unmarshalParams(params, &payload); err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
 		}
 		result, err := a.chat.GetAttachmentDownloadURL(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.attachment.upload.commit", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.AttachmentUploadCommitParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.CommitAttachmentUpload(ctx, payload)
 		if err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}
