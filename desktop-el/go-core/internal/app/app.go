@@ -7,13 +7,14 @@ import (
 
 	"desktop-el-core/internal/auth"
 	"desktop-el-core/internal/bootstrap"
+	"desktop-el-core/internal/chat"
 	"desktop-el-core/internal/config"
 	"desktop-el-core/internal/eventbus"
 	"desktop-el-core/internal/friend"
 	"desktop-el-core/internal/httpclient"
 	"desktop-el-core/internal/rpc"
-	"desktop-el-core/internal/settings"
 	"desktop-el-core/internal/session"
+	"desktop-el-core/internal/settings"
 	"desktop-el-core/internal/state"
 	"desktop-el-core/internal/user"
 	"desktop-el-core/internal/ws"
@@ -28,6 +29,7 @@ type App struct {
 	session      *session.Service
 	authService  *auth.Service
 	settings     *settings.Service
+	chat         *chat.Service
 	friend       *friend.Service
 	userService  *user.Service
 	wsClient     *ws.Client
@@ -35,12 +37,12 @@ type App struct {
 }
 
 type httpRequestParams struct {
-	Method      string                 `json:"method"`
-	Path        string                 `json:"path"`
-	Headers     map[string]string      `json:"headers,omitempty"`
-	QueryParams map[string]string      `json:"query_params,omitempty"`
-	Body        map[string]any         `json:"body,omitempty"`
-	InjectToken *bool                  `json:"inject_token,omitempty"`
+	Method      string            `json:"method"`
+	Path        string            `json:"path"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	QueryParams map[string]string `json:"query_params,omitempty"`
+	Body        map[string]any    `json:"body,omitempty"`
+	InjectToken *bool             `json:"inject_token,omitempty"`
 }
 
 type latestVersionParams struct {
@@ -69,6 +71,7 @@ func New(cfg config.Config, bus *eventbus.Bus, bootstrapService *bootstrap.Servi
 		session:      sessionService,
 		authService:  auth.New(httpTransport, sessionService),
 		settings:     settings.New(httpTransport),
+		chat:         chat.New(httpTransport),
 		friend:       friend.New(httpTransport),
 		userService:  user.New(httpTransport, sessionService),
 		wsClient:     ws.NewClient(),
@@ -239,6 +242,14 @@ func (a *App) RegisterRPC() *rpc.Server {
 
 	server.Register("settings.general.get", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
 		result, err := a.settings.GetGeneralSettings(ctx)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.list", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
+		result, err := a.chat.ListChats(ctx)
 		if err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}

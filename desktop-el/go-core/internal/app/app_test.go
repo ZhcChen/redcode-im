@@ -421,12 +421,12 @@ func TestAppAuthRegisterReturnsWrappedUserInfo(t *testing.T) {
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"id":        "u-2",
-			"username":  "13800138000",
-			"email":     "13800138000@example.com",
-			"nickname":  "测试用户",
+			"id":         "u-2",
+			"username":   "13800138000",
+			"email":      "13800138000@example.com",
+			"nickname":   "测试用户",
 			"avatar_url": nil,
-			"status":    "active",
+			"status":     "active",
 		})
 	}))
 	defer server.Close()
@@ -595,12 +595,12 @@ func TestAppUserMeUpdateReturnsWrappedUserInfoAndUpdatesSessionSnapshot(t *testi
 			"code":    200,
 			"message": "ok",
 			"data": map[string]any{
-				"id":        "u-1",
-				"username":  "13800000000",
-				"email":     "demo@example.com",
-				"nickname":  "新的昵称",
+				"id":         "u-1",
+				"username":   "13800000000",
+				"email":      "demo@example.com",
+				"nickname":   "新的昵称",
 				"avatar_url": nil,
-				"status":    "active",
+				"status":     "active",
 			},
 		})
 	}))
@@ -799,11 +799,11 @@ func TestAppFriendRequestRespondPostsAction(t *testing.T) {
 				"nickname": "Me",
 				"status":   "active",
 			},
-			"status":      "accepted",
-			"message":     "hi",
-			"created_at":  "2026-03-24T00:00:00Z",
+			"status":       "accepted",
+			"message":      "hi",
+			"created_at":   "2026-03-24T00:00:00Z",
 			"responded_at": "2026-03-24T00:05:00Z",
-			"is_incoming": true,
+			"is_incoming":  true,
 		})
 	}))
 	defer server.Close()
@@ -835,6 +835,79 @@ func TestAppFriendRequestRespondPostsAction(t *testing.T) {
 	}
 }
 
+func TestAppChatListReturnsWrappedPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chats" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"room_id":               "room-1",
+				"name":                  "Alice",
+				"room_type":             "private",
+				"avatar_url":            nil,
+				"unread_count":          3,
+				"notification_settings": 0,
+				"is_muted":              false,
+				"is_pinned":             true,
+				"last_message": map[string]any{
+					"id":              "msg-1",
+					"content":         "最近一条消息",
+					"message_type":    "text",
+					"created_at":      "2026-03-24T00:00:00Z",
+					"sender_id":       "u-2",
+					"sender_username": "alice",
+					"sender_nickname": "Alice",
+				},
+				"friend_user_id":  "u-2",
+				"friend_nickname": "Alice",
+				"friend_username": "alice",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-list",
+		Method: "chat.list",
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.list envelope: %+v", envelope)
+	}
+
+	var chats []map[string]any
+	if err := json.Unmarshal(envelope.Data, &chats); err != nil {
+		t.Fatalf("decode chat.list data failed: %v", err)
+	}
+	if len(chats) != 1 {
+		t.Fatalf("expected one chat summary, got: %+v", chats)
+	}
+	if chats[0]["room_id"] != "room-1" {
+		t.Fatalf("unexpected chat summary payload: %+v", chats[0])
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{
@@ -846,7 +919,7 @@ func newTestApp(baseURL string) *App {
 			BuildNumber: 1,
 			Channel:     "stable",
 			FeatureFlags: map[string]bool{
-				"desktop_el": true,
+				"desktop_el":   true,
 				"go_transport": true,
 			},
 		},
@@ -860,7 +933,7 @@ func newTestApp(baseURL string) *App {
 			BuildNumber: 1,
 			Channel:     "stable",
 			FeatureFlags: map[string]bool{
-				"desktop_el": true,
+				"desktop_el":   true,
 				"go_transport": true,
 			},
 		}),

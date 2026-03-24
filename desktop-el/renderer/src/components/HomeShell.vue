@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+import ChatPanel from "./ChatPanel.vue";
 import ContactPanel from "./ContactPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 
@@ -29,7 +30,6 @@ const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; des
 
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
-const recentConversations = computed(() => props.bootstrap?.recent_conversations ?? []);
 const pageTitle = computed(() => {
   switch (props.activeView) {
     case "chat":
@@ -45,7 +45,7 @@ const pageTitle = computed(() => {
 const pageSummary = computed(() => {
   switch (props.activeView) {
     case "chat":
-      return "沿用旧 desktop 的左导航 + 主内容布局，当前先接上最近会话与运行状态。";
+      return "沿用旧 desktop 的左导航 + 主内容布局，当前先接上真实会话列表与运行状态。";
     case "contact":
       return "联系人页先恢复信息架构和左右分栏，后续逐步接真实联系人与好友申请业务。";
     case "settings":
@@ -111,57 +111,14 @@ const pageSummary = computed(() => {
         </div>
       </header>
 
-      <section v-if="props.activeView === 'chat'" class="content-grid content-grid--chat">
-        <article class="panel panel--sidebar">
-          <div class="panel__header">
-            <h2>最近会话</h2>
-            <span>{{ recentConversations.length }} 个</span>
-          </div>
-          <div v-if="recentConversations.length" class="conversation-list">
-            <button
-              v-for="conversation in recentConversations"
-              :key="conversation.id"
-              type="button"
-              class="conversation-card"
-            >
-              <span class="conversation-card__avatar">{{ conversation.title.slice(0, 1) }}</span>
-              <span class="conversation-card__copy">
-                <strong>{{ conversation.title }}</strong>
-                <small>ID {{ conversation.id }}</small>
-              </span>
-            </button>
-          </div>
-          <div v-else class="empty-state">
-            <strong>暂无会话</strong>
-            <p>旧 Chat 列表结构已经对齐到主壳，下一批开始挂真实会话数据。</p>
-          </div>
-        </article>
-
-        <article class="panel panel--stage">
-          <div class="panel__header">
-            <h2>聊天主区域</h2>
-            <span>迁移中</span>
-          </div>
-          <div class="hero-card">
-            <strong>当前账号 {{ userDisplayName }}</strong>
-            <p>这里会继续平移旧 `Chat.vue` 的消息区、会话头部和输入区域。</p>
-          </div>
-          <dl class="detail-list">
-            <div>
-              <dt>API</dt>
-              <dd>{{ props.bootstrap?.config.api_base_url ?? "未同步" }}</dd>
-            </div>
-            <div>
-              <dt>最后事件</dt>
-              <dd>{{ props.lastEvent }}</dd>
-            </div>
-            <div>
-              <dt>Bootstrap 连接</dt>
-              <dd>{{ props.bootstrap?.connection.status ?? "unknown" }}</dd>
-            </div>
-          </dl>
-        </article>
-      </section>
+      <ChatPanel
+        v-if="props.activeView === 'chat'"
+        :current-user="props.currentUser"
+        :host-version="props.hostVersion"
+        :last-event="props.lastEvent"
+        :ws-status="props.wsStatus"
+        :bootstrap="props.bootstrap"
+      />
 
       <ContactPanel v-else-if="props.activeView === 'contact'" />
 
