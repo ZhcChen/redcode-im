@@ -38,6 +38,18 @@ export interface LatestVersionResponse {
   version?: AppVersionInfo | null;
 }
 
+interface VersionDownloadPayload {
+  success?: boolean;
+  message?: string;
+  download_url?: string | null;
+}
+
+export interface VersionDownloadResponse {
+  success: boolean;
+  message: string;
+  downloadUrl: string | null;
+}
+
 export class VersionApi {
   static async getLatestVersion(params: {
     channel?: string;
@@ -58,5 +70,34 @@ export class VersionApi {
       channel: params.channel ?? "stable",
       current_version: params.currentVersion ?? ""
     });
+  }
+
+  static async getDownloadUrl(params: {
+    id: string;
+    expiresInSeconds?: number;
+  }): Promise<ApiResponse<VersionDownloadResponse>> {
+    const query: Record<string, string> = {
+      id: params.id
+    };
+    if (params.expiresInSeconds) {
+      query.expires_in_seconds = String(params.expiresInSeconds);
+    }
+
+    const response = await get<VersionDownloadPayload>("/versions/download", query);
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null
+      };
+    }
+
+    return {
+      ...response,
+      data: {
+        success: typeof response.data.success === "boolean" ? response.data.success : response.success,
+        message: response.data.message || response.message || "",
+        downloadUrl: response.data.download_url ?? null
+      }
+    };
   }
 }
