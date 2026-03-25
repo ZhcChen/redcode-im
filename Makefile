@@ -9,7 +9,7 @@ DESKTOP_EL_SCREEN := desktop-el-$(shell printf '%s' "$(ROOT_DIR)" | cksum | awk 
 	website-up website-down website-logs \
 	tests-up tests-down tests-logs \
 	desktop-el-up desktop-el-down desktop-el-logs \
-	desktop-el-test desktop-el-core-test desktop-el-build desktop-el-verify
+	desktop-el-test desktop-el-core-test desktop-el-build desktop-el-verify desktop-el-smoke
 
 help: ## 显示所有可用命令
 	@echo "RedCode IM 统一命令入口"
@@ -94,3 +94,6 @@ desktop-el-build: ## 构建 desktop-el
 
 desktop-el-verify: ## 运行 desktop-el 固定验收脚本（Go core + Bun test + build）
 	cd desktop-el && bun run verify
+
+desktop-el-smoke: ## 运行 desktop-el renderer 级浏览器 smoke（Playwright + vite preview）
+	cd desktop-el && bun run smoke

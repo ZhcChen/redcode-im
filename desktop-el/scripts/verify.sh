@@ -11,10 +11,10 @@ echo "[desktop-el] go test ./..."
   go test ./...
 )
 
-echo "[desktop-el] bun test"
+echo "[desktop-el] bun run test"
 (
   cd "${PROJECT_DIR}"
-  bun test
+  bun run test
 )
 
 echo "[desktop-el] bun run build"

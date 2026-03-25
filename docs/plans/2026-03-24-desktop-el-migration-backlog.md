@@ -306,11 +306,12 @@
 - [x] 已固化 `desktop-el` 模块验收入口：根 `Makefile` 新增 `desktop-el-test` / `desktop-el-core-test` / `desktop-el-build` / `desktop-el-verify`，模块内新增 `bun run verify` 固定串联 Go core 测试、Bun 测试与构建。
 - [x] 已补齐 Go core `user` / `friend` / `settings` service 测试，并修复 `user.UpdateMe` 在 `success=true` 且 `data=null` 时污染当前用户快照的边界问题。
 - [x] 已补齐 Go core `chat` service 的群设置与附件上传/下载契约测试，覆盖路径、query、multipart session 与可选字段裁剪行为。
+- [x] 已补齐 renderer 级 smoke 最小闭环：新增 Playwright + `vite preview` 独立 smoke 入口，在页面加载前注入 `window.desktopEl` mock，覆盖“登录页启动 -> 登录成功 -> 进入 HomeShell”浏览器级主链路，不并入默认 `desktop-el-verify`。
 
 **范围:**
 - [ ] Go core 集成测试继续扩充
 - [x] Electron main / preload 测试扩充（已覆盖 `go-core` / `rpc` / `shell` / `file` / `dialog` / `notification` 与 preload API bridge）
-- [ ] renderer 级 smoke / e2e 方案
+- [x] renderer 级 smoke / e2e 方案（当前先落 Playwright smoke，后续如需更深交互再在此基础上扩展）
 - [x] 关键迁移闭环形成固定验收脚本
 
 ### P2-4: 文档收口
