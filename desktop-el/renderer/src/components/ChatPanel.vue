@@ -35,6 +35,7 @@ import {
   resolveGroupComposerState,
   resolveGroupManageState,
 } from "@/utils/chat-group-permissions";
+import { resolveGroupMaxMembersUpdate } from "@/utils/chat-group-settings";
 import { getGroupRealtimePlan } from "@/utils/chat-group-realtime";
 import CreateGroupModal from "./CreateGroupModal.vue";
 
@@ -55,6 +56,13 @@ interface GroupCreateFriendOption {
   subtitle: string | null;
   avatarUrl: string | null;
 }
+
+type GroupSettingActionKey =
+  | "joinApprovalRequired"
+  | "memberCanInvite"
+  | "memberCanAddFriends"
+  | "requireAdminToAddFriends"
+  | "maxMembers";
 
 type DesktopRuntimeWithFile = NonNullable<Window["desktopEl"]> & {
   file: {
@@ -103,7 +111,8 @@ const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
-const updatingGroupSettingKey = ref<"joinApprovalRequired" | "memberCanInvite" | null>(null);
+const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
+const groupMaxMembersDraft = ref("");
 const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
@@ -764,9 +773,14 @@ const resetGroupContext = () => {
   isLoadingGroupContext.value = false;
 };
 
+const setGroupSettingsState = (settings: ChatGroupSettings | null) => {
+  groupSettings.value = settings;
+  groupMaxMembersDraft.value = settings ? String(settings.maxMembers) : "";
+};
+
 const resetGroupSettings = () => {
   groupSettingsLoadSequence += 1;
-  groupSettings.value = null;
+  setGroupSettingsState(null);
   isLoadingGroupSettings.value = false;
 };
 
@@ -846,12 +860,12 @@ const loadGroupSettings = async (roomId: string | null) => {
     }
 
     if (!response.success || !response.data) {
-      groupSettings.value = null;
+      setGroupSettingsState(null);
       notice.value = response.message || "群设置加载失败";
       return;
     }
 
-    groupSettings.value = response.data;
+    setGroupSettingsState(response.data);
   } catch (error) {
     if (
       currentSequence !== groupSettingsLoadSequence ||
@@ -860,7 +874,7 @@ const loadGroupSettings = async (roomId: string | null) => {
       return;
     }
 
-    groupSettings.value = null;
+    setGroupSettingsState(null);
     notice.value = error instanceof Error ? error.message : "群设置加载失败";
   } finally {
     if (currentSequence === groupSettingsLoadSequence) {
@@ -1133,9 +1147,12 @@ const handleUpdateGroupSettings = async (
   patch: {
     joinApprovalRequired?: boolean;
     memberCanInvite?: boolean;
+    memberCanAddFriends?: boolean;
+    requireAdminToAddFriends?: boolean;
+    maxMembers?: number;
   },
   options: {
-    settingKey: "joinApprovalRequired" | "memberCanInvite";
+    settingKey: GroupSettingActionKey;
     successMessage: string;
   },
 ) => {
@@ -1163,7 +1180,7 @@ const handleUpdateGroupSettings = async (
       return;
     }
 
-    groupSettings.value = response.data;
+    setGroupSettingsState(response.data);
     notice.value = options.successMessage;
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "更新群设置失败";
@@ -1205,6 +1222,67 @@ const handleToggleMemberInvite = async () => {
     {
       settingKey: "memberCanInvite",
       successMessage: nextValue ? "已开启成员邀请。" : "已关闭成员邀请。",
+    },
+  );
+};
+
+const handleToggleMemberCanAddFriends = async () => {
+  if (!groupSettings.value) {
+    return;
+  }
+
+  const nextValue = !groupSettings.value.memberCanAddFriends;
+  await handleUpdateGroupSettings(
+    {
+      memberCanAddFriends: nextValue,
+    },
+    {
+      settingKey: "memberCanAddFriends",
+      successMessage: nextValue ? "已开启群内加好友。" : "已关闭群内加好友。",
+    },
+  );
+};
+
+const handleToggleRequireAdminToAddFriends = async () => {
+  if (!groupSettings.value) {
+    return;
+  }
+
+  const nextValue = !groupSettings.value.requireAdminToAddFriends;
+  await handleUpdateGroupSettings(
+    {
+      requireAdminToAddFriends: nextValue,
+    },
+    {
+      settingKey: "requireAdminToAddFriends",
+      successMessage: nextValue
+        ? "已开启群内加好友管理员审批。"
+        : "已关闭群内加好友管理员审批。",
+    },
+  );
+};
+
+const handleSubmitMaxMembers = async () => {
+  if (!groupSettings.value) {
+    return;
+  }
+
+  const decision = resolveGroupMaxMembersUpdate(
+    groupMaxMembersDraft.value,
+    groupSettings.value.maxMembers,
+  );
+  if (decision.errorMessage) {
+    notice.value = decision.errorMessage;
+    return;
+  }
+
+  await handleUpdateGroupSettings(
+    {
+      maxMembers: decision.nextValue ?? undefined,
+    },
+    {
+      settingKey: "maxMembers",
+      successMessage: `已将群最大人数更新为 ${decision.nextValue}。`,
     },
   );
 };
@@ -1918,6 +1996,30 @@ onMounted(() => {
                     </dd>
                   </div>
                   <div>
+                    <dt>群内加好友</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatBooleanLabel(
+                              groupSettings.memberCanAddFriends,
+                            )
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>加好友管理员审批</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatBooleanLabel(
+                              groupSettings.requireAdminToAddFriends,
+                            )
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
                     <dt>最大人数</dt>
                     <dd>{{ groupSettings?.maxMembers ?? "未同步" }}</dd>
                   </div>
@@ -1983,6 +2085,82 @@ onMounted(() => {
                         : groupSettings?.memberCanInvite
                           ? "关闭成员邀请"
                           : "开启成员邀请"
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="group-panel__action"
+                    :disabled="
+                      isLoadingGroupSettings ||
+                      !groupSettings ||
+                      updatingGroupSettingKey !== null
+                    "
+                    @click="void handleToggleMemberCanAddFriends()"
+                  >
+                    {{
+                      updatingGroupSettingKey === "memberCanAddFriends"
+                        ? "提交中..."
+                        : groupSettings?.memberCanAddFriends
+                          ? "关闭群内加好友"
+                          : "开启群内加好友"
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="group-panel__action"
+                    :disabled="
+                      isLoadingGroupSettings ||
+                      !groupSettings ||
+                      updatingGroupSettingKey !== null
+                    "
+                    @click="void handleToggleRequireAdminToAddFriends()"
+                  >
+                    {{
+                      updatingGroupSettingKey ===
+                      "requireAdminToAddFriends"
+                        ? "提交中..."
+                        : groupSettings?.requireAdminToAddFriends
+                          ? "关闭加好友审批"
+                          : "开启加好友审批"
+                    }}
+                  </button>
+                </div>
+
+                <div
+                  v-if="canManageSelectedGroup"
+                  class="group-panel__inline-form"
+                >
+                  <label class="group-panel__input-field">
+                    <span>群最大人数</span>
+                    <input
+                      v-model="groupMaxMembersDraft"
+                      class="group-panel__input"
+                      type="number"
+                      min="1"
+                      step="1"
+                      inputmode="numeric"
+                      :disabled="
+                        isLoadingGroupSettings ||
+                        !groupSettings ||
+                        updatingGroupSettingKey !== null
+                      "
+                      @keydown.enter.prevent="void handleSubmitMaxMembers()"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    class="group-panel__action"
+                    :disabled="
+                      isLoadingGroupSettings ||
+                      !groupSettings ||
+                      updatingGroupSettingKey !== null
+                    "
+                    @click="void handleSubmitMaxMembers()"
+                  >
+                    {{
+                      updatingGroupSettingKey === "maxMembers"
+                        ? "保存中..."
+                        : "保存人数上限"
                     }}
                   </button>
                 </div>
@@ -2794,6 +2972,38 @@ onMounted(() => {
   gap: 10px;
 }
 
+.group-panel__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.group-panel__input-field {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.group-panel__input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.group-panel__input:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .group-panel__member-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -3444,6 +3654,14 @@ onMounted(() => {
   .group-panel__detail-list div {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  .group-panel__inline-form {
+    align-items: stretch;
+  }
+
+  .group-panel__input-field {
+    flex-basis: 100%;
   }
 }
 </style>

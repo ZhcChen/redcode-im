@@ -416,6 +416,80 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("updates remaining group settings fields through go-core rpc", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                settings: {
+                  id: "settings-1",
+                  room_id: "room-group-1",
+                  join_approval_required: true,
+                  member_can_invite: false,
+                  member_can_add_friends: false,
+                  require_admin_to_add_friends: true,
+                  max_members: 256,
+                  global_mute_enabled: false,
+                  global_mute_until: null,
+                  global_mute_reason: null,
+                  global_mute_set_by: null,
+                  created_at: "2026-03-25T12:00:00Z",
+                  updated_at: "2026-03-25T13:20:00Z",
+                },
+                my_mute: null,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.updateGroupSettings({
+      roomId: "room-group-1",
+      memberCanAddFriends: false,
+      requireAdminToAddFriends: true,
+      maxMembers: 256,
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.settings.update",
+        params: {
+          room_id: "room-group-1",
+          member_can_add_friends: false,
+          require_admin_to_add_friends: true,
+          max_members: 256,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        roomId: "room-group-1",
+        joinApprovalRequired: true,
+        memberCanInvite: false,
+        memberCanAddFriends: false,
+        requireAdminToAddFriends: true,
+        maxMembers: 256,
+        globalMuteEnabled: false,
+        globalMuteUntil: null,
+        globalMuteReason: null,
+        globalMuteSetBy: null,
+        createdAt: new Date("2026-03-25T12:00:00Z"),
+        updatedAt: new Date("2026-03-25T13:20:00Z"),
+        myMute: null,
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

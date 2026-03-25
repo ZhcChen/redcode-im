@@ -89,10 +89,11 @@
 - [x] 已完成全员禁言写侧最小闭环：群设置面板可直接开启 / 解除全员禁言，renderer 通过 Go core `chat.group.settings.global_mute.update` 调 backend，不新增本地 HTTP 端口。
 - [x] 群聊输入区已接入群禁言态：当前用户被个人禁言时会禁用 composer；全员禁言开启时，非群主管理员无法继续发送文本或附件。
 - [x] 已完成入群审批和成员邀请两个设置开关：群设置面板可直接切换 `join_approval_required` / `member_can_invite`，成功后立即刷新当前群设置。
-- [ ] 群头像、剩余群设置写侧与群管理仍未迁移。
+- [x] 已完成剩余群设置写侧：群设置面板已补齐 `member_can_add_friends`、`require_admin_to_add_friends` 与 `max_members` 的原位更新入口，继续复用 Go core `chat.group.settings.update`，不新增本地 HTTP 端口。
+- [ ] 群头像与群管理仍未迁移。
 
 **当前缺口:**
-- 群头像与其余群设置写侧入口仍未接回，例如 `max_members`、成员加好友相关开关等。
+- 群头像写侧入口仍未接回。
 - 群成员列表目前只有最小展示，还没有完整成员面板和管理动作。
 - 更深的群相关 websocket 事件，例如群主转让、群解散、管理员调整、入群审批流等，仍未接入统一刷新链路。
 
@@ -102,7 +103,8 @@
 - [x] 再补群设置读侧与最小群事件刷新。
 - [x] 再补全员禁言写侧和输入区禁用态。
 - [x] 再补入群审批和成员邀请两个设置开关。
-- [ ] 最后再拆出剩余群设置写侧与群管理，不要一刀做完。
+- [x] 再补剩余群设置写侧。
+- [ ] 最后再拆出群头像与群管理，不要一刀做完。
 
 **关键参考:**
 - [group.ts](/Users/chen/code/redcode-im/desktop/src/api/group.ts)

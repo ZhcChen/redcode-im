@@ -1673,6 +1673,102 @@ func TestAppChatGroupSettingsUpdateReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupSettingsUpdatePassesRemainingFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/settings" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["member_can_add_friends"] != false {
+			t.Fatalf("unexpected member_can_add_friends payload: %+v", payload)
+		}
+		if payload["require_admin_to_add_friends"] != true {
+			t.Fatalf("unexpected require_admin_to_add_friends payload: %+v", payload)
+		}
+		if payload["max_members"] != float64(256) {
+			t.Fatalf("unexpected max_members payload: %+v", payload)
+		}
+		if _, exists := payload["join_approval_required"]; exists {
+			t.Fatalf("expected request payload to omit join_approval_required: %+v", payload)
+		}
+		if _, exists := payload["member_can_invite"]; exists {
+			t.Fatalf("expected request payload to omit member_can_invite: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"settings": map[string]any{
+				"id":                           "settings-1",
+				"room_id":                      "room-group-1",
+				"join_approval_required":       true,
+				"member_can_invite":            false,
+				"member_can_add_friends":       false,
+				"require_admin_to_add_friends": true,
+				"max_members":                  256,
+				"global_mute_enabled":          false,
+				"global_mute_until":            nil,
+				"global_mute_reason":           nil,
+				"global_mute_set_by":           nil,
+				"created_at":                   "2026-03-25T12:00:00Z",
+				"updated_at":                   "2026-03-25T13:15:00Z",
+			},
+			"my_mute": nil,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-settings-update-remaining-fields",
+		Method: "chat.group.settings.update",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":                      "room-group-1",
+			"member_can_add_friends":       false,
+			"require_admin_to_add_friends": true,
+			"max_members":                  256,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.settings.update to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.settings.update response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.settings.update envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.settings.update data failed: %v", err)
+	}
+	settings, ok := result["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected settings payload: %+v", result)
+	}
+	if settings["member_can_add_friends"] != false ||
+		settings["require_admin_to_add_friends"] != true ||
+		settings["max_members"] != float64(256) {
+		t.Fatalf("unexpected updated group settings data: %+v", settings)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {
