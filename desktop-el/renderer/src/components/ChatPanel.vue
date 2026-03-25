@@ -42,6 +42,10 @@ import {
   type ComposerPendingAttachment,
 } from "@/utils/chat-composer-attachments";
 import {
+  isOpenSearchShortcut,
+  isSubmitEditShortcut,
+} from "@/utils/chat-shortcuts";
+import {
   uploadAttachmentsAndBuildParts,
 } from "@/utils/chat-message-compose";
 import {
@@ -4613,6 +4617,12 @@ const takeMessageContextMenuTarget = () => {
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (isOpenSearchShortcut(event)) {
+    event.preventDefault();
+    handleOpenMessageSearchModal();
+    return;
+  }
+
   if (event.key !== "Escape") {
     return;
   }
@@ -4628,6 +4638,15 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
   if (isMultiSelectMode.value) {
     exitMultiSelectMode();
   }
+};
+
+const handleEditMessageKeydown = (event: KeyboardEvent) => {
+  if (!isSubmitEditShortcut(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  void handleSubmitEditMessage();
 };
 
 const handleToggleMessageActionMenu = (message: ChatMessage) => {
@@ -7309,6 +7328,7 @@ onBeforeUnmount(() => {
           rows="5"
           maxlength="10000"
           :disabled="submittingEditMessageId !== null"
+          @keydown="handleEditMessageKeydown"
         />
         <div class="message-edit-dialog__footer">
           <small>{{ editingMessageDraft.trim().length }} / 10000</small>
