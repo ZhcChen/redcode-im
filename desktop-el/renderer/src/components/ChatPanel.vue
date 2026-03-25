@@ -6,6 +6,7 @@ import {
   type ChatGroupAdmin,
   type ChatGroupJoinRequest,
   type ChatGroupMute,
+  type ChatGroupOperationLog,
   type ChatGroupRule,
   type ChatGroupSettings,
   mapChatRealtimeEvent,
@@ -50,6 +51,7 @@ import CreateGroupModal from "./CreateGroupModal.vue";
 import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
 import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
 import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
+import ManageGroupOperationLogsModal from "./ManageGroupOperationLogsModal.vue";
 import ManageGroupRulesModal from "./ManageGroupRulesModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 
@@ -111,6 +113,7 @@ const groupMembers = ref<ChatRoomMember[]>([]);
 const groupAdmins = ref<ChatGroupAdmin[]>([]);
 const groupJoinRequests = ref<ChatGroupJoinRequest[]>([]);
 const groupMutes = ref<ChatGroupMute[]>([]);
+const groupOperationLogs = ref<ChatGroupOperationLog[]>([]);
 const groupRules = ref<ChatGroupRule[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
@@ -118,6 +121,7 @@ const isAddGroupMembersModalVisible = ref(false);
 const isManageGroupAdminsModalVisible = ref(false);
 const isManageGroupJoinRequestsModalVisible = ref(false);
 const isManageGroupMutesModalVisible = ref(false);
+const isManageGroupOperationLogsModalVisible = ref(false);
 const isManageGroupRulesModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
@@ -133,6 +137,7 @@ const isLoadingGroupContext = ref(false);
 const isLoadingGroupAdmins = ref(false);
 const isLoadingGroupJoinRequests = ref(false);
 const isLoadingGroupMutes = ref(false);
+const isLoadingGroupOperationLogs = ref(false);
 const isLoadingGroupRules = ref(false);
 const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
@@ -142,6 +147,7 @@ const isAddingGroupMembers = ref(false);
 const isUpdatingGroupAdmins = ref(false);
 const isReviewingGroupJoinRequests = ref(false);
 const isUpdatingGroupMutes = ref(false);
+const isLoadingMoreGroupOperationLogs = ref(false);
 const isUpdatingGroupRules = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isSending = ref(false);
@@ -166,12 +172,15 @@ const mediaPreview = ref<{
 } | null>(null);
 const replyingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
+const hasMoreGroupOperationLogs = ref(false);
 let groupContextLoadSequence = 0;
 let groupAdminsLoadSequence = 0;
 let groupJoinRequestsLoadSequence = 0;
 let groupMutesLoadSequence = 0;
+let groupOperationLogsLoadSequence = 0;
 let groupRulesLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
+const GROUP_OPERATION_LOGS_PAGE_SIZE = 20;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
@@ -421,6 +430,15 @@ const groupRuleEntries = computed(() =>
     };
   }),
 );
+const groupOperationLogEntries = computed(() =>
+  groupOperationLogs.value.map((log) => ({
+    id: log.id,
+    createdAtLabel: formatOperationLogTime(log.createdAt),
+    operatorLabel: resolveGroupActorLabel(log.operatorId),
+    actionText: formatGroupOperationLogAction(log),
+    targetLabel: log.targetUserId ? resolveGroupActorLabel(log.targetUserId) : null,
+  })),
+);
 const groupOwnerMember = computed(
   () =>
     sortedGroupMembers.value.find(
@@ -556,6 +574,19 @@ const formatDetailTime = (value: Date | null) => {
   }).format(value);
 };
 
+const formatOperationLogTime = (value: Date | null) => {
+  if (!value) {
+    return "暂无";
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(value);
+};
+
 const formatRoomType = (value: ChatSummary["roomType"]) => {
   switch (value) {
     case "group":
@@ -573,6 +604,17 @@ const formatRoomType = (value: ChatSummary["roomType"]) => {
 const getRoomMemberDisplayName = (member: ChatRoomMember) =>
   member.nickname || member.username || member.userId;
 
+const resolveGroupActorLabel = (userId: string) => {
+  const member = groupMembers.value.find((item) => item.userId === userId);
+  if (member) {
+    return getRoomMemberDisplayName(member);
+  }
+  if (userId === props.currentUser.id) {
+    return props.currentUser.nickname || props.currentUser.username;
+  }
+  return userId;
+};
+
 const formatRoomMemberRole = (role: ChatRoomMember["role"]) => {
   switch (role) {
     case "owner":
@@ -586,6 +628,48 @@ const formatRoomMemberRole = (role: ChatRoomMember["role"]) => {
 };
 
 const formatBooleanLabel = (value: boolean) => (value ? "开启" : "关闭");
+
+const operationTextMap: Record<string, string> = {
+  appoint_admin: "任命了管理员",
+  remove_admin: "撤销了管理员",
+  add_members: "添加了成员",
+  remove_member: "移除了成员",
+  enable_global_mute: "开启了全体禁言",
+  disable_global_mute: "关闭了全体禁言",
+  mute_user: "禁言了",
+  unmute_user: "解除了禁言",
+  create_rule: "创建了群规",
+  update_rule: "更新了群规",
+  delete_rule: "删除了群规",
+  create_invitations: "邀请成员入群",
+  respond_to_invitation: "响应了群邀请",
+  review_join_request: "审核了入群申请",
+  update_group_settings: "更新了群设置",
+};
+
+const formatGroupOperationLogAction = (log: ChatGroupOperationLog) => {
+  if (log.operationType === "review_join_request") {
+    const status = log.operationData?.status;
+    if (status === "approved") {
+      return "通过了入群申请";
+    }
+    if (status === "rejected") {
+      return "拒绝了入群申请";
+    }
+  }
+
+  if (log.operationType === "mute_user") {
+    const durationHours = log.operationData?.duration_hours;
+    if (durationHours === 0) {
+      return "永久禁言了";
+    }
+    if (typeof durationHours === "number") {
+      return `禁言了 ${durationHours} 小时`;
+    }
+  }
+
+  return operationTextMap[log.operationType] || log.operationType;
+};
 
 const getAvatarFallbackText = (value: string | null | undefined) =>
   value?.slice(0, 1).toUpperCase() || "#";
@@ -839,6 +923,14 @@ const resetGroupRules = () => {
   isLoadingGroupRules.value = false;
 };
 
+const resetGroupOperationLogs = () => {
+  groupOperationLogsLoadSequence += 1;
+  groupOperationLogs.value = [];
+  hasMoreGroupOperationLogs.value = false;
+  isLoadingGroupOperationLogs.value = false;
+  isLoadingMoreGroupOperationLogs.value = false;
+};
+
 const patchRoomAvatar = (roomId: string, avatarUrl: string) => {
   chats.value = chats.value.map((chat) =>
     chat.roomId === roomId
@@ -1057,6 +1149,7 @@ const resetGroupContext = () => {
   resetGroupJoinRequests();
   resetGroupMutes();
   resetGroupRules();
+  resetGroupOperationLogs();
   isLoadingGroupContext.value = false;
 };
 
@@ -1301,6 +1394,71 @@ const loadGroupRules = async (roomId: string | null) => {
   }
 };
 
+const loadGroupOperationLogs = async (payload: {
+  roomId: string | null;
+  append?: boolean;
+}) => {
+  const { roomId, append = false } = payload;
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupOperationLogs();
+    return;
+  }
+
+  const currentSequence = groupOperationLogsLoadSequence + 1;
+  groupOperationLogsLoadSequence = currentSequence;
+  if (append) {
+    isLoadingMoreGroupOperationLogs.value = true;
+  } else {
+    isLoadingGroupOperationLogs.value = true;
+  }
+
+  try {
+    const response = await ChatApi.listGroupOperationLogs({
+      roomId,
+      limit: GROUP_OPERATION_LOGS_PAGE_SIZE,
+      offset: append ? groupOperationLogs.value.length : 0,
+    });
+    if (
+      currentSequence !== groupOperationLogsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      if (!append) {
+        groupOperationLogs.value = [];
+      }
+      notice.value = response.message || "群操作日志加载失败";
+      return;
+    }
+
+    groupOperationLogs.value = append
+      ? [...groupOperationLogs.value, ...response.data.logs]
+      : response.data.logs;
+    hasMoreGroupOperationLogs.value =
+      response.data.logs.length >= GROUP_OPERATION_LOGS_PAGE_SIZE;
+  } catch (error) {
+    if (
+      currentSequence !== groupOperationLogsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!append) {
+      groupOperationLogs.value = [];
+    }
+    notice.value = error instanceof Error ? error.message : "群操作日志加载失败";
+  } finally {
+    if (currentSequence === groupOperationLogsLoadSequence) {
+      isLoadingGroupOperationLogs.value = false;
+      isLoadingMoreGroupOperationLogs.value = false;
+    }
+  }
+};
+
 const loadGroupSettings = async (roomId: string | null) => {
   const currentChat = chats.value.find((chat) => chat.roomId === roomId);
   if (!roomId || currentChat?.roomType !== "group") {
@@ -1520,6 +1678,25 @@ const handleOpenManageGroupRulesModal = async () => {
   await loadGroupRules(selectedChatId.value);
 };
 
+const handleOpenManageGroupOperationLogsModal = async () => {
+  if (isLoadingGroupOperationLogs.value || isLoadingMoreGroupOperationLogs.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有查看群操作日志的权限。";
+    return;
+  }
+
+  isManageGroupOperationLogsModalVisible.value = true;
+  await loadGroupOperationLogs({
+    roomId: selectedChatId.value,
+  });
+};
+
 const closeAddGroupMembersModal = () => {
   if (isAddingGroupMembers.value) {
     return;
@@ -1553,6 +1730,13 @@ const closeManageGroupRulesModal = () => {
     return;
   }
   isManageGroupRulesModalVisible.value = false;
+};
+
+const closeManageGroupOperationLogsModal = () => {
+  if (isLoadingMoreGroupOperationLogs.value) {
+    return;
+  }
+  isManageGroupOperationLogsModalVisible.value = false;
 };
 
 const handleOpenRemoveGroupMembersModal = () => {
@@ -1618,6 +1802,32 @@ const handleManageGroupRulesModalVisibleChange = (visible: boolean) => {
   closeManageGroupRulesModal();
 };
 
+const handleManageGroupOperationLogsModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenManageGroupOperationLogsModal();
+    return;
+  }
+  closeManageGroupOperationLogsModal();
+};
+
+const handleLoadMoreGroupOperationLogs = async () => {
+  const roomId = selectedChatId.value;
+  if (
+    !roomId ||
+    !isSelectedGroupChat.value ||
+    isLoadingGroupOperationLogs.value ||
+    isLoadingMoreGroupOperationLogs.value ||
+    !hasMoreGroupOperationLogs.value
+  ) {
+    return;
+  }
+
+  await loadGroupOperationLogs({
+    roomId,
+    append: true,
+  });
+};
+
 const handleRemoveGroupMembersModalVisibleChange = (visible: boolean) => {
   if (visible) {
     handleOpenRemoveGroupMembersModal();
@@ -1665,6 +1875,11 @@ const selectChat = async (chatId: string) => {
     await loadGroupSettings(chatId);
     if (isManageGroupRulesModalVisible.value) {
       await loadGroupRules(chatId);
+    }
+    if (isManageGroupOperationLogsModalVisible.value) {
+      await loadGroupOperationLogs({
+        roomId: chatId,
+      });
     }
     return;
   }
@@ -3165,6 +3380,20 @@ onMounted(() => {
                   {{ isUpdatingGroupAdmins ? "处理中..." : "管理员" }}
                 </button>
                 <button
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="
+                    isLoadingGroupOperationLogs || isLoadingMoreGroupOperationLogs
+                  "
+                  @click="void handleOpenManageGroupOperationLogsModal()"
+                >
+                  {{
+                    isLoadingGroupOperationLogs || isLoadingMoreGroupOperationLogs
+                      ? "同步中..."
+                      : "操作日志"
+                  }}
+                </button>
+                <button
                   v-if="canManageSelectedGroupJoinRequests"
                   type="button"
                   class="group-panel__action"
@@ -4053,6 +4282,15 @@ onMounted(() => {
       @create="void handleCreateGroupRule($event)"
       @update="void handleUpdateGroupRule($event)"
       @delete="void handleDeleteGroupRule($event)"
+    />
+    <ManageGroupOperationLogsModal
+      :visible="isManageGroupOperationLogsModalVisible"
+      :logs="groupOperationLogEntries"
+      :is-loading="isLoadingGroupOperationLogs"
+      :is-loading-more="isLoadingMoreGroupOperationLogs"
+      :has-more="hasMoreGroupOperationLogs"
+      @update:visible="handleManageGroupOperationLogsModalVisibleChange"
+      @load-more="void handleLoadMoreGroupOperationLogs()"
     />
     <RemoveGroupMembersModal
       :visible="isRemoveGroupMembersModalVisible"

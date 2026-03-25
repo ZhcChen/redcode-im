@@ -1503,6 +1503,95 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("loads group operation logs through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                logs: [
+                  {
+                    id: "group-log-1",
+                    room_id: "room-group-1",
+                    operator_id: "u-1",
+                    target_user_id: "u-9",
+                    operation_type: "mute_user",
+                    operation_data: {
+                      duration_hours: 24,
+                    },
+                    created_at: "2026-03-25T16:30:00Z",
+                  },
+                  {
+                    id: "group-log-2",
+                    room_id: "room-group-1",
+                    operator_id: "u-2",
+                    target_user_id: null,
+                    operation_type: "update_group_settings",
+                    operation_data: null,
+                    created_at: "2026-03-25T16:20:00Z",
+                  },
+                ],
+                total: 88,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.listGroupOperationLogs({
+      roomId: "room-group-1",
+      limit: 20,
+      offset: 40,
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.operation_logs.list",
+        params: {
+          room_id: "room-group-1",
+          limit: 20,
+          offset: 40,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        logs: [
+          {
+            id: "group-log-1",
+            roomId: "room-group-1",
+            operatorId: "u-1",
+            targetUserId: "u-9",
+            operationType: "mute_user",
+            operationData: {
+              duration_hours: 24,
+            },
+            createdAt: new Date("2026-03-25T16:30:00Z"),
+          },
+          {
+            id: "group-log-2",
+            roomId: "room-group-1",
+            operatorId: "u-2",
+            targetUserId: null,
+            operationType: "update_group_settings",
+            operationData: null,
+            createdAt: new Date("2026-03-25T16:20:00Z"),
+          },
+        ],
+        total: 88,
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

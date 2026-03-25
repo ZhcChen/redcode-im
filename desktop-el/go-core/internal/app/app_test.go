@@ -2711,6 +2711,87 @@ func TestAppChatGroupRuleDeleteReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupOperationLogsListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/operation-logs" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		if got := r.URL.Query().Get("limit"); got != "20" {
+			t.Fatalf("unexpected limit query: %s", got)
+		}
+		if got := r.URL.Query().Get("offset"); got != "40" {
+			t.Fatalf("unexpected offset query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"logs": []map[string]any{
+				{
+					"id":             "group-log-1",
+					"room_id":        "room-group-1",
+					"operator_id":    "u-1",
+					"target_user_id": "u-9",
+					"operation_type": "mute_user",
+					"operation_data": map[string]any{
+						"duration_hours": 24,
+					},
+					"created_at": "2026-03-25T16:30:00Z",
+				},
+			},
+			"total": 88,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-operation-logs-list",
+		Method: "chat.group.operation_logs.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+			"limit":   20,
+			"offset":  40,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.operation_logs.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.operation_logs.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.operation_logs.list envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.operation_logs.list data failed: %v", err)
+	}
+	logs, ok := result["logs"].([]any)
+	if !ok || len(logs) != 1 {
+		t.Fatalf("unexpected operation logs payload: %+v", result)
+	}
+	firstLog, ok := logs[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected operation log payload: %+v", logs[0])
+	}
+	if firstLog["operation_type"] != "mute_user" || result["total"] != float64(88) {
+		t.Fatalf("unexpected operation log data: %+v", result)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

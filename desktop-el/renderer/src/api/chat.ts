@@ -140,6 +140,16 @@ interface BackendGroupRule {
   updated_at: string;
 }
 
+interface BackendGroupOperationLog {
+  id: string;
+  room_id: string;
+  operator_id: string;
+  target_user_id?: string | null;
+  operation_type: string;
+  operation_data?: Record<string, unknown> | null;
+  created_at: string;
+}
+
 interface BackendGroupSettings {
   id: string;
   room_id: string;
@@ -365,6 +375,16 @@ export interface ChatGroupRule {
   isActive: boolean;
   createdAt: Date | null;
   updatedAt: Date | null;
+}
+
+export interface ChatGroupOperationLog {
+  id: string;
+  roomId: string;
+  operatorId: string;
+  targetUserId: string | null;
+  operationType: string;
+  operationData: Record<string, unknown> | null;
+  createdAt: Date | null;
 }
 
 export interface ChatGroupMyMute {
@@ -1002,6 +1022,18 @@ const mapChatGroupRule = (rule: BackendGroupRule): ChatGroupRule => ({
   isActive: Boolean(rule.is_active),
   createdAt: parseTimestamp(rule.created_at),
   updatedAt: parseTimestamp(rule.updated_at),
+});
+
+const mapChatGroupOperationLog = (
+  log: BackendGroupOperationLog,
+): ChatGroupOperationLog => ({
+  id: log.id,
+  roomId: log.room_id,
+  operatorId: log.operator_id,
+  targetUserId: log.target_user_id ?? null,
+  operationType: log.operation_type,
+  operationData: log.operation_data ?? null,
+  createdAt: parseTimestamp(log.created_at),
 });
 
 const mapChatGroupSettings = (
@@ -1786,6 +1818,44 @@ export class ChatApi {
     });
 
     return mapSimpleSuccessData(response);
+  }
+
+  static async listGroupOperationLogs(params: {
+    roomId: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<
+    ApiResponse<{
+      logs: ChatGroupOperationLog[];
+      total: number;
+    }>
+  > {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+    };
+    if (typeof params.limit === "number") {
+      payload.limit = params.limit;
+    }
+    if (typeof params.offset === "number") {
+      payload.offset = params.offset;
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        logs?: BackendGroupOperationLog[] | null;
+        total?: number | null;
+      }>
+    >("chat.group.operation_logs.list", payload);
+
+    return {
+      ...response,
+      data: response.data?.logs
+        ? {
+            logs: response.data.logs.map(mapChatGroupOperationLog),
+            total: response.data.total ?? response.data.logs.length,
+          }
+        : null,
+    };
   }
 
   static async getRoom(params: {

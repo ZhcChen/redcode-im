@@ -82,6 +82,12 @@ type DeleteGroupRuleParams struct {
 	RuleID string `json:"rule_id"`
 }
 
+type ListGroupOperationLogsParams struct {
+	RoomID string `json:"room_id"`
+	Limit  *int   `json:"limit,omitempty"`
+	Offset *int   `json:"offset,omitempty"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -392,6 +398,22 @@ func (s *Service) DeleteGroupRule(ctx context.Context, params DeleteGroupRulePar
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/rules/" + params.RuleID,
+	})
+}
+
+func (s *Service) ListGroupOperationLogs(ctx context.Context, params ListGroupOperationLogsParams) (httpclient.Response, error) {
+	query := map[string]string{}
+	if params.Limit != nil {
+		query["limit"] = strconv.Itoa(*params.Limit)
+	}
+	if params.Offset != nil {
+		query["offset"] = strconv.Itoa(*params.Offset)
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/operation-logs",
+		Query:  query,
 	})
 }
 
