@@ -164,6 +164,47 @@ describe("chat local message helpers", () => {
     ]);
   });
 
+  test("keeps audio duration metadata in local voice messages", () => {
+    const audioFile = new File(["voice"], "voice.webm", {
+      type: "audio/webm",
+      lastModified: 1710000002000,
+    }) as File & { durationMs?: number };
+    audioFile.durationMs = 4800;
+
+    const message = createLocalComposerMessage({
+      roomId: "room-2",
+      currentUserId: "u-1",
+      currentUsername: "me",
+      currentDisplayName: "我",
+      attachments: [audioFile],
+    });
+
+    expect(message.messageType).toBe("audio");
+    expect(message.preview).toBe("[语音] voice.webm");
+    expect(message.parts).toEqual([
+      {
+        position: 0,
+        partType: "audio",
+        text: null,
+        attachment: {
+          key: "",
+          name: "voice.webm",
+          mime: "audio/webm",
+          size: audioFile.size,
+          width: null,
+          height: null,
+          durationMs: 4800,
+          thumbnailKey: null,
+        },
+      },
+    ]);
+    expect(message.retryPayload).toEqual({
+      content: "",
+      quotedMessageId: null,
+      attachments: [audioFile],
+    });
+  });
+
   test("marks local message as failed and clears stale sending state", () => {
     const localMessage = createLocalTextMessage({
       roomId: "room-2",

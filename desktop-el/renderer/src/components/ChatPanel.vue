@@ -31,6 +31,10 @@ import {
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
 import {
+  getVoiceRecordingBlockedReason,
+  type VoiceRecordingFile,
+} from "@/utils/chat-voice-recording";
+import {
   uploadAttachmentsAndBuildParts,
 } from "@/utils/chat-message-compose";
 import {
@@ -100,6 +104,7 @@ import MessageReadersModal from "./MessageReadersModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 import TransferGroupOwnerModal from "./TransferGroupOwnerModal.vue";
 import ViewGroupMembersModal from "./ViewGroupMembersModal.vue";
+import VoiceRecorderModal from "./VoiceRecorderModal.vue";
 
 interface OpenChatRequest {
   requestId: number;
@@ -188,6 +193,7 @@ const isViewGroupMembersModalVisible = ref(false);
 const isForwardMessageModalVisible = ref(false);
 const isForwardingSelectedMessages = ref(false);
 const isMessageReadersModalVisible = ref(false);
+const isVoiceRecorderVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -226,7 +232,7 @@ const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
 const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
 const groupMaxMembersDraft = ref("");
-const sendingMode = ref<"text" | "attachment" | null>(null);
+const sendingMode = ref<"text" | "attachment" | "voice" | null>(null);
 const deletingMessageId = ref<string | null>(null);
 const isDeletingSelectedMessages = ref(false);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
@@ -675,6 +681,11 @@ const pendingAttachmentSummary = computed(() => {
   return `${pendingAttachments.value.length} 个附件 / ${formatAttachmentSize(totalSize)}`;
 });
 const composerStatusText = computed(() => {
+  if (isSending.value && sendingMode.value === "voice") {
+    return attachmentProgressPercent.value === null
+      ? "语音发送中..."
+      : `语音发送中 ${attachmentProgressPercent.value}%`;
+  }
   if (isSending.value && sendingMode.value === "attachment") {
     return attachmentProgressPercent.value === null
       ? "附件处理中..."
@@ -689,6 +700,11 @@ const composerStatusText = computed(() => {
   return "Enter 发送，Shift+Enter 换行";
 });
 const sendButtonLabel = computed(() => {
+  if (isSending.value && sendingMode.value === "voice") {
+    return attachmentProgressPercent.value === null
+      ? "语音发送中..."
+      : `语音发送中 ${attachmentProgressPercent.value}%`;
+  }
   if (isSending.value && sendingMode.value === "attachment") {
     return attachmentProgressPercent.value === null
       ? "发送中..."
@@ -4062,6 +4078,146 @@ const handleSend = async () => {
   }
 };
 
+const handleOpenVoiceRecorder = () => {
+  const blockedReason = getVoiceRecordingBlockedReason({
+    roomId: selectedChatId.value,
+    isSending: isSending.value,
+    composerDisabled: groupComposerState.value.disabled,
+    hasDraftText: Boolean(draftMessage.value.trim()),
+    hasPendingAttachments: hasPendingAttachments.value,
+  });
+
+  if (blockedReason) {
+    notice.value = blockedReason;
+    return;
+  }
+
+  isVoiceRecorderVisible.value = true;
+};
+
+const handleVoiceRecorderVisibleChange = (visible: boolean) => {
+  if (!visible) {
+    isVoiceRecorderVisible.value = false;
+    return;
+  }
+
+  handleOpenVoiceRecorder();
+};
+
+const handleSendVoiceRecording = async (payload: {
+  file: VoiceRecordingFile;
+}) => {
+  const roomId = selectedChatId.value;
+  const quotedMessageId = replyingMessage.value?.id;
+  const quotedMessage = replyingMessage.value
+    ? toQuotedMessage(replyingMessage.value)
+    : null;
+  const blockedReason = getVoiceRecordingBlockedReason({
+    roomId,
+    isSending: isSending.value,
+    composerDisabled: groupComposerState.value.disabled,
+    hasDraftText: Boolean(draftMessage.value.trim()),
+    hasPendingAttachments: hasPendingAttachments.value,
+  });
+  let localVoiceMessageId: string | null = null;
+
+  if (blockedReason) {
+    notice.value = blockedReason;
+    return;
+  }
+  if (!roomId) {
+    return;
+  }
+
+  isVoiceRecorderVisible.value = false;
+  await stopTyping(roomId);
+  isSending.value = true;
+  sendingMode.value = "voice";
+  attachmentUploadProgress.value = 0;
+  attachmentUploadProgressById.value = {};
+
+  try {
+    const localMessage = createLocalComposerMessage({
+      roomId,
+      currentUserId: props.currentUser.id,
+      currentUsername: props.currentUser.username,
+      currentDisplayName:
+        props.currentUser.nickname || props.currentUser.username,
+      currentAvatarUrl: props.currentUser.avatar,
+      quotedMessage,
+      attachments: [payload.file],
+    });
+    localVoiceMessageId = localMessage.id;
+    appendLocalMessage(roomId, localMessage);
+    replyingMessage.value = null;
+
+    const response = await resendLocalMessage(
+      {
+        roomId,
+        currentUserId: props.currentUser.id,
+        retryPayload: localMessage.retryPayload ?? {
+          content: "",
+          quotedMessageId,
+          attachments: [payload.file],
+        },
+      },
+      {
+        uploadAttachmentsAndBuildParts: ({ roomId: targetRoomId, files }) =>
+          uploadAttachmentsAndBuildParts({
+            roomId: targetRoomId,
+            files,
+            onOverallProgress: (progress) => {
+              attachmentUploadProgress.value = progress;
+            },
+          }),
+      },
+    );
+    if (!response.success || !response.data) {
+      markLocalMessageFailedAndScheduleRetry(
+        roomId,
+        localMessage.id,
+        response.message || "语音消息发送失败，3 秒后自动重试",
+      );
+      notice.value = response.message || "语音消息发送失败，3 秒后自动重试";
+      return;
+    }
+
+    messages.value = replaceLocalMessage(
+      messages.value,
+      localMessage.id,
+      response.data,
+    );
+    removeLocalMessage(roomId, localMessage.id);
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+    });
+    notice.value = `语音消息已发送到 ${selectedChat.value?.title || "当前会话"}。`;
+  } catch (error) {
+    if (localVoiceMessageId) {
+      const localMessage = getLocalMessagesForRoom(roomId).find(
+        (message) => message.id === localVoiceMessageId,
+      );
+      if (localMessage?.clientStatus === "sending") {
+        markLocalMessageFailedAndScheduleRetry(
+          roomId,
+          localVoiceMessageId,
+          error instanceof Error
+            ? error.message
+            : "语音消息发送失败，3 秒后自动重试",
+        );
+      }
+    }
+    notice.value =
+      error instanceof Error ? error.message : "语音消息发送失败，3 秒后自动重试";
+  } finally {
+    attachmentUploadProgress.value = null;
+    attachmentUploadProgressById.value = {};
+    isSending.value = false;
+    sendingMode.value = null;
+  }
+};
+
 const handleResendMessage = async (message: ChatMessage) => {
   if (!canResendLocalMessage(message) || resendingMessageId.value) {
     return;
@@ -6267,6 +6423,14 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="composer-panel__button composer-panel__button--secondary"
+                :disabled="isSending"
+                @click="handleOpenVoiceRecorder"
+              >
+                录音
+              </button>
+              <button
+                type="button"
+                class="composer-panel__button composer-panel__button--secondary"
                 :disabled="
                   isSending || !selectedChat || groupComposerState.disabled
                 "
@@ -6438,6 +6602,12 @@ onBeforeUnmount(() => {
       :is-submitting="isForwardingMessage"
       @update:visible="handleForwardMessageModalVisibleChange"
       @submit="void handleForwardMessage($event)"
+    />
+    <VoiceRecorderModal
+      :visible="isVoiceRecorderVisible"
+      :is-submitting="isSending && sendingMode === 'voice'"
+      @update:visible="handleVoiceRecorderVisibleChange"
+      @submit="void handleSendVoiceRecording($event)"
     />
     <MessageReadersModal
       :visible="isMessageReadersModalVisible"

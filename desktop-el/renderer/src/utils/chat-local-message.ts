@@ -28,16 +28,27 @@ export const createLocalTextMessage = (
 ): ChatMessage =>
   createLocalComposerMessage(params);
 
-const buildLocalAttachment = (file: File): ChatMessageAttachment => ({
-  key: "",
-  name: file.name,
-  mime: file.type || null,
-  size: file.size,
-  width: null,
-  height: null,
-  durationMs: null,
-  thumbnailKey: null,
-});
+const buildLocalAttachment = (file: File): ChatMessageAttachment => {
+  const durationMs =
+    inferAttachmentPartType(file) === "audio" &&
+    typeof (file as File & { durationMs?: number }).durationMs === "number"
+      ? Math.max(
+          0,
+          Math.round((file as File & { durationMs?: number }).durationMs ?? 0),
+        )
+      : null;
+
+  return {
+    key: "",
+    name: file.name,
+    mime: file.type || null,
+    size: file.size,
+    width: null,
+    height: null,
+    durationMs,
+    thumbnailKey: null,
+  };
+};
 
 const buildLocalAttachmentPart = (
   file: File,

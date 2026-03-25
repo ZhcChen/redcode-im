@@ -72,6 +72,14 @@ const readImageDimensions = async (file: File): Promise<{ width: number | null; 
 export const determineAttachmentMeta = async (file: File): Promise<AttachmentMeta> => {
   const partType = inferAttachmentPartType(file);
   const mime = file.type || null;
+  const durationOverride =
+    partType === "audio" &&
+    typeof (file as File & { durationMs?: number }).durationMs === "number"
+      ? Math.max(
+          0,
+          Math.round((file as File & { durationMs?: number }).durationMs ?? 0),
+        )
+      : null;
 
   if (partType === "image") {
     const dimensions = await readImageDimensions(file);
@@ -90,7 +98,7 @@ export const determineAttachmentMeta = async (file: File): Promise<AttachmentMet
     mime,
     width: null,
     height: null,
-    durationMs: null,
+    durationMs: durationOverride,
     thumbnailKey: null
   };
 };

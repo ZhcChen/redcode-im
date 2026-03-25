@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildAttachmentPartInput,
   buildDirectUploadHeaders,
+  determineAttachmentMeta,
   inferAttachmentPartType
 } from "./chat-attachment-upload";
 
@@ -55,6 +56,19 @@ describe("chat attachment upload helpers", () => {
       size: 4,
       width: 320,
       height: 240
+    });
+  });
+
+  test("keeps duration metadata from recorded audio files", async () => {
+    const file = new File(["voice"], "voice.webm", {
+      type: "audio/webm",
+    }) as File & { durationMs?: number };
+    file.durationMs = 3500;
+
+    await expect(determineAttachmentMeta(file)).resolves.toMatchObject({
+      partType: "audio",
+      mime: "audio/webm",
+      durationMs: 3500,
     });
   });
 });

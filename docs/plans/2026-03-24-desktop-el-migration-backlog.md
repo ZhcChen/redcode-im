@@ -61,8 +61,8 @@
 **目标:** 支持图片、视频、语音、文件消息的发送、展示、预览、下载。
 
 **当前缺口:**
-- 录音发送与更深媒体体验仍未迁移。
 - 缓存清理策略、连续浏览 / 手势缩放等更完整预览体验仍未迁移。
+- 录音波形、录后编辑、更多媒体细节交互仍未迁移。
 
 **当前进度:**
 - [x] 已完成附件消息读侧最小闭环：renderer 可识别附件 part，经 Go core `chat.attachment.download_url` 获取 signed URL，再通过 Electron 宿主保存到本地并打开。
@@ -71,6 +71,7 @@
 - [x] 已完成多附件发送与文本 + 附件混发：composer 支持多文件选择、顺序上传、聚合进度展示，并通过一次 `chat.send(parts)` 发出 mixed message。
 - [x] 已完成视频消息缩略图优先展示：存在 `thumbnail_key` 时优先拉取缩略图 signed URL，点击后再加载真实视频 URL 进入预览。
 - [x] 已完成本地媒体缓存最小闭环：Electron file API 新增内部缓存目录命中 / 下载能力，renderer 已在图片 / 视频 / 音频预览与“打开附件”链路中优先命中本地缓存，cache miss 时才回退 signed URL 下载。
+- [x] 已完成语音录音发送最小闭环：renderer 新增基于浏览器 `MediaRecorder` 的录音弹层，录音文件带 `durationMs` 扩展属性并复用现有附件上传、本地 sending/failed 消息、自动重试与手动重发链路；全程不新增 Go core RPC，也不打开本地 HTTP 端口。
 - [ ] 更完整的预览体验与缓存治理仍未迁移。
 
 **建议切口:**
@@ -78,7 +79,7 @@
 - [x] 再补文件选择与上传签名 / 分片 / 发送闭环。
 - [x] 继续补图片 / 视频预览与语音播放（最小内联版本）。
 - [x] 再补宿主内部缓存目录与本地缓存命中。
-- [ ] 语音消息播放先于录音迁移，录音可放到后续批次。
+- [x] 再补录音发送最小闭环，继续复用现有附件上传与失败重试链路。
 
 **关键参考:**
 - [chat.ts](/Users/chen/code/redcode-im/.worktrees/desktop-el/desktop-el/renderer/src/api/chat.ts)
