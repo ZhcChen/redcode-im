@@ -24,7 +24,7 @@ use crate::error::AppError;
 use crate::models::Claims;
 use crate::redis::models::{
     CacheKeys, GroupMemberChangeType, GroupMemberChangedPayload, GroupSettingsUpdatePayload,
-    PubSubPayload,
+    PubSubPayload, RoomUpdatePayload,
 };
 use crate::AppState;
 
@@ -370,6 +370,10 @@ pub async fn create_join_request(
     let store = GroupManagementStore::new(state.database.pool());
     let join_request = store.create_join_request(room_id, user_id, request).await?;
 
+    if let Err(e) = broadcast_room_updated(&state, room_id).await {
+        error!("广播入群申请创建刷新事件失败: {}", e);
+    }
+
     Ok(Json(CreateJoinRequestResponse {
         request: join_request,
     }))
@@ -444,6 +448,10 @@ pub async fn review_join_request(
             })),
         )
         .await;
+
+    if let Err(e) = broadcast_room_updated(&state, room_id).await {
+        error!("广播入群审批刷新事件失败: {}", e);
+    }
 
     Ok(Json(CreateJoinRequestResponse {
         request: join_request,
@@ -1206,6 +1214,43 @@ pub async fn broadcast_group_member_changed(
 
     info!(
         "群成员变更已广播到房间 {} ({} 个订阅者)",
+        room_id, subscriber_count
+    );
+
+    Ok(())
+}
+
+pub async fn broadcast_room_updated(
+    state: &AppState,
+    room_id: Uuid,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let room = RoomStore::new(state.database.pool())
+        .get_room(room_id)
+        .await?;
+    let payload = PubSubPayload::RoomUpdate {
+        data: RoomUpdatePayload {
+            room_id,
+            room_name: room.name,
+            room_type: room.room_type.to_string(),
+            avatar_url: room.avatar_url,
+            avatar_object_key: room.avatar_object_key,
+            description: room.description,
+        },
+    };
+
+    let channel = CacheKeys::pubsub_channel(&room_id);
+    let encoded = payload.encode_protobuf();
+
+    let mut conn = state
+        .redis
+        .get_pubsub_client()
+        .get_multiplexed_async_connection()
+        .await?;
+
+    let subscriber_count: i64 = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await?;
+
+    info!(
+        "房间刷新提示已广播到房间 {} ({} 个订阅者)",
         room_id, subscriber_count
     );
 

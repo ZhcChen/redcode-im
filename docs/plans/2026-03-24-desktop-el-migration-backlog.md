@@ -253,7 +253,7 @@
 - [x] `group_member_changed`
 - [x] `group_dissolved`
 - [x] `group_owner_transferred`
-- [ ] 管理员调整 / 入群审批等更深群事件
+- [x] 管理员调整 / 入群审批等更深群事件
 
 **原则:**
 - 先由 Go core 统一转成 stdio 事件。

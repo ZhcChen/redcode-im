@@ -21,6 +21,14 @@ const buildCurrentUserGroupMemberNotice = (
       return "你已在当前群被禁言";
     case "unmuted":
       return "你已在当前群解除禁言";
+    case "role_changed":
+      if (event.newRole === "admin") {
+        return "你已成为当前群管理员";
+      }
+      if (event.newRole === "member") {
+        return "你已不再是当前群管理员";
+      }
+      return null;
     default:
       return null;
   }

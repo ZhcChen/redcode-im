@@ -2466,6 +2466,23 @@ const loadGroupMutes = async (roomId: string | null) => {
   }
 };
 
+const reloadActiveGroupManagementPanels = async (roomId: string) => {
+  const tasks: Array<Promise<unknown>> = [];
+  if (isManageGroupAdminsModalVisible.value) {
+    tasks.push(loadGroupAdmins(roomId));
+  }
+  if (isManageGroupJoinRequestsModalVisible.value) {
+    tasks.push(loadGroupJoinRequests(roomId));
+  }
+  if (isManageGroupMutesModalVisible.value) {
+    tasks.push(loadGroupMutes(roomId));
+  }
+
+  if (tasks.length > 0) {
+    await Promise.all(tasks);
+  }
+};
+
 const loadGroupRules = async (roomId: string | null) => {
   const currentChat = chats.value.find((chat) => chat.roomId === roomId);
   if (!roomId || currentChat?.roomType !== "group") {
@@ -5560,6 +5577,7 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     });
     if (event.roomId === selectedChatId.value) {
       await loadGroupContext(event.roomId);
+      await reloadActiveGroupManagementPanels(event.roomId);
     }
     return;
   }
@@ -5604,15 +5622,7 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     if (event.roomId === selectedChatId.value) {
       if (groupRealtimePlan.shouldReloadGroupContext) {
         await loadGroupContext(event.roomId);
-        if (isManageGroupAdminsModalVisible.value) {
-          await loadGroupAdmins(event.roomId);
-        }
-        if (isManageGroupJoinRequestsModalVisible.value) {
-          await loadGroupJoinRequests(event.roomId);
-        }
-        if (isManageGroupMutesModalVisible.value) {
-          await loadGroupMutes(event.roomId);
-        }
+        await reloadActiveGroupManagementPanels(event.roomId);
       }
       if (groupRealtimePlan.shouldReloadGroupSettings) {
         await loadGroupSettings(event.roomId);

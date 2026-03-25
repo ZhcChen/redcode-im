@@ -105,6 +105,58 @@ describe("chat group realtime helpers", () => {
     });
   });
 
+  test("shows admin promote notice when current user role changes in active group", () => {
+    const event: ChatRealtimeEvent = {
+      type: "group_member_changed",
+      roomId: "room-group-1",
+      memberId: "u-2",
+      changeType: "role_changed",
+      newRole: "admin",
+      operatorId: "u-1",
+      reason: null,
+      until: null,
+    };
+
+    expect(
+      getGroupRealtimePlan({
+        event,
+        activeRoomId: "room-group-1",
+        currentUserId: "u-2",
+      }),
+    ).toEqual({
+      shouldReloadChats: true,
+      shouldReloadGroupContext: true,
+      shouldReloadGroupSettings: true,
+      notice: "你已成为当前群管理员",
+    });
+  });
+
+  test("shows admin demote notice when current user loses admin role in active group", () => {
+    const event: ChatRealtimeEvent = {
+      type: "group_member_changed",
+      roomId: "room-group-1",
+      memberId: "u-2",
+      changeType: "role_changed",
+      newRole: "member",
+      operatorId: "u-1",
+      reason: null,
+      until: null,
+    };
+
+    expect(
+      getGroupRealtimePlan({
+        event,
+        activeRoomId: "room-group-1",
+        currentUserId: "u-2",
+      }),
+    ).toEqual({
+      shouldReloadChats: true,
+      shouldReloadGroupContext: true,
+      shouldReloadGroupSettings: true,
+      notice: "你已不再是当前群管理员",
+    });
+  });
+
   test("reloads chats and shows dissolve notice for active group", () => {
     const event: ChatRealtimeEvent = {
       type: "group_dissolved",
