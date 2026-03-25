@@ -31,6 +31,17 @@ type RemoveRoomMemberParams struct {
 	UserID string `json:"user_id"`
 }
 
+type AppointGroupAdminParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+	Role   string `json:"role,omitempty"`
+}
+
+type RemoveGroupAdminParams struct {
+	RoomID  string `json:"room_id"`
+	AdminID string `json:"admin_id"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -207,6 +218,36 @@ func (s *Service) RemoveRoomMember(ctx context.Context, params RemoveRoomMemberP
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/members/" + params.UserID,
+	})
+}
+
+func (s *Service) ListGroupAdmins(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/admins",
+	})
+}
+
+func (s *Service) AppointGroupAdmin(ctx context.Context, params AppointGroupAdminParams) (httpclient.Response, error) {
+	role := params.Role
+	if role == "" {
+		role = "admin"
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/admins",
+		Body: map[string]any{
+			"user_id": params.UserID,
+			"role":    role,
+		},
+	})
+}
+
+func (s *Service) RemoveGroupAdmin(ctx context.Context, params RemoveGroupAdminParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/admins/" + params.AdminID,
 	})
 }
 

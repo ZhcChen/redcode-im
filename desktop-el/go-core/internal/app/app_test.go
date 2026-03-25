@@ -1888,6 +1888,197 @@ func TestAppChatRoomMemberRemoveReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupAdminsListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/admins" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"admins": []map[string]any{
+				{
+					"id":           "group-admin-1",
+					"room_id":      "room-group-1",
+					"admin_id":     "u-2",
+					"appointed_by": "u-1",
+					"role":         "admin",
+					"permissions":  []string{"invite_member"},
+					"appointed_at": "2026-03-25T13:30:00Z",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-admins-list",
+		Method: "chat.group.admins.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.admins.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.admins.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.admins.list envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.admins.list data failed: %v", err)
+	}
+	admins, ok := result["admins"].([]any)
+	if !ok || len(admins) != 1 {
+		t.Fatalf("unexpected group admin list payload: %+v", result)
+	}
+
+	firstAdmin, ok := admins[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected admin payload: %+v", admins[0])
+	}
+	if firstAdmin["admin_id"] != "u-2" || firstAdmin["appointed_by"] != "u-1" {
+		t.Fatalf("unexpected group admin data: %+v", firstAdmin)
+	}
+}
+
+func TestAppChatGroupAdminAppointReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/admins" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["user_id"] != "u-2" || payload["role"] != "admin" {
+			t.Fatalf("unexpected appoint admin payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"admin": map[string]any{
+				"id":           "group-admin-1",
+				"room_id":      "room-group-1",
+				"admin_id":     "u-2",
+				"appointed_by": "u-1",
+				"role":         "admin",
+				"permissions":  []string{"invite_member"},
+				"appointed_at": "2026-03-25T13:30:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-admin-appoint",
+		Method: "chat.group.admin.appoint",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+			"user_id": "u-2",
+			"role":    "admin",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.admin.appoint to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.admin.appoint response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.admin.appoint envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.admin.appoint data failed: %v", err)
+	}
+	admin, ok := result["admin"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected admin payload: %+v", result)
+	}
+	if admin["admin_id"] != "u-2" || admin["role"] != "admin" {
+		t.Fatalf("unexpected appointed admin data: %+v", admin)
+	}
+}
+
+func TestAppChatGroupAdminRemoveReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/admins/u-2" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-admin-remove",
+		Method: "chat.group.admin.remove",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":  "room-group-1",
+			"admin_id": "u-2",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.admin.remove to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.admin.remove response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != http.StatusNoContent {
+		t.Fatalf("unexpected chat.group.admin.remove envelope: %+v", envelope)
+	}
+	if string(envelope.Data) != "null" {
+		t.Fatalf("expected chat.group.admin.remove data to be null, got: %s", string(envelope.Data))
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

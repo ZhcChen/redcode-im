@@ -94,6 +94,16 @@ interface BackendRoomMember {
   joined_at?: string | null;
 }
 
+interface BackendGroupAdmin {
+  id: string;
+  room_id: string;
+  admin_id: string;
+  appointed_by: string;
+  role: string;
+  permissions?: string[] | null;
+  appointed_at: string;
+}
+
 interface BackendGroupSettings {
   id: string;
   room_id: string;
@@ -272,6 +282,16 @@ export interface ChatRoomMember {
   avatarObjectKey: string | null;
   role: BackendRoomMemberRole;
   joinedAt: Date | null;
+}
+
+export interface ChatGroupAdmin {
+  id: string;
+  roomId: string;
+  adminId: string;
+  appointedBy: string;
+  role: string;
+  permissions: string[] | null;
+  appointedAt: Date | null;
 }
 
 export interface ChatGroupMyMute {
@@ -841,6 +861,16 @@ const mapChatRoomMember = (member: BackendRoomMember): ChatRoomMember => ({
   joinedAt: parseTimestamp(member.joined_at),
 });
 
+const mapChatGroupAdmin = (admin: BackendGroupAdmin): ChatGroupAdmin => ({
+  id: admin.id,
+  roomId: admin.room_id,
+  adminId: admin.admin_id,
+  appointedBy: admin.appointed_by,
+  role: admin.role,
+  permissions: admin.permissions ?? null,
+  appointedAt: parseTimestamp(admin.appointed_at),
+});
+
 const mapChatGroupSettings = (
   response: BackendGroupSettingsResponse,
 ): ChatGroupSettings => ({
@@ -1364,6 +1394,60 @@ export class ChatApi {
           }
         : null,
     };
+  }
+
+  static async listGroupAdmins(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatGroupAdmin[]>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        admins?: BackendGroupAdmin[] | null;
+      }>
+    >("chat.group.admins.list", {
+      room_id: params.roomId,
+    });
+
+    return {
+      ...response,
+      data: response.data?.admins
+        ? response.data.admins.map(mapChatGroupAdmin)
+        : null,
+    };
+  }
+
+  static async appointGroupAdmin(params: {
+    roomId: string;
+    userId: string;
+    role?: string;
+  }): Promise<ApiResponse<ChatGroupAdmin>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        admin?: BackendGroupAdmin | null;
+      }>
+    >("chat.group.admin.appoint", {
+      room_id: params.roomId,
+      user_id: params.userId,
+      role: params.role ?? "admin",
+    });
+
+    return {
+      ...response,
+      data: response.data?.admin ? mapChatGroupAdmin(response.data.admin) : null,
+    };
+  }
+
+  static async removeGroupAdmin(params: {
+    roomId: string;
+    adminId: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.group.admin.remove", {
+      room_id: params.roomId,
+      admin_id: params.adminId,
+    });
+
+    return mapSimpleSuccessData(response);
   }
 
   static async getRoom(params: {

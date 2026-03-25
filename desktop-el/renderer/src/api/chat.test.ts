@@ -740,6 +740,165 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("loads group admins through go-core rpc and maps admin payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                admins: [
+                  {
+                    id: "group-admin-1",
+                    room_id: "room-group-1",
+                    admin_id: "u-2",
+                    appointed_by: "u-1",
+                    role: "admin",
+                    permissions: ["invite_member"],
+                    appointed_at: "2026-03-25T13:30:00Z",
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.listGroupAdmins({
+      roomId: "room-group-1",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.admins.list",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: [
+        {
+          id: "group-admin-1",
+          roomId: "room-group-1",
+          adminId: "u-2",
+          appointedBy: "u-1",
+          role: "admin",
+          permissions: ["invite_member"],
+          appointedAt: new Date("2026-03-25T13:30:00Z"),
+        },
+      ],
+    });
+  });
+
+  test("appoints group admin through go-core rpc and maps admin payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                admin: {
+                  id: "group-admin-1",
+                  room_id: "room-group-1",
+                  admin_id: "u-2",
+                  appointed_by: "u-1",
+                  role: "admin",
+                  permissions: ["invite_member"],
+                  appointed_at: "2026-03-25T13:30:00Z",
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.appointGroupAdmin({
+      roomId: "room-group-1",
+      userId: "u-2",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.admin.appoint",
+        params: {
+          room_id: "room-group-1",
+          user_id: "u-2",
+          role: "admin",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "group-admin-1",
+        roomId: "room-group-1",
+        adminId: "u-2",
+        appointedBy: "u-1",
+        role: "admin",
+        permissions: ["invite_member"],
+        appointedAt: new Date("2026-03-25T13:30:00Z"),
+      },
+    });
+  });
+
+  test("removes group admin through go-core rpc and maps success result", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 204,
+              success: true,
+              message: "No Content",
+              data: null,
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.removeGroupAdmin({
+      roomId: "room-group-1",
+      adminId: "u-2",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.admin.remove",
+        params: {
+          room_id: "room-group-1",
+          admin_id: "u-2",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 204,
+      success: true,
+      message: "No Content",
+      data: {
+        success: true,
+        message: "No Content",
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

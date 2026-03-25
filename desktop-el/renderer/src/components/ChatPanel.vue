@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import {
   ChatApi,
+  type ChatGroupAdmin,
   type ChatGroupSettings,
   mapChatRealtimeEvent,
   type ChatMessage,
@@ -43,6 +44,7 @@ import {
 } from "@/utils/user-avatar-upload";
 import AddGroupMembersModal from "./AddGroupMembersModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
+import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 
 interface OpenChatRequest {
@@ -100,9 +102,11 @@ const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
 const groupDetail = ref<ChatRoomDetail | null>(null);
 const groupMembers = ref<ChatRoomMember[]>([]);
+const groupAdmins = ref<ChatGroupAdmin[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
 const isAddGroupMembersModalVisible = ref(false);
+const isManageGroupAdminsModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -114,11 +118,13 @@ const attachmentUploadProgressById = ref<Record<string, number>>({});
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isLoadingGroupContext = ref(false);
+const isLoadingGroupAdmins = ref(false);
 const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isAddingGroupMembers = ref(false);
+const isUpdatingGroupAdmins = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
@@ -143,6 +149,7 @@ const mediaPreview = ref<{
 const replyingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
 let groupContextLoadSequence = 0;
+let groupAdminsLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
@@ -233,6 +240,45 @@ const removableGroupMembers = computed(() =>
       avatarUrl: member.avatarUrl,
     })),
 );
+const groupAdminEntries = computed(() =>
+  groupAdmins.value.map((admin) => {
+    const member = groupMembers.value.find(
+      (groupMember) => groupMember.userId === admin.adminId,
+    );
+    const displayName = member
+      ? getRoomMemberDisplayName(member)
+      : admin.adminId;
+    const subtitleSegments = [];
+    if (member?.username && member.username !== displayName) {
+      subtitleSegments.push(member.username);
+    }
+    subtitleSegments.push("管理员");
+
+    return {
+      id: admin.id,
+      adminId: admin.adminId,
+      displayName,
+      subtitle: subtitleSegments.join(" / ") || null,
+      avatarUrl: member?.avatarUrl ?? null,
+      appointedAtLabel: formatDetailTime(admin.appointedAt),
+    };
+  }),
+);
+const appointableGroupAdminMembers = computed(() =>
+  sortedGroupMembers.value
+    .filter(
+      (member) =>
+        member.role !== "owner" &&
+        member.role !== "admin" &&
+        member.userId !== (groupDetail.value?.ownerId ?? null),
+    )
+    .map((member) => ({
+      id: member.userId,
+      displayName: getRoomMemberDisplayName(member),
+      subtitle: member.username ? `成员 / ${member.username}` : "成员",
+      avatarUrl: member.avatarUrl,
+    })),
+);
 const groupOwnerMember = computed(
   () =>
     sortedGroupMembers.value.find(
@@ -259,6 +305,9 @@ const groupManageState = computed(() => {
   });
 });
 const canManageSelectedGroup = computed(() => groupManageState.value.canManage);
+const canManageSelectedGroupAdmins = computed(
+  () => groupManageState.value.isOwner,
+);
 const groupComposerState = computed(() =>
   resolveGroupComposerState({
     isGroupChat: isSelectedGroupChat.value,
@@ -618,6 +667,12 @@ const resetPendingAttachments = () => {
   }
 };
 
+const resetGroupAdmins = () => {
+  groupAdminsLoadSequence += 1;
+  groupAdmins.value = [];
+  isLoadingGroupAdmins.value = false;
+};
+
 const patchRoomAvatar = (roomId: string, avatarUrl: string) => {
   chats.value = chats.value.map((chat) =>
     chat.roomId === roomId
@@ -832,6 +887,7 @@ const resetGroupContext = () => {
   groupContextLoadSequence += 1;
   groupDetail.value = null;
   groupMembers.value = [];
+  resetGroupAdmins();
   isLoadingGroupContext.value = false;
 };
 
@@ -898,6 +954,50 @@ const loadGroupContext = async (roomId: string | null) => {
   } finally {
     if (currentSequence === groupContextLoadSequence) {
       isLoadingGroupContext.value = false;
+    }
+  }
+};
+
+const loadGroupAdmins = async (roomId: string | null) => {
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupAdmins();
+    return;
+  }
+
+  const currentSequence = groupAdminsLoadSequence + 1;
+  groupAdminsLoadSequence = currentSequence;
+  isLoadingGroupAdmins.value = true;
+  try {
+    const response = await ChatApi.listGroupAdmins({ roomId });
+    if (
+      currentSequence !== groupAdminsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      groupAdmins.value = [];
+      notice.value = response.message || "群管理员列表加载失败";
+      return;
+    }
+
+    groupAdmins.value = response.data;
+  } catch (error) {
+    if (
+      currentSequence !== groupAdminsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    groupAdmins.value = [];
+    notice.value =
+      error instanceof Error ? error.message : "群管理员列表加载失败";
+  } finally {
+    if (currentSequence === groupAdminsLoadSequence) {
+      isLoadingGroupAdmins.value = false;
     }
   }
 };
@@ -1057,11 +1157,35 @@ const handleOpenAddGroupMembersModal = async () => {
   isAddGroupMembersModalVisible.value = true;
 };
 
+const handleOpenManageGroupAdminsModal = async () => {
+  if (isUpdatingGroupAdmins.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroupAdmins.value) {
+    notice.value = "只有群主可以管理管理员。";
+    return;
+  }
+
+  isManageGroupAdminsModalVisible.value = true;
+  await loadGroupAdmins(selectedChatId.value);
+};
+
 const closeAddGroupMembersModal = () => {
   if (isAddingGroupMembers.value) {
     return;
   }
   isAddGroupMembersModalVisible.value = false;
+};
+
+const closeManageGroupAdminsModal = () => {
+  if (isUpdatingGroupAdmins.value) {
+    return;
+  }
+  isManageGroupAdminsModalVisible.value = false;
 };
 
 const handleOpenRemoveGroupMembersModal = () => {
@@ -1093,6 +1217,14 @@ const handleAddGroupMembersModalVisibleChange = (visible: boolean) => {
     return;
   }
   closeAddGroupMembersModal();
+};
+
+const handleManageGroupAdminsModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenManageGroupAdminsModal();
+    return;
+  }
+  closeManageGroupAdminsModal();
 };
 
 const handleRemoveGroupMembersModalVisibleChange = (visible: boolean) => {
@@ -1271,6 +1403,121 @@ const handleAddGroupMembers = async (payload: {
     await loadGroupSettings(roomId);
   } finally {
     isAddingGroupMembers.value = false;
+  }
+};
+
+const handleAppointGroupAdmins = async (payload: {
+  memberUserIds: string[];
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroupAdmins.value) {
+    notice.value = "只有群主可以管理管理员。";
+    return;
+  }
+  if (!payload.memberUserIds.length) {
+    notice.value = "请至少选择 1 位成员。";
+    return;
+  }
+
+  isUpdatingGroupAdmins.value = true;
+  notice.value = `正在任命 ${payload.memberUserIds.length} 位管理员...`;
+  try {
+    const results = await Promise.allSettled(
+      payload.memberUserIds.map((userId) =>
+        ChatApi.appointGroupAdmin({
+          roomId,
+          userId,
+        }),
+      ),
+    );
+    const successCount = results.filter(
+      (result) =>
+        result.status === "fulfilled" &&
+        result.value.success &&
+        result.value.data,
+    ).length;
+    const failedCount = results.length - successCount;
+
+    if (successCount > 0) {
+      isManageGroupAdminsModalVisible.value = false;
+      await loadChats({
+        preferredRoomId: roomId,
+        preserveNotice: true,
+        reloadMessages: false,
+      });
+      await loadGroupContext(roomId);
+      await loadGroupAdmins(roomId);
+      await loadGroupSettings(roomId);
+      notice.value =
+        failedCount > 0
+          ? `已任命 ${successCount} 位管理员，${failedCount} 位任命失败。`
+          : `已任命 ${successCount} 位管理员。`;
+      return;
+    }
+
+    notice.value = "任命管理员失败。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "任命管理员失败";
+    await loadGroupContext(roomId);
+    await loadGroupAdmins(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isUpdatingGroupAdmins.value = false;
+  }
+};
+
+const handleRemoveGroupAdmin = async (payload: {
+  adminId: string;
+  displayName: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isUpdatingGroupAdmins.value) {
+    return;
+  }
+  if (!canManageSelectedGroupAdmins.value) {
+    notice.value = "只有群主可以管理管理员。";
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `确定要撤销 ${payload.displayName} 的管理员权限吗？`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  isUpdatingGroupAdmins.value = true;
+  notice.value = `正在撤销 ${payload.displayName} 的管理员权限...`;
+  try {
+    const response = await ChatApi.removeGroupAdmin({
+      roomId,
+      adminId: payload.adminId,
+    });
+    if (!response.success || !response.data?.success) {
+      notice.value = response.message || "撤销管理员失败";
+      return;
+    }
+
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+    await loadGroupAdmins(roomId);
+    await loadGroupSettings(roomId);
+    notice.value = `已撤销 ${payload.displayName} 的管理员权限。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "撤销管理员失败";
+    await loadGroupContext(roomId);
+    await loadGroupAdmins(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isUpdatingGroupAdmins.value = false;
   }
 };
 
@@ -1965,6 +2212,9 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     if (event.roomId === selectedChatId.value) {
       if (groupRealtimePlan.shouldReloadGroupContext) {
         await loadGroupContext(event.roomId);
+        if (isManageGroupAdminsModalVisible.value) {
+          await loadGroupAdmins(event.roomId);
+        }
       }
       if (groupRealtimePlan.shouldReloadGroupSettings) {
         await loadGroupSettings(event.roomId);
@@ -2200,6 +2450,15 @@ onMounted(() => {
                 v-if="canManageSelectedGroup"
                 class="group-panel__header-actions"
               >
+                <button
+                  v-if="canManageSelectedGroupAdmins"
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isUpdatingGroupAdmins"
+                  @click="void handleOpenManageGroupAdminsModal()"
+                >
+                  {{ isUpdatingGroupAdmins ? "处理中..." : "管理员" }}
+                </button>
                 <button
                   type="button"
                   class="group-panel__action"
@@ -3019,6 +3278,16 @@ onMounted(() => {
       :is-submitting="isAddingGroupMembers"
       @update:visible="handleAddGroupMembersModalVisibleChange"
       @submit="void handleAddGroupMembers($event)"
+    />
+    <ManageGroupAdminsModal
+      :visible="isManageGroupAdminsModalVisible"
+      :admins="groupAdminEntries"
+      :candidates="appointableGroupAdminMembers"
+      :is-loading="isLoadingGroupAdmins || isLoadingGroupContext"
+      :is-submitting="isUpdatingGroupAdmins"
+      @update:visible="handleManageGroupAdminsModalVisibleChange"
+      @appoint="void handleAppointGroupAdmins($event)"
+      @remove="void handleRemoveGroupAdmin($event)"
     />
     <RemoveGroupMembersModal
       :visible="isRemoveGroupMembersModalVisible"

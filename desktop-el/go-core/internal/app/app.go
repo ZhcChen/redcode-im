@@ -340,6 +340,42 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.group.admins.list", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.ListGroupAdmins(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.admin.appoint", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.AppointGroupAdminParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.AppointGroupAdmin(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.admin.remove", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RemoveGroupAdminParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.RemoveGroupAdmin(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.group.settings.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.RoomParams
 		if err := unmarshalParams(params, &payload); err != nil {
