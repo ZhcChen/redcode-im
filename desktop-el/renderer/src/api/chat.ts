@@ -477,10 +477,7 @@ export interface ChatMessage {
   quotedMessage: ChatQuotedMessage | null;
   parts: ChatMessagePart[];
   clientStatus?: "sending" | "failed" | null;
-  retryPayload?: {
-    content: string;
-    quotedMessageId?: string | null;
-  } | null;
+  retryPayload?: ChatMessageRetryPayload | null;
   errorMessage?: string | null;
 }
 
@@ -514,6 +511,12 @@ export interface ChatMessageReactionSummary {
   count: number;
   userIds: string[];
   hasSelf: boolean;
+}
+
+export interface ChatMessageRetryPayload {
+  content: string;
+  quotedMessageId?: string | null;
+  attachments?: File[];
 }
 
 export interface ChatMessageReader {

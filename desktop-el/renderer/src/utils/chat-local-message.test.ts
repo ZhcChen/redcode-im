@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ChatMessage } from "@/api/chat";
 import {
   canResendLocalMessage,
+  createLocalComposerMessage,
   createLocalTextMessage,
   mergeRemoteAndLocalMessages,
   markLocalMessageFailed,
@@ -96,6 +97,73 @@ describe("chat local message helpers", () => {
     expect(message.createdAt).toBeInstanceOf(Date);
   });
 
+  test("creates local sending mixed message with attachment retry payload", () => {
+    const imageFile = new File(["image"], "cover.png", {
+      type: "image/png",
+      lastModified: 1710000000000,
+    });
+    const pdfFile = new File(["pdf"], "spec.pdf", {
+      type: "application/pdf",
+      lastModified: 1710000001000,
+    });
+
+    const message = createLocalComposerMessage({
+      roomId: "room-2",
+      currentUserId: "u-1",
+      currentUsername: "me",
+      currentDisplayName: "我",
+      content: "  请看附件  ",
+      quotedMessage,
+      attachments: [imageFile, pdfFile],
+    });
+
+    expect(message.messageType).toBe("mixed");
+    expect(message.clientStatus).toBe("sending");
+    expect(message.retryPayload).toEqual({
+      content: "请看附件",
+      quotedMessageId: "msg-quoted-1",
+      attachments: [imageFile, pdfFile],
+    });
+    expect(message.parts).toEqual([
+      {
+        position: 0,
+        partType: "text",
+        text: "请看附件",
+        attachment: null,
+      },
+      {
+        position: 1,
+        partType: "image",
+        text: null,
+        attachment: {
+          key: "",
+          name: "cover.png",
+          mime: "image/png",
+          size: imageFile.size,
+          width: null,
+          height: null,
+          durationMs: null,
+          thumbnailKey: null,
+        },
+      },
+      {
+        position: 2,
+        partType: "file",
+        text: null,
+        attachment: {
+          key: "",
+          name: "spec.pdf",
+          mime: "application/pdf",
+          size: pdfFile.size,
+          width: null,
+          height: null,
+          durationMs: null,
+          thumbnailKey: null,
+        },
+      },
+    ]);
+  });
+
   test("marks local message as failed and clears stale sending state", () => {
     const localMessage = createLocalTextMessage({
       roomId: "room-2",
@@ -154,6 +222,11 @@ describe("chat local message helpers", () => {
     expect(
       canResendLocalMessage({
         ...resendable,
+        retryPayload: {
+          content: "",
+          quotedMessageId: null,
+          attachments: [],
+        },
         parts: [
           {
             position: 0,
@@ -173,6 +246,26 @@ describe("chat local message helpers", () => {
         ],
       }),
     ).toBeFalse();
+  });
+
+  test("allows failed attachment-only local messages to be resent", () => {
+    const attachmentMessage = markLocalMessageFailed(
+      createLocalComposerMessage({
+        roomId: "room-2",
+        currentUserId: "u-1",
+        currentUsername: "me",
+        currentDisplayName: "我",
+        attachments: [
+          new File(["audio"], "voice.m4a", {
+            type: "audio/mp4",
+          }),
+        ],
+      }),
+      "upload failed",
+    );
+
+    expect(attachmentMessage.messageType).toBe("audio");
+    expect(canResendLocalMessage(attachmentMessage)).toBeTrue();
   });
 
   test("replaces local message with remote message in place", () => {

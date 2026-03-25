@@ -31,7 +31,6 @@ import {
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
 import {
-  buildOutgoingChatMessageParts,
   uploadAttachmentsAndBuildParts,
 } from "@/utils/chat-message-compose";
 import {
@@ -40,12 +39,14 @@ import {
 } from "@/utils/chat-quoted-message";
 import {
   canResendLocalMessage,
+  createLocalComposerMessage,
   createLocalTextMessage,
   markLocalMessageFailed,
   markLocalMessageSending,
   mergeRemoteAndLocalMessages,
   replaceLocalMessage,
 } from "@/utils/chat-local-message";
+import { resendLocalMessage } from "@/utils/chat-message-retry";
 import { findCreatedGroupChat } from "@/utils/chat-group-create";
 import {
   sortGroupMembers,
@@ -1153,12 +1154,13 @@ const getMessageTextParts = (message: ChatMessage) =>
   message.parts.filter((part) => part.partType === "text" && part.text?.trim());
 
 const getMessageAttachmentParts = (message: ChatMessage) =>
-  message.parts.filter(
-    (part) => part.partType !== "text" && part.attachment?.key,
-  );
+  message.parts.filter((part) => part.partType !== "text" && part.attachment);
+
+const canAccessAttachmentResource = (part: ChatMessagePart) =>
+  Boolean(part.attachment?.key);
 
 const getAttachmentActionKey = (message: ChatMessage, part: ChatMessagePart) =>
-  `${message.id}:${part.attachment?.key ?? `part-${part.position}`}`;
+  `${message.id}:${part.attachment?.key || `part-${part.position}`}`;
 
 const getAttachmentPreviewKey = (message: ChatMessage, part: ChatMessagePart) =>
   `${message.roomId}:${getInlinePreviewAssetKey(part) ?? `part-${part.position}`}`;
@@ -1166,7 +1168,7 @@ const getAttachmentPreviewKey = (message: ChatMessage, part: ChatMessagePart) =>
 const getAttachmentPlayableKey = (
   message: ChatMessage,
   part: ChatMessagePart,
-) => `${message.roomId}:${part.attachment?.key ?? `playable-${part.position}`}`;
+) => `${message.roomId}:${part.attachment?.key || `playable-${part.position}`}`;
 
 const isAttachmentDownloading = (message: ChatMessage, part: ChatMessagePart) =>
   Boolean(
@@ -3610,6 +3612,7 @@ const handleSend = async () => {
     ? toQuotedMessage(replyingMessage.value)
     : null;
   let localTextMessageId: string | null = null;
+  let localAttachmentMessageId: string | null = null;
   if (groupComposerState.value.disabled) {
     notice.value =
       groupComposerState.value.tip || groupComposerState.value.placeholder;
@@ -3671,45 +3674,68 @@ const handleSend = async () => {
     }
 
     attachmentUploadProgress.value = 0;
+    const localMessage = createLocalComposerMessage({
+      roomId,
+      currentUserId: props.currentUser.id,
+      currentUsername: props.currentUser.username,
+      currentDisplayName:
+        props.currentUser.nickname || props.currentUser.username,
+      currentAvatarUrl: props.currentUser.avatar,
+      content,
+      quotedMessage,
+      attachments: attachments.map((item) => item.file),
+    });
+    localAttachmentMessageId = localMessage.id;
+    appendLocalMessage(roomId, localMessage);
+    draftMessage.value = "";
+    replyingMessage.value = null;
+    resetPendingAttachments();
+
     attachmentUploadProgressById.value = Object.fromEntries(
       attachments.map((item) => [item.id, 0]),
     );
-    const attachmentParts = await uploadAttachmentsAndBuildParts({
-      roomId,
-      files: attachments.map((item) => item.file),
-      onFileProgress: (index, progress) => {
-        const attachment = attachments[index];
-        if (!attachment) {
-          return;
-        }
-        attachmentUploadProgressById.value = {
-          ...attachmentUploadProgressById.value,
-          [attachment.id]: progress,
-        };
+    const response = await resendLocalMessage(
+      {
+        roomId,
+        currentUserId: props.currentUser.id,
+        retryPayload: localMessage.retryPayload ?? {
+          content,
+          quotedMessageId,
+          attachments: attachments.map((item) => item.file),
+        },
       },
-      onOverallProgress: (progress) => {
-        attachmentUploadProgress.value = progress;
+      {
+        uploadAttachmentsAndBuildParts: ({ roomId: targetRoomId, files }) =>
+          uploadAttachmentsAndBuildParts({
+            roomId: targetRoomId,
+            files,
+            onFileProgress: (index, progress) => {
+              const attachment = attachments[index];
+              if (!attachment) {
+                return;
+              }
+              attachmentUploadProgressById.value = {
+                ...attachmentUploadProgressById.value,
+                [attachment.id]: progress,
+              };
+            },
+            onOverallProgress: (progress) => {
+              attachmentUploadProgress.value = progress;
+            },
+          }),
       },
-    });
-
-    const response = await ChatApi.sendMessage({
-      roomId,
-      parts: buildOutgoingChatMessageParts({
-        text: content,
-        attachments: attachmentParts,
-      }),
-      quotedMessageId,
-      currentUserId: props.currentUser.id,
-    });
+    );
     if (!response.success || !response.data) {
+      updateLocalMessage(roomId, localMessage.id, (message) =>
+        markLocalMessageFailed(message, response.message || "消息发送失败"),
+      );
       notice.value = response.message || "消息发送失败";
       return;
     }
 
+    messages.value = replaceLocalMessage(messages.value, localMessage.id, response.data);
+    removeLocalMessage(roomId, localMessage.id);
     const attachmentCount = attachments.length;
-    draftMessage.value = "";
-    replyingMessage.value = null;
-    resetPendingAttachments();
     await loadChats({
       preferredRoomId: roomId,
       preserveNotice: true,
@@ -3735,6 +3761,19 @@ const handleSend = async () => {
         );
       }
     }
+    if (attachments.length && localAttachmentMessageId) {
+      const localMessage = getLocalMessagesForRoom(roomId).find(
+        (message) => message.id === localAttachmentMessageId,
+      );
+      if (localMessage?.clientStatus === "sending") {
+        updateLocalMessage(roomId, localAttachmentMessageId, (message) =>
+          markLocalMessageFailed(
+            message,
+            error instanceof Error ? error.message : "消息发送失败",
+          ),
+        );
+      }
+    }
     notice.value = error instanceof Error ? error.message : "消息发送失败";
   } finally {
     isSending.value = false;
@@ -3748,7 +3787,10 @@ const handleResendMessage = async (message: ChatMessage) => {
   }
 
   const retryPayload = message.retryPayload;
-  if (!retryPayload?.content.trim()) {
+  if (
+    !retryPayload ||
+    (!retryPayload.content.trim() && !retryPayload.attachments?.length)
+  ) {
     return;
   }
 
@@ -3756,11 +3798,10 @@ const handleResendMessage = async (message: ChatMessage) => {
   resendingMessageId.value = message.id;
   updateLocalMessage(message.roomId, message.id, markLocalMessageSending);
   try {
-    const response = await ChatApi.sendTextMessage({
+    const response = await resendLocalMessage({
       roomId: message.roomId,
-      content: retryPayload.content,
-      quotedMessageId: retryPayload.quotedMessageId ?? undefined,
       currentUserId: props.currentUser.id,
+      retryPayload,
     });
     if (!response.success || !response.data) {
       updateLocalMessage(message.roomId, message.id, (currentMessage) =>
@@ -5441,7 +5482,8 @@ onBeforeUnmount(() => {
                     <div class="attachment-card__actions">
                       <button
                         v-if="
-                          part.partType === 'image' || part.partType === 'video'
+                          canAccessAttachmentResource(part) &&
+                          (part.partType === 'image' || part.partType === 'video')
                         "
                         type="button"
                         class="attachment-card__action attachment-card__action--secondary"
@@ -5450,6 +5492,7 @@ onBeforeUnmount(() => {
                         预览
                       </button>
                       <button
+                        v-if="canAccessAttachmentResource(part)"
                         type="button"
                         class="attachment-card__action attachment-card__action--secondary"
                         :disabled="isAttachmentDownloading(message, part)"
@@ -5462,6 +5505,7 @@ onBeforeUnmount(() => {
                         }}
                       </button>
                       <button
+                        v-if="canAccessAttachmentResource(part)"
                         type="button"
                         class="attachment-card__action"
                         :disabled="isAttachmentDownloading(message, part)"
