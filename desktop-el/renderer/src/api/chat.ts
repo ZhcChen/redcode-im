@@ -371,6 +371,12 @@ export interface GroupAvatarUploadData {
   avatarUrl: string;
 }
 
+export interface AddGroupMembersData {
+  success: boolean;
+  addedUserIds: string[];
+  skippedUserIds: string[];
+}
+
 export interface AttachmentMultipartInitiateData {
   key: string;
   sessionId: string | null;
@@ -1297,6 +1303,36 @@ export class ChatApi {
       data: {
         avatarUrl,
       },
+    };
+  }
+
+  static async addGroupMembers(params: {
+    roomId: string;
+    userIds: string[];
+  }): Promise<ApiResponse<AddGroupMembersData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        success?: boolean;
+        added_user_ids?: string[] | null;
+        skipped_user_ids?: string[] | null;
+      }>
+    >("chat.room.members.add", {
+      room_id: params.roomId,
+      user_ids: params.userIds,
+    });
+
+    return {
+      ...response,
+      data: response.data
+        ? {
+            success:
+              typeof response.data.success === "boolean"
+                ? response.data.success
+                : response.success,
+            addedUserIds: response.data.added_user_ids ?? [],
+            skippedUserIds: response.data.skipped_user_ids ?? [],
+          }
+        : null,
     };
   }
 

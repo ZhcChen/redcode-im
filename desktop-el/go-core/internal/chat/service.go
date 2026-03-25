@@ -21,6 +21,11 @@ type RoomParams struct {
 	RoomID string `json:"room_id"`
 }
 
+type AddRoomMembersParams struct {
+	RoomID  string   `json:"room_id"`
+	UserIDs []string `json:"user_ids"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -180,6 +185,16 @@ func (s *Service) ListRoomMembers(ctx context.Context, params RoomParams) (httpc
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodGet,
 		Path:   "/rooms/" + params.RoomID + "/members",
+	})
+}
+
+func (s *Service) AddRoomMembers(ctx context.Context, params AddRoomMembersParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/members",
+		Body: map[string]any{
+			"user_ids": params.UserIDs,
+		},
 	})
 }
 

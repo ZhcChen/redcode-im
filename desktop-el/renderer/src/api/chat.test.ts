@@ -650,6 +650,53 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("adds group members through go-core rpc and maps result", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                success: true,
+                added_user_ids: ["u-2"],
+                skipped_user_ids: ["u-3"],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.addGroupMembers({
+      roomId: "room-group-1",
+      userIds: ["u-2", "u-3"],
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.room.members.add",
+        params: {
+          room_id: "room-group-1",
+          user_ids: ["u-2", "u-3"],
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        success: true,
+        addedUserIds: ["u-2"],
+        skippedUserIds: ["u-3"],
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

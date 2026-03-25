@@ -1769,6 +1769,72 @@ func TestAppChatGroupSettingsUpdatePassesRemainingFields(t *testing.T) {
 	}
 }
 
+func TestAppChatRoomMembersAddReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/members" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if got, ok := payload["user_ids"].([]any); !ok || len(got) != 2 {
+			t.Fatalf("unexpected request payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":         true,
+			"added_user_ids":   []string{"u-2"},
+			"skipped_user_ids": []string{"u-3"},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-room-members-add",
+		Method: "chat.room.members.add",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":  "room-group-1",
+			"user_ids": []string{"u-2", "u-3"},
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.room.members.add to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.room.members.add response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.room.members.add envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.room.members.add data failed: %v", err)
+	}
+	if result["success"] != true {
+		t.Fatalf("unexpected add members result: %+v", result)
+	}
+	if added, ok := result["added_user_ids"].([]any); !ok || len(added) != 1 {
+		t.Fatalf("unexpected add members payload: %+v", result)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

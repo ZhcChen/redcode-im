@@ -41,6 +41,7 @@ import {
   AVATAR_INPUT_ACCEPT,
   validateAvatarFile,
 } from "@/utils/user-avatar-upload";
+import AddGroupMembersModal from "./AddGroupMembersModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
 
 interface OpenChatRequest {
@@ -100,6 +101,7 @@ const groupDetail = ref<ChatRoomDetail | null>(null);
 const groupMembers = ref<ChatRoomMember[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
+const isAddGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -114,6 +116,7 @@ const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
+const isAddingGroupMembers = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
@@ -206,6 +209,11 @@ const sortedGroupMembers = computed(() => {
     ).toLowerCase();
     return leftName.localeCompare(rightName);
   });
+});
+const addableGroupFriends = computed(() => {
+  const excludedUserIds = new Set(groupMembers.value.map((member) => member.userId));
+  excludedUserIds.add(props.currentUser.id);
+  return createGroupFriends.value.filter((friend) => !excludedUserIds.has(friend.id));
 });
 const groupOwnerMember = computed(
   () =>
@@ -1014,6 +1022,38 @@ const closeCreateGroupModal = () => {
   isCreateGroupModalVisible.value = false;
 };
 
+const handleOpenAddGroupMembersModal = async () => {
+  if (isAddingGroupMembers.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有添加群成员的权限。";
+    return;
+  }
+
+  await loadCreateGroupFriends();
+  isAddGroupMembersModalVisible.value = true;
+};
+
+const closeAddGroupMembersModal = () => {
+  if (isAddingGroupMembers.value) {
+    return;
+  }
+  isAddGroupMembersModalVisible.value = false;
+};
+
+const handleAddGroupMembersModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenAddGroupMembersModal();
+    return;
+  }
+  closeAddGroupMembersModal();
+};
+
 const handleCreateGroupModalVisibleChange = (visible: boolean) => {
   if (visible) {
     void handleOpenCreateGroupModal();
@@ -1124,6 +1164,64 @@ const handleCreateGroup = async (payload: {
     notice.value = error instanceof Error ? error.message : "创建群聊失败";
   } finally {
     isCreatingGroup.value = false;
+  }
+};
+
+const handleAddGroupMembers = async (payload: {
+  memberUserIds: string[];
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有添加群成员的权限。";
+    return;
+  }
+  if (!payload.memberUserIds.length) {
+    notice.value = "请至少选择 1 位好友。";
+    return;
+  }
+
+  isAddingGroupMembers.value = true;
+  notice.value = `正在向当前群添加 ${payload.memberUserIds.length} 位成员...`;
+  try {
+    const response = await ChatApi.addGroupMembers({
+      roomId,
+      userIds: payload.memberUserIds,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "添加群成员失败";
+      return;
+    }
+
+    isAddGroupMembersModalVisible.value = false;
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+
+    const addedCount = response.data.addedUserIds.length;
+    const skippedCount = response.data.skippedUserIds.length;
+    if (addedCount > 0 && skippedCount > 0) {
+      notice.value = `已添加 ${addedCount} 位成员，跳过 ${skippedCount} 位已在群内成员。`;
+    } else if (addedCount > 0) {
+      notice.value = `已添加 ${addedCount} 位成员。`;
+    } else if (skippedCount > 0) {
+      notice.value = `没有新增成员，已跳过 ${skippedCount} 位已在群内成员。`;
+    } else {
+      notice.value = "本次没有新增成员。";
+    }
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "添加群成员失败";
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isAddingGroupMembers.value = false;
   }
 };
 
@@ -1987,15 +2085,27 @@ onMounted(() => {
                     : "成员列表待同步"
                 }}</small>
               </div>
-              <button
+              <div
                 v-if="canManageSelectedGroup"
-                type="button"
-                class="group-panel__action"
-                :disabled="isUpdatingGroupAvatar"
-                @click="handleOpenGroupAvatarPicker"
+                class="group-panel__header-actions"
               >
-                {{ isUpdatingGroupAvatar ? "上传中..." : "上传群头像" }}
-              </button>
+                <button
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isAddingGroupMembers"
+                  @click="void handleOpenAddGroupMembersModal()"
+                >
+                  {{ isAddingGroupMembers ? "添加中..." : "添加成员" }}
+                </button>
+                <button
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isUpdatingGroupAvatar"
+                  @click="handleOpenGroupAvatarPicker"
+                >
+                  {{ isUpdatingGroupAvatar ? "上传中..." : "上传群头像" }}
+                </button>
+              </div>
             </div>
             <input
               ref="groupAvatarInputRef"
@@ -2776,6 +2886,14 @@ onMounted(() => {
       @update:visible="handleCreateGroupModalVisibleChange"
       @submit="void handleCreateGroup($event)"
     />
+    <AddGroupMembersModal
+      :visible="isAddGroupMembersModalVisible"
+      :friends="addableGroupFriends"
+      :is-loading="isLoadingCreateGroupFriends"
+      :is-submitting="isAddingGroupMembers"
+      @update:visible="handleAddGroupMembersModalVisibleChange"
+      @submit="void handleAddGroupMembers($event)"
+    />
   </section>
 </template>
 
@@ -3045,6 +3163,13 @@ onMounted(() => {
 .group-panel__header-copy {
   display: grid;
   gap: 4px;
+}
+
+.group-panel__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .group-panel__header h4 {

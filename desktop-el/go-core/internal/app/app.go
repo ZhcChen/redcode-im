@@ -316,6 +316,18 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.room.members.add", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.AddRoomMembersParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.AddRoomMembers(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.group.settings.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.RoomParams
 		if err := unmarshalParams(params, &payload); err != nil {
