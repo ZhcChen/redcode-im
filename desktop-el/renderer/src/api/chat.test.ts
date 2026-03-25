@@ -106,6 +106,111 @@ describe("chat api", () => {
     });
   });
 
+  test("forwards message through go-core rpc and maps forwarded payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                message: {
+                  id: "msg-forward-1",
+                  room_id: "room-target-1",
+                  sender_id: "u-1",
+                  sender_username: "alice",
+                  sender_nickname: "Alice",
+                  content: "转发后的消息",
+                  message_type: "text",
+                  status: "sent",
+                  created_at: "2026-03-25T18:00:00Z",
+                  forward_message: {
+                    message_id: "msg-origin-1",
+                    room_id: "room-origin-1",
+                    sender_id: "u-9",
+                    sender_username: "bob",
+                    sender_nickname: "Bob",
+                    source_type: "group",
+                    source_id: "room-origin-1",
+                    source_name: "产品群",
+                    source_avatar: "https://example.com/group.png",
+                  },
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const forwardMessage = (
+      ChatApi as unknown as {
+        forwardMessage?: (params: {
+          roomId: string;
+          originalMessageId: string;
+          currentUserId?: string;
+        }) => Promise<unknown>;
+      }
+    ).forwardMessage;
+
+    expect(typeof forwardMessage).toBe("function");
+    if (!forwardMessage) {
+      return;
+    }
+
+    const response = (await forwardMessage({
+      roomId: "room-target-1",
+      originalMessageId: "msg-origin-1",
+      currentUserId: "u-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.forward",
+        params: {
+          room_id: "room-target-1",
+          original_message_id: "msg-origin-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "msg-forward-1",
+        roomId: "room-target-1",
+        senderId: "u-1",
+        senderUsername: "alice",
+        senderName: "Alice",
+        senderAvatarUrl: null,
+        content: "转发后的消息",
+        preview: "转发后的消息",
+        messageType: "text",
+        deliveryStatus: "sent",
+        createdAt: new Date("2026-03-25T18:00:00Z"),
+        isDeleted: false,
+        isEdited: false,
+        isSelf: true,
+        forwardInfo: {
+          sourceType: "group",
+          sourceId: "room-origin-1",
+          sourceName: "产品群",
+          sourceAvatar: "https://example.com/group.png",
+          originMessageId: "msg-origin-1",
+          originRoomId: "room-origin-1",
+          originSenderId: "u-9",
+          originSenderName: "Bob",
+        },
+        quotedMessage: null,
+        parts: [],
+      },
+    });
+  });
+
   test("loads room detail through go-core rpc and maps room payload", async () => {
     globalThis.window = {
       desktopEl: {
@@ -1730,6 +1835,45 @@ describe("chat api message mapping", () => {
           },
         },
       ],
+    });
+  });
+
+  test("maps forward_message payload into chat message model", () => {
+    const mapped = mapChatMessagePayload({
+      id: "msg-forward-2",
+      room_id: "room-9",
+      sender_id: "user-2",
+      sender_username: "bob",
+      sender_nickname: "Bob",
+      content: "这是转发内容",
+      message_type: "text",
+      status: "sent",
+      created_at: "2026-03-25T10:05:00Z",
+      forward_message: {
+        message_id: "msg-origin-2",
+        room_id: "room-3",
+        sender_id: "user-1",
+        sender_username: "alice",
+        sender_nickname: "Alice",
+        source_type: "group",
+        source_id: "room-3",
+        source_name: "架构讨论群",
+        source_avatar: "https://example.com/source.png",
+      },
+      parts: [],
+    } as Parameters<typeof mapChatMessagePayload>[0]);
+
+    expect(mapped).toMatchObject({
+      forwardInfo: {
+        sourceType: "group",
+        sourceId: "room-3",
+        sourceName: "架构讨论群",
+        sourceAvatar: "https://example.com/source.png",
+        originMessageId: "msg-origin-2",
+        originRoomId: "room-3",
+        originSenderId: "user-1",
+        originSenderName: "Alice",
+      },
     });
   });
 

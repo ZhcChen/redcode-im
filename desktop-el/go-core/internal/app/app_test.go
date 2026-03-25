@@ -1790,7 +1790,7 @@ func TestAppChatRoomMembersAddReturnsEnvelope(t *testing.T) {
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"success":         true,
+			"success":          true,
 			"added_user_ids":   []string{"u-2"},
 			"skipped_user_ids": []string{"u-3"},
 		})
@@ -2156,15 +2156,15 @@ func TestAppChatGroupJoinRequestsListReturnsEnvelope(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"requests": []map[string]any{
 				{
-					"id":            "join-request-1",
-					"room_id":       "room-group-1",
-					"applicant_id":  "u-9",
-					"message":       "想加入项目群",
-					"status":        0,
-					"reviewer_id":   nil,
+					"id":             "join-request-1",
+					"room_id":        "room-group-1",
+					"applicant_id":   "u-9",
+					"message":        "想加入项目群",
+					"status":         0,
+					"reviewer_id":    nil,
 					"review_message": nil,
-					"created_at":    "2026-03-25T14:00:00Z",
-					"reviewed_at":   nil,
+					"created_at":     "2026-03-25T14:00:00Z",
+					"reviewed_at":    nil,
 				},
 			},
 		})
@@ -2695,11 +2695,11 @@ func TestAppChatGroupRuleUpdateReturnsEnvelope(t *testing.T) {
 		ID:     "req-chat-group-rule-update",
 		Method: "chat.group.rule.update",
 		Params: mustJSONRaw(map[string]any{
-			"room_id":     "room-group-1",
-			"rule_id":     "group-rule-1",
-			"title":       "文明发言 2.0",
-			"content":     "禁止刷屏、辱骂和广告",
-			"is_active":   true,
+			"room_id":   "room-group-1",
+			"rule_id":   "group-rule-1",
+			"title":     "文明发言 2.0",
+			"content":   "禁止刷屏、辱骂和广告",
+			"is_active": true,
 		}),
 	})
 	if response.Error != nil {
@@ -3090,6 +3090,90 @@ func TestAppChatSendPostsAttachmentPartsPayload(t *testing.T) {
 	}
 	if !envelope.Success || envelope.Code != 200 {
 		t.Fatalf("unexpected chat.send attachment envelope: %+v", envelope)
+	}
+}
+
+func TestAppChatForwardMessageReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-9/messages/forward" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["original_message_id"] != "msg-origin-1" {
+			t.Fatalf("unexpected forward payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": map[string]any{
+				"id":              "msg-forward-1",
+				"room_id":         "room-9",
+				"sender_id":       "u-1",
+				"sender_username": "alice",
+				"sender_nickname": "Alice",
+				"content":         "转发后的消息",
+				"message_type":    "text",
+				"created_at":      "2026-03-25T18:00:00Z",
+				"forward_message": map[string]any{
+					"message_id":      "msg-origin-1",
+					"room_id":         "room-2",
+					"sender_id":       "u-8",
+					"sender_username": "bob",
+					"sender_nickname": "Bob",
+					"source_type":     "group",
+					"source_id":       "room-2",
+					"source_name":     "产品群",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-forward",
+		Method: "chat.forward",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":             "room-9",
+			"original_message_id": "msg-origin-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.forward to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.forward response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.forward envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.forward data failed: %v", err)
+	}
+	messagePayload, ok := result["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected chat.forward payload: %+v", result)
+	}
+	if messagePayload["id"] != "msg-forward-1" {
+		t.Fatalf("unexpected forwarded message payload: %+v", messagePayload)
 	}
 }
 

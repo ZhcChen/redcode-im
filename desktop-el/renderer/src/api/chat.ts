@@ -210,6 +210,18 @@ interface BackendQuotedMessage {
   parts?: BackendMessagePart[];
 }
 
+interface BackendForwardMessage {
+  message_id: string;
+  room_id: string;
+  sender_id: string;
+  sender_username: string;
+  sender_nickname?: string | null;
+  source_type?: string | null;
+  source_id?: string | null;
+  source_name?: string | null;
+  source_avatar?: string | null;
+}
+
 interface BackendAttachmentDownloadPayload {
   success?: boolean;
   message?: string;
@@ -266,6 +278,7 @@ interface BackendMessageInfo {
   status?: BackendMessageDeliveryStatus | null;
   created_at: string;
   quoted_message?: BackendQuotedMessage | null;
+  forward_message?: BackendForwardMessage | null;
   is_deleted?: boolean;
   is_edited?: boolean;
   parts?: BackendMessagePart[];
@@ -425,6 +438,7 @@ export interface ChatMessage {
   isDeleted: boolean;
   isEdited: boolean;
   isSelf: boolean;
+  forwardInfo: ChatForwardInfo | null;
   quotedMessage: ChatQuotedMessage | null;
   parts: ChatMessagePart[];
 }
@@ -441,6 +455,17 @@ export interface ChatQuotedMessage {
   createdAt: Date | null;
   isDeleted: boolean;
   parts: ChatMessagePart[];
+}
+
+export interface ChatForwardInfo {
+  sourceType: "user" | "group" | "favorite" | "unknown";
+  sourceId: string;
+  sourceName: string;
+  sourceAvatar: string | null;
+  originMessageId: string | null;
+  originRoomId: string | null;
+  originSenderId: string | null;
+  originSenderName: string | null;
 }
 
 export interface ChatMessageAttachment {
@@ -551,6 +576,7 @@ interface BackendPushMessage {
   message_type: BackendMessageType;
   timestamp: string;
   quoted_message?: BackendQuotedMessage | null;
+  forward_message?: BackendForwardMessage | null;
   parts?: BackendMessagePart[];
 }
 
@@ -701,6 +727,22 @@ const parseTimestamp = (value?: string | null): Date | null => {
     return null;
   }
   return parsed;
+};
+
+const parseForwardSourceType = (
+  value?: string | null,
+): ChatForwardInfo["sourceType"] => {
+  switch ((value || "").toLowerCase()) {
+    case "user":
+    case "single":
+      return "user";
+    case "group":
+      return "group";
+    case "favorite":
+      return "favorite";
+    default:
+      return "unknown";
+  }
 };
 
 
@@ -1122,6 +1164,31 @@ const mapQuotedMessage = (
   };
 };
 
+const mapForwardMessage = (
+  forward?: BackendForwardMessage | null,
+): ChatForwardInfo | null => {
+  if (!forward) {
+    return null;
+  }
+
+  return {
+    sourceType: parseForwardSourceType(forward.source_type),
+    sourceId: forward.source_id ?? forward.room_id ?? "",
+    sourceName:
+      forward.source_name ??
+      forward.sender_nickname ??
+      forward.sender_username ??
+      forward.source_id ??
+      "",
+    sourceAvatar: forward.source_avatar ?? null,
+    originMessageId: forward.message_id ?? null,
+    originRoomId: forward.room_id ?? null,
+    originSenderId: forward.sender_id ?? null,
+    originSenderName:
+      forward.sender_nickname ?? forward.sender_username ?? null,
+  };
+};
+
 const mapPartPayloadInput = (
   part: ChatMessagePartInput,
 ): Record<string, unknown> => {
@@ -1247,6 +1314,7 @@ export const mapChatMessagePayload = (
     isDeleted: Boolean(message.is_deleted),
     isEdited: Boolean(message.is_edited),
     isSelf: currentUserId === message.sender_id,
+    forwardInfo: mapForwardMessage(message.forward_message),
     quotedMessage: mapQuotedMessage(message.quoted_message),
     parts,
   };
@@ -1268,6 +1336,7 @@ const mapPushMessage = (
       message_type: message.message_type,
       created_at: message.timestamp,
       quoted_message: message.quoted_message,
+      forward_message: message.forward_message,
       parts: message.parts ?? [],
     },
     currentUserId,
@@ -2066,6 +2135,41 @@ export class ChatApi {
     currentUserId?: string;
   }): Promise<ApiResponse<ChatMessage>> {
     return this.sendMessage(params);
+  }
+
+  static async forwardMessage(params: {
+    roomId: string;
+    originalMessageId: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<ChatMessage>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMessageInfo | BackendSendMessagePayload>
+    >("chat.forward", {
+      room_id: params.roomId,
+      original_message_id: params.originalMessageId,
+    });
+    if (!response.success || !response.data) {
+      return {
+        ...response,
+        data: null,
+      };
+    }
+
+    const payload =
+      typeof response.data === "object" &&
+      response.data !== null &&
+      "message" in response.data &&
+      response.data.message
+        ? response.data.message
+        : response.data;
+
+    return {
+      ...response,
+      data: mapChatMessagePayload(
+        payload as BackendMessageInfo,
+        params.currentUserId,
+      ),
+    };
   }
 
   static async readUntil(params: {

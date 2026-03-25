@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import {
   ChatApi,
+  type ChatForwardInfo,
   type ChatGroupAdmin,
   type ChatGroupJoinRequest,
   type ChatGroupMute,
@@ -52,6 +53,7 @@ import {
 } from "@/utils/user-avatar-upload";
 import AddGroupMembersModal from "./AddGroupMembersModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
+import ForwardMessageModal from "./ForwardMessageModal.vue";
 import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
 import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
 import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
@@ -132,6 +134,7 @@ const isManageGroupRulesModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const isTransferGroupOwnerModalVisible = ref(false);
 const isViewGroupMembersModalVisible = ref(false);
+const isForwardMessageModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -159,6 +162,7 @@ const isLoadingMoreGroupOperationLogs = ref(false);
 const isUpdatingGroupRules = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isTransferringGroupOwner = ref(false);
+const isForwardingMessage = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
@@ -180,6 +184,7 @@ const mediaPreview = ref<{
   meta: string;
 } | null>(null);
 const replyingMessage = ref<ChatMessage | null>(null);
+const forwardingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
 const hasMoreGroupOperationLogs = ref(false);
 let groupContextLoadSequence = 0;
@@ -253,6 +258,17 @@ const addableGroupFriends = computed(() => {
   const excludedUserIds = new Set(groupMembers.value.map((member) => member.userId));
   excludedUserIds.add(props.currentUser.id);
   return createGroupFriends.value.filter((friend) => !excludedUserIds.has(friend.id));
+});
+const forwardableChats = computed(() =>
+  chats.value.filter(
+    (chat) => Boolean(chat.roomId) && chat.roomId !== selectedChatId.value,
+  ),
+);
+const forwardingMessageSummary = computed(() => {
+  if (!forwardingMessage.value) {
+    return null;
+  }
+  return forwardingMessage.value.preview || forwardingMessage.value.content || "[空消息]";
 });
 const removableGroupMembers = computed(() =>
   sortedGroupMembers.value
@@ -756,6 +772,40 @@ const formatAttachmentType = (partType: ChatMessagePart["partType"]) => {
     default:
       return "附件";
   }
+};
+
+const canForwardMessage = (message: ChatMessage | null) => {
+  if (!message || message.isDeleted || message.messageType === "system") {
+    return false;
+  }
+  if (message.content.trim()) {
+    return true;
+  }
+
+  return message.parts.some((part) =>
+    part.partType === "text"
+      ? Boolean(part.text?.trim())
+      : Boolean(part.attachment?.key),
+  );
+};
+
+const formatForwardSourceName = (forwardInfo: ChatForwardInfo | null) => {
+  if (!forwardInfo) {
+    return "未知来源";
+  }
+  return (
+    forwardInfo.sourceName ||
+    forwardInfo.originSenderName ||
+    forwardInfo.sourceId ||
+    "未知来源"
+  );
+};
+
+const formatForwardOriginLabel = (forwardInfo: ChatForwardInfo | null) => {
+  if (!forwardInfo?.originSenderName) {
+    return null;
+  }
+  return `原发送者 ${forwardInfo.originSenderName}`;
 };
 
 const formatAttachmentSize = (size: number | null) => {
@@ -3084,6 +3134,27 @@ const clearReplyingMessage = () => {
   replyingMessage.value = null;
 };
 
+const handleForwardMessageModalVisibleChange = (visible: boolean) => {
+  if (!visible) {
+    forwardingMessage.value = null;
+  }
+  isForwardMessageModalVisible.value = visible;
+};
+
+const handleOpenForwardMessageModal = (message: ChatMessage) => {
+  if (!canForwardMessage(message)) {
+    notice.value = "当前消息暂不支持转发。";
+    return;
+  }
+  if (!forwardableChats.value.length) {
+    notice.value = "暂无可转发目标，请先创建或进入其他会话。";
+    return;
+  }
+
+  forwardingMessage.value = message;
+  isForwardMessageModalVisible.value = true;
+};
+
 const scrollToQuotedMessage = (quoted: ChatQuotedMessage | null) => {
   if (!quoted?.id) {
     return;
@@ -3105,6 +3176,43 @@ const scrollToQuotedMessage = (quoted: ChatQuotedMessage | null) => {
       highlightedQuotedMessageId.value = null;
     }
   }, 2400);
+};
+
+const handleForwardMessage = async (payload: {
+  targetRoomId: string;
+  targetTitle: string;
+}) => {
+  const sourceMessage = forwardingMessage.value;
+  const currentRoomId = selectedChatId.value;
+  if (!sourceMessage || !currentRoomId || isForwardingMessage.value) {
+    return;
+  }
+
+  isForwardingMessage.value = true;
+  try {
+    const response = await ChatApi.forwardMessage({
+      roomId: payload.targetRoomId,
+      originalMessageId: sourceMessage.id,
+      currentUserId: props.currentUser.id,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "转发消息失败";
+      return;
+    }
+
+    await loadChats({
+      preferredRoomId: currentRoomId,
+      preserveNotice: true,
+      reloadMessages: payload.targetRoomId === currentRoomId,
+    });
+    isForwardMessageModalVisible.value = false;
+    forwardingMessage.value = null;
+    notice.value = `已转发到 ${payload.targetTitle}。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "转发消息失败";
+  } finally {
+    isForwardingMessage.value = false;
+  }
 };
 
 const handleDeleteMessage = async (message: ChatMessage) => {
@@ -3370,6 +3478,8 @@ watch(
   (nextRoomId, previousRoomId) => {
     if (nextRoomId && previousRoomId && nextRoomId !== previousRoomId) {
       replyingMessage.value = null;
+      forwardingMessage.value = null;
+      isForwardMessageModalVisible.value = false;
     }
   },
 );
@@ -4030,6 +4140,16 @@ onMounted(() => {
                   }}</strong>
                   <span>{{ formatDetailTime(message.createdAt) }}</span>
                 </div>
+                <div v-if="message.forwardInfo" class="forward-block">
+                  <strong
+                    >转发自
+                    {{ formatForwardSourceName(message.forwardInfo) }}</strong
+                  >
+                  <small>{{
+                    formatForwardOriginLabel(message.forwardInfo) ||
+                    "当前消息由其他会话转发而来"
+                  }}</small>
+                </div>
                 <button
                   v-if="message.quotedMessage"
                   type="button"
@@ -4194,6 +4314,14 @@ onMounted(() => {
                   v-if="message.messageType !== 'system'"
                   class="message-card__actions"
                 >
+                  <button
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="!canForwardMessage(message) || isForwardingMessage"
+                    @click="void handleOpenForwardMessageModal(message)"
+                  >
+                    {{ isForwardingMessage ? "转发中..." : "转发" }}
+                  </button>
                   <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
@@ -4431,6 +4559,14 @@ onMounted(() => {
       :is-submitting="isCreatingGroup"
       @update:visible="handleCreateGroupModalVisibleChange"
       @submit="void handleCreateGroup($event)"
+    />
+    <ForwardMessageModal
+      :visible="isForwardMessageModalVisible"
+      :chats="forwardableChats"
+      :source-summary="forwardingMessageSummary"
+      :is-submitting="isForwardingMessage"
+      @update:visible="handleForwardMessageModalVisibleChange"
+      @submit="void handleForwardMessage($event)"
     />
     <AddGroupMembersModal
       :visible="isAddGroupMembersModalVisible"
@@ -5062,6 +5198,24 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
+.forward-block {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(14, 116, 144, 0.14);
+  background: rgba(224, 242, 254, 0.7);
+}
+
+.forward-block strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.forward-block small {
+  color: var(--text-secondary);
+}
+
 .attachment-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5209,6 +5363,7 @@ onMounted(() => {
 .message-card__actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .message-card__action {

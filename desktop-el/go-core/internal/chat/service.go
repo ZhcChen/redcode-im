@@ -101,12 +101,12 @@ type UpdateGlobalMuteParams struct {
 }
 
 type UpdateGroupSettingsParams struct {
-	RoomID                    string `json:"room_id"`
-	JoinApprovalRequired      *bool  `json:"join_approval_required,omitempty"`
-	MemberCanInvite           *bool  `json:"member_can_invite,omitempty"`
-	MemberCanAddFriends       *bool  `json:"member_can_add_friends,omitempty"`
-	RequireAdminToAddFriends  *bool  `json:"require_admin_to_add_friends,omitempty"`
-	MaxMembers                *int   `json:"max_members,omitempty"`
+	RoomID                   string `json:"room_id"`
+	JoinApprovalRequired     *bool  `json:"join_approval_required,omitempty"`
+	MemberCanInvite          *bool  `json:"member_can_invite,omitempty"`
+	MemberCanAddFriends      *bool  `json:"member_can_add_friends,omitempty"`
+	RequireAdminToAddFriends *bool  `json:"require_admin_to_add_friends,omitempty"`
+	MaxMembers               *int   `json:"max_members,omitempty"`
 }
 
 type ListMessagesParams struct {
@@ -121,6 +121,11 @@ type SendMessageParams struct {
 	Content         string               `json:"content,omitempty"`
 	Parts           []MessagePartPayload `json:"parts,omitempty"`
 	QuotedMessageID string               `json:"quoted_message_id,omitempty"`
+}
+
+type ForwardMessageParams struct {
+	RoomID            string `json:"room_id"`
+	OriginalMessageID string `json:"original_message_id"`
 }
 
 type MarkReadUntilParams struct {
@@ -517,6 +522,16 @@ func (s *Service) SendMessage(ctx context.Context, params SendMessageParams) (ht
 		Method: http.MethodPost,
 		Path:   "/rooms/" + params.RoomID + "/messages",
 		Body:   body,
+	})
+}
+
+func (s *Service) ForwardMessage(ctx context.Context, params ForwardMessageParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/forward",
+		Body: map[string]any{
+			"original_message_id": params.OriginalMessageID,
+		},
 	})
 }
 
