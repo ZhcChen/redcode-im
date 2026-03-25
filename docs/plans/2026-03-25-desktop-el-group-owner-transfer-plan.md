@@ -108,7 +108,7 @@ Expected: 仍然只有既有 3 个 Electron named export mock 失败，且不新
 Run: `bun run build`
 Expected: PASS
 
-- [ ] **Step 3: 提交与推送**
+- [x] **Step 3: 提交与推送**
 
 ```bash
 git add docs/plans/2026-03-24-desktop-el-migration-backlog.md \
@@ -126,7 +126,7 @@ git commit -m "feat(desktop-el): support group owner transfer"
 git push origin codex/desktop-el
 ```
 
-- [ ] **Step 4: 进程清理**
+- [x] **Step 4: 进程清理**
 
 Run: `make desktop-el-down`
 Expected: PASS

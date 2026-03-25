@@ -37,6 +37,10 @@ import {
 } from "@/utils/chat-quoted-message";
 import { findCreatedGroupChat } from "@/utils/chat-group-create";
 import {
+  sortGroupMembers,
+  summarizeGroupMembers,
+} from "@/utils/chat-group-members";
+import {
   resolveGroupComposerState,
   resolveGroupManageState,
 } from "@/utils/chat-group-permissions";
@@ -55,6 +59,7 @@ import ManageGroupOperationLogsModal from "./ManageGroupOperationLogsModal.vue";
 import ManageGroupRulesModal from "./ManageGroupRulesModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 import TransferGroupOwnerModal from "./TransferGroupOwnerModal.vue";
+import ViewGroupMembersModal from "./ViewGroupMembersModal.vue";
 
 interface OpenChatRequest {
   requestId: number;
@@ -126,6 +131,7 @@ const isManageGroupOperationLogsModalVisible = ref(false);
 const isManageGroupRulesModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const isTransferGroupOwnerModalVisible = ref(false);
+const isViewGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -227,32 +233,22 @@ const selectedChatAvatarUrl = computed(() => {
   }
   return selectedChat.value.avatarUrl ?? null;
 });
-const sortedGroupMembers = computed(() => {
-  const roleOrder: Record<ChatRoomMember["role"], number> = {
-    owner: 0,
-    admin: 1,
-    member: 2,
-  };
-
-  return [...groupMembers.value].sort((left, right) => {
-    const roleDiff = roleOrder[left.role] - roleOrder[right.role];
-    if (roleDiff !== 0) {
-      return roleDiff;
-    }
-
-    const leftName = (
-      left.nickname ||
-      left.username ||
-      left.userId
-    ).toLowerCase();
-    const rightName = (
-      right.nickname ||
-      right.username ||
-      right.userId
-    ).toLowerCase();
-    return leftName.localeCompare(rightName);
-  });
-});
+const sortedGroupMembers = computed(() =>
+  sortGroupMembers(
+    groupMembers.value.map((member) => ({
+      ...member,
+      displayName: getRoomMemberDisplayName(member),
+      roleLabel: formatRoomMemberRole(member.role),
+      joinedAtLabel: member.joinedAt
+        ? `入群于 ${formatDetailTime(member.joinedAt)}`
+        : "入群时间待同步",
+      isSelf: member.userId === props.currentUser.id,
+    })),
+  ),
+);
+const groupMemberStats = computed(() =>
+  summarizeGroupMembers(sortedGroupMembers.value),
+);
 const addableGroupFriends = computed(() => {
   const excludedUserIds = new Set(groupMembers.value.map((member) => member.userId));
   excludedUserIds.add(props.currentUser.id);
@@ -1191,6 +1187,7 @@ const resetGroupContext = () => {
   groupContextLoadSequence += 1;
   groupDetail.value = null;
   groupMembers.value = [];
+  isViewGroupMembersModalVisible.value = false;
   resetGroupAdmins();
   resetGroupJoinRequests();
   resetGroupMutes();
@@ -1892,6 +1889,50 @@ const handleTransferGroupOwnerModalVisibleChange = (visible: boolean) => {
     return;
   }
   closeTransferGroupOwnerModal();
+};
+
+const handleOpenViewGroupMembersModal = async () => {
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!groupMembers.value.length) {
+    await loadGroupContext(selectedChatId.value);
+  }
+
+  isViewGroupMembersModalVisible.value = true;
+};
+
+const closeViewGroupMembersModal = () => {
+  isViewGroupMembersModalVisible.value = false;
+};
+
+const handleViewGroupMembersModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenViewGroupMembersModal();
+    return;
+  }
+  closeViewGroupMembersModal();
+};
+
+const handleOpenAddGroupMembersFromMemberPanel = async () => {
+  isViewGroupMembersModalVisible.value = false;
+  await handleOpenAddGroupMembersModal();
+};
+
+const handleOpenRemoveGroupMembersFromMemberPanel = () => {
+  isViewGroupMembersModalVisible.value = false;
+  handleOpenRemoveGroupMembersModal();
+};
+
+const handleOpenManageGroupAdminsFromMemberPanel = async () => {
+  isViewGroupMembersModalVisible.value = false;
+  await handleOpenManageGroupAdminsModal();
+};
+
+const handleOpenTransferGroupOwnerFromMemberPanel = async () => {
+  isViewGroupMembersModalVisible.value = false;
+  await handleOpenTransferGroupOwnerModal();
 };
 
 const handleLoadMoreGroupOperationLogs = async () => {
@@ -3933,13 +3974,23 @@ onMounted(() => {
                 </article>
               </div>
 
-              <p
-                v-if="sortedGroupMembers.length > 8"
+              <div
+                v-if="sortedGroupMembers.length"
                 class="group-panel__member-more"
               >
-                已展示前 8 位成员，剩余
-                {{ sortedGroupMembers.length - 8 }} 位成员待后续迁移更完整面板。
-              </p>
+                <span>
+                  已展示前 {{ Math.min(sortedGroupMembers.length, 8) }} 位成员，
+                  当前群共 {{ groupMemberStats.total }} 人。
+                </span>
+                <button
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isLoadingGroupContext"
+                  @click="void handleOpenViewGroupMembersModal()"
+                >
+                  {{ isLoadingGroupContext ? "同步中..." : "查看全部成员" }}
+                </button>
+              </div>
             </template>
           </section>
 
@@ -4452,6 +4503,20 @@ onMounted(() => {
       @update:visible="handleTransferGroupOwnerModalVisibleChange"
       @submit="void handleTransferGroupOwner($event)"
     />
+    <ViewGroupMembersModal
+      :visible="isViewGroupMembersModalVisible"
+      :members="sortedGroupMembers"
+      :stats="groupMemberStats"
+      :is-loading="isLoadingGroupContext"
+      :can-manage-members="canManageSelectedGroupMembers"
+      :can-manage-admins="canManageSelectedGroupAdmins"
+      :can-transfer-owner="canTransferSelectedGroupOwner"
+      @update:visible="handleViewGroupMembersModalVisibleChange"
+      @open-add-members="void handleOpenAddGroupMembersFromMemberPanel()"
+      @open-remove-members="handleOpenRemoveGroupMembersFromMemberPanel"
+      @open-manage-admins="void handleOpenManageGroupAdminsFromMemberPanel()"
+      @open-transfer-owner="void handleOpenTransferGroupOwnerFromMemberPanel()"
+    />
   </section>
 </template>
 
@@ -4899,6 +4964,11 @@ onMounted(() => {
 
 .group-panel__member-more {
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   font-size: 13px;
 }
 
