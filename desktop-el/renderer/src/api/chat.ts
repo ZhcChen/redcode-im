@@ -1263,6 +1263,42 @@ export class ChatApi {
     };
   }
 
+  static async updateGroupSettings(params: {
+    roomId: string;
+    joinApprovalRequired?: boolean;
+    memberCanInvite?: boolean;
+    memberCanAddFriends?: boolean;
+    requireAdminToAddFriends?: boolean;
+    maxMembers?: number;
+  }): Promise<ApiResponse<ChatGroupSettings>> {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+    };
+    if (typeof params.joinApprovalRequired === "boolean") {
+      payload.join_approval_required = params.joinApprovalRequired;
+    }
+    if (typeof params.memberCanInvite === "boolean") {
+      payload.member_can_invite = params.memberCanInvite;
+    }
+    if (typeof params.memberCanAddFriends === "boolean") {
+      payload.member_can_add_friends = params.memberCanAddFriends;
+    }
+    if (typeof params.requireAdminToAddFriends === "boolean") {
+      payload.require_admin_to_add_friends = params.requireAdminToAddFriends;
+    }
+    if (typeof params.maxMembers === "number") {
+      payload.max_members = params.maxMembers;
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendGroupSettingsResponse>
+    >("chat.group.settings.update", payload);
+    return {
+      ...response,
+      data: response.data ? mapChatGroupSettings(response.data) : null,
+    };
+  }
+
   static async listMessages(params: {
     roomId: string;
     limit?: number;

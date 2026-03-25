@@ -28,6 +28,15 @@ type UpdateGlobalMuteParams struct {
 	DurationMinutes int64  `json:"duration_minutes,omitempty"`
 }
 
+type UpdateGroupSettingsParams struct {
+	RoomID                    string `json:"room_id"`
+	JoinApprovalRequired      *bool  `json:"join_approval_required,omitempty"`
+	MemberCanInvite           *bool  `json:"member_can_invite,omitempty"`
+	MemberCanAddFriends       *bool  `json:"member_can_add_friends,omitempty"`
+	RequireAdminToAddFriends  *bool  `json:"require_admin_to_add_friends,omitempty"`
+	MaxMembers                *int   `json:"max_members,omitempty"`
+}
+
 type ListMessagesParams struct {
 	RoomID   string `json:"room_id"`
 	Limit    int    `json:"limit,omitempty"`
@@ -195,6 +204,31 @@ func (s *Service) UpdateGroupGlobalMute(ctx context.Context, params UpdateGlobal
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodPost,
 		Path:   "/rooms/" + params.RoomID + "/mutes/global",
+		Body:   body,
+	})
+}
+
+func (s *Service) UpdateGroupSettings(ctx context.Context, params UpdateGroupSettingsParams) (httpclient.Response, error) {
+	body := map[string]any{}
+	if params.JoinApprovalRequired != nil {
+		body["join_approval_required"] = *params.JoinApprovalRequired
+	}
+	if params.MemberCanInvite != nil {
+		body["member_can_invite"] = *params.MemberCanInvite
+	}
+	if params.MemberCanAddFriends != nil {
+		body["member_can_add_friends"] = *params.MemberCanAddFriends
+	}
+	if params.RequireAdminToAddFriends != nil {
+		body["require_admin_to_add_friends"] = *params.RequireAdminToAddFriends
+	}
+	if params.MaxMembers != nil {
+		body["max_members"] = *params.MaxMembers
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPatch,
+		Path:   "/rooms/" + params.RoomID + "/settings",
 		Body:   body,
 	})
 }

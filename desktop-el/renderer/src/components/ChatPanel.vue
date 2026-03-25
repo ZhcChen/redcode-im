@@ -103,6 +103,7 @@ const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
+const updatingGroupSettingKey = ref<"joinApprovalRequired" | "memberCanInvite" | null>(null);
 const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
@@ -1128,6 +1129,86 @@ const handleToggleGroupGlobalMute = async () => {
   }
 };
 
+const handleUpdateGroupSettings = async (
+  patch: {
+    joinApprovalRequired?: boolean;
+    memberCanInvite?: boolean;
+  },
+  options: {
+    settingKey: "joinApprovalRequired" | "memberCanInvite";
+    successMessage: string;
+  },
+) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || updatingGroupSettingKey.value) {
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有修改群设置的权限。";
+    return;
+  }
+  if (!groupSettings.value) {
+    notice.value = "群设置尚未同步完成，请稍后再试。";
+    return;
+  }
+
+  updatingGroupSettingKey.value = options.settingKey;
+  try {
+    const response = await ChatApi.updateGroupSettings({
+      roomId,
+      ...patch,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "更新群设置失败";
+      return;
+    }
+
+    groupSettings.value = response.data;
+    notice.value = options.successMessage;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "更新群设置失败";
+    await loadGroupSettings(roomId);
+  } finally {
+    if (updatingGroupSettingKey.value === options.settingKey) {
+      updatingGroupSettingKey.value = null;
+    }
+  }
+};
+
+const handleToggleJoinApproval = async () => {
+  if (!groupSettings.value) {
+    return;
+  }
+
+  const nextValue = !groupSettings.value.joinApprovalRequired;
+  await handleUpdateGroupSettings(
+    {
+      joinApprovalRequired: nextValue,
+    },
+    {
+      settingKey: "joinApprovalRequired",
+      successMessage: nextValue ? "已开启入群审批。" : "已关闭入群审批。",
+    },
+  );
+};
+
+const handleToggleMemberInvite = async () => {
+  if (!groupSettings.value) {
+    return;
+  }
+
+  const nextValue = !groupSettings.value.memberCanInvite;
+  await handleUpdateGroupSettings(
+    {
+      memberCanInvite: nextValue,
+    },
+    {
+      settingKey: "memberCanInvite",
+      successMessage: nextValue ? "已开启成员邀请。" : "已关闭成员邀请。",
+    },
+  );
+};
+
 const handleSend = async () => {
   const roomId = selectedChatId.value;
   const content = draftMessage.value.trim();
@@ -1863,6 +1944,48 @@ onMounted(() => {
                     </dd>
                   </div>
                 </dl>
+
+                <div
+                  v-if="canManageSelectedGroup"
+                  class="group-panel__action-row"
+                >
+                  <button
+                    type="button"
+                    class="group-panel__action"
+                    :disabled="
+                      isLoadingGroupSettings ||
+                      !groupSettings ||
+                      updatingGroupSettingKey !== null
+                    "
+                    @click="void handleToggleJoinApproval()"
+                  >
+                    {{
+                      updatingGroupSettingKey === "joinApprovalRequired"
+                        ? "提交中..."
+                        : groupSettings?.joinApprovalRequired
+                          ? "关闭入群审批"
+                          : "开启入群审批"
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="group-panel__action"
+                    :disabled="
+                      isLoadingGroupSettings ||
+                      !groupSettings ||
+                      updatingGroupSettingKey !== null
+                    "
+                    @click="void handleToggleMemberInvite()"
+                  >
+                    {{
+                      updatingGroupSettingKey === "memberCanInvite"
+                        ? "提交中..."
+                        : groupSettings?.memberCanInvite
+                          ? "关闭成员邀请"
+                          : "开启成员邀请"
+                    }}
+                  </button>
+                </div>
               </div>
 
               <div
@@ -2663,6 +2786,12 @@ onMounted(() => {
 .group-panel__action:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.group-panel__action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .group-panel__member-list {
