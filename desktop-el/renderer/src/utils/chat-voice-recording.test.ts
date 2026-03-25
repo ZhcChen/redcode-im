@@ -3,6 +3,7 @@ import {
   buildVoiceRecordingFile,
   formatVoiceRecordingDuration,
   getVoiceRecordingBlockedReason,
+  renameVoiceRecordingFile,
   resolvePreferredVoiceRecordingMimeType,
 } from "./chat-voice-recording";
 
@@ -94,6 +95,40 @@ describe("chat voice recording helpers", () => {
     expect(file.name).toBe("voice_rec-123.webm");
     expect(file.type).toBe("audio/webm");
     expect(file.durationMs).toBe(4200);
+  });
+
+  test("renames recorded file while keeping extension and duration metadata", async () => {
+    const file = buildVoiceRecordingFile({
+      blob: new Blob(["voice-demo"], {
+        type: "audio/webm",
+      }),
+      recordingId: "rec-123",
+      mimeType: "audio/webm",
+      durationMs: 4200,
+    });
+
+    const renamed = renameVoiceRecordingFile(file, "  team-sync-summary  ");
+
+    expect(renamed.name).toBe("team-sync-summary.webm");
+    expect(renamed.type).toBe("audio/webm");
+    expect(renamed.durationMs).toBe(4200);
+    expect(await renamed.text()).toBe("voice-demo");
+  });
+
+  test("keeps original file name when edited draft is empty", () => {
+    const file = buildVoiceRecordingFile({
+      blob: new Blob(["voice-demo"], {
+        type: "audio/webm",
+      }),
+      recordingId: "rec-123",
+      mimeType: "audio/webm",
+      durationMs: 4200,
+    });
+
+    const renamed = renameVoiceRecordingFile(file, "   ");
+
+    expect(renamed.name).toBe(file.name);
+    expect(renamed.durationMs).toBe(4200);
   });
 
   test("formats recording duration for recorder status and preview", () => {

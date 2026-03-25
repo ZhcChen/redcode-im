@@ -32,6 +32,22 @@ const getVoiceRecordingFileExtension = (mimeType: string) => {
   return "webm";
 };
 
+const splitVoiceRecordingFileName = (fileName: string) => {
+  const trimmedFileName = fileName.trim();
+  const lastDotIndex = trimmedFileName.lastIndexOf(".");
+  if (lastDotIndex <= 0 || lastDotIndex === trimmedFileName.length - 1) {
+    return {
+      name: trimmedFileName,
+      extension: "",
+    };
+  }
+
+  return {
+    name: trimmedFileName.slice(0, lastDotIndex),
+    extension: trimmedFileName.slice(lastDotIndex + 1),
+  };
+};
+
 export const resolvePreferredVoiceRecordingMimeType = (
   mediaRecorderLike:
     | {
@@ -91,6 +107,29 @@ export const buildVoiceRecordingFile = (options: {
     },
   ) as VoiceRecordingFile;
   file.durationMs = Math.max(0, Math.round(options.durationMs));
+  return file;
+};
+
+export const renameVoiceRecordingFile = (
+  file: VoiceRecordingFile,
+  nextNameDraft: string,
+) => {
+  const originalNameParts = splitVoiceRecordingFileName(file.name);
+  const draftParts = splitVoiceRecordingFileName(nextNameDraft);
+  const normalizedBaseName = draftParts.name || originalNameParts.name || "voice";
+  const extension = originalNameParts.extension || draftParts.extension;
+  const normalizedName = extension
+    ? `${normalizedBaseName}.${extension}`
+    : normalizedBaseName;
+
+  if (normalizedName === file.name) {
+    return file;
+  }
+
+  Object.defineProperty(file, "name", {
+    configurable: true,
+    value: normalizedName,
+  });
   return file;
 };
 

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   buildVoiceRecordingFile,
   formatVoiceRecordingDuration,
+  renameVoiceRecordingFile,
   resolvePreferredVoiceRecordingMimeType,
   type VoiceRecordingFile,
 } from "@/utils/chat-voice-recording";
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 const previewUrl = ref<string | null>(null);
 const previewFile = ref<VoiceRecordingFile | null>(null);
 const previewDurationMs = ref(0);
+const previewFileNameDraft = ref("");
 const previewWaveformBars = ref<number[]>([]);
 const recordingDurationMs = ref(0);
 const isRecording = ref(false);
@@ -87,6 +89,7 @@ const resetPreview = () => {
   previewUrl.value = null;
   previewFile.value = null;
   previewDurationMs.value = 0;
+  previewFileNameDraft.value = "";
   previewWaveformBars.value = [];
   previewWaveformToken += 1;
 };
@@ -179,6 +182,7 @@ const finalizeRecordedBlob = () => {
   });
   previewFile.value = file;
   previewDurationMs.value = file.durationMs;
+  previewFileNameDraft.value = file.name;
   previewUrl.value = URL.createObjectURL(file);
   errorMessage.value = null;
   void updatePreviewWaveform(file);
@@ -333,7 +337,7 @@ const handleSubmit = () => {
     return;
   }
   emit("submit", {
-    file: previewFile.value,
+    file: renameVoiceRecordingFile(previewFile.value, previewFileNameDraft.value),
   });
 };
 
@@ -424,6 +428,15 @@ onBeforeUnmount(() => {
               :src="previewUrl"
               preload="metadata"
             />
+            <label class="voice-recorder-modal__field">
+              <span>文件名</span>
+              <input
+                v-model="previewFileNameDraft"
+                class="voice-recorder-modal__input"
+                :disabled="props.isSubmitting"
+                placeholder="请输入语音文件名"
+              />
+            </label>
             <small>试听无误后发送，会自动复用现有失败重试链路。</small>
           </div>
 
@@ -582,6 +595,39 @@ onBeforeUnmount(() => {
   border-radius: 22px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.76);
+}
+
+.voice-recorder-modal__field {
+  display: grid;
+  gap: 8px;
+}
+
+.voice-recorder-modal__field span {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.54);
+}
+
+.voice-recorder-modal__input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.voice-recorder-modal__input:focus {
+  outline: 2px solid rgba(0, 194, 179, 0.18);
+  border-color: rgba(0, 194, 179, 0.48);
+}
+
+.voice-recorder-modal__input:disabled {
+  cursor: not-allowed;
+  background: rgba(226, 232, 240, 0.68);
 }
 
 .voice-recorder-modal__waveform {
