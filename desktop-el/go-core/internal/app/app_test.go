@@ -3650,6 +3650,80 @@ func TestAppChatDeleteDeletesMessage(t *testing.T) {
 	}
 }
 
+func TestAppChatEditEditsMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-12" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body failed: %v", err)
+		}
+		if body["content"] != "更新后的消息" {
+			t.Fatalf("unexpected request body: %+v", body)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":              "msg-12",
+			"room_id":         "room-2",
+			"sender_id":       "u-1",
+			"sender_username": "me",
+			"sender_nickname": "我",
+			"content":         "更新后的消息",
+			"message_type":    "text",
+			"created_at":      "2026-03-24T03:00:00Z",
+			"is_edited":       true,
+			"edited_at":       "2026-03-24T03:05:00Z",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-edit",
+		Method: "chat.edit",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-12",
+			"content":    "更新后的消息",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.edit to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.edit response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.edit envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.edit data failed: %v", err)
+	}
+	if result["id"] != "msg-12" || result["content"] != "更新后的消息" {
+		t.Fatalf("unexpected chat.edit payload: %+v", result)
+	}
+	if result["is_edited"] != true || result["edited_at"] != "2026-03-24T03:05:00Z" {
+		t.Fatalf("unexpected chat.edit edit markers: %+v", result)
+	}
+}
+
 func TestAppChatAttachmentDownloadURLReturnsEnvelope(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages/attachments/download" {

@@ -661,6 +661,8 @@ interface BackendPushMessageUpdate {
   message_id: string;
   is_deleted?: boolean;
   deleted_at?: string | null;
+  edited_at?: string | null;
+  content?: string | null;
 }
 
 interface BackendPushPinUpdate {
@@ -766,6 +768,8 @@ export type ChatRealtimeEvent =
       messageId: string;
       isDeleted: boolean;
       deletedAt: Date | null;
+      editedAt: Date | null;
+      content: string | null;
     }
   | {
       type: "pin_update";
@@ -1601,6 +1605,10 @@ export const mapChatRealtimeEvent = (
         deletedAt: parseTimestamp(
           typeof payload.deleted_at === "string" ? payload.deleted_at : null,
         ),
+        editedAt: parseTimestamp(
+          typeof payload.edited_at === "string" ? payload.edited_at : null,
+        ),
+        content: typeof payload.content === "string" ? payload.content : null,
       };
     case "pin_update":
       if (!isBackendPushPinUpdate(payload)) {
@@ -2561,6 +2569,27 @@ export class ChatApi {
       ...response,
       data: response.data
         ? mapChatMessagePayload(response.data, undefined)
+        : null,
+    };
+  }
+
+  static async editMessage(params: {
+    roomId: string;
+    messageId: string;
+    content: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<ChatMessage>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMessageInfo>
+    >("chat.edit", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+      content: params.content,
+    });
+    return {
+      ...response,
+      data: response.data
+        ? mapChatMessagePayload(response.data, params.currentUserId)
         : null,
     };
   }

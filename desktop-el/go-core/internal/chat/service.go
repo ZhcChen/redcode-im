@@ -154,6 +154,12 @@ type DeleteMessageParams struct {
 	MessageID string `json:"message_id"`
 }
 
+type EditMessageParams struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+	Content   string `json:"content"`
+}
+
 type AttachmentDownloadURLParams struct {
 	RoomID           string `json:"room_id"`
 	Key              string `json:"key"`
@@ -613,6 +619,16 @@ func (s *Service) DeleteMessage(ctx context.Context, params DeleteMessageParams)
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID,
+	})
+}
+
+func (s *Service) EditMessage(ctx context.Context, params EditMessageParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPatch,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID,
+		Body: map[string]any{
+			"content": params.Content,
+		},
 	})
 }
 

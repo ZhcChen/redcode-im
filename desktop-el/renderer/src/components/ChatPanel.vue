@@ -206,6 +206,10 @@ const highlightedQuotedMessageId = ref<string | null>(null);
 const hasMoreGroupOperationLogs = ref(false);
 const messageReaders = ref<ChatMessageReader[]>([]);
 const messageReadersTarget = ref<ChatMessage | null>(null);
+const activeMessageActionMenuId = ref<string | null>(null);
+const editingMessageTarget = ref<ChatMessage | null>(null);
+const editingMessageDraft = ref("");
+const submittingEditMessageId = ref<string | null>(null);
 const localMessagesByRoom = ref<Record<string, ChatMessage[]>>({});
 const resendingMessageId = ref<string | null>(null);
 const typingUsers = ref<Record<string, number>>({});
@@ -845,6 +849,66 @@ const isMessagePinned = (message: ChatMessage) => Boolean(message.pinnedAt);
 const isLocalOnlyMessage = (message: ChatMessage) =>
   message.clientStatus === "sending" || message.clientStatus === "failed";
 
+const getMessageCopyText = (message: ChatMessage | null) => {
+  if (!message) {
+    return "";
+  }
+
+  const partText = message.parts
+    .filter((part) => part.partType === "text" && part.text?.trim())
+    .map((part) => part.text?.trim() ?? "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  if (partText) {
+    return partText;
+  }
+
+  return message.content.trim();
+};
+
+const canCopyMessage = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      message.messageType !== "system" &&
+      !message.isDeleted &&
+      getMessageCopyText(message),
+  );
+
+const canEditMessage = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      message.isSelf &&
+      !message.isDeleted &&
+      !isLocalOnlyMessage(message) &&
+      message.messageType === "text" &&
+      getMessageCopyText(message),
+  );
+
+const canReplyMessage = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      message.messageType !== "system" &&
+      !message.isDeleted &&
+      !isLocalOnlyMessage(message),
+  );
+
+const canToggleMessagePin = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      message.messageType !== "system" &&
+      !message.isDeleted &&
+      !isLocalOnlyMessage(message),
+  );
+
+const canToggleMessageReaction = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      message.messageType !== "system" &&
+      !message.isDeleted &&
+      !isLocalOnlyMessage(message),
+  );
+
 const canForwardMessage = (message: ChatMessage | null) => {
   if (
     !message ||
@@ -872,6 +936,28 @@ const canViewMessageReaders = (message: ChatMessage | null) =>
       !message.isDeleted &&
       message.messageType !== "system" &&
       !isLocalOnlyMessage(message),
+  );
+
+const canDeleteMessage = (message: ChatMessage | null) =>
+  Boolean(
+    message && message.isSelf && (!message.isDeleted || isLocalOnlyMessage(message)),
+  );
+
+const getMessageDeleteLabel = (message: ChatMessage) =>
+  isLocalOnlyMessage(message) ? "移除" : "撤回";
+
+const canOpenMessageActionMenu = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      (canCopyMessage(message) ||
+        canReplyMessage(message) ||
+        canForwardMessage(message) ||
+        canToggleMessagePin(message) ||
+        canToggleMessageReaction(message) ||
+        canViewMessageReaders(message) ||
+        canEditMessage(message) ||
+        canResendLocalMessage(message) ||
+        canDeleteMessage(message)),
   );
 
 const formatForwardSourceName = (forwardInfo: ChatForwardInfo | null) => {
@@ -935,6 +1021,27 @@ const patchMessageReactions = (
   messages.value.splice(targetIndex, 1, {
     ...messages.value[targetIndex],
     reactions,
+  });
+};
+
+const patchMessageEditedState = (payload: {
+  messageId: string;
+  content: string;
+  editedAt: Date | null;
+}) => {
+  const targetIndex = messages.value.findIndex(
+    (message) => message.id === payload.messageId,
+  );
+  if (targetIndex === -1) {
+    return;
+  }
+
+  const existing = messages.value[targetIndex];
+  messages.value.splice(targetIndex, 1, {
+    ...existing,
+    content: payload.content,
+    preview: payload.content || existing.preview,
+    isEdited: Boolean(payload.editedAt),
   });
 };
 
@@ -2022,6 +2129,12 @@ const loadChats = async (
       response.data.find((chat) => chat.roomId === nextSelectedRoomId) || null;
     chats.value = response.data;
     selectedChatId.value = nextSelectedRoomId;
+    if (nextSelectedRoomId !== previousSelectedRoomId) {
+      activeMessageActionMenuId.value = null;
+      activeReactionPickerMessageId.value = null;
+      editingMessageTarget.value = null;
+      editingMessageDraft.value = "";
+    }
     if (!nextSelectedRoomId) {
       messages.value = [];
     } else if (
@@ -3521,6 +3634,7 @@ const handleResendMessage = async (message: ChatMessage) => {
     return;
   }
 
+  closeMessageActionMenu();
   resendingMessageId.value = message.id;
   updateLocalMessage(message.roomId, message.id, markLocalMessageSending);
   try {
@@ -3563,6 +3677,109 @@ const handleResendMessage = async (message: ChatMessage) => {
     notice.value = error instanceof Error ? error.message : "消息重发失败";
   } finally {
     resendingMessageId.value = null;
+  }
+};
+
+const closeMessageActionMenu = () => {
+  activeMessageActionMenuId.value = null;
+};
+
+const handleToggleMessageActionMenu = (message: ChatMessage) => {
+  if (!canOpenMessageActionMenu(message)) {
+    return;
+  }
+
+  activeReactionPickerMessageId.value = null;
+  activeMessageActionMenuId.value =
+    activeMessageActionMenuId.value === message.id ? null : message.id;
+};
+
+const closeEditMessageDialog = () => {
+  if (submittingEditMessageId.value) {
+    return;
+  }
+  editingMessageTarget.value = null;
+  editingMessageDraft.value = "";
+};
+
+const handleCopyMessage = async (message: ChatMessage) => {
+  const text = getMessageCopyText(message);
+  if (!text) {
+    return;
+  }
+
+  closeMessageActionMenu();
+  if (!window.navigator?.clipboard) {
+    notice.value = "当前环境暂不支持复制。";
+    return;
+  }
+
+  try {
+    await window.navigator.clipboard.writeText(text);
+    notice.value = "消息内容已复制。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "复制消息失败";
+  }
+};
+
+const handleStartEditMessage = (message: ChatMessage) => {
+  if (!canEditMessage(message)) {
+    return;
+  }
+
+  closeMessageActionMenu();
+  editingMessageTarget.value = message;
+  editingMessageDraft.value = getMessageCopyText(message);
+};
+
+const handleSubmitEditMessage = async () => {
+  const message = editingMessageTarget.value;
+  if (!message || !canEditMessage(message) || submittingEditMessageId.value) {
+    return;
+  }
+
+  const content = editingMessageDraft.value.trim();
+  if (!content) {
+    notice.value = "消息内容不能为空。";
+    return;
+  }
+  if (content.length > 10000) {
+    notice.value = "消息内容不能超过 10000 字。";
+    return;
+  }
+
+  submittingEditMessageId.value = message.id;
+  try {
+    const response = await ChatApi.editMessage({
+      roomId: message.roomId,
+      messageId: message.id,
+      content,
+      currentUserId: props.currentUser.id,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "编辑消息失败";
+      return;
+    }
+
+    const targetIndex = messages.value.findIndex((item) => item.id === message.id);
+    if (targetIndex !== -1) {
+      messages.value.splice(targetIndex, 1, {
+        ...messages.value[targetIndex],
+        ...response.data,
+      });
+    }
+    await loadChats({
+      preferredRoomId: selectedChatId.value,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    notice.value = "消息已编辑。";
+    editingMessageTarget.value = null;
+    editingMessageDraft.value = "";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "编辑消息失败";
+  } finally {
+    submittingEditMessageId.value = null;
   }
 };
 
@@ -3626,6 +3843,7 @@ const handleReplyToMessage = (message: ChatMessage) => {
   ) {
     return;
   }
+  closeMessageActionMenu();
   replyingMessage.value = message;
   notice.value = `正在回复 ${message.isSelf ? "我" : message.senderName} 的消息。`;
 };
@@ -3663,6 +3881,7 @@ const handleOpenMessageReadersModal = async (message: ChatMessage) => {
 
   const currentSequence = messageReadersLoadSequence + 1;
   messageReadersLoadSequence = currentSequence;
+  closeMessageActionMenu();
   isMessageReadersModalVisible.value = true;
   loadingMessageReadersMessageId.value = message.id;
   messageReadersTarget.value = message;
@@ -3722,6 +3941,7 @@ const handleOpenForwardMessageModal = (message: ChatMessage) => {
     return;
   }
 
+  closeMessageActionMenu();
   forwardingMessage.value = message;
   isForwardMessageModalVisible.value = true;
 };
@@ -3798,6 +4018,7 @@ const handleTogglePinMessage = async (message: ChatMessage) => {
     return;
   }
 
+  closeMessageActionMenu();
   pinningMessageId.value = message.id;
   const nextPinned = !isMessagePinned(message);
   try {
@@ -3844,6 +4065,7 @@ const handleToggleReactionPicker = (message: ChatMessage) => {
   ) {
     return;
   }
+  closeMessageActionMenu();
   activeReactionPickerMessageId.value =
     activeReactionPickerMessageId.value === message.id ? null : message.id;
 };
@@ -3928,12 +4150,13 @@ const handleDeleteMessage = async (message: ChatMessage) => {
 
   deletingMessageId.value = message.id;
   try {
+    closeMessageActionMenu();
     const response = await ChatApi.deleteMessage({
       roomId,
       messageId: message.id,
     });
     if (!response.success) {
-      notice.value = response.message || "删除消息失败";
+      notice.value = response.message || "撤回消息失败";
       return;
     }
 
@@ -3941,9 +4164,9 @@ const handleDeleteMessage = async (message: ChatMessage) => {
       preferredRoomId: roomId,
       preserveNotice: true,
     });
-    notice.value = "消息已删除。";
+    notice.value = "消息已撤回。";
   } catch (error) {
-    notice.value = error instanceof Error ? error.message : "删除消息失败";
+    notice.value = error instanceof Error ? error.message : "撤回消息失败";
   } finally {
     deletingMessageId.value = null;
   }
@@ -4142,10 +4365,22 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
   }
 
   if (event.type === "message_update") {
+    if (
+      !event.isDeleted &&
+      event.roomId === activeRoomId &&
+      event.editedAt &&
+      event.content !== null
+    ) {
+      patchMessageEditedState({
+        messageId: event.messageId,
+        content: event.content,
+        editedAt: event.editedAt,
+      });
+    }
     await loadChats({
       preferredRoomId: activeRoomId,
       preserveNotice: true,
-      reloadMessages: event.roomId === activeRoomId,
+      reloadMessages: event.isDeleted && event.roomId === activeRoomId,
     });
     return;
   }
@@ -5127,30 +5362,55 @@ onBeforeUnmount(() => {
                   </p>
                 </template>
                 <div
-                  v-if="message.messageType !== 'system'"
+                  v-if="canOpenMessageActionMenu(message)"
                   class="message-card__actions"
                 >
                   <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
-                    :disabled="message.isDeleted || reactingMessageId === message.id"
-                    @click="handleToggleReactionPicker(message)"
+                    @click="handleToggleMessageActionMenu(message)"
                   >
                     {{
-                      reactingMessageId === message.id
-                        ? "处理中..."
-                        : activeReactionPickerMessageId === message.id
-                          ? "收起反应"
-                          : "反应"
+                      activeMessageActionMenuId === message.id
+                        ? "收起更多"
+                        : "更多"
                     }}
                   </button>
+                </div>
+                <div
+                  v-if="activeMessageActionMenuId === message.id"
+                  class="message-action-menu"
+                >
                   <button
+                    v-if="canCopyMessage(message)"
                     type="button"
                     class="message-card__action message-card__action--secondary"
-                    :disabled="
-                      message.isDeleted ||
-                      pinningMessageId === message.id
-                    "
+                    @click="void handleCopyMessage(message)"
+                  >
+                    复制
+                  </button>
+                  <button
+                    v-if="canReplyMessage(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    @click="handleReplyToMessage(message)"
+                  >
+                    引用
+                  </button>
+                  <button
+                    v-if="canForwardMessage(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="isForwardingMessage"
+                    @click="void handleOpenForwardMessageModal(message)"
+                  >
+                    {{ isForwardingMessage ? "转发中..." : "转发" }}
+                  </button>
+                  <button
+                    v-if="canToggleMessagePin(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="pinningMessageId === message.id"
                     @click="void handleTogglePinMessage(message)"
                   >
                     {{
@@ -5161,6 +5421,21 @@ onBeforeUnmount(() => {
                         : isMessagePinned(message)
                           ? "取消置顶"
                           : "置顶"
+                    }}
+                  </button>
+                  <button
+                    v-if="canToggleMessageReaction(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="reactingMessageId === message.id"
+                    @click="handleToggleReactionPicker(message)"
+                  >
+                    {{
+                      reactingMessageId === message.id
+                        ? "处理中..."
+                        : activeReactionPickerMessageId === message.id
+                          ? "收起反应"
+                          : "添加反应"
                     }}
                   </button>
                   <button
@@ -5177,20 +5452,15 @@ onBeforeUnmount(() => {
                     }}
                   </button>
                   <button
+                    v-if="canEditMessage(message)"
                     type="button"
                     class="message-card__action message-card__action--secondary"
-                    :disabled="!canForwardMessage(message) || isForwardingMessage"
-                    @click="void handleOpenForwardMessageModal(message)"
+                    :disabled="submittingEditMessageId === message.id"
+                    @click="handleStartEditMessage(message)"
                   >
-                    {{ isForwardingMessage ? "转发中..." : "转发" }}
-                  </button>
-                  <button
-                    type="button"
-                    class="message-card__action message-card__action--secondary"
-                    :disabled="message.isDeleted || isLocalOnlyMessage(message)"
-                    @click="handleReplyToMessage(message)"
-                  >
-                    引用
+                    {{
+                      submittingEditMessageId === message.id ? "编辑中..." : "编辑"
+                    }}
                   </button>
                   <button
                     v-if="canResendLocalMessage(message)"
@@ -5204,7 +5474,7 @@ onBeforeUnmount(() => {
                     }}
                   </button>
                   <button
-                    v-if="message.isSelf"
+                    v-if="canDeleteMessage(message)"
                     type="button"
                     class="message-card__action"
                     :disabled="deletingMessageId === message.id"
@@ -5212,10 +5482,10 @@ onBeforeUnmount(() => {
                   >
                     {{
                       deletingMessageId === message.id
-                        ? "删除中..."
-                        : isLocalOnlyMessage(message)
-                          ? "移除"
-                          : "删除"
+                        ? isLocalOnlyMessage(message)
+                          ? "移除中..."
+                          : "撤回中..."
+                        : getMessageDeleteLabel(message)
                     }}
                   </button>
                 </div>
@@ -5483,6 +5753,61 @@ onBeforeUnmount(() => {
           controls
           autoplay
         />
+      </div>
+    </div>
+
+    <div
+      v-if="editingMessageTarget"
+      class="message-edit-dialog"
+      @click.self="closeEditMessageDialog"
+    >
+      <div class="message-edit-dialog__panel">
+        <div class="message-edit-dialog__header">
+          <div>
+            <strong>编辑消息</strong>
+            <small>仅支持自己发送的纯文本消息。</small>
+          </div>
+          <button
+            type="button"
+            class="message-edit-dialog__close"
+            :disabled="submittingEditMessageId !== null"
+            @click="closeEditMessageDialog"
+          >
+            关闭
+          </button>
+        </div>
+        <textarea
+          v-model="editingMessageDraft"
+          class="message-edit-dialog__input"
+          rows="5"
+          maxlength="10000"
+          :disabled="submittingEditMessageId !== null"
+        />
+        <div class="message-edit-dialog__footer">
+          <small>{{ editingMessageDraft.trim().length }} / 10000</small>
+          <div class="message-edit-dialog__actions">
+            <button
+              type="button"
+              class="message-edit-dialog__button message-edit-dialog__button--secondary"
+              :disabled="submittingEditMessageId !== null"
+              @click="closeEditMessageDialog"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="message-edit-dialog__button"
+              :disabled="
+                submittingEditMessageId !== null || !editingMessageDraft.trim()
+              "
+              @click="void handleSubmitEditMessage()"
+            >
+              {{
+                submittingEditMessageId !== null ? "保存中..." : "保存修改"
+              }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -6331,6 +6656,13 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.message-action-menu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .message-card__action {
   height: 28px;
   padding: 0 10px;
@@ -6718,6 +7050,100 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   object-fit: contain;
   background: rgba(15, 23, 42, 0.06);
+}
+
+.message-edit-dialog {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(8px);
+  z-index: 1001;
+}
+
+.message-edit-dialog__panel {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.22);
+}
+
+.message-edit-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.message-edit-dialog__header div {
+  display: grid;
+  gap: 4px;
+}
+
+.message-edit-dialog__header strong {
+  color: var(--text-primary);
+}
+
+.message-edit-dialog__header small,
+.message-edit-dialog__footer small {
+  color: var(--text-secondary);
+}
+
+.message-edit-dialog__close,
+.message-edit-dialog__button {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(0, 155, 143, 0.12);
+  color: var(--primary-color-strong);
+  cursor: pointer;
+}
+
+.message-edit-dialog__button--secondary,
+.message-edit-dialog__close {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+}
+
+.message-edit-dialog__close:disabled,
+.message-edit-dialog__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message-edit-dialog__input {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.9);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.message-edit-dialog__input:focus {
+  border-color: rgba(0, 155, 143, 0.28);
+  box-shadow: 0 0 0 4px rgba(0, 194, 179, 0.08);
+}
+
+.message-edit-dialog__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.message-edit-dialog__actions {
+  display: flex;
+  gap: 10px;
 }
 
 @media (max-width: 1080px) {

@@ -596,6 +596,100 @@ describe("chat api", () => {
     });
   });
 
+  test("edits message through go-core rpc and maps edited payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                id: "msg-15",
+                room_id: "room-1",
+                sender_id: "u-1",
+                sender_username: "alice",
+                sender_nickname: "Alice",
+                content: "编辑后的消息",
+                message_type: "text",
+                status: "sent",
+                created_at: "2026-03-25T19:00:00Z",
+                is_edited: true,
+                edited_at: "2026-03-25T19:06:00Z",
+                parts: [],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const editMessage = (
+      ChatApi as unknown as {
+        editMessage?: (params: {
+          roomId: string;
+          messageId: string;
+          content: string;
+          currentUserId?: string;
+        }) => Promise<unknown>;
+      }
+    ).editMessage;
+
+    expect(typeof editMessage).toBe("function");
+    if (!editMessage) {
+      return;
+    }
+
+    const response = (await editMessage({
+      roomId: "room-1",
+      messageId: "msg-15",
+      content: "编辑后的消息",
+      currentUserId: "u-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.edit",
+        params: {
+          room_id: "room-1",
+          message_id: "msg-15",
+          content: "编辑后的消息",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "msg-15",
+        roomId: "room-1",
+        senderId: "u-1",
+        senderUsername: "alice",
+        senderName: "Alice",
+        senderAvatarUrl: null,
+        content: "编辑后的消息",
+        preview: "编辑后的消息",
+        messageType: "text",
+        deliveryStatus: "sent",
+        createdAt: new Date("2026-03-25T19:00:00Z"),
+        isDeleted: false,
+        isEdited: true,
+        isSelf: true,
+        pinnedAt: null,
+        pinnedBy: null,
+        forwardInfo: null,
+        quotedMessage: null,
+        parts: [],
+        clientStatus: null,
+        retryPayload: null,
+        errorMessage: null,
+      },
+    });
+  });
+
   test("removes reaction through go-core rpc and maps summaries", async () => {
     globalThis.window = {
       desktopEl: {
@@ -2544,6 +2638,28 @@ describe("chat api message mapping", () => {
       isPinned: true,
       pinnedAt: new Date("2026-03-25T19:05:00Z"),
       pinnedBy: "u-9",
+    });
+  });
+
+  test("maps edited message_update payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "message_update",
+      room_id: "room-1",
+      message_id: "msg-15",
+      is_deleted: false,
+      deleted_at: null,
+      edited_at: "2026-03-25T19:06:00Z",
+      content: "编辑后的消息",
+    });
+
+    expect(mapped).toEqual({
+      type: "message_update",
+      roomId: "room-1",
+      messageId: "msg-15",
+      isDeleted: false,
+      deletedAt: null,
+      editedAt: new Date("2026-03-25T19:06:00Z"),
+      content: "编辑后的消息",
     });
   });
 
