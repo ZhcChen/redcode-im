@@ -36,6 +36,12 @@ import {
   type VoiceRecordingFile,
 } from "@/utils/chat-voice-recording";
 import {
+  buildPendingAttachmentNotice,
+  buildPendingComposerAttachments,
+  hasFileTransfer,
+  type ComposerPendingAttachment,
+} from "@/utils/chat-composer-attachments";
+import {
   uploadAttachmentsAndBuildParts,
 } from "@/utils/chat-message-compose";
 import {
@@ -112,11 +118,6 @@ interface OpenChatRequest {
   requestId: number;
   friendUserId: string;
   displayName: string;
-}
-
-interface PendingComposerAttachment {
-  id: string;
-  file: File;
 }
 
 interface GroupCreateFriendOption {
@@ -201,7 +202,7 @@ const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const groupAvatarInputRef = ref<HTMLInputElement | null>(null);
-const pendingAttachments = ref<PendingComposerAttachment[]>([]);
+const pendingAttachments = ref<ComposerPendingAttachment<File>[]>([]);
 const attachmentUploadProgress = ref<number | null>(null);
 const attachmentUploadProgressById = ref<Record<string, number>>({});
 const isLoadingChats = ref(true);
@@ -270,6 +271,8 @@ const selectedMessageIds = ref<string[]>([]);
 const isDraggingMessageSelection = ref(false);
 const dragAnchorMessageId = ref<string | null>(null);
 const dragStartPosition = ref<{ x: number; y: number } | null>(null);
+const isFileDragActive = ref(false);
+const fileDragDepth = ref(0);
 const resendingMessageId = ref<string | null>(null);
 const typingUsers = ref<Record<string, number>>({});
 const typingCleanupTimers = new Map<string, number>();
@@ -662,6 +665,12 @@ const groupComposerState = computed(() =>
     canManageGroup: canManageSelectedGroup.value,
     groupSettings: groupSettings.value,
   }),
+);
+const canQueueComposerAttachments = computed(
+  () =>
+    Boolean(selectedChatId.value) &&
+    !isSending.value &&
+    !groupComposerState.value.disabled,
 );
 const pinnedCount = computed(
   () => chats.value.filter((chat) => chat.isPinned).length,
@@ -1248,6 +1257,11 @@ const resetPendingAttachments = () => {
   if (attachmentInputRef.value) {
     attachmentInputRef.value.value = "";
   }
+};
+
+const resetFileDragState = () => {
+  fileDragDepth.value = 0;
+  isFileDragActive.value = false;
 };
 
 const getLocalMessagesForRoom = (roomId: string | null) =>
@@ -4507,6 +4521,36 @@ const handlePickAttachment = () => {
   attachmentInputRef.value?.click();
 };
 
+const appendPendingAttachments = (
+  files: File[],
+  mode: "pick" | "drop",
+) => {
+  if (!files.length) {
+    return;
+  }
+
+  pendingAttachments.value = [
+    ...pendingAttachments.value,
+    ...buildPendingComposerAttachments(files),
+  ];
+  attachmentUploadProgress.value = null;
+  attachmentUploadProgressById.value = {};
+  notice.value = buildPendingAttachmentNotice(files, mode);
+};
+
+const getComposerAttachmentBlockedReason = () => {
+  if (!selectedChatId.value) {
+    return "请先选择一个会话再拖拽附件。";
+  }
+  if (isSending.value) {
+    return "当前正在发送消息，请稍后再拖拽附件。";
+  }
+  if (groupComposerState.value.disabled) {
+    return groupComposerState.value.tip || groupComposerState.value.placeholder;
+  }
+  return null;
+};
+
 const handleAttachmentSelected = (event: Event) => {
   const input = event.target as HTMLInputElement | null;
   if (groupComposerState.value.disabled) {
@@ -4522,21 +4566,77 @@ const handleAttachmentSelected = (event: Event) => {
     return;
   }
 
-  const nextAttachments = files.map((file, index) => ({
-    id: `${Date.now()}-${index}-${file.name}-${file.size}`,
-    file,
-  }));
-  pendingAttachments.value = [...pendingAttachments.value, ...nextAttachments];
-  attachmentUploadProgress.value = null;
-  attachmentUploadProgressById.value = {};
-  notice.value =
-    files.length === 1
-      ? `已添加附件 ${files[0].name}，可直接发送，也可继续输入文本混发。`
-      : `已添加 ${files.length} 个附件，可直接发送，也可继续输入文本混发。`;
+  appendPendingAttachments(files, "pick");
 
   if (input) {
     input.value = "";
   }
+};
+
+const handleFileDragEnter = (event: DragEvent) => {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  fileDragDepth.value += 1;
+  if (canQueueComposerAttachments.value) {
+    isFileDragActive.value = true;
+  }
+};
+
+const handleFileDragOver = (event: DragEvent) => {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = canQueueComposerAttachments.value
+      ? "copy"
+      : "none";
+  }
+  if (canQueueComposerAttachments.value) {
+    isFileDragActive.value = true;
+  }
+};
+
+const handleFileDragLeave = (event: DragEvent) => {
+  if (!isFileDragActive.value && !hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  fileDragDepth.value = Math.max(0, fileDragDepth.value - 1);
+  if (fileDragDepth.value === 0) {
+    isFileDragActive.value = false;
+  }
+};
+
+const handleFileDrop = (event: DragEvent) => {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  const files = Array.from(event.dataTransfer?.files ?? []);
+  resetFileDragState();
+
+  const blockedReason = getComposerAttachmentBlockedReason();
+  if (blockedReason) {
+    notice.value = blockedReason;
+    return;
+  }
+  if (!files.length) {
+    notice.value = "未检测到可上传的文件。";
+    return;
+  }
+
+  appendPendingAttachments(files, "drop");
 };
 
 const handleComposerKeydown = (event: KeyboardEvent) => {
@@ -5355,6 +5455,18 @@ watch(
     if (disabled) {
       void stopTyping();
     }
+    if (disabled) {
+      resetFileDragState();
+    }
+  },
+);
+
+watch(
+  () => canQueueComposerAttachments.value,
+  (enabled) => {
+    if (!enabled) {
+      resetFileDragState();
+    }
   },
 );
 
@@ -5387,6 +5499,8 @@ watch(
 
 onMounted(() => {
   window.addEventListener("keydown", handleGlobalKeydown);
+  window.addEventListener("dragend", resetFileDragState);
+  window.addEventListener("drop", resetFileDragState);
   restoreRetryableLocalMessagesFromStorage();
   Object.entries(localMessagesByRoom.value).forEach(([roomId, roomMessages]) => {
     roomMessages.forEach((message) => {
@@ -5404,6 +5518,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleGlobalKeydown);
+  window.removeEventListener("dragend", resetFileDragState);
+  window.removeEventListener("drop", resetFileDragState);
   persistRetryableLocalMessages();
   clearAllLocalMessageRetryTimers();
   const roomId = subscribedRoomId.value;
@@ -5420,7 +5536,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="chat-panel">
+  <section
+    class="chat-panel"
+    :class="{ 'chat-panel--file-drag': isFileDragActive }"
+    @dragenter="handleFileDragEnter"
+    @dragover="handleFileDragOver"
+    @dragleave="handleFileDragLeave"
+    @drop="handleFileDrop"
+  >
+    <div v-if="isFileDragActive" class="chat-panel__drag-overlay">
+      <strong>松开鼠标即可添加附件</strong>
+      <small>当前会复用现有附件队列，不会立刻发送。</small>
+    </div>
     <div class="chat-panel__notice">
       <span>{{ notice }}</span>
       <small>{{ chats.length }} 个会话 / {{ pinnedCount }} 个置顶</small>
@@ -6946,6 +7073,38 @@ onBeforeUnmount(() => {
 .chat-panel {
   display: grid;
   gap: 18px;
+  position: relative;
+}
+
+.chat-panel--file-drag .chat-panel__layout,
+.chat-panel--file-drag .chat-panel__notice {
+  filter: saturate(0.95);
+}
+
+.chat-panel__drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  border: 2px dashed rgba(0, 155, 143, 0.52);
+  border-radius: 32px;
+  background:
+    linear-gradient(135deg, rgba(240, 253, 250, 0.9), rgba(236, 253, 245, 0.8)),
+    rgba(255, 255, 255, 0.72);
+  color: #0f766e;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.chat-panel__drag-overlay strong {
+  font-size: 18px;
+}
+
+.chat-panel__drag-overlay small {
+  color: rgba(15, 118, 110, 0.82);
 }
 
 .chat-panel__notice {
