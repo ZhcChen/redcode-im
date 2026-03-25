@@ -12,6 +12,11 @@ type EnsurePrivateChatParams struct {
 	FriendUserID string `json:"friend_user_id"`
 }
 
+type CreateGroupParams struct {
+	Name          string   `json:"name"`
+	MemberUserIDs []string `json:"member_user_ids"`
+}
+
 type ListMessagesParams struct {
 	RoomID   string `json:"room_id"`
 	Limit    int    `json:"limit,omitempty"`
@@ -128,6 +133,19 @@ func (s *Service) EnsurePrivateChat(ctx context.Context, params EnsurePrivateCha
 		Method: http.MethodPost,
 		Path:   "/friends/" + params.FriendUserID + "/chat",
 		Body:   map[string]any{},
+	})
+}
+
+func (s *Service) CreateGroup(ctx context.Context, params CreateGroupParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"name":       params.Name,
+		"member_ids": params.MemberUserIDs,
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms",
+		Body:   body,
 	})
 }
 

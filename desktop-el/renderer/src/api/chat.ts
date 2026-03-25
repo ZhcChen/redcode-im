@@ -1,7 +1,14 @@
 import type { ApiResponse } from "./http";
 
 type BackendRoomType = "private" | "group" | "public" | "favorite";
-type BackendMessageType = "text" | "image" | "audio" | "video" | "file" | "system" | "mixed";
+type BackendMessageType =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "file"
+  | "system"
+  | "mixed";
 type BackendMessagePartType = "text" | "image" | "audio" | "video" | "file";
 type BackendMessageDeliveryStatus = "sent" | "read";
 type AttachmentPartType = Exclude<BackendMessagePartType, "text">;
@@ -43,6 +50,16 @@ interface BackendEnsurePrivateChatResponse {
   friend_name: string;
   friend_avatar?: string | null;
   friend_avatar_object_key?: string | null;
+}
+
+interface BackendCreateGroupRoom {
+  id: string;
+  name: string;
+  room_type: BackendRoomType;
+}
+
+interface BackendCreateGroupResponse {
+  room: BackendCreateGroupRoom;
 }
 
 interface BackendMessageAttachment {
@@ -161,6 +178,12 @@ export interface EnsuredPrivateChat {
   friendName: string;
   friendAvatar: string | null;
   friendAvatarObjectKey: string | null;
+}
+
+export interface CreatedGroupChat {
+  roomId: string;
+  roomName: string;
+  roomType: BackendRoomType;
 }
 
 export interface ChatMessage {
@@ -365,14 +388,18 @@ const isBackendPushMessage = (value: unknown): value is BackendPushMessage =>
   typeof value.message_type === "string" &&
   typeof value.timestamp === "string";
 
-const isBackendPushMessageRead = (value: unknown): value is BackendPushMessageRead =>
+const isBackendPushMessageRead = (
+  value: unknown,
+): value is BackendPushMessageRead =>
   isRecord(value) &&
   value.type === "message_read" &&
   typeof value.room_id === "string" &&
   typeof value.message_id === "string" &&
   typeof value.reader_id === "string";
 
-const isBackendPushMessageUpdate = (value: unknown): value is BackendPushMessageUpdate =>
+const isBackendPushMessageUpdate = (
+  value: unknown,
+): value is BackendPushMessageUpdate =>
   isRecord(value) &&
   value.type === "message_update" &&
   typeof value.room_id === "string" &&
@@ -385,10 +412,14 @@ const isEmojiOnlyPreviewText = (text: string): boolean => {
   }
 
   const normalized = trimmed.replace(/[\uFE0F\u200D]/g, "");
-  return /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])+$/u.test(normalized);
+  return /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])+$/u.test(
+    normalized,
+  );
 };
 
-const previewLabelForType = (type?: BackendMessageType | BackendMessagePartType | null) => {
+const previewLabelForType = (
+  type?: BackendMessageType | BackendMessagePartType | null,
+) => {
   switch (type) {
     case "image":
       return "[图片]";
@@ -452,7 +483,11 @@ const buildMessagePreview = (payload: {
   }
 
   const typedLabel = previewLabelForType(payload.messageType);
-  if (typedLabel && payload.messageType !== "text" && payload.messageType !== "mixed") {
+  if (
+    typedLabel &&
+    payload.messageType !== "text" &&
+    payload.messageType !== "mixed"
+  ) {
     return typedLabel;
   }
 
@@ -464,19 +499,25 @@ const buildMessagePreview = (payload: {
   return buildPartsPreview(payload.parts);
 };
 
-const buildLastMessagePreview = (preview?: BackendChatMessagePreview | null) => {
+const buildLastMessagePreview = (
+  preview?: BackendChatMessagePreview | null,
+) => {
   if (!preview) {
     return "";
   }
 
   return buildMessagePreview({
     content: preview.content,
-    messageType: preview.message_type
+    messageType: preview.message_type,
   });
 };
 
 const buildChatTitle = (summary: BackendChatSummary) =>
-  summary.friend_remark || summary.friend_nickname || summary.name || summary.friend_username || "未命名会话";
+  summary.friend_remark ||
+  summary.friend_nickname ||
+  summary.name ||
+  summary.friend_username ||
+  "未命名会话";
 
 const buildChatSubtitle = (summary: BackendChatSummary) => {
   if (summary.room_type === "private") {
@@ -495,7 +536,8 @@ const mapChatSummary = (summary: BackendChatSummary): ChatSummary => ({
   isMuted: Boolean(summary.is_muted),
   isPinned: Boolean(summary.is_pinned),
   avatarUrl: summary.avatar_url ?? null,
-  avatarObjectKey: summary.room_avatar_object_key ?? summary.friend_avatar_object_key ?? null,
+  avatarObjectKey:
+    summary.room_avatar_object_key ?? summary.friend_avatar_object_key ?? null,
   description: summary.description ?? null,
   lastMessagePreview: buildLastMessagePreview(summary.last_message),
   lastMessageAt: parseTimestamp(summary.last_message?.created_at),
@@ -503,20 +545,32 @@ const mapChatSummary = (summary: BackendChatSummary): ChatSummary => ({
   friendUserId: summary.friend_user_id ?? null,
   friendRemark: summary.friend_remark ?? null,
   friendNickname: summary.friend_nickname ?? null,
-  friendUsername: summary.friend_username ?? null
+  friendUsername: summary.friend_username ?? null,
 });
 
-const mapEnsuredPrivateChat = (response: BackendEnsurePrivateChatResponse): EnsuredPrivateChat => ({
+const mapEnsuredPrivateChat = (
+  response: BackendEnsurePrivateChatResponse,
+): EnsuredPrivateChat => ({
   roomId: response.room_id,
   roomName: response.room_name,
   roomType: response.room_type,
   friendId: response.friend_id,
   friendName: response.friend_name,
   friendAvatar: response.friend_avatar ?? null,
-  friendAvatarObjectKey: response.friend_avatar_object_key ?? null
+  friendAvatarObjectKey: response.friend_avatar_object_key ?? null,
 });
 
-const mapChatMessageAttachment = (attachment?: BackendMessageAttachment | null): ChatMessageAttachment | null => {
+const mapCreatedGroupChat = (
+  response: BackendCreateGroupResponse,
+): CreatedGroupChat => ({
+  roomId: response.room.id,
+  roomName: response.room.name,
+  roomType: response.room.room_type,
+});
+
+const mapChatMessageAttachment = (
+  attachment?: BackendMessageAttachment | null,
+): ChatMessageAttachment | null => {
   if (!attachment?.key) {
     return null;
   }
@@ -528,8 +582,11 @@ const mapChatMessageAttachment = (attachment?: BackendMessageAttachment | null):
     size: typeof attachment.size === "number" ? attachment.size : null,
     width: typeof attachment.width === "number" ? attachment.width : null,
     height: typeof attachment.height === "number" ? attachment.height : null,
-    durationMs: typeof attachment.duration_ms === "number" ? attachment.duration_ms : null,
-    thumbnailKey: attachment.thumbnail_key ?? null
+    durationMs:
+      typeof attachment.duration_ms === "number"
+        ? attachment.duration_ms
+        : null,
+    thumbnailKey: attachment.thumbnail_key ?? null,
   };
 };
 
@@ -537,10 +594,12 @@ const mapChatMessagePart = (part: BackendMessagePart): ChatMessagePart => ({
   position: part.position,
   partType: part.part_type,
   text: part.text ?? null,
-  attachment: mapChatMessageAttachment(part.attachment)
+  attachment: mapChatMessageAttachment(part.attachment),
 });
 
-const mapQuotedMessage = (quoted?: BackendQuotedMessage | null): ChatQuotedMessage | null => {
+const mapQuotedMessage = (
+  quoted?: BackendQuotedMessage | null,
+): ChatQuotedMessage | null => {
   if (!quoted) {
     return null;
   }
@@ -556,21 +615,26 @@ const mapQuotedMessage = (quoted?: BackendQuotedMessage | null): ChatQuotedMessa
     messageType: quoted.message_type,
     createdAt: parseTimestamp(quoted.created_at),
     isDeleted: Boolean(quoted.is_deleted),
-    parts: (quoted.parts ?? []).slice().sort((left, right) => left.position - right.position).map(mapChatMessagePart)
+    parts: (quoted.parts ?? [])
+      .slice()
+      .sort((left, right) => left.position - right.position)
+      .map(mapChatMessagePart),
   };
 };
 
-const mapPartPayloadInput = (part: ChatMessagePartInput): Record<string, unknown> => {
+const mapPartPayloadInput = (
+  part: ChatMessagePartInput,
+): Record<string, unknown> => {
   if (part.type === "text") {
     return {
       type: "text",
-      text: part.text
+      text: part.text,
     };
   }
 
   const payload: Record<string, unknown> = {
     type: part.type,
-    key: part.key
+    key: part.key,
   };
   if (part.name) {
     payload.name = part.name;
@@ -598,9 +662,13 @@ const mapPartPayloadInput = (part: ChatMessagePartInput): Record<string, unknown
 
 const normalizeDirectUploadSignature = (
   rawSignature: BackendDirectUploadSignature | null | undefined,
-  key: string
+  key: string,
 ): DirectUploadSignatureInfo | null => {
-  if (!rawSignature || typeof rawSignature.url !== "string" || !rawSignature.url) {
+  if (
+    !rawSignature ||
+    typeof rawSignature.url !== "string" ||
+    !rawSignature.url
+  ) {
     return null;
   }
 
@@ -613,22 +681,29 @@ const normalizeDirectUploadSignature = (
     });
   }
 
-  const method = typeof rawSignature.method === "string" ? rawSignature.method.trim().toUpperCase() : "PUT";
+  const method =
+    typeof rawSignature.method === "string"
+      ? rawSignature.method.trim().toUpperCase()
+      : "PUT";
 
   return {
     url: rawSignature.url,
     method: method || "PUT",
     headers,
-    key: rawSignature.key ?? key
+    key: rawSignature.key ?? key,
   };
 };
 
 const mapSimpleSuccessData = (
-  response: ApiResponse<BackendMultipartSimplePayload>
+  response: ApiResponse<BackendMultipartSimplePayload>,
 ): ApiResponse<SimpleSuccessData> => {
   const payload = response.data;
-  const successFlag = typeof payload?.success === "boolean" ? payload.success : response.success;
-  const message = typeof payload?.message === "string" ? payload.message : response.message || "";
+  const successFlag =
+    typeof payload?.success === "boolean" ? payload.success : response.success;
+  const message =
+    typeof payload?.message === "string"
+      ? payload.message
+      : response.message || "";
 
   return {
     code: response.code,
@@ -636,18 +711,21 @@ const mapSimpleSuccessData = (
     message,
     data: {
       success: successFlag,
-      message
-    }
+      message,
+    },
   };
 };
 
-export const mapChatMessagePayload = (message: BackendMessageInfo, currentUserId?: string): ChatMessage => {
+export const mapChatMessagePayload = (
+  message: BackendMessageInfo,
+  currentUserId?: string,
+): ChatMessage => {
   const senderName = message.sender_nickname?.trim() || message.sender_username;
   const preview = buildMessagePreview({
     content: message.content,
     messageType: message.message_type,
     parts: message.parts ?? [],
-    isDeleted: message.is_deleted
+    isDeleted: message.is_deleted,
   });
   const parts = (message.parts ?? [])
     .slice()
@@ -670,11 +748,14 @@ export const mapChatMessagePayload = (message: BackendMessageInfo, currentUserId
     isEdited: Boolean(message.is_edited),
     isSelf: currentUserId === message.sender_id,
     quotedMessage: mapQuotedMessage(message.quoted_message),
-    parts
+    parts,
   };
 };
 
-const mapPushMessage = (message: BackendPushMessage, currentUserId?: string): ChatMessage =>
+const mapPushMessage = (
+  message: BackendPushMessage,
+  currentUserId?: string,
+): ChatMessage =>
   mapChatMessagePayload(
     {
       id: message.message_id || message.id,
@@ -687,12 +768,15 @@ const mapPushMessage = (message: BackendPushMessage, currentUserId?: string): Ch
       message_type: message.message_type,
       created_at: message.timestamp,
       quoted_message: message.quoted_message,
-      parts: message.parts ?? []
+      parts: message.parts ?? [],
     },
-    currentUserId
+    currentUserId,
   );
 
-export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): ChatRealtimeEvent | null => {
+export const mapChatRealtimeEvent = (
+  payload: unknown,
+  currentUserId?: string,
+): ChatRealtimeEvent | null => {
   if (!isRecord(payload) || typeof payload.type !== "string") {
     return null;
   }
@@ -704,7 +788,7 @@ export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): 
       }
       return {
         type: "message",
-        message: mapPushMessage(payload, currentUserId)
+        message: mapPushMessage(payload, currentUserId),
       };
     case "message_read":
       if (!isBackendPushMessageRead(payload)) {
@@ -715,7 +799,9 @@ export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): 
         roomId: payload.room_id,
         messageId: payload.message_id,
         readerId: payload.reader_id,
-        readAt: parseTimestamp(typeof payload.read_at === "string" ? payload.read_at : null)
+        readAt: parseTimestamp(
+          typeof payload.read_at === "string" ? payload.read_at : null,
+        ),
       };
     case "message_update":
       if (!isBackendPushMessageUpdate(payload)) {
@@ -726,7 +812,9 @@ export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): 
         roomId: payload.room_id,
         messageId: payload.message_id,
         isDeleted: payload.is_deleted === true,
-        deletedAt: parseTimestamp(typeof payload.deleted_at === "string" ? payload.deleted_at : null)
+        deletedAt: parseTimestamp(
+          typeof payload.deleted_at === "string" ? payload.deleted_at : null,
+        ),
       };
     default:
       return null;
@@ -735,23 +823,43 @@ export const mapChatRealtimeEvent = (payload: unknown, currentUserId?: string): 
 
 export class ChatApi {
   static async list(): Promise<ApiResponse<ChatSummary[]>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendChatSummary[]>>("chat.list");
+    const response =
+      await requireDesktopRuntime().rpc.invoke<
+        ApiResponse<BackendChatSummary[]>
+      >("chat.list");
     return {
       ...response,
-      data: response.data ? response.data.map(mapChatSummary) : null
+      data: response.data ? response.data.map(mapChatSummary) : null,
     };
   }
 
-  static async ensurePrivateChat(params: { friendUserId: string }): Promise<ApiResponse<EnsuredPrivateChat>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendEnsurePrivateChatResponse>>(
-      "chat.private.ensure",
-      {
-        friend_user_id: params.friendUserId
-      }
-    );
+  static async ensurePrivateChat(params: {
+    friendUserId: string;
+  }): Promise<ApiResponse<EnsuredPrivateChat>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendEnsurePrivateChatResponse>
+    >("chat.private.ensure", {
+      friend_user_id: params.friendUserId,
+    });
     return {
       ...response,
-      data: response.data ? mapEnsuredPrivateChat(response.data) : null
+      data: response.data ? mapEnsuredPrivateChat(response.data) : null,
+    };
+  }
+
+  static async createGroup(params: {
+    name: string;
+    memberUserIds: string[];
+  }): Promise<ApiResponse<CreatedGroupChat>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendCreateGroupResponse>
+    >("chat.group.create", {
+      name: params.name,
+      member_user_ids: params.memberUserIds,
+    });
+    return {
+      ...response,
+      data: response.data ? mapCreatedGroupChat(response.data) : null,
     };
   }
 
@@ -762,15 +870,23 @@ export class ChatApi {
     sinceId?: string;
     currentUserId?: string;
   }): Promise<ApiResponse<ChatMessage[]>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMessageInfo[]>>("chat.messages.list", {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMessageInfo[]>
+    >("chat.messages.list", {
       room_id: params.roomId,
       limit: params.limit,
       before_id: params.beforeId,
-      since_id: params.sinceId
+      since_id: params.sinceId,
     });
     return {
       ...response,
-      data: response.data ? response.data.map((message) => mapChatMessagePayload(message, params.currentUserId)).reverse() : null
+      data: response.data
+        ? response.data
+            .map((message) =>
+              mapChatMessagePayload(message, params.currentUserId),
+            )
+            .reverse()
+        : null,
     };
   }
 
@@ -781,19 +897,18 @@ export class ChatApi {
     quotedMessageId?: string;
     currentUserId?: string;
   }): Promise<ApiResponse<ChatMessage>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMessageInfo | BackendSendMessagePayload>>(
-      "chat.send",
-      {
-        room_id: params.roomId,
-        content: params.content,
-        parts: params.parts?.map(mapPartPayloadInput),
-        quoted_message_id: params.quotedMessageId
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMessageInfo | BackendSendMessagePayload>
+    >("chat.send", {
+      room_id: params.roomId,
+      content: params.content,
+      parts: params.parts?.map(mapPartPayloadInput),
+      quoted_message_id: params.quotedMessageId,
+    });
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
 
@@ -807,7 +922,10 @@ export class ChatApi {
 
     return {
       ...response,
-      data: mapChatMessagePayload(payload as BackendMessageInfo, params.currentUserId)
+      data: mapChatMessagePayload(
+        payload as BackendMessageInfo,
+        params.currentUserId,
+      ),
     };
   }
 
@@ -820,25 +938,37 @@ export class ChatApi {
     return this.sendMessage(params);
   }
 
-  static async readUntil(params: { roomId: string; messageId: string }): Promise<ApiResponse<null>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<unknown>>("chat.read_until", {
+  static async readUntil(params: {
+    roomId: string;
+    messageId: string;
+  }): Promise<ApiResponse<null>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<unknown>
+    >("chat.read_until", {
       room_id: params.roomId,
-      message_id: params.messageId
+      message_id: params.messageId,
     });
     return {
       ...response,
-      data: null
+      data: null,
     };
   }
 
-  static async deleteMessage(params: { roomId: string; messageId: string }): Promise<ApiResponse<ChatMessage>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMessageInfo>>("chat.delete", {
+  static async deleteMessage(params: {
+    roomId: string;
+    messageId: string;
+  }): Promise<ApiResponse<ChatMessage>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMessageInfo>
+    >("chat.delete", {
       room_id: params.roomId,
-      message_id: params.messageId
+      message_id: params.messageId,
     });
     return {
       ...response,
-      data: response.data ? mapChatMessagePayload(response.data, undefined) : null
+      data: response.data
+        ? mapChatMessagePayload(response.data, undefined)
+        : null,
     };
   }
 
@@ -847,33 +977,40 @@ export class ChatApi {
     key: string;
     expiresInSeconds?: number;
   }): Promise<ApiResponse<AttachmentDownloadData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentDownloadPayload>>(
-      "chat.attachment.download_url",
-      {
-        room_id: params.roomId,
-        key: params.key,
-        expires_in_seconds: params.expiresInSeconds
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendAttachmentDownloadPayload>
+    >("chat.attachment.download_url", {
+      room_id: params.roomId,
+      key: params.key,
+      expires_in_seconds: params.expiresInSeconds,
+    });
 
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
 
     const payload = response.data;
-    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const successFlag =
+      typeof payload.success === "boolean" ? payload.success : response.success;
     const downloadUrl = payload.download_url ?? payload.downloadUrl ?? null;
-    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+    const message =
+      typeof payload.message === "string"
+        ? payload.message
+        : response.message || "";
 
-    if (!successFlag || typeof downloadUrl !== "string" || downloadUrl.length === 0) {
+    if (
+      !successFlag ||
+      typeof downloadUrl !== "string" ||
+      downloadUrl.length === 0
+    ) {
       return {
         code: response.code,
         success: false,
         message: message || "获取附件下载链接失败",
-        data: null
+        data: null,
       };
     }
 
@@ -884,8 +1021,8 @@ export class ChatApi {
       data: {
         success: true,
         message,
-        downloadUrl
-      }
+        downloadUrl,
+      },
     };
   }
 
@@ -898,37 +1035,40 @@ export class ChatApi {
     hashValue?: string;
     hashAlg?: number;
   }): Promise<ApiResponse<AttachmentSignatureData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentSignaturePayload>>(
-      "chat.attachment.signature",
-      {
-        room_id: params.roomId,
-        part_type: params.partType,
-        filename: params.fileName,
-        content_type: params.contentType,
-        file_size: params.fileSize,
-        hash_value: params.hashValue,
-        hash_alg: params.hashAlg
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendAttachmentSignaturePayload>
+    >("chat.attachment.signature", {
+      room_id: params.roomId,
+      part_type: params.partType,
+      filename: params.fileName,
+      content_type: params.contentType,
+      file_size: params.fileSize,
+      hash_value: params.hashValue,
+      hash_alg: params.hashAlg,
+    });
 
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
 
     const payload = response.data;
-    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const successFlag =
+      typeof payload.success === "boolean" ? payload.success : response.success;
     const key = payload.key ?? payload.signature?.key ?? null;
-    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+    const message =
+      typeof payload.message === "string"
+        ? payload.message
+        : response.message || "";
 
     if (!successFlag || typeof key !== "string" || key.length === 0) {
       return {
         code: response.code,
         success: false,
         message: message || "获取附件上传签名失败",
-        data: null
+        data: null,
       };
     }
 
@@ -939,8 +1079,8 @@ export class ChatApi {
       data: {
         key,
         signature: normalizeDirectUploadSignature(payload.signature, key),
-        message
-      }
+        message,
+      },
     };
   }
 
@@ -953,37 +1093,40 @@ export class ChatApi {
     hashValue?: string;
     hashAlg?: number;
   }): Promise<ApiResponse<AttachmentMultipartInitiateData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentMultipartInitiatePayload>>(
-      "chat.attachment.multipart.initiate",
-      {
-        room_id: params.roomId,
-        part_type: params.partType,
-        filename: params.fileName,
-        content_type: params.contentType,
-        file_size: params.fileSize,
-        hash_value: params.hashValue,
-        hash_alg: params.hashAlg
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendAttachmentMultipartInitiatePayload>
+    >("chat.attachment.multipart.initiate", {
+      room_id: params.roomId,
+      part_type: params.partType,
+      filename: params.fileName,
+      content_type: params.contentType,
+      file_size: params.fileSize,
+      hash_value: params.hashValue,
+      hash_alg: params.hashAlg,
+    });
 
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
 
     const payload = response.data;
-    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
+    const successFlag =
+      typeof payload.success === "boolean" ? payload.success : response.success;
     const key = payload.key ?? null;
-    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+    const message =
+      typeof payload.message === "string"
+        ? payload.message
+        : response.message || "";
 
     if (!successFlag || typeof key !== "string" || key.length === 0) {
       return {
         code: response.code,
         success: false,
         message: message || "初始化分片上传失败",
-        data: null
+        data: null,
       };
     }
 
@@ -997,11 +1140,20 @@ export class ChatApi {
       message,
       data: {
         key,
-        sessionId: typeof sessionIdRaw === "string" && sessionIdRaw.length > 0 ? sessionIdRaw : null,
-        partSize: typeof partSizeRaw === "number" && partSizeRaw > 0 ? partSizeRaw : undefined,
-        totalParts: typeof totalPartsRaw === "number" && totalPartsRaw > 0 ? totalPartsRaw : undefined,
-        message
-      }
+        sessionId:
+          typeof sessionIdRaw === "string" && sessionIdRaw.length > 0
+            ? sessionIdRaw
+            : null,
+        partSize:
+          typeof partSizeRaw === "number" && partSizeRaw > 0
+            ? partSizeRaw
+            : undefined,
+        totalParts:
+          typeof totalPartsRaw === "number" && totalPartsRaw > 0
+            ? totalPartsRaw
+            : undefined,
+        message,
+      },
     };
   }
 
@@ -1009,32 +1161,38 @@ export class ChatApi {
     sessionId: string;
     partNumber: number;
   }): Promise<ApiResponse<{ signature: DirectUploadSignatureInfo }>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendAttachmentSignaturePayload>>(
-      "chat.attachment.multipart.part_signature",
-      {
-        session_id: params.sessionId,
-        part_number: params.partNumber
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendAttachmentSignaturePayload>
+    >("chat.attachment.multipart.part_signature", {
+      session_id: params.sessionId,
+      part_number: params.partNumber,
+    });
 
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
 
     const payload = response.data;
-    const successFlag = typeof payload.success === "boolean" ? payload.success : response.success;
-    const signature = normalizeDirectUploadSignature(payload.signature, payload.signature?.key ?? "");
-    const message = typeof payload.message === "string" ? payload.message : response.message || "";
+    const successFlag =
+      typeof payload.success === "boolean" ? payload.success : response.success;
+    const signature = normalizeDirectUploadSignature(
+      payload.signature,
+      payload.signature?.key ?? "",
+    );
+    const message =
+      typeof payload.message === "string"
+        ? payload.message
+        : response.message || "";
 
     if (!successFlag || !signature) {
       return {
         code: response.code,
         success: false,
         message: message || "获取分片上传签名失败",
-        data: null
+        data: null,
       };
     }
 
@@ -1042,7 +1200,7 @@ export class ChatApi {
       code: response.code,
       success: true,
       message,
-      data: { signature }
+      data: { signature },
     };
   }
 
@@ -1051,18 +1209,17 @@ export class ChatApi {
     partNumber: number;
     etag: string;
   }): Promise<ApiResponse<SimpleSuccessData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
-      "chat.attachment.multipart.part_commit",
-      {
-        session_id: params.sessionId,
-        part_number: params.partNumber,
-        etag: params.etag
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.attachment.multipart.part_commit", {
+      session_id: params.sessionId,
+      part_number: params.partNumber,
+      etag: params.etag,
+    });
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
     return mapSimpleSuccessData(response);
@@ -1072,36 +1229,36 @@ export class ChatApi {
     sessionId: string;
     parts: MultipartCompletedPart[];
   }): Promise<ApiResponse<SimpleSuccessData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
-      "chat.attachment.multipart.complete",
-      {
-        session_id: params.sessionId,
-        parts: params.parts.map((part) => ({
-          part_number: part.partNumber,
-          etag: part.etag
-        }))
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.attachment.multipart.complete", {
+      session_id: params.sessionId,
+      parts: params.parts.map((part) => ({
+        part_number: part.partNumber,
+        etag: part.etag,
+      })),
+    });
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
     return mapSimpleSuccessData(response);
   }
 
-  static async abortMultipartUpload(params: { sessionId: string }): Promise<ApiResponse<SimpleSuccessData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
-      "chat.attachment.multipart.abort",
-      {
-        session_id: params.sessionId
-      }
-    );
+  static async abortMultipartUpload(params: {
+    sessionId: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.attachment.multipart.abort", {
+      session_id: params.sessionId,
+    });
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
     return mapSimpleSuccessData(response);
@@ -1114,20 +1271,19 @@ export class ChatApi {
     hashAlg?: number;
     fileSize?: number;
   }): Promise<ApiResponse<SimpleSuccessData>> {
-    const response = await requireDesktopRuntime().rpc.invoke<ApiResponse<BackendMultipartSimplePayload>>(
-      "chat.attachment.upload.commit",
-      {
-        room_id: params.roomId,
-        key: params.key,
-        hash_value: params.hashValue,
-        hash_alg: params.hashAlg,
-        file_size: params.fileSize
-      }
-    );
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.attachment.upload.commit", {
+      room_id: params.roomId,
+      key: params.key,
+      hash_value: params.hashValue,
+      hash_alg: params.hashAlg,
+      file_size: params.fileSize,
+    });
     if (!response.success || !response.data) {
       return {
         ...response,
-        data: null
+        data: null,
       };
     }
     return mapSimpleSuccessData(response);

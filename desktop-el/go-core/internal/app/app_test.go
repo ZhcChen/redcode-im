@@ -1200,6 +1200,88 @@ func TestAppChatEnsurePrivatePostsFriendChat(t *testing.T) {
 	}
 }
 
+func TestAppChatCreateGroupPostsRooms(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body failed: %v", err)
+		}
+		if body["name"] != "项目组" {
+			t.Fatalf("unexpected room name: %+v", body)
+		}
+		memberIDs, ok := body["member_ids"].([]any)
+		if !ok || len(memberIDs) != 2 {
+			t.Fatalf("unexpected member_ids payload: %+v", body["member_ids"])
+		}
+		if memberIDs[0] != "u-2" || memberIDs[1] != "u-3" {
+			t.Fatalf("unexpected member_ids order: %+v", memberIDs)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"room": map[string]any{
+				"id":          "room-group-1",
+				"name":        "项目组",
+				"room_type":   "group",
+				"description": "项目群",
+				"owner_id":    "u-1",
+				"avatar_url":  nil,
+				"created_at":  "2026-03-25T12:00:00Z",
+				"updated_at":  "2026-03-25T12:00:00Z",
+				"deleted_at":  nil,
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-create",
+		Method: "chat.group.create",
+		Params: mustJSONRaw(map[string]any{
+			"name":            "项目组",
+			"member_user_ids": []string{"u-2", "u-3"},
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.create to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.create response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.create envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.create data failed: %v", err)
+	}
+	room, ok := result["room"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected created room payload: %+v", result)
+	}
+	if room["id"] != "room-group-1" || room["name"] != "项目组" || room["room_type"] != "group" {
+		t.Fatalf("unexpected created room data: %+v", room)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

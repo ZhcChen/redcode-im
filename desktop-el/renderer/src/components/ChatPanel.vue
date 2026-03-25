@@ -9,17 +9,26 @@ import {
   type ChatQuotedMessage,
   type ChatRealtimeEvent,
   type ChatSummary,
-  type ChatWebSocketPush
+  type ChatWebSocketPush,
 } from "@/api/chat";
+import { FriendApi, type FriendInfo } from "@/api/friend";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 import {
   createAttachmentPreviewUrlStore,
   getInlinePreviewAssetKey,
-  shouldInlinePreviewAttachment
+  shouldInlinePreviewAttachment,
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
-import { buildOutgoingChatMessageParts, uploadAttachmentsAndBuildParts } from "@/utils/chat-message-compose";
-import { formatQuotedMessagePreview, getQuotedSenderDisplayName } from "@/utils/chat-quoted-message";
+import {
+  buildOutgoingChatMessageParts,
+  uploadAttachmentsAndBuildParts,
+} from "@/utils/chat-message-compose";
+import {
+  formatQuotedMessagePreview,
+  getQuotedSenderDisplayName,
+} from "@/utils/chat-quoted-message";
+import { findCreatedGroupChat } from "@/utils/chat-group-create";
+import CreateGroupModal from "./CreateGroupModal.vue";
 
 interface OpenChatRequest {
   requestId: number;
@@ -32,9 +41,19 @@ interface PendingComposerAttachment {
   file: File;
 }
 
+interface GroupCreateFriendOption {
+  id: string;
+  displayName: string;
+  subtitle: string | null;
+  avatarUrl: string | null;
+}
+
 type DesktopRuntimeWithFile = NonNullable<Window["desktopEl"]> & {
   file: {
-    saveFromURL(options: { url: string; filePath: string }): Promise<{ filePath: string }>;
+    saveFromURL(options: {
+      url: string;
+      filePath: string;
+    }): Promise<{ filePath: string }>;
     openPath(path: string): Promise<void>;
   };
 };
@@ -57,6 +76,8 @@ const searchQuery = ref("");
 const chats = ref<ChatSummary[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
+const isCreateGroupModalVisible = ref(false);
+const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const pendingAttachments = ref<PendingComposerAttachment[]>([]);
@@ -64,7 +85,9 @@ const attachmentUploadProgress = ref<number | null>(null);
 const attachmentUploadProgressById = ref<Record<string, number>>({});
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
+const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
+const isCreatingGroup = ref(false);
 const isSending = ref(false);
 const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
@@ -83,7 +106,9 @@ const mediaPreview = ref<{
 } | null>(null);
 const replyingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
-const notice = ref("聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。");
+const notice = ref(
+  "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
+);
 const attachmentPreviewUrlStore = createAttachmentPreviewUrlStore();
 
 const filteredChats = computed(() => {
@@ -106,23 +131,42 @@ const filteredChats = computed(() => {
   });
 });
 
-const selectedChat = computed(() => chats.value.find((chat) => chat.id === selectedChatId.value) || chats.value[0] || null);
-const pinnedCount = computed(() => chats.value.filter((chat) => chat.isPinned).length);
-const hasPendingAttachments = computed(() => pendingAttachments.value.length > 0);
+const selectedChat = computed(
+  () =>
+    chats.value.find((chat) => chat.id === selectedChatId.value) ||
+    chats.value[0] ||
+    null,
+);
+const pinnedCount = computed(
+  () => chats.value.filter((chat) => chat.isPinned).length,
+);
+const hasPendingAttachments = computed(
+  () => pendingAttachments.value.length > 0,
+);
 const attachmentProgressPercent = computed(() =>
-  attachmentUploadProgress.value === null ? null : Math.max(0, Math.min(100, Math.round(attachmentUploadProgress.value * 100)))
+  attachmentUploadProgress.value === null
+    ? null
+    : Math.max(
+        0,
+        Math.min(100, Math.round(attachmentUploadProgress.value * 100)),
+      ),
 );
 const pendingAttachmentSummary = computed(() => {
   if (!pendingAttachments.value.length) {
     return null;
   }
 
-  const totalSize = pendingAttachments.value.reduce((sum, item) => sum + item.file.size, 0);
+  const totalSize = pendingAttachments.value.reduce(
+    (sum, item) => sum + item.file.size,
+    0,
+  );
   return `${pendingAttachments.value.length} 个附件 / ${formatAttachmentSize(totalSize)}`;
 });
 const composerStatusText = computed(() => {
   if (isSending.value && sendingMode.value === "attachment") {
-    return attachmentProgressPercent.value === null ? "附件处理中..." : `附件处理中 ${attachmentProgressPercent.value}%`;
+    return attachmentProgressPercent.value === null
+      ? "附件处理中..."
+      : `附件处理中 ${attachmentProgressPercent.value}%`;
   }
   if (isSending.value) {
     return "发送中...";
@@ -134,7 +178,9 @@ const composerStatusText = computed(() => {
 });
 const sendButtonLabel = computed(() => {
   if (isSending.value && sendingMode.value === "attachment") {
-    return attachmentProgressPercent.value === null ? "发送中..." : `发送中 ${attachmentProgressPercent.value}%`;
+    return attachmentProgressPercent.value === null
+      ? "发送中..."
+      : `发送中 ${attachmentProgressPercent.value}%`;
   }
   if (isSending.value) {
     return "发送中...";
@@ -155,7 +201,7 @@ const replyingSummary = computed(() => {
   return formatQuotedMessagePreview({
     content: replyingMessage.value.content,
     isDeleted: replyingMessage.value.isDeleted,
-    parts: replyingMessage.value.parts
+    parts: replyingMessage.value.parts,
   });
 });
 
@@ -167,7 +213,7 @@ const formatTime = (value: Date | null) => {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   }).format(value);
 };
 
@@ -180,7 +226,7 @@ const formatDetailTime = (value: Date | null) => {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   }).format(value);
 };
 
@@ -196,6 +242,27 @@ const formatRoomType = (value: ChatSummary["roomType"]) => {
     default:
       return "单聊";
   }
+};
+
+const mapGroupCreateFriend = (friend: FriendInfo): GroupCreateFriendOption => {
+  const remark = friend.friendRemark?.trim() ?? "";
+  const nickname = friend.user.nickname?.trim() ?? "";
+  const username = friend.user.username.trim();
+  const displayName = remark || nickname || username || "未知好友";
+  const subtitleSegments = [];
+  if (remark && nickname && nickname !== remark) {
+    subtitleSegments.push(nickname);
+  }
+  if (username && username !== displayName) {
+    subtitleSegments.push(username);
+  }
+
+  return {
+    id: friend.user.id,
+    displayName,
+    subtitle: subtitleSegments.join(" / ") || null,
+    avatarUrl: friend.user.avatarUrl,
+  };
 };
 
 const requireDesktopRuntime = (): DesktopRuntimeWithFile => {
@@ -243,7 +310,11 @@ const describePendingAttachment = (file: File) => {
 };
 
 const formatDuration = (durationMs: number | null) => {
-  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) {
+  if (
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0
+  ) {
     return null;
   }
 
@@ -261,15 +332,25 @@ const getAttachmentName = (part: ChatMessagePart) => {
 
   const key = part.attachment?.key ?? "";
   const fallback = key.split("/").pop()?.trim();
-  return fallback || `${formatAttachmentType(part.partType)}-${part.position + 1}`;
+  return (
+    fallback || `${formatAttachmentType(part.partType)}-${part.position + 1}`
+  );
 };
 
 const getAttachmentMeta = (part: ChatMessagePart) => {
   const segments = [formatAttachmentType(part.partType)];
-  if (part.partType === "image" && part.attachment?.width && part.attachment?.height) {
+  if (
+    part.partType === "image" &&
+    part.attachment?.width &&
+    part.attachment?.height
+  ) {
     segments.push(`${part.attachment.width} x ${part.attachment.height}`);
   }
-  if (part.partType === "video" && part.attachment?.width && part.attachment?.height) {
+  if (
+    part.partType === "video" &&
+    part.attachment?.width &&
+    part.attachment?.height
+  ) {
     segments.push(`${part.attachment.width} x ${part.attachment.height}`);
   }
   if (part.partType === "audio") {
@@ -293,14 +374,16 @@ const toQuotedMessage = (message: ChatMessage): ChatQuotedMessage => ({
   messageType: message.messageType,
   createdAt: message.createdAt,
   isDeleted: message.isDeleted,
-  parts: message.parts
+  parts: message.parts,
 });
 
 const getMessageTextParts = (message: ChatMessage) =>
   message.parts.filter((part) => part.partType === "text" && part.text?.trim());
 
 const getMessageAttachmentParts = (message: ChatMessage) =>
-  message.parts.filter((part) => part.partType !== "text" && part.attachment?.key);
+  message.parts.filter(
+    (part) => part.partType !== "text" && part.attachment?.key,
+  );
 
 const getAttachmentActionKey = (message: ChatMessage, part: ChatMessagePart) =>
   `${message.id}:${part.attachment?.key ?? `part-${part.position}`}`;
@@ -308,26 +391,44 @@ const getAttachmentActionKey = (message: ChatMessage, part: ChatMessagePart) =>
 const getAttachmentPreviewKey = (message: ChatMessage, part: ChatMessagePart) =>
   `${message.roomId}:${getInlinePreviewAssetKey(part) ?? `part-${part.position}`}`;
 
-const getAttachmentPlayableKey = (message: ChatMessage, part: ChatMessagePart) =>
-  `${message.roomId}:${part.attachment?.key ?? `playable-${part.position}`}`;
+const getAttachmentPlayableKey = (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) => `${message.roomId}:${part.attachment?.key ?? `playable-${part.position}`}`;
 
 const isAttachmentDownloading = (message: ChatMessage, part: ChatMessagePart) =>
-  Boolean(downloadingAttachmentKeys.value[getAttachmentActionKey(message, part)]);
+  Boolean(
+    downloadingAttachmentKeys.value[getAttachmentActionKey(message, part)],
+  );
 
 const getAttachmentLocalPath = (message: ChatMessage, part: ChatMessagePart) =>
-  downloadedAttachmentPaths.value[getAttachmentActionKey(message, part)] ?? null;
+  downloadedAttachmentPaths.value[getAttachmentActionKey(message, part)] ??
+  null;
 
 const getAttachmentPreviewUrl = (message: ChatMessage, part: ChatMessagePart) =>
   attachmentPreviewUrls.value[getAttachmentPreviewKey(message, part)] ?? null;
 
-const getAttachmentPlayableUrl = (message: ChatMessage, part: ChatMessagePart) =>
+const getAttachmentPlayableUrl = (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) =>
   attachmentPlayableUrls.value[getAttachmentPlayableKey(message, part)] ?? null;
 
-const isAttachmentPreviewLoading = (message: ChatMessage, part: ChatMessagePart) =>
-  Boolean(loadingAttachmentPreviewKeys.value[getAttachmentPreviewKey(message, part)]);
+const isAttachmentPreviewLoading = (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) =>
+  Boolean(
+    loadingAttachmentPreviewKeys.value[getAttachmentPreviewKey(message, part)],
+  );
 
-const getAttachmentPreviewFailure = (message: ChatMessage, part: ChatMessagePart) =>
-  failedAttachmentPreviewMessages.value[getAttachmentPreviewKey(message, part)] ?? null;
+const getAttachmentPreviewFailure = (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) =>
+  failedAttachmentPreviewMessages.value[
+    getAttachmentPreviewKey(message, part)
+  ] ?? null;
 
 const setAttachmentDownloading = (key: string, value: boolean) => {
   const next = { ...downloadingAttachmentKeys.value };
@@ -369,13 +470,18 @@ const resetPendingAttachments = () => {
 };
 
 const removePendingAttachment = (attachmentId: string) => {
-  pendingAttachments.value = pendingAttachments.value.filter((item) => item.id !== attachmentId);
+  pendingAttachments.value = pendingAttachments.value.filter(
+    (item) => item.id !== attachmentId,
+  );
   const next = { ...attachmentUploadProgressById.value };
   delete next[attachmentId];
   attachmentUploadProgressById.value = next;
 };
 
-const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessagePart) => {
+const ensureAttachmentPreviewUrl = async (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) => {
   const previewAssetKey = getInlinePreviewAssetKey(part);
   if (!previewAssetKey || !shouldInlinePreviewAttachment(part.partType)) {
     return null;
@@ -396,15 +502,16 @@ const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessag
     const previewUrl = await attachmentPreviewUrlStore.resolve({
       roomId: message.roomId,
       key: previewAssetKey,
-      expiresInSeconds: 900
+      expiresInSeconds: 900,
     });
     attachmentPreviewUrls.value = {
       ...attachmentPreviewUrls.value,
-      [previewKey]: previewUrl
+      [previewKey]: previewUrl,
     };
     return previewUrl;
   } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : "加载附件预览失败";
+    const fallbackMessage =
+      error instanceof Error ? error.message : "加载附件预览失败";
     setAttachmentPreviewFailure(previewKey, fallbackMessage);
     console.warn("[desktop-el-renderer] attachment preview load failed", error);
     return null;
@@ -413,7 +520,10 @@ const ensureAttachmentPreviewUrl = async (message: ChatMessage, part: ChatMessag
   }
 };
 
-const ensureAttachmentPlayableUrl = async (message: ChatMessage, part: ChatMessagePart) => {
+const ensureAttachmentPlayableUrl = async (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) => {
   const attachmentKey = part.attachment?.key;
   if (!attachmentKey || !shouldInlinePreviewAttachment(part.partType)) {
     return null;
@@ -429,17 +539,21 @@ const ensureAttachmentPlayableUrl = async (message: ChatMessage, part: ChatMessa
     const playableUrl = await attachmentPreviewUrlStore.resolve({
       roomId: message.roomId,
       key: attachmentKey,
-      expiresInSeconds: 900
+      expiresInSeconds: 900,
     });
     attachmentPlayableUrls.value = {
       ...attachmentPlayableUrls.value,
-      [playableKey]: playableUrl
+      [playableKey]: playableUrl,
     };
     return playableUrl;
   } catch (error) {
-    const fallbackMessage = error instanceof Error ? error.message : "加载附件媒体失败";
+    const fallbackMessage =
+      error instanceof Error ? error.message : "加载附件媒体失败";
     notice.value = fallbackMessage;
-    console.warn("[desktop-el-renderer] attachment playable load failed", error);
+    console.warn(
+      "[desktop-el-renderer] attachment playable load failed",
+      error,
+    );
     return null;
   }
 };
@@ -455,11 +569,17 @@ const primeAttachmentPreviews = (roomMessages: ChatMessage[]) => {
   });
 };
 
-const pickSelectedChatId = (list: ChatSummary[], preferredRoomId?: string | null) => {
+const pickSelectedChatId = (
+  list: ChatSummary[],
+  preferredRoomId?: string | null,
+) => {
   if (preferredRoomId && list.some((chat) => chat.roomId === preferredRoomId)) {
     return preferredRoomId;
   }
-  if (selectedChatId.value && list.some((chat) => chat.roomId === selectedChatId.value)) {
+  if (
+    selectedChatId.value &&
+    list.some((chat) => chat.roomId === selectedChatId.value)
+  ) {
     return selectedChatId.value;
   }
   return list[0]?.roomId ?? null;
@@ -470,13 +590,16 @@ const setChatUnreadCount = (roomId: string, unreadCount: number) => {
     chat.roomId === roomId
       ? {
           ...chat,
-          unreadCount
+          unreadCount,
         }
-      : chat
+      : chat,
   );
 };
 
-const markRoomRead = async (roomId: string | null, roomMessages: ChatMessage[]) => {
+const markRoomRead = async (
+  roomId: string | null,
+  roomMessages: ChatMessage[],
+) => {
   if (!roomId || !roomMessages.length) {
     return;
   }
@@ -492,7 +615,7 @@ const markRoomRead = async (roomId: string | null, roomMessages: ChatMessage[]) 
   try {
     const response = await ChatApi.readUntil({
       roomId,
-      messageId: latestMessage.id
+      messageId: latestMessage.id,
     });
     if (!response.success) {
       return;
@@ -500,7 +623,7 @@ const markRoomRead = async (roomId: string | null, roomMessages: ChatMessage[]) 
 
     lastReadUntilMessageByRoom.value = {
       ...lastReadUntilMessageByRoom.value,
-      [roomId]: latestMessage.id
+      [roomId]: latestMessage.id,
     };
     setChatUnreadCount(roomId, 0);
   } catch (error) {
@@ -519,7 +642,7 @@ const loadMessages = async (roomId: string | null) => {
     const response = await ChatApi.listMessages({
       roomId,
       limit: 50,
-      currentUserId: props.currentUser.id
+      currentUserId: props.currentUser.id,
     });
     if (!response.success || !response.data) {
       messages.value = [];
@@ -539,7 +662,11 @@ const loadMessages = async (roomId: string | null) => {
 };
 
 const loadChats = async (
-  options: { preferredRoomId?: string | null; preserveNotice?: boolean; reloadMessages?: boolean } = {}
+  options: {
+    preferredRoomId?: string | null;
+    preserveNotice?: boolean;
+    reloadMessages?: boolean;
+  } = {},
 ) => {
   isLoadingChats.value = true;
   try {
@@ -553,12 +680,18 @@ const loadChats = async (
     }
 
     const previousSelectedRoomId = selectedChatId.value;
-    const nextSelectedRoomId = pickSelectedChatId(response.data, options.preferredRoomId);
+    const nextSelectedRoomId = pickSelectedChatId(
+      response.data,
+      options.preferredRoomId,
+    );
     chats.value = response.data;
     selectedChatId.value = nextSelectedRoomId;
     if (!nextSelectedRoomId) {
       messages.value = [];
-    } else if (options.reloadMessages !== false || nextSelectedRoomId !== previousSelectedRoomId) {
+    } else if (
+      options.reloadMessages !== false ||
+      nextSelectedRoomId !== previousSelectedRoomId
+    ) {
       await loadMessages(nextSelectedRoomId);
     }
 
@@ -575,6 +708,70 @@ const loadChats = async (
   }
 };
 
+const loadCreateGroupFriends = async () => {
+  isLoadingCreateGroupFriends.value = true;
+  try {
+    const response = await FriendApi.getMyFriendList();
+    if (!response.success || !response.data) {
+      createGroupFriends.value = [];
+      notice.value = response.message || "好友列表加载失败";
+      return;
+    }
+
+    createGroupFriends.value = response.data.map(mapGroupCreateFriend);
+  } catch (error) {
+    createGroupFriends.value = [];
+    notice.value = error instanceof Error ? error.message : "好友列表加载失败";
+  } finally {
+    isLoadingCreateGroupFriends.value = false;
+  }
+};
+
+const handleOpenCreateGroupModal = async () => {
+  if (isCreatingGroup.value) {
+    return;
+  }
+
+  isCreateGroupModalVisible.value = true;
+  await loadCreateGroupFriends();
+};
+
+const closeCreateGroupModal = () => {
+  if (isCreatingGroup.value) {
+    return;
+  }
+  isCreateGroupModalVisible.value = false;
+};
+
+const handleCreateGroupModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenCreateGroupModal();
+    return;
+  }
+  closeCreateGroupModal();
+};
+
+const resolveCreatedGroupChat = async (createdGroup: {
+  roomId: string;
+  roomName: string;
+}) => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await loadChats({
+      preferredRoomId: createdGroup.roomId,
+      preserveNotice: true,
+    });
+    const matched = findCreatedGroupChat(chats.value, createdGroup);
+    if (matched) {
+      return matched;
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+
+  return null;
+};
+
 const selectChat = async (chatId: string) => {
   replyingMessage.value = null;
   selectedChatId.value = chatId;
@@ -587,23 +784,67 @@ const handleOpenChatRequest = async (request: OpenChatRequest) => {
 
   try {
     const response = await ChatApi.ensurePrivateChat({
-      friendUserId: request.friendUserId
+      friendUserId: request.friendUserId,
     });
     if (!response.success || !response.data) {
-      notice.value = response.message || `打开 ${request.displayName} 的聊天失败`;
+      notice.value =
+        response.message || `打开 ${request.displayName} 的聊天失败`;
       return;
     }
 
     await loadChats({
       preferredRoomId: response.data.roomId,
-      preserveNotice: true
+      preserveNotice: true,
     });
     notice.value = `已打开与 ${response.data.friendName} 的聊天，历史消息已同步。`;
   } catch (error) {
-    notice.value = error instanceof Error ? error.message : `打开 ${request.displayName} 的聊天失败`;
+    notice.value =
+      error instanceof Error
+        ? error.message
+        : `打开 ${request.displayName} 的聊天失败`;
   } finally {
     isOpeningPrivateChat.value = false;
     emit("chat-request-consumed", request.requestId);
+  }
+};
+
+const handleCreateGroup = async (payload: {
+  name: string;
+  memberUserIds: string[];
+}) => {
+  if (isCreatingGroup.value) {
+    return;
+  }
+
+  isCreatingGroup.value = true;
+  notice.value = `正在创建群聊 ${payload.name}...`;
+
+  try {
+    const response = await ChatApi.createGroup({
+      name: payload.name,
+      memberUserIds: payload.memberUserIds,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "创建群聊失败";
+      return;
+    }
+
+    const matchedChat = await resolveCreatedGroupChat(response.data);
+    if (matchedChat && matchedChat.roomId !== selectedChatId.value) {
+      await selectChat(matchedChat.roomId);
+    }
+
+    isCreateGroupModalVisible.value = false;
+    if (matchedChat) {
+      notice.value = `群聊 ${matchedChat.title} 已创建并进入。`;
+      return;
+    }
+
+    notice.value = `群聊 ${response.data.roomName} 已创建，等待会话列表同步。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "创建群聊失败";
+  } finally {
+    isCreatingGroup.value = false;
   }
 };
 
@@ -624,7 +865,7 @@ const handleSend = async () => {
         roomId,
         content,
         quotedMessageId,
-        currentUserId: props.currentUser.id
+        currentUserId: props.currentUser.id,
       });
       if (!response.success || !response.data) {
         notice.value = response.message || "消息发送失败";
@@ -635,14 +876,16 @@ const handleSend = async () => {
       replyingMessage.value = null;
       await loadChats({
         preferredRoomId: roomId,
-        preserveNotice: true
+        preserveNotice: true,
       });
       notice.value = `消息已发送到 ${selectedChat.value?.title || "当前会话"}。`;
       return;
     }
 
     attachmentUploadProgress.value = 0;
-    attachmentUploadProgressById.value = Object.fromEntries(attachments.map((item) => [item.id, 0]));
+    attachmentUploadProgressById.value = Object.fromEntries(
+      attachments.map((item) => [item.id, 0]),
+    );
     const attachmentParts = await uploadAttachmentsAndBuildParts({
       roomId,
       files: attachments.map((item) => item.file),
@@ -653,22 +896,22 @@ const handleSend = async () => {
         }
         attachmentUploadProgressById.value = {
           ...attachmentUploadProgressById.value,
-          [attachment.id]: progress
+          [attachment.id]: progress,
         };
       },
       onOverallProgress: (progress) => {
         attachmentUploadProgress.value = progress;
-      }
+      },
     });
 
     const response = await ChatApi.sendMessage({
       roomId,
       parts: buildOutgoingChatMessageParts({
         text: content,
-        attachments: attachmentParts
+        attachments: attachmentParts,
       }),
       quotedMessageId,
-      currentUserId: props.currentUser.id
+      currentUserId: props.currentUser.id,
     });
     if (!response.success || !response.data) {
       notice.value = response.message || "消息发送失败";
@@ -681,7 +924,7 @@ const handleSend = async () => {
     resetPendingAttachments();
     await loadChats({
       preferredRoomId: roomId,
-      preserveNotice: true
+      preserveNotice: true,
     });
     if (content) {
       notice.value = `已发送文本和 ${attachmentCount} 个附件到 ${selectedChat.value?.title || "当前会话"}。`;
@@ -714,7 +957,7 @@ const handleAttachmentSelected = (event: Event) => {
 
   const nextAttachments = files.map((file, index) => ({
     id: `${Date.now()}-${index}-${file.name}-${file.size}`,
-    file
+    file,
   }));
   pendingAttachments.value = [...pendingAttachments.value, ...nextAttachments];
   attachmentUploadProgress.value = null;
@@ -753,14 +996,16 @@ const scrollToQuotedMessage = (quoted: ChatQuotedMessage | null) => {
   if (!quoted?.id) {
     return;
   }
-  const target = document.querySelector<HTMLElement>(`[data-message-id="${quoted.id}"]`);
+  const target = document.querySelector<HTMLElement>(
+    `[data-message-id="${quoted.id}"]`,
+  );
   if (!target) {
     return;
   }
 
   target.scrollIntoView({
     behavior: "smooth",
-    block: "center"
+    block: "center",
   });
   highlightedQuotedMessageId.value = quoted.id;
   window.setTimeout(() => {
@@ -780,7 +1025,7 @@ const handleDeleteMessage = async (message: ChatMessage) => {
   try {
     const response = await ChatApi.deleteMessage({
       roomId,
-      messageId: message.id
+      messageId: message.id,
     });
     if (!response.success) {
       notice.value = response.message || "删除消息失败";
@@ -789,7 +1034,7 @@ const handleDeleteMessage = async (message: ChatMessage) => {
 
     await loadChats({
       preferredRoomId: roomId,
-      preserveNotice: true
+      preserveNotice: true,
     });
     notice.value = "消息已删除。";
   } catch (error) {
@@ -799,7 +1044,10 @@ const handleDeleteMessage = async (message: ChatMessage) => {
   }
 };
 
-const handleOpenAttachment = async (message: ChatMessage, part: ChatMessagePart) => {
+const handleOpenAttachment = async (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) => {
   const localPath = getAttachmentLocalPath(message, part);
   if (!localPath) {
     await handleDownloadAttachment(message, part);
@@ -814,7 +1062,10 @@ const handleOpenAttachment = async (message: ChatMessage, part: ChatMessagePart)
   }
 };
 
-const handleOpenAttachmentPreview = async (message: ChatMessage, part: ChatMessagePart) => {
+const handleOpenAttachmentPreview = async (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) => {
   if (part.partType !== "image" && part.partType !== "video") {
     return;
   }
@@ -823,9 +1074,11 @@ const handleOpenAttachmentPreview = async (message: ChatMessage, part: ChatMessa
     getAttachmentPlayableUrl(message, part) ??
     (part.partType === "video"
       ? await ensureAttachmentPlayableUrl(message, part)
-      : getAttachmentPreviewUrl(message, part) ?? (await ensureAttachmentPlayableUrl(message, part)));
+      : (getAttachmentPreviewUrl(message, part) ??
+        (await ensureAttachmentPlayableUrl(message, part))));
   if (!mediaUrl) {
-    notice.value = getAttachmentPreviewFailure(message, part) || "附件预览加载失败";
+    notice.value =
+      getAttachmentPreviewFailure(message, part) || "附件预览加载失败";
     return;
   }
 
@@ -833,7 +1086,7 @@ const handleOpenAttachmentPreview = async (message: ChatMessage, part: ChatMessa
     type: part.partType,
     url: mediaUrl,
     name: getAttachmentName(part),
-    meta: getAttachmentMeta(part)
+    meta: getAttachmentMeta(part),
   };
 };
 
@@ -841,7 +1094,10 @@ const closeMediaPreview = () => {
   mediaPreview.value = null;
 };
 
-const handleDownloadAttachment = async (message: ChatMessage, part: ChatMessagePart) => {
+const handleDownloadAttachment = async (
+  message: ChatMessage,
+  part: ChatMessagePart,
+) => {
   const attachment = part.attachment;
   if (!attachment?.key) {
     notice.value = "附件信息不完整，无法下载。";
@@ -858,7 +1114,7 @@ const handleDownloadAttachment = async (message: ChatMessage, part: ChatMessageP
     const response = await ChatApi.getAttachmentDownloadUrl({
       roomId: message.roomId,
       key: attachment.key,
-      expiresInSeconds: 900
+      expiresInSeconds: 900,
     });
     if (!response.success || !response.data?.downloadUrl) {
       notice.value = response.message || "获取附件下载链接失败";
@@ -870,7 +1126,7 @@ const handleDownloadAttachment = async (message: ChatMessage, part: ChatMessageP
     const saveResult = await runtime.dialog.save({
       title: `保存${formatAttachmentType(part.partType)}`,
       defaultPath: fileName,
-      buttonLabel: "保存"
+      buttonLabel: "保存",
     });
     if (saveResult.canceled || !saveResult.filePath) {
       notice.value = `已取消保存 ${fileName}。`;
@@ -879,12 +1135,12 @@ const handleDownloadAttachment = async (message: ChatMessage, part: ChatMessageP
 
     const saved = await runtime.file.saveFromURL({
       url: response.data.downloadUrl,
-      filePath: saveResult.filePath
+      filePath: saveResult.filePath,
     });
 
     downloadedAttachmentPaths.value = {
       ...downloadedAttachmentPaths.value,
-      [actionKey]: saved.filePath
+      [actionKey]: saved.filePath,
     };
 
     await runtime.file.openPath(saved.filePath);
@@ -904,7 +1160,7 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     await loadChats({
       preferredRoomId: activeRoomId,
       preserveNotice: true,
-      reloadMessages: isCurrentRoom
+      reloadMessages: isCurrentRoom,
     });
     return;
   }
@@ -913,33 +1169,41 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     await loadChats({
       preferredRoomId: activeRoomId,
       preserveNotice: true,
-      reloadMessages: event.roomId === activeRoomId
+      reloadMessages: event.roomId === activeRoomId,
     });
     return;
   }
 
-  if (event.readerId === props.currentUser.id && event.roomId && event.messageId) {
+  if (
+    event.readerId === props.currentUser.id &&
+    event.roomId &&
+    event.messageId
+  ) {
     lastReadUntilMessageByRoom.value = {
       ...lastReadUntilMessageByRoom.value,
-      [event.roomId]: event.messageId
+      [event.roomId]: event.messageId,
     };
   }
 
   await loadChats({
     preferredRoomId: activeRoomId,
     preserveNotice: true,
-    reloadMessages: event.roomId === activeRoomId
+    reloadMessages: event.roomId === activeRoomId,
   });
 };
 
 watch(
   () => props.openChatRequest?.requestId,
   (requestId, previousRequestId) => {
-    if (!requestId || requestId === previousRequestId || !props.openChatRequest) {
+    if (
+      !requestId ||
+      requestId === previousRequestId ||
+      !props.openChatRequest
+    ) {
       return;
     }
     void handleOpenChatRequest(props.openChatRequest);
-  }
+  },
 );
 
 watch(
@@ -955,7 +1219,7 @@ watch(
     }
 
     void handleRealtimeEvent(event);
-  }
+  },
 );
 
 watch(
@@ -964,7 +1228,7 @@ watch(
     if (nextRoomId && previousRoomId && nextRoomId !== previousRoomId) {
       replyingMessage.value = null;
     }
-  }
+  },
 );
 
 onMounted(() => {
@@ -986,11 +1250,25 @@ onMounted(() => {
     <div class="chat-panel__layout">
       <aside class="chat-panel__sidebar">
         <div class="chat-panel__header">
-          <div>
-            <h2>会话</h2>
-            <p>先恢复旧 desktop 的会话列表与联系人发起聊天链路。</p>
+          <div class="chat-panel__header-top">
+            <div>
+              <h2>会话</h2>
+              <p>先恢复旧 desktop 的会话列表与联系人发起聊天链路。</p>
+            </div>
+            <button
+              type="button"
+              class="chat-panel__header-action"
+              :disabled="isCreatingGroup"
+              @click="void handleOpenCreateGroupModal()"
+            >
+              {{ isCreatingGroup ? "创建中..." : "创建群聊" }}
+            </button>
           </div>
-          <input v-model="searchQuery" class="chat-panel__search" placeholder="搜索会话..." />
+          <input
+            v-model="searchQuery"
+            class="chat-panel__search"
+            placeholder="搜索会话..."
+          />
         </div>
 
         <div v-if="isLoadingChats" class="chat-empty">
@@ -1012,7 +1290,9 @@ onMounted(() => {
             :class="{ 'chat-row--active': selectedChat?.id === chat.id }"
             @click="void selectChat(chat.id)"
           >
-            <span class="chat-row__avatar">{{ chat.title.slice(0, 1).toUpperCase() }}</span>
+            <span class="chat-row__avatar">{{
+              chat.title.slice(0, 1).toUpperCase()
+            }}</span>
             <span class="chat-row__copy">
               <span class="chat-row__topline">
                 <strong>{{ chat.title }}</strong>
@@ -1020,7 +1300,9 @@ onMounted(() => {
               </span>
               <span class="chat-row__bottomline">
                 <small>{{ chat.lastMessagePreview || "暂无消息" }}</small>
-                <span v-if="chat.unreadCount > 0" class="chat-row__badge">{{ chat.unreadCount }}</span>
+                <span v-if="chat.unreadCount > 0" class="chat-row__badge">{{
+                  chat.unreadCount
+                }}</span>
               </span>
             </span>
           </button>
@@ -1030,10 +1312,18 @@ onMounted(() => {
       <article class="chat-panel__detail">
         <template v-if="selectedChat">
           <div class="chat-hero">
-            <span class="chat-hero__avatar">{{ selectedChat.title.slice(0, 1).toUpperCase() }}</span>
+            <span class="chat-hero__avatar">{{
+              selectedChat.title.slice(0, 1).toUpperCase()
+            }}</span>
             <div>
               <h3>{{ selectedChat.title }}</h3>
-              <p>{{ selectedChat.subtitle || selectedChat.lastMessagePreview || "会话详情迁移中" }}</p>
+              <p>
+                {{
+                  selectedChat.subtitle ||
+                  selectedChat.lastMessagePreview ||
+                  "会话详情迁移中"
+                }}
+              </p>
             </div>
           </div>
 
@@ -1052,11 +1342,16 @@ onMounted(() => {
             </div>
             <div>
               <dt>置顶 / 免打扰</dt>
-              <dd>{{ selectedChat.isPinned ? "已置顶" : "未置顶" }} / {{ selectedChat.isMuted ? "已静音" : "正常提醒" }}</dd>
+              <dd>
+                {{ selectedChat.isPinned ? "已置顶" : "未置顶" }} /
+                {{ selectedChat.isMuted ? "已静音" : "正常提醒" }}
+              </dd>
             </div>
             <div>
               <dt>当前账号</dt>
-              <dd>{{ props.currentUser.nickname || props.currentUser.username }}</dd>
+              <dd>
+                {{ props.currentUser.nickname || props.currentUser.username }}
+              </dd>
             </div>
           </dl>
 
@@ -1085,12 +1380,15 @@ onMounted(() => {
                 :class="{
                   'message-card--self': message.isSelf,
                   'message-card--system': message.messageType === 'system',
-                  'message-card--quoted-highlight': highlightedQuotedMessageId === message.id
+                  'message-card--quoted-highlight':
+                    highlightedQuotedMessageId === message.id,
                 }"
                 :data-message-id="message.id"
               >
                 <div class="message-card__meta">
-                  <strong>{{ message.isSelf ? "我" : message.senderName }}</strong>
+                  <strong>{{
+                    message.isSelf ? "我" : message.senderName
+                  }}</strong>
                   <span>{{ formatDetailTime(message.createdAt) }}</span>
                 </div>
                 <button
@@ -1099,11 +1397,17 @@ onMounted(() => {
                   class="quoted-block"
                   @click="scrollToQuotedMessage(message.quotedMessage)"
                 >
-                  <strong>{{ getQuotedSenderDisplayName(message.quotedMessage) }}</strong>
-                  <small>{{ formatQuotedMessagePreview(message.quotedMessage) }}</small>
+                  <strong>{{
+                    getQuotedSenderDisplayName(message.quotedMessage)
+                  }}</strong>
+                  <small>{{
+                    formatQuotedMessagePreview(message.quotedMessage)
+                  }}</small>
                 </button>
                 <template v-if="message.isDeleted || !message.parts.length">
-                  <p class="message-card__body">{{ message.preview || message.content || "[空消息]" }}</p>
+                  <p class="message-card__body">
+                    {{ message.preview || message.content || "[空消息]" }}
+                  </p>
                 </template>
                 <template v-else>
                   <p
@@ -1121,7 +1425,10 @@ onMounted(() => {
                     :class="`attachment-card--${part.partType}`"
                   >
                     <button
-                      v-if="part.partType === 'image' && getAttachmentPreviewUrl(message, part)"
+                      v-if="
+                        part.partType === 'image' &&
+                        getAttachmentPreviewUrl(message, part)
+                      "
                       type="button"
                       class="attachment-card__media-button"
                       @click="void handleOpenAttachmentPreview(message, part)"
@@ -1133,7 +1440,11 @@ onMounted(() => {
                       />
                     </button>
                     <button
-                      v-else-if="part.partType === 'video' && part.attachment?.thumbnailKey && getAttachmentPreviewUrl(message, part)"
+                      v-else-if="
+                        part.partType === 'video' &&
+                        part.attachment?.thumbnailKey &&
+                        getAttachmentPreviewUrl(message, part)
+                      "
                       type="button"
                       class="attachment-card__media-button attachment-card__media-button--video"
                       @click="void handleOpenAttachmentPreview(message, part)"
@@ -1146,39 +1457,60 @@ onMounted(() => {
                       <span class="attachment-card__play-badge">播放</span>
                     </button>
                     <video
-                      v-else-if="part.partType === 'video' && getAttachmentPreviewUrl(message, part)"
+                      v-else-if="
+                        part.partType === 'video' &&
+                        getAttachmentPreviewUrl(message, part)
+                      "
                       class="attachment-card__media attachment-card__media--video"
                       :src="getAttachmentPreviewUrl(message, part) || undefined"
                       controls
                       preload="metadata"
                     />
                     <audio
-                      v-else-if="part.partType === 'audio' && (getAttachmentPlayableUrl(message, part) || getAttachmentPreviewUrl(message, part))"
+                      v-else-if="
+                        part.partType === 'audio' &&
+                        (getAttachmentPlayableUrl(message, part) ||
+                          getAttachmentPreviewUrl(message, part))
+                      "
                       class="attachment-card__audio"
-                      :src="getAttachmentPlayableUrl(message, part) || getAttachmentPreviewUrl(message, part) || undefined"
+                      :src="
+                        getAttachmentPlayableUrl(message, part) ||
+                        getAttachmentPreviewUrl(message, part) ||
+                        undefined
+                      "
                       controls
                       preload="none"
                     />
                     <div
-                      v-else-if="part.partType !== 'file' && isAttachmentPreviewLoading(message, part)"
+                      v-else-if="
+                        part.partType !== 'file' &&
+                        isAttachmentPreviewLoading(message, part)
+                      "
                       class="attachment-card__preview-state"
                     >
                       正在加载{{ formatAttachmentType(part.partType) }}预览...
                     </div>
                     <div
-                      v-else-if="part.partType !== 'file' && getAttachmentPreviewFailure(message, part)"
+                      v-else-if="
+                        part.partType !== 'file' &&
+                        getAttachmentPreviewFailure(message, part)
+                      "
                       class="attachment-card__preview-state attachment-card__preview-state--error"
                     >
                       {{ getAttachmentPreviewFailure(message, part) }}
                     </div>
-                    <div class="attachment-card__badge">{{ formatAttachmentType(part.partType) }}</div>
+                    <div class="attachment-card__badge">
+                      {{ formatAttachmentType(part.partType) }}
+                    </div>
                     <div class="attachment-card__copy">
                       <strong>{{ getAttachmentName(part) }}</strong>
                       <small>{{ getAttachmentMeta(part) }}</small>
                     </div>
                     <div class="attachment-card__actions">
                       <button
-                        v-if="part.partType === 'image' || part.partType === 'video'"
+                        v-if="
+                          part.partType === 'image' || part.partType === 'video'
+                        "
                         type="button"
                         class="attachment-card__action attachment-card__action--secondary"
                         @click="void handleOpenAttachmentPreview(message, part)"
@@ -1200,19 +1532,29 @@ onMounted(() => {
                         :disabled="isAttachmentDownloading(message, part)"
                         @click="void handleDownloadAttachment(message, part)"
                       >
-                        {{ isAttachmentDownloading(message, part) ? "下载中..." : "下载" }}
+                        {{
+                          isAttachmentDownloading(message, part)
+                            ? "下载中..."
+                            : "下载"
+                        }}
                       </button>
                     </div>
                   </div>
 
                   <p
-                    v-if="!getMessageTextParts(message).length && !getMessageAttachmentParts(message).length"
+                    v-if="
+                      !getMessageTextParts(message).length &&
+                      !getMessageAttachmentParts(message).length
+                    "
                     class="message-card__body"
                   >
                     {{ message.preview || message.content || "[空消息]" }}
                   </p>
                 </template>
-                <div v-if="message.messageType !== 'system'" class="message-card__actions">
+                <div
+                  v-if="message.messageType !== 'system'"
+                  class="message-card__actions"
+                >
                   <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
@@ -1228,13 +1570,17 @@ onMounted(() => {
                     :disabled="deletingMessageId === message.id"
                     @click="void handleDeleteMessage(message)"
                   >
-                    {{ deletingMessageId === message.id ? "删除中..." : "删除" }}
+                    {{
+                      deletingMessageId === message.id ? "删除中..." : "删除"
+                    }}
                   </button>
                 </div>
                 <small class="message-card__footer">
                   {{ message.messageType }}
                   <template v-if="message.isEdited"> / 已编辑</template>
-                  <template v-if="message.deliveryStatus"> / {{ message.deliveryStatus }}</template>
+                  <template v-if="message.deliveryStatus">
+                    / {{ message.deliveryStatus }}</template
+                  >
                 </small>
               </article>
             </div>
@@ -1263,7 +1609,12 @@ onMounted(() => {
             />
             <div v-if="replyingMessage" class="reply-bar">
               <div class="reply-bar__copy">
-                <strong>回复 {{ replyingMessage.isSelf ? "我" : replyingMessage.senderName }}</strong>
+                <strong
+                  >回复
+                  {{
+                    replyingMessage.isSelf ? "我" : replyingMessage.senderName
+                  }}</strong
+                >
                 <small>{{ replyingSummary }}</small>
               </div>
               <button
@@ -1275,8 +1626,13 @@ onMounted(() => {
                 取消
               </button>
             </div>
-            <div v-if="hasPendingAttachments" class="composer-panel__attachments">
-              <div class="composer-panel__attachments-summary">{{ pendingAttachmentSummary }}</div>
+            <div
+              v-if="hasPendingAttachments"
+              class="composer-panel__attachments"
+            >
+              <div class="composer-panel__attachments-summary">
+                {{ pendingAttachmentSummary }}
+              </div>
               <div
                 v-for="item in pendingAttachments"
                 :key="item.id"
@@ -1295,16 +1651,28 @@ onMounted(() => {
                   移除
                 </button>
                 <div
-                  v-if="isSending && attachmentUploadProgressById[item.id] !== undefined"
+                  v-if="
+                    isSending &&
+                    attachmentUploadProgressById[item.id] !== undefined
+                  "
                   class="composer-panel__progress"
                 >
-                  <span :style="{ width: `${Math.max(0, Math.min(100, Math.round((attachmentUploadProgressById[item.id] || 0) * 100)))}%` }" />
+                  <span
+                    :style="{
+                      width: `${Math.max(0, Math.min(100, Math.round((attachmentUploadProgressById[item.id] || 0) * 100)))}%`,
+                    }"
+                  />
                 </div>
               </div>
-              <div v-if="attachmentProgressPercent !== null" class="composer-panel__progress composer-panel__progress--overall">
+              <div
+                v-if="attachmentProgressPercent !== null"
+                class="composer-panel__progress composer-panel__progress--overall"
+              >
                 <span :style="{ width: `${attachmentProgressPercent}%` }" />
               </div>
-              <p class="composer-panel__attachment-tip">当前版本支持多附件与文本混发，附件会按选择顺序依次上传。</p>
+              <p class="composer-panel__attachment-tip">
+                当前版本支持多附件与文本混发，附件会按选择顺序依次上传。
+              </p>
             </div>
             <div class="composer-panel__actions">
               <button
@@ -1318,8 +1686,12 @@ onMounted(() => {
               <button
                 type="button"
                 class="composer-panel__button"
-                :class="{ 'composer-panel__button--primary': hasPendingAttachments }"
-                :disabled="isSending || (!draftMessage.trim() && !hasPendingAttachments)"
+                :class="{
+                  'composer-panel__button--primary': hasPendingAttachments,
+                }"
+                :disabled="
+                  isSending || (!draftMessage.trim() && !hasPendingAttachments)
+                "
                 @click="void handleSend()"
               >
                 {{ sendButtonLabel }}
@@ -1328,8 +1700,17 @@ onMounted(() => {
           </section>
 
           <div class="chat-placeholder">
-            <strong>联系人发起聊天、历史消息、文本发送、实时刷新与附件收发都已经接回 Go core</strong>
-            <p>当前会话会通过 stdio RPC 接收 `ws.push`，并在进入会话或收到新消息后回写 `read_until`；附件消息现在支持多附件与文本混发、signed URL 直传 multipart/direct upload、commit 后发送，以及图片放大预览、视频缩略图预览、语音内联播放与本地保存打开。</p>
+            <strong
+              >联系人发起聊天、历史消息、文本发送、实时刷新与附件收发都已经接回
+              Go core</strong
+            >
+            <p>
+              当前会话会通过 stdio RPC 接收
+              `ws.push`，并在进入会话或收到新消息后回写
+              `read_until`；附件消息现在支持多附件与文本混发、signed URL 直传
+              multipart/direct upload、commit
+              后发送，以及图片放大预览、视频缩略图预览、语音内联播放与本地保存打开。
+            </p>
           </div>
 
           <dl class="chat-runtime-list">
@@ -1359,14 +1740,24 @@ onMounted(() => {
       </article>
     </div>
 
-    <div v-if="mediaPreview" class="media-preview" @click.self="closeMediaPreview">
+    <div
+      v-if="mediaPreview"
+      class="media-preview"
+      @click.self="closeMediaPreview"
+    >
       <div class="media-preview__dialog">
         <div class="media-preview__header">
           <div>
             <strong>{{ mediaPreview.name }}</strong>
             <small>{{ mediaPreview.meta }}</small>
           </div>
-          <button type="button" class="media-preview__close" @click="closeMediaPreview">关闭</button>
+          <button
+            type="button"
+            class="media-preview__close"
+            @click="closeMediaPreview"
+          >
+            关闭
+          </button>
         </div>
         <img
           v-if="mediaPreview.type === 'image'"
@@ -1374,9 +1765,24 @@ onMounted(() => {
           :alt="mediaPreview.name"
           class="media-preview__image"
         />
-        <video v-else class="media-preview__video" :src="mediaPreview.url" controls autoplay />
+        <video
+          v-else
+          class="media-preview__video"
+          :src="mediaPreview.url"
+          controls
+          autoplay
+        />
       </div>
     </div>
+
+    <CreateGroupModal
+      :visible="isCreateGroupModalVisible"
+      :friends="createGroupFriends"
+      :is-loading="isLoadingCreateGroupFriends"
+      :is-submitting="isCreatingGroup"
+      @update:visible="handleCreateGroupModalVisibleChange"
+      @submit="void handleCreateGroup($event)"
+    />
   </section>
 </template>
 
@@ -1426,6 +1832,13 @@ onMounted(() => {
   gap: 14px;
 }
 
+.chat-panel__header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .chat-panel__header h2,
 .chat-hero h3,
 .message-stage__header h4 {
@@ -1439,6 +1852,33 @@ onMounted(() => {
 .chat-placeholder p {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.chat-panel__header-action {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 155, 143, 0.2);
+  background: rgba(0, 194, 179, 0.1);
+  color: var(--primary-color-strong);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.chat-panel__header-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 155, 143, 0.36);
+  background: rgba(0, 194, 179, 0.16);
+}
+
+.chat-panel__header-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .chat-panel__search {
@@ -1479,7 +1919,11 @@ onMounted(() => {
 
 .chat-row--active {
   border-color: rgba(0, 155, 143, 0.34);
-  background: linear-gradient(180deg, rgba(0, 194, 179, 0.12), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(
+    180deg,
+    rgba(0, 194, 179, 0.12),
+    rgba(255, 255, 255, 0.98)
+  );
 }
 
 .chat-row__avatar,
@@ -1541,7 +1985,11 @@ onMounted(() => {
   align-items: center;
   padding: 20px;
   border-radius: 24px;
-  background: linear-gradient(135deg, rgba(0, 194, 179, 0.12), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(
+    135deg,
+    rgba(0, 194, 179, 0.12),
+    rgba(255, 255, 255, 0.96)
+  );
 }
 
 .chat-hero__avatar {
@@ -1717,7 +2165,11 @@ onMounted(() => {
   position: absolute;
   inset: 0;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.02), rgba(15, 23, 42, 0.3));
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.02),
+    rgba(15, 23, 42, 0.3)
+  );
 }
 
 .attachment-card__audio {
@@ -2041,7 +2493,11 @@ onMounted(() => {
 }
 
 .composer-panel__button--primary {
-  background: linear-gradient(135deg, rgba(0, 194, 179, 0.18), rgba(0, 155, 143, 0.18));
+  background: linear-gradient(
+    135deg,
+    rgba(0, 194, 179, 0.18),
+    rgba(0, 155, 143, 0.18)
+  );
 }
 
 .composer-panel__button:disabled {
@@ -2141,6 +2597,15 @@ onMounted(() => {
 @media (max-width: 1080px) {
   .chat-panel__layout {
     grid-template-columns: 1fr;
+  }
+
+  .chat-panel__header-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chat-panel__header-action {
+    width: 100%;
   }
 }
 </style>
