@@ -63,7 +63,7 @@ Expected:
 Run: `make desktop-el-verify`
 Expected: PASS
 
-- [ ] **Step 3: 提交并推送**
+- [x] **Step 3: 提交并推送**
 
 ```bash
 git add desktop-el/go-core/internal/app/app.go \
