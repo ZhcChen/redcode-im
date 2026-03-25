@@ -118,8 +118,8 @@ watch(
             <small>
               {{
                 props.sourceSummary
-                  ? `原消息：${props.sourceSummary}`
-                  : "选择一个目标会话，转发当前消息。"
+                  ? `来源：${props.sourceSummary}`
+                  : "选择一个目标会话，转发当前消息或已选消息。"
               }}
             </small>
           </div>

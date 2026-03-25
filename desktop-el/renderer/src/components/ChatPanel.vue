@@ -38,6 +38,26 @@ import {
   getQuotedSenderDisplayName,
 } from "@/utils/chat-quoted-message";
 import {
+  buildForwardSourceSummary,
+  canCopyMessage,
+  canDeleteMessage,
+  canDeleteSelectedMessages,
+  canEditMessage,
+  canForwardMessage,
+  canForwardSelectedMessages,
+  canOpenMessageActionMenu as canOpenMessageActionMenuBase,
+  canReplyMessage,
+  canSelectMessageForMultiSelect,
+  canToggleMessagePin,
+  canToggleMessageReaction,
+  canViewMessageReaders,
+  getMessageCopyText,
+  getMessageDeleteLabel,
+  getSelectedMessages,
+  isLocalOnlyMessage,
+  pruneSelectedMessageIds,
+} from "@/utils/chat-message-actions";
+import {
   canResendLocalMessage,
   createLocalComposerMessage,
   createLocalTextMessage,
@@ -165,6 +185,7 @@ const isRemoveGroupMembersModalVisible = ref(false);
 const isTransferGroupOwnerModalVisible = ref(false);
 const isViewGroupMembersModalVisible = ref(false);
 const isForwardMessageModalVisible = ref(false);
+const isForwardingSelectedMessages = ref(false);
 const isMessageReadersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -206,6 +227,7 @@ const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
 const groupMaxMembersDraft = ref("");
 const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
+const isDeletingSelectedMessages = ref(false);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
 const downloadedAttachmentPaths = ref<Record<string, string>>({});
 const loadingAttachmentPreviewKeys = ref<Record<string, boolean>>({});
@@ -230,6 +252,8 @@ const editingMessageTarget = ref<ChatMessage | null>(null);
 const editingMessageDraft = ref("");
 const submittingEditMessageId = ref<string | null>(null);
 const localMessagesByRoom = ref<Record<string, ChatMessage[]>>({});
+const isMultiSelectMode = ref(false);
+const selectedMessageIds = ref<string[]>([]);
 const resendingMessageId = ref<string | null>(null);
 const typingUsers = ref<Record<string, number>>({});
 const typingCleanupTimers = new Map<string, number>();
@@ -321,12 +345,26 @@ const forwardableChats = computed(() =>
     (chat) => Boolean(chat.roomId) && chat.roomId !== selectedChatId.value,
   ),
 );
-const forwardingMessageSummary = computed(() => {
-  if (!forwardingMessage.value) {
-    return null;
-  }
-  return forwardingMessage.value.preview || forwardingMessage.value.content || "[空消息]";
-});
+const selectedBatchMessages = computed(() =>
+  getSelectedMessages(messages.value, selectedMessageIds.value),
+);
+const selectedMessagesCount = computed(() => selectedBatchMessages.value.length);
+const canForwardSelectedBatchMessages = computed(() =>
+  canForwardSelectedMessages(selectedBatchMessages.value),
+);
+const canDeleteSelectedBatchMessages = computed(() =>
+  canDeleteSelectedMessages(selectedBatchMessages.value),
+);
+const forwardingSourceMessages = computed(() =>
+  isForwardingSelectedMessages.value
+    ? selectedBatchMessages.value
+    : forwardingMessage.value
+      ? [forwardingMessage.value]
+      : [],
+);
+const forwardingMessageSummary = computed(() =>
+  buildForwardSourceSummary(forwardingSourceMessages.value),
+);
 const messageReadersSummary = computed(() => {
   if (!messageReadersTarget.value) {
     return null;
@@ -868,118 +906,13 @@ const formatAttachmentType = (partType: ChatMessagePart["partType"]) => {
 };
 
 const isMessagePinned = (message: ChatMessage) => Boolean(message.pinnedAt);
-const isLocalOnlyMessage = (message: ChatMessage) =>
-  message.clientStatus === "sending" || message.clientStatus === "failed";
-
-const getMessageCopyText = (message: ChatMessage | null) => {
-  if (!message) {
-    return "";
-  }
-
-  const partText = message.parts
-    .filter((part) => part.partType === "text" && part.text?.trim())
-    .map((part) => part.text?.trim() ?? "")
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-  if (partText) {
-    return partText;
-  }
-
-  return message.content.trim();
-};
-
-const canCopyMessage = (message: ChatMessage | null) =>
-  Boolean(
-    message &&
-      message.messageType !== "system" &&
-      !message.isDeleted &&
-      getMessageCopyText(message),
-  );
-
-const canEditMessage = (message: ChatMessage | null) =>
-  Boolean(
-    message &&
-      message.isSelf &&
-      !message.isDeleted &&
-      !isLocalOnlyMessage(message) &&
-      message.messageType === "text" &&
-      getMessageCopyText(message),
-  );
-
-const canReplyMessage = (message: ChatMessage | null) =>
-  Boolean(
-    message &&
-      message.messageType !== "system" &&
-      !message.isDeleted &&
-      !isLocalOnlyMessage(message),
-  );
-
-const canToggleMessagePin = (message: ChatMessage | null) =>
-  Boolean(
-    message &&
-      message.messageType !== "system" &&
-      !message.isDeleted &&
-      !isLocalOnlyMessage(message),
-  );
-
-const canToggleMessageReaction = (message: ChatMessage | null) =>
-  Boolean(
-    message &&
-      message.messageType !== "system" &&
-      !message.isDeleted &&
-      !isLocalOnlyMessage(message),
-  );
-
-const canForwardMessage = (message: ChatMessage | null) => {
-  if (
-    !message ||
-    message.isDeleted ||
-    message.messageType === "system" ||
-    isLocalOnlyMessage(message)
-  ) {
-    return false;
-  }
-  if (message.content.trim()) {
-    return true;
-  }
-
-  return message.parts.some((part) =>
-    part.partType === "text"
-      ? Boolean(part.text?.trim())
-      : Boolean(part.attachment?.key),
-  );
-};
-
-const canViewMessageReaders = (message: ChatMessage | null) =>
-  Boolean(
-    message &&
-      message.isSelf &&
-      !message.isDeleted &&
-      message.messageType !== "system" &&
-      !isLocalOnlyMessage(message),
-  );
-
-const canDeleteMessage = (message: ChatMessage | null) =>
-  Boolean(
-    message && message.isSelf && (!message.isDeleted || isLocalOnlyMessage(message)),
-  );
-
-const getMessageDeleteLabel = (message: ChatMessage) =>
-  isLocalOnlyMessage(message) ? "移除" : "撤回";
 
 const canOpenMessageActionMenu = (message: ChatMessage | null) =>
   Boolean(
     message &&
-      (canCopyMessage(message) ||
-        canReplyMessage(message) ||
-        canForwardMessage(message) ||
-        canToggleMessagePin(message) ||
-        canToggleMessageReaction(message) ||
-        canViewMessageReaders(message) ||
-        canEditMessage(message) ||
+      (canOpenMessageActionMenuBase(message) ||
         canResendLocalMessage(message) ||
-        canDeleteMessage(message)),
+        canSelectMessageForMultiSelect(message)),
   );
 
 const formatForwardSourceName = (forwardInfo: ChatForwardInfo | null) => {
@@ -1332,6 +1265,82 @@ const removeLocalMessage = (roomId: string, messageId: string) => {
   if (selectedChatId.value === roomId) {
     messages.value = messages.value.filter((message) => message.id !== messageId);
   }
+};
+
+const setSelectedMessageIds = (messageIds: Iterable<string>) => {
+  selectedMessageIds.value = Array.from(new Set(messageIds));
+};
+
+const exitMultiSelectMode = () => {
+  isMultiSelectMode.value = false;
+  selectedMessageIds.value = [];
+  if (isForwardingSelectedMessages.value) {
+    isForwardingSelectedMessages.value = false;
+    isForwardMessageModalVisible.value = false;
+    forwardingMessage.value = null;
+  }
+};
+
+const enterMultiSelectMode = (message?: ChatMessage) => {
+  closeMessageActionMenu();
+  activeReactionPickerMessageId.value = null;
+  isMultiSelectMode.value = true;
+
+  if (message && canSelectMessageForMultiSelect(message)) {
+    setSelectedMessageIds([message.id]);
+  }
+};
+
+const isMessageSelected = (message: ChatMessage) =>
+  selectedMessageIds.value.includes(message.id);
+
+const toggleMessageSelection = (message: ChatMessage) => {
+  if (!isMultiSelectMode.value || !canSelectMessageForMultiSelect(message)) {
+    return;
+  }
+
+  const next = new Set(selectedMessageIds.value);
+  if (next.has(message.id)) {
+    next.delete(message.id);
+  } else {
+    next.add(message.id);
+  }
+
+  if (!next.size) {
+    exitMultiSelectMode();
+    return;
+  }
+
+  setSelectedMessageIds(next);
+};
+
+const syncSelectedMessages = () => {
+  const nextSelectedIds = pruneSelectedMessageIds(
+    messages.value,
+    selectedMessageIds.value,
+  );
+  const hasChanged =
+    selectedMessageIds.value.length !== nextSelectedIds.size ||
+    selectedMessageIds.value.some((messageId) => !nextSelectedIds.has(messageId));
+
+  if (!hasChanged) {
+    return;
+  }
+
+  if (!nextSelectedIds.size) {
+    exitMultiSelectMode();
+    return;
+  }
+
+  setSelectedMessageIds(nextSelectedIds);
+};
+
+const handleEnterMultiSelectMode = (message: ChatMessage) => {
+  if (!canSelectMessageForMultiSelect(message)) {
+    return;
+  }
+
+  enterMultiSelectMode(message);
 };
 
 const getRetryStorageKey = () =>
@@ -3986,6 +3995,16 @@ const closeMessageActionMenu = () => {
   activeMessageActionMenuId.value = null;
 };
 
+const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (isMultiSelectMode.value) {
+    exitMultiSelectMode();
+  }
+};
+
 const handleToggleMessageActionMenu = (message: ChatMessage) => {
   if (!canOpenMessageActionMenu(message)) {
     return;
@@ -4229,6 +4248,7 @@ const handleOpenMessageReadersModal = async (message: ChatMessage) => {
 const handleForwardMessageModalVisibleChange = (visible: boolean) => {
   if (!visible) {
     forwardingMessage.value = null;
+    isForwardingSelectedMessages.value = false;
   }
   isForwardMessageModalVisible.value = visible;
 };
@@ -4244,7 +4264,27 @@ const handleOpenForwardMessageModal = (message: ChatMessage) => {
   }
 
   closeMessageActionMenu();
+  isForwardingSelectedMessages.value = false;
   forwardingMessage.value = message;
+  isForwardMessageModalVisible.value = true;
+};
+
+const handleOpenBatchForwardMessageModal = () => {
+  if (!selectedBatchMessages.value.length) {
+    notice.value = "请先选择要转发的消息。";
+    return;
+  }
+  if (!canForwardSelectedBatchMessages.value) {
+    notice.value = "当前选择中包含暂不支持转发的消息。";
+    return;
+  }
+  if (!forwardableChats.value.length) {
+    notice.value = "暂无可转发目标，请先创建或进入其他会话。";
+    return;
+  }
+
+  isForwardingSelectedMessages.value = true;
+  forwardingMessage.value = null;
   isForwardMessageModalVisible.value = true;
 };
 
@@ -4275,22 +4315,31 @@ const handleForwardMessage = async (payload: {
   targetRoomId: string;
   targetTitle: string;
 }) => {
-  const sourceMessage = forwardingMessage.value;
+  const sourceMessages = forwardingSourceMessages.value;
   const currentRoomId = selectedChatId.value;
-  if (!sourceMessage || !currentRoomId || isForwardingMessage.value) {
+  if (!sourceMessages.length || !currentRoomId || isForwardingMessage.value) {
+    return;
+  }
+  if (
+    isForwardingSelectedMessages.value &&
+    !canForwardSelectedBatchMessages.value
+  ) {
+    notice.value = "当前选择中包含暂不支持转发的消息。";
     return;
   }
 
   isForwardingMessage.value = true;
   try {
-    const response = await ChatApi.forwardMessage({
-      roomId: payload.targetRoomId,
-      originalMessageId: sourceMessage.id,
-      currentUserId: props.currentUser.id,
-    });
-    if (!response.success || !response.data) {
-      notice.value = response.message || "转发消息失败";
-      return;
+    for (const sourceMessage of sourceMessages) {
+      const response = await ChatApi.forwardMessage({
+        roomId: payload.targetRoomId,
+        originalMessageId: sourceMessage.id,
+        currentUserId: props.currentUser.id,
+      });
+      if (!response.success || !response.data) {
+        notice.value = response.message || "转发消息失败";
+        return;
+      }
     }
 
     await loadChats({
@@ -4300,7 +4349,14 @@ const handleForwardMessage = async (payload: {
     });
     isForwardMessageModalVisible.value = false;
     forwardingMessage.value = null;
-    notice.value = `已转发到 ${payload.targetTitle}。`;
+    isForwardingSelectedMessages.value = false;
+    if (isMultiSelectMode.value) {
+      exitMultiSelectMode();
+    }
+    notice.value =
+      sourceMessages.length > 1
+        ? `已将 ${sourceMessages.length} 条消息转发到 ${payload.targetTitle}。`
+        : `已转发到 ${payload.targetTitle}。`;
   } catch (error) {
     notice.value = error instanceof Error ? error.message : "转发消息失败";
   } finally {
@@ -4438,6 +4494,26 @@ const handleReactionTagClick = async (
   });
 };
 
+const deleteMessageInCurrentRoom = async (roomId: string, message: ChatMessage) => {
+  if (!canDeleteMessage(message)) {
+    throw new Error("当前消息不支持删除。");
+  }
+
+  if (isLocalOnlyMessage(message)) {
+    clearLocalMessageRetry(message.id);
+    removeLocalMessage(roomId, message.id);
+    return;
+  }
+
+  const response = await ChatApi.deleteMessage({
+    roomId,
+    messageId: message.id,
+  });
+  if (!response.success) {
+    throw new Error(response.message || "撤回消息失败");
+  }
+};
+
 const handleDeleteMessage = async (message: ChatMessage) => {
   const roomId = selectedChatId.value;
   if (!roomId || !message.isSelf || deletingMessageId.value) {
@@ -4445,8 +4521,7 @@ const handleDeleteMessage = async (message: ChatMessage) => {
   }
 
   if (isLocalOnlyMessage(message)) {
-    clearLocalMessageRetry(message.id);
-    removeLocalMessage(roomId, message.id);
+    await deleteMessageInCurrentRoom(roomId, message);
     notice.value = "本地失败消息已移除。";
     return;
   }
@@ -4454,15 +4529,7 @@ const handleDeleteMessage = async (message: ChatMessage) => {
   deletingMessageId.value = message.id;
   try {
     closeMessageActionMenu();
-    const response = await ChatApi.deleteMessage({
-      roomId,
-      messageId: message.id,
-    });
-    if (!response.success) {
-      notice.value = response.message || "撤回消息失败";
-      return;
-    }
-
+    await deleteMessageInCurrentRoom(roomId, message);
     await loadChats({
       preferredRoomId: roomId,
       preserveNotice: true,
@@ -4472,6 +4539,40 @@ const handleDeleteMessage = async (message: ChatMessage) => {
     notice.value = error instanceof Error ? error.message : "撤回消息失败";
   } finally {
     deletingMessageId.value = null;
+  }
+};
+
+const handleDeleteSelectedMessages = async () => {
+  const roomId = selectedChatId.value;
+  if (
+    !roomId ||
+    isDeletingSelectedMessages.value ||
+    !selectedBatchMessages.value.length
+  ) {
+    return;
+  }
+  if (!canDeleteSelectedBatchMessages.value) {
+    notice.value = "当前选择中包含不可删除的消息。";
+    return;
+  }
+
+  isDeletingSelectedMessages.value = true;
+  try {
+    const selectedMessages = [...selectedBatchMessages.value];
+    for (const message of selectedMessages) {
+      await deleteMessageInCurrentRoom(roomId, message);
+    }
+
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+    });
+    exitMultiSelectMode();
+    notice.value = `已处理 ${selectedMessages.length} 条消息。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "批量删除消息失败";
+  } finally {
+    isDeletingSelectedMessages.value = false;
   }
 };
 
@@ -4734,6 +4835,13 @@ watch(
 );
 
 watch(
+  () => messages.value.map((message) => message.id),
+  () => {
+    syncSelectedMessages();
+  },
+);
+
+watch(
   () => props.openChatRequest?.requestId,
   (requestId, previousRequestId) => {
     if (
@@ -4778,8 +4886,10 @@ watch(
         void stopTyping(previousRoomId);
       }
       clearTypingUsers();
+      exitMultiSelectMode();
       replyingMessage.value = null;
       forwardingMessage.value = null;
+      isForwardingSelectedMessages.value = false;
       isForwardMessageModalVisible.value = false;
       activeReactionPickerMessageId.value = null;
       resetMessageReadersState();
@@ -4824,6 +4934,7 @@ watch(
 );
 
 onMounted(() => {
+  window.addEventListener("keydown", handleGlobalKeydown);
   restoreRetryableLocalMessagesFromStorage();
   Object.entries(localMessagesByRoom.value).forEach(([roomId, roomMessages]) => {
     roomMessages.forEach((message) => {
@@ -4840,6 +4951,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleGlobalKeydown);
   persistRetryableLocalMessages();
   clearAllLocalMessageRetryTimers();
   const roomId = subscribedRoomId.value;
@@ -5478,6 +5590,43 @@ onBeforeUnmount(() => {
             >
               {{ typingIndicatorText }}
             </div>
+            <div
+              v-if="isMultiSelectMode"
+              class="message-stage__multi-select-bar"
+            >
+              <strong>已选择 {{ selectedMessagesCount }} 条消息</strong>
+              <div class="message-stage__multi-select-actions">
+                <button
+                  type="button"
+                  class="message-card__action message-card__action--secondary"
+                  :disabled="
+                    isForwardingMessage || !canForwardSelectedBatchMessages
+                  "
+                  @click="handleOpenBatchForwardMessageModal()"
+                >
+                  {{ isForwardingMessage ? "转发中..." : "批量转发" }}
+                </button>
+                <button
+                  type="button"
+                  class="message-card__action"
+                  :disabled="
+                    isDeletingSelectedMessages || !canDeleteSelectedBatchMessages
+                  "
+                  @click="void handleDeleteSelectedMessages()"
+                >
+                  {{
+                    isDeletingSelectedMessages ? "删除中..." : "批量删除"
+                  }}
+                </button>
+                <button
+                  type="button"
+                  class="message-card__action message-card__action--secondary"
+                  @click="exitMultiSelectMode()"
+                >
+                  退出多选
+                </button>
+              </div>
+            </div>
 
             <div v-if="isLoadingMessages" class="chat-empty">
               <strong>加载中</strong>
@@ -5502,6 +5651,21 @@ onBeforeUnmount(() => {
                 }"
                 :data-message-id="message.id"
               >
+                <div
+                  v-if="isMultiSelectMode && canSelectMessageForMultiSelect(message)"
+                  class="message-card__selection"
+                >
+                  <button
+                    type="button"
+                    class="message-card__select-toggle"
+                    :class="{
+                      'message-card__select-toggle--active': isMessageSelected(message),
+                    }"
+                    @click="toggleMessageSelection(message)"
+                  >
+                    {{ isMessageSelected(message) ? "已选" : "选择" }}
+                  </button>
+                </div>
                 <div class="message-card__meta">
                   <strong>{{
                     message.isSelf ? "我" : message.senderName
@@ -5693,7 +5857,7 @@ onBeforeUnmount(() => {
                   </p>
                 </template>
                 <div
-                  v-if="canOpenMessageActionMenu(message)"
+                  v-if="!isMultiSelectMode && canOpenMessageActionMenu(message)"
                   class="message-card__actions"
                 >
                   <button
@@ -5709,7 +5873,10 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
                 <div
-                  v-if="activeMessageActionMenuId === message.id"
+                  v-if="
+                    !isMultiSelectMode &&
+                    activeMessageActionMenuId === message.id
+                  "
                   class="message-action-menu"
                 >
                   <button
@@ -5805,6 +5972,14 @@ onBeforeUnmount(() => {
                     }}
                   </button>
                   <button
+                    v-if="canSelectMessageForMultiSelect(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    @click="handleEnterMultiSelectMode(message)"
+                  >
+                    多选
+                  </button>
+                  <button
                     v-if="canDeleteMessage(message)"
                     type="button"
                     class="message-card__action"
@@ -5821,7 +5996,10 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
                 <div
-                  v-if="activeReactionPickerMessageId === message.id"
+                  v-if="
+                    !isMultiSelectMode &&
+                    activeReactionPickerMessageId === message.id
+                  "
                   class="message-reaction-picker"
                 >
                   <button
@@ -6728,6 +6906,29 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
+.message-stage__multi-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.message-stage__multi-select-bar strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.message-stage__multi-select-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .message-feed {
   display: grid;
   gap: 12px;
@@ -6756,6 +6957,28 @@ onBeforeUnmount(() => {
   justify-self: center;
   max-width: 100%;
   background: rgba(15, 23, 42, 0.06);
+}
+
+.message-card__selection {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.message-card__select-toggle {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.message-card__select-toggle--active {
+  border-color: rgba(0, 155, 143, 0.18);
+  background: rgba(0, 194, 179, 0.16);
+  color: var(--primary-color-strong);
 }
 
 .message-card__meta {
