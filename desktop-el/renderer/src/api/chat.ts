@@ -104,6 +104,18 @@ interface BackendGroupAdmin {
   appointed_at: string;
 }
 
+interface BackendJoinRequest {
+  id: string;
+  room_id: string;
+  applicant_id: string;
+  message?: string | null;
+  status: number;
+  reviewer_id?: string | null;
+  review_message?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+}
+
 interface BackendGroupSettings {
   id: string;
   room_id: string;
@@ -292,6 +304,18 @@ export interface ChatGroupAdmin {
   role: string;
   permissions: string[] | null;
   appointedAt: Date | null;
+}
+
+export interface ChatGroupJoinRequest {
+  id: string;
+  roomId: string;
+  applicantId: string;
+  message: string | null;
+  status: "pending" | "approved" | "rejected";
+  reviewerId: string | null;
+  reviewMessage: string | null;
+  createdAt: Date | null;
+  reviewedAt: Date | null;
 }
 
 export interface ChatGroupMyMute {
@@ -871,6 +895,33 @@ const mapChatGroupAdmin = (admin: BackendGroupAdmin): ChatGroupAdmin => ({
   appointedAt: parseTimestamp(admin.appointed_at),
 });
 
+const mapJoinRequestStatus = (
+  status: number,
+): "pending" | "approved" | "rejected" => {
+  switch (status) {
+    case 1:
+      return "approved";
+    case 2:
+      return "rejected";
+    default:
+      return "pending";
+  }
+};
+
+const mapChatGroupJoinRequest = (
+  request: BackendJoinRequest,
+): ChatGroupJoinRequest => ({
+  id: request.id,
+  roomId: request.room_id,
+  applicantId: request.applicant_id,
+  message: request.message ?? null,
+  status: mapJoinRequestStatus(request.status),
+  reviewerId: request.reviewer_id ?? null,
+  reviewMessage: request.review_message ?? null,
+  createdAt: parseTimestamp(request.created_at),
+  reviewedAt: parseTimestamp(request.reviewed_at),
+});
+
 const mapChatGroupSettings = (
   response: BackendGroupSettingsResponse,
 ): ChatGroupSettings => ({
@@ -1448,6 +1499,54 @@ export class ChatApi {
     });
 
     return mapSimpleSuccessData(response);
+  }
+
+  static async listGroupJoinRequests(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatGroupJoinRequest[]>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        requests?: BackendJoinRequest[] | null;
+      }>
+    >("chat.group.join_requests.list", {
+      room_id: params.roomId,
+    });
+
+    return {
+      ...response,
+      data: response.data?.requests
+        ? response.data.requests.map(mapChatGroupJoinRequest)
+        : null,
+    };
+  }
+
+  static async reviewGroupJoinRequest(params: {
+    roomId: string;
+    requestId: string;
+    status: "approved" | "rejected";
+    reviewMessage?: string;
+  }): Promise<ApiResponse<ChatGroupJoinRequest>> {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+      request_id: params.requestId,
+      status: params.status,
+    };
+    if (params.reviewMessage?.trim()) {
+      payload.review_message = params.reviewMessage.trim();
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        request?: BackendJoinRequest | null;
+      }>
+    >("chat.group.join_request.review", payload);
+
+    return {
+      ...response,
+      data: response.data?.request
+        ? mapChatGroupJoinRequest(response.data.request)
+        : null,
+    };
   }
 
   static async getRoom(params: {

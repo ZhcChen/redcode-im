@@ -4,6 +4,7 @@ import type { LegacyUserInfo } from "@/api/system";
 import {
   ChatApi,
   type ChatGroupAdmin,
+  type ChatGroupJoinRequest,
   type ChatGroupSettings,
   mapChatRealtimeEvent,
   type ChatMessage,
@@ -45,6 +46,7 @@ import {
 import AddGroupMembersModal from "./AddGroupMembersModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
 import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
+import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 
 interface OpenChatRequest {
@@ -103,10 +105,12 @@ const selectedChatId = ref<string | null>(null);
 const groupDetail = ref<ChatRoomDetail | null>(null);
 const groupMembers = ref<ChatRoomMember[]>([]);
 const groupAdmins = ref<ChatGroupAdmin[]>([]);
+const groupJoinRequests = ref<ChatGroupJoinRequest[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
 const isAddGroupMembersModalVisible = ref(false);
 const isManageGroupAdminsModalVisible = ref(false);
+const isManageGroupJoinRequestsModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -119,12 +123,14 @@ const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isLoadingGroupContext = ref(false);
 const isLoadingGroupAdmins = ref(false);
+const isLoadingGroupJoinRequests = ref(false);
 const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isAddingGroupMembers = ref(false);
 const isUpdatingGroupAdmins = ref(false);
+const isReviewingGroupJoinRequests = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
@@ -150,6 +156,7 @@ const replyingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
 let groupContextLoadSequence = 0;
 let groupAdminsLoadSequence = 0;
+let groupJoinRequestsLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
@@ -279,6 +286,36 @@ const appointableGroupAdminMembers = computed(() =>
       avatarUrl: member.avatarUrl,
     })),
 );
+const sortedGroupJoinRequests = computed(() =>
+  [...groupJoinRequests.value].sort((left, right) => {
+    if (left.status === "pending" && right.status !== "pending") {
+      return -1;
+    }
+    if (left.status !== "pending" && right.status === "pending") {
+      return 1;
+    }
+    return (right.createdAt?.getTime() ?? 0) - (left.createdAt?.getTime() ?? 0);
+  }),
+);
+const pendingGroupJoinRequestCount = computed(
+  () =>
+    sortedGroupJoinRequests.value.filter(
+      (request) => request.status === "pending",
+    ).length,
+);
+const groupJoinRequestEntries = computed(() =>
+  sortedGroupJoinRequests.value.map((request) => ({
+    id: request.id,
+    applicantId: request.applicantId,
+    displayName: request.applicantId,
+    subtitle: request.applicantId,
+    message: request.message,
+    status: request.status,
+    createdAtLabel: formatDetailTime(request.createdAt),
+    reviewedAtLabel: formatDetailTime(request.reviewedAt),
+    reviewMessage: request.reviewMessage,
+  })),
+);
 const groupOwnerMember = computed(
   () =>
     sortedGroupMembers.value.find(
@@ -307,6 +344,9 @@ const groupManageState = computed(() => {
 const canManageSelectedGroup = computed(() => groupManageState.value.canManage);
 const canManageSelectedGroupAdmins = computed(
   () => groupManageState.value.isOwner,
+);
+const canManageSelectedGroupJoinRequests = computed(
+  () => groupManageState.value.canManage,
 );
 const groupComposerState = computed(() =>
   resolveGroupComposerState({
@@ -673,6 +713,12 @@ const resetGroupAdmins = () => {
   isLoadingGroupAdmins.value = false;
 };
 
+const resetGroupJoinRequests = () => {
+  groupJoinRequestsLoadSequence += 1;
+  groupJoinRequests.value = [];
+  isLoadingGroupJoinRequests.value = false;
+};
+
 const patchRoomAvatar = (roomId: string, avatarUrl: string) => {
   chats.value = chats.value.map((chat) =>
     chat.roomId === roomId
@@ -888,6 +934,7 @@ const resetGroupContext = () => {
   groupDetail.value = null;
   groupMembers.value = [];
   resetGroupAdmins();
+  resetGroupJoinRequests();
   isLoadingGroupContext.value = false;
 };
 
@@ -998,6 +1045,50 @@ const loadGroupAdmins = async (roomId: string | null) => {
   } finally {
     if (currentSequence === groupAdminsLoadSequence) {
       isLoadingGroupAdmins.value = false;
+    }
+  }
+};
+
+const loadGroupJoinRequests = async (roomId: string | null) => {
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupJoinRequests();
+    return;
+  }
+
+  const currentSequence = groupJoinRequestsLoadSequence + 1;
+  groupJoinRequestsLoadSequence = currentSequence;
+  isLoadingGroupJoinRequests.value = true;
+  try {
+    const response = await ChatApi.listGroupJoinRequests({ roomId });
+    if (
+      currentSequence !== groupJoinRequestsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      groupJoinRequests.value = [];
+      notice.value = response.message || "入群申请列表加载失败";
+      return;
+    }
+
+    groupJoinRequests.value = response.data;
+  } catch (error) {
+    if (
+      currentSequence !== groupJoinRequestsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    groupJoinRequests.value = [];
+    notice.value =
+      error instanceof Error ? error.message : "入群申请列表加载失败";
+  } finally {
+    if (currentSequence === groupJoinRequestsLoadSequence) {
+      isLoadingGroupJoinRequests.value = false;
     }
   }
 };
@@ -1174,6 +1265,23 @@ const handleOpenManageGroupAdminsModal = async () => {
   await loadGroupAdmins(selectedChatId.value);
 };
 
+const handleOpenManageGroupJoinRequestsModal = async () => {
+  if (isReviewingGroupJoinRequests.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroupJoinRequests.value) {
+    notice.value = "当前账号没有审核入群申请的权限。";
+    return;
+  }
+
+  isManageGroupJoinRequestsModalVisible.value = true;
+  await loadGroupJoinRequests(selectedChatId.value);
+};
+
 const closeAddGroupMembersModal = () => {
   if (isAddingGroupMembers.value) {
     return;
@@ -1186,6 +1294,13 @@ const closeManageGroupAdminsModal = () => {
     return;
   }
   isManageGroupAdminsModalVisible.value = false;
+};
+
+const closeManageGroupJoinRequestsModal = () => {
+  if (isReviewingGroupJoinRequests.value) {
+    return;
+  }
+  isManageGroupJoinRequestsModalVisible.value = false;
 };
 
 const handleOpenRemoveGroupMembersModal = () => {
@@ -1225,6 +1340,14 @@ const handleManageGroupAdminsModalVisibleChange = (visible: boolean) => {
     return;
   }
   closeManageGroupAdminsModal();
+};
+
+const handleManageGroupJoinRequestsModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenManageGroupJoinRequestsModal();
+    return;
+  }
+  closeManageGroupJoinRequestsModal();
 };
 
 const handleRemoveGroupMembersModalVisibleChange = (visible: boolean) => {
@@ -1518,6 +1641,63 @@ const handleRemoveGroupAdmin = async (payload: {
     await loadGroupSettings(roomId);
   } finally {
     isUpdatingGroupAdmins.value = false;
+  }
+};
+
+const handleReviewGroupJoinRequest = async (payload: {
+  requestId: string;
+  status: "approved" | "rejected";
+  displayName: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isReviewingGroupJoinRequests.value) {
+    return;
+  }
+  if (!canManageSelectedGroupJoinRequests.value) {
+    notice.value = "当前账号没有审核入群申请的权限。";
+    return;
+  }
+
+  const actionLabel = payload.status === "approved" ? "通过" : "拒绝";
+  const confirmed = window.confirm(
+    `确定要${actionLabel} ${payload.displayName} 的入群申请吗？`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  isReviewingGroupJoinRequests.value = true;
+  notice.value = `正在${actionLabel} ${payload.displayName} 的入群申请...`;
+  try {
+    const response = await ChatApi.reviewGroupJoinRequest({
+      roomId,
+      requestId: payload.requestId,
+      status: payload.status,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "审核入群申请失败";
+      return;
+    }
+
+    await loadGroupJoinRequests(roomId);
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+    notice.value =
+      payload.status === "approved"
+        ? `已通过 ${payload.displayName} 的入群申请。`
+        : `已拒绝 ${payload.displayName} 的入群申请。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "审核入群申请失败";
+    await loadGroupJoinRequests(roomId);
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isReviewingGroupJoinRequests.value = false;
   }
 };
 
@@ -2215,6 +2395,9 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
         if (isManageGroupAdminsModalVisible.value) {
           await loadGroupAdmins(event.roomId);
         }
+        if (isManageGroupJoinRequestsModalVisible.value) {
+          await loadGroupJoinRequests(event.roomId);
+        }
       }
       if (groupRealtimePlan.shouldReloadGroupSettings) {
         await loadGroupSettings(event.roomId);
@@ -2458,6 +2641,21 @@ onMounted(() => {
                   @click="void handleOpenManageGroupAdminsModal()"
                 >
                   {{ isUpdatingGroupAdmins ? "处理中..." : "管理员" }}
+                </button>
+                <button
+                  v-if="canManageSelectedGroupJoinRequests"
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isReviewingGroupJoinRequests"
+                  @click="void handleOpenManageGroupJoinRequestsModal()"
+                >
+                  {{
+                    isReviewingGroupJoinRequests
+                      ? "审核中..."
+                      : pendingGroupJoinRequestCount > 0
+                        ? `入群审核(${pendingGroupJoinRequestCount})`
+                        : "入群审核"
+                  }}
                 </button>
                 <button
                   type="button"
@@ -3288,6 +3486,14 @@ onMounted(() => {
       @update:visible="handleManageGroupAdminsModalVisibleChange"
       @appoint="void handleAppointGroupAdmins($event)"
       @remove="void handleRemoveGroupAdmin($event)"
+    />
+    <ManageGroupJoinRequestsModal
+      :visible="isManageGroupJoinRequestsModalVisible"
+      :requests="groupJoinRequestEntries"
+      :is-loading="isLoadingGroupJoinRequests"
+      :is-submitting="isReviewingGroupJoinRequests"
+      @update:visible="handleManageGroupJoinRequestsModalVisibleChange"
+      @review="void handleReviewGroupJoinRequest($event)"
     />
     <RemoveGroupMembersModal
       :visible="isRemoveGroupMembersModalVisible"

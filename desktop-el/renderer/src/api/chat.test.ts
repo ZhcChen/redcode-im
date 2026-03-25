@@ -899,6 +899,156 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("loads group join requests through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                requests: [
+                  {
+                    id: "join-request-1",
+                    room_id: "room-group-1",
+                    applicant_id: "u-9",
+                    message: "想加入项目群",
+                    status: 0,
+                    reviewer_id: null,
+                    review_message: null,
+                    created_at: "2026-03-25T14:00:00Z",
+                    reviewed_at: null,
+                  },
+                  {
+                    id: "join-request-2",
+                    room_id: "room-group-1",
+                    applicant_id: "u-8",
+                    message: null,
+                    status: 1,
+                    reviewer_id: "u-1",
+                    review_message: "欢迎加入",
+                    created_at: "2026-03-25T13:00:00Z",
+                    reviewed_at: "2026-03-25T13:10:00Z",
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.listGroupJoinRequests({
+      roomId: "room-group-1",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.join_requests.list",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: [
+        {
+          id: "join-request-1",
+          roomId: "room-group-1",
+          applicantId: "u-9",
+          message: "想加入项目群",
+          status: "pending",
+          reviewerId: null,
+          reviewMessage: null,
+          createdAt: new Date("2026-03-25T14:00:00Z"),
+          reviewedAt: null,
+        },
+        {
+          id: "join-request-2",
+          roomId: "room-group-1",
+          applicantId: "u-8",
+          message: null,
+          status: "approved",
+          reviewerId: "u-1",
+          reviewMessage: "欢迎加入",
+          createdAt: new Date("2026-03-25T13:00:00Z"),
+          reviewedAt: new Date("2026-03-25T13:10:00Z"),
+        },
+      ],
+    });
+  });
+
+  test("reviews group join request through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                request: {
+                  id: "join-request-1",
+                  room_id: "room-group-1",
+                  applicant_id: "u-9",
+                  message: "想加入项目群",
+                  status: 2,
+                  reviewer_id: "u-1",
+                  review_message: "暂不符合要求",
+                  created_at: "2026-03-25T14:00:00Z",
+                  reviewed_at: "2026-03-25T14:05:00Z",
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.reviewGroupJoinRequest({
+      roomId: "room-group-1",
+      requestId: "join-request-1",
+      status: "rejected",
+      reviewMessage: "暂不符合要求",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.join_request.review",
+        params: {
+          room_id: "room-group-1",
+          request_id: "join-request-1",
+          status: "rejected",
+          review_message: "暂不符合要求",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "join-request-1",
+        roomId: "room-group-1",
+        applicantId: "u-9",
+        message: "想加入项目群",
+        status: "rejected",
+        reviewerId: "u-1",
+        reviewMessage: "暂不符合要求",
+        createdAt: new Date("2026-03-25T14:00:00Z"),
+        reviewedAt: new Date("2026-03-25T14:05:00Z"),
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

@@ -2079,6 +2079,159 @@ func TestAppChatGroupAdminRemoveReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupJoinRequestsListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/join-requests" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"requests": []map[string]any{
+				{
+					"id":            "join-request-1",
+					"room_id":       "room-group-1",
+					"applicant_id":  "u-9",
+					"message":       "想加入项目群",
+					"status":        0,
+					"reviewer_id":   nil,
+					"review_message": nil,
+					"created_at":    "2026-03-25T14:00:00Z",
+					"reviewed_at":   nil,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-join-requests-list",
+		Method: "chat.group.join_requests.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.join_requests.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.join_requests.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.join_requests.list envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.join_requests.list data failed: %v", err)
+	}
+	requests, ok := result["requests"].([]any)
+	if !ok || len(requests) != 1 {
+		t.Fatalf("unexpected join request list payload: %+v", result)
+	}
+
+	firstRequest, ok := requests[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected join request payload: %+v", requests[0])
+	}
+	if firstRequest["applicant_id"] != "u-9" || firstRequest["status"] != float64(0) {
+		t.Fatalf("unexpected join request data: %+v", firstRequest)
+	}
+}
+
+func TestAppChatGroupJoinRequestReviewReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/join-requests/join-request-1/review" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["status"] != "approved" {
+			t.Fatalf("unexpected review join request payload: %+v", payload)
+		}
+		if payload["review_message"] != "欢迎加入" {
+			t.Fatalf("unexpected review_message payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"request": map[string]any{
+				"id":             "join-request-1",
+				"room_id":        "room-group-1",
+				"applicant_id":   "u-9",
+				"message":        "想加入项目群",
+				"status":         1,
+				"reviewer_id":    "u-1",
+				"review_message": "欢迎加入",
+				"created_at":     "2026-03-25T14:00:00Z",
+				"reviewed_at":    "2026-03-25T14:05:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-join-request-review",
+		Method: "chat.group.join_request.review",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":        "room-group-1",
+			"request_id":     "join-request-1",
+			"status":         "approved",
+			"review_message": "欢迎加入",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.join_request.review to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.join_request.review response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.join_request.review envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.join_request.review data failed: %v", err)
+	}
+	request, ok := result["request"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected join request payload: %+v", result)
+	}
+	if request["status"] != float64(1) || request["reviewer_id"] != "u-1" {
+		t.Fatalf("unexpected reviewed join request data: %+v", request)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

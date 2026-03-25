@@ -42,6 +42,13 @@ type RemoveGroupAdminParams struct {
 	AdminID string `json:"admin_id"`
 }
 
+type ReviewGroupJoinRequestParams struct {
+	RoomID        string `json:"room_id"`
+	RequestID     string `json:"request_id"`
+	Status        string `json:"status"`
+	ReviewMessage string `json:"review_message,omitempty"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -248,6 +255,28 @@ func (s *Service) RemoveGroupAdmin(ctx context.Context, params RemoveGroupAdminP
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/admins/" + params.AdminID,
+	})
+}
+
+func (s *Service) ListGroupJoinRequests(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/join-requests",
+	})
+}
+
+func (s *Service) ReviewGroupJoinRequest(ctx context.Context, params ReviewGroupJoinRequestParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"status": params.Status,
+	}
+	if params.ReviewMessage != "" {
+		body["review_message"] = params.ReviewMessage
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPatch,
+		Path:   "/rooms/" + params.RoomID + "/join-requests/" + params.RequestID + "/review",
+		Body:   body,
 	})
 }
 
