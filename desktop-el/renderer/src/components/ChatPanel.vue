@@ -100,6 +100,7 @@ import {
   validateAvatarFile,
 } from "@/utils/user-avatar-upload";
 import AddGroupMembersModal from "./AddGroupMembersModal.vue";
+import ChatListContextMenu from "./ChatListContextMenu.vue";
 import ChatMessageSearchModal from "./ChatMessageSearchModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
 import ForwardMessageModal from "./ForwardMessageModal.vue";
@@ -108,6 +109,7 @@ import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
 import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
 import ManageGroupOperationLogsModal from "./ManageGroupOperationLogsModal.vue";
 import ManageGroupRulesModal from "./ManageGroupRulesModal.vue";
+import MessageContextMenu from "./MessageContextMenu.vue";
 import MessageReadersModal from "./MessageReadersModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 import TransferGroupOwnerModal from "./TransferGroupOwnerModal.vue";
@@ -133,6 +135,8 @@ type GroupSettingActionKey =
   | "memberCanAddFriends"
   | "requireAdminToAddFriends"
   | "maxMembers";
+
+type ChatContextActionKey = "pin" | "mute" | "delete";
 
 type DesktopRuntimeWithFile = NonNullable<Window["desktopEl"]> & {
   file: {
@@ -198,6 +202,8 @@ const isForwardingSelectedMessages = ref(false);
 const isMessageReadersModalVisible = ref(false);
 const isMessageSearchModalVisible = ref(false);
 const isVoiceRecorderVisible = ref(false);
+const isChatContextMenuVisible = ref(false);
+const isMessageContextMenuVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -254,6 +260,10 @@ const mediaPreview = ref<{
   name: string;
   meta: string;
 } | null>(null);
+const chatContextMenuTarget = ref<ChatSummary | null>(null);
+const chatContextMenuPosition = ref({ x: 0, y: 0 });
+const messageContextMenuTarget = ref<ChatMessage | null>(null);
+const messageContextMenuPosition = ref({ x: 0, y: 0 });
 const replyingMessage = ref<ChatMessage | null>(null);
 const forwardingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
@@ -274,6 +284,7 @@ const dragStartPosition = ref<{ x: number; y: number } | null>(null);
 const isFileDragActive = ref(false);
 const fileDragDepth = ref(0);
 const resendingMessageId = ref<string | null>(null);
+const chatContextActionKey = ref<ChatContextActionKey | null>(null);
 const typingUsers = ref<Record<string, number>>({});
 const typingCleanupTimers = new Map<string, number>();
 const localMessageRetryTimers = new Map<string, number>();
@@ -2081,6 +2092,7 @@ const primeAttachmentPreviews = (roomMessages: ChatMessage[]) => {
 const pickSelectedChatId = (
   list: ChatSummary[],
   preferredRoomId?: string | null,
+  fallbackToFirst = true,
 ) => {
   if (preferredRoomId && list.some((chat) => chat.roomId === preferredRoomId)) {
     return preferredRoomId;
@@ -2090,6 +2102,9 @@ const pickSelectedChatId = (
     list.some((chat) => chat.roomId === selectedChatId.value)
   ) {
     return selectedChatId.value;
+  }
+  if (!fallbackToFirst) {
+    return null;
   }
   return list[0]?.roomId ?? null;
 };
@@ -2198,6 +2213,10 @@ const resetGroupSettings = () => {
 };
 
 const clearSelectedChatTransientState = () => {
+  isChatContextMenuVisible.value = false;
+  isMessageContextMenuVisible.value = false;
+  chatContextMenuTarget.value = null;
+  messageContextMenuTarget.value = null;
   activeMessageActionMenuId.value = null;
   activeReactionPickerMessageId.value = null;
   editingMessageTarget.value = null;
@@ -2599,6 +2618,7 @@ const loadChats = async (
     preferredRoomId?: string | null;
     preserveNotice?: boolean;
     reloadMessages?: boolean;
+    fallbackToFirst?: boolean;
   } = {},
 ) => {
   isLoadingChats.value = true;
@@ -2618,6 +2638,7 @@ const loadChats = async (
     const nextSelectedRoomId = pickSelectedChatId(
       response.data,
       options.preferredRoomId,
+      options.fallbackToFirst ?? true,
     );
     const nextSelectedChat =
       response.data.find((chat) => chat.roomId === nextSelectedRoomId) || null;
@@ -3046,6 +3067,10 @@ const resolveCreatedGroupChat = async (createdGroup: {
 };
 
 const selectChat = async (chatId: string) => {
+  isChatContextMenuVisible.value = false;
+  isMessageContextMenuVisible.value = false;
+  chatContextMenuTarget.value = null;
+  messageContextMenuTarget.value = null;
   replyingMessage.value = null;
   selectedChatId.value = chatId;
   await loadMessages(chatId);
@@ -3065,6 +3090,152 @@ const selectChat = async (chatId: string) => {
   }
   resetGroupContext();
   resetGroupSettings();
+};
+
+const closeChatContextMenu = () => {
+  isChatContextMenuVisible.value = false;
+  chatContextMenuTarget.value = null;
+};
+
+const closeMessageContextMenu = () => {
+  isMessageContextMenuVisible.value = false;
+  messageContextMenuTarget.value = null;
+};
+
+const handleChatContextMenu = (chat: ChatSummary, event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeMessageContextMenu();
+  closeMessageActionMenu();
+  activeReactionPickerMessageId.value = null;
+  chatContextMenuTarget.value = chat;
+  chatContextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY,
+  };
+  isChatContextMenuVisible.value = true;
+};
+
+const handleChatContextMenuPin = async () => {
+  const chat = chatContextMenuTarget.value;
+  if (!chat || chatContextActionKey.value) {
+    return;
+  }
+
+  closeChatContextMenu();
+  const nextPinned = !chat.isPinned;
+  chatContextActionKey.value = "pin";
+  try {
+    const response = nextPinned
+      ? await ChatApi.pinChat({ roomId: chat.roomId })
+      : await ChatApi.unpinChat({ roomId: chat.roomId });
+    if (!response.success || !response.data) {
+      notice.value = response.message || (nextPinned ? "置顶会话失败" : "取消置顶失败");
+      return;
+    }
+
+    await loadChats({
+      preferredRoomId: selectedChatId.value ?? chat.roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    notice.value = nextPinned ? "会话已置顶。" : "会话已取消置顶。";
+  } catch (error) {
+    notice.value =
+      error instanceof Error
+        ? error.message
+        : nextPinned
+          ? "置顶会话失败"
+          : "取消置顶失败";
+  } finally {
+    chatContextActionKey.value = null;
+  }
+};
+
+const handleChatContextMenuMute = async () => {
+  const chat = chatContextMenuTarget.value;
+  if (!chat || chatContextActionKey.value) {
+    return;
+  }
+
+  closeChatContextMenu();
+  const nextNotificationSettings = chat.isMuted ? 0 : 2;
+  chatContextActionKey.value = "mute";
+  try {
+    const response = await ChatApi.updateNotificationSettings({
+      roomId: chat.roomId,
+      notificationSettings: nextNotificationSettings,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "更新会话提醒设置失败";
+      return;
+    }
+
+    await loadChats({
+      preferredRoomId: selectedChatId.value ?? chat.roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    notice.value =
+      nextNotificationSettings === 2
+        ? "已开启消息免打扰。"
+        : "已恢复消息提醒。";
+  } catch (error) {
+    notice.value =
+      error instanceof Error ? error.message : "更新会话提醒设置失败";
+  } finally {
+    chatContextActionKey.value = null;
+  }
+};
+
+const handleChatContextMenuDelete = async () => {
+  const chat = chatContextMenuTarget.value;
+  if (!chat || chatContextActionKey.value) {
+    return;
+  }
+
+  closeChatContextMenu();
+  chatContextActionKey.value = "delete";
+  const isDeletingCurrentRoom = selectedChatId.value === chat.roomId;
+  try {
+    const response = await ChatApi.deleteChat({
+      roomId: chat.roomId,
+    });
+    if (!response.success || !response.data?.success) {
+      notice.value = response.message || "删除对话失败";
+      return;
+    }
+
+    removeLocalRoomArtifacts(chat.roomId);
+    if (isDeletingCurrentRoom) {
+      await stopTyping(chat.roomId);
+      clearTypingUsers();
+      closeGroupManagementModals();
+      clearSelectedChatTransientState();
+      selectedChatId.value = null;
+      messages.value = [];
+      resetGroupContext();
+      resetGroupSettings();
+    }
+
+    await loadChats({
+      preferredRoomId: isDeletingCurrentRoom ? null : selectedChatId.value,
+      preserveNotice: true,
+      reloadMessages: false,
+      fallbackToFirst: !isDeletingCurrentRoom,
+    });
+    if (isDeletingCurrentRoom) {
+      selectedChatId.value = null;
+      messages.value = [];
+      resetGroupContext();
+      resetGroupSettings();
+    }
+    notice.value = `已删除与 ${chat.title} 的对话。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "删除对话失败";
+  } finally {
+    chatContextActionKey.value = null;
+  }
 };
 
 const handleOpenChatRequest = async (request: OpenChatRequest) => {
@@ -4400,11 +4571,60 @@ const closeMessageActionMenu = () => {
   activeMessageActionMenuId.value = null;
 };
 
+const shouldIgnoreMessageContextMenuTarget = (target: EventTarget | null) => {
+  const element = target as HTMLElement | null;
+  return Boolean(
+    element?.closest(
+      "input, textarea, audio, video, .attachment-card__action, .message-card__action, .message-card__select-toggle",
+    ),
+  );
+};
+
+const handleMessageContextMenu = (message: ChatMessage, event: MouseEvent) => {
+  if (
+    isMultiSelectMode.value ||
+    !canOpenMessageActionMenu(message) ||
+    shouldIgnoreMessageContextMenuTarget(event.target)
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  closeChatContextMenu();
+  closeMessageActionMenu();
+  activeReactionPickerMessageId.value = null;
+  messageContextMenuTarget.value = message;
+  messageContextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY,
+  };
+  isMessageContextMenuVisible.value = true;
+};
+
+const takeMessageContextMenuTarget = () => {
+  const target = messageContextMenuTarget.value;
+  if (!target) {
+    return null;
+  }
+
+  closeMessageContextMenu();
+  return target;
+};
+
 const handleGlobalKeydown = (event: KeyboardEvent) => {
   if (event.key !== "Escape") {
     return;
   }
 
+  if (isMessageContextMenuVisible.value) {
+    closeMessageContextMenu();
+    return;
+  }
+  if (isChatContextMenuVisible.value) {
+    closeChatContextMenu();
+    return;
+  }
   if (isMultiSelectMode.value) {
     exitMultiSelectMode();
   }
@@ -4415,6 +4635,7 @@ const handleToggleMessageActionMenu = (message: ChatMessage) => {
     return;
   }
 
+  closeMessageContextMenu();
   activeReactionPickerMessageId.value = null;
   activeMessageActionMenuId.value =
     activeMessageActionMenuId.value === message.id ? null : message.id;
@@ -5104,6 +5325,86 @@ const handleDeleteSelectedMessages = async () => {
   }
 };
 
+const handleMessageContextMenuCopy = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  void handleCopyMessage(message);
+};
+
+const handleMessageContextMenuReply = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  handleReplyToMessage(message);
+};
+
+const handleMessageContextMenuForward = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  handleOpenForwardMessageModal(message);
+};
+
+const handleMessageContextMenuPin = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  void handleTogglePinMessage(message);
+};
+
+const handleMessageContextMenuReaction = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  handleToggleReactionPicker(message);
+};
+
+const handleMessageContextMenuReaders = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  void handleOpenMessageReadersModal(message);
+};
+
+const handleMessageContextMenuEdit = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  handleStartEditMessage(message);
+};
+
+const handleMessageContextMenuResend = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  void handleResendMessage(message);
+};
+
+const handleMessageContextMenuMultiSelect = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  handleEnterMultiSelectMode(message);
+};
+
+const handleMessageContextMenuDelete = () => {
+  const message = takeMessageContextMenuTarget();
+  if (!message) {
+    return;
+  }
+  void handleDeleteMessage(message);
+};
+
 const handleOpenAttachment = async (
   message: ChatMessage,
   part: ChatMessagePart,
@@ -5434,6 +5735,8 @@ watch(
   () => selectedChatId.value,
   (nextRoomId, previousRoomId) => {
     if (nextRoomId !== previousRoomId) {
+      closeChatContextMenu();
+      closeMessageContextMenu();
       if (previousRoomId) {
         void stopTyping(previousRoomId);
       }
@@ -5595,6 +5898,7 @@ onBeforeUnmount(() => {
             class="chat-row"
             :class="{ 'chat-row--active': selectedChat?.id === chat.id }"
             @click="void selectChat(chat.id)"
+            @contextmenu="handleChatContextMenu(chat, $event)"
           >
             <span class="chat-row__avatar">
               <img
@@ -6267,6 +6571,7 @@ onBeforeUnmount(() => {
                     highlightedSearchMessageId === message.id,
                 }"
                 :data-message-id="message.id"
+                @contextmenu="handleMessageContextMenu(message, $event)"
               >
                 <div
                   v-if="isMultiSelectMode && canSelectMessageForMultiSelect(message)"
@@ -6854,6 +7159,94 @@ onBeforeUnmount(() => {
         </div>
       </article>
     </div>
+
+    <ChatListContextMenu
+      v-model:visible="isChatContextMenuVisible"
+      :position="chatContextMenuPosition"
+      :is-pinned="Boolean(chatContextMenuTarget?.isPinned)"
+      :is-muted="Boolean(chatContextMenuTarget?.isMuted)"
+      @pin="void handleChatContextMenuPin()"
+      @mute="void handleChatContextMenuMute()"
+      @delete="void handleChatContextMenuDelete()"
+    />
+
+    <MessageContextMenu
+      v-model:visible="isMessageContextMenuVisible"
+      :position="messageContextMenuPosition"
+      :can-copy="
+        Boolean(
+          messageContextMenuTarget && canCopyMessage(messageContextMenuTarget),
+        )
+      "
+      :can-reply="
+        Boolean(
+          messageContextMenuTarget && canReplyMessage(messageContextMenuTarget),
+        )
+      "
+      :can-forward="
+        Boolean(
+          messageContextMenuTarget &&
+            canForwardMessage(messageContextMenuTarget),
+        )
+      "
+      :can-pin="
+        Boolean(
+          messageContextMenuTarget &&
+            canToggleMessagePin(messageContextMenuTarget),
+        )
+      "
+      :is-pinned="Boolean(messageContextMenuTarget?.pinnedAt)"
+      :can-reaction="
+        Boolean(
+          messageContextMenuTarget &&
+            canToggleMessageReaction(messageContextMenuTarget),
+        )
+      "
+      :can-readers="
+        Boolean(
+          messageContextMenuTarget &&
+            canViewMessageReaders(messageContextMenuTarget),
+        )
+      "
+      :can-edit="
+        Boolean(
+          messageContextMenuTarget && canEditMessage(messageContextMenuTarget),
+        )
+      "
+      :can-resend="
+        Boolean(
+          messageContextMenuTarget &&
+            canResendLocalMessage(messageContextMenuTarget),
+        )
+      "
+      :can-multi-select="
+        Boolean(
+          messageContextMenuTarget &&
+            canSelectMessageForMultiSelect(messageContextMenuTarget),
+        )
+      "
+      :can-delete="
+        Boolean(
+          messageContextMenuTarget &&
+            canDeleteMessage(messageContextMenuTarget),
+        )
+      "
+      :delete-label="
+        messageContextMenuTarget
+          ? getMessageDeleteLabel(messageContextMenuTarget)
+          : '删除'
+      "
+      @copy="handleMessageContextMenuCopy"
+      @reply="handleMessageContextMenuReply"
+      @forward="handleMessageContextMenuForward"
+      @pin="handleMessageContextMenuPin"
+      @reaction="handleMessageContextMenuReaction"
+      @readers="handleMessageContextMenuReaders"
+      @edit="handleMessageContextMenuEdit"
+      @resend="handleMessageContextMenuResend"
+      @multi-select="handleMessageContextMenuMultiSelect"
+      @delete="handleMessageContextMenuDelete"
+    />
 
     <div
       v-if="mediaPreview"

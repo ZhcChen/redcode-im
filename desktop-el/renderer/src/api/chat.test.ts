@@ -106,6 +106,224 @@ describe("chat api", () => {
     });
   });
 
+  test("pins chat through go-core rpc and maps pinned payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                is_pinned: true,
+                pinned_at: "2026-03-25T12:00:00Z",
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const pinChat = (
+      ChatApi as unknown as {
+        pinChat?: (params: { roomId: string }) => Promise<unknown>;
+      }
+    ).pinChat;
+
+    expect(typeof pinChat).toBe("function");
+    if (!pinChat) {
+      return;
+    }
+
+    const response = (await pinChat({
+      roomId: "room-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.room.pin",
+        params: {
+          room_id: "room-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        isPinned: true,
+        pinnedAt: new Date("2026-03-25T12:00:00Z"),
+      },
+    });
+  });
+
+  test("unpinns chat through go-core rpc and maps pinned payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                is_pinned: false,
+                pinned_at: null,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const unpinChat = (
+      ChatApi as unknown as {
+        unpinChat?: (params: { roomId: string }) => Promise<unknown>;
+      }
+    ).unpinChat;
+
+    expect(typeof unpinChat).toBe("function");
+    if (!unpinChat) {
+      return;
+    }
+
+    const response = (await unpinChat({
+      roomId: "room-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.room.unpin",
+        params: {
+          room_id: "room-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        isPinned: false,
+        pinnedAt: null,
+      },
+    });
+  });
+
+  test("updates notification settings through go-core rpc", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                notification_settings: 2,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const updateNotificationSettings = (
+      ChatApi as unknown as {
+        updateNotificationSettings?: (params: {
+          roomId: string;
+          notificationSettings: number;
+        }) => Promise<unknown>;
+      }
+    ).updateNotificationSettings;
+
+    expect(typeof updateNotificationSettings).toBe("function");
+    if (!updateNotificationSettings) {
+      return;
+    }
+
+    const response = (await updateNotificationSettings({
+      roomId: "room-1",
+      notificationSettings: 2,
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.room.notification.update",
+        params: {
+          room_id: "room-1",
+          notification_settings: 2,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        notificationSettings: 2,
+      },
+    });
+  });
+
+  test("deletes chat through go-core rpc and maps success payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "已删除对话",
+              data: {
+                success: true,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const deleteChat = (
+      ChatApi as unknown as {
+        deleteChat?: (params: { roomId: string }) => Promise<unknown>;
+      }
+    ).deleteChat;
+
+    expect(typeof deleteChat).toBe("function");
+    if (!deleteChat) {
+      return;
+    }
+
+    const response = (await deleteChat({
+      roomId: "room-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.room.delete",
+        params: {
+          room_id: "room-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "已删除对话",
+      data: {
+        success: true,
+        message: "已删除对话",
+      },
+    });
+  });
+
   test("leaves group through go-core rpc and maps success payload", async () => {
     globalThis.window = {
       desktopEl: {

@@ -54,6 +54,15 @@ interface BackendEnsurePrivateChatResponse {
   friend_avatar_object_key?: string | null;
 }
 
+interface BackendChatRoomPinResponse {
+  is_pinned: boolean;
+  pinned_at?: string | null;
+}
+
+interface BackendChatNotificationSettingsResponse {
+  notification_settings: number;
+}
+
 interface BackendCreateGroupRoom {
   id: string;
   name: string;
@@ -352,6 +361,20 @@ export interface CreatedGroupChat {
   roomId: string;
   roomName: string;
   roomType: BackendRoomType;
+}
+
+export interface ChatPinnedRoomResult {
+  isPinned: boolean;
+  pinnedAt: Date | null;
+}
+
+export interface ChatNotificationSettingsResult {
+  notificationSettings: number;
+}
+
+export interface ChatDeleteResult {
+  success: boolean;
+  message: string;
 }
 
 export interface ChatRoomDetail {
@@ -1784,6 +1807,83 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? response.data.map(mapChatSummary) : null,
+    };
+  }
+
+  static async pinChat(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatPinnedRoomResult>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendChatRoomPinResponse>
+    >("chat.room.pin", {
+      room_id: params.roomId,
+    });
+    return {
+      ...response,
+      data: response.data
+        ? {
+            isPinned: Boolean(response.data.is_pinned),
+            pinnedAt: parseTimestamp(response.data.pinned_at),
+          }
+        : null,
+    };
+  }
+
+  static async unpinChat(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatPinnedRoomResult>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendChatRoomPinResponse>
+    >("chat.room.unpin", {
+      room_id: params.roomId,
+    });
+    return {
+      ...response,
+      data: response.data
+        ? {
+            isPinned: Boolean(response.data.is_pinned),
+            pinnedAt: parseTimestamp(response.data.pinned_at),
+          }
+        : null,
+    };
+  }
+
+  static async updateNotificationSettings(params: {
+    roomId: string;
+    notificationSettings: number;
+  }): Promise<ApiResponse<ChatNotificationSettingsResult>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendChatNotificationSettingsResponse>
+    >("chat.room.notification.update", {
+      room_id: params.roomId,
+      notification_settings: params.notificationSettings,
+    });
+    return {
+      ...response,
+      data: response.data
+        ? {
+            notificationSettings: response.data.notification_settings,
+          }
+        : null,
+    };
+  }
+
+  static async deleteChat(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatDeleteResult>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{ success: boolean }>
+    >("chat.room.delete", {
+      room_id: params.roomId,
+    });
+    return {
+      ...response,
+      data: response.data
+        ? {
+            success: Boolean(response.data.success),
+            message: response.message || "已删除对话",
+          }
+        : null,
     };
   }
 

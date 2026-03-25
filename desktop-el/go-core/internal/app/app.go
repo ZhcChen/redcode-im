@@ -277,6 +277,54 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.room.pin", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.PinRoom(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.room.unpin", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.UnpinRoom(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.room.notification.update", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.UpdateRoomNotificationSettingsParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.UpdateRoomNotificationSettings(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.room.delete", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.DeleteChat(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.private.ensure", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.EnsurePrivateChatParams
 		if err := unmarshalParams(params, &payload); err != nil {

@@ -21,6 +21,11 @@ type RoomParams struct {
 	RoomID string `json:"room_id"`
 }
 
+type UpdateRoomNotificationSettingsParams struct {
+	RoomID               string `json:"room_id"`
+	NotificationSettings int    `json:"notification_settings"`
+}
+
 type AddRoomMembersParams struct {
 	RoomID  string   `json:"room_id"`
 	UserIDs []string `json:"user_ids"`
@@ -244,6 +249,38 @@ func (s *Service) ListChats(ctx context.Context) (httpclient.Response, error) {
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodGet,
 		Path:   "/chats",
+	})
+}
+
+func (s *Service) PinRoom(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/pin",
+		Body:   map[string]any{},
+	})
+}
+
+func (s *Service) UnpinRoom(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/pin",
+	})
+}
+
+func (s *Service) UpdateRoomNotificationSettings(ctx context.Context, params UpdateRoomNotificationSettingsParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/notification-settings",
+		Body: map[string]any{
+			"notification_settings": params.NotificationSettings,
+		},
+	})
+}
+
+func (s *Service) DeleteChat(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/chats/" + params.RoomID,
 	})
 }
 
