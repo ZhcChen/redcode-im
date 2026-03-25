@@ -79,7 +79,7 @@ Expected: PASS
 Run: `cd desktop-el && bun run build`
 Expected: PASS
 
-- [ ] **Step 3: 更新 backlog、提交并推送**
+- [x] **Step 3: 更新 backlog、提交并推送**
 
 ```bash
 git add docs/plans/2026-03-26-desktop-el-voice-waveform-plan.md \
@@ -91,7 +91,7 @@ git commit -m "feat(desktop-el): add voice recording waveform preview"
 git push
 ```
 
-- [ ] **Step 4: 运行清理**
+- [x] **Step 4: 运行清理**
 
 Run: `make desktop-el-down`
 Expected: 无残留开发实例。
