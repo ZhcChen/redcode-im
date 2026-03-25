@@ -61,7 +61,9 @@ func (s *Service) UpdateMe(ctx context.Context, params UpdateMeParams) (httpclie
 	if err := decodeData(response.Data, &result); err != nil {
 		return httpclient.Response{}, err
 	}
-	s.session.SetCurrentUser(mapBackendUserToSnapshot(result))
+	if result.ID != "" {
+		s.session.SetCurrentUser(mapBackendUserToSnapshot(result))
+	}
 	return response, nil
 }
 
