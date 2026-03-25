@@ -273,6 +273,9 @@
 
 **目标:** 让 `desktop-el` 自身具备可持续回归的测试矩阵。
 
+**当前进度:**
+- [x] 已统一 Electron `main/preload` 测试使用的 `electron` superset mock，`desktop-el` 根目录 `bun test` 已恢复全绿。
+
 **范围:**
 - [ ] Go core 集成测试继续扩充
 - [ ] Electron main / preload 测试扩充

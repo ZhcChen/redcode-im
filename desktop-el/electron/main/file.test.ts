@@ -1,19 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type Server } from "node:http";
-
-let openPathCalls: string[] = [];
-
-mock.module("electron", () => ({
-  shell: {
-    openPath: async (targetPath: string) => {
-      openPathCalls.push(targetPath);
-      return "";
-    }
-  }
-}));
+import {
+  electronMockState,
+  resetElectronMockState,
+} from "../test-support/electron-mock.js";
 
 const { createFileService } = await import("./file.js");
 
@@ -23,7 +16,7 @@ describe("createFileService", () => {
   let tempDir = "";
 
   beforeEach(async () => {
-    openPathCalls = [];
+    resetElectronMockState();
     tempDir = await mkdtemp(join(tmpdir(), "desktop-el-file-test-"));
     server = createServer((_, response) => {
       response.writeHead(200, {
@@ -83,6 +76,6 @@ describe("createFileService", () => {
 
     await service.openPath("/tmp/demo.txt");
 
-    expect(openPathCalls).toEqual(["/tmp/demo.txt"]);
+    expect(electronMockState.openPathCalls).toEqual(["/tmp/demo.txt"]);
   });
 });

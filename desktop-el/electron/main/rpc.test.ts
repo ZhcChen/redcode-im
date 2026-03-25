@@ -1,55 +1,18 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-
-type IpcHandler = (_event: unknown, payload: unknown) => Promise<unknown>;
-type IpcListener = (_event: unknown, payload: unknown) => void;
-
-let registeredHandler: IpcHandler | undefined;
-let cancelListener: IpcListener | undefined;
-const sentEvents: Array<[string, unknown]> = [];
-
-mock.module("electron", () => ({
-  BrowserWindow: {
-    getAllWindows: () => [
-      {
-        webContents: {
-          send: (channel: string, payload: unknown) => {
-            sentEvents.push([channel, payload]);
-          }
-        }
-      }
-    ]
-  },
-  ipcMain: {
-    handle: (_channel: string, handler: IpcHandler) => {
-      registeredHandler = handler;
-    },
-    on: (_channel: string, listener: IpcListener) => {
-      cancelListener = listener;
-    },
-    off: (_channel: string, listener: IpcListener) => {
-      if (cancelListener === listener) {
-        cancelListener = undefined;
-      }
-    },
-    removeHandler: (_channel: string) => {
-      registeredHandler = undefined;
-    }
-  }
-}));
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import {
+  electronMockState,
+  resetElectronMockState,
+} from "../test-support/electron-mock.js";
 
 const { RpcDispatcher, registerRpcIpc } = await import("./rpc.js");
 
 describe("registerRpcIpc", () => {
   beforeEach(() => {
-    registeredHandler = undefined;
-    cancelListener = undefined;
-    sentEvents.length = 0;
+    resetElectronMockState();
   });
 
   afterEach(() => {
-    registeredHandler = undefined;
-    cancelListener = undefined;
-    sentEvents.length = 0;
+    resetElectronMockState();
   });
 
   test("preserves rpc error codes returned by dispatcher", async () => {
@@ -70,9 +33,9 @@ describe("registerRpcIpc", () => {
     };
 
     const cleanup = registerRpcIpc(new RpcDispatcher(transport));
-    expect(registeredHandler).toBeDefined();
+    expect(electronMockState.registeredHandler).toBeDefined();
 
-    const response = (await registeredHandler?.(undefined, {
+    const response = (await electronMockState.registeredHandler?.(undefined, {
       type: "request",
       id: "req-missing-1",
       method: "core.missing"
@@ -116,10 +79,10 @@ describe("registerRpcIpc", () => {
     };
 
     const cleanup = registerRpcIpc(new RpcDispatcher(transport));
-    expect(registeredHandler).toBeDefined();
-    expect(cancelListener).toBeDefined();
+    expect(electronMockState.registeredHandler).toBeDefined();
+    expect(electronMockState.cancelListener).toBeDefined();
 
-    const invokePromise = registeredHandler?.(undefined, {
+    const invokePromise = electronMockState.registeredHandler?.(undefined, {
       type: "request",
       id: "req-cancel-1",
       method: "core.wait"
@@ -130,7 +93,7 @@ describe("registerRpcIpc", () => {
     expect(transportSignal).toBeDefined();
     expect(transportSignal?.aborted).toBeFalse();
 
-    cancelListener?.(undefined, { id: "req-cancel-1" });
+    electronMockState.cancelListener?.(undefined, { id: "req-cancel-1" });
 
     const response = await invokePromise;
     expect(transportSignal?.aborted).toBeTrue();

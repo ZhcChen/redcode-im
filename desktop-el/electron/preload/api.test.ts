@@ -1,8 +1,11 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+  electronMockState,
+  resetElectronMockState,
+} from "../test-support/electron-mock.js";
 
-let invokeArgs: [string, unknown] | undefined;
-const sentMessages: Array<[string, unknown]> = [];
-let exposedAPI: {
+const getExposedAPI = () => electronMockState.exposedAPI as
+  | {
   rpc: {
     invoke: (method: string, params?: unknown, options?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<unknown>;
   };
@@ -10,41 +13,19 @@ let exposedAPI: {
     saveFromURL: (options: { url: string; filePath: string }) => Promise<unknown>;
     openPath: (path: string) => Promise<unknown>;
   };
-} | undefined;
-let resolveInvoke: ((value: unknown) => void) | undefined;
-
-mock.module("electron", () => ({
-  contextBridge: {
-    exposeInMainWorld: (_key: string, api: unknown) => {
-      exposedAPI = api as typeof exposedAPI;
-    }
-  },
-  ipcRenderer: {
-    invoke: (channel: string, payload: unknown) => {
-      invokeArgs = [channel, payload];
-      return new Promise((resolve) => {
-        resolveInvoke = resolve;
-      });
-    },
-    send: (channel: string, payload: unknown) => {
-      sentMessages.push([channel, payload]);
-    },
-    on: () => {},
-    off: () => {}
-  }
-}));
+}
+  | undefined;
 
 const { RPC_CANCEL_CHANNEL, RPC_INVOKE_CHANNEL } = await import("./types.js");
 await import("./api.cts");
 
 describe("desktopEl preload rpc api", () => {
   beforeEach(() => {
-    invokeArgs = undefined;
-    sentMessages.length = 0;
-    resolveInvoke = undefined;
+    resetElectronMockState();
   });
 
   test("serializes rpc request payload and forwards abort through cancel channel", async () => {
+    const exposedAPI = getExposedAPI();
     expect(exposedAPI).toBeDefined();
 
     const controller = new AbortController();
@@ -57,8 +38,8 @@ describe("desktopEl preload rpc api", () => {
       }
     );
 
-    expect(invokeArgs).toBeDefined();
-    const [channel, payload] = invokeArgs!;
+    expect(electronMockState.invokeArgs).toBeDefined();
+    const [channel, payload] = electronMockState.invokeArgs!;
     expect(channel).toBe(RPC_INVOKE_CHANNEL);
     expect(payload).toMatchObject({
       type: "request",
@@ -71,9 +52,11 @@ describe("desktopEl preload rpc api", () => {
 
     controller.abort();
 
-    expect(sentMessages).toEqual([[RPC_CANCEL_CHANNEL, { id: (payload as { id: string }).id }]]);
+    expect(electronMockState.sentMessages).toEqual([
+      [RPC_CANCEL_CHANNEL, { id: (payload as { id: string }).id }],
+    ]);
 
-    resolveInvoke?.({
+    electronMockState.resolveInvoke?.({
       type: "response",
       id: (payload as { id: string }).id,
       result: { ok: true }
@@ -83,6 +66,7 @@ describe("desktopEl preload rpc api", () => {
   });
 
   test("forwards file shell calls through shell invoke channel", async () => {
+    const exposedAPI = getExposedAPI();
     expect(exposedAPI).toBeDefined();
 
     const savePromise = exposedAPI!.file.saveFromURL({
@@ -90,8 +74,8 @@ describe("desktopEl preload rpc api", () => {
       filePath: "/tmp/file.txt"
     });
 
-    expect(invokeArgs).toBeDefined();
-    expect(invokeArgs).toEqual([
+    expect(electronMockState.invokeArgs).toBeDefined();
+    expect(electronMockState.invokeArgs).toEqual([
       "desktop-el:shell:invoke",
       {
         namespace: "file",
@@ -105,7 +89,7 @@ describe("desktopEl preload rpc api", () => {
       }
     ]);
 
-    resolveInvoke?.({ filePath: "/tmp/file.txt" });
+    electronMockState.resolveInvoke?.({ filePath: "/tmp/file.txt" });
     await expect(savePromise).resolves.toEqual({ filePath: "/tmp/file.txt" });
   });
 });

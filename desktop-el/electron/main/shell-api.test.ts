@@ -1,26 +1,15 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
-
-type IpcHandler = (_event: unknown, payload: unknown) => Promise<unknown>;
-
-let registeredHandler: IpcHandler | undefined;
-
-mock.module("electron", () => ({
-  ipcMain: {
-    handle: (_channel: string, handler: IpcHandler) => {
-      registeredHandler = handler;
-    },
-    removeHandler: () => {
-      registeredHandler = undefined;
-    }
-  }
-}));
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+  electronMockState,
+  resetElectronMockState,
+} from "../test-support/electron-mock.js";
 
 const { SHELL_INVOKE_CHANNEL } = await import("../preload/types.js");
 const { registerShellIpc } = await import("./shell-api.js");
 
 describe("registerShellIpc", () => {
   beforeEach(() => {
-    registeredHandler = undefined;
+    resetElectronMockState();
   });
 
   test("dispatches shell calls to the requested namespace", async () => {
@@ -49,16 +38,16 @@ describe("registerShellIpc", () => {
       }
     });
 
-    expect(registeredHandler).toBeDefined();
+    expect(electronMockState.registeredHandler).toBeDefined();
 
-    const version = await registeredHandler?.(undefined, {
+    const version = await electronMockState.registeredHandler?.(undefined, {
       namespace: "app",
       method: "getVersion"
     });
 
     expect(version).toBe("0.1.0");
 
-    const saved = await registeredHandler?.(undefined, {
+    const saved = await electronMockState.registeredHandler?.(undefined, {
       namespace: "file",
       method: "saveFromURL",
       params: {
@@ -72,7 +61,7 @@ describe("registerShellIpc", () => {
     expect(saved).toEqual({ filePath: "/tmp/file.txt" });
 
     cleanup();
-    expect(registeredHandler).toBeUndefined();
+    expect(electronMockState.registeredHandler).toBeUndefined();
     expect(SHELL_INVOKE_CHANNEL).toBe("desktop-el:shell:invoke");
   });
 });

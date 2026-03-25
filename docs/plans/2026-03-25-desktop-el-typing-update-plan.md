@@ -157,7 +157,7 @@ Expected:
 - `go test ./...` PASS
 - `bun run build` PASS
 - `bun test`（renderer 目录）PASS
-- `bun test`（`desktop-el` 根目录）仍只剩既有 3 个 Electron mock export 错误
+- `bun test`（`desktop-el` 根目录）PASS
 
 - [x] **Step 3: 回填 backlog**
 
