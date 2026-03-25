@@ -128,6 +128,11 @@ type ForwardMessageParams struct {
 	OriginalMessageID string `json:"original_message_id"`
 }
 
+type PinMessageParams struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+}
+
 type MarkReadUntilParams struct {
 	RoomID    string `json:"room_id"`
 	MessageID string `json:"message_id"`
@@ -532,6 +537,20 @@ func (s *Service) ForwardMessage(ctx context.Context, params ForwardMessageParam
 		Body: map[string]any{
 			"original_message_id": params.OriginalMessageID,
 		},
+	})
+}
+
+func (s *Service) PinMessage(ctx context.Context, params PinMessageParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/pin",
+	})
+}
+
+func (s *Service) UnpinMessage(ctx context.Context, params PinMessageParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/pin",
 	})
 }
 

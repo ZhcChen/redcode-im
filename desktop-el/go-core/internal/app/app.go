@@ -580,6 +580,30 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.pin", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.PinMessageParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.PinMessage(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.unpin", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.PinMessageParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.UnpinMessage(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.read_until", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.MarkReadUntilParams
 		if err := unmarshalParams(params, &payload); err != nil {

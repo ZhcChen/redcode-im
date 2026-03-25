@@ -3177,6 +3177,116 @@ func TestAppChatForwardMessageReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatPinMessageReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-15/pin" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"room_id":   "room-2",
+			"is_pinned": true,
+			"message": map[string]any{
+				"id":              "msg-15",
+				"room_id":         "room-2",
+				"sender_id":       "u-1",
+				"sender_username": "alice",
+				"sender_nickname": "Alice",
+				"content":         "要置顶的消息",
+				"message_type":    "text",
+				"created_at":      "2026-03-25T19:00:00Z",
+				"is_pinned":       true,
+				"pinned_at":       "2026-03-25T19:05:00Z",
+				"pinned_by":       "u-9",
+			},
+			"pinned_at": "2026-03-25T19:05:00Z",
+			"pinned_by": "u-9",
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-pin",
+		Method: "chat.pin",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-15",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.pin to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.pin response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.pin envelope: %+v", envelope)
+	}
+}
+
+func TestAppChatUnpinMessageReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-15/pin" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"room_id":   "room-2",
+			"is_pinned": false,
+			"message":   nil,
+			"pinned_at": nil,
+			"pinned_by": nil,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-unpin",
+		Method: "chat.unpin",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-15",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.unpin to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.unpin response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.unpin envelope: %+v", envelope)
+	}
+}
+
 func TestAppChatReadUntilPostsMessageID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages/read_until" {

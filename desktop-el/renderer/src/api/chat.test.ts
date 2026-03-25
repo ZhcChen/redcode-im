@@ -195,6 +195,8 @@ describe("chat api", () => {
         isDeleted: false,
         isEdited: false,
         isSelf: true,
+        pinnedAt: null,
+        pinnedBy: null,
         forwardInfo: {
           sourceType: "group",
           sourceId: "room-origin-1",
@@ -207,6 +209,169 @@ describe("chat api", () => {
         },
         quotedMessage: null,
         parts: [],
+      },
+    });
+  });
+
+  test("pins message through go-core rpc and maps pinned payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                room_id: "room-1",
+                is_pinned: true,
+                message: {
+                  id: "msg-15",
+                  room_id: "room-1",
+                  sender_id: "u-1",
+                  sender_username: "alice",
+                  sender_nickname: "Alice",
+                  content: "要置顶的消息",
+                  message_type: "text",
+                  status: "sent",
+                  created_at: "2026-03-25T19:00:00Z",
+                  is_pinned: true,
+                  pinned_at: "2026-03-25T19:05:00Z",
+                  pinned_by: "u-9",
+                },
+                pinned_at: "2026-03-25T19:05:00Z",
+                pinned_by: "u-9",
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const pinMessage = (
+      ChatApi as unknown as {
+        pinMessage?: (params: {
+          roomId: string;
+          messageId: string;
+          currentUserId?: string;
+        }) => Promise<unknown>;
+      }
+    ).pinMessage;
+
+    expect(typeof pinMessage).toBe("function");
+    if (!pinMessage) {
+      return;
+    }
+
+    const response = (await pinMessage({
+      roomId: "room-1",
+      messageId: "msg-15",
+      currentUserId: "u-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.pin",
+        params: {
+          room_id: "room-1",
+          message_id: "msg-15",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        message: {
+          id: "msg-15",
+          roomId: "room-1",
+          senderId: "u-1",
+          senderUsername: "alice",
+          senderName: "Alice",
+          senderAvatarUrl: null,
+          content: "要置顶的消息",
+          preview: "要置顶的消息",
+          messageType: "text",
+          deliveryStatus: "sent",
+          createdAt: new Date("2026-03-25T19:00:00Z"),
+          isDeleted: false,
+          isEdited: false,
+          isSelf: true,
+          pinnedAt: new Date("2026-03-25T19:05:00Z"),
+          pinnedBy: "u-9",
+          forwardInfo: null,
+          quotedMessage: null,
+          parts: [],
+        },
+        isPinned: true,
+        pinnedAt: new Date("2026-03-25T19:05:00Z"),
+        pinnedBy: "u-9",
+      },
+    });
+  });
+
+  test("unpines message through go-core rpc and maps result", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                room_id: "room-1",
+                is_pinned: false,
+                message: null,
+                pinned_at: null,
+                pinned_by: null,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const unpinMessage = (
+      ChatApi as unknown as {
+        unpinMessage?: (params: {
+          roomId: string;
+          messageId: string;
+        }) => Promise<unknown>;
+      }
+    ).unpinMessage;
+
+    expect(typeof unpinMessage).toBe("function");
+    if (!unpinMessage) {
+      return;
+    }
+
+    const response = (await unpinMessage({
+      roomId: "room-1",
+      messageId: "msg-15",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.unpin",
+        params: {
+          room_id: "room-1",
+          message_id: "msg-15",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        message: null,
+        isPinned: false,
+        pinnedAt: null,
+        pinnedBy: null,
       },
     });
   });
@@ -1838,6 +2003,29 @@ describe("chat api message mapping", () => {
     });
   });
 
+  test("maps pinned fields into chat message model", () => {
+    const mapped = mapChatMessagePayload({
+      id: "msg-pin-1",
+      room_id: "room-1",
+      sender_id: "user-1",
+      sender_username: "alice",
+      sender_nickname: "Alice",
+      content: "pinned payload",
+      message_type: "text",
+      status: "sent",
+      created_at: "2026-03-25T11:00:00Z",
+      is_pinned: true,
+      pinned_at: "2026-03-25T11:05:00Z",
+      pinned_by: "user-9",
+      parts: [],
+    } as Parameters<typeof mapChatMessagePayload>[0]);
+
+    expect(mapped).toMatchObject({
+      pinnedAt: new Date("2026-03-25T11:05:00Z"),
+      pinnedBy: "user-9",
+    });
+  });
+
   test("maps forward_message payload into chat message model", () => {
     const mapped = mapChatMessagePayload({
       id: "msg-forward-2",
@@ -1967,6 +2155,26 @@ describe("chat api message mapping", () => {
       operatorId: "u-1",
       reason: "广告",
       until: new Date("2026-03-25T14:00:00Z"),
+    });
+  });
+
+  test("maps pin_update payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "pin_update",
+      room_id: "room-1",
+      message_id: "msg-15",
+      is_pinned: true,
+      pinned_at: "2026-03-25T19:05:00Z",
+      pinned_by: "u-9",
+    });
+
+    expect(mapped).toEqual({
+      type: "pin_update",
+      roomId: "room-1",
+      messageId: "msg-15",
+      isPinned: true,
+      pinnedAt: new Date("2026-03-25T19:05:00Z"),
+      pinnedBy: "u-9",
     });
   });
 });

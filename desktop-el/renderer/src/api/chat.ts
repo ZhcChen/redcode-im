@@ -261,6 +261,14 @@ interface BackendAttachmentMultipartInitiatePayload {
   totalParts?: number | null;
 }
 
+interface BackendPinResponse {
+  room_id: string;
+  is_pinned: boolean;
+  message?: BackendMessageInfo | null;
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+}
+
 interface BackendMultipartSimplePayload {
   success?: boolean;
   message?: string;
@@ -281,6 +289,9 @@ interface BackendMessageInfo {
   forward_message?: BackendForwardMessage | null;
   is_deleted?: boolean;
   is_edited?: boolean;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
+  pinned_by?: string | null;
   parts?: BackendMessagePart[];
 }
 
@@ -438,6 +449,8 @@ export interface ChatMessage {
   isDeleted: boolean;
   isEdited: boolean;
   isSelf: boolean;
+  pinnedAt: Date | null;
+  pinnedBy: string | null;
   forwardInfo: ChatForwardInfo | null;
   quotedMessage: ChatQuotedMessage | null;
   parts: ChatMessagePart[];
@@ -542,6 +555,13 @@ export interface SimpleSuccessData {
   message: string;
 }
 
+export interface PinMessageData {
+  message: ChatMessage | null;
+  isPinned: boolean;
+  pinnedAt: Date | null;
+  pinnedBy: string | null;
+}
+
 export type ChatMessagePartInput =
   | {
       type: "text";
@@ -596,6 +616,15 @@ interface BackendPushMessageUpdate {
   deleted_at?: string | null;
 }
 
+interface BackendPushPinUpdate {
+  type: "pin_update";
+  room_id: string;
+  message_id?: string | null;
+  is_pinned: boolean;
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+}
+
 interface BackendPushRoomCreated {
   type: "room_created";
   room_id: string;
@@ -643,6 +672,7 @@ export type ChatWebSocketPush =
   | BackendPushMessage
   | BackendPushMessageRead
   | BackendPushMessageUpdate
+  | BackendPushPinUpdate
   | BackendPushRoomCreated
   | BackendPushRoomUpdated
   | BackendPushGroupSettingsUpdated
@@ -670,6 +700,14 @@ export type ChatRealtimeEvent =
       messageId: string;
       isDeleted: boolean;
       deletedAt: Date | null;
+    }
+  | {
+      type: "pin_update";
+      roomId: string;
+      messageId: string | null;
+      isPinned: boolean;
+      pinnedAt: Date | null;
+      pinnedBy: string | null;
     }
   | {
       type: "room_created";
@@ -776,6 +814,12 @@ const isBackendPushMessageUpdate = (
   value.type === "message_update" &&
   typeof value.room_id === "string" &&
   typeof value.message_id === "string";
+
+const isBackendPushPinUpdate = (value: unknown): value is BackendPushPinUpdate =>
+  isRecord(value) &&
+  value.type === "pin_update" &&
+  typeof value.room_id === "string" &&
+  typeof value.is_pinned === "boolean";
 
 const isBackendPushRoomCreated = (
   value: unknown,
@@ -1283,6 +1327,30 @@ const mapSimpleSuccessData = (
   };
 };
 
+const mapPinMessageData = (
+  response: ApiResponse<BackendPinResponse>,
+  currentUserId?: string,
+): ApiResponse<PinMessageData> => {
+  if (!response.data) {
+    return {
+      ...response,
+      data: null,
+    };
+  }
+
+  return {
+    ...response,
+    data: {
+      message: response.data.message
+        ? mapChatMessagePayload(response.data.message, currentUserId)
+        : null,
+      isPinned: Boolean(response.data.is_pinned),
+      pinnedAt: parseTimestamp(response.data.pinned_at),
+      pinnedBy: response.data.pinned_by ?? null,
+    },
+  };
+};
+
 export const mapChatMessagePayload = (
   message: BackendMessageInfo,
   currentUserId?: string,
@@ -1314,6 +1382,8 @@ export const mapChatMessagePayload = (
     isDeleted: Boolean(message.is_deleted),
     isEdited: Boolean(message.is_edited),
     isSelf: currentUserId === message.sender_id,
+    pinnedAt: parseTimestamp(message.pinned_at),
+    pinnedBy: message.pinned_by ?? null,
     forwardInfo: mapForwardMessage(message.forward_message),
     quotedMessage: mapQuotedMessage(message.quoted_message),
     parts,
@@ -1384,6 +1454,18 @@ export const mapChatRealtimeEvent = (
         deletedAt: parseTimestamp(
           typeof payload.deleted_at === "string" ? payload.deleted_at : null,
         ),
+      };
+    case "pin_update":
+      if (!isBackendPushPinUpdate(payload)) {
+        return null;
+      }
+      return {
+        type: "pin_update",
+        roomId: payload.room_id,
+        messageId: payload.message_id ?? null,
+        isPinned: payload.is_pinned,
+        pinnedAt: parseTimestamp(payload.pinned_at),
+        pinnedBy: payload.pinned_by ?? null,
       };
     case "room_created":
       if (!isBackendPushRoomCreated(payload)) {
@@ -2170,6 +2252,34 @@ export class ChatApi {
         params.currentUserId,
       ),
     };
+  }
+
+  static async pinMessage(params: {
+    roomId: string;
+    messageId: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<PinMessageData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendPinResponse>
+    >("chat.pin", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+    });
+    return mapPinMessageData(response, params.currentUserId);
+  }
+
+  static async unpinMessage(params: {
+    roomId: string;
+    messageId: string;
+    currentUserId?: string;
+  }): Promise<ApiResponse<PinMessageData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendPinResponse>
+    >("chat.unpin", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+    });
+    return mapPinMessageData(response, params.currentUserId);
   }
 
   static async readUntil(params: {

@@ -164,6 +164,7 @@ const isRemovingGroupMembers = ref(false);
 const isTransferringGroupOwner = ref(false);
 const isForwardingMessage = ref(false);
 const isSending = ref(false);
+const pinningMessageId = ref<string | null>(null);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
 const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
@@ -774,6 +775,8 @@ const formatAttachmentType = (partType: ChatMessagePart["partType"]) => {
   }
 };
 
+const isMessagePinned = (message: ChatMessage) => Boolean(message.pinnedAt);
+
 const canForwardMessage = (message: ChatMessage | null) => {
   if (!message || message.isDeleted || message.messageType === "system") {
     return false;
@@ -806,6 +809,36 @@ const formatForwardOriginLabel = (forwardInfo: ChatForwardInfo | null) => {
     return null;
   }
   return `原发送者 ${forwardInfo.originSenderName}`;
+};
+
+const patchMessagePinState = (payload: {
+  messageId: string;
+  pinnedAt: Date | null;
+  pinnedBy: string | null;
+  message?: ChatMessage | null;
+}) => {
+  const targetIndex = messages.value.findIndex(
+    (message) => message.id === payload.messageId,
+  );
+  if (targetIndex === -1) {
+    return;
+  }
+
+  const existing = messages.value[targetIndex];
+  const nextMessage = payload.message
+    ? {
+        ...existing,
+        ...payload.message,
+        pinnedAt: payload.pinnedAt,
+        pinnedBy: payload.pinnedBy,
+      }
+    : {
+        ...existing,
+        pinnedAt: payload.pinnedAt,
+        pinnedBy: payload.pinnedBy,
+      };
+
+  messages.value.splice(targetIndex, 1, nextMessage);
 };
 
 const formatAttachmentSize = (size: number | null) => {
@@ -3215,6 +3248,55 @@ const handleForwardMessage = async (payload: {
   }
 };
 
+const handleTogglePinMessage = async (message: ChatMessage) => {
+  const roomId = selectedChatId.value;
+  if (
+    !roomId ||
+    message.isDeleted ||
+    message.messageType === "system" ||
+    pinningMessageId.value
+  ) {
+    return;
+  }
+
+  pinningMessageId.value = message.id;
+  const nextPinned = !isMessagePinned(message);
+  try {
+    const response = nextPinned
+      ? await ChatApi.pinMessage({
+          roomId,
+          messageId: message.id,
+          currentUserId: props.currentUser.id,
+        })
+      : await ChatApi.unpinMessage({
+          roomId,
+          messageId: message.id,
+          currentUserId: props.currentUser.id,
+        });
+    if (!response.success || !response.data) {
+      notice.value = response.message || (nextPinned ? "置顶消息失败" : "取消置顶失败");
+      return;
+    }
+
+    patchMessagePinState({
+      messageId: message.id,
+      pinnedAt: response.data.isPinned ? response.data.pinnedAt : null,
+      pinnedBy: response.data.isPinned ? response.data.pinnedBy : null,
+      message: response.data.message,
+    });
+    notice.value = nextPinned ? "消息已置顶。" : "消息已取消置顶。";
+  } catch (error) {
+    notice.value =
+      error instanceof Error
+        ? error.message
+        : nextPinned
+          ? "置顶消息失败"
+          : "取消置顶失败";
+  } finally {
+    pinningMessageId.value = null;
+  }
+};
+
 const handleDeleteMessage = async (message: ChatMessage) => {
   const roomId = selectedChatId.value;
   if (!roomId || !message.isSelf || deletingMessageId.value) {
@@ -3439,6 +3521,17 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
       preserveNotice: true,
       reloadMessages: event.roomId === activeRoomId,
     });
+    return;
+  }
+
+  if (event.type === "pin_update") {
+    if (event.roomId === activeRoomId && event.messageId) {
+      patchMessagePinState({
+        messageId: event.messageId,
+        pinnedAt: event.isPinned ? event.pinnedAt : null,
+        pinnedBy: event.isPinned ? event.pinnedBy : null,
+      });
+    }
     return;
   }
 };
@@ -4138,7 +4231,15 @@ onMounted(() => {
                   <strong>{{
                     message.isSelf ? "我" : message.senderName
                   }}</strong>
-                  <span>{{ formatDetailTime(message.createdAt) }}</span>
+                  <span class="message-card__meta-trailing">
+                    <span
+                      v-if="isMessagePinned(message)"
+                      class="message-card__pin-badge"
+                    >
+                      已置顶
+                    </span>
+                    <span>{{ formatDetailTime(message.createdAt) }}</span>
+                  </span>
                 </div>
                 <div v-if="message.forwardInfo" class="forward-block">
                   <strong
@@ -4317,6 +4418,25 @@ onMounted(() => {
                   <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
+                    :disabled="
+                      message.isDeleted ||
+                      pinningMessageId === message.id
+                    "
+                    @click="void handleTogglePinMessage(message)"
+                  >
+                    {{
+                      pinningMessageId === message.id
+                        ? isMessagePinned(message)
+                          ? "取消中..."
+                          : "置顶中..."
+                        : isMessagePinned(message)
+                          ? "取消置顶"
+                          : "置顶"
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
                     :disabled="!canForwardMessage(message) || isForwardingMessage"
                     @click="void handleOpenForwardMessageModal(message)"
                   >
@@ -4345,6 +4465,7 @@ onMounted(() => {
                 <small class="message-card__footer">
                   {{ message.messageType }}
                   <template v-if="message.isEdited"> / 已编辑</template>
+                  <template v-if="isMessagePinned(message)"> / 已置顶</template>
                   <template v-if="message.deliveryStatus">
                     / {{ message.deliveryStatus }}</template
                   >
@@ -5163,8 +5284,25 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.message-card__meta-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .message-card__meta strong {
   color: var(--text-primary);
+}
+
+.message-card__pin-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #92400e;
+  font-weight: 600;
 }
 
 .message-card__body {
