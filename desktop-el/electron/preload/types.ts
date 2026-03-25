@@ -104,6 +104,20 @@ export interface DesktopFileSaveFromURLResult {
   filePath: string;
 }
 
+export interface DesktopFileCachePathOptions {
+  relativePath: string;
+}
+
+export interface DesktopFileCachePathResult {
+  filePath: string;
+  fileUrl: string;
+}
+
+export interface DesktopFileCacheFromURLOptions {
+  url: string;
+  relativePath: string;
+}
+
 export interface DesktopAppAPI {
   getVersion(): Promise<string>;
   quit(): Promise<void>;
@@ -128,6 +142,8 @@ export interface DesktopNotificationAPI {
 
 export interface DesktopFileAPI {
   saveFromURL(options: DesktopFileSaveFromURLOptions): Promise<DesktopFileSaveFromURLResult>;
+  getCachedPath(options: DesktopFileCachePathOptions): Promise<DesktopFileCachePathResult | null>;
+  cacheFromURL(options: DesktopFileCacheFromURLOptions): Promise<DesktopFileCachePathResult>;
   openPath(path: string): Promise<void>;
 }
 

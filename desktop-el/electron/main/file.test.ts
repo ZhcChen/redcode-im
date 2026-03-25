@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createServer, type Server } from "node:http";
 import {
   electronMockState,
@@ -77,5 +78,61 @@ describe("createFileService", () => {
     await service.openPath("/tmp/demo.txt");
 
     expect(electronMockState.openPathCalls).toEqual(["/tmp/demo.txt"]);
+  });
+
+  test("returns null for cache miss and caches remote file into cache directory", async () => {
+    const cacheRootDir = join(tempDir, "cache-root");
+    const service = createFileService({ cacheRootDir }) as typeof createFileService extends (
+      ...args: any[]
+    ) => infer T
+      ? T & {
+          getCachedPath?: (options: { relativePath: string }) => Promise<{
+            filePath: string;
+            fileUrl: string;
+          } | null>;
+          cacheFromURL?: (options: {
+            url: string;
+            relativePath: string;
+          }) => Promise<{
+            filePath: string;
+            fileUrl: string;
+          }>;
+        }
+      : never;
+
+    expect(typeof service.getCachedPath).toBe("function");
+    expect(typeof service.cacheFromURL).toBe("function");
+    if (!service.getCachedPath || !service.cacheFromURL) {
+      return;
+    }
+
+    const relativePath = "rooms/room-1/messages/demo.txt";
+    const expectedPath = join(cacheRootDir, relativePath);
+    const expectedUrl = pathToFileURL(expectedPath).toString();
+
+    await expect(
+      service.getCachedPath({ relativePath }),
+    ).resolves.toBeNull();
+
+    await expect(
+      service.cacheFromURL({
+        url: `${baseURL}/cached-demo.txt`,
+        relativePath,
+      }),
+    ).resolves.toEqual({
+      filePath: expectedPath,
+      fileUrl: expectedUrl,
+    });
+
+    await expect(readFile(expectedPath, "utf8")).resolves.toBe(
+      "desktop-el attachment",
+    );
+
+    await expect(
+      service.getCachedPath({ relativePath }),
+    ).resolves.toEqual({
+      filePath: expectedPath,
+      fileUrl: expectedUrl,
+    });
   });
 });

@@ -30,6 +30,14 @@ describe("registerShellIpc", () => {
       },
       file: {
         saveFromURL: async () => ({ filePath: "/tmp/file.txt" }),
+        getCachedPath: async () => ({
+          filePath: "/tmp/cache/demo.txt",
+          fileUrl: "file:///tmp/cache/demo.txt",
+        }),
+        cacheFromURL: async () => ({
+          filePath: "/tmp/cache/demo.txt",
+          fileUrl: "file:///tmp/cache/demo.txt",
+        }),
         openPath: async () => {}
       },
       notification: {
@@ -59,6 +67,21 @@ describe("registerShellIpc", () => {
     });
 
     expect(saved).toEqual({ filePath: "/tmp/file.txt" });
+
+    const cached = await electronMockState.registeredHandler?.(undefined, {
+      namespace: "file",
+      method: "getCachedPath",
+      params: {
+        options: {
+          relativePath: "rooms/room-1/messages/demo.txt"
+        }
+      }
+    });
+
+    expect(cached).toEqual({
+      filePath: "/tmp/cache/demo.txt",
+      fileUrl: "file:///tmp/cache/demo.txt",
+    });
 
     cleanup();
     expect(electronMockState.registeredHandler).toBeUndefined();

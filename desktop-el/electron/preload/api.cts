@@ -107,6 +107,12 @@ const desktopElAPI: DesktopElAPI = {
     saveFromURL(options) {
       return invokeShell("file", "saveFromURL", { options });
     },
+    getCachedPath(options) {
+      return invokeShell("file", "getCachedPath", { options });
+    },
+    cacheFromURL(options) {
+      return invokeShell("file", "cacheFromURL", { options });
+    },
     openPath(path: string): Promise<void> {
       return invokeShell("file", "openPath", { path });
     }

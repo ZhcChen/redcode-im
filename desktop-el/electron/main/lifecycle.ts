@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { join } from "node:path";
 import {
   acquireSingleInstanceLock,
   createAppService,
@@ -33,7 +34,9 @@ export const createDesktopLifecycle = (): DesktopLifecycle => {
   const rpcDispatcher = new RpcDispatcher(goCore);
   const appService = createAppService();
   const dialogService = createDialogService(windowController);
-  const fileService = createFileService();
+  const fileService = createFileService({
+    cacheRootDir: join(app.getPath("userData"), "attachment-cache")
+  });
   const notificationService = createNotificationService();
   const trayController = new AppTrayController({
     onShow: () => {

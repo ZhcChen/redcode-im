@@ -105,6 +105,19 @@ type DesktopRuntimeWithFile = NonNullable<Window["desktopEl"]> & {
       url: string;
       filePath: string;
     }): Promise<{ filePath: string }>;
+    getCachedPath(options: {
+      relativePath: string;
+    }): Promise<{
+      filePath: string;
+      fileUrl: string;
+    } | null>;
+    cacheFromURL(options: {
+      url: string;
+      relativePath: string;
+    }): Promise<{
+      filePath: string;
+      fileUrl: string;
+    }>;
     openPath(path: string): Promise<void>;
   };
 };
@@ -1173,6 +1186,43 @@ const getAttachmentPlayableUrl = (
 ) =>
   attachmentPlayableUrls.value[getAttachmentPlayableKey(message, part)] ?? null;
 
+const normalizeAttachmentCacheKey = (key: string) =>
+  key.trim().replace(/^[/\\]+/, "").replace(/\.\.(?=\/|\\|$)/g, "__");
+
+const buildAttachmentCacheRelativePath = (
+  kind: "preview" | "playable",
+  key: string,
+) => `${kind}/${normalizeAttachmentCacheKey(key)}`;
+
+const storeCachedAttachmentAsset = (
+  message: ChatMessage,
+  part: ChatMessagePart,
+  payload: {
+    filePath: string;
+    fileUrl: string;
+    preview?: boolean;
+    playable?: boolean;
+  },
+) => {
+  if (payload.preview) {
+    attachmentPreviewUrls.value = {
+      ...attachmentPreviewUrls.value,
+      [getAttachmentPreviewKey(message, part)]: payload.fileUrl,
+    };
+  }
+  if (payload.playable) {
+    const actionKey = getAttachmentActionKey(message, part);
+    downloadedAttachmentPaths.value = {
+      ...downloadedAttachmentPaths.value,
+      [actionKey]: payload.filePath,
+    };
+    attachmentPlayableUrls.value = {
+      ...attachmentPlayableUrls.value,
+      [getAttachmentPlayableKey(message, part)]: payload.fileUrl,
+    };
+  }
+};
+
 const isAttachmentPreviewLoading = (
   message: ChatMessage,
   part: ChatMessagePart,
@@ -1573,16 +1623,50 @@ const ensureAttachmentPreviewUrl = async (
   setAttachmentPreviewLoading(previewKey, true);
   setAttachmentPreviewFailure(previewKey, null);
   try {
+    const runtime = requireDesktopRuntime();
+    const relativePath = buildAttachmentCacheRelativePath(
+      "preview",
+      previewAssetKey,
+    );
+    const cachedAsset = await runtime.file.getCachedPath({
+      relativePath,
+    });
+    if (cachedAsset) {
+      storeCachedAttachmentAsset(message, part, {
+        filePath: cachedAsset.filePath,
+        fileUrl: cachedAsset.fileUrl,
+        preview: true,
+      });
+      return cachedAsset.fileUrl;
+    }
+
     const previewUrl = await attachmentPreviewUrlStore.resolve({
       roomId: message.roomId,
       key: previewAssetKey,
       expiresInSeconds: 900,
     });
-    attachmentPreviewUrls.value = {
-      ...attachmentPreviewUrls.value,
-      [previewKey]: previewUrl,
-    };
-    return previewUrl;
+    try {
+      const cached = await runtime.file.cacheFromURL({
+        url: previewUrl,
+        relativePath,
+      });
+      storeCachedAttachmentAsset(message, part, {
+        filePath: cached.filePath,
+        fileUrl: cached.fileUrl,
+        preview: true,
+      });
+      return cached.fileUrl;
+    } catch (cacheError) {
+      console.warn(
+        "[desktop-el-renderer] attachment preview cache failed, fallback to signed url",
+        cacheError,
+      );
+      attachmentPreviewUrls.value = {
+        ...attachmentPreviewUrls.value,
+        [previewKey]: previewUrl,
+      };
+      return previewUrl;
+    }
   } catch (error) {
     const fallbackMessage =
       error instanceof Error ? error.message : "加载附件预览失败";
@@ -1610,16 +1694,50 @@ const ensureAttachmentPlayableUrl = async (
   }
 
   try {
+    const runtime = requireDesktopRuntime();
+    const relativePath = buildAttachmentCacheRelativePath(
+      "playable",
+      attachmentKey,
+    );
+    const cachedAsset = await runtime.file.getCachedPath({
+      relativePath,
+    });
+    if (cachedAsset) {
+      storeCachedAttachmentAsset(message, part, {
+        filePath: cachedAsset.filePath,
+        fileUrl: cachedAsset.fileUrl,
+        playable: true,
+      });
+      return cachedAsset.fileUrl;
+    }
+
     const playableUrl = await attachmentPreviewUrlStore.resolve({
       roomId: message.roomId,
       key: attachmentKey,
       expiresInSeconds: 900,
     });
-    attachmentPlayableUrls.value = {
-      ...attachmentPlayableUrls.value,
-      [playableKey]: playableUrl,
-    };
-    return playableUrl;
+    try {
+      const cached = await runtime.file.cacheFromURL({
+        url: playableUrl,
+        relativePath,
+      });
+      storeCachedAttachmentAsset(message, part, {
+        filePath: cached.filePath,
+        fileUrl: cached.fileUrl,
+        playable: true,
+      });
+      return cached.fileUrl;
+    } catch (cacheError) {
+      console.warn(
+        "[desktop-el-renderer] attachment playable cache failed, fallback to signed url",
+        cacheError,
+      );
+      attachmentPlayableUrls.value = {
+        ...attachmentPlayableUrls.value,
+        [playableKey]: playableUrl,
+      };
+      return playableUrl;
+    }
   } catch (error) {
     const fallbackMessage =
       error instanceof Error ? error.message : "加载附件媒体失败";
@@ -4176,13 +4294,17 @@ const handleOpenAttachment = async (
   message: ChatMessage,
   part: ChatMessagePart,
 ) => {
-  const localPath = getAttachmentLocalPath(message, part);
-  if (!localPath) {
-    await handleDownloadAttachment(message, part);
-    return;
-  }
-
   try {
+    let localPath = getAttachmentLocalPath(message, part);
+    if (!localPath) {
+      await ensureAttachmentPlayableUrl(message, part);
+      localPath = getAttachmentLocalPath(message, part);
+    }
+    if (!localPath) {
+      await handleDownloadAttachment(message, part);
+      return;
+    }
+
     await requireDesktopRuntime().file.openPath(localPath);
     notice.value = `${getAttachmentName(part)} 已打开。`;
   } catch (error) {
@@ -5328,15 +5450,18 @@ onBeforeUnmount(() => {
                         预览
                       </button>
                       <button
-                        v-if="getAttachmentLocalPath(message, part)"
                         type="button"
                         class="attachment-card__action attachment-card__action--secondary"
+                        :disabled="isAttachmentDownloading(message, part)"
                         @click="void handleOpenAttachment(message, part)"
                       >
-                        打开
+                        {{
+                          isAttachmentDownloading(message, part)
+                            ? "准备中..."
+                            : "打开"
+                        }}
                       </button>
                       <button
-                        v-else
                         type="button"
                         class="attachment-card__action"
                         :disabled="isAttachmentDownloading(message, part)"

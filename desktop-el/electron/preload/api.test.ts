@@ -11,6 +11,8 @@ const getExposedAPI = () => electronMockState.exposedAPI as
   };
   file: {
     saveFromURL: (options: { url: string; filePath: string }) => Promise<unknown>;
+    getCachedPath: (options: { relativePath: string }) => Promise<unknown>;
+    cacheFromURL: (options: { url: string; relativePath: string }) => Promise<unknown>;
     openPath: (path: string) => Promise<unknown>;
   };
 }
@@ -91,5 +93,64 @@ describe("desktopEl preload rpc api", () => {
 
     electronMockState.resolveInvoke?.({ filePath: "/tmp/file.txt" });
     await expect(savePromise).resolves.toEqual({ filePath: "/tmp/file.txt" });
+  });
+
+  test("forwards file cache shell calls through shell invoke channel", async () => {
+    const exposedAPI = getExposedAPI();
+    expect(exposedAPI).toBeDefined();
+
+    const cachedPathPromise = exposedAPI!.file.getCachedPath({
+      relativePath: "rooms/room-1/messages/demo.txt",
+    });
+
+    expect(electronMockState.invokeArgs).toEqual([
+      "desktop-el:shell:invoke",
+      {
+        namespace: "file",
+        method: "getCachedPath",
+        params: {
+          options: {
+            relativePath: "rooms/room-1/messages/demo.txt",
+          },
+        },
+      },
+    ]);
+
+    electronMockState.resolveInvoke?.({
+      filePath: "/tmp/cache/rooms/room-1/messages/demo.txt",
+      fileUrl: "file:///tmp/cache/rooms/room-1/messages/demo.txt",
+    });
+    await expect(cachedPathPromise).resolves.toEqual({
+      filePath: "/tmp/cache/rooms/room-1/messages/demo.txt",
+      fileUrl: "file:///tmp/cache/rooms/room-1/messages/demo.txt",
+    });
+
+    const cacheFromURLPromise = exposedAPI!.file.cacheFromURL({
+      url: "https://download.example.com/file.txt",
+      relativePath: "rooms/room-1/messages/demo.txt",
+    });
+
+    expect(electronMockState.invokeArgs).toEqual([
+      "desktop-el:shell:invoke",
+      {
+        namespace: "file",
+        method: "cacheFromURL",
+        params: {
+          options: {
+            url: "https://download.example.com/file.txt",
+            relativePath: "rooms/room-1/messages/demo.txt",
+          },
+        },
+      },
+    ]);
+
+    electronMockState.resolveInvoke?.({
+      filePath: "/tmp/cache/rooms/room-1/messages/demo.txt",
+      fileUrl: "file:///tmp/cache/rooms/room-1/messages/demo.txt",
+    });
+    await expect(cacheFromURLPromise).resolves.toEqual({
+      filePath: "/tmp/cache/rooms/room-1/messages/demo.txt",
+      fileUrl: "file:///tmp/cache/rooms/room-1/messages/demo.txt",
+    });
   });
 });
