@@ -1,4 +1,6 @@
-import type { ApiResponse } from "./http";
+import { post, type ApiResponse } from "./http";
+import { computeFileHash } from "../utils/fileHash";
+import { uploadWithSignature } from "../utils/chat-attachment-upload";
 
 type BackendRoomType = "private" | "group" | "public" | "favorite";
 type BackendMessageType =
@@ -171,6 +173,12 @@ interface BackendAttachmentSignaturePayload {
   message?: string;
   key?: string | null;
   signature?: BackendDirectUploadSignature | null;
+}
+
+interface BackendRoomAvatarCommitPayload {
+  success?: boolean;
+  message?: string;
+  avatar_url?: string | null;
 }
 
 interface BackendAttachmentMultipartInitiatePayload {
@@ -357,6 +365,10 @@ export interface AttachmentSignatureData {
   key: string;
   signature: DirectUploadSignatureInfo | null;
   message?: string;
+}
+
+export interface GroupAvatarUploadData {
+  avatarUrl: string;
 }
 
 export interface AttachmentMultipartInitiateData {
@@ -562,6 +574,7 @@ const parseTimestamp = (value?: string | null): Date | null => {
   }
   return parsed;
 };
+
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -1192,6 +1205,98 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? mapCreatedGroupChat(response.data) : null,
+    };
+  }
+
+  static async uploadGroupAvatar(params: {
+    roomId: string;
+    file: File;
+  }): Promise<ApiResponse<GroupAvatarUploadData>> {
+    const contentType = params.file.type || "application/octet-stream";
+    const { hashValue, hashAlg } = await computeFileHash(params.file);
+    const directUploadBody: Record<string, unknown> = {
+      content_type: contentType,
+      filename: params.file.name,
+      file_size: params.file.size,
+    };
+    if (hashValue) {
+      directUploadBody.hash_value = hashValue;
+    }
+    if (typeof hashAlg === "number") {
+      directUploadBody.hash_alg = hashAlg;
+    }
+
+    const directResponse = await post<BackendAttachmentSignaturePayload>(
+      `/rooms/${params.roomId}/avatar/direct-upload`,
+      directUploadBody,
+    );
+    if (!directResponse.success || !directResponse.data) {
+      return {
+        ...directResponse,
+        data: null,
+      };
+    }
+
+    const directPayload = directResponse.data;
+    const directSuccess =
+      typeof directPayload.success === "boolean"
+        ? directPayload.success
+        : directResponse.success;
+    const key = directPayload.key ?? directPayload.signature?.key ?? null;
+    const directMessage =
+      directPayload.message || directResponse.message || "";
+    if (!directSuccess || !key) {
+      return {
+        code: directResponse.code,
+        success: false,
+        message: directMessage || "获取群头像上传签名失败",
+        data: null,
+      };
+    }
+
+    const signature = normalizeDirectUploadSignature(
+      directPayload.signature,
+      key,
+    );
+    if (signature) {
+      await uploadWithSignature(signature, params.file);
+    }
+
+    const commitResponse = await post<BackendRoomAvatarCommitPayload>(
+      `/rooms/${params.roomId}/avatar/commit`,
+      { key },
+    );
+    if (!commitResponse.success || !commitResponse.data) {
+      return {
+        ...commitResponse,
+        data: null,
+      };
+    }
+
+    const commitPayload = commitResponse.data;
+    const commitSuccess =
+      typeof commitPayload.success === "boolean"
+        ? commitPayload.success
+        : commitResponse.success;
+    const avatarUrl = commitPayload.avatar_url ?? null;
+    const commitMessage =
+      commitPayload.message || commitResponse.message || "";
+    if (!commitSuccess || !avatarUrl) {
+      return {
+        code: commitResponse.code,
+        success: false,
+        message: commitMessage || "群头像上传失败",
+        data: null,
+      };
+    }
+
+    return {
+      code: commitResponse.code,
+      success: true,
+      message: commitMessage || "群头像上传成功",
+      data: {
+        avatarUrl,
+      },
     };
   }
 

@@ -37,6 +37,10 @@ import {
 } from "@/utils/chat-group-permissions";
 import { resolveGroupMaxMembersUpdate } from "@/utils/chat-group-settings";
 import { getGroupRealtimePlan } from "@/utils/chat-group-realtime";
+import {
+  AVATAR_INPUT_ACCEPT,
+  validateAvatarFile,
+} from "@/utils/user-avatar-upload";
 import CreateGroupModal from "./CreateGroupModal.vue";
 
 interface OpenChatRequest {
@@ -99,6 +103,7 @@ const isCreateGroupModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
+const groupAvatarInputRef = ref<HTMLInputElement | null>(null);
 const pendingAttachments = ref<PendingComposerAttachment[]>([]);
 const attachmentUploadProgress = ref<number | null>(null);
 const attachmentUploadProgressById = ref<Record<string, number>>({});
@@ -111,6 +116,7 @@ const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
+const isUpdatingGroupAvatar = ref(false);
 const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
 const groupMaxMembersDraft = ref("");
 const sendingMode = ref<"text" | "attachment" | null>(null);
@@ -166,6 +172,15 @@ const selectedChat = computed(
 const isSelectedGroupChat = computed(
   () => selectedChat.value?.roomType === "group",
 );
+const selectedChatAvatarUrl = computed(() => {
+  if (!selectedChat.value) {
+    return null;
+  }
+  if (isSelectedGroupChat.value) {
+    return groupDetail.value?.avatarUrl ?? selectedChat.value.avatarUrl ?? null;
+  }
+  return selectedChat.value.avatarUrl ?? null;
+});
 const sortedGroupMembers = computed(() => {
   const roleOrder: Record<ChatRoomMember["role"], number> = {
     owner: 0,
@@ -348,6 +363,9 @@ const formatRoomMemberRole = (role: ChatRoomMember["role"]) => {
 };
 
 const formatBooleanLabel = (value: boolean) => (value ? "开启" : "关闭");
+
+const getAvatarFallbackText = (value: string | null | undefined) =>
+  value?.slice(0, 1).toUpperCase() || "#";
 
 const mapGroupCreateFriend = (friend: FriendInfo): GroupCreateFriendOption => {
   const remark = friend.friendRemark?.trim() ?? "";
@@ -571,6 +589,24 @@ const resetPendingAttachments = () => {
   attachmentUploadProgressById.value = {};
   if (attachmentInputRef.value) {
     attachmentInputRef.value.value = "";
+  }
+};
+
+const patchRoomAvatar = (roomId: string, avatarUrl: string) => {
+  chats.value = chats.value.map((chat) =>
+    chat.roomId === roomId
+      ? {
+          ...chat,
+          avatarUrl,
+        }
+      : chat,
+  );
+
+  if (groupDetail.value?.roomId === roomId) {
+    groupDetail.value = {
+      ...groupDetail.value,
+      avatarUrl,
+    };
   }
 };
 
@@ -1262,6 +1298,76 @@ const handleToggleRequireAdminToAddFriends = async () => {
   );
 };
 
+const handleOpenGroupAvatarPicker = () => {
+  if (
+    !isSelectedGroupChat.value ||
+    !canManageSelectedGroup.value ||
+    isUpdatingGroupAvatar.value
+  ) {
+    return;
+  }
+  groupAvatarInputRef.value?.click();
+};
+
+const handleGroupAvatarSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0] ?? null;
+  if (input) {
+    input.value = "";
+  }
+  if (!file) {
+    return;
+  }
+
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "当前未选中群聊，无法上传群头像。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有修改群头像的权限。";
+    return;
+  }
+
+  const validationMessage = validateAvatarFile(file);
+  if (validationMessage) {
+    notice.value = validationMessage;
+    return;
+  }
+
+  isUpdatingGroupAvatar.value = true;
+  notice.value = `正在上传群头像 ${file.name}...`;
+  try {
+    const response = await ChatApi.uploadGroupAvatar({
+      roomId,
+      file,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "群头像上传失败";
+      return;
+    }
+
+    patchRoomAvatar(roomId, response.data.avatarUrl);
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+    notice.value = `群头像 ${file.name} 已上传。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "群头像上传失败";
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+  } finally {
+    isUpdatingGroupAvatar.value = false;
+  }
+};
+
 const handleSubmitMaxMembers = async () => {
   if (!groupSettings.value) {
     return;
@@ -1789,9 +1895,17 @@ onMounted(() => {
             :class="{ 'chat-row--active': selectedChat?.id === chat.id }"
             @click="void selectChat(chat.id)"
           >
-            <span class="chat-row__avatar">{{
-              chat.title.slice(0, 1).toUpperCase()
-            }}</span>
+            <span class="chat-row__avatar">
+              <img
+                v-if="chat.avatarUrl"
+                :src="chat.avatarUrl"
+                :alt="chat.title"
+                class="chat-row__avatar-image"
+              />
+              <template v-else>{{
+                getAvatarFallbackText(chat.title)
+              }}</template>
+            </span>
             <span class="chat-row__copy">
               <span class="chat-row__topline">
                 <strong>{{ chat.title }}</strong>
@@ -1811,9 +1925,17 @@ onMounted(() => {
       <article class="chat-panel__detail">
         <template v-if="selectedChat">
           <div class="chat-hero">
-            <span class="chat-hero__avatar">{{
-              selectedChat.title.slice(0, 1).toUpperCase()
-            }}</span>
+            <span class="chat-hero__avatar">
+              <img
+                v-if="selectedChatAvatarUrl"
+                :src="selectedChatAvatarUrl"
+                :alt="selectedChat.title"
+                class="chat-hero__avatar-image"
+              />
+              <template v-else>{{
+                getAvatarFallbackText(selectedChat.title)
+              }}</template>
+            </span>
             <div>
               <h3>{{ selectedChat.title }}</h3>
               <p>
@@ -1856,14 +1978,32 @@ onMounted(() => {
 
           <section v-if="isSelectedGroupChat" class="group-panel">
             <div class="group-panel__header">
-              <h4>群详情</h4>
-              <small v-if="isLoadingGroupContext">同步中...</small>
-              <small v-else>{{
-                groupMembers.length
-                  ? `${groupMembers.length} 名成员`
-                  : "成员列表待同步"
-              }}</small>
+              <div class="group-panel__header-copy">
+                <h4>群详情</h4>
+                <small v-if="isLoadingGroupContext">同步中...</small>
+                <small v-else>{{
+                  groupMembers.length
+                    ? `${groupMembers.length} 名成员`
+                    : "成员列表待同步"
+                }}</small>
+              </div>
+              <button
+                v-if="canManageSelectedGroup"
+                type="button"
+                class="group-panel__action"
+                :disabled="isUpdatingGroupAvatar"
+                @click="handleOpenGroupAvatarPicker"
+              >
+                {{ isUpdatingGroupAvatar ? "上传中..." : "上传群头像" }}
+              </button>
             </div>
+            <input
+              ref="groupAvatarInputRef"
+              class="group-panel__file-input"
+              type="file"
+              :accept="AVATAR_INPUT_ACCEPT"
+              @change="handleGroupAvatarSelected"
+            />
 
             <div
               v-if="
@@ -2781,6 +2921,8 @@ onMounted(() => {
 
 .chat-row__avatar,
 .chat-hero__avatar {
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
   width: 52px;
@@ -2790,6 +2932,13 @@ onMounted(() => {
   color: #ffffff;
   font-size: 20px;
   font-weight: 700;
+}
+
+.chat-row__avatar-image,
+.chat-hero__avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .chat-row__copy,
@@ -2893,6 +3042,11 @@ onMounted(() => {
   gap: 12px;
 }
 
+.group-panel__header-copy {
+  display: grid;
+  gap: 4px;
+}
+
 .group-panel__header h4 {
   margin: 0;
   color: var(--text-primary);
@@ -2909,6 +3063,10 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   margin: 0;
+}
+
+.group-panel__file-input {
+  display: none;
 }
 
 .group-panel__detail-list div {

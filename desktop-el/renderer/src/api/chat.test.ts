@@ -1,8 +1,43 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ChatApi, mapChatMessagePayload, mapChatRealtimeEvent } from "./chat";
 
+class MockXMLHttpRequest {
+  static instances: MockXMLHttpRequest[] = [];
+
+  method = "";
+  url = "";
+  headers: Record<string, string> = {};
+  body: BodyInit | null = null;
+  status = 200;
+  upload = {
+    onprogress: null as ((event: ProgressEvent<EventTarget>) => void) | null,
+  };
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  onload: (() => void) | null = null;
+
+  constructor() {
+    MockXMLHttpRequest.instances.push(this);
+  }
+
+  open(method: string, url: string) {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(headerKey: string, headerValue: string) {
+    this.headers[headerKey] = headerValue;
+  }
+
+  send(body: BodyInit | null) {
+    this.body = body;
+    this.onload?.();
+  }
+}
+
 describe("chat api", () => {
   const originalWindow = globalThis.window;
+  const originalXMLHttpRequest = globalThis.XMLHttpRequest;
   let calls: Array<{
     method: string;
     params: Record<string, unknown> | undefined;
@@ -10,9 +45,11 @@ describe("chat api", () => {
 
   beforeEach(() => {
     calls = [];
+    MockXMLHttpRequest.instances = [];
   });
 
   afterEach(() => {
+    globalThis.XMLHttpRequest = originalXMLHttpRequest;
     if (originalWindow) {
       globalThis.window = originalWindow;
       return;
@@ -487,6 +524,129 @@ describe("chat api", () => {
         createdAt: new Date("2026-03-25T12:00:00Z"),
         updatedAt: new Date("2026-03-25T13:20:00Z"),
         myMute: null,
+      },
+    });
+  });
+
+  test("uploads group avatar through direct upload, commits it, and returns avatar url", async () => {
+    globalThis.XMLHttpRequest =
+      MockXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    const file = new File(["group-avatar"], "group-avatar.png", {
+      type: "image/png",
+    });
+
+    globalThis.window = {
+      crypto: {
+        subtle: {
+          digest: async () => new Uint8Array([0, 1, 255]).buffer,
+        },
+      },
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            const path = params?.path;
+
+            if (
+              method === "http.request" &&
+              path === "/rooms/room-group-1/avatar/direct-upload"
+            ) {
+              return {
+                code: 200,
+                success: true,
+                message: "ok",
+                data: {
+                  success: true,
+                  message: "signature ready",
+                  key: "room_avatars/room-group-1/avatar.png",
+                  signature: {
+                    url: "https://upload.example.com/group-avatar",
+                    method: "PUT",
+                    headers: {
+                      Authorization: "signed-token",
+                      Host: "upload.example.com",
+                    },
+                    key: "room_avatars/room-group-1/avatar.png",
+                  },
+                },
+              };
+            }
+
+            if (
+              method === "http.request" &&
+              path === "/rooms/room-group-1/avatar/commit"
+            ) {
+              return {
+                code: 200,
+                success: true,
+                message: "ok",
+                data: {
+                  success: true,
+                  message: "avatar committed",
+                  avatar_url: "https://static.example.com/group-avatar.png",
+                },
+              };
+            }
+
+            throw new Error(`unexpected rpc call: ${method} ${path ?? ""}`);
+          },
+        },
+      },
+    } as unknown as Window;
+
+    const response = await ChatApi.uploadGroupAvatar({
+      roomId: "room-group-1",
+      file,
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "http.request",
+        params: {
+          method: "POST",
+          path: "/rooms/room-group-1/avatar/direct-upload",
+          headers: undefined,
+          body: {
+            content_type: "image/png",
+            filename: "group-avatar.png",
+            file_size: file.size,
+            hash_value: "0001ff",
+            hash_alg: 2,
+          },
+          query_params: undefined,
+          inject_token: undefined,
+        },
+      },
+      {
+        method: "http.request",
+        params: {
+          method: "POST",
+          path: "/rooms/room-group-1/avatar/commit",
+          headers: undefined,
+          body: {
+            key: "room_avatars/room-group-1/avatar.png",
+          },
+          query_params: undefined,
+          inject_token: undefined,
+        },
+      },
+    ]);
+    expect(MockXMLHttpRequest.instances).toHaveLength(1);
+    expect(MockXMLHttpRequest.instances[0]).toMatchObject({
+      method: "PUT",
+      url: "https://upload.example.com/group-avatar",
+      headers: {
+        Authorization: "signed-token",
+        "Content-Type": "image/png",
+      },
+      body: file,
+    });
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "avatar committed",
+      data: {
+        avatarUrl: "https://static.example.com/group-avatar.png",
       },
     });
   });
