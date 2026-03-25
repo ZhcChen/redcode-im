@@ -79,7 +79,7 @@ Expected: 仍然只有既有 3 个 Electron named export mock 失败，且不新
 Run: `bun run build`
 Expected: PASS
 
-- [ ] **Step 3: 提交 / 推送 / 清进程**
+- [x] **Step 3: 提交 / 推送 / 清进程**
 
 ```bash
 git add docs/plans/2026-03-24-desktop-el-migration-backlog.md \
