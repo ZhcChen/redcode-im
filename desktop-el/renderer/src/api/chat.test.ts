@@ -2739,6 +2739,22 @@ describe("chat api message mapping", () => {
     });
   });
 
+  test("maps group_owner_transferred payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "group_owner_transferred",
+      room_id: "room-group-1",
+      old_owner_id: "u-1",
+      new_owner_id: "u-2",
+    });
+
+    expect(mapped).toEqual({
+      type: "group_owner_transferred",
+      roomId: "room-group-1",
+      oldOwnerId: "u-1",
+      newOwnerId: "u-2",
+    });
+  });
+
   test("maps pin_update payload into realtime event", () => {
     const mapped = mapChatRealtimeEvent({
       type: "pin_update",

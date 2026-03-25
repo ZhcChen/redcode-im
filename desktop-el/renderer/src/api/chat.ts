@@ -732,6 +732,13 @@ interface BackendPushGroupDissolved {
   room_id: string;
 }
 
+interface BackendPushGroupOwnerTransferred {
+  type: "group_owner_transferred";
+  room_id: string;
+  old_owner_id: string;
+  new_owner_id: string;
+}
+
 interface BackendPushGroupMemberChanged {
   type: "group_member_changed";
   room_id: string;
@@ -754,6 +761,7 @@ export type ChatWebSocketPush =
   | BackendPushRoomUpdated
   | BackendPushGroupSettingsUpdated
   | BackendPushGroupDissolved
+  | BackendPushGroupOwnerTransferred
   | BackendPushGroupMemberChanged
   | {
       type: string;
@@ -836,6 +844,12 @@ export type ChatRealtimeEvent =
   | {
       type: "group_dissolved";
       roomId: string;
+    }
+  | {
+      type: "group_owner_transferred";
+      roomId: string;
+      oldOwnerId: string;
+      newOwnerId: string;
     }
   | {
       type: "group_member_changed";
@@ -974,6 +988,15 @@ const isBackendPushGroupDissolved = (
   isRecord(value) &&
   value.type === "group_dissolved" &&
   typeof value.room_id === "string";
+
+const isBackendPushGroupOwnerTransferred = (
+  value: unknown,
+): value is BackendPushGroupOwnerTransferred =>
+  isRecord(value) &&
+  value.type === "group_owner_transferred" &&
+  typeof value.room_id === "string" &&
+  typeof value.old_owner_id === "string" &&
+  typeof value.new_owner_id === "string";
 
 const isBackendPushGroupMemberChanged = (
   value: unknown,
@@ -1722,6 +1745,16 @@ export const mapChatRealtimeEvent = (
       return {
         type: "group_dissolved",
         roomId: payload.room_id,
+      };
+    case "group_owner_transferred":
+      if (!isBackendPushGroupOwnerTransferred(payload)) {
+        return null;
+      }
+      return {
+        type: "group_owner_transferred",
+        roomId: payload.room_id,
+        oldOwnerId: payload.old_owner_id,
+        newOwnerId: payload.new_owner_id,
       };
     case "group_member_changed":
       if (!isBackendPushGroupMemberChanged(payload)) {

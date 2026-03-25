@@ -49,6 +49,20 @@ export const getGroupRealtimePlan = (payload: {
         notice:
           event.roomId === activeRoomId ? "当前群聊已解散" : null,
       };
+    case "group_owner_transferred":
+      return {
+        shouldReloadChats: true,
+        shouldReloadGroupContext: event.roomId === activeRoomId,
+        shouldReloadGroupSettings: event.roomId === activeRoomId,
+        notice:
+          event.roomId !== activeRoomId
+            ? null
+            : event.newOwnerId === currentUserId
+              ? "你已成为当前群的新群主"
+              : event.oldOwnerId === currentUserId
+                ? "当前群群主已转让给其他成员"
+                : null,
+      };
     case "group_member_changed":
       return {
         shouldReloadChats: true,

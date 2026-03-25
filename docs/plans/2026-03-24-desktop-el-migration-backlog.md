@@ -106,9 +106,10 @@
 - [x] 已完成群管理主流程的最小闭环：成员管理、管理员管理、入群申请、禁言、群规、操作日志与完整成员面板均已迁移。
 - [x] 已完成退出群聊 / 解散群聊最小闭环：renderer 已接入 `chat.group.leave` / `chat.group.dissolve`，普通成员可退出当前群聊，群主可直接解散群聊；成功后会立即收口当前会话并刷新会话列表。
 - [x] 已完成 `group_dissolved` 最小事件收敛：Go core 已透传群解散事件，renderer 命中当前群时会自动退出该会话并刷新会话列表。
+- [x] 已完成 `group_owner_transferred` 最小事件收敛：renderer 已接入群主转让事件映射与当前群刷新；当前用户成为新群主或失去群主身份时会收到 notice，并同步刷新群详情 / 群设置。
 
 **当前缺口:**
-- 更深的群相关 websocket 事件，例如群主转让、管理员调整、入群审批流等，仍未接入统一刷新链路。
+- 更深的群相关 websocket 事件，例如管理员调整、入群审批流等，仍未接入统一刷新链路。
 
 **建议切口:**
 - [x] 先补建群与基础群房间进入。
@@ -251,7 +252,8 @@
 - [x] `group_settings_updated`
 - [x] `group_member_changed`
 - [x] `group_dissolved`
-- [ ] 群主转让 / 管理员调整 / 入群审批等更深群事件
+- [x] `group_owner_transferred`
+- [ ] 管理员调整 / 入群审批等更深群事件
 
 **原则:**
 - 先由 Go core 统一转成 stdio 事件。
