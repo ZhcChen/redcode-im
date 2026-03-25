@@ -17,6 +17,10 @@ type CreateGroupParams struct {
 	MemberUserIDs []string `json:"member_user_ids"`
 }
 
+type RoomParams struct {
+	RoomID string `json:"room_id"`
+}
+
 type ListMessagesParams struct {
 	RoomID   string `json:"room_id"`
 	Limit    int    `json:"limit,omitempty"`
@@ -146,6 +150,20 @@ func (s *Service) CreateGroup(ctx context.Context, params CreateGroupParams) (ht
 		Method: http.MethodPost,
 		Path:   "/rooms",
 		Body:   body,
+	})
+}
+
+func (s *Service) GetRoom(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID,
+	})
+}
+
+func (s *Service) ListRoomMembers(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/members",
 	})
 }
 

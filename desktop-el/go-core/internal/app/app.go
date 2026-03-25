@@ -292,6 +292,30 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.room.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.GetRoom(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.room.members.list", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.ListRoomMembers(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.messages.list", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.ListMessagesParams
 		if err := unmarshalParams(params, &payload); err != nil {

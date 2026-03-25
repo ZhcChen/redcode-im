@@ -1282,6 +1282,142 @@ func TestAppChatCreateGroupPostsRooms(t *testing.T) {
 	}
 }
 
+func TestAppChatRoomGetReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"room": map[string]any{
+				"id":                "room-group-1",
+				"name":              "项目组",
+				"description":       "项目群",
+				"avatar_url":        nil,
+				"avatar_object_key": "rooms/project/avatar.png",
+				"room_type":         "group",
+				"owner_id":          "u-1",
+				"created_at":        "2026-03-25T12:00:00Z",
+				"updated_at":        "2026-03-25T12:30:00Z",
+				"deleted_at":        nil,
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-room-get",
+		Method: "chat.room.get",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.room.get to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.room.get response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.room.get envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.room.get data failed: %v", err)
+	}
+	room, ok := result["room"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected room detail payload: %+v", result)
+	}
+	if room["id"] != "room-group-1" || room["owner_id"] != "u-1" {
+		t.Fatalf("unexpected room detail data: %+v", room)
+	}
+}
+
+func TestAppChatRoomMembersListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/members" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"user_id":           "u-1",
+				"username":          "alice",
+				"nickname":          "Alice",
+				"avatar_url":        nil,
+				"avatar_object_key": "avatars/u-1.png",
+				"role":              "owner",
+				"joined_at":         "2026-03-25T12:00:00Z",
+			},
+			{
+				"user_id":    "u-2",
+				"username":   "bob",
+				"nickname":   "Bob",
+				"avatar_url": nil,
+				"role":       "member",
+				"joined_at":  "2026-03-25T12:01:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-room-members-list",
+		Method: "chat.room.members.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.room.members.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.room.members.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.room.members.list envelope: %+v", envelope)
+	}
+
+	var members []map[string]any
+	if err := json.Unmarshal(envelope.Data, &members); err != nil {
+		t.Fatalf("decode chat.room.members.list data failed: %v", err)
+	}
+	if len(members) != 2 || members[0]["role"] != "owner" || members[1]["user_id"] != "u-2" {
+		t.Fatalf("unexpected room member list data: %+v", members)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

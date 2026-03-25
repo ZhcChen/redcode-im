@@ -8,6 +8,8 @@ import {
   type ChatMessagePart,
   type ChatQuotedMessage,
   type ChatRealtimeEvent,
+  type ChatRoomDetail,
+  type ChatRoomMember,
   type ChatSummary,
   type ChatWebSocketPush,
 } from "@/api/chat";
@@ -76,6 +78,8 @@ const searchQuery = ref("");
 const chats = ref<ChatSummary[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
+const groupDetail = ref<ChatRoomDetail | null>(null);
+const groupMembers = ref<ChatRoomMember[]>([]);
 const isCreateGroupModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -85,6 +89,7 @@ const attachmentUploadProgress = ref<number | null>(null);
 const attachmentUploadProgressById = ref<Record<string, number>>({});
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
+const isLoadingGroupContext = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
@@ -106,6 +111,7 @@ const mediaPreview = ref<{
 } | null>(null);
 const replyingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
+let groupContextLoadSequence = 0;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
@@ -136,6 +142,42 @@ const selectedChat = computed(
     chats.value.find((chat) => chat.id === selectedChatId.value) ||
     chats.value[0] ||
     null,
+);
+const isSelectedGroupChat = computed(
+  () => selectedChat.value?.roomType === "group",
+);
+const sortedGroupMembers = computed(() => {
+  const roleOrder: Record<ChatRoomMember["role"], number> = {
+    owner: 0,
+    admin: 1,
+    member: 2,
+  };
+
+  return [...groupMembers.value].sort((left, right) => {
+    const roleDiff = roleOrder[left.role] - roleOrder[right.role];
+    if (roleDiff !== 0) {
+      return roleDiff;
+    }
+
+    const leftName = (
+      left.nickname ||
+      left.username ||
+      left.userId
+    ).toLowerCase();
+    const rightName = (
+      right.nickname ||
+      right.username ||
+      right.userId
+    ).toLowerCase();
+    return leftName.localeCompare(rightName);
+  });
+});
+const groupOwnerMember = computed(
+  () =>
+    sortedGroupMembers.value.find(
+      (member) =>
+        member.role === "owner" || member.userId === groupDetail.value?.ownerId,
+    ) || null,
 );
 const pinnedCount = computed(
   () => chats.value.filter((chat) => chat.isPinned).length,
@@ -241,6 +283,21 @@ const formatRoomType = (value: ChatSummary["roomType"]) => {
     case "private":
     default:
       return "单聊";
+  }
+};
+
+const getRoomMemberDisplayName = (member: ChatRoomMember) =>
+  member.nickname || member.username || member.userId;
+
+const formatRoomMemberRole = (role: ChatRoomMember["role"]) => {
+  switch (role) {
+    case "owner":
+      return "群主";
+    case "admin":
+      return "管理员";
+    case "member":
+    default:
+      return "成员";
   }
 };
 
@@ -661,6 +718,69 @@ const loadMessages = async (roomId: string | null) => {
   }
 };
 
+const resetGroupContext = () => {
+  groupContextLoadSequence += 1;
+  groupDetail.value = null;
+  groupMembers.value = [];
+  isLoadingGroupContext.value = false;
+};
+
+const loadGroupContext = async (roomId: string | null) => {
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupContext();
+    return;
+  }
+
+  const currentSequence = groupContextLoadSequence + 1;
+  groupContextLoadSequence = currentSequence;
+  isLoadingGroupContext.value = true;
+  try {
+    const [roomResponse, membersResponse] = await Promise.all([
+      ChatApi.getRoom({ roomId }),
+      ChatApi.listRoomMembers({ roomId }),
+    ]);
+
+    if (
+      currentSequence !== groupContextLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!roomResponse.success || !roomResponse.data) {
+      groupDetail.value = null;
+      notice.value = roomResponse.message || "群详情加载失败";
+    } else {
+      groupDetail.value = roomResponse.data;
+    }
+
+    if (!membersResponse.success || !membersResponse.data) {
+      groupMembers.value = [];
+      if (!roomResponse.success || !roomResponse.data) {
+        notice.value = membersResponse.message || "群成员列表加载失败";
+      }
+    } else {
+      groupMembers.value = membersResponse.data;
+    }
+  } catch (error) {
+    if (
+      currentSequence !== groupContextLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    groupDetail.value = null;
+    groupMembers.value = [];
+    notice.value = error instanceof Error ? error.message : "群详情加载失败";
+  } finally {
+    if (currentSequence === groupContextLoadSequence) {
+      isLoadingGroupContext.value = false;
+    }
+  }
+};
+
 const loadChats = async (
   options: {
     preferredRoomId?: string | null;
@@ -675,6 +795,7 @@ const loadChats = async (
       chats.value = [];
       selectedChatId.value = null;
       messages.value = [];
+      resetGroupContext();
       notice.value = response.message || "会话列表加载失败";
       return;
     }
@@ -684,6 +805,8 @@ const loadChats = async (
       response.data,
       options.preferredRoomId,
     );
+    const nextSelectedChat =
+      response.data.find((chat) => chat.roomId === nextSelectedRoomId) || null;
     chats.value = response.data;
     selectedChatId.value = nextSelectedRoomId;
     if (!nextSelectedRoomId) {
@@ -694,6 +817,11 @@ const loadChats = async (
     ) {
       await loadMessages(nextSelectedRoomId);
     }
+    if (nextSelectedChat?.roomType === "group") {
+      await loadGroupContext(nextSelectedRoomId);
+    } else {
+      resetGroupContext();
+    }
 
     if (!options.preserveNotice) {
       notice.value = `已从 Go core 同步 ${response.data.length} 个会话与最近 50 条历史消息。`;
@@ -702,6 +830,7 @@ const loadChats = async (
     chats.value = [];
     selectedChatId.value = null;
     messages.value = [];
+    resetGroupContext();
     notice.value = error instanceof Error ? error.message : "会话列表加载失败";
   } finally {
     isLoadingChats.value = false;
@@ -776,6 +905,12 @@ const selectChat = async (chatId: string) => {
   replyingMessage.value = null;
   selectedChatId.value = chatId;
   await loadMessages(chatId);
+  const nextSelectedChat = chats.value.find((chat) => chat.roomId === chatId);
+  if (nextSelectedChat?.roomType === "group") {
+    await loadGroupContext(chatId);
+    return;
+  }
+  resetGroupContext();
 };
 
 const handleOpenChatRequest = async (request: OpenChatRequest) => {
@@ -1165,7 +1300,30 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     return;
   }
 
-  if (event.type === "message_update") {
+  if (event.type === "room_created" || event.type === "room_updated") {
+    await loadChats({
+      preferredRoomId: activeRoomId,
+      preserveNotice: true,
+      reloadMessages: event.roomId === activeRoomId,
+    });
+    if (event.roomId === selectedChatId.value) {
+      await loadGroupContext(event.roomId);
+    }
+    return;
+  }
+
+  if (event.type === "message_read") {
+    if (
+      event.readerId === props.currentUser.id &&
+      event.roomId &&
+      event.messageId
+    ) {
+      lastReadUntilMessageByRoom.value = {
+        ...lastReadUntilMessageByRoom.value,
+        [event.roomId]: event.messageId,
+      };
+    }
+
     await loadChats({
       preferredRoomId: activeRoomId,
       preserveNotice: true,
@@ -1174,22 +1332,14 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     return;
   }
 
-  if (
-    event.readerId === props.currentUser.id &&
-    event.roomId &&
-    event.messageId
-  ) {
-    lastReadUntilMessageByRoom.value = {
-      ...lastReadUntilMessageByRoom.value,
-      [event.roomId]: event.messageId,
-    };
+  if (event.type === "message_update") {
+    await loadChats({
+      preferredRoomId: activeRoomId,
+      preserveNotice: true,
+      reloadMessages: event.roomId === activeRoomId,
+    });
+    return;
   }
-
-  await loadChats({
-    preferredRoomId: activeRoomId,
-    preserveNotice: true,
-    reloadMessages: event.roomId === activeRoomId,
-  });
 };
 
 watch(
@@ -1354,6 +1504,99 @@ onMounted(() => {
               </dd>
             </div>
           </dl>
+
+          <section v-if="isSelectedGroupChat" class="group-panel">
+            <div class="group-panel__header">
+              <h4>群详情</h4>
+              <small v-if="isLoadingGroupContext">同步中...</small>
+              <small v-else>{{
+                groupMembers.length
+                  ? `${groupMembers.length} 名成员`
+                  : "成员列表待同步"
+              }}</small>
+            </div>
+
+            <div
+              v-if="
+                isLoadingGroupContext &&
+                !groupDetail &&
+                !sortedGroupMembers.length
+              "
+              class="group-panel__empty"
+            >
+              <strong>加载中</strong>
+              <p>正在同步群资料与成员列表。</p>
+            </div>
+
+            <template v-else>
+              <dl class="group-panel__detail-list">
+                <div>
+                  <dt>群名</dt>
+                  <dd>{{ groupDetail?.roomName || selectedChat.title }}</dd>
+                </div>
+                <div>
+                  <dt>群简介</dt>
+                  <dd>
+                    {{
+                      groupDetail?.description ||
+                      selectedChat.description ||
+                      "暂无群简介"
+                    }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>群主</dt>
+                  <dd>
+                    {{
+                      groupOwnerMember
+                        ? getRoomMemberDisplayName(groupOwnerMember)
+                        : (groupDetail?.ownerId ?? "未同步")
+                    }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>成员数</dt>
+                  <dd>{{ groupMembers.length || "未同步" }}</dd>
+                </div>
+                <div>
+                  <dt>创建时间</dt>
+                  <dd>
+                    {{ formatDetailTime(groupDetail?.createdAt ?? null) }}
+                  </dd>
+                </div>
+              </dl>
+
+              <div
+                v-if="sortedGroupMembers.length"
+                class="group-panel__member-list"
+              >
+                <article
+                  v-for="member in sortedGroupMembers.slice(0, 8)"
+                  :key="member.userId"
+                  class="group-panel__member"
+                >
+                  <span class="group-panel__member-avatar">{{
+                    getRoomMemberDisplayName(member).slice(0, 1).toUpperCase()
+                  }}</span>
+                  <div class="group-panel__member-copy">
+                    <strong>{{ getRoomMemberDisplayName(member) }}</strong>
+                    <small>
+                      {{ formatRoomMemberRole(member.role) }} /
+                      {{ member.username }}
+                    </small>
+                  </div>
+                </article>
+              </div>
+
+              <p
+                v-if="sortedGroupMembers.length > 8"
+                class="group-panel__member-more"
+              >
+                已展示前 8 位成员，剩余
+                {{ sortedGroupMembers.length - 8 }} 位成员待后续迁移更完整面板。
+              </p>
+            </template>
+          </section>
 
           <section class="message-stage">
             <div class="message-stage__header">
@@ -2024,6 +2267,113 @@ onMounted(() => {
   word-break: break-word;
 }
 
+.group-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  background: rgba(241, 245, 249, 0.72);
+}
+
+.group-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.group-panel__header h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.group-panel__header small,
+.group-panel__member-copy small,
+.group-panel__member-more,
+.group-panel__empty p {
+  color: var(--text-secondary);
+}
+
+.group-panel__detail-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.group-panel__detail-list div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.group-panel__detail-list dt {
+  color: var(--text-secondary);
+}
+
+.group-panel__detail-list dd {
+  margin: 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.group-panel__member-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.group-panel__member {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.group-panel__member-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #00c2b3, #009b8f);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.group-panel__member-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.group-panel__member-copy strong,
+.group-panel__member-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-panel__empty {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  min-height: 120px;
+  text-align: center;
+}
+
+.group-panel__empty strong {
+  color: var(--text-primary);
+}
+
+.group-panel__member-more {
+  margin: 0;
+  font-size: 13px;
+}
+
 .message-stage {
   display: grid;
   gap: 14px;
@@ -2606,6 +2956,11 @@ onMounted(() => {
 
   .chat-panel__header-action {
     width: 100%;
+  }
+
+  .group-panel__detail-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }
 </style>

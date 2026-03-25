@@ -62,6 +62,36 @@ interface BackendCreateGroupResponse {
   room: BackendCreateGroupRoom;
 }
 
+type BackendRoomMemberRole = "owner" | "admin" | "member";
+
+interface BackendRoomInfo {
+  id: string;
+  name: string;
+  description?: string | null;
+  avatar_url?: string | null;
+  avatar_object_key?: string | null;
+  room_type: BackendRoomType;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+interface BackendRoomDetailResponse {
+  success?: boolean;
+  room: BackendRoomInfo;
+}
+
+interface BackendRoomMember {
+  user_id: string;
+  username: string;
+  nickname?: string | null;
+  avatar_url?: string | null;
+  avatar_object_key?: string | null;
+  role: BackendRoomMemberRole;
+  joined_at?: string | null;
+}
+
 interface BackendMessageAttachment {
   key: string;
   name?: string | null;
@@ -184,6 +214,28 @@ export interface CreatedGroupChat {
   roomId: string;
   roomName: string;
   roomType: BackendRoomType;
+}
+
+export interface ChatRoomDetail {
+  roomId: string;
+  roomName: string;
+  roomType: BackendRoomType;
+  description: string | null;
+  avatarUrl: string | null;
+  avatarObjectKey: string | null;
+  ownerId: string;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface ChatRoomMember {
+  userId: string;
+  username: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  avatarObjectKey: string | null;
+  role: BackendRoomMemberRole;
+  joinedAt: Date | null;
 }
 
 export interface ChatMessage {
@@ -327,10 +379,35 @@ interface BackendPushMessageUpdate {
   deleted_at?: string | null;
 }
 
+interface BackendPushRoomCreated {
+  type: "room_created";
+  room_id: string;
+  room_name: string;
+  room_type: BackendRoomType;
+  initiator_id: string;
+  owner_id: string;
+  description?: string | null;
+  avatar_url?: string | null;
+  avatar_object_key?: string | null;
+  created_at?: string | null;
+}
+
+interface BackendPushRoomUpdated {
+  type: "room_updated";
+  room_id: string;
+  room_name: string;
+  room_type: BackendRoomType;
+  avatar_url?: string | null;
+  avatar_object_key?: string | null;
+  description?: string | null;
+}
+
 export type ChatWebSocketPush =
   | BackendPushMessage
   | BackendPushMessageRead
   | BackendPushMessageUpdate
+  | BackendPushRoomCreated
+  | BackendPushRoomUpdated
   | {
       type: string;
       [key: string]: unknown;
@@ -354,6 +431,27 @@ export type ChatRealtimeEvent =
       messageId: string;
       isDeleted: boolean;
       deletedAt: Date | null;
+    }
+  | {
+      type: "room_created";
+      roomId: string;
+      roomName: string;
+      roomType: BackendRoomType;
+      initiatorId: string;
+      ownerId: string;
+      description: string | null;
+      avatarUrl: string | null;
+      avatarObjectKey: string | null;
+      createdAt: Date | null;
+    }
+  | {
+      type: "room_updated";
+      roomId: string;
+      roomName: string;
+      roomType: BackendRoomType;
+      avatarUrl: string | null;
+      avatarObjectKey: string | null;
+      description: string | null;
     };
 
 const requireDesktopRuntime = () => {
@@ -404,6 +502,26 @@ const isBackendPushMessageUpdate = (
   value.type === "message_update" &&
   typeof value.room_id === "string" &&
   typeof value.message_id === "string";
+
+const isBackendPushRoomCreated = (
+  value: unknown,
+): value is BackendPushRoomCreated =>
+  isRecord(value) &&
+  value.type === "room_created" &&
+  typeof value.room_id === "string" &&
+  typeof value.room_name === "string" &&
+  typeof value.room_type === "string" &&
+  typeof value.initiator_id === "string" &&
+  typeof value.owner_id === "string";
+
+const isBackendPushRoomUpdated = (
+  value: unknown,
+): value is BackendPushRoomUpdated =>
+  isRecord(value) &&
+  value.type === "room_updated" &&
+  typeof value.room_id === "string" &&
+  typeof value.room_name === "string" &&
+  typeof value.room_type === "string";
 
 const isEmojiOnlyPreviewText = (text: string): boolean => {
   const trimmed = text.trim();
@@ -566,6 +684,30 @@ const mapCreatedGroupChat = (
   roomId: response.room.id,
   roomName: response.room.name,
   roomType: response.room.room_type,
+});
+
+const mapChatRoomDetail = (
+  response: BackendRoomDetailResponse,
+): ChatRoomDetail => ({
+  roomId: response.room.id,
+  roomName: response.room.name,
+  roomType: response.room.room_type,
+  description: response.room.description ?? null,
+  avatarUrl: response.room.avatar_url ?? null,
+  avatarObjectKey: response.room.avatar_object_key ?? null,
+  ownerId: response.room.owner_id,
+  createdAt: parseTimestamp(response.room.created_at),
+  updatedAt: parseTimestamp(response.room.updated_at),
+});
+
+const mapChatRoomMember = (member: BackendRoomMember): ChatRoomMember => ({
+  userId: member.user_id,
+  username: member.username,
+  nickname: member.nickname ?? null,
+  avatarUrl: member.avatar_url ?? null,
+  avatarObjectKey: member.avatar_object_key ?? null,
+  role: member.role,
+  joinedAt: parseTimestamp(member.joined_at),
 });
 
 const mapChatMessageAttachment = (
@@ -816,6 +958,35 @@ export const mapChatRealtimeEvent = (
           typeof payload.deleted_at === "string" ? payload.deleted_at : null,
         ),
       };
+    case "room_created":
+      if (!isBackendPushRoomCreated(payload)) {
+        return null;
+      }
+      return {
+        type: "room_created",
+        roomId: payload.room_id,
+        roomName: payload.room_name,
+        roomType: payload.room_type,
+        initiatorId: payload.initiator_id,
+        ownerId: payload.owner_id,
+        description: payload.description ?? null,
+        avatarUrl: payload.avatar_url ?? null,
+        avatarObjectKey: payload.avatar_object_key ?? null,
+        createdAt: parseTimestamp(payload.created_at),
+      };
+    case "room_updated":
+      if (!isBackendPushRoomUpdated(payload)) {
+        return null;
+      }
+      return {
+        type: "room_updated",
+        roomId: payload.room_id,
+        roomName: payload.room_name,
+        roomType: payload.room_type,
+        avatarUrl: payload.avatar_url ?? null,
+        avatarObjectKey: payload.avatar_object_key ?? null,
+        description: payload.description ?? null,
+      };
     default:
       return null;
   }
@@ -860,6 +1031,34 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? mapCreatedGroupChat(response.data) : null,
+    };
+  }
+
+  static async getRoom(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatRoomDetail>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendRoomDetailResponse>
+    >("chat.room.get", {
+      room_id: params.roomId,
+    });
+    return {
+      ...response,
+      data: response.data ? mapChatRoomDetail(response.data) : null,
+    };
+  }
+
+  static async listRoomMembers(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatRoomMember[]>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendRoomMember[]>
+    >("chat.room.members.list", {
+      room_id: params.roomId,
+    });
+    return {
+      ...response,
+      data: response.data ? response.data.map(mapChatRoomMember) : null,
     };
   }
 
