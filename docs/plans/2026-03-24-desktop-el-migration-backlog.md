@@ -305,6 +305,7 @@
 - [x] 已补齐 Electron main 的 `dialog` / `notification` service 自动化测试，并扩展 `electron` superset mock 覆盖 `dialog` 与 `Notification` 行为。
 - [x] 已固化 `desktop-el` 模块验收入口：根 `Makefile` 新增 `desktop-el-test` / `desktop-el-core-test` / `desktop-el-build` / `desktop-el-verify`，模块内新增 `bun run verify` 固定串联 Go core 测试、Bun 测试与构建。
 - [x] 已补齐 Go core `user` / `friend` / `settings` service 测试，并修复 `user.UpdateMe` 在 `success=true` 且 `data=null` 时污染当前用户快照的边界问题。
+- [x] 已补齐 Go core `chat` service 的群设置与附件上传/下载契约测试，覆盖路径、query、multipart session 与可选字段裁剪行为。
 
 **范围:**
 - [ ] Go core 集成测试继续扩充
