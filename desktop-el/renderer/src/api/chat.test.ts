@@ -276,6 +276,76 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("updates group global mute through go-core rpc and maps settings payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                settings: {
+                  id: "settings-1",
+                  room_id: "room-group-1",
+                  join_approval_required: true,
+                  member_can_invite: false,
+                  member_can_add_friends: true,
+                  require_admin_to_add_friends: false,
+                  max_members: 500,
+                  global_mute_enabled: true,
+                  global_mute_until: null,
+                  global_mute_reason: null,
+                  global_mute_set_by: "u-1",
+                  created_at: "2026-03-25T12:00:00Z",
+                  updated_at: "2026-03-25T12:45:00Z",
+                },
+                my_mute: null,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.updateGroupGlobalMute({
+      roomId: "room-group-1",
+      enabled: true,
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.settings.global_mute.update",
+        params: {
+          room_id: "room-group-1",
+          enabled: true,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        roomId: "room-group-1",
+        joinApprovalRequired: true,
+        memberCanInvite: false,
+        memberCanAddFriends: true,
+        requireAdminToAddFriends: false,
+        maxMembers: 500,
+        globalMuteEnabled: true,
+        globalMuteUntil: null,
+        globalMuteReason: null,
+        globalMuteSetBy: "u-1",
+        createdAt: new Date("2026-03-25T12:00:00Z"),
+        updatedAt: new Date("2026-03-25T12:45:00Z"),
+        myMute: null,
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

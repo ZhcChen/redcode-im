@@ -1498,6 +1498,95 @@ func TestAppChatGroupSettingsGetReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupGlobalMuteUpdateReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/mutes/global" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["enabled"] != true {
+			t.Fatalf("unexpected request payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"settings": map[string]any{
+				"id":                           "settings-1",
+				"room_id":                      "room-group-1",
+				"join_approval_required":       true,
+				"member_can_invite":            false,
+				"member_can_add_friends":       true,
+				"require_admin_to_add_friends": false,
+				"max_members":                  500,
+				"global_mute_enabled":          true,
+				"global_mute_until":            nil,
+				"global_mute_reason":           nil,
+				"global_mute_set_by":           "u-1",
+				"created_at":                   "2026-03-25T12:00:00Z",
+				"updated_at":                   "2026-03-25T12:45:00Z",
+			},
+			"my_mute": nil,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-global-mute-update",
+		Method: "chat.group.settings.global_mute.update",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+			"enabled": true,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf(
+			"expected chat.group.settings.global_mute.update to succeed, got: %+v",
+			response.Error,
+		)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.settings.global_mute.update response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf(
+			"unexpected chat.group.settings.global_mute.update envelope: %+v",
+			envelope,
+		)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.settings.global_mute.update data failed: %v", err)
+	}
+	settings, ok := result["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected settings payload: %+v", result)
+	}
+	if settings["room_id"] != "room-group-1" || settings["global_mute_enabled"] != true {
+		t.Fatalf("unexpected global mute update data: %+v", settings)
+	}
+	if _, exists := result["my_mute"]; !exists {
+		t.Fatalf("expected my_mute field to exist: %+v", result)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

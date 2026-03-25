@@ -21,6 +21,13 @@ type RoomParams struct {
 	RoomID string `json:"room_id"`
 }
 
+type UpdateGlobalMuteParams struct {
+	RoomID          string `json:"room_id"`
+	Enabled         bool   `json:"enabled"`
+	Reason          string `json:"reason,omitempty"`
+	DurationMinutes int64  `json:"duration_minutes,omitempty"`
+}
+
 type ListMessagesParams struct {
 	RoomID   string `json:"room_id"`
 	Limit    int    `json:"limit,omitempty"`
@@ -171,6 +178,24 @@ func (s *Service) GetGroupSettings(ctx context.Context, params RoomParams) (http
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodGet,
 		Path:   "/rooms/" + params.RoomID + "/settings",
+	})
+}
+
+func (s *Service) UpdateGroupGlobalMute(ctx context.Context, params UpdateGlobalMuteParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"enabled": params.Enabled,
+	}
+	if params.Reason != "" {
+		body["reason"] = params.Reason
+	}
+	if params.DurationMinutes > 0 {
+		body["duration_minutes"] = params.DurationMinutes
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/mutes/global",
+		Body:   body,
 	})
 }
 

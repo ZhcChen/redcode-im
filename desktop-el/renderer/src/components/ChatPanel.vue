@@ -31,6 +31,10 @@ import {
   getQuotedSenderDisplayName,
 } from "@/utils/chat-quoted-message";
 import { findCreatedGroupChat } from "@/utils/chat-group-create";
+import {
+  resolveGroupComposerState,
+  resolveGroupManageState,
+} from "@/utils/chat-group-permissions";
 import { getGroupRealtimePlan } from "@/utils/chat-group-realtime";
 import CreateGroupModal from "./CreateGroupModal.vue";
 
@@ -98,6 +102,7 @@ const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isSending = ref(false);
+const isUpdatingGlobalMute = ref(false);
 const sendingMode = ref<"text" | "attachment" | null>(null);
 const deletingMessageId = ref<string | null>(null);
 const downloadingAttachmentKeys = ref<Record<string, boolean>>({});
@@ -186,6 +191,29 @@ const groupOwnerMember = computed(
 );
 const isPersonallyMutedInGroup = computed(
   () => groupSettings.value?.myMute?.isMuted === true,
+);
+const groupManageState = computed(() => {
+  if (!isSelectedGroupChat.value) {
+    return {
+      isOwner: false,
+      isAdmin: false,
+      canManage: false,
+    };
+  }
+
+  return resolveGroupManageState({
+    currentUserId: props.currentUser.id,
+    ownerId: groupDetail.value?.ownerId ?? null,
+    members: groupMembers.value,
+  });
+});
+const canManageSelectedGroup = computed(() => groupManageState.value.canManage);
+const groupComposerState = computed(() =>
+  resolveGroupComposerState({
+    isGroupChat: isSelectedGroupChat.value,
+    canManageGroup: canManageSelectedGroup.value,
+    groupSettings: groupSettings.value,
+  }),
 );
 const pinnedCount = computed(
   () => chats.value.filter((chat) => chat.isPinned).length,
@@ -1048,11 +1076,68 @@ const handleCreateGroup = async (payload: {
   }
 };
 
+const handleToggleGroupGlobalMute = async () => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isUpdatingGlobalMute.value) {
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有修改全员禁言的权限。";
+    return;
+  }
+  if (!groupSettings.value) {
+    notice.value = "群设置尚未同步完成，请稍后再试。";
+    return;
+  }
+
+  const nextEnabled = !groupSettings.value.globalMuteEnabled;
+  const confirmed = window.confirm(
+    nextEnabled
+      ? "确定开启当前群的全员禁言吗？"
+      : "确定解除当前群的全员禁言吗？",
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  isUpdatingGlobalMute.value = true;
+  try {
+    const response = await ChatApi.updateGroupGlobalMute({
+      roomId,
+      enabled: nextEnabled,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "更新全员禁言失败";
+      return;
+    }
+
+    groupSettings.value = response.data;
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    notice.value = nextEnabled
+      ? "已开启当前群全员禁言。"
+      : "已解除当前群全员禁言。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "更新全员禁言失败";
+    await loadGroupSettings(roomId);
+  } finally {
+    isUpdatingGlobalMute.value = false;
+  }
+};
+
 const handleSend = async () => {
   const roomId = selectedChatId.value;
   const content = draftMessage.value.trim();
   const attachments = [...pendingAttachments.value];
   const quotedMessageId = replyingMessage.value?.id;
+  if (groupComposerState.value.disabled) {
+    notice.value =
+      groupComposerState.value.tip || groupComposerState.value.placeholder;
+    return;
+  }
   if (!roomId || isSending.value || (!content && !attachments.length)) {
     return;
   }
@@ -1145,11 +1230,24 @@ const handlePickAttachment = () => {
   if (isSending.value || !selectedChatId.value) {
     return;
   }
+  if (groupComposerState.value.disabled) {
+    notice.value =
+      groupComposerState.value.tip || groupComposerState.value.placeholder;
+    return;
+  }
   attachmentInputRef.value?.click();
 };
 
 const handleAttachmentSelected = (event: Event) => {
   const input = event.target as HTMLInputElement | null;
+  if (groupComposerState.value.disabled) {
+    if (input) {
+      input.value = "";
+    }
+    notice.value =
+      groupComposerState.value.tip || groupComposerState.value.placeholder;
+    return;
+  }
   const files = Array.from(input?.files ?? []);
   if (!files.length) {
     return;
@@ -1661,9 +1759,34 @@ onMounted(() => {
               <div class="group-panel__section">
                 <div class="group-panel__section-header">
                   <h5>群设置</h5>
-                  <small>{{
-                    isLoadingGroupSettings ? "同步中..." : "只读视图"
-                  }}</small>
+                  <div class="group-panel__section-actions">
+                    <small>{{
+                      isLoadingGroupSettings
+                        ? "同步中..."
+                        : canManageSelectedGroup
+                          ? "可管理"
+                          : "只读视图"
+                    }}</small>
+                    <button
+                      v-if="canManageSelectedGroup"
+                      type="button"
+                      class="group-panel__action"
+                      :disabled="
+                        isLoadingGroupSettings ||
+                        isUpdatingGlobalMute ||
+                        !groupSettings
+                      "
+                      @click="void handleToggleGroupGlobalMute()"
+                    >
+                      {{
+                        isUpdatingGlobalMute
+                          ? "提交中..."
+                          : groupSettings?.globalMuteEnabled
+                            ? "解除全员禁言"
+                            : "开启全员禁言"
+                      }}
+                    </button>
+                  </div>
                 </div>
 
                 <dl class="group-panel__detail-list">
@@ -2015,17 +2138,23 @@ onMounted(() => {
               class="composer-panel__file-input"
               type="file"
               multiple
-              :disabled="isSending"
+              :disabled="isSending || groupComposerState.disabled"
               @change="handleAttachmentSelected"
             />
             <textarea
               v-model="draftMessage"
               class="composer-panel__input"
               rows="4"
-              placeholder="输入一条文本消息..."
-              :disabled="isSending"
+              :placeholder="groupComposerState.placeholder"
+              :disabled="isSending || groupComposerState.disabled"
               @keydown="handleComposerKeydown"
             />
+            <p
+              v-if="groupComposerState.tip"
+              class="composer-panel__mute-tip"
+            >
+              {{ groupComposerState.tip }}
+            </p>
             <div v-if="replyingMessage" class="reply-bar">
               <div class="reply-bar__copy">
                 <strong
@@ -2097,7 +2226,9 @@ onMounted(() => {
               <button
                 type="button"
                 class="composer-panel__button composer-panel__button--secondary"
-                :disabled="isSending || !selectedChat"
+                :disabled="
+                  isSending || !selectedChat || groupComposerState.disabled
+                "
                 @click="handlePickAttachment"
               >
                 选择附件
@@ -2109,7 +2240,9 @@ onMounted(() => {
                   'composer-panel__button--primary': hasPendingAttachments,
                 }"
                 :disabled="
-                  isSending || (!draftMessage.trim() && !hasPendingAttachments)
+                  isSending ||
+                  groupComposerState.disabled ||
+                  (!draftMessage.trim() && !hasPendingAttachments)
                 "
                 @click="void handleSend()"
               >
@@ -2505,9 +2638,31 @@ onMounted(() => {
   gap: 12px;
 }
 
+.group-panel__section-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .group-panel__section-header h5 {
   margin: 0;
   color: var(--text-primary);
+}
+
+.group-panel__action {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.group-panel__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .group-panel__member-list {
@@ -2968,7 +3123,8 @@ onMounted(() => {
 }
 
 .composer-panel__attachment-copy small,
-.composer-panel__attachment-tip {
+.composer-panel__attachment-tip,
+.composer-panel__mute-tip {
   color: var(--text-secondary);
 }
 
@@ -3011,6 +3167,11 @@ onMounted(() => {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 12px;
+}
+
+.composer-panel__mute-tip {
+  margin: 0;
+  font-size: 13px;
 }
 
 .composer-panel__actions {

@@ -1237,6 +1237,32 @@ export class ChatApi {
     };
   }
 
+  static async updateGroupGlobalMute(params: {
+    roomId: string;
+    enabled: boolean;
+    reason?: string;
+    durationMinutes?: number;
+  }): Promise<ApiResponse<ChatGroupSettings>> {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+      enabled: params.enabled,
+    };
+    if (params.reason?.trim()) {
+      payload.reason = params.reason.trim();
+    }
+    if (typeof params.durationMinutes === "number" && params.durationMinutes > 0) {
+      payload.duration_minutes = params.durationMinutes;
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendGroupSettingsResponse>
+    >("chat.group.settings.global_mute.update", payload);
+    return {
+      ...response,
+      data: response.data ? mapChatGroupSettings(response.data) : null,
+    };
+  }
+
   static async listMessages(params: {
     roomId: string;
     limit?: number;
