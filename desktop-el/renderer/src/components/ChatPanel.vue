@@ -47,6 +47,11 @@ import {
   replaceLocalMessage,
 } from "@/utils/chat-local-message";
 import { resendLocalMessage } from "@/utils/chat-message-retry";
+import {
+  buildRetryableLocalMessagesStorageKey,
+  restoreRetryableLocalMessages,
+  saveRetryableLocalMessages,
+} from "@/utils/chat-retry-storage";
 import { findCreatedGroupChat } from "@/utils/chat-group-create";
 import {
   sortGroupMembers,
@@ -228,6 +233,8 @@ const localMessagesByRoom = ref<Record<string, ChatMessage[]>>({});
 const resendingMessageId = ref<string | null>(null);
 const typingUsers = ref<Record<string, number>>({});
 const typingCleanupTimers = new Map<string, number>();
+const localMessageRetryTimers = new Map<string, number>();
+const localMessageRetryInFlight = new Set<string>();
 const typingStopSendTimer = ref<number | null>(null);
 const typingIsTyping = ref(false);
 const typingRoomId = ref<string | null>(null);
@@ -243,6 +250,7 @@ let groupSettingsLoadSequence = 0;
 let messageReadersLoadSequence = 0;
 let roomSubscriptionSequence = 0;
 const GROUP_OPERATION_LOGS_PAGE_SIZE = 20;
+const LOCAL_MESSAGE_RETRY_DELAY_MS = 3000;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
@@ -1323,6 +1331,174 @@ const removeLocalMessage = (roomId: string, messageId: string) => {
   );
   if (selectedChatId.value === roomId) {
     messages.value = messages.value.filter((message) => message.id !== messageId);
+  }
+};
+
+const getRetryStorageKey = () =>
+  buildRetryableLocalMessagesStorageKey(props.currentUser.id);
+
+const persistRetryableLocalMessages = () => {
+  const allLocalMessages = Object.values(localMessagesByRoom.value).flat();
+  saveRetryableLocalMessages(allLocalMessages, undefined, getRetryStorageKey());
+};
+
+const clearLocalMessageRetry = (messageId: string) => {
+  const existingTimer = localMessageRetryTimers.get(messageId);
+  if (existingTimer !== undefined) {
+    window.clearTimeout(existingTimer);
+    localMessageRetryTimers.delete(messageId);
+  }
+};
+
+const restoreRetryableLocalMessagesFromStorage = () => {
+  const restoredMessages = restoreRetryableLocalMessages(
+    undefined,
+    getRetryStorageKey(),
+  );
+  if (!restoredMessages.length) {
+    persistRetryableLocalMessages();
+    return;
+  }
+
+  const next = { ...localMessagesByRoom.value };
+  for (const message of restoredMessages) {
+    const roomMessages = next[message.roomId] ?? [];
+    if (roomMessages.some((currentMessage) => currentMessage.id === message.id)) {
+      continue;
+    }
+    next[message.roomId] = [...roomMessages, message];
+  }
+  localMessagesByRoom.value = next;
+  persistRetryableLocalMessages();
+};
+
+const scheduleLocalMessageRetry = (
+  roomId: string,
+  messageId: string,
+  delayMs = LOCAL_MESSAGE_RETRY_DELAY_MS,
+) => {
+  if (
+    localMessageRetryTimers.has(messageId) ||
+    localMessageRetryInFlight.has(messageId)
+  ) {
+    return;
+  }
+
+  const message = getLocalMessagesForRoom(roomId).find(
+    (currentMessage) => currentMessage.id === messageId,
+  );
+  if (!message || !canResendLocalMessage(message)) {
+    return;
+  }
+
+  const timerId = window.setTimeout(() => {
+    localMessageRetryTimers.delete(messageId);
+    void executeLocalMessageRetry(roomId, messageId, {
+      manual: false,
+    });
+  }, delayMs);
+  localMessageRetryTimers.set(messageId, timerId);
+};
+
+const clearAllLocalMessageRetryTimers = () => {
+  localMessageRetryTimers.forEach((timerId) => {
+    window.clearTimeout(timerId);
+  });
+  localMessageRetryTimers.clear();
+  localMessageRetryInFlight.clear();
+};
+
+const markLocalMessageFailedAndScheduleRetry = (
+  roomId: string,
+  messageId: string,
+  errorMessage: string,
+) => {
+  updateLocalMessage(roomId, messageId, (message) =>
+    markLocalMessageFailed(message, errorMessage),
+  );
+  scheduleLocalMessageRetry(roomId, messageId);
+};
+
+const executeLocalMessageRetry = async (
+  roomId: string,
+  messageId: string,
+  options: {
+    manual: boolean;
+  },
+) => {
+  const message = getLocalMessagesForRoom(roomId).find(
+    (currentMessage) => currentMessage.id === messageId,
+  );
+  if (!message || !canResendLocalMessage(message)) {
+    clearLocalMessageRetry(messageId);
+    if (options.manual) {
+      resendingMessageId.value = null;
+    }
+    return;
+  }
+
+  if (localMessageRetryInFlight.has(messageId)) {
+    if (options.manual) {
+      resendingMessageId.value = null;
+    }
+    return;
+  }
+
+  clearLocalMessageRetry(messageId);
+  if (options.manual) {
+    updateLocalMessage(roomId, messageId, markLocalMessageSending);
+  }
+
+  localMessageRetryInFlight.add(messageId);
+  let nextRetryErrorMessage: string | null = null;
+  try {
+    const response = await resendLocalMessage({
+      roomId,
+      currentUserId: props.currentUser.id,
+      retryPayload: message.retryPayload!,
+    });
+    if (!response.success || !response.data) {
+      nextRetryErrorMessage =
+        response.message || "消息发送失败，3 秒后自动重试";
+      updateLocalMessage(roomId, messageId, (currentMessage) =>
+        markLocalMessageFailed(currentMessage, nextRetryErrorMessage),
+      );
+      if (options.manual) {
+        notice.value = nextRetryErrorMessage;
+      }
+      return;
+    }
+
+    if (selectedChatId.value === roomId) {
+      messages.value = replaceLocalMessage(messages.value, messageId, response.data);
+    }
+    removeLocalMessage(roomId, messageId);
+    await loadChats({
+      preferredRoomId: selectedChatId.value ?? roomId,
+      preserveNotice: true,
+      reloadMessages: roomId === selectedChatId.value,
+    });
+    if (options.manual) {
+      notice.value = "消息已重发。";
+    }
+  } catch (error) {
+    const fallbackMessage =
+      error instanceof Error ? error.message : "消息发送失败，3 秒后自动重试";
+    nextRetryErrorMessage = fallbackMessage;
+    updateLocalMessage(roomId, messageId, (currentMessage) =>
+      markLocalMessageFailed(currentMessage, fallbackMessage),
+    );
+    if (options.manual) {
+      notice.value = fallbackMessage;
+    }
+  } finally {
+    localMessageRetryInFlight.delete(messageId);
+    if (nextRetryErrorMessage) {
+      scheduleLocalMessageRetry(roomId, messageId);
+    }
+    if (options.manual) {
+      resendingMessageId.value = null;
+    }
   }
 };
 
@@ -3649,13 +3825,12 @@ const handleSend = async () => {
         currentUserId: props.currentUser.id,
       });
       if (!response.success || !response.data) {
-        updateLocalMessage(roomId, localMessage.id, (message) =>
-          markLocalMessageFailed(
-            message,
-            response.message || "消息发送失败",
-          ),
+        markLocalMessageFailedAndScheduleRetry(
+          roomId,
+          localMessage.id,
+          response.message || "消息发送失败，3 秒后自动重试",
         );
-        notice.value = response.message || "消息发送失败";
+        notice.value = response.message || "消息发送失败，3 秒后自动重试";
         return;
       }
 
@@ -3726,10 +3901,12 @@ const handleSend = async () => {
       },
     );
     if (!response.success || !response.data) {
-      updateLocalMessage(roomId, localMessage.id, (message) =>
-        markLocalMessageFailed(message, response.message || "消息发送失败"),
+      markLocalMessageFailedAndScheduleRetry(
+        roomId,
+        localMessage.id,
+        response.message || "消息发送失败，3 秒后自动重试",
       );
-      notice.value = response.message || "消息发送失败";
+      notice.value = response.message || "消息发送失败，3 秒后自动重试";
       return;
     }
 
@@ -3753,11 +3930,12 @@ const handleSend = async () => {
         (message) => message.id === localTextMessageId,
       );
       if (localMessage?.clientStatus === "sending") {
-        updateLocalMessage(roomId, localTextMessageId, (message) =>
-          markLocalMessageFailed(
-            message,
-            error instanceof Error ? error.message : "消息发送失败",
-          ),
+        markLocalMessageFailedAndScheduleRetry(
+          roomId,
+          localTextMessageId,
+          error instanceof Error
+            ? error.message
+            : "消息发送失败，3 秒后自动重试",
         );
       }
     }
@@ -3766,15 +3944,17 @@ const handleSend = async () => {
         (message) => message.id === localAttachmentMessageId,
       );
       if (localMessage?.clientStatus === "sending") {
-        updateLocalMessage(roomId, localAttachmentMessageId, (message) =>
-          markLocalMessageFailed(
-            message,
-            error instanceof Error ? error.message : "消息发送失败",
-          ),
+        markLocalMessageFailedAndScheduleRetry(
+          roomId,
+          localAttachmentMessageId,
+          error instanceof Error
+            ? error.message
+            : "消息发送失败，3 秒后自动重试",
         );
       }
     }
-    notice.value = error instanceof Error ? error.message : "消息发送失败";
+    notice.value =
+      error instanceof Error ? error.message : "消息发送失败，3 秒后自动重试";
   } finally {
     isSending.value = false;
     sendingMode.value = null;
@@ -3795,48 +3975,11 @@ const handleResendMessage = async (message: ChatMessage) => {
   }
 
   closeMessageActionMenu();
+  clearLocalMessageRetry(message.id);
   resendingMessageId.value = message.id;
-  updateLocalMessage(message.roomId, message.id, markLocalMessageSending);
-  try {
-    const response = await resendLocalMessage({
-      roomId: message.roomId,
-      currentUserId: props.currentUser.id,
-      retryPayload,
-    });
-    if (!response.success || !response.data) {
-      updateLocalMessage(message.roomId, message.id, (currentMessage) =>
-        markLocalMessageFailed(
-          currentMessage,
-          response.message || "消息发送失败",
-        ),
-      );
-      notice.value = response.message || "消息重发失败";
-      return;
-    }
-
-    messages.value = replaceLocalMessage(
-      messages.value,
-      message.id,
-      response.data,
-    );
-    removeLocalMessage(message.roomId, message.id);
-    await loadChats({
-      preferredRoomId: selectedChatId.value,
-      preserveNotice: true,
-      reloadMessages: message.roomId === selectedChatId.value,
-    });
-    notice.value = "消息已重发。";
-  } catch (error) {
-    updateLocalMessage(message.roomId, message.id, (currentMessage) =>
-      markLocalMessageFailed(
-        currentMessage,
-        error instanceof Error ? error.message : "消息重发失败",
-      ),
-    );
-    notice.value = error instanceof Error ? error.message : "消息重发失败";
-  } finally {
-    resendingMessageId.value = null;
-  }
+  await executeLocalMessageRetry(message.roomId, message.id, {
+    manual: true,
+  });
 };
 
 const closeMessageActionMenu = () => {
@@ -4302,6 +4445,7 @@ const handleDeleteMessage = async (message: ChatMessage) => {
   }
 
   if (isLocalOnlyMessage(message)) {
+    clearLocalMessageRetry(message.id);
     removeLocalMessage(roomId, message.id);
     notice.value = "本地失败消息已移除。";
     return;
@@ -4582,6 +4726,14 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
 };
 
 watch(
+  () => localMessagesByRoom.value,
+  () => {
+    persistRetryableLocalMessages();
+  },
+  { deep: true },
+);
+
+watch(
   () => props.openChatRequest?.requestId,
   (requestId, previousRequestId) => {
     if (
@@ -4672,6 +4824,14 @@ watch(
 );
 
 onMounted(() => {
+  restoreRetryableLocalMessagesFromStorage();
+  Object.entries(localMessagesByRoom.value).forEach(([roomId, roomMessages]) => {
+    roomMessages.forEach((message) => {
+      if (!message.retryPayload?.attachments?.length) {
+        scheduleLocalMessageRetry(roomId, message.id);
+      }
+    });
+  });
   if (props.openChatRequest) {
     void handleOpenChatRequest(props.openChatRequest);
     return;
@@ -4680,6 +4840,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  persistRetryableLocalMessages();
+  clearAllLocalMessageRetryTimers();
   const roomId = subscribedRoomId.value;
   void stopTyping(roomId ?? typingRoomId.value);
   clearTypingUsers();
