@@ -209,6 +209,9 @@ describe("chat api", () => {
         },
         quotedMessage: null,
         parts: [],
+        clientStatus: null,
+        retryPayload: null,
+        errorMessage: null,
       },
     });
   });
@@ -304,6 +307,9 @@ describe("chat api", () => {
           forwardInfo: null,
           quotedMessage: null,
           parts: [],
+          clientStatus: null,
+          retryPayload: null,
+          errorMessage: null,
         },
         isPinned: true,
         pinnedAt: new Date("2026-03-25T19:05:00Z"),

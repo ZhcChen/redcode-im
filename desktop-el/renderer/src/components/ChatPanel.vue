@@ -38,6 +38,14 @@ import {
   formatQuotedMessagePreview,
   getQuotedSenderDisplayName,
 } from "@/utils/chat-quoted-message";
+import {
+  canResendLocalMessage,
+  createLocalTextMessage,
+  markLocalMessageFailed,
+  markLocalMessageSending,
+  mergeRemoteAndLocalMessages,
+  replaceLocalMessage,
+} from "@/utils/chat-local-message";
 import { findCreatedGroupChat } from "@/utils/chat-group-create";
 import {
   sortGroupMembers,
@@ -198,6 +206,8 @@ const highlightedQuotedMessageId = ref<string | null>(null);
 const hasMoreGroupOperationLogs = ref(false);
 const messageReaders = ref<ChatMessageReader[]>([]);
 const messageReadersTarget = ref<ChatMessage | null>(null);
+const localMessagesByRoom = ref<Record<string, ChatMessage[]>>({});
+const resendingMessageId = ref<string | null>(null);
 const typingUsers = ref<Record<string, number>>({});
 const typingCleanupTimers = new Map<string, number>();
 const typingStopSendTimer = ref<number | null>(null);
@@ -832,9 +842,16 @@ const formatAttachmentType = (partType: ChatMessagePart["partType"]) => {
 };
 
 const isMessagePinned = (message: ChatMessage) => Boolean(message.pinnedAt);
+const isLocalOnlyMessage = (message: ChatMessage) =>
+  message.clientStatus === "sending" || message.clientStatus === "failed";
 
 const canForwardMessage = (message: ChatMessage | null) => {
-  if (!message || message.isDeleted || message.messageType === "system") {
+  if (
+    !message ||
+    message.isDeleted ||
+    message.messageType === "system" ||
+    isLocalOnlyMessage(message)
+  ) {
     return false;
   }
   if (message.content.trim()) {
@@ -853,7 +870,8 @@ const canViewMessageReaders = (message: ChatMessage | null) =>
     message &&
       message.isSelf &&
       !message.isDeleted &&
-      message.messageType !== "system",
+      message.messageType !== "system" &&
+      !isLocalOnlyMessage(message),
   );
 
 const formatForwardSourceName = (forwardInfo: ChatForwardInfo | null) => {
@@ -1100,6 +1118,52 @@ const resetPendingAttachments = () => {
   attachmentUploadProgressById.value = {};
   if (attachmentInputRef.value) {
     attachmentInputRef.value.value = "";
+  }
+};
+
+const getLocalMessagesForRoom = (roomId: string | null) =>
+  roomId ? localMessagesByRoom.value[roomId] ?? [] : [];
+
+const setLocalMessagesForRoom = (roomId: string, roomMessages: ChatMessage[]) => {
+  const next = { ...localMessagesByRoom.value };
+  if (roomMessages.length) {
+    next[roomId] = roomMessages;
+  } else {
+    delete next[roomId];
+  }
+  localMessagesByRoom.value = next;
+};
+
+const appendLocalMessage = (roomId: string, message: ChatMessage) => {
+  setLocalMessagesForRoom(roomId, [...getLocalMessagesForRoom(roomId), message]);
+  if (selectedChatId.value === roomId) {
+    messages.value = [...messages.value, message];
+  }
+};
+
+const updateLocalMessage = (
+  roomId: string,
+  messageId: string,
+  updater: (message: ChatMessage) => ChatMessage,
+) => {
+  const nextLocalMessages = getLocalMessagesForRoom(roomId).map((message) =>
+    message.id === messageId ? updater(message) : message,
+  );
+  setLocalMessagesForRoom(roomId, nextLocalMessages);
+  if (selectedChatId.value === roomId) {
+    messages.value = messages.value.map((message) =>
+      message.id === messageId ? updater(message) : message,
+    );
+  }
+};
+
+const removeLocalMessage = (roomId: string, messageId: string) => {
+  setLocalMessagesForRoom(
+    roomId,
+    getLocalMessagesForRoom(roomId).filter((message) => message.id !== messageId),
+  );
+  if (selectedChatId.value === roomId) {
+    messages.value = messages.value.filter((message) => message.id !== messageId);
   }
 };
 
@@ -1548,16 +1612,19 @@ const loadMessages = async (roomId: string | null) => {
       currentUserId: props.currentUser.id,
     });
     if (!response.success || !response.data) {
-      messages.value = [];
+      messages.value = mergeRemoteAndLocalMessages([], getLocalMessagesForRoom(roomId));
       notice.value = response.message || "消息列表加载失败";
       return;
     }
 
-    messages.value = response.data;
+    messages.value = mergeRemoteAndLocalMessages(
+      response.data,
+      getLocalMessagesForRoom(roomId),
+    );
     primeAttachmentPreviews(response.data);
     await markRoomRead(roomId, response.data);
   } catch (error) {
-    messages.value = [];
+    messages.value = mergeRemoteAndLocalMessages([], getLocalMessagesForRoom(roomId));
     notice.value = error instanceof Error ? error.message : "消息列表加载失败";
   } finally {
     isLoadingMessages.value = false;
@@ -3308,6 +3375,10 @@ const handleSend = async () => {
   const content = draftMessage.value.trim();
   const attachments = [...pendingAttachments.value];
   const quotedMessageId = replyingMessage.value?.id;
+  const quotedMessage = replyingMessage.value
+    ? toQuotedMessage(replyingMessage.value)
+    : null;
+  let localTextMessageId: string | null = null;
   if (groupComposerState.value.disabled) {
     notice.value =
       groupComposerState.value.tip || groupComposerState.value.placeholder;
@@ -3322,6 +3393,21 @@ const handleSend = async () => {
   sendingMode.value = attachments.length ? "attachment" : "text";
   try {
     if (!attachments.length) {
+      const localMessage = createLocalTextMessage({
+        roomId,
+        currentUserId: props.currentUser.id,
+        currentUsername: props.currentUser.username,
+        currentDisplayName:
+          props.currentUser.nickname || props.currentUser.username,
+        currentAvatarUrl: props.currentUser.avatar,
+        content,
+        quotedMessage,
+      });
+      localTextMessageId = localMessage.id;
+      appendLocalMessage(roomId, localMessage);
+      draftMessage.value = "";
+      replyingMessage.value = null;
+
       const response = await ChatApi.sendTextMessage({
         roomId,
         content,
@@ -3329,12 +3415,22 @@ const handleSend = async () => {
         currentUserId: props.currentUser.id,
       });
       if (!response.success || !response.data) {
+        updateLocalMessage(roomId, localMessage.id, (message) =>
+          markLocalMessageFailed(
+            message,
+            response.message || "消息发送失败",
+          ),
+        );
         notice.value = response.message || "消息发送失败";
         return;
       }
 
-      draftMessage.value = "";
-      replyingMessage.value = null;
+      messages.value = replaceLocalMessage(
+        messages.value,
+        localMessage.id,
+        response.data,
+      );
+      removeLocalMessage(roomId, localMessage.id);
       await loadChats({
         preferredRoomId: roomId,
         preserveNotice: true,
@@ -3395,10 +3491,78 @@ const handleSend = async () => {
       notice.value = `已发送 ${attachmentCount} 个附件到 ${selectedChat.value?.title || "当前会话"}。`;
     }
   } catch (error) {
+    if (!attachments.length && localTextMessageId) {
+      const localMessage = getLocalMessagesForRoom(roomId).find(
+        (message) => message.id === localTextMessageId,
+      );
+      if (localMessage?.clientStatus === "sending") {
+        updateLocalMessage(roomId, localTextMessageId, (message) =>
+          markLocalMessageFailed(
+            message,
+            error instanceof Error ? error.message : "消息发送失败",
+          ),
+        );
+      }
+    }
     notice.value = error instanceof Error ? error.message : "消息发送失败";
   } finally {
     isSending.value = false;
     sendingMode.value = null;
+  }
+};
+
+const handleResendMessage = async (message: ChatMessage) => {
+  if (!canResendLocalMessage(message) || resendingMessageId.value) {
+    return;
+  }
+
+  const retryPayload = message.retryPayload;
+  if (!retryPayload?.content.trim()) {
+    return;
+  }
+
+  resendingMessageId.value = message.id;
+  updateLocalMessage(message.roomId, message.id, markLocalMessageSending);
+  try {
+    const response = await ChatApi.sendTextMessage({
+      roomId: message.roomId,
+      content: retryPayload.content,
+      quotedMessageId: retryPayload.quotedMessageId ?? undefined,
+      currentUserId: props.currentUser.id,
+    });
+    if (!response.success || !response.data) {
+      updateLocalMessage(message.roomId, message.id, (currentMessage) =>
+        markLocalMessageFailed(
+          currentMessage,
+          response.message || "消息发送失败",
+        ),
+      );
+      notice.value = response.message || "消息重发失败";
+      return;
+    }
+
+    messages.value = replaceLocalMessage(
+      messages.value,
+      message.id,
+      response.data,
+    );
+    removeLocalMessage(message.roomId, message.id);
+    await loadChats({
+      preferredRoomId: selectedChatId.value,
+      preserveNotice: true,
+      reloadMessages: message.roomId === selectedChatId.value,
+    });
+    notice.value = "消息已重发。";
+  } catch (error) {
+    updateLocalMessage(message.roomId, message.id, (currentMessage) =>
+      markLocalMessageFailed(
+        currentMessage,
+        error instanceof Error ? error.message : "消息重发失败",
+      ),
+    );
+    notice.value = error instanceof Error ? error.message : "消息重发失败";
+  } finally {
+    resendingMessageId.value = null;
   }
 };
 
@@ -3455,7 +3619,11 @@ const handleComposerKeydown = (event: KeyboardEvent) => {
 };
 
 const handleReplyToMessage = (message: ChatMessage) => {
-  if (message.messageType === "system" || message.isDeleted) {
+  if (
+    message.messageType === "system" ||
+    message.isDeleted ||
+    isLocalOnlyMessage(message)
+  ) {
     return;
   }
   replyingMessage.value = message;
@@ -3624,6 +3792,7 @@ const handleTogglePinMessage = async (message: ChatMessage) => {
     !roomId ||
     message.isDeleted ||
     message.messageType === "system" ||
+    isLocalOnlyMessage(message) ||
     pinningMessageId.value
   ) {
     return;
@@ -3668,7 +3837,11 @@ const handleTogglePinMessage = async (message: ChatMessage) => {
 };
 
 const handleToggleReactionPicker = (message: ChatMessage) => {
-  if (message.isDeleted || message.messageType === "system") {
+  if (
+    message.isDeleted ||
+    message.messageType === "system" ||
+    isLocalOnlyMessage(message)
+  ) {
     return;
   }
   activeReactionPickerMessageId.value =
@@ -3744,6 +3917,12 @@ const handleReactionTagClick = async (
 const handleDeleteMessage = async (message: ChatMessage) => {
   const roomId = selectedChatId.value;
   if (!roomId || !message.isSelf || deletingMessageId.value) {
+    return;
+  }
+
+  if (isLocalOnlyMessage(message)) {
+    removeLocalMessage(roomId, message.id);
+    notice.value = "本地失败消息已移除。";
     return;
   }
 
@@ -5008,10 +5187,21 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
-                    :disabled="message.isDeleted"
+                    :disabled="message.isDeleted || isLocalOnlyMessage(message)"
                     @click="handleReplyToMessage(message)"
                   >
                     引用
+                  </button>
+                  <button
+                    v-if="canResendLocalMessage(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="resendingMessageId === message.id"
+                    @click="void handleResendMessage(message)"
+                  >
+                    {{
+                      resendingMessageId === message.id ? "重发中..." : "重发"
+                    }}
                   </button>
                   <button
                     v-if="message.isSelf"
@@ -5021,7 +5211,11 @@ onBeforeUnmount(() => {
                     @click="void handleDeleteMessage(message)"
                   >
                     {{
-                      deletingMessageId === message.id ? "删除中..." : "删除"
+                      deletingMessageId === message.id
+                        ? "删除中..."
+                        : isLocalOnlyMessage(message)
+                          ? "移除"
+                          : "删除"
                     }}
                   </button>
                 </div>
@@ -5072,9 +5266,21 @@ onBeforeUnmount(() => {
                   {{ message.messageType }}
                   <template v-if="message.isEdited"> / 已编辑</template>
                   <template v-if="isMessagePinned(message)"> / 已置顶</template>
+                  <template v-if="message.clientStatus === 'sending'">
+                    / 发送中</template
+                  >
+                  <template v-else-if="message.clientStatus === 'failed'">
+                    / 发送失败</template
+                  >
                   <template v-if="message.deliveryStatus">
                     / {{ message.deliveryStatus }}</template
                   >
+                </small>
+                <small
+                  v-if="message.clientStatus === 'failed' && message.errorMessage"
+                  class="message-card__error"
+                >
+                  {{ message.errorMessage }}
                 </small>
               </article>
             </div>
@@ -6149,6 +6355,10 @@ onBeforeUnmount(() => {
 
 .message-card__footer {
   color: var(--text-secondary);
+}
+
+.message-card__error {
+  color: var(--error-color);
 }
 
 .message-reaction-picker {

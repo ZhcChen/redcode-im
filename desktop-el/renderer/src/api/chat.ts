@@ -476,6 +476,12 @@ export interface ChatMessage {
   forwardInfo: ChatForwardInfo | null;
   quotedMessage: ChatQuotedMessage | null;
   parts: ChatMessagePart[];
+  clientStatus?: "sending" | "failed" | null;
+  retryPayload?: {
+    content: string;
+    quotedMessageId?: string | null;
+  } | null;
+  errorMessage?: string | null;
 }
 
 export interface ChatQuotedMessage {
@@ -1525,6 +1531,9 @@ export const mapChatMessagePayload = (
     forwardInfo: mapForwardMessage(message.forward_message),
     quotedMessage: mapQuotedMessage(message.quoted_message),
     parts,
+    clientStatus: null,
+    retryPayload: null,
+    errorMessage: null,
   };
 };
 

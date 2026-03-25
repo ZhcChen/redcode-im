@@ -39,7 +39,8 @@
 - [x] 已完成消息 reaction 最小闭环：Go core 新增 `chat.reactions.add/remove/list` RPC，renderer 已接入固定 reaction picker、reaction 标签点击切换，以及 `reaction_update` 当前会话局部同步。
 - [x] 已完成消息已读成员列表最小闭环：Go core 新增 `chat.message.readers.list` RPC，renderer 已接入消息卡片“已读成员”入口、按需拉取 readers 的最小弹窗，以及会话切换时的局部收口。
 - [x] 已完成 `typing_update` 最小闭环：Go core 新增 `ws.join` / `ws.leave` / `chat.typing.send` RPC，renderer 已在当前会话维护最小房间订阅、按旧端节流策略发送 typing 状态，并在消息区展示“正在输入”提示。
-- [ ] 撤回、重发与更完整的消息操作菜单仍未迁移。
+- [x] 已完成文本 / 引用文本消息发送失败态与手动重发最小闭环：renderer 已接入本地 sending/failed 气泡、房间级失败消息保留、失败消息移除与手动重投；当前仍不支持附件重发与自动重试。
+- [ ] 撤回与更完整的消息操作菜单仍未迁移。
 
 **建议切口:**
 - [ ] 先补 Go core chat RPC 与 WS 事件透传，不在 renderer 直接拼业务请求。
