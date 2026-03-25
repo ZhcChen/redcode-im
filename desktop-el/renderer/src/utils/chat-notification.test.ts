@@ -33,6 +33,7 @@ describe("chat notification helpers", () => {
       }),
     ).toEqual({
       shouldNotify: false,
+      shouldRequestAttention: false,
       payload: null,
     });
   });
@@ -50,6 +51,7 @@ describe("chat notification helpers", () => {
       }),
     ).toEqual({
       shouldNotify: false,
+      shouldRequestAttention: false,
       payload: null,
     });
   });
@@ -64,11 +66,12 @@ describe("chat notification helpers", () => {
       }),
     ).toEqual({
       shouldNotify: false,
+      shouldRequestAttention: false,
       payload: null,
     });
   });
 
-  test("builds notification title and body for background text messages", () => {
+  test("builds notification title and body for focused non-chat messages without requesting attention", () => {
     expect(
       getChatNotificationPlan({
         push: createMessagePush(),
@@ -78,6 +81,7 @@ describe("chat notification helpers", () => {
       }),
     ).toEqual({
       shouldNotify: true,
+      shouldRequestAttention: false,
       payload: {
         title: "林一",
         body: "你好 desktop-el",
@@ -85,7 +89,7 @@ describe("chat notification helpers", () => {
     });
   });
 
-  test("falls back to message-type preview when content is empty", () => {
+  test("requests host attention for background messages when the window is not focused", () => {
     expect(
       getChatNotificationPlan({
         push: createMessagePush({
@@ -98,6 +102,7 @@ describe("chat notification helpers", () => {
       }),
     ).toEqual({
       shouldNotify: true,
+      shouldRequestAttention: true,
       payload: {
         title: "林一",
         body: "[图片]",

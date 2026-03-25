@@ -231,7 +231,7 @@
 - [x] 消息到达通知
 - [x] 文件选择 / 保存与下载链路
 - [x] 媒体预览与打开本地文件
-- [ ] 业务侧对 tray / window 的显式控制
+- [x] 业务侧对 tray / window 的显式控制
 
 **关键参考:**
 - [tray.ts](/Users/chen/code/redcode-im/.worktrees/desktop-el/desktop-el/electron/main/tray.ts)

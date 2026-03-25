@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ export interface DesktopWindowService {
   hide(): Promise<void>;
   focus(): Promise<void>;
   setTitle(title: string): Promise<void>;
+  requestAttention(): Promise<void>;
 }
 
 export class MainWindowController implements DesktopWindowService {
@@ -124,5 +125,24 @@ export class MainWindowController implements DesktopWindowService {
   async setTitle(title: string): Promise<void> {
     const win = await this.create();
     win.setTitle(title);
+  }
+
+  async requestAttention(): Promise<void> {
+    const win = await this.create();
+    if (win.isFocused()) {
+      return;
+    }
+
+    if (process.platform === "darwin") {
+      app.dock?.bounce("informational");
+      return;
+    }
+
+    win.flashFrame(true);
+    win.once("focus", () => {
+      if (!win.isDestroyed()) {
+        win.flashFrame(false);
+      }
+    });
   }
 }

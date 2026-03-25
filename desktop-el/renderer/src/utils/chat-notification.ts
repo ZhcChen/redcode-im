@@ -10,6 +10,7 @@ export interface ChatNotificationPayload {
 
 export interface ChatNotificationPlan {
   shouldNotify: boolean;
+  shouldRequestAttention: boolean;
   payload: ChatNotificationPayload | null;
 }
 
@@ -52,6 +53,7 @@ export const getChatNotificationPlan = (
   if (!isMessagePush(push)) {
     return {
       shouldNotify: false,
+      shouldRequestAttention: false,
       payload: null,
     };
   }
@@ -59,6 +61,7 @@ export const getChatNotificationPlan = (
   if (push.sender_id === currentUserId || push.message_type === "system") {
     return {
       shouldNotify: false,
+      shouldRequestAttention: false,
       payload: null,
     };
   }
@@ -66,12 +69,14 @@ export const getChatNotificationPlan = (
   if (activeView === "chat" && isWindowFocused) {
     return {
       shouldNotify: false,
+      shouldRequestAttention: false,
       payload: null,
     };
   }
 
   return {
     shouldNotify: true,
+    shouldRequestAttention: !isWindowFocused,
     payload: {
       title: buildTitle(push),
       body: buildPreview(push),

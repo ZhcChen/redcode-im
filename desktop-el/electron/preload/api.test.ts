@@ -9,6 +9,9 @@ const getExposedAPI = () => electronMockState.exposedAPI as
   rpc: {
     invoke: (method: string, params?: unknown, options?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<unknown>;
   };
+  window: {
+    requestAttention: () => Promise<unknown>;
+  };
   file: {
     saveFromURL: (options: { url: string; filePath: string }) => Promise<unknown>;
     getCachedPath: (options: { relativePath: string }) => Promise<unknown>;
@@ -93,6 +96,25 @@ describe("desktopEl preload rpc api", () => {
 
     electronMockState.resolveInvoke?.({ filePath: "/tmp/file.txt" });
     await expect(savePromise).resolves.toEqual({ filePath: "/tmp/file.txt" });
+  });
+
+  test("forwards window attention calls through shell invoke channel", async () => {
+    const exposedAPI = getExposedAPI();
+    expect(exposedAPI).toBeDefined();
+
+    const requestPromise = exposedAPI!.window.requestAttention();
+
+    expect(electronMockState.invokeArgs).toEqual([
+      "desktop-el:shell:invoke",
+      {
+        namespace: "window",
+        method: "requestAttention",
+        params: undefined,
+      },
+    ]);
+
+    electronMockState.resolveInvoke?.(undefined);
+    await expect(requestPromise).resolves.toBeUndefined();
   });
 
   test("forwards file cache shell calls through shell invoke channel", async () => {

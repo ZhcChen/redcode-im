@@ -85,6 +85,9 @@ const desktopElAPI: DesktopElAPI = {
     },
     setTitle(title: string): Promise<void> {
       return invokeShell("window", "setTitle", { title });
+    },
+    requestAttention(): Promise<void> {
+      return invokeShell("window", "requestAttention");
     }
   },
   dialog: {

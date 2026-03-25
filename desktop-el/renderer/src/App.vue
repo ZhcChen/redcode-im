@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { RpcEvent } from "../../electron/preload/types.js";
 import { getRuntimeConfig } from "./api/config";
 import type { ChatWebSocketPush } from "./api/chat";
@@ -9,6 +9,7 @@ import HomeShell from "./components/HomeShell.vue";
 import { useSessionStore } from "./store/session";
 import type { BootstrapSnapshot } from "./types/bootstrap";
 import { WebSocketApi } from "./api/websocket";
+import { buildDesktopWindowTitle } from "./utils/desktop-window-title";
 
 const bootstrap = ref<BootstrapSnapshot | null>(null);
 const hostVersion = ref<string | null>(null);
@@ -22,6 +23,15 @@ let cleanupEventListener: (() => void) | undefined;
 
 const appName = computed(() => bootstrap.value?.config.app_name || "CHATLY");
 const currentUser = computed<LegacyUserInfo | null>(() => sessionStore.state.currentUser);
+
+const syncWindowTitle = async () => {
+  if (!window.desktopEl) {
+    return;
+  }
+
+  const title = buildDesktopWindowTitle(appName.value, currentUser.value);
+  await window.desktopEl.window.setTitle(title);
+};
 
 const syncBootstrapState = (snapshot: BootstrapSnapshot | null) => {
   if (!snapshot) {
@@ -128,6 +138,20 @@ onMounted(() => {
 onUnmounted(() => {
   cleanupEventListener?.();
 });
+
+watch(
+  [appName, currentUser],
+  () => {
+    if (!runtimeAvailable.value || !window.desktopEl) {
+      return;
+    }
+
+    void syncWindowTitle().catch((error) => {
+      console.warn("[desktop-el-renderer] failed to sync window title", error);
+    });
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

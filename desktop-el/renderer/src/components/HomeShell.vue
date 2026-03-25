@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import type { DesktopElAPI } from "../../../electron/preload/types.js";
 import type { ChatWebSocketPush } from "@/api/chat";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
@@ -8,6 +9,12 @@ import { getChatNotificationPlan } from "@/utils/chat-notification";
 import ChatPanel from "./ChatPanel.vue";
 import ContactPanel from "./ContactPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
+
+type DesktopElWithAttention = DesktopElAPI & {
+  window: DesktopElAPI["window"] & {
+    requestAttention: () => Promise<void>;
+  };
+};
 
 const props = defineProps<{
   currentUser: LegacyUserInfo;
@@ -91,6 +98,18 @@ const handleWindowBlur = () => {
   isWindowFocused.value = false;
 };
 
+const handleHideToTray = async () => {
+  if (!window.desktopEl) {
+    return;
+  }
+
+  try {
+    await window.desktopEl.window.hide();
+  } catch (error) {
+    console.warn("failed to hide window to tray", error);
+  }
+};
+
 const maybeShowMessageNotification = async (push: ChatWebSocketPush | null) => {
   const plan = getChatNotificationPlan({
     push,
@@ -102,13 +121,31 @@ const maybeShowMessageNotification = async (push: ChatWebSocketPush | null) => {
     return;
   }
 
-  const desktopEl = window.desktopEl;
+  const desktopEl = window.desktopEl as DesktopElWithAttention | undefined;
   if (!desktopEl) {
     return;
   }
 
   try {
-    await desktopEl.notification.show(plan.payload);
+    const tasks: Array<Promise<unknown>> = [];
+
+    if (plan.shouldRequestAttention) {
+      tasks.push(
+        desktopEl.window.requestAttention().catch((error: unknown) => {
+          console.warn("failed to request host attention", error);
+        }),
+      );
+    }
+
+    if (plan.shouldNotify && plan.payload) {
+      tasks.push(
+        desktopEl.notification.show(plan.payload).catch((error: unknown) => {
+          console.warn("failed to show desktop notification", error);
+        }),
+      );
+    }
+
+    await Promise.all(tasks);
   } catch (error) {
     console.warn("failed to show desktop notification", error);
   }
@@ -163,6 +200,7 @@ watch(
 
       <div class="home-shell__sidebar-footer">
         <button type="button" class="ghost-action" @click="emit('navigate', 'settings')">账号设置</button>
+        <button type="button" class="ghost-action" @click="handleHideToTray">隐藏到托盘</button>
         <button type="button" class="ghost-action ghost-action--danger" @click="emit('logout')">退出登录</button>
       </div>
     </aside>

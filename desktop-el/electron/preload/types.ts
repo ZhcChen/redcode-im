@@ -128,6 +128,7 @@ export interface DesktopWindowAPI {
   hide(): Promise<void>;
   focus(): Promise<void>;
   setTitle(title: string): Promise<void>;
+  requestAttention(): Promise<void>;
 }
 
 export interface DesktopDialogAPI {

@@ -22,7 +22,8 @@ describe("registerShellIpc", () => {
         show: async () => {},
         hide: async () => {},
         focus: async () => {},
-        setTitle: async () => {}
+        setTitle: async () => {},
+        requestAttention: async () => {}
       },
       dialog: {
         open: async () => ({ canceled: false, filePaths: ["/tmp/file.txt"] }),
