@@ -43,6 +43,7 @@ import {
 } from "@/utils/user-avatar-upload";
 import AddGroupMembersModal from "./AddGroupMembersModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
+import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 
 interface OpenChatRequest {
   requestId: number;
@@ -102,6 +103,7 @@ const groupMembers = ref<ChatRoomMember[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
 const isAddGroupMembersModalVisible = ref(false);
+const isRemoveGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -117,6 +119,7 @@ const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
 const isAddingGroupMembers = ref(false);
+const isRemovingGroupMembers = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
@@ -215,6 +218,21 @@ const addableGroupFriends = computed(() => {
   excludedUserIds.add(props.currentUser.id);
   return createGroupFriends.value.filter((friend) => !excludedUserIds.has(friend.id));
 });
+const removableGroupMembers = computed(() =>
+  sortedGroupMembers.value
+    .filter(
+      (member) =>
+        member.userId !== props.currentUser.id &&
+        member.role !== "owner" &&
+        member.userId !== (groupDetail.value?.ownerId ?? null),
+    )
+    .map((member) => ({
+      id: member.userId,
+      displayName: getRoomMemberDisplayName(member),
+      subtitle: `${formatRoomMemberRole(member.role)} / ${member.username}`,
+      avatarUrl: member.avatarUrl,
+    })),
+);
 const groupOwnerMember = computed(
   () =>
     sortedGroupMembers.value.find(
@@ -1046,12 +1064,43 @@ const closeAddGroupMembersModal = () => {
   isAddGroupMembersModalVisible.value = false;
 };
 
+const handleOpenRemoveGroupMembersModal = () => {
+  if (isRemovingGroupMembers.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有删除群成员的权限。";
+    return;
+  }
+
+  isRemoveGroupMembersModalVisible.value = true;
+};
+
+const closeRemoveGroupMembersModal = () => {
+  if (isRemovingGroupMembers.value) {
+    return;
+  }
+  isRemoveGroupMembersModalVisible.value = false;
+};
+
 const handleAddGroupMembersModalVisibleChange = (visible: boolean) => {
   if (visible) {
     void handleOpenAddGroupMembersModal();
     return;
   }
   closeAddGroupMembersModal();
+};
+
+const handleRemoveGroupMembersModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    handleOpenRemoveGroupMembersModal();
+    return;
+  }
+  closeRemoveGroupMembersModal();
 };
 
 const handleCreateGroupModalVisibleChange = (visible: boolean) => {
@@ -1222,6 +1271,68 @@ const handleAddGroupMembers = async (payload: {
     await loadGroupSettings(roomId);
   } finally {
     isAddingGroupMembers.value = false;
+  }
+};
+
+const handleRemoveGroupMembers = async (payload: {
+  memberUserIds: string[];
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有删除群成员的权限。";
+    return;
+  }
+  if (!payload.memberUserIds.length) {
+    notice.value = "请至少选择 1 位成员。";
+    return;
+  }
+
+  isRemovingGroupMembers.value = true;
+  notice.value = `正在移除 ${payload.memberUserIds.length} 位群成员...`;
+  try {
+    const results = await Promise.allSettled(
+      payload.memberUserIds.map((userId) =>
+        ChatApi.removeGroupMember({
+          roomId,
+          userId,
+        }),
+      ),
+    );
+    const successCount = results.filter(
+      (result) =>
+        result.status === "fulfilled" &&
+        result.value.success &&
+        result.value.data?.success,
+    ).length;
+    const failedCount = results.length - successCount;
+
+    if (successCount > 0) {
+      isRemoveGroupMembersModalVisible.value = false;
+      await loadChats({
+        preferredRoomId: roomId,
+        preserveNotice: true,
+        reloadMessages: false,
+      });
+      await loadGroupContext(roomId);
+      await loadGroupSettings(roomId);
+      notice.value =
+        failedCount > 0
+          ? `已移除 ${successCount} 位成员，${failedCount} 位移除失败。`
+          : `已移除 ${successCount} 位成员。`;
+      return;
+    }
+
+    notice.value = "删除成员失败。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "删除成员失败";
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isRemovingGroupMembers.value = false;
   }
 };
 
@@ -2100,6 +2211,21 @@ onMounted(() => {
                 <button
                   type="button"
                   class="group-panel__action"
+                  :disabled="
+                    isRemovingGroupMembers ||
+                    removableGroupMembers.length === 0
+                  "
+                  @click="handleOpenRemoveGroupMembersModal"
+                >
+                  {{
+                    isRemovingGroupMembers
+                      ? "移除中..."
+                      : "删除成员"
+                  }}
+                </button>
+                <button
+                  type="button"
+                  class="group-panel__action"
                   :disabled="isUpdatingGroupAvatar"
                   @click="handleOpenGroupAvatarPicker"
                 >
@@ -2893,6 +3019,13 @@ onMounted(() => {
       :is-submitting="isAddingGroupMembers"
       @update:visible="handleAddGroupMembersModalVisibleChange"
       @submit="void handleAddGroupMembers($event)"
+    />
+    <RemoveGroupMembersModal
+      :visible="isRemoveGroupMembersModalVisible"
+      :members="removableGroupMembers"
+      :is-submitting="isRemovingGroupMembers"
+      @update:visible="handleRemoveGroupMembersModalVisibleChange"
+      @submit="void handleRemoveGroupMembers($event)"
     />
   </section>
 </template>

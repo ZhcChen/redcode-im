@@ -377,6 +377,10 @@ export interface AddGroupMembersData {
   skippedUserIds: string[];
 }
 
+export interface RemoveGroupMemberData {
+  success: boolean;
+}
+
 export interface AttachmentMultipartInitiateData {
   key: string;
   sessionId: string | null;
@@ -1331,6 +1335,32 @@ export class ChatApi {
                 : response.success,
             addedUserIds: response.data.added_user_ids ?? [],
             skippedUserIds: response.data.skipped_user_ids ?? [],
+          }
+        : null,
+    };
+  }
+
+  static async removeGroupMember(params: {
+    roomId: string;
+    userId: string;
+  }): Promise<ApiResponse<RemoveGroupMemberData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        success?: boolean;
+      }>
+    >("chat.room.member.remove", {
+      room_id: params.roomId,
+      user_id: params.userId,
+    });
+
+    return {
+      ...response,
+      data: response.data
+        ? {
+            success:
+              typeof response.data.success === "boolean"
+                ? response.data.success
+                : response.success,
           }
         : null,
     };

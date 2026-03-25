@@ -697,6 +697,49 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("removes group member through go-core rpc and maps result", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                success: true,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.removeGroupMember({
+      roomId: "room-group-1",
+      userId: "u-2",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.room.member.remove",
+        params: {
+          room_id: "room-group-1",
+          user_id: "u-2",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        success: true,
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

@@ -1835,6 +1835,59 @@ func TestAppChatRoomMembersAddReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatRoomMemberRemoveReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/members/u-2" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-room-member-remove",
+		Method: "chat.room.member.remove",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+			"user_id": "u-2",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.room.member.remove to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.room.member.remove response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.room.member.remove envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.room.member.remove data failed: %v", err)
+	}
+	if result["success"] != true {
+		t.Fatalf("unexpected remove member result: %+v", result)
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

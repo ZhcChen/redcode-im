@@ -26,6 +26,11 @@ type AddRoomMembersParams struct {
 	UserIDs []string `json:"user_ids"`
 }
 
+type RemoveRoomMemberParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -195,6 +200,13 @@ func (s *Service) AddRoomMembers(ctx context.Context, params AddRoomMembersParam
 		Body: map[string]any{
 			"user_ids": params.UserIDs,
 		},
+	})
+}
+
+func (s *Service) RemoveRoomMember(ctx context.Context, params RemoveRoomMemberParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/members/" + params.UserID,
 	})
 }
 
