@@ -4911,6 +4911,60 @@ func TestAppChatTypingSendWritesWebSocketEvent(t *testing.T) {
 	}
 }
 
+func TestAppWSPumpEmitsDisconnectedStatusWhenServerClosesConnection(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade failed: %v", err)
+		}
+
+		time.Sleep(50 * time.Millisecond)
+		_ = conn.Close()
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	application := newTestApp("http://127.0.0.1:8010")
+	application.encoder = rpc.NewEncoder(&stdout)
+
+	rpcServer := application.RegisterRPC()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	connectResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-connect-disconnect-event",
+		Method: "ws.connect",
+		Params: mustJSONRaw(map[string]any{
+			"url":   wsURL,
+			"token": "access-token",
+		}),
+	})
+	if connectResponse.Error != nil {
+		t.Fatalf("expected ws.connect to succeed, got: %+v", connectResponse.Error)
+	}
+
+	waitForStatusEvent(t, &stdout, "authenticated")
+	waitForStatusEvent(t, &stdout, "disconnected")
+
+	statusResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-status-after-server-close",
+		Method: "ws.status.get",
+	})
+	if statusResponse.Error != nil {
+		t.Fatalf("expected ws.status.get to succeed, got: %+v", statusResponse.Error)
+	}
+
+	var statusPayload map[string]any
+	if err := json.Unmarshal(statusResponse.Result, &statusPayload); err != nil {
+		t.Fatalf("decode ws.status.get response failed: %v", err)
+	}
+	if statusPayload["status"] != "disconnected" {
+		t.Fatalf("expected websocket status to be disconnected after server close, got: %+v", statusPayload)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{
@@ -4959,6 +5013,21 @@ func waitForEmittedEvent(t *testing.T, stdout *bytes.Buffer, eventName string) r
 	return rpc.Event{}
 }
 
+func waitForStatusEvent(t *testing.T, stdout *bytes.Buffer, expectedStatus string) rpc.Event {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if event, ok := findStatusEvent(stdout.Bytes(), expectedStatus); ok {
+			return event
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("expected ws.status.updated with status %q, got: %s", expectedStatus, stdout.String())
+	return rpc.Event{}
+}
+
 func findEmittedEvent(output []byte, eventName string) (rpc.Event, bool) {
 	for _, line := range bytes.Split(output, []byte("\n")) {
 		line = bytes.TrimSpace(line)
@@ -4971,6 +5040,33 @@ func findEmittedEvent(output []byte, eventName string) (rpc.Event, bool) {
 			continue
 		}
 		if event.Type == rpc.TypeEvent && event.Event == eventName {
+			return event, true
+		}
+	}
+
+	return rpc.Event{}, false
+}
+
+func findStatusEvent(output []byte, expectedStatus string) (rpc.Event, bool) {
+	for _, line := range bytes.Split(output, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+
+		var event rpc.Event
+		if err := json.Unmarshal(line, &event); err != nil {
+			continue
+		}
+		if event.Type != rpc.TypeEvent || event.Event != "ws.status.updated" {
+			continue
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			continue
+		}
+		if payload["status"] == expectedStatus {
 			return event, true
 		}
 	}

@@ -1144,6 +1144,9 @@ func (a *App) startWSPump() {
 		for {
 			payload, err := a.wsClient.ReadMessage(context.Background())
 			if err != nil {
+				_ = a.emitEvent(context.Background(), "ws.status.updated", map[string]any{
+					"status": string(a.wsClient.Status()),
+				})
 				return
 			}
 
