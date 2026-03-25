@@ -139,6 +139,11 @@ type MessageReactionParams struct {
 	ReactionKey string `json:"reaction_key,omitempty"`
 }
 
+type MessageReadersParams struct {
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
+}
+
 type MarkReadUntilParams struct {
 	RoomID    string `json:"room_id"`
 	MessageID string `json:"message_id"`
@@ -584,6 +589,13 @@ func (s *Service) ListReactions(ctx context.Context, params MessageReactionParam
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodGet,
 		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/reactions",
+	})
+}
+
+func (s *Service) ListMessageReaders(ctx context.Context, params MessageReadersParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/reads",
 	})
 }
 

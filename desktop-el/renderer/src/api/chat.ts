@@ -222,6 +222,14 @@ interface BackendForwardMessage {
   source_avatar?: string | null;
 }
 
+interface BackendMessageReader {
+  user_id: string;
+  username: string;
+  nickname?: string | null;
+  avatar_url?: string | null;
+  read_at: string;
+}
+
 interface BackendAttachmentDownloadPayload {
   success?: boolean;
   message?: string;
@@ -500,6 +508,14 @@ export interface ChatMessageReactionSummary {
   count: number;
   userIds: string[];
   hasSelf: boolean;
+}
+
+export interface ChatMessageReader {
+  userId: string;
+  username: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  readAt: Date | null;
 }
 
 export interface ChatMessageAttachment {
@@ -1437,6 +1453,16 @@ const mapReactionData = (
     },
   };
 };
+
+const mapMessageReader = (
+  reader: BackendMessageReader,
+): ChatMessageReader => ({
+  userId: reader.user_id,
+  username: reader.username,
+  nickname: reader.nickname ?? null,
+  avatarUrl: reader.avatar_url ?? null,
+  readAt: parseTimestamp(reader.read_at),
+});
 
 export const mapChatMessagePayload = (
   message: BackendMessageInfo,
@@ -2422,6 +2448,22 @@ export class ChatApi {
       message_id: params.messageId,
     });
     return mapReactionData(response);
+  }
+
+  static async getMessageReaders(params: {
+    roomId: string;
+    messageId: string;
+  }): Promise<ApiResponse<ChatMessageReader[]>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMessageReader[]>
+    >("chat.message.readers.list", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+    });
+    return {
+      ...response,
+      data: response.data ? response.data.map(mapMessageReader) : null,
+    };
   }
 
   static async readUntil(params: {

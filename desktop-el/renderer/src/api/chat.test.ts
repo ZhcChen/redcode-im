@@ -376,6 +376,89 @@ describe("chat api", () => {
     });
   });
 
+  test("loads message readers through go-core rpc and maps reader payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: [
+                {
+                  user_id: "u-8",
+                  username: "bob",
+                  nickname: "Bob",
+                  avatar_url: "https://example.com/avatar-bob.png",
+                  read_at: "2026-03-25T19:06:00Z",
+                },
+                {
+                  user_id: "u-9",
+                  username: "carol",
+                  nickname: null,
+                  avatar_url: null,
+                  read_at: "2026-03-25T19:07:00Z",
+                },
+              ],
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const getMessageReaders = (
+      ChatApi as unknown as {
+        getMessageReaders?: (params: {
+          roomId: string;
+          messageId: string;
+        }) => Promise<unknown>;
+      }
+    ).getMessageReaders;
+
+    expect(typeof getMessageReaders).toBe("function");
+    if (!getMessageReaders) {
+      return;
+    }
+
+    const response = (await getMessageReaders({
+      roomId: "room-2",
+      messageId: "msg-15",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.message.readers.list",
+        params: {
+          room_id: "room-2",
+          message_id: "msg-15",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: [
+        {
+          userId: "u-8",
+          username: "bob",
+          nickname: "Bob",
+          avatarUrl: "https://example.com/avatar-bob.png",
+          readAt: new Date("2026-03-25T19:06:00Z"),
+        },
+        {
+          userId: "u-9",
+          username: "carol",
+          nickname: null,
+          avatarUrl: null,
+          readAt: new Date("2026-03-25T19:07:00Z"),
+        },
+      ],
+    });
+  });
+
   test("adds reaction through go-core rpc and maps summaries", async () => {
     globalThis.window = {
       desktopEl: {

@@ -30,7 +30,7 @@
 **当前缺口:**
 - 撤回、重发未迁移。
 - `typing_update` 等 websocket 事件未接入。
-- 已读成员列表和更细的消息状态展示未接入。
+- 更细的消息状态展示未接入。
 
 **当前进度:**
 - [x] 已完成消息删除与 `message_update` 最小同步闭环。
@@ -38,6 +38,7 @@
 - [x] 已完成消息转发最小闭环：Go core 新增 `chat.forward` RPC，renderer 已接入目标会话选择弹窗、`forward_message -> forwardInfo` 映射，以及消息卡片“转发自 xxx”来源展示。
 - [x] 已完成消息置顶最小闭环：Go core 新增 `chat.pin` / `chat.unpin` RPC，renderer 已接入消息级置顶/取消置顶按钮、消息置顶徽标，以及 `pin_update` 当前会话局部同步。
 - [x] 已完成消息 reaction 最小闭环：Go core 新增 `chat.reactions.add/remove/list` RPC，renderer 已接入固定 reaction picker、reaction 标签点击切换，以及 `reaction_update` 当前会话局部同步。
+- [x] 已完成消息已读成员列表最小闭环：Go core 新增 `chat.message.readers.list` RPC，renderer 已接入消息卡片“已读成员”入口、按需拉取 readers 的最小弹窗，以及会话切换时的局部收口。
 - [ ] 撤回、重发与更完整的消息操作菜单仍未迁移。
 
 **建议切口:**

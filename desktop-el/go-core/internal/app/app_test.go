@@ -3287,6 +3287,75 @@ func TestAppChatUnpinMessageReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatMessageReadersListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-15/reads" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"user_id":    "u-8",
+				"username":   "bob",
+				"nickname":   "Bob",
+				"avatar_url": "https://example.com/avatar-bob.png",
+				"read_at":    "2026-03-25T19:06:00Z",
+			},
+			{
+				"user_id":    "u-9",
+				"username":   "carol",
+				"nickname":   "Carol",
+				"avatar_url": nil,
+				"read_at":    "2026-03-25T19:07:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-message-readers-list",
+		Method: "chat.message.readers.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-15",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.message.readers.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.message.readers.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.message.readers.list envelope: %+v", envelope)
+	}
+
+	var readers []map[string]any
+	if err := json.Unmarshal(envelope.Data, &readers); err != nil {
+		t.Fatalf("decode chat.message.readers.list data failed: %v", err)
+	}
+	if len(readers) != 2 {
+		t.Fatalf("unexpected readers payload length: %+v", readers)
+	}
+	if readers[0]["user_id"] != "u-8" || readers[1]["username"] != "carol" {
+		t.Fatalf("unexpected readers payload: %+v", readers)
+	}
+}
+
 func TestAppChatAddReactionReturnsEnvelope(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages/msg-15/reactions" {

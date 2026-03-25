@@ -12,6 +12,7 @@ import {
   type ChatGroupSettings,
   mapChatRealtimeEvent,
   type ChatMessage,
+  type ChatMessageReader,
   type ChatMessagePart,
   type ChatQuotedMessage,
   type ChatRealtimeEvent,
@@ -59,6 +60,7 @@ import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
 import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
 import ManageGroupOperationLogsModal from "./ManageGroupOperationLogsModal.vue";
 import ManageGroupRulesModal from "./ManageGroupRulesModal.vue";
+import MessageReadersModal from "./MessageReadersModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 import TransferGroupOwnerModal from "./TransferGroupOwnerModal.vue";
 import ViewGroupMembersModal from "./ViewGroupMembersModal.vue";
@@ -135,6 +137,7 @@ const isRemoveGroupMembersModalVisible = ref(false);
 const isTransferGroupOwnerModalVisible = ref(false);
 const isViewGroupMembersModalVisible = ref(false);
 const isForwardMessageModalVisible = ref(false);
+const isMessageReadersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -168,6 +171,7 @@ const pinningMessageId = ref<string | null>(null);
 const reactingMessageId = ref<string | null>(null);
 const reactingReactionKey = ref<string | null>(null);
 const activeReactionPickerMessageId = ref<string | null>(null);
+const loadingMessageReadersMessageId = ref<string | null>(null);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
 const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
@@ -191,6 +195,8 @@ const replyingMessage = ref<ChatMessage | null>(null);
 const forwardingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
 const hasMoreGroupOperationLogs = ref(false);
+const messageReaders = ref<ChatMessageReader[]>([]);
+const messageReadersTarget = ref<ChatMessage | null>(null);
 let groupContextLoadSequence = 0;
 let groupAdminsLoadSequence = 0;
 let groupJoinRequestsLoadSequence = 0;
@@ -198,6 +204,7 @@ let groupMutesLoadSequence = 0;
 let groupOperationLogsLoadSequence = 0;
 let groupRulesLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
+let messageReadersLoadSequence = 0;
 const GROUP_OPERATION_LOGS_PAGE_SIZE = 20;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
@@ -274,6 +281,16 @@ const forwardingMessageSummary = computed(() => {
     return null;
   }
   return forwardingMessage.value.preview || forwardingMessage.value.content || "[空消息]";
+});
+const messageReadersSummary = computed(() => {
+  if (!messageReadersTarget.value) {
+    return null;
+  }
+  return (
+    messageReadersTarget.value.preview ||
+    messageReadersTarget.value.content ||
+    "[空消息]"
+  );
 });
 const removableGroupMembers = computed(() =>
   sortedGroupMembers.value
@@ -795,6 +812,14 @@ const canForwardMessage = (message: ChatMessage | null) => {
       : Boolean(part.attachment?.key),
   );
 };
+
+const canViewMessageReaders = (message: ChatMessage | null) =>
+  Boolean(
+    message &&
+      message.isSelf &&
+      !message.isDeleted &&
+      message.messageType !== "system",
+  );
 
 const formatForwardSourceName = (forwardInfo: ChatForwardInfo | null) => {
   if (!forwardInfo) {
@@ -3186,6 +3211,77 @@ const clearReplyingMessage = () => {
   replyingMessage.value = null;
 };
 
+const resetMessageReadersState = () => {
+  messageReadersLoadSequence += 1;
+  isMessageReadersModalVisible.value = false;
+  loadingMessageReadersMessageId.value = null;
+  messageReaders.value = [];
+  messageReadersTarget.value = null;
+};
+
+const handleMessageReadersModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    isMessageReadersModalVisible.value = true;
+    return;
+  }
+  resetMessageReadersState();
+};
+
+const handleOpenMessageReadersModal = async (message: ChatMessage) => {
+  if (!canViewMessageReaders(message) || loadingMessageReadersMessageId.value) {
+    return;
+  }
+
+  const roomId = selectedChatId.value;
+  if (!roomId || roomId !== message.roomId) {
+    notice.value = "当前消息不在已选会话中，无法加载已读成员。";
+    return;
+  }
+
+  const currentSequence = messageReadersLoadSequence + 1;
+  messageReadersLoadSequence = currentSequence;
+  isMessageReadersModalVisible.value = true;
+  loadingMessageReadersMessageId.value = message.id;
+  messageReadersTarget.value = message;
+  messageReaders.value = [];
+
+  try {
+    const response = await ChatApi.getMessageReaders({
+      roomId,
+      messageId: message.id,
+    });
+    if (
+      currentSequence !== messageReadersLoadSequence ||
+      selectedChatId.value !== roomId ||
+      messageReadersTarget.value?.id !== message.id
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      messageReaders.value = [];
+      notice.value = response.message || "加载消息已读成员失败";
+      return;
+    }
+
+    messageReaders.value = response.data;
+  } catch (error) {
+    if (
+      currentSequence !== messageReadersLoadSequence ||
+      messageReadersTarget.value?.id !== message.id
+    ) {
+      return;
+    }
+
+    messageReaders.value = [];
+    notice.value = error instanceof Error ? error.message : "加载消息已读成员失败";
+  } finally {
+    if (currentSequence === messageReadersLoadSequence) {
+      loadingMessageReadersMessageId.value = null;
+    }
+  }
+};
+
 const handleForwardMessageModalVisibleChange = (visible: boolean) => {
   if (!visible) {
     forwardingMessage.value = null;
@@ -3679,11 +3775,12 @@ watch(
 watch(
   () => selectedChatId.value,
   (nextRoomId, previousRoomId) => {
-    if (nextRoomId && previousRoomId && nextRoomId !== previousRoomId) {
+    if (nextRoomId !== previousRoomId) {
       replyingMessage.value = null;
       forwardingMessage.value = null;
       isForwardMessageModalVisible.value = false;
       activeReactionPickerMessageId.value = null;
+      resetMessageReadersState();
     }
   },
 );
@@ -4560,6 +4657,19 @@ onMounted(() => {
                     }}
                   </button>
                   <button
+                    v-if="canViewMessageReaders(message)"
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
+                    :disabled="loadingMessageReadersMessageId === message.id"
+                    @click="void handleOpenMessageReadersModal(message)"
+                  >
+                    {{
+                      loadingMessageReadersMessageId === message.id
+                        ? "加载中..."
+                        : "已读成员"
+                    }}
+                  </button>
+                  <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
                     :disabled="!canForwardMessage(message) || isForwardingMessage"
@@ -4856,6 +4966,13 @@ onMounted(() => {
       :is-submitting="isForwardingMessage"
       @update:visible="handleForwardMessageModalVisibleChange"
       @submit="void handleForwardMessage($event)"
+    />
+    <MessageReadersModal
+      :visible="isMessageReadersModalVisible"
+      :readers="messageReaders"
+      :is-loading="loadingMessageReadersMessageId !== null"
+      :message-preview="messageReadersSummary"
+      @update:visible="handleMessageReadersModalVisibleChange"
     />
     <AddGroupMembersModal
       :visible="isAddGroupMembersModalVisible"
