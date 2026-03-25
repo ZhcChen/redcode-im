@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { ChatWebSocketPush } from "@/api/chat";
 import type { LegacyUserInfo } from "@/api/system";
 import type { HomeView } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
+import { getChatNotificationPlan } from "@/utils/chat-notification";
 import ChatPanel from "./ChatPanel.vue";
 import ContactPanel from "./ContactPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
@@ -39,6 +40,7 @@ const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; des
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
 const openChatRequest = ref<OpenChatRequest | null>(null);
+const isWindowFocused = ref(typeof document === "undefined" ? true : document.hasFocus());
 let nextOpenChatRequestId = 1;
 const pageTitle = computed(() => {
   switch (props.activeView) {
@@ -80,6 +82,57 @@ const handleChatRequestConsumed = (requestId: number) => {
     openChatRequest.value = null;
   }
 };
+
+const handleWindowFocus = () => {
+  isWindowFocused.value = true;
+};
+
+const handleWindowBlur = () => {
+  isWindowFocused.value = false;
+};
+
+const maybeShowMessageNotification = async (push: ChatWebSocketPush | null) => {
+  const plan = getChatNotificationPlan({
+    push,
+    currentUserId: props.currentUser.id,
+    activeView: props.activeView,
+    isWindowFocused: isWindowFocused.value
+  });
+  if (!plan.shouldNotify || !plan.payload) {
+    return;
+  }
+
+  const desktopEl = window.desktopEl;
+  if (!desktopEl) {
+    return;
+  }
+
+  try {
+    await desktopEl.notification.show(plan.payload);
+  } catch (error) {
+    console.warn("failed to show desktop notification", error);
+  }
+};
+
+onMounted(() => {
+  window.addEventListener("focus", handleWindowFocus);
+  window.addEventListener("blur", handleWindowBlur);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("focus", handleWindowFocus);
+  window.removeEventListener("blur", handleWindowBlur);
+});
+
+watch(
+  () => props.lastWsPush,
+  (push) => {
+    if (push?.type !== "message") {
+      return;
+    }
+    void maybeShowMessageNotification(push);
+  }
+);
 </script>
 
 <template>
