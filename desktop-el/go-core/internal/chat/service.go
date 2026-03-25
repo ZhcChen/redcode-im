@@ -61,6 +61,27 @@ type RemoveGroupMuteParams struct {
 	UserID string `json:"user_id"`
 }
 
+type CreateGroupRuleParams struct {
+	RoomID     string `json:"room_id"`
+	Title      string `json:"title"`
+	Content    string `json:"content"`
+	OrderIndex *int   `json:"order_index,omitempty"`
+}
+
+type UpdateGroupRuleParams struct {
+	RoomID     string  `json:"room_id"`
+	RuleID     string  `json:"rule_id"`
+	Title      *string `json:"title,omitempty"`
+	Content    *string `json:"content,omitempty"`
+	OrderIndex *int    `json:"order_index,omitempty"`
+	IsActive   *bool   `json:"is_active,omitempty"`
+}
+
+type DeleteGroupRuleParams struct {
+	RoomID string `json:"room_id"`
+	RuleID string `json:"rule_id"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -319,6 +340,58 @@ func (s *Service) RemoveGroupMute(ctx context.Context, params RemoveGroupMutePar
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/mutes/" + params.UserID,
+	})
+}
+
+func (s *Service) ListGroupRules(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/rules",
+	})
+}
+
+func (s *Service) CreateGroupRule(ctx context.Context, params CreateGroupRuleParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"title":   params.Title,
+		"content": params.Content,
+	}
+	if params.OrderIndex != nil {
+		body["order_index"] = *params.OrderIndex
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/rules",
+		Body:   body,
+	})
+}
+
+func (s *Service) UpdateGroupRule(ctx context.Context, params UpdateGroupRuleParams) (httpclient.Response, error) {
+	body := map[string]any{}
+	if params.Title != nil {
+		body["title"] = *params.Title
+	}
+	if params.Content != nil {
+		body["content"] = *params.Content
+	}
+	if params.OrderIndex != nil {
+		body["order_index"] = *params.OrderIndex
+	}
+	if params.IsActive != nil {
+		body["is_active"] = *params.IsActive
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPatch,
+		Path:   "/rooms/" + params.RoomID + "/rules/" + params.RuleID,
+		Body:   body,
+	})
+}
+
+func (s *Service) DeleteGroupRule(ctx context.Context, params DeleteGroupRuleParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/rules/" + params.RuleID,
 	})
 }
 

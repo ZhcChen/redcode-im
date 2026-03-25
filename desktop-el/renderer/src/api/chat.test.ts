@@ -1244,6 +1244,265 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("loads group rules through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                rules: [
+                  {
+                    id: "group-rule-1",
+                    room_id: "room-group-1",
+                    title: "文明发言",
+                    content: "禁止刷屏和辱骂",
+                    creator_id: "u-1",
+                    order_index: 0,
+                    is_active: true,
+                    created_at: "2026-03-25T15:00:00Z",
+                    updated_at: "2026-03-25T15:00:00Z",
+                  },
+                  {
+                    id: "group-rule-2",
+                    room_id: "room-group-1",
+                    title: "资料安全",
+                    content: "禁止泄露项目信息",
+                    creator_id: "u-2",
+                    order_index: 1,
+                    is_active: true,
+                    created_at: "2026-03-25T15:10:00Z",
+                    updated_at: "2026-03-25T15:20:00Z",
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.listGroupRules({
+      roomId: "room-group-1",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.rules.list",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: [
+        {
+          id: "group-rule-1",
+          roomId: "room-group-1",
+          title: "文明发言",
+          content: "禁止刷屏和辱骂",
+          creatorId: "u-1",
+          orderIndex: 0,
+          isActive: true,
+          createdAt: new Date("2026-03-25T15:00:00Z"),
+          updatedAt: new Date("2026-03-25T15:00:00Z"),
+        },
+        {
+          id: "group-rule-2",
+          roomId: "room-group-1",
+          title: "资料安全",
+          content: "禁止泄露项目信息",
+          creatorId: "u-2",
+          orderIndex: 1,
+          isActive: true,
+          createdAt: new Date("2026-03-25T15:10:00Z"),
+          updatedAt: new Date("2026-03-25T15:20:00Z"),
+        },
+      ],
+    });
+  });
+
+  test("creates group rule through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                rule: {
+                  id: "group-rule-1",
+                  room_id: "room-group-1",
+                  title: "文明发言",
+                  content: "禁止刷屏和辱骂",
+                  creator_id: "u-1",
+                  order_index: 0,
+                  is_active: true,
+                  created_at: "2026-03-25T15:00:00Z",
+                  updated_at: "2026-03-25T15:00:00Z",
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.createGroupRule({
+      roomId: "room-group-1",
+      title: "文明发言",
+      content: "禁止刷屏和辱骂",
+      orderIndex: 0,
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.rule.create",
+        params: {
+          room_id: "room-group-1",
+          title: "文明发言",
+          content: "禁止刷屏和辱骂",
+          order_index: 0,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "group-rule-1",
+        roomId: "room-group-1",
+        title: "文明发言",
+        content: "禁止刷屏和辱骂",
+        creatorId: "u-1",
+        orderIndex: 0,
+        isActive: true,
+        createdAt: new Date("2026-03-25T15:00:00Z"),
+        updatedAt: new Date("2026-03-25T15:00:00Z"),
+      },
+    });
+  });
+
+  test("updates group rule through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                rule: {
+                  id: "group-rule-1",
+                  room_id: "room-group-1",
+                  title: "文明发言 2.0",
+                  content: "禁止刷屏、辱骂和广告",
+                  creator_id: "u-1",
+                  order_index: 0,
+                  is_active: true,
+                  created_at: "2026-03-25T15:00:00Z",
+                  updated_at: "2026-03-25T16:00:00Z",
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.updateGroupRule({
+      roomId: "room-group-1",
+      ruleId: "group-rule-1",
+      title: "文明发言 2.0",
+      content: "禁止刷屏、辱骂和广告",
+      isActive: true,
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.rule.update",
+        params: {
+          room_id: "room-group-1",
+          rule_id: "group-rule-1",
+          title: "文明发言 2.0",
+          content: "禁止刷屏、辱骂和广告",
+          is_active: true,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "group-rule-1",
+        roomId: "room-group-1",
+        title: "文明发言 2.0",
+        content: "禁止刷屏、辱骂和广告",
+        creatorId: "u-1",
+        orderIndex: 0,
+        isActive: true,
+        createdAt: new Date("2026-03-25T15:00:00Z"),
+        updatedAt: new Date("2026-03-25T16:00:00Z"),
+      },
+    });
+  });
+
+  test("deletes group rule through go-core rpc and maps success result", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 204,
+              success: true,
+              message: "No Content",
+              data: null,
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.deleteGroupRule({
+      roomId: "room-group-1",
+      ruleId: "group-rule-1",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.rule.delete",
+        params: {
+          room_id: "room-group-1",
+          rule_id: "group-rule-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 204,
+      success: true,
+      message: "No Content",
+      data: {
+        success: true,
+        message: "No Content",
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

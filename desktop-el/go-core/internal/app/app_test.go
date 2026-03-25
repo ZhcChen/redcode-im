@@ -2431,6 +2431,286 @@ func TestAppChatGroupMuteRemoveReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupRulesListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/rules" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"rules": []map[string]any{
+				{
+					"id":          "group-rule-1",
+					"room_id":     "room-group-1",
+					"title":       "文明发言",
+					"content":     "禁止刷屏和辱骂",
+					"creator_id":  "u-1",
+					"order_index": 0,
+					"is_active":   true,
+					"created_at":  "2026-03-25T15:00:00Z",
+					"updated_at":  "2026-03-25T15:00:00Z",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-rules-list",
+		Method: "chat.group.rules.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.rules.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.rules.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.rules.list envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.rules.list data failed: %v", err)
+	}
+	rules, ok := result["rules"].([]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("unexpected group rule list payload: %+v", result)
+	}
+
+	firstRule, ok := rules[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected group rule payload: %+v", rules[0])
+	}
+	if firstRule["title"] != "文明发言" || firstRule["order_index"] != float64(0) {
+		t.Fatalf("unexpected group rule data: %+v", firstRule)
+	}
+}
+
+func TestAppChatGroupRuleCreateReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/rules" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["title"] != "文明发言" || payload["content"] != "禁止刷屏和辱骂" {
+			t.Fatalf("unexpected rule create payload: %+v", payload)
+		}
+		if payload["order_index"] != float64(0) {
+			t.Fatalf("unexpected rule create order index: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"rule": map[string]any{
+				"id":          "group-rule-1",
+				"room_id":     "room-group-1",
+				"title":       "文明发言",
+				"content":     "禁止刷屏和辱骂",
+				"creator_id":  "u-1",
+				"order_index": 0,
+				"is_active":   true,
+				"created_at":  "2026-03-25T15:00:00Z",
+				"updated_at":  "2026-03-25T15:00:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-rule-create",
+		Method: "chat.group.rule.create",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":     "room-group-1",
+			"title":       "文明发言",
+			"content":     "禁止刷屏和辱骂",
+			"order_index": 0,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.rule.create to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.rule.create response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.rule.create envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.rule.create data failed: %v", err)
+	}
+	rule, ok := result["rule"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected rule payload: %+v", result)
+	}
+	if rule["title"] != "文明发言" || rule["creator_id"] != "u-1" {
+		t.Fatalf("unexpected created rule data: %+v", rule)
+	}
+}
+
+func TestAppChatGroupRuleUpdateReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/rules/group-rule-1" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["title"] != "文明发言 2.0" || payload["content"] != "禁止刷屏、辱骂和广告" {
+			t.Fatalf("unexpected rule update payload: %+v", payload)
+		}
+		if payload["is_active"] != true {
+			t.Fatalf("unexpected rule update active flag: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"rule": map[string]any{
+				"id":          "group-rule-1",
+				"room_id":     "room-group-1",
+				"title":       "文明发言 2.0",
+				"content":     "禁止刷屏、辱骂和广告",
+				"creator_id":  "u-1",
+				"order_index": 0,
+				"is_active":   true,
+				"created_at":  "2026-03-25T15:00:00Z",
+				"updated_at":  "2026-03-25T16:00:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-rule-update",
+		Method: "chat.group.rule.update",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":     "room-group-1",
+			"rule_id":     "group-rule-1",
+			"title":       "文明发言 2.0",
+			"content":     "禁止刷屏、辱骂和广告",
+			"is_active":   true,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.rule.update to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.rule.update response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.rule.update envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.rule.update data failed: %v", err)
+	}
+	rule, ok := result["rule"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected rule payload: %+v", result)
+	}
+	if rule["title"] != "文明发言 2.0" || rule["updated_at"] != "2026-03-25T16:00:00Z" {
+		t.Fatalf("unexpected updated rule data: %+v", rule)
+	}
+}
+
+func TestAppChatGroupRuleDeleteReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/rules/group-rule-1" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-rule-delete",
+		Method: "chat.group.rule.delete",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+			"rule_id": "group-rule-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.rule.delete to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.rule.delete response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != http.StatusNoContent {
+		t.Fatalf("unexpected chat.group.rule.delete envelope: %+v", envelope)
+	}
+	if string(envelope.Data) != "null" {
+		t.Fatalf("expected chat.group.rule.delete data to be null, got: %s", string(envelope.Data))
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

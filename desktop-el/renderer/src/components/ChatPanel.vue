@@ -6,6 +6,7 @@ import {
   type ChatGroupAdmin,
   type ChatGroupJoinRequest,
   type ChatGroupMute,
+  type ChatGroupRule,
   type ChatGroupSettings,
   mapChatRealtimeEvent,
   type ChatMessage,
@@ -49,6 +50,7 @@ import CreateGroupModal from "./CreateGroupModal.vue";
 import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
 import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
 import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
+import ManageGroupRulesModal from "./ManageGroupRulesModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 
 interface OpenChatRequest {
@@ -109,12 +111,14 @@ const groupMembers = ref<ChatRoomMember[]>([]);
 const groupAdmins = ref<ChatGroupAdmin[]>([]);
 const groupJoinRequests = ref<ChatGroupJoinRequest[]>([]);
 const groupMutes = ref<ChatGroupMute[]>([]);
+const groupRules = ref<ChatGroupRule[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
 const isAddGroupMembersModalVisible = ref(false);
 const isManageGroupAdminsModalVisible = ref(false);
 const isManageGroupJoinRequestsModalVisible = ref(false);
 const isManageGroupMutesModalVisible = ref(false);
+const isManageGroupRulesModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -129,6 +133,7 @@ const isLoadingGroupContext = ref(false);
 const isLoadingGroupAdmins = ref(false);
 const isLoadingGroupJoinRequests = ref(false);
 const isLoadingGroupMutes = ref(false);
+const isLoadingGroupRules = ref(false);
 const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
@@ -137,6 +142,7 @@ const isAddingGroupMembers = ref(false);
 const isUpdatingGroupAdmins = ref(false);
 const isReviewingGroupJoinRequests = ref(false);
 const isUpdatingGroupMutes = ref(false);
+const isUpdatingGroupRules = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
@@ -164,6 +170,7 @@ let groupContextLoadSequence = 0;
 let groupAdminsLoadSequence = 0;
 let groupJoinRequestsLoadSequence = 0;
 let groupMutesLoadSequence = 0;
+let groupRulesLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
@@ -386,6 +393,34 @@ const muteableGroupMembers = computed(() => {
       avatarUrl: member.avatarUrl,
     }));
 });
+const sortedGroupRules = computed(() =>
+  [...groupRules.value]
+    .filter((rule) => rule.isActive)
+    .sort((left, right) => left.orderIndex - right.orderIndex),
+);
+const activeGroupRuleCount = computed(() => sortedGroupRules.value.length);
+const groupRuleEntries = computed(() =>
+  sortedGroupRules.value.map((rule) => {
+    const creatorMember = groupMembers.value.find(
+      (member) => member.userId === rule.creatorId,
+    );
+    const creatorLabel =
+      creatorMember
+        ? getRoomMemberDisplayName(creatorMember)
+        : rule.creatorId === props.currentUser.id
+          ? props.currentUser.nickname || props.currentUser.username
+          : rule.creatorId;
+
+    return {
+      id: rule.id,
+      title: rule.title,
+      content: rule.content,
+      orderIndex: rule.orderIndex,
+      creatorLabel,
+      updatedAtLabel: formatDetailTime(rule.updatedAt),
+    };
+  }),
+);
 const groupOwnerMember = computed(
   () =>
     sortedGroupMembers.value.find(
@@ -798,6 +833,12 @@ const resetGroupMutes = () => {
   isLoadingGroupMutes.value = false;
 };
 
+const resetGroupRules = () => {
+  groupRulesLoadSequence += 1;
+  groupRules.value = [];
+  isLoadingGroupRules.value = false;
+};
+
 const patchRoomAvatar = (roomId: string, avatarUrl: string) => {
   chats.value = chats.value.map((chat) =>
     chat.roomId === roomId
@@ -1015,6 +1056,7 @@ const resetGroupContext = () => {
   resetGroupAdmins();
   resetGroupJoinRequests();
   resetGroupMutes();
+  resetGroupRules();
   isLoadingGroupContext.value = false;
 };
 
@@ -1212,6 +1254,49 @@ const loadGroupMutes = async (roomId: string | null) => {
   } finally {
     if (currentSequence === groupMutesLoadSequence) {
       isLoadingGroupMutes.value = false;
+    }
+  }
+};
+
+const loadGroupRules = async (roomId: string | null) => {
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupRules();
+    return;
+  }
+
+  const currentSequence = groupRulesLoadSequence + 1;
+  groupRulesLoadSequence = currentSequence;
+  isLoadingGroupRules.value = true;
+  try {
+    const response = await ChatApi.listGroupRules({ roomId });
+    if (
+      currentSequence !== groupRulesLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      groupRules.value = [];
+      notice.value = response.message || "群规列表加载失败";
+      return;
+    }
+
+    groupRules.value = response.data;
+  } catch (error) {
+    if (
+      currentSequence !== groupRulesLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    groupRules.value = [];
+    notice.value = error instanceof Error ? error.message : "群规列表加载失败";
+  } finally {
+    if (currentSequence === groupRulesLoadSequence) {
+      isLoadingGroupRules.value = false;
     }
   }
 };
@@ -1422,6 +1507,19 @@ const handleOpenManageGroupMutesModal = async () => {
   await loadGroupMutes(selectedChatId.value);
 };
 
+const handleOpenManageGroupRulesModal = async () => {
+  if (isUpdatingGroupRules.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+
+  isManageGroupRulesModalVisible.value = true;
+  await loadGroupRules(selectedChatId.value);
+};
+
 const closeAddGroupMembersModal = () => {
   if (isAddingGroupMembers.value) {
     return;
@@ -1448,6 +1546,13 @@ const closeManageGroupMutesModal = () => {
     return;
   }
   isManageGroupMutesModalVisible.value = false;
+};
+
+const closeManageGroupRulesModal = () => {
+  if (isUpdatingGroupRules.value) {
+    return;
+  }
+  isManageGroupRulesModalVisible.value = false;
 };
 
 const handleOpenRemoveGroupMembersModal = () => {
@@ -1505,6 +1610,14 @@ const handleManageGroupMutesModalVisibleChange = (visible: boolean) => {
   closeManageGroupMutesModal();
 };
 
+const handleManageGroupRulesModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenManageGroupRulesModal();
+    return;
+  }
+  closeManageGroupRulesModal();
+};
+
 const handleRemoveGroupMembersModalVisibleChange = (visible: boolean) => {
   if (visible) {
     handleOpenRemoveGroupMembersModal();
@@ -1550,6 +1663,9 @@ const selectChat = async (chatId: string) => {
   if (nextSelectedChat?.roomType === "group") {
     await loadGroupContext(chatId);
     await loadGroupSettings(chatId);
+    if (isManageGroupRulesModalVisible.value) {
+      await loadGroupRules(chatId);
+    }
     return;
   }
   resetGroupContext();
@@ -1971,6 +2087,124 @@ const handleUnmuteGroupMember = async (payload: {
     await loadGroupSettings(roomId);
   } finally {
     isUpdatingGroupMutes.value = false;
+  }
+};
+
+const handleCreateGroupRule = async (payload: {
+  title: string;
+  content: string;
+  orderIndex: number;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有管理群规的权限。";
+    return;
+  }
+
+  isUpdatingGroupRules.value = true;
+  notice.value = `正在新增群规「${payload.title}」...`;
+  try {
+    const response = await ChatApi.createGroupRule({
+      roomId,
+      title: payload.title,
+      content: payload.content,
+      orderIndex: payload.orderIndex,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "新增群规失败";
+      return;
+    }
+
+    await loadGroupRules(roomId);
+    notice.value = `已新增群规「${payload.title}」。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "新增群规失败";
+    await loadGroupRules(roomId);
+  } finally {
+    isUpdatingGroupRules.value = false;
+  }
+};
+
+const handleUpdateGroupRule = async (payload: {
+  ruleId: string;
+  title: string;
+  content: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有管理群规的权限。";
+    return;
+  }
+
+  isUpdatingGroupRules.value = true;
+  notice.value = `正在更新群规「${payload.title}」...`;
+  try {
+    const response = await ChatApi.updateGroupRule({
+      roomId,
+      ruleId: payload.ruleId,
+      title: payload.title,
+      content: payload.content,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "更新群规失败";
+      return;
+    }
+
+    await loadGroupRules(roomId);
+    notice.value = `已更新群规「${payload.title}」。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "更新群规失败";
+    await loadGroupRules(roomId);
+  } finally {
+    isUpdatingGroupRules.value = false;
+  }
+};
+
+const handleDeleteGroupRule = async (payload: {
+  ruleId: string;
+  title: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isUpdatingGroupRules.value) {
+    return;
+  }
+  if (!canManageSelectedGroup.value) {
+    notice.value = "当前账号没有管理群规的权限。";
+    return;
+  }
+
+  const confirmed = window.confirm(`确定要删除群规「${payload.title}」吗？`);
+  if (!confirmed) {
+    return;
+  }
+
+  isUpdatingGroupRules.value = true;
+  notice.value = `正在删除群规「${payload.title}」...`;
+  try {
+    const response = await ChatApi.deleteGroupRule({
+      roomId,
+      ruleId: payload.ruleId,
+    });
+    if (!response.success || !response.data?.success) {
+      notice.value = response.message || "删除群规失败";
+      return;
+    }
+
+    await loadGroupRules(roomId);
+    notice.value = `已删除群规「${payload.title}」。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "删除群规失败";
+    await loadGroupRules(roomId);
+  } finally {
+    isUpdatingGroupRules.value = false;
   }
 };
 
@@ -2905,10 +3139,22 @@ onMounted(() => {
                     : "成员列表待同步"
                 }}</small>
               </div>
-              <div
-                v-if="canManageSelectedGroup"
-                class="group-panel__header-actions"
-              >
+              <div class="group-panel__header-actions">
+                <button
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isLoadingGroupRules || isUpdatingGroupRules"
+                  @click="void handleOpenManageGroupRulesModal()"
+                >
+                  {{
+                    isLoadingGroupRules || isUpdatingGroupRules
+                      ? "同步中..."
+                      : activeGroupRuleCount > 0
+                        ? `群规(${activeGroupRuleCount})`
+                        : "群规"
+                  }}
+                </button>
+                <template v-if="canManageSelectedGroup">
                 <button
                   v-if="canManageSelectedGroupAdmins"
                   type="button"
@@ -2979,6 +3225,7 @@ onMounted(() => {
                 >
                   {{ isUpdatingGroupAvatar ? "上传中..." : "上传群头像" }}
                 </button>
+                </template>
               </div>
             </div>
             <input
@@ -3795,6 +4042,17 @@ onMounted(() => {
       @update:visible="handleManageGroupMutesModalVisibleChange"
       @mute="void handleMuteGroupMembers($event)"
       @unmute="void handleUnmuteGroupMember($event)"
+    />
+    <ManageGroupRulesModal
+      :visible="isManageGroupRulesModalVisible"
+      :rules="groupRuleEntries"
+      :can-manage="canManageSelectedGroup"
+      :is-loading="isLoadingGroupRules"
+      :is-submitting="isUpdatingGroupRules"
+      @update:visible="handleManageGroupRulesModalVisibleChange"
+      @create="void handleCreateGroupRule($event)"
+      @update="void handleUpdateGroupRule($event)"
+      @delete="void handleDeleteGroupRule($event)"
     />
     <RemoveGroupMembersModal
       :visible="isRemoveGroupMembersModalVisible"

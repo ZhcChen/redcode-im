@@ -436,6 +436,54 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.group.rules.list", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.ListGroupRules(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.rule.create", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.CreateGroupRuleParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.CreateGroupRule(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.rule.update", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.UpdateGroupRuleParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.UpdateGroupRule(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.rule.delete", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.DeleteGroupRuleParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.DeleteGroupRule(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.group.settings.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.RoomParams
 		if err := unmarshalParams(params, &payload); err != nil {

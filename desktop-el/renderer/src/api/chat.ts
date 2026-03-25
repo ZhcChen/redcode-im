@@ -128,6 +128,18 @@ interface BackendGroupMute {
   is_active: boolean;
 }
 
+interface BackendGroupRule {
+  id: string;
+  room_id: string;
+  title: string;
+  content: string;
+  creator_id: string;
+  order_index: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface BackendGroupSettings {
   id: string;
   room_id: string;
@@ -341,6 +353,18 @@ export interface ChatGroupMute {
   unmutedAt: Date | null;
   isActive: boolean;
   muteUntil: Date | null;
+}
+
+export interface ChatGroupRule {
+  id: string;
+  roomId: string;
+  title: string;
+  content: string;
+  creatorId: string;
+  orderIndex: number;
+  isActive: boolean;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 }
 
 export interface ChatGroupMyMute {
@@ -967,6 +991,18 @@ const mapChatGroupMute = (mute: BackendGroupMute): ChatGroupMute => {
     muteUntil,
   };
 };
+
+const mapChatGroupRule = (rule: BackendGroupRule): ChatGroupRule => ({
+  id: rule.id,
+  roomId: rule.room_id,
+  title: rule.title,
+  content: rule.content,
+  creatorId: rule.creator_id,
+  orderIndex: rule.order_index,
+  isActive: Boolean(rule.is_active),
+  createdAt: parseTimestamp(rule.created_at),
+  updatedAt: parseTimestamp(rule.updated_at),
+});
 
 const mapChatGroupSettings = (
   response: BackendGroupSettingsResponse,
@@ -1650,6 +1686,103 @@ export class ChatApi {
     >("chat.group.mute.remove", {
       room_id: params.roomId,
       user_id: params.userId,
+    });
+
+    return mapSimpleSuccessData(response);
+  }
+
+  static async listGroupRules(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatGroupRule[]>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        rules?: BackendGroupRule[] | null;
+      }>
+    >("chat.group.rules.list", {
+      room_id: params.roomId,
+    });
+
+    return {
+      ...response,
+      data: response.data?.rules
+        ? response.data.rules.map(mapChatGroupRule)
+        : null,
+    };
+  }
+
+  static async createGroupRule(params: {
+    roomId: string;
+    title: string;
+    content: string;
+    orderIndex?: number;
+  }): Promise<ApiResponse<ChatGroupRule>> {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+      title: params.title,
+      content: params.content,
+    };
+    if (typeof params.orderIndex === "number") {
+      payload.order_index = params.orderIndex;
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        rule?: BackendGroupRule | null;
+      }>
+    >("chat.group.rule.create", payload);
+
+    return {
+      ...response,
+      data: response.data?.rule ? mapChatGroupRule(response.data.rule) : null,
+    };
+  }
+
+  static async updateGroupRule(params: {
+    roomId: string;
+    ruleId: string;
+    title?: string;
+    content?: string;
+    orderIndex?: number;
+    isActive?: boolean;
+  }): Promise<ApiResponse<ChatGroupRule>> {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+      rule_id: params.ruleId,
+    };
+    if (params.title !== undefined) {
+      payload.title = params.title;
+    }
+    if (params.content !== undefined) {
+      payload.content = params.content;
+    }
+    if (typeof params.orderIndex === "number") {
+      payload.order_index = params.orderIndex;
+    }
+    if (typeof params.isActive === "boolean") {
+      payload.is_active = params.isActive;
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        rule?: BackendGroupRule | null;
+      }>
+    >("chat.group.rule.update", payload);
+
+    return {
+      ...response,
+      data: response.data?.rule ? mapChatGroupRule(response.data.rule) : null,
+    };
+  }
+
+  static async deleteGroupRule(params: {
+    roomId: string;
+    ruleId: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.group.rule.delete", {
+      room_id: params.roomId,
+      rule_id: params.ruleId,
     });
 
     return mapSimpleSuccessData(response);
