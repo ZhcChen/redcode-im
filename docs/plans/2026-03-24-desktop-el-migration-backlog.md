@@ -270,14 +270,16 @@
 - [x] 已完成账号切换最小闭环：renderer 通过 `auth.account.switch` 切换 Go core 当前账号，并按目标账号 token 重连单一活动 websocket。
 - [x] 已完成账号页签与基础恢复逻辑：主壳侧边栏已增加最小账号切换器，renderer 会持久化账号列表、当前账号与每账号 `activeView`，启动后通过 `auth.accounts.restore` 恢复 Go core 当前账号。
 - [x] 已完成每账号独立基础会话状态：当前已区分每账号 token / currentUser / `activeView` / ws 重连链路。
-- [ ] 更深的每账号 `routeState` / 会话上下文恢复仍未补齐。
+- [x] 已完成每账号最小 `routeState` / 聊天上下文恢复：当前会持久化每账号 `routeState` 与 `pageState.currentChatGroupId`，切账号或重启后可回到各自上次选中的聊天会话。
+- [ ] 联系人 / 设置等更深页面子状态仍未按账号拆分。
 
 **范围:**
 - [x] 多账号登录态并存
 - [x] 账号切换
-- [x] 每账号独立基础 ws / 会话状态
+- [x] 每账号独立基础 ws / routeState / 会话状态
 - [x] 账号页签与基础恢复逻辑
-- [ ] 更深 routeState / 聊天上下文恢复
+- [x] 聊天上下文恢复
+- [ ] 联系人 / 设置等更深页面子状态恢复
 
 **说明:** 这是高复杂度任务，依赖聊天、联系人、设置的单账号主流程先稳定。
 

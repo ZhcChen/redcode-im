@@ -4,6 +4,18 @@ import type { BootstrapSnapshot } from "@/types/bootstrap";
 import { mapBootstrapUserToLegacy } from "@/types/bootstrap";
 
 export type HomeView = "chat" | "contact" | "settings";
+export type SessionRouteName = "Chat" | "Contact" | "Settings";
+
+export interface SessionRouteState {
+  path: string;
+  name: SessionRouteName;
+  params: Record<string, string>;
+  query: Record<string, string>;
+}
+
+export interface SessionPageState {
+  currentChatGroupId: string | null;
+}
 
 export interface SessionAccount {
   id: string;
@@ -12,6 +24,8 @@ export interface SessionAccount {
   accessToken: string | null;
   refreshToken: string | null;
   activeView: HomeView;
+  routeState: SessionRouteState;
+  pageState: SessionPageState;
 }
 
 interface PersistedSessionState {
@@ -26,6 +40,7 @@ interface SessionState {
   activeView: HomeView;
   accessToken: string | null;
   refreshToken: string | null;
+  currentChatGroupId: string | null;
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -33,7 +48,8 @@ type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 export const SESSION_STORAGE_KEY = "desktop-el.session-state";
 const DEFAULT_HOME_VIEW: HomeView = "chat";
 
-const isHomeView = (value: string): value is HomeView => value === "chat" || value === "contact" || value === "settings";
+const isHomeView = (value: string): value is HomeView =>
+  value === "chat" || value === "contact" || value === "settings";
 
 const getDefaultStorage = (): StorageLike | null => {
   try {
@@ -52,19 +68,88 @@ const cloneLegacyUser = (user: LegacyUserInfo): LegacyUserInfo => ({
   powerList: Array.isArray(user.powerList) ? [...user.powerList] : user.powerList ?? null,
 });
 
+const buildRouteState = (view: HomeView): SessionRouteState => {
+  switch (view) {
+    case "contact":
+      return {
+        path: "/home/contact",
+        name: "Contact",
+        params: {},
+        query: {},
+      };
+    case "settings":
+      return {
+        path: "/home/settings",
+        name: "Settings",
+        params: {},
+        query: {},
+      };
+    case "chat":
+    default:
+      return {
+        path: "/home/chat",
+        name: "Chat",
+        params: {},
+        query: {},
+      };
+  }
+};
+
+const buildPageState = (currentChatGroupId: string | null = null): SessionPageState => ({
+  currentChatGroupId,
+});
+
+const cloneRouteState = (routeState: SessionRouteState): SessionRouteState => ({
+  path: routeState.path,
+  name: routeState.name,
+  params: { ...routeState.params },
+  query: { ...routeState.query },
+});
+
+const clonePageState = (pageState: SessionPageState): SessionPageState => ({
+  currentChatGroupId: pageState.currentChatGroupId ?? null,
+});
+
 const cloneAccount = (account: SessionAccount): SessionAccount => ({
   ...account,
   user: cloneLegacyUser(account.user),
+  routeState: cloneRouteState(account.routeState),
+  pageState: clonePageState(account.pageState),
 });
 
-const normalizeAccount = (account: SessionAccount): SessionAccount => ({
-  id: account.id,
-  displayName: account.displayName,
-  user: cloneLegacyUser(account.user),
-  accessToken: account.accessToken ?? null,
-  refreshToken: account.refreshToken ?? null,
-  activeView: isHomeView(account.activeView) ? account.activeView : DEFAULT_HOME_VIEW,
-});
+const normalizeRouteState = (
+  routeState: SessionRouteState | undefined,
+  activeView: HomeView,
+): SessionRouteState => {
+  if (!routeState?.path || !routeState?.name) {
+    return buildRouteState(activeView);
+  }
+
+  return {
+    path: routeState.path,
+    name: routeState.name,
+    params: { ...routeState.params },
+    query: { ...routeState.query },
+  };
+};
+
+const normalizePageState = (pageState: SessionPageState | undefined): SessionPageState =>
+  buildPageState(pageState?.currentChatGroupId ?? null);
+
+const normalizeAccount = (account: SessionAccount): SessionAccount => {
+  const activeView = isHomeView(account.activeView) ? account.activeView : DEFAULT_HOME_VIEW;
+
+  return {
+    id: account.id,
+    displayName: account.displayName,
+    user: cloneLegacyUser(account.user),
+    accessToken: account.accessToken ?? null,
+    refreshToken: account.refreshToken ?? null,
+    activeView,
+    routeState: normalizeRouteState(account.routeState, activeView),
+    pageState: normalizePageState(account.pageState),
+  };
+};
 
 const readPersistedState = (storage: StorageLike | null = getDefaultStorage()): PersistedSessionState | null => {
   if (!storage) {
@@ -102,6 +187,7 @@ const state = reactive<SessionState>({
   activeView: DEFAULT_HOME_VIEW,
   accessToken: null,
   refreshToken: null,
+  currentChatGroupId: null,
 });
 
 const applyCurrentAccount = (account: SessionAccount | null) => {
@@ -110,6 +196,7 @@ const applyCurrentAccount = (account: SessionAccount | null) => {
   state.activeView = account?.activeView ?? DEFAULT_HOME_VIEW;
   state.accessToken = account?.accessToken ?? null;
   state.refreshToken = account?.refreshToken ?? null;
+  state.currentChatGroupId = account?.pageState.currentChatGroupId ?? null;
 };
 
 const getCurrentAccount = (): SessionAccount | null => {
@@ -167,6 +254,8 @@ const upsertAccount = (
     accessToken: accessToken ?? existing?.accessToken ?? null,
     refreshToken: refreshToken ?? existing?.refreshToken ?? null,
     activeView: existing?.activeView ?? DEFAULT_HOME_VIEW,
+    routeState: existing?.routeState ?? buildRouteState(existing?.activeView ?? DEFAULT_HOME_VIEW),
+    pageState: existing?.pageState ?? buildPageState(),
   });
 
   const nextAccounts = state.accounts.filter((account) => account.id !== user.id);
@@ -187,6 +276,18 @@ const sessionStore = {
     }
 
     currentAccount.activeView = view;
+    currentAccount.routeState = buildRouteState(view);
+    applyCurrentAccount(currentAccount);
+    persistState();
+  },
+  setCurrentChatGroupId(roomId: string | null) {
+    const currentAccount = getCurrentAccount();
+    if (!currentAccount) {
+      state.currentChatGroupId = roomId ?? null;
+      return;
+    }
+
+    currentAccount.pageState = buildPageState(roomId ?? null);
     applyCurrentAccount(currentAccount);
     persistState();
   },

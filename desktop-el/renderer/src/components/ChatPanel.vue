@@ -99,6 +99,7 @@ import {
 } from "@/utils/chat-group-permissions";
 import { resolveGroupMaxMembersUpdate } from "@/utils/chat-group-settings";
 import { getGroupRealtimePlan } from "@/utils/chat-group-realtime";
+import { pickSelectedChatRoomId } from "@/utils/chat-room-selection";
 import {
   AVATAR_INPUT_ACCEPT,
   validateAvatarFile,
@@ -173,10 +174,12 @@ const props = defineProps<{
   bootstrap: BootstrapSnapshot | null;
   lastWsPush?: ChatWebSocketPush | null;
   openChatRequest?: OpenChatRequest | null;
+  restoredChatRoomId?: string | null;
 }>();
 
 const emit = defineEmits<{
   (event: "chat-request-consumed", requestId: number): void;
+  (event: "selected-chat-change", roomId: string | null): void;
 }>();
 
 const searchQuery = ref("");
@@ -2093,26 +2096,6 @@ const primeAttachmentPreviews = (roomMessages: ChatMessage[]) => {
   });
 };
 
-const pickSelectedChatId = (
-  list: ChatSummary[],
-  preferredRoomId?: string | null,
-  fallbackToFirst = true,
-) => {
-  if (preferredRoomId && list.some((chat) => chat.roomId === preferredRoomId)) {
-    return preferredRoomId;
-  }
-  if (
-    selectedChatId.value &&
-    list.some((chat) => chat.roomId === selectedChatId.value)
-  ) {
-    return selectedChatId.value;
-  }
-  if (!fallbackToFirst) {
-    return null;
-  }
-  return list[0]?.roomId ?? null;
-};
-
 const setChatUnreadCount = (roomId: string, unreadCount: number) => {
   chats.value = chats.value.map((chat) =>
     chat.roomId === roomId
@@ -2656,11 +2639,12 @@ const loadChats = async (
     }
 
     const previousSelectedRoomId = selectedChatId.value;
-    const nextSelectedRoomId = pickSelectedChatId(
-      response.data,
-      options.preferredRoomId,
-      options.fallbackToFirst ?? true,
-    );
+    const nextSelectedRoomId = pickSelectedChatRoomId({
+      chats: response.data,
+      restoredRoomId: options.preferredRoomId ?? props.restoredChatRoomId ?? null,
+      currentRoomId: previousSelectedRoomId,
+      fallbackToFirst: options.fallbackToFirst ?? true,
+    });
     const nextSelectedChat =
       response.data.find((chat) => chat.roomId === nextSelectedRoomId) || null;
     chats.value = response.data;
@@ -5763,6 +5747,7 @@ watch(
 watch(
   () => selectedChatId.value,
   (nextRoomId, previousRoomId) => {
+    emit("selected-chat-change", nextRoomId ?? null);
     if (nextRoomId !== previousRoomId) {
       closeChatContextMenu();
       closeMessageContextMenu();
@@ -5845,7 +5830,9 @@ onMounted(() => {
     void handleOpenChatRequest(props.openChatRequest);
     return;
   }
-  void loadChats();
+  void loadChats({
+    preferredRoomId: props.restoredChatRoomId ?? null,
+  });
 });
 
 onBeforeUnmount(() => {

@@ -20,6 +20,7 @@ const props = defineProps<{
   currentUser: LegacyUserInfo;
   accounts: SessionAccount[];
   currentAccountId: string | null;
+  currentChatGroupId: string | null;
   hostVersion: string | null;
   lastEvent: string;
   wsStatus: string;
@@ -33,6 +34,7 @@ const emit = defineEmits<{
   (event: "logout"): void;
   (event: "profile-updated", user: LegacyUserInfo): void;
   (event: "switch-account", accountId: string): void;
+  (event: "selected-chat-change", roomId: string | null): void;
 }>();
 
 interface OpenChatRequest {
@@ -259,6 +261,7 @@ watch(
 
       <ChatPanel
         v-if="props.activeView === 'chat'"
+        :key="`${props.currentUser.id}-chat`"
         :current-user="props.currentUser"
         :host-version="props.hostVersion"
         :last-event="props.lastEvent"
@@ -266,13 +269,21 @@ watch(
         :bootstrap="props.bootstrap"
         :last-ws-push="props.lastWsPush"
         :open-chat-request="openChatRequest"
+        :restored-chat-room-id="props.currentChatGroupId"
         @chat-request-consumed="handleChatRequestConsumed"
+        @selected-chat-change="emit('selected-chat-change', $event)"
       />
 
-      <ContactPanel v-else-if="props.activeView === 'contact'" :last-ws-push="props.lastWsPush" @open-chat="handleOpenChat" />
+      <ContactPanel
+        v-else-if="props.activeView === 'contact'"
+        :key="`${props.currentUser.id}-contact`"
+        :last-ws-push="props.lastWsPush"
+        @open-chat="handleOpenChat"
+      />
 
       <SettingsPanel
         v-else
+        :key="`${props.currentUser.id}-settings`"
         :current-user="props.currentUser"
         :bootstrap="props.bootstrap"
         :host-version="props.hostVersion"

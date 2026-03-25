@@ -83,6 +83,18 @@ describe("session store", () => {
     expect(sessionStore.state.currentUser?.id).toBe("u-2");
     expect(sessionStore.state.accessToken).toBe("token-bob");
     expect(sessionStore.state.activeView).toBe("settings");
+    expect(sessionStore.getAccountById("u-1")?.routeState).toEqual({
+      path: "/home/contact",
+      name: "Contact",
+      params: {},
+      query: {},
+    });
+    expect(sessionStore.getAccountById("u-2")?.routeState).toEqual({
+      path: "/home/settings",
+      name: "Settings",
+      params: {},
+      query: {},
+    });
     expect(sessionStore.state.accounts).toHaveLength(2);
   });
 
@@ -92,8 +104,10 @@ describe("session store", () => {
 
     sessionStore.setAuthenticated(alice, "token-alice", "refresh-alice");
     sessionStore.setActiveView("contact");
+    sessionStore.setCurrentChatGroupId("room-alice");
     sessionStore.setAuthenticated(bob, "token-bob", "refresh-bob");
     sessionStore.setActiveView("settings");
+    sessionStore.setCurrentChatGroupId("room-bob");
 
     const raw = globalThis.window.localStorage.getItem(SESSION_STORAGE_KEY);
     sessionStore.clear();
@@ -109,9 +123,11 @@ describe("session store", () => {
     expect(sessionStore.state.currentAccountId).toBe("u-2");
     expect(sessionStore.state.currentUser?.nickname).toBe("Bob");
     expect(sessionStore.state.activeView).toBe("settings");
+    expect(sessionStore.state.currentChatGroupId).toBe("room-bob");
 
     sessionStore.switchAccount("u-1");
     expect(sessionStore.state.activeView).toBe("contact");
+    expect(sessionStore.state.currentChatGroupId).toBe("room-alice");
   });
 
   test("hydrates bootstrap accounts without dropping current account tokens", () => {
