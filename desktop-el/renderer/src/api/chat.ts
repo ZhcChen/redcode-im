@@ -92,6 +92,34 @@ interface BackendRoomMember {
   joined_at?: string | null;
 }
 
+interface BackendGroupSettings {
+  id: string;
+  room_id: string;
+  join_approval_required: boolean;
+  member_can_invite: boolean;
+  member_can_add_friends: boolean;
+  require_admin_to_add_friends: boolean;
+  max_members: number;
+  global_mute_enabled: boolean;
+  global_mute_until?: string | null;
+  global_mute_reason?: string | null;
+  global_mute_set_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BackendGroupMyMute {
+  is_muted: boolean;
+  reason?: string | null;
+  muted_at?: string | null;
+  mute_until?: string | null;
+}
+
+interface BackendGroupSettingsResponse {
+  settings: BackendGroupSettings;
+  my_mute?: BackendGroupMyMute | null;
+}
+
 interface BackendMessageAttachment {
   key: string;
   name?: string | null;
@@ -236,6 +264,29 @@ export interface ChatRoomMember {
   avatarObjectKey: string | null;
   role: BackendRoomMemberRole;
   joinedAt: Date | null;
+}
+
+export interface ChatGroupMyMute {
+  isMuted: boolean;
+  reason: string | null;
+  mutedAt: Date | null;
+  muteUntil: Date | null;
+}
+
+export interface ChatGroupSettings {
+  roomId: string;
+  joinApprovalRequired: boolean;
+  memberCanInvite: boolean;
+  memberCanAddFriends: boolean;
+  requireAdminToAddFriends: boolean;
+  maxMembers: number;
+  globalMuteEnabled: boolean;
+  globalMuteUntil: Date | null;
+  globalMuteReason: string | null;
+  globalMuteSetBy: string | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  myMute: ChatGroupMyMute | null;
 }
 
 export interface ChatMessage {
@@ -402,12 +453,34 @@ interface BackendPushRoomUpdated {
   description?: string | null;
 }
 
+interface BackendPushGroupSettingsUpdated {
+  type: "group_settings_updated";
+  room_id: string;
+  global_mute_enabled: boolean;
+  global_mute_reason?: string | null;
+  global_mute_until?: string | null;
+  global_mute_set_by?: string | null;
+}
+
+interface BackendPushGroupMemberChanged {
+  type: "group_member_changed";
+  room_id: string;
+  member_id: string;
+  change_type: string;
+  new_role?: string | null;
+  operator_id?: string | null;
+  reason?: string | null;
+  until?: string | null;
+}
+
 export type ChatWebSocketPush =
   | BackendPushMessage
   | BackendPushMessageRead
   | BackendPushMessageUpdate
   | BackendPushRoomCreated
   | BackendPushRoomUpdated
+  | BackendPushGroupSettingsUpdated
+  | BackendPushGroupMemberChanged
   | {
       type: string;
       [key: string]: unknown;
@@ -452,6 +525,24 @@ export type ChatRealtimeEvent =
       avatarUrl: string | null;
       avatarObjectKey: string | null;
       description: string | null;
+    }
+  | {
+      type: "group_settings_updated";
+      roomId: string;
+      globalMuteEnabled: boolean;
+      globalMuteReason: string | null;
+      globalMuteUntil: Date | null;
+      globalMuteSetBy: string | null;
+    }
+  | {
+      type: "group_member_changed";
+      roomId: string;
+      memberId: string;
+      changeType: string;
+      newRole: string | null;
+      operatorId: string | null;
+      reason: string | null;
+      until: Date | null;
     };
 
 const requireDesktopRuntime = () => {
@@ -522,6 +613,23 @@ const isBackendPushRoomUpdated = (
   typeof value.room_id === "string" &&
   typeof value.room_name === "string" &&
   typeof value.room_type === "string";
+
+const isBackendPushGroupSettingsUpdated = (
+  value: unknown,
+): value is BackendPushGroupSettingsUpdated =>
+  isRecord(value) &&
+  value.type === "group_settings_updated" &&
+  typeof value.room_id === "string" &&
+  typeof value.global_mute_enabled === "boolean";
+
+const isBackendPushGroupMemberChanged = (
+  value: unknown,
+): value is BackendPushGroupMemberChanged =>
+  isRecord(value) &&
+  value.type === "group_member_changed" &&
+  typeof value.room_id === "string" &&
+  typeof value.member_id === "string" &&
+  typeof value.change_type === "string";
 
 const isEmojiOnlyPreviewText = (text: string): boolean => {
   const trimmed = text.trim();
@@ -708,6 +816,33 @@ const mapChatRoomMember = (member: BackendRoomMember): ChatRoomMember => ({
   avatarObjectKey: member.avatar_object_key ?? null,
   role: member.role,
   joinedAt: parseTimestamp(member.joined_at),
+});
+
+const mapChatGroupSettings = (
+  response: BackendGroupSettingsResponse,
+): ChatGroupSettings => ({
+  roomId: response.settings.room_id,
+  joinApprovalRequired: Boolean(response.settings.join_approval_required),
+  memberCanInvite: Boolean(response.settings.member_can_invite),
+  memberCanAddFriends: Boolean(response.settings.member_can_add_friends),
+  requireAdminToAddFriends: Boolean(
+    response.settings.require_admin_to_add_friends,
+  ),
+  maxMembers: response.settings.max_members,
+  globalMuteEnabled: Boolean(response.settings.global_mute_enabled),
+  globalMuteUntil: parseTimestamp(response.settings.global_mute_until),
+  globalMuteReason: response.settings.global_mute_reason ?? null,
+  globalMuteSetBy: response.settings.global_mute_set_by ?? null,
+  createdAt: parseTimestamp(response.settings.created_at),
+  updatedAt: parseTimestamp(response.settings.updated_at),
+  myMute: response.my_mute
+    ? {
+        isMuted: Boolean(response.my_mute.is_muted),
+        reason: response.my_mute.reason ?? null,
+        mutedAt: parseTimestamp(response.my_mute.muted_at),
+        muteUntil: parseTimestamp(response.my_mute.mute_until),
+      }
+    : null,
 });
 
 const mapChatMessageAttachment = (
@@ -987,6 +1122,32 @@ export const mapChatRealtimeEvent = (
         avatarObjectKey: payload.avatar_object_key ?? null,
         description: payload.description ?? null,
       };
+    case "group_settings_updated":
+      if (!isBackendPushGroupSettingsUpdated(payload)) {
+        return null;
+      }
+      return {
+        type: "group_settings_updated",
+        roomId: payload.room_id,
+        globalMuteEnabled: payload.global_mute_enabled,
+        globalMuteReason: payload.global_mute_reason ?? null,
+        globalMuteUntil: parseTimestamp(payload.global_mute_until),
+        globalMuteSetBy: payload.global_mute_set_by ?? null,
+      };
+    case "group_member_changed":
+      if (!isBackendPushGroupMemberChanged(payload)) {
+        return null;
+      }
+      return {
+        type: "group_member_changed",
+        roomId: payload.room_id,
+        memberId: payload.member_id,
+        changeType: payload.change_type,
+        newRole: payload.new_role ?? null,
+        operatorId: payload.operator_id ?? null,
+        reason: payload.reason ?? null,
+        until: parseTimestamp(payload.until),
+      };
     default:
       return null;
   }
@@ -1059,6 +1220,20 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? response.data.map(mapChatRoomMember) : null,
+    };
+  }
+
+  static async getGroupSettings(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatGroupSettings>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendGroupSettingsResponse>
+    >("chat.group.settings.get", {
+      room_id: params.roomId,
+    });
+    return {
+      ...response,
+      data: response.data ? mapChatGroupSettings(response.data) : null,
     };
   }
 

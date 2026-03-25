@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import {
   ChatApi,
+  type ChatGroupSettings,
   mapChatRealtimeEvent,
   type ChatMessage,
   type ChatMessagePart,
@@ -30,6 +31,7 @@ import {
   getQuotedSenderDisplayName,
 } from "@/utils/chat-quoted-message";
 import { findCreatedGroupChat } from "@/utils/chat-group-create";
+import { getGroupRealtimePlan } from "@/utils/chat-group-realtime";
 import CreateGroupModal from "./CreateGroupModal.vue";
 
 interface OpenChatRequest {
@@ -80,6 +82,7 @@ const messages = ref<ChatMessage[]>([]);
 const selectedChatId = ref<string | null>(null);
 const groupDetail = ref<ChatRoomDetail | null>(null);
 const groupMembers = ref<ChatRoomMember[]>([]);
+const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -90,6 +93,7 @@ const attachmentUploadProgressById = ref<Record<string, number>>({});
 const isLoadingChats = ref(true);
 const isLoadingMessages = ref(false);
 const isLoadingGroupContext = ref(false);
+const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
 const isCreatingGroup = ref(false);
@@ -112,6 +116,7 @@ const mediaPreview = ref<{
 const replyingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
 let groupContextLoadSequence = 0;
+let groupSettingsLoadSequence = 0;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
@@ -178,6 +183,9 @@ const groupOwnerMember = computed(
       (member) =>
         member.role === "owner" || member.userId === groupDetail.value?.ownerId,
     ) || null,
+);
+const isPersonallyMutedInGroup = computed(
+  () => groupSettings.value?.myMute?.isMuted === true,
 );
 const pinnedCount = computed(
   () => chats.value.filter((chat) => chat.isPinned).length,
@@ -300,6 +308,8 @@ const formatRoomMemberRole = (role: ChatRoomMember["role"]) => {
       return "成员";
   }
 };
+
+const formatBooleanLabel = (value: boolean) => (value ? "开启" : "关闭");
 
 const mapGroupCreateFriend = (friend: FriendInfo): GroupCreateFriendOption => {
   const remark = friend.friendRemark?.trim() ?? "";
@@ -725,6 +735,12 @@ const resetGroupContext = () => {
   isLoadingGroupContext.value = false;
 };
 
+const resetGroupSettings = () => {
+  groupSettingsLoadSequence += 1;
+  groupSettings.value = null;
+  isLoadingGroupSettings.value = false;
+};
+
 const loadGroupContext = async (roomId: string | null) => {
   const currentChat = chats.value.find((chat) => chat.roomId === roomId);
   if (!roomId || currentChat?.roomType !== "group") {
@@ -781,6 +797,49 @@ const loadGroupContext = async (roomId: string | null) => {
   }
 };
 
+const loadGroupSettings = async (roomId: string | null) => {
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupSettings();
+    return;
+  }
+
+  const currentSequence = groupSettingsLoadSequence + 1;
+  groupSettingsLoadSequence = currentSequence;
+  isLoadingGroupSettings.value = true;
+  try {
+    const response = await ChatApi.getGroupSettings({ roomId });
+    if (
+      currentSequence !== groupSettingsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      groupSettings.value = null;
+      notice.value = response.message || "群设置加载失败";
+      return;
+    }
+
+    groupSettings.value = response.data;
+  } catch (error) {
+    if (
+      currentSequence !== groupSettingsLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    groupSettings.value = null;
+    notice.value = error instanceof Error ? error.message : "群设置加载失败";
+  } finally {
+    if (currentSequence === groupSettingsLoadSequence) {
+      isLoadingGroupSettings.value = false;
+    }
+  }
+};
+
 const loadChats = async (
   options: {
     preferredRoomId?: string | null;
@@ -796,6 +855,7 @@ const loadChats = async (
       selectedChatId.value = null;
       messages.value = [];
       resetGroupContext();
+      resetGroupSettings();
       notice.value = response.message || "会话列表加载失败";
       return;
     }
@@ -819,8 +879,10 @@ const loadChats = async (
     }
     if (nextSelectedChat?.roomType === "group") {
       await loadGroupContext(nextSelectedRoomId);
+      await loadGroupSettings(nextSelectedRoomId);
     } else {
       resetGroupContext();
+      resetGroupSettings();
     }
 
     if (!options.preserveNotice) {
@@ -831,6 +893,7 @@ const loadChats = async (
     selectedChatId.value = null;
     messages.value = [];
     resetGroupContext();
+    resetGroupSettings();
     notice.value = error instanceof Error ? error.message : "会话列表加载失败";
   } finally {
     isLoadingChats.value = false;
@@ -908,9 +971,11 @@ const selectChat = async (chatId: string) => {
   const nextSelectedChat = chats.value.find((chat) => chat.roomId === chatId);
   if (nextSelectedChat?.roomType === "group") {
     await loadGroupContext(chatId);
+    await loadGroupSettings(chatId);
     return;
   }
   resetGroupContext();
+  resetGroupSettings();
 };
 
 const handleOpenChatRequest = async (request: OpenChatRequest) => {
@@ -1312,6 +1377,33 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     return;
   }
 
+  const groupRealtimePlan = getGroupRealtimePlan({
+    event,
+    activeRoomId,
+    currentUserId: props.currentUser.id,
+  });
+  if (groupRealtimePlan) {
+    if (groupRealtimePlan.shouldReloadChats) {
+      await loadChats({
+        preferredRoomId: activeRoomId,
+        preserveNotice: true,
+        reloadMessages: false,
+      });
+    }
+    if (event.roomId === selectedChatId.value) {
+      if (groupRealtimePlan.shouldReloadGroupContext) {
+        await loadGroupContext(event.roomId);
+      }
+      if (groupRealtimePlan.shouldReloadGroupSettings) {
+        await loadGroupSettings(event.roomId);
+      }
+    }
+    if (groupRealtimePlan.notice) {
+      notice.value = groupRealtimePlan.notice;
+    }
+    return;
+  }
+
   if (event.type === "message_read") {
     if (
       event.readerId === props.currentUser.id &&
@@ -1565,6 +1657,90 @@ onMounted(() => {
                   </dd>
                 </div>
               </dl>
+
+              <div class="group-panel__section">
+                <div class="group-panel__section-header">
+                  <h5>群设置</h5>
+                  <small>{{
+                    isLoadingGroupSettings ? "同步中..." : "只读视图"
+                  }}</small>
+                </div>
+
+                <dl class="group-panel__detail-list">
+                  <div>
+                    <dt>全员禁言</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatBooleanLabel(groupSettings.globalMuteEnabled)
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>禁言原因</dt>
+                    <dd>{{ groupSettings?.globalMuteReason || "暂无" }}</dd>
+                  </div>
+                  <div>
+                    <dt>禁言截止</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatDetailTime(groupSettings.globalMuteUntil)
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>入群审批</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatBooleanLabel(
+                              groupSettings.joinApprovalRequired,
+                            )
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>成员邀请</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatBooleanLabel(groupSettings.memberCanInvite)
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>最大人数</dt>
+                    <dd>{{ groupSettings?.maxMembers ?? "未同步" }}</dd>
+                  </div>
+                  <div>
+                    <dt>我的禁言</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? isPersonallyMutedInGroup
+                            ? "已禁言"
+                            : "正常"
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>我的禁言截止</dt>
+                    <dd>
+                      {{
+                        groupSettings
+                          ? formatDetailTime(groupSettings.myMute?.muteUntil ?? null)
+                          : "未同步"
+                      }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
 
               <div
                 v-if="sortedGroupMembers.length"
@@ -2315,6 +2491,23 @@ onMounted(() => {
   margin: 0;
   color: var(--text-primary);
   word-break: break-word;
+}
+
+.group-panel__section {
+  display: grid;
+  gap: 10px;
+}
+
+.group-panel__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.group-panel__section-header h5 {
+  margin: 0;
+  color: var(--text-primary);
 }
 
 .group-panel__member-list {

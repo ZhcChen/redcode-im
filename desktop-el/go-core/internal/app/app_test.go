@@ -1418,6 +1418,86 @@ func TestAppChatRoomMembersListReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupSettingsGetReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/settings" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"settings": map[string]any{
+				"id":                           "settings-1",
+				"room_id":                      "room-group-1",
+				"join_approval_required":       true,
+				"member_can_invite":            false,
+				"member_can_add_friends":       true,
+				"require_admin_to_add_friends": false,
+				"max_members":                  500,
+				"global_mute_enabled":          true,
+				"global_mute_until":            "2026-03-26T12:00:00Z",
+				"global_mute_reason":           "会议中",
+				"global_mute_set_by":           "u-1",
+				"created_at":                   "2026-03-25T12:00:00Z",
+				"updated_at":                   "2026-03-25T12:30:00Z",
+			},
+			"my_mute": map[string]any{
+				"is_muted":   true,
+				"reason":     "临时禁言",
+				"muted_at":   "2026-03-25T12:10:00Z",
+				"mute_until": "2026-03-25T13:10:00Z",
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-settings-get",
+		Method: "chat.group.settings.get",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.settings.get to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.settings.get response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.settings.get envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.settings.get data failed: %v", err)
+	}
+	settings, ok := result["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected settings payload: %+v", result)
+	}
+	if settings["room_id"] != "room-group-1" || settings["global_mute_enabled"] != true {
+		t.Fatalf("unexpected group settings data: %+v", settings)
+	}
+	myMute, ok := result["my_mute"].(map[string]any)
+	if !ok || myMute["is_muted"] != true {
+		t.Fatalf("unexpected my_mute payload: %+v", result["my_mute"])
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {

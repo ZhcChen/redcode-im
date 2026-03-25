@@ -200,6 +200,82 @@ describe("chat api", () => {
       ],
     });
   });
+
+  test("loads group settings through go-core rpc and maps settings payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                settings: {
+                  id: "settings-1",
+                  room_id: "room-group-1",
+                  join_approval_required: true,
+                  member_can_invite: false,
+                  member_can_add_friends: true,
+                  require_admin_to_add_friends: false,
+                  max_members: 500,
+                  global_mute_enabled: true,
+                  global_mute_until: "2026-03-26T12:00:00Z",
+                  global_mute_reason: "会议中",
+                  global_mute_set_by: "u-1",
+                  created_at: "2026-03-25T12:00:00Z",
+                  updated_at: "2026-03-25T12:30:00Z",
+                },
+                my_mute: {
+                  is_muted: true,
+                  reason: "临时禁言",
+                  muted_at: "2026-03-25T12:10:00Z",
+                  mute_until: "2026-03-25T13:10:00Z",
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.getGroupSettings({ roomId: "room-group-1" });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.settings.get",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        roomId: "room-group-1",
+        joinApprovalRequired: true,
+        memberCanInvite: false,
+        memberCanAddFriends: true,
+        requireAdminToAddFriends: false,
+        maxMembers: 500,
+        globalMuteEnabled: true,
+        globalMuteUntil: new Date("2026-03-26T12:00:00Z"),
+        globalMuteReason: "会议中",
+        globalMuteSetBy: "u-1",
+        createdAt: new Date("2026-03-25T12:00:00Z"),
+        updatedAt: new Date("2026-03-25T12:30:00Z"),
+        myMute: {
+          isMuted: true,
+          reason: "临时禁言",
+          mutedAt: new Date("2026-03-25T12:10:00Z"),
+          muteUntil: new Date("2026-03-25T13:10:00Z"),
+        },
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {
@@ -342,6 +418,50 @@ describe("chat api message mapping", () => {
       avatarUrl: null,
       avatarObjectKey: "rooms/project/new-avatar.png",
       description: "新的群简介",
+    });
+  });
+
+  test("maps group_settings_updated payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "group_settings_updated",
+      room_id: "room-group-1",
+      global_mute_enabled: true,
+      global_mute_reason: "会议中",
+      global_mute_until: "2026-03-26T12:00:00Z",
+      global_mute_set_by: "u-1",
+    });
+
+    expect(mapped).toEqual({
+      type: "group_settings_updated",
+      roomId: "room-group-1",
+      globalMuteEnabled: true,
+      globalMuteReason: "会议中",
+      globalMuteUntil: new Date("2026-03-26T12:00:00Z"),
+      globalMuteSetBy: "u-1",
+    });
+  });
+
+  test("maps group_member_changed payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "group_member_changed",
+      room_id: "room-group-1",
+      member_id: "u-2",
+      change_type: "muted",
+      new_role: null,
+      operator_id: "u-1",
+      reason: "广告",
+      until: "2026-03-25T14:00:00Z",
+    });
+
+    expect(mapped).toEqual({
+      type: "group_member_changed",
+      roomId: "room-group-1",
+      memberId: "u-2",
+      changeType: "muted",
+      newRole: null,
+      operatorId: "u-1",
+      reason: "广告",
+      until: new Date("2026-03-25T14:00:00Z"),
     });
   });
 });

@@ -167,6 +167,13 @@ func (s *Service) ListRoomMembers(ctx context.Context, params RoomParams) (httpc
 	})
 }
 
+func (s *Service) GetGroupSettings(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/settings",
+	})
+}
+
 func (s *Service) ListMessages(ctx context.Context, params ListMessagesParams) (httpclient.Response, error) {
 	query := map[string]string{}
 	if params.Limit > 0 {
