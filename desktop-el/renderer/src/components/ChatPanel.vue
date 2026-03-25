@@ -30,6 +30,7 @@ import {
   shouldInlinePreviewAttachment,
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
+import type { LocalChatMessageSearchResult } from "@/utils/chat-message-search";
 import {
   getVoiceRecordingBlockedReason,
   type VoiceRecordingFile,
@@ -93,6 +94,7 @@ import {
   validateAvatarFile,
 } from "@/utils/user-avatar-upload";
 import AddGroupMembersModal from "./AddGroupMembersModal.vue";
+import ChatMessageSearchModal from "./ChatMessageSearchModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
 import ForwardMessageModal from "./ForwardMessageModal.vue";
 import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
@@ -193,6 +195,7 @@ const isViewGroupMembersModalVisible = ref(false);
 const isForwardMessageModalVisible = ref(false);
 const isForwardingSelectedMessages = ref(false);
 const isMessageReadersModalVisible = ref(false);
+const isMessageSearchModalVisible = ref(false);
 const isVoiceRecorderVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -251,6 +254,7 @@ const mediaPreview = ref<{
 const replyingMessage = ref<ChatMessage | null>(null);
 const forwardingMessage = ref<ChatMessage | null>(null);
 const highlightedQuotedMessageId = ref<string | null>(null);
+const highlightedSearchMessageId = ref<string | null>(null);
 const hasMoreGroupOperationLogs = ref(false);
 const messageReaders = ref<ChatMessageReader[]>([]);
 const messageReadersTarget = ref<ChatMessage | null>(null);
@@ -356,6 +360,7 @@ const forwardableChats = computed(() =>
     (chat) => Boolean(chat.roomId) && chat.roomId !== selectedChatId.value,
   ),
 );
+const searchableMessages = computed(() => messages.value);
 const selectedBatchMessages = computed(() =>
   getSelectedMessages(messages.value, selectedMessageIds.value),
 );
@@ -4536,6 +4541,18 @@ const handleOpenBatchForwardMessageModal = () => {
   isForwardMessageModalVisible.value = true;
 };
 
+const handleOpenMessageSearchModal = () => {
+  if (!selectedChatId.value || !messages.value.length) {
+    notice.value = "当前会话暂无可搜索的本地消息。";
+    return;
+  }
+  isMessageSearchModalVisible.value = true;
+};
+
+const handleMessageSearchModalVisibleChange = (visible: boolean) => {
+  isMessageSearchModalVisible.value = visible;
+};
+
 const scrollToQuotedMessage = (quoted: ChatQuotedMessage | null) => {
   if (!quoted?.id) {
     return;
@@ -4557,6 +4574,31 @@ const scrollToQuotedMessage = (quoted: ChatQuotedMessage | null) => {
       highlightedQuotedMessageId.value = null;
     }
   }, 2400);
+};
+
+const handleSelectMessageSearchResult = (
+  result: LocalChatMessageSearchResult,
+) => {
+  isMessageSearchModalVisible.value = false;
+  const target = document.querySelector<HTMLElement>(
+    `[data-message-id="${result.messageId}"]`,
+  );
+  if (!target) {
+    notice.value = "目标消息当前不在已加载列表中。";
+    return;
+  }
+
+  target.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+  });
+  highlightedSearchMessageId.value = result.messageId;
+  window.setTimeout(() => {
+    if (highlightedSearchMessageId.value === result.messageId) {
+      highlightedSearchMessageId.value = null;
+    }
+  }, 2400);
+  notice.value = `已定位到 ${result.senderName} 的消息。`;
 };
 
 const handleForwardMessage = async (payload: {
@@ -5829,8 +5871,18 @@ onBeforeUnmount(() => {
           <section class="message-stage">
             <div class="message-stage__header">
               <h4>历史消息</h4>
-              <small v-if="isOpeningPrivateChat">正在准备私聊房间...</small>
-              <small v-else>{{ messages.length }} 条</small>
+              <div class="message-stage__header-actions">
+                <small v-if="isOpeningPrivateChat">正在准备私聊房间...</small>
+                <small v-else>{{ messages.length }} 条</small>
+                <button
+                  type="button"
+                  class="message-stage__search-trigger"
+                  :disabled="isLoadingMessages || !messages.length"
+                  @click="handleOpenMessageSearchModal"
+                >
+                  搜索消息
+                </button>
+              </div>
             </div>
             <div
               v-if="typingIndicatorText"
@@ -5906,7 +5958,8 @@ onBeforeUnmount(() => {
                   'message-card--self': message.isSelf,
                   'message-card--system': message.messageType === 'system',
                   'message-card--quoted-highlight':
-                    highlightedQuotedMessageId === message.id,
+                    highlightedQuotedMessageId === message.id ||
+                    highlightedSearchMessageId === message.id,
                 }"
                 :data-message-id="message.id"
               >
@@ -6603,6 +6656,13 @@ onBeforeUnmount(() => {
       @update:visible="handleForwardMessageModalVisibleChange"
       @submit="void handleForwardMessage($event)"
     />
+    <ChatMessageSearchModal
+      :visible="isMessageSearchModalVisible"
+      :room-title="selectedChat?.title ?? null"
+      :messages="searchableMessages"
+      @update:visible="handleMessageSearchModalVisibleChange"
+      @select="handleSelectMessageSearchResult"
+    />
     <VoiceRecorderModal
       :visible="isVoiceRecorderVisible"
       :is-submitting="isSending && sendingMode === 'voice'"
@@ -7168,8 +7228,31 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.message-stage__header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .message-stage__header small {
   color: var(--text-secondary);
+}
+
+.message-stage__search-trigger {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.message-stage__search-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .message-stage__typing {
