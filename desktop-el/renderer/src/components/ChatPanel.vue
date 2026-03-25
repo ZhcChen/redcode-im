@@ -224,6 +224,8 @@ const isLoadingMoreGroupOperationLogs = ref(false);
 const isUpdatingGroupRules = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isTransferringGroupOwner = ref(false);
+const isLeavingGroup = ref(false);
+const isDissolvingGroup = ref(false);
 const isForwardingMessage = ref(false);
 const isSending = ref(false);
 const pinningMessageId = ref<string | null>(null);
@@ -644,6 +646,7 @@ const canManageSelectedGroupOperationLogs = computed(
 const canTransferSelectedGroupOwner = computed(
   () => groupManageState.value.canTransferOwner,
 );
+const isSelectedGroupOwner = computed(() => groupManageState.value.isOwner);
 const canUpdateSelectedGroupSettings = computed(
   () => groupManageState.value.canUpdateSettings,
 );
@@ -2180,6 +2183,65 @@ const resetGroupSettings = () => {
   isLoadingGroupSettings.value = false;
 };
 
+const clearSelectedChatTransientState = () => {
+  activeMessageActionMenuId.value = null;
+  activeReactionPickerMessageId.value = null;
+  editingMessageTarget.value = null;
+  editingMessageDraft.value = "";
+  replyingMessage.value = null;
+  forwardingMessage.value = null;
+  isForwardingSelectedMessages.value = false;
+  isForwardMessageModalVisible.value = false;
+  isMessageSearchModalVisible.value = false;
+  isVoiceRecorderVisible.value = false;
+  mediaPreview.value = null;
+  highlightedQuotedMessageId.value = null;
+  highlightedSearchMessageId.value = null;
+  resetMessageReadersState();
+  resetPendingAttachments();
+  draftMessage.value = "";
+  sendingMode.value = null;
+  exitMultiSelectMode();
+};
+
+const closeGroupManagementModals = () => {
+  isAddGroupMembersModalVisible.value = false;
+  isManageGroupAdminsModalVisible.value = false;
+  isManageGroupJoinRequestsModalVisible.value = false;
+  isManageGroupMutesModalVisible.value = false;
+  isManageGroupOperationLogsModalVisible.value = false;
+  isManageGroupRulesModalVisible.value = false;
+  isRemoveGroupMembersModalVisible.value = false;
+  isTransferGroupOwnerModalVisible.value = false;
+  isViewGroupMembersModalVisible.value = false;
+};
+
+const removeLocalRoomArtifacts = (roomId: string) => {
+  setLocalMessagesForRoom(roomId, []);
+  const nextReadUntilByRoom = { ...lastReadUntilMessageByRoom.value };
+  delete nextReadUntilByRoom[roomId];
+  lastReadUntilMessageByRoom.value = nextReadUntilByRoom;
+};
+
+const handleActiveGroupUnavailable = async (payload: {
+  roomId: string;
+  noticeText: string;
+}) => {
+  await stopTyping(payload.roomId);
+  clearTypingUsers();
+  removeLocalRoomArtifacts(payload.roomId);
+  closeGroupManagementModals();
+  clearSelectedChatTransientState();
+  selectedChatId.value = null;
+  messages.value = [];
+  resetGroupContext();
+  resetGroupSettings();
+  notice.value = payload.noticeText;
+  await loadChats({
+    preserveNotice: true,
+  });
+};
+
 const loadGroupContext = async (roomId: string | null) => {
   const currentChat = chats.value.find((chat) => chat.roomId === roomId);
   if (!roomId || currentChat?.roomType !== "group") {
@@ -3635,6 +3697,82 @@ const handleTransferGroupOwner = async (payload: {
   }
 };
 
+const handleLeaveGroup = async () => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isLeavingGroup.value) {
+    return;
+  }
+  if (isSelectedGroupOwner.value) {
+    notice.value = "群主不能直接退群，请先解散群聊或转让群主身份。";
+    return;
+  }
+
+  const confirmed = window.confirm("确定退出当前群聊吗？");
+  if (!confirmed) {
+    return;
+  }
+
+  isLeavingGroup.value = true;
+  try {
+    const response = await ChatApi.leaveGroup({ roomId });
+    if (!response.success || !response.data?.success) {
+      notice.value = response.message || "退出群聊失败";
+      return;
+    }
+
+    await handleActiveGroupUnavailable({
+      roomId,
+      noticeText: "已退出当前群聊。",
+    });
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "退出群聊失败";
+  } finally {
+    isLeavingGroup.value = false;
+  }
+};
+
+const handleDissolveGroup = async () => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isDissolvingGroup.value) {
+    return;
+  }
+  if (!isSelectedGroupOwner.value) {
+    notice.value = "只有群主可以解散当前群聊。";
+    return;
+  }
+
+  const confirmed = window.confirm("确定解散当前群聊吗？该操作不可撤销。");
+  if (!confirmed) {
+    return;
+  }
+
+  isDissolvingGroup.value = true;
+  try {
+    const response = await ChatApi.dissolveGroup({ roomId });
+    if (!response.success || !response.data?.success) {
+      notice.value = response.message || "解散群聊失败";
+      return;
+    }
+
+    await handleActiveGroupUnavailable({
+      roomId,
+      noticeText: "当前群聊已解散。",
+    });
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "解散群聊失败";
+  } finally {
+    isDissolvingGroup.value = false;
+  }
+};
+
+const handleGroupExitAction = async () => {
+  if (isSelectedGroupOwner.value) {
+    await handleDissolveGroup();
+    return;
+  }
+  await handleLeaveGroup();
+};
+
 const handleToggleGroupGlobalMute = async () => {
   const roomId = selectedChatId.value;
   if (!roomId || !isSelectedGroupChat.value || isUpdatingGlobalMute.value) {
@@ -5006,6 +5144,30 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     return;
   }
 
+  if (event.type === "group_dissolved" && event.roomId === activeRoomId) {
+    await handleActiveGroupUnavailable({
+      roomId: event.roomId,
+      noticeText: "当前群聊已解散",
+    });
+    return;
+  }
+
+  if (
+    event.type === "group_member_changed" &&
+    event.roomId === activeRoomId &&
+    event.memberId === props.currentUser.id &&
+    (event.changeType === "kicked" || event.changeType === "left")
+  ) {
+    await handleActiveGroupUnavailable({
+      roomId: event.roomId,
+      noticeText:
+        event.changeType === "kicked"
+          ? "你已被移出当前群聊"
+          : "你已退出当前群聊",
+    });
+    return;
+  }
+
   const groupRealtimePlan = getGroupRealtimePlan({
     event,
     activeRoomId,
@@ -5514,6 +5676,22 @@ onBeforeUnmount(() => {
                   @click="handleOpenGroupAvatarPicker"
                 >
                   {{ isUpdatingGroupAvatar ? "上传中..." : "上传群头像" }}
+                </button>
+                <button
+                  type="button"
+                  class="group-panel__action group-panel__action--danger"
+                  :disabled="isLeavingGroup || isDissolvingGroup || isSending"
+                  @click="void handleGroupExitAction()"
+                >
+                  {{
+                    isSelectedGroupOwner
+                      ? isDissolvingGroup
+                        ? "解散中..."
+                        : "解散群聊"
+                      : isLeavingGroup
+                        ? "退出中..."
+                        : "退出群聊"
+                  }}
                 </button>
               </div>
             </div>
@@ -7114,6 +7292,10 @@ onBeforeUnmount(() => {
 .group-panel__action:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.group-panel__action--danger {
+  background: rgba(220, 38, 38, 0.92);
 }
 
 .group-panel__action-row {

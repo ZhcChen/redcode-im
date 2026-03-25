@@ -292,6 +292,7 @@ interface BackendReactionResponse {
 
 interface BackendMultipartSimplePayload {
   success?: boolean;
+  ok?: boolean;
   message?: string;
 }
 
@@ -726,6 +727,11 @@ interface BackendPushGroupSettingsUpdated {
   global_mute_set_by?: string | null;
 }
 
+interface BackendPushGroupDissolved {
+  type: "group_dissolved";
+  room_id: string;
+}
+
 interface BackendPushGroupMemberChanged {
   type: "group_member_changed";
   room_id: string;
@@ -747,6 +753,7 @@ export type ChatWebSocketPush =
   | BackendPushRoomCreated
   | BackendPushRoomUpdated
   | BackendPushGroupSettingsUpdated
+  | BackendPushGroupDissolved
   | BackendPushGroupMemberChanged
   | {
       type: string;
@@ -825,6 +832,10 @@ export type ChatRealtimeEvent =
       globalMuteReason: string | null;
       globalMuteUntil: Date | null;
       globalMuteSetBy: string | null;
+    }
+  | {
+      type: "group_dissolved";
+      roomId: string;
     }
   | {
       type: "group_member_changed";
@@ -956,6 +967,13 @@ const isBackendPushGroupSettingsUpdated = (
   value.type === "group_settings_updated" &&
   typeof value.room_id === "string" &&
   typeof value.global_mute_enabled === "boolean";
+
+const isBackendPushGroupDissolved = (
+  value: unknown,
+): value is BackendPushGroupDissolved =>
+  isRecord(value) &&
+  value.type === "group_dissolved" &&
+  typeof value.room_id === "string";
 
 const isBackendPushGroupMemberChanged = (
   value: unknown,
@@ -1418,7 +1436,11 @@ const mapSimpleSuccessData = (
 ): ApiResponse<SimpleSuccessData> => {
   const payload = response.data;
   const successFlag =
-    typeof payload?.success === "boolean" ? payload.success : response.success;
+    typeof payload?.success === "boolean"
+      ? payload.success
+      : typeof payload?.ok === "boolean"
+        ? payload.ok
+        : response.success;
   const message =
     typeof payload?.message === "string"
       ? payload.message
@@ -1693,6 +1715,14 @@ export const mapChatRealtimeEvent = (
         globalMuteUntil: parseTimestamp(payload.global_mute_until),
         globalMuteSetBy: payload.global_mute_set_by ?? null,
       };
+    case "group_dissolved":
+      if (!isBackendPushGroupDissolved(payload)) {
+        return null;
+      }
+      return {
+        type: "group_dissolved",
+        roomId: payload.room_id,
+      };
     case "group_member_changed":
       if (!isBackendPushGroupMemberChanged(payload)) {
         return null;
@@ -1752,6 +1782,30 @@ export class ChatApi {
       ...response,
       data: response.data ? mapCreatedGroupChat(response.data) : null,
     };
+  }
+
+  static async leaveGroup(params: {
+    roomId: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.group.leave", {
+      room_id: params.roomId,
+    });
+
+    return mapSimpleSuccessData(response);
+  }
+
+  static async dissolveGroup(params: {
+    roomId: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.group.dissolve", {
+      room_id: params.roomId,
+    });
+
+    return mapSimpleSuccessData(response);
   }
 
   static async uploadGroupAvatar(params: {

@@ -106,6 +106,112 @@ describe("chat api", () => {
     });
   });
 
+  test("leaves group through go-core rpc and maps success payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "已退出群聊",
+              data: {
+                ok: true,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const leaveGroup = (
+      ChatApi as unknown as {
+        leaveGroup?: (params: { roomId: string }) => Promise<unknown>;
+      }
+    ).leaveGroup;
+
+    expect(typeof leaveGroup).toBe("function");
+    if (!leaveGroup) {
+      return;
+    }
+
+    const response = (await leaveGroup({
+      roomId: "room-group-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.leave",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "已退出群聊",
+      data: {
+        success: true,
+        message: "已退出群聊",
+      },
+    });
+  });
+
+  test("dissolves group through go-core rpc and maps success payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "群聊已解散",
+              data: {
+                success: true,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const dissolveGroup = (
+      ChatApi as unknown as {
+        dissolveGroup?: (params: { roomId: string }) => Promise<unknown>;
+      }
+    ).dissolveGroup;
+
+    expect(typeof dissolveGroup).toBe("function");
+    if (!dissolveGroup) {
+      return;
+    }
+
+    const response = (await dissolveGroup({
+      roomId: "room-group-1",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.dissolve",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "群聊已解散",
+      data: {
+        success: true,
+        message: "群聊已解散",
+      },
+    });
+  });
+
   test("forwards message through go-core rpc and maps forwarded payload", async () => {
     globalThis.window = {
       desktopEl: {
@@ -2618,6 +2724,18 @@ describe("chat api message mapping", () => {
       operatorId: "u-1",
       reason: "广告",
       until: new Date("2026-03-25T14:00:00Z"),
+    });
+  });
+
+  test("maps group_dissolved payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "group_dissolved",
+      room_id: "room-group-1",
+    });
+
+    expect(mapped).toEqual({
+      type: "group_dissolved",
+      roomId: "room-group-1",
     });
   });
 

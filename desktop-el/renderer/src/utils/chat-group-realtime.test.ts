@@ -104,4 +104,24 @@ describe("chat group realtime helpers", () => {
       notice: "你已在当前群解除禁言",
     });
   });
+
+  test("reloads chats and shows dissolve notice for active group", () => {
+    const event: ChatRealtimeEvent = {
+      type: "group_dissolved",
+      roomId: "room-group-1",
+    };
+
+    expect(
+      getGroupRealtimePlan({
+        event,
+        activeRoomId: "room-group-1",
+        currentUserId: "u-2",
+      }),
+    ).toEqual({
+      shouldReloadChats: true,
+      shouldReloadGroupContext: false,
+      shouldReloadGroupSettings: false,
+      notice: "当前群聊已解散",
+    });
+  });
 });

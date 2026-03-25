@@ -41,6 +41,14 @@ export const getGroupRealtimePlan = (payload: {
         shouldReloadGroupSettings: event.roomId === activeRoomId,
         notice: null,
       };
+    case "group_dissolved":
+      return {
+        shouldReloadChats: true,
+        shouldReloadGroupContext: false,
+        shouldReloadGroupSettings: false,
+        notice:
+          event.roomId === activeRoomId ? "当前群聊已解散" : null,
+      };
     case "group_member_changed":
       return {
         shouldReloadChats: true,

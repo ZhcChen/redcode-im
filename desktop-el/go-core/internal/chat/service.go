@@ -268,6 +268,21 @@ func (s *Service) CreateGroup(ctx context.Context, params CreateGroupParams) (ht
 	})
 }
 
+func (s *Service) LeaveGroup(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/leave",
+		Body:   map[string]any{},
+	})
+}
+
+func (s *Service) DissolveGroup(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID,
+	})
+}
+
 func (s *Service) GetRoom(ctx context.Context, params RoomParams) (httpclient.Response, error) {
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodGet,

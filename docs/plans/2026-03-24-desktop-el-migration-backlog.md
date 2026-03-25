@@ -104,10 +104,11 @@
 - [x] 已完成剩余群设置写侧：群设置面板已补齐 `member_can_add_friends`、`require_admin_to_add_friends` 与 `max_members` 的原位更新入口，继续复用 Go core `chat.group.settings.update`，不新增本地 HTTP 端口。
 - [x] 已完成群头像上传最小闭环：群主 / 管理员可在群详情面板上传群头像，renderer 通过 backend `direct-upload + commit` 直传对象存储，并在会话列表 / 会话头部优先展示图片头像。
 - [x] 已完成群管理主流程的最小闭环：成员管理、管理员管理、入群申请、禁言、群规、操作日志与完整成员面板均已迁移。
+- [x] 已完成退出群聊 / 解散群聊最小闭环：renderer 已接入 `chat.group.leave` / `chat.group.dissolve`，普通成员可退出当前群聊，群主可直接解散群聊；成功后会立即收口当前会话并刷新会话列表。
+- [x] 已完成 `group_dissolved` 最小事件收敛：Go core 已透传群解散事件，renderer 命中当前群时会自动退出该会话并刷新会话列表。
 
 **当前缺口:**
-- 解散群聊 / 退出群聊仍未迁移。
-- 更深的群相关 websocket 事件，例如群主转让、群解散、管理员调整、入群审批流等，仍未接入统一刷新链路。
+- 更深的群相关 websocket 事件，例如群主转让、管理员调整、入群审批流等，仍未接入统一刷新链路。
 
 **建议切口:**
 - [x] 先补建群与基础群房间进入。
@@ -193,7 +194,7 @@
 - [x] 禁言管理（已完成列表、创建禁言、解除禁言最小闭环，更细权限策略与联动仍未迁移）
 - [x] 群规管理（已完成列表、新增、编辑、删除最小闭环，拖拽排序与富文本编辑仍未迁移）
 - [x] 群操作日志（已完成列表与加载更多最小闭环，筛选、搜索与导出仍未迁移）
-- [ ] 解散群聊 / 退出群聊
+- [x] 解散群聊 / 退出群聊
 
 **关键参考:**
 - [group.ts](/Users/chen/code/redcode-im/desktop/src/api/group.ts)
@@ -249,7 +250,8 @@
 - [x] `typing_update`
 - [x] `group_settings_updated`
 - [x] `group_member_changed`
-- [ ] 群主转让 / 群解散 / 入群审批等更深群事件
+- [x] `group_dissolved`
+- [ ] 群主转让 / 管理员调整 / 入群审批等更深群事件
 
 **原则:**
 - 先由 Go core 统一转成 stdio 事件。
