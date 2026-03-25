@@ -38,6 +38,7 @@ import {
   getQuotedSenderDisplayName,
 } from "@/utils/chat-quoted-message";
 import {
+  buildDragSelectedMessageIds,
   buildForwardSourceSummary,
   canCopyMessage,
   canDeleteMessage,
@@ -254,6 +255,9 @@ const submittingEditMessageId = ref<string | null>(null);
 const localMessagesByRoom = ref<Record<string, ChatMessage[]>>({});
 const isMultiSelectMode = ref(false);
 const selectedMessageIds = ref<string[]>([]);
+const isDraggingMessageSelection = ref(false);
+const dragAnchorMessageId = ref<string | null>(null);
+const dragStartPosition = ref<{ x: number; y: number } | null>(null);
 const resendingMessageId = ref<string | null>(null);
 const typingUsers = ref<Record<string, number>>({});
 const typingCleanupTimers = new Map<string, number>();
@@ -275,6 +279,7 @@ let messageReadersLoadSequence = 0;
 let roomSubscriptionSequence = 0;
 const GROUP_OPERATION_LOGS_PAGE_SIZE = 20;
 const LOCAL_MESSAGE_RETRY_DELAY_MS = 3000;
+const MESSAGE_DRAG_SELECT_THRESHOLD_PX = 5;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
@@ -1274,6 +1279,7 @@ const setSelectedMessageIds = (messageIds: Iterable<string>) => {
 const exitMultiSelectMode = () => {
   isMultiSelectMode.value = false;
   selectedMessageIds.value = [];
+  clearDragSelectionState();
   if (isForwardingSelectedMessages.value) {
     isForwardingSelectedMessages.value = false;
     isForwardMessageModalVisible.value = false;
@@ -1341,6 +1347,92 @@ const handleEnterMultiSelectMode = (message: ChatMessage) => {
   }
 
   enterMultiSelectMode(message);
+};
+
+const clearDragSelectionState = () => {
+  isDraggingMessageSelection.value = false;
+  dragAnchorMessageId.value = null;
+  dragStartPosition.value = null;
+};
+
+const clearBrowserSelection = () => {
+  const selection = window.getSelection();
+  if (selection?.removeAllRanges) {
+    selection.removeAllRanges();
+  }
+};
+
+const getMessageIdFromTarget = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  return target.closest<HTMLElement>("[data-message-id]")?.dataset.messageId ?? null;
+};
+
+const isInteractiveMessageTarget = (target: EventTarget | null) =>
+  target instanceof Element &&
+  Boolean(target.closest("button, input, textarea, select, a, audio, video"));
+
+const handleMessageFeedMouseDown = (event: MouseEvent) => {
+  if (event.button !== 0 || isInteractiveMessageTarget(event.target)) {
+    return;
+  }
+
+  dragAnchorMessageId.value = getMessageIdFromTarget(event.target);
+  dragStartPosition.value = dragAnchorMessageId.value
+    ? { x: event.clientX, y: event.clientY }
+    : null;
+  isDraggingMessageSelection.value = false;
+
+  if (dragAnchorMessageId.value) {
+    clearBrowserSelection();
+  }
+};
+
+const handleMessageFeedMouseMove = (event: MouseEvent) => {
+  if (!dragAnchorMessageId.value || !dragStartPosition.value) {
+    return;
+  }
+
+  if (!isDraggingMessageSelection.value) {
+    const deltaX = Math.abs(event.clientX - dragStartPosition.value.x);
+    const deltaY = Math.abs(event.clientY - dragStartPosition.value.y);
+    if (
+      deltaX <= MESSAGE_DRAG_SELECT_THRESHOLD_PX &&
+      deltaY <= MESSAGE_DRAG_SELECT_THRESHOLD_PX
+    ) {
+      return;
+    }
+    isDraggingMessageSelection.value = true;
+  }
+
+  const currentMessageId = getMessageIdFromTarget(event.target);
+  if (!currentMessageId || currentMessageId === dragAnchorMessageId.value) {
+    return;
+  }
+
+  if (!isMultiSelectMode.value) {
+    enterMultiSelectMode();
+  }
+
+  const draggedMessageIds = buildDragSelectedMessageIds(
+    messages.value,
+    dragAnchorMessageId.value,
+    currentMessageId,
+  );
+  if (!draggedMessageIds.length) {
+    return;
+  }
+
+  setSelectedMessageIds(draggedMessageIds);
+  clearBrowserSelection();
+};
+
+const handleMessageFeedMouseUp = () => {
+  if (isDraggingMessageSelection.value) {
+    clearBrowserSelection();
+  }
+  clearDragSelectionState();
 };
 
 const getRetryStorageKey = () =>
@@ -5638,7 +5730,18 @@ onBeforeUnmount(() => {
               <p>这个会话还没有历史消息，可以先从联系人页发起新的聊天。</p>
             </div>
 
-            <div v-else class="message-feed">
+            <div
+              v-else
+              class="message-feed"
+              :class="{
+                'message-feed--dragging':
+                  isDraggingMessageSelection || isMultiSelectMode,
+              }"
+              @mousedown="handleMessageFeedMouseDown"
+              @mousemove="handleMessageFeedMouseMove"
+              @mouseup="handleMessageFeedMouseUp"
+              @mouseleave="handleMessageFeedMouseUp"
+            >
               <article
                 v-for="message in messages"
                 :key="message.id"
@@ -6935,6 +7038,10 @@ onBeforeUnmount(() => {
   max-height: 420px;
   overflow-y: auto;
   padding-right: 6px;
+}
+
+.message-feed--dragging {
+  user-select: none;
 }
 
 .message-card {

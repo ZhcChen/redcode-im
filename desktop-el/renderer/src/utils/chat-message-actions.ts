@@ -145,6 +145,33 @@ export const buildForwardSourceSummary = (messages: ChatMessage[]) => {
   return messages[0].preview || messages[0].content || "[空消息]";
 };
 
+export const buildDragSelectedMessageIds = (
+  messages: ChatMessage[],
+  anchorMessageId: string | null,
+  currentMessageId: string | null,
+) => {
+  if (!anchorMessageId || !currentMessageId) {
+    return [];
+  }
+
+  const anchorIndex = messages.findIndex(
+    (message) => message.id === anchorMessageId,
+  );
+  const currentIndex = messages.findIndex(
+    (message) => message.id === currentMessageId,
+  );
+  if (anchorIndex === -1 || currentIndex === -1) {
+    return [];
+  }
+
+  const startIndex = Math.min(anchorIndex, currentIndex);
+  const endIndex = Math.max(anchorIndex, currentIndex);
+  return messages
+    .slice(startIndex, endIndex + 1)
+    .filter((message) => canSelectMessageForMultiSelect(message))
+    .map((message) => message.id);
+};
+
 export const canOpenMessageActionMenu = (message: ChatMessage | null) =>
   Boolean(
     message &&

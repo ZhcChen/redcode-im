@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ChatMessage } from "@/api/chat";
 import { createLocalComposerMessage, markLocalMessageFailed } from "./chat-local-message";
 import {
+  buildDragSelectedMessageIds,
   buildForwardSourceSummary,
   canDeleteMessage,
   canDeleteSelectedMessages,
@@ -127,5 +128,52 @@ describe("chat message action helpers", () => {
     expect(buildForwardSourceSummary([])).toBeNull();
     expect(buildForwardSourceSummary([single])).toBe("summary text");
     expect(buildForwardSourceSummary([single, second])).toBe("已选择 2 条消息");
+  });
+
+  test("builds drag-selected message ids for a forward range", () => {
+    const first = createRemoteMessage({ id: "msg-1" });
+    const second = createRemoteMessage({ id: "msg-2" });
+    const third = createRemoteMessage({ id: "msg-3" });
+
+    expect(
+      buildDragSelectedMessageIds(
+        [first, second, third],
+        "msg-1",
+        "msg-3",
+      ),
+    ).toEqual(["msg-1", "msg-2", "msg-3"]);
+  });
+
+  test("builds drag-selected message ids for a reverse range and skips system messages", () => {
+    const first = createRemoteMessage({ id: "msg-1" });
+    const system = createRemoteMessage({
+      id: "msg-system",
+      messageType: "system",
+      content: "",
+      preview: "系统消息",
+      isSelf: false,
+      parts: [],
+    });
+    const third = createRemoteMessage({ id: "msg-3" });
+
+    expect(
+      buildDragSelectedMessageIds(
+        [first, system, third],
+        "msg-3",
+        "msg-1",
+      ),
+    ).toEqual(["msg-1", "msg-3"]);
+  });
+
+  test("returns an empty selection when drag anchor or current message is missing", () => {
+    const first = createRemoteMessage({ id: "msg-1" });
+    const second = createRemoteMessage({ id: "msg-2" });
+
+    expect(
+      buildDragSelectedMessageIds([first, second], "missing", "msg-2"),
+    ).toEqual([]);
+    expect(
+      buildDragSelectedMessageIds([first, second], "msg-1", "missing"),
+    ).toEqual([]);
   });
 });
