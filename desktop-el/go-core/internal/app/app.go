@@ -56,6 +56,22 @@ type wsConnectParams struct {
 	Token string `json:"token"`
 }
 
+type authRestoreAccountParams struct {
+	ID           string             `json:"id"`
+	Token        string             `json:"token"`
+	RefreshToken string             `json:"refresh_token,omitempty"`
+	User         state.UserSnapshot `json:"user"`
+}
+
+type authRestoreParams struct {
+	Accounts         []authRestoreAccountParams `json:"accounts"`
+	CurrentAccountID string                     `json:"current_account_id"`
+}
+
+type authSwitchAccountParams struct {
+	AccountID string `json:"account_id"`
+}
+
 type wsRoomParams struct {
 	RoomID string `json:"room_id"`
 }
@@ -195,9 +211,59 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("auth.accounts.restore", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload authRestoreParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+
+		accounts := make([]session.RestoredAccount, 0, len(payload.Accounts))
+		for _, account := range payload.Accounts {
+			accountID := account.ID
+			if accountID == "" {
+				accountID = account.User.ID
+			}
+			if accountID == "" || account.Token == "" || account.User.ID == "" {
+				continue
+			}
+
+			accounts = append(accounts, session.RestoredAccount{
+				ID:           accountID,
+				AccessToken:  account.Token,
+				RefreshToken: account.RefreshToken,
+				CurrentUser:  account.User,
+			})
+		}
+
+		a.session.Restore(accounts, payload.CurrentAccountID)
+		a.httpClient.SetToken(a.session.AccessToken())
+		if err := a.wsClient.Disconnect(); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
+		return map[string]any{"success": true}, nil
+	})
+
+	server.Register("auth.account.switch", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload authSwitchAccountParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		if !a.session.Switch(payload.AccountID) {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, "account not found")
+		}
+
+		a.httpClient.SetToken(a.session.AccessToken())
+		if err := a.wsClient.Disconnect(); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
+		return map[string]any{"success": true}, nil
+	})
+
 	server.Register("auth.logout", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {
-		a.session.Clear()
-		a.httpClient.SetToken("")
+		a.session.RemoveCurrent()
+		a.httpClient.SetToken(a.session.AccessToken())
 		if err := a.wsClient.Disconnect(); err != nil {
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}
@@ -1093,6 +1159,7 @@ func (a *App) startWSPump() {
 
 func (a *App) buildBootstrapSnapshot() state.BootstrapSnapshot {
 	snapshot := a.bootstrap.BuildSnapshot()
+	snapshot.Accounts = a.session.AccountsSnapshot()
 	snapshot.Connection.Status = string(a.wsClient.Status())
 	snapshot.Auth = state.AuthSnapshot{
 		LoggedIn: a.session.AccessToken() != "",

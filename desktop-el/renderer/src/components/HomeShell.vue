@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { DesktopElAPI } from "../../../electron/preload/types.js";
 import type { ChatWebSocketPush } from "@/api/chat";
 import type { LegacyUserInfo } from "@/api/system";
-import type { HomeView } from "@/store/session";
+import type { HomeView, SessionAccount } from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 import { getChatNotificationPlan } from "@/utils/chat-notification";
 import ChatPanel from "./ChatPanel.vue";
@@ -18,6 +18,8 @@ type DesktopElWithAttention = DesktopElAPI & {
 
 const props = defineProps<{
   currentUser: LegacyUserInfo;
+  accounts: SessionAccount[];
+  currentAccountId: string | null;
   hostVersion: string | null;
   lastEvent: string;
   wsStatus: string;
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   (event: "navigate", view: HomeView): void;
   (event: "logout"): void;
   (event: "profile-updated", user: LegacyUserInfo): void;
+  (event: "switch-account", accountId: string): void;
 }>();
 
 interface OpenChatRequest {
@@ -46,6 +49,14 @@ const menuItems: Array<{ value: HomeView; title: string; shortLabel: string; des
 
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
+const accountSwitchItems = computed(() =>
+  props.accounts.map((account) => ({
+    id: account.id,
+    displayName: account.displayName || account.user.nickname || account.user.username || account.id,
+    username: account.user.username,
+    isCurrent: account.id === props.currentAccountId,
+  })),
+);
 const openChatRequest = ref<OpenChatRequest | null>(null);
 const isWindowFocused = ref(typeof document === "undefined" ? true : document.hasFocus());
 let nextOpenChatRequestId = 1;
@@ -181,6 +192,24 @@ watch(
         <span class="profile-card__hint">{{ props.currentUser.mobile }}</span>
       </button>
 
+      <section v-if="accountSwitchItems.length > 1" class="account-switcher">
+        <p class="account-switcher__label">已登录账号</p>
+        <div class="account-switcher__list">
+          <button
+            v-for="account in accountSwitchItems"
+            :key="account.id"
+            type="button"
+            class="account-switcher__item"
+            :class="{ 'account-switcher__item--active': account.isCurrent }"
+            :disabled="account.isCurrent"
+            @click="emit('switch-account', account.id)"
+          >
+            <strong>{{ account.displayName }}</strong>
+            <small>{{ account.username }}</small>
+          </button>
+        </div>
+      </section>
+
       <nav class="home-shell__nav">
         <button
           v-for="item in menuItems"
@@ -310,6 +339,61 @@ watch(
 .profile-card__hint {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.account-switcher {
+  display: grid;
+  gap: 10px;
+}
+
+.account-switcher__label {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.account-switcher__list {
+  display: grid;
+  gap: 8px;
+}
+
+.account-switcher__item {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.7);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.account-switcher__item:hover:enabled {
+  transform: translateX(2px);
+  border-color: rgba(0, 155, 143, 0.16);
+  background: rgba(0, 194, 179, 0.08);
+}
+
+.account-switcher__item--active {
+  border-color: rgba(0, 155, 143, 0.18);
+  background: rgba(0, 194, 179, 0.1);
+  cursor: default;
+}
+
+.account-switcher__item strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.account-switcher__item small {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .home-shell__nav {

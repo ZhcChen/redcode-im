@@ -6,10 +6,11 @@ import type { ChatWebSocketPush } from "./api/chat";
 import { SystemApi, type LegacyUserInfo } from "./api/system";
 import LoginScreen from "./components/LoginScreen.vue";
 import HomeShell from "./components/HomeShell.vue";
-import { useSessionStore } from "./store/session";
+import { useSessionStore, type SessionAccount } from "./store/session";
 import type { BootstrapSnapshot } from "./types/bootstrap";
 import { WebSocketApi } from "./api/websocket";
 import { buildDesktopWindowTitle } from "./utils/desktop-window-title";
+import { buildLogoutFallbackPlan, buildSwitchAccountPlan } from "./utils/session-account-switch";
 
 const bootstrap = ref<BootstrapSnapshot | null>(null);
 const hostVersion = ref<string | null>(null);
@@ -18,10 +19,14 @@ const runtimeAvailable = ref(false);
 const wsStatus = ref("disconnected");
 const lastWsPush = ref<ChatWebSocketPush | null>(null);
 const sessionStore = useSessionStore();
+if (typeof window !== "undefined" && window.desktopEl) {
+  sessionStore.restorePersistedState();
+}
 
 let cleanupEventListener: (() => void) | undefined;
 
 const appName = computed(() => bootstrap.value?.config.app_name || "CHATLY");
+const accounts = computed(() => sessionStore.state.accounts);
 const currentUser = computed<LegacyUserInfo | null>(() => sessionStore.state.currentUser);
 
 const syncWindowTitle = async () => {
@@ -51,6 +56,47 @@ const refreshBootstrap = async () => {
   syncBootstrapState(bootstrap.value);
 };
 
+const reconnectAccountSession = async (account: SessionAccount) => {
+  if (!account.accessToken) {
+    throw new Error(`account ${account.id} has no access token`);
+  }
+
+  lastWsPush.value = null;
+  await WebSocketApi.disconnect().catch(() => undefined);
+  await WebSocketApi.connect({ userId: account.user.id, token: account.accessToken });
+  wsStatus.value = await WebSocketApi.getStatus();
+};
+
+const restorePersistedSession = async () => {
+  if (!window.desktopEl || bootstrap.value?.auth.logged_in || sessionStore.state.accounts.length === 0) {
+    return;
+  }
+
+  const currentAccount = sessionStore.getCurrentAccount();
+  if (!currentAccount?.accessToken) {
+    return;
+  }
+
+  try {
+    await SystemApi.restoreAccounts({
+      currentAccountId: sessionStore.state.currentAccountId,
+      accounts: sessionStore.state.accounts.map((account) => ({
+        id: account.id,
+        accessToken: account.accessToken,
+        refreshToken: account.refreshToken,
+        userInfo: account.user,
+      })),
+    });
+    await reconnectAccountSession(currentAccount);
+    await refreshBootstrap();
+  } catch (error) {
+    sessionStore.clear();
+    wsStatus.value = "disconnected";
+    console.warn("[desktop-el-renderer] failed to restore persisted accounts", error);
+    await refreshBootstrap().catch(() => undefined);
+  }
+};
+
 const loadRuntimeState = async () => {
   if (!window.desktopEl) {
     runtimeAvailable.value = false;
@@ -60,6 +106,7 @@ const loadRuntimeState = async () => {
   runtimeAvailable.value = true;
   hostVersion.value = await window.desktopEl.app.getVersion();
   await refreshBootstrap();
+  await restorePersistedSession();
   await getRuntimeConfig();
 };
 
@@ -83,16 +130,15 @@ const handleRpcEvent = (event: RpcEvent) => {
   }
 };
 
-const handleLoginSuccess = async (payload: { token: string; user: LegacyUserInfo }) => {
-  sessionStore.setAuthenticated(payload.user, payload.token);
-
-  if (!window.desktopEl) {
+const handleLoginSuccess = async (payload: { token: string; refreshToken?: string | null; user: LegacyUserInfo }) => {
+  sessionStore.setAuthenticated(payload.user, payload.token, payload.refreshToken ?? null);
+  const currentAccount = sessionStore.getCurrentAccount();
+  if (!currentAccount) {
     return;
   }
 
   try {
-    await WebSocketApi.connect({ userId: payload.user.id, token: payload.token });
-    wsStatus.value = await WebSocketApi.getStatus();
+    await reconnectAccountSession(currentAccount);
     await refreshBootstrap();
   } catch (error) {
     wsStatus.value = "disconnected";
@@ -100,11 +146,50 @@ const handleLoginSuccess = async (payload: { token: string; user: LegacyUserInfo
   }
 };
 
+const handleSwitchAccount = async (accountId: string) => {
+  const plan = buildSwitchAccountPlan(sessionStore.state.accounts, sessionStore.state.currentAccountId, accountId);
+  if (!plan) {
+    return;
+  }
+
+  try {
+    await SystemApi.switchAccount(plan.nextAccount.id);
+    sessionStore.switchAccount(plan.nextAccount.id);
+    await reconnectAccountSession(plan.nextAccount);
+    await refreshBootstrap();
+  } catch (error) {
+    wsStatus.value = "disconnected";
+    console.warn("[desktop-el-renderer] switch account failed", error);
+    await refreshBootstrap().catch(() => undefined);
+  }
+};
+
 const handleLogout = async () => {
+  const fallbackPlan = buildLogoutFallbackPlan(sessionStore.state.accounts, sessionStore.state.currentAccountId);
+  const currentAccountId = sessionStore.state.currentAccountId;
+
   try {
     await SystemApi.logout();
   } catch (error) {
     console.warn("[desktop-el-renderer] logout failed", error);
+    return;
+  }
+
+  if (currentAccountId) {
+    sessionStore.removeAccount(currentAccountId);
+  } else {
+    sessionStore.clear();
+  }
+
+  if (fallbackPlan?.nextAccount) {
+    try {
+      await reconnectAccountSession(fallbackPlan.nextAccount);
+      await refreshBootstrap();
+      return;
+    } catch (error) {
+      wsStatus.value = "disconnected";
+      console.warn("[desktop-el-renderer] websocket reconnect after logout failed", error);
+    }
   }
 
   sessionStore.clear();
@@ -115,7 +200,7 @@ const handleLogout = async () => {
 };
 
 const handleProfileUpdated = async (user: LegacyUserInfo) => {
-  sessionStore.setAuthenticated(user, sessionStore.state.accessToken);
+  sessionStore.updateCurrentUser(user);
   await refreshBootstrap().catch((error) => {
     console.warn("[desktop-el-renderer] bootstrap refresh after profile update failed", error);
   });
@@ -165,6 +250,8 @@ watch(
   <HomeShell
     v-else
     :current-user="currentUser"
+    :accounts="accounts"
+    :current-account-id="sessionStore.state.currentAccountId"
     :host-version="hostVersion"
     :last-event="lastEvent"
     :ws-status="wsStatus"
@@ -172,6 +259,7 @@ watch(
     :last-ws-push="lastWsPush"
     :active-view="sessionStore.state.activeView"
     @navigate="sessionStore.setActiveView"
+    @switch-account="handleSwitchAccount"
     @profile-updated="handleProfileUpdated"
     @logout="handleLogout"
   />

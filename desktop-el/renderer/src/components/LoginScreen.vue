@@ -14,7 +14,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: "login-success", payload: { token: string; user: LegacyUserInfo }): void;
+  (event: "login-success", payload: { token: string; refreshToken?: string | null; user: LegacyUserInfo }): void;
 }>();
 
 const loginType = ref<LoginType>("password");
@@ -269,10 +269,10 @@ const handleSendCaptcha = async () => {
   }
 };
 
-const emitLoginSuccess = (token: string, user: LegacyUserInfo) => {
+const emitLoginSuccess = (token: string, user: LegacyUserInfo, refreshToken?: string | null) => {
   saveLastLoginAccount(loginForm.value.phone.trim());
   setNotice("success", `登录成功，当前账号 ${user.nickname} 已接管 desktop-el 会话。`);
-  emit("login-success", { token, user });
+  emit("login-success", { token, refreshToken: refreshToken ?? null, user });
 };
 
 const handleRegister = async () => {
@@ -303,7 +303,7 @@ const handleRegister = async () => {
       return;
     }
 
-    emitLoginSuccess(loginResponse.data.token, loginResponse.data.userInfo);
+    emitLoginSuccess(loginResponse.data.token, loginResponse.data.userInfo, loginResponse.data.refreshToken);
   } catch (error) {
     setNotice("error", error instanceof Error ? error.message : "注册失败，请稍后重试");
   } finally {
@@ -335,7 +335,7 @@ const handleLogin = async () => {
       return;
     }
 
-    emitLoginSuccess(response.data.token, response.data.userInfo);
+    emitLoginSuccess(response.data.token, response.data.userInfo, response.data.refreshToken);
   } catch (error) {
     setNotice("error", error instanceof Error ? error.message : "网络错误，请稍后重试");
   } finally {

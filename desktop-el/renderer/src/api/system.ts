@@ -59,6 +59,18 @@ export interface LoginResponse {
   refreshToken?: string | null;
 }
 
+export interface RestoreAccountParams {
+  id: string;
+  accessToken: string | null;
+  refreshToken?: string | null;
+  userInfo: LegacyUserInfo;
+}
+
+export interface RestoreAccountsParams {
+  accounts: RestoreAccountParams[];
+  currentAccountId: string | null;
+}
+
 const requireDesktopRuntime = () => {
   if (!window.desktopEl) {
     throw new Error("desktop-el runtime is not available");
@@ -76,6 +88,18 @@ const mapStatusToActiveFlag = (status: BackendUserInfo["status"]): number | null
       return -1;
     default:
       return null;
+  }
+};
+
+const mapLegacyActiveFlagToStatus = (activeStatus: LegacyUserInfo["activeStatus"]): BackendUserInfo["status"] => {
+  switch (activeStatus) {
+    case 0:
+      return "inactive";
+    case -1:
+      return "banned";
+    case 1:
+    default:
+      return "active";
   }
 };
 
@@ -184,5 +208,32 @@ export class SystemApi {
 
   static async logout(): Promise<{ success: boolean }> {
     return requireDesktopRuntime().rpc.invoke<{ success: boolean }>("auth.logout");
+  }
+
+  static async switchAccount(accountId: string): Promise<{ success: boolean }> {
+    return requireDesktopRuntime().rpc.invoke<{ success: boolean }>("auth.account.switch", {
+      account_id: accountId,
+    });
+  }
+
+  static async restoreAccounts(params: RestoreAccountsParams): Promise<{ success: boolean }> {
+    return requireDesktopRuntime().rpc.invoke<{ success: boolean }>("auth.accounts.restore", {
+      current_account_id: params.currentAccountId,
+      accounts: params.accounts
+        .filter((account) => Boolean(account.id) && Boolean(account.accessToken))
+        .map((account) => ({
+          id: account.id,
+          token: account.accessToken,
+          refresh_token: account.refreshToken ?? null,
+          user: {
+            id: account.userInfo.id,
+            username: account.userInfo.username,
+            email: account.userInfo.email,
+            nickname: account.userInfo.nickname || null,
+            avatar_url: account.userInfo.avatar || null,
+            status: mapLegacyActiveFlagToStatus(account.userInfo.activeStatus),
+          },
+        })),
+    });
   }
 }

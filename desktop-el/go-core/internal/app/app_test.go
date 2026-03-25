@@ -307,6 +307,211 @@ func TestAppBootstrapGetIncludesCurrentAuthSnapshot(t *testing.T) {
 	}
 }
 
+func TestAppAuthRestoreAccountsSeedsSessionAndBootstrap(t *testing.T) {
+	application := newTestApp("http://127.0.0.1:8010")
+	rpcServer := application.RegisterRPC()
+
+	restoreResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-restore",
+		Method: "auth.accounts.restore",
+		Params: mustJSONRaw(map[string]any{
+			"accounts": []map[string]any{
+				{
+					"id":            "u-1",
+					"token":         "token-alice",
+					"refresh_token": "refresh-alice",
+					"user": map[string]any{
+						"id":       "u-1",
+						"username": "alice",
+						"email":    "alice@example.com",
+						"nickname": "Alice",
+						"status":   "active",
+					},
+				},
+				{
+					"id":            "u-2",
+					"token":         "token-bob",
+					"refresh_token": "refresh-bob",
+					"user": map[string]any{
+						"id":       "u-2",
+						"username": "bob",
+						"email":    "bob@example.com",
+						"nickname": "Bob",
+						"status":   "active",
+					},
+				},
+			},
+			"current_account_id": "u-2",
+		}),
+	})
+	if restoreResponse.Error != nil {
+		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
+	}
+
+	if application.session.AccessToken() != "token-bob" {
+		t.Fatalf("expected restored current access token, got: %q", application.session.AccessToken())
+	}
+	if application.httpClient.AccessToken() != "token-bob" {
+		t.Fatalf("expected http client token to follow restored current account")
+	}
+
+	bootstrapResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-bootstrap-restored-accounts",
+		Method: "core.bootstrap.get",
+	})
+	if bootstrapResponse.Error != nil {
+		t.Fatalf("expected bootstrap request to succeed, got: %+v", bootstrapResponse.Error)
+	}
+
+	var snapshot map[string]any
+	if err := json.Unmarshal(bootstrapResponse.Result, &snapshot); err != nil {
+		t.Fatalf("decode bootstrap result failed: %v", err)
+	}
+
+	accounts, ok := snapshot["accounts"].([]any)
+	if !ok || len(accounts) != 2 {
+		t.Fatalf("expected two restored accounts in bootstrap, got: %+v", snapshot["accounts"])
+	}
+
+	authSnapshot, ok := snapshot["auth"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth snapshot in bootstrap result, got: %+v", snapshot)
+	}
+	currentUser, ok := authSnapshot["current_user"].(map[string]any)
+	if !ok || currentUser["id"] != "u-2" {
+		t.Fatalf("expected restored current user u-2, got: %+v", authSnapshot["current_user"])
+	}
+}
+
+func TestAppAuthSwitchAccountActivatesStoredSession(t *testing.T) {
+	application := newTestApp("http://127.0.0.1:8010")
+	rpcServer := application.RegisterRPC()
+
+	restoreResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-restore-for-switch",
+		Method: "auth.accounts.restore",
+		Params: mustJSONRaw(map[string]any{
+			"accounts": []map[string]any{
+				{
+					"id":            "u-1",
+					"token":         "token-alice",
+					"refresh_token": "refresh-alice",
+					"user": map[string]any{
+						"id":       "u-1",
+						"username": "alice",
+						"email":    "alice@example.com",
+						"nickname": "Alice",
+						"status":   "active",
+					},
+				},
+				{
+					"id":            "u-2",
+					"token":         "token-bob",
+					"refresh_token": "refresh-bob",
+					"user": map[string]any{
+						"id":       "u-2",
+						"username": "bob",
+						"email":    "bob@example.com",
+						"nickname": "Bob",
+						"status":   "active",
+					},
+				},
+			},
+			"current_account_id": "u-2",
+		}),
+	})
+	if restoreResponse.Error != nil {
+		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
+	}
+
+	switchResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-switch",
+		Method: "auth.account.switch",
+		Params: mustJSONRaw(map[string]any{
+			"account_id": "u-1",
+		}),
+	})
+	if switchResponse.Error != nil {
+		t.Fatalf("expected auth.account.switch to succeed, got: %+v", switchResponse.Error)
+	}
+
+	if application.session.AccessToken() != "token-alice" {
+		t.Fatalf("expected switched access token, got: %q", application.session.AccessToken())
+	}
+	if currentUser := application.session.CurrentUser(); currentUser == nil || currentUser.ID != "u-1" {
+		t.Fatalf("expected switched current user u-1, got: %+v", currentUser)
+	}
+	if application.httpClient.AccessToken() != "token-alice" {
+		t.Fatalf("expected http client token to follow switched account")
+	}
+}
+
+func TestAppAuthLogoutFallsBackToRemainingAccount(t *testing.T) {
+	application := newTestApp("http://127.0.0.1:8010")
+	rpcServer := application.RegisterRPC()
+
+	restoreResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-restore-for-logout",
+		Method: "auth.accounts.restore",
+		Params: mustJSONRaw(map[string]any{
+			"accounts": []map[string]any{
+				{
+					"id":            "u-1",
+					"token":         "token-alice",
+					"refresh_token": "refresh-alice",
+					"user": map[string]any{
+						"id":       "u-1",
+						"username": "alice",
+						"email":    "alice@example.com",
+						"nickname": "Alice",
+						"status":   "active",
+					},
+				},
+				{
+					"id":            "u-2",
+					"token":         "token-bob",
+					"refresh_token": "refresh-bob",
+					"user": map[string]any{
+						"id":       "u-2",
+						"username": "bob",
+						"email":    "bob@example.com",
+						"nickname": "Bob",
+						"status":   "active",
+					},
+				},
+			},
+			"current_account_id": "u-2",
+		}),
+	})
+	if restoreResponse.Error != nil {
+		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
+	}
+
+	logoutResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-logout-fallback",
+		Method: "auth.logout",
+	})
+	if logoutResponse.Error != nil {
+		t.Fatalf("expected auth.logout to succeed, got: %+v", logoutResponse.Error)
+	}
+
+	if application.session.AccessToken() != "token-alice" {
+		t.Fatalf("expected logout to fall back to remaining access token, got: %q", application.session.AccessToken())
+	}
+	if currentUser := application.session.CurrentUser(); currentUser == nil || currentUser.ID != "u-1" {
+		t.Fatalf("expected logout to fall back to remaining user u-1, got: %+v", currentUser)
+	}
+	if application.httpClient.AccessToken() != "token-alice" {
+		t.Fatalf("expected http client token to switch to remaining account")
+	}
+}
+
 func TestAppAuthLogoutClearsSessionAndBootstrapAuthSnapshot(t *testing.T) {
 	application := newTestApp("http://127.0.0.1:8010")
 	application.session.Set("access-token", "refresh-token")
