@@ -102,3 +102,55 @@ func TestClientReadMessageAfterConnect(t *testing.T) {
 		t.Fatalf("unexpected websocket payload: %+v", message)
 	}
 }
+
+func TestClientWriteJSONAfterConnect(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	received := make(chan map[string]any, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade failed: %v", err)
+		}
+		defer conn.Close()
+
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read websocket payload failed: %v", err)
+		}
+
+		var message map[string]any
+		if err := json.Unmarshal(payload, &message); err != nil {
+			t.Fatalf("decode websocket payload failed: %v", err)
+		}
+
+		received <- message
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	client := NewClient()
+	if err := client.Connect(context.Background(), ConnectParams{
+		URL:   wsURL,
+		Token: "access-token",
+	}); err != nil {
+		t.Fatalf("connect failed: %v", err)
+	}
+	defer func() {
+		if err := client.Disconnect(); err != nil {
+			t.Fatalf("disconnect failed: %v", err)
+		}
+	}()
+
+	if err := client.WriteJSON(context.Background(), map[string]any{
+		"type":      "typing",
+		"room_id":   "room-2",
+		"is_typing": true,
+	}); err != nil {
+		t.Fatalf("write websocket payload failed: %v", err)
+	}
+
+	message := <-received
+	if message["type"] != "typing" || message["room_id"] != "room-2" || message["is_typing"] != true {
+		t.Fatalf("unexpected websocket outbound payload: %+v", message)
+	}
+}

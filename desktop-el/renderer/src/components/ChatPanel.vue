@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import {
   ChatApi,
@@ -22,6 +22,7 @@ import {
   type ChatWebSocketPush,
 } from "@/api/chat";
 import { FriendApi, type FriendInfo } from "@/api/friend";
+import { WebSocketApi } from "@/api/websocket";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 import {
   createAttachmentPreviewUrlStore,
@@ -197,6 +198,13 @@ const highlightedQuotedMessageId = ref<string | null>(null);
 const hasMoreGroupOperationLogs = ref(false);
 const messageReaders = ref<ChatMessageReader[]>([]);
 const messageReadersTarget = ref<ChatMessage | null>(null);
+const typingUsers = ref<Record<string, number>>({});
+const typingCleanupTimers = new Map<string, number>();
+const typingStopSendTimer = ref<number | null>(null);
+const typingIsTyping = ref(false);
+const typingRoomId = ref<string | null>(null);
+const lastTypingSentAt = ref(0);
+const subscribedRoomId = ref<string | null>(null);
 let groupContextLoadSequence = 0;
 let groupAdminsLoadSequence = 0;
 let groupJoinRequestsLoadSequence = 0;
@@ -205,6 +213,7 @@ let groupOperationLogsLoadSequence = 0;
 let groupRulesLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
 let messageReadersLoadSequence = 0;
+let roomSubscriptionSequence = 0;
 const GROUP_OPERATION_LOGS_PAGE_SIZE = 20;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
@@ -627,6 +636,32 @@ const replyingSummary = computed(() => {
     isDeleted: replyingMessage.value.isDeleted,
     parts: replyingMessage.value.parts,
   });
+});
+const typingIndicatorText = computed(() => {
+  const chat = selectedChat.value;
+  if (!chat) {
+    return "";
+  }
+
+  const now = Date.now();
+  const activeUserIds = Object.entries(typingUsers.value)
+    .filter(([, expiresAt]) => expiresAt > now)
+    .map(([userId]) => userId);
+  if (!activeUserIds.length) {
+    return "";
+  }
+
+  if (chat.roomType === "private") {
+    return "对方正在输入...";
+  }
+
+  const firstUserId = activeUserIds[0];
+  const member = groupMembers.value.find((item) => item.userId === firstUserId);
+  const displayName = member ? getRoomMemberDisplayName(member) : "有人";
+  if (activeUserIds.length === 1) {
+    return `${displayName} 正在输入...`;
+  }
+  return `${displayName} 等${activeUserIds.length}人正在输入...`;
 });
 
 const formatTime = (value: Date | null) => {
@@ -1065,6 +1100,225 @@ const resetPendingAttachments = () => {
   attachmentUploadProgressById.value = {};
   if (attachmentInputRef.value) {
     attachmentInputRef.value.value = "";
+  }
+};
+
+const clearTypingStopTimer = () => {
+  if (typingStopSendTimer.value !== null) {
+    window.clearTimeout(typingStopSendTimer.value);
+    typingStopSendTimer.value = null;
+  }
+};
+
+const clearTypingUserTimer = (userId: string) => {
+  const existingTimer = typingCleanupTimers.get(userId);
+  if (existingTimer !== undefined) {
+    window.clearTimeout(existingTimer);
+    typingCleanupTimers.delete(userId);
+  }
+};
+
+const removeTypingUser = (userId: string) => {
+  clearTypingUserTimer(userId);
+  if (!(userId in typingUsers.value)) {
+    return;
+  }
+  const next = { ...typingUsers.value };
+  delete next[userId];
+  typingUsers.value = next;
+};
+
+const clearTypingUsers = () => {
+  typingCleanupTimers.forEach((timerId) => window.clearTimeout(timerId));
+  typingCleanupTimers.clear();
+  typingUsers.value = {};
+};
+
+const canSendTypingForRoom = (roomId: string | null) =>
+  Boolean(
+    roomId &&
+      props.wsStatus === "authenticated" &&
+      subscribedRoomId.value === roomId &&
+      !groupComposerState.value.disabled &&
+      !isSending.value,
+  );
+
+const sendTypingState = async (roomId: string, isTyping: boolean) => {
+  if (!canSendTypingForRoom(roomId)) {
+    if (!isTyping && typingRoomId.value === roomId) {
+      typingIsTyping.value = false;
+      typingRoomId.value = null;
+    }
+    return;
+  }
+
+  try {
+    await ChatApi.sendTyping({
+      roomId,
+      isTyping,
+    });
+    if (isTyping) {
+      typingIsTyping.value = true;
+      typingRoomId.value = roomId;
+      lastTypingSentAt.value = Date.now();
+      return;
+    }
+    if (typingRoomId.value === roomId) {
+      typingIsTyping.value = false;
+      typingRoomId.value = null;
+    }
+  } catch (error) {
+    console.warn("[desktop-el-renderer] chat.typing.send failed", error);
+  }
+};
+
+const stopTyping = async (roomId?: string | null) => {
+  clearTypingStopTimer();
+
+  const targetRoomId = roomId ?? typingRoomId.value ?? selectedChatId.value;
+  if (!targetRoomId) {
+    typingIsTyping.value = false;
+    typingRoomId.value = null;
+    return;
+  }
+
+  if (!typingIsTyping.value || typingRoomId.value !== targetRoomId) {
+    if (typingRoomId.value === targetRoomId) {
+      typingIsTyping.value = false;
+      typingRoomId.value = null;
+    }
+    return;
+  }
+
+  await sendTypingState(targetRoomId, false);
+};
+
+const scheduleTypingFromInput = (value: string) => {
+  if (groupComposerState.value.disabled || isSending.value) {
+    void stopTyping();
+    return;
+  }
+
+  const roomId = selectedChatId.value;
+  if (!roomId) {
+    return;
+  }
+
+  if (!value.trim()) {
+    void stopTyping(roomId);
+    return;
+  }
+
+  if (!canSendTypingForRoom(roomId)) {
+    return;
+  }
+
+  const now = Date.now();
+  if (
+    !typingIsTyping.value ||
+    typingRoomId.value !== roomId ||
+    now - lastTypingSentAt.value >= 1200
+  ) {
+    void sendTypingState(roomId, true);
+  }
+
+  clearTypingStopTimer();
+  typingStopSendTimer.value = window.setTimeout(() => {
+    void stopTyping(roomId);
+  }, 1500);
+};
+
+const handleComposerBlur = () => {
+  void stopTyping();
+};
+
+const handleTypingUpdate = (event: Extract<ChatRealtimeEvent, { type: "typing_update" }>) => {
+  if (event.roomId !== selectedChatId.value) {
+    return;
+  }
+
+  const actorUserId = String(event.userId);
+  if (actorUserId === props.currentUser.id) {
+    return;
+  }
+
+  if (event.isTyping) {
+    const expiresInMs = Math.max(0, event.expiresInMs);
+    const expiresAt = Date.now() + expiresInMs;
+    typingUsers.value = {
+      ...typingUsers.value,
+      [actorUserId]: expiresAt,
+    };
+    clearTypingUserTimer(actorUserId);
+    const timerId = window.setTimeout(() => {
+      const currentExpiresAt = typingUsers.value[actorUserId];
+      if (currentExpiresAt !== undefined && currentExpiresAt <= Date.now()) {
+        removeTypingUser(actorUserId);
+      }
+    }, expiresInMs + 50);
+    typingCleanupTimers.set(actorUserId, timerId);
+    return;
+  }
+
+  removeTypingUser(actorUserId);
+};
+
+const syncRoomSubscription = async (
+  targetRoomId: string | null,
+  previousRoomId?: string | null,
+) => {
+  const currentSequence = roomSubscriptionSequence + 1;
+  roomSubscriptionSequence = currentSequence;
+
+  if (
+    previousRoomId &&
+    previousRoomId !== targetRoomId &&
+    subscribedRoomId.value === previousRoomId &&
+    props.wsStatus === "authenticated"
+  ) {
+    try {
+      await WebSocketApi.leaveRoom(previousRoomId);
+    } catch (error) {
+      console.warn("[desktop-el-renderer] ws.leave failed", error);
+    }
+
+    if (currentSequence !== roomSubscriptionSequence) {
+      return;
+    }
+    if (subscribedRoomId.value === previousRoomId) {
+      subscribedRoomId.value = null;
+    }
+  }
+
+  if (props.wsStatus !== "authenticated" || !targetRoomId) {
+    if (currentSequence === roomSubscriptionSequence) {
+      subscribedRoomId.value = null;
+    }
+    return;
+  }
+
+  if (subscribedRoomId.value === targetRoomId) {
+    if (draftMessage.value.trim()) {
+      scheduleTypingFromInput(draftMessage.value);
+    }
+    return;
+  }
+
+  try {
+    await WebSocketApi.joinRoom(targetRoomId);
+    if (currentSequence !== roomSubscriptionSequence) {
+      await WebSocketApi.leaveRoom(targetRoomId).catch(() => undefined);
+      return;
+    }
+    subscribedRoomId.value = targetRoomId;
+    if (draftMessage.value.trim()) {
+      scheduleTypingFromInput(draftMessage.value);
+    }
+  } catch (error) {
+    if (currentSequence === roomSubscriptionSequence) {
+      subscribedRoomId.value = null;
+    }
+    console.warn("[desktop-el-renderer] ws.join failed", error);
   }
 };
 
@@ -3063,6 +3317,7 @@ const handleSend = async () => {
     return;
   }
 
+  await stopTyping(roomId);
   isSending.value = true;
   sendingMode.value = attachments.length ? "attachment" : "text";
   try {
@@ -3628,6 +3883,9 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
 
   if (event.type === "message") {
     const isCurrentRoom = event.message.roomId === activeRoomId;
+    if (isCurrentRoom && !event.message.isSelf) {
+      removeTypingUser(event.message.senderId);
+    }
     await loadChats({
       preferredRoomId: activeRoomId,
       preserveNotice: true,
@@ -3740,6 +3998,10 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     }
     return;
   }
+
+  if (event.type === "typing_update") {
+    handleTypingUpdate(event);
+  }
 };
 
 watch(
@@ -3773,9 +4035,20 @@ watch(
 );
 
 watch(
+  () => draftMessage.value,
+  (value) => {
+    scheduleTypingFromInput(value);
+  },
+);
+
+watch(
   () => selectedChatId.value,
   (nextRoomId, previousRoomId) => {
     if (nextRoomId !== previousRoomId) {
+      if (previousRoomId) {
+        void stopTyping(previousRoomId);
+      }
+      clearTypingUsers();
       replyingMessage.value = null;
       forwardingMessage.value = null;
       isForwardMessageModalVisible.value = false;
@@ -3785,12 +4058,61 @@ watch(
   },
 );
 
+watch(
+  () => groupComposerState.value.disabled,
+  (disabled) => {
+    if (disabled) {
+      void stopTyping();
+    }
+  },
+);
+
+watch(
+  () => [selectedChatId.value, props.wsStatus] as const,
+  (currentValue, previousValue) => {
+    const [nextRoomId, nextWsStatus] = currentValue;
+    const [previousRoomId, previousWsStatus] = previousValue ?? [null, null];
+    if (
+      nextRoomId === previousRoomId &&
+      nextWsStatus === previousWsStatus
+    ) {
+      return;
+    }
+
+    if (
+      nextWsStatus !== "authenticated" &&
+      previousWsStatus === "authenticated"
+    ) {
+      subscribedRoomId.value = null;
+      void stopTyping(typingRoomId.value ?? nextRoomId ?? previousRoomId);
+      clearTypingUsers();
+      return;
+    }
+
+    void syncRoomSubscription(nextRoomId, previousRoomId);
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   if (props.openChatRequest) {
     void handleOpenChatRequest(props.openChatRequest);
     return;
   }
   void loadChats();
+});
+
+onBeforeUnmount(() => {
+  const roomId = subscribedRoomId.value;
+  void stopTyping(roomId ?? typingRoomId.value);
+  clearTypingUsers();
+  subscribedRoomId.value = null;
+  roomSubscriptionSequence += 1;
+  if (roomId && props.wsStatus === "authenticated") {
+    void WebSocketApi.leaveRoom(roomId).catch((error) => {
+      console.warn("[desktop-el-renderer] ws.leave during cleanup failed", error);
+    });
+  }
 });
 </script>
 
@@ -4411,6 +4733,12 @@ onMounted(() => {
               <small v-if="isOpeningPrivateChat">正在准备私聊房间...</small>
               <small v-else>{{ messages.length }} 条</small>
             </div>
+            <div
+              v-if="typingIndicatorText"
+              class="message-stage__typing"
+            >
+              {{ typingIndicatorText }}
+            </div>
 
             <div v-if="isLoadingMessages" class="chat-empty">
               <strong>加载中</strong>
@@ -4772,6 +5100,7 @@ onMounted(() => {
               :placeholder="groupComposerState.placeholder"
               :disabled="isSending || groupComposerState.disabled"
               @keydown="handleComposerKeydown"
+              @blur="handleComposerBlur"
             />
             <p
               v-if="groupComposerState.tip"
@@ -5528,6 +5857,13 @@ onMounted(() => {
 
 .message-stage__header small {
   color: var(--text-secondary);
+}
+
+.message-stage__typing {
+  margin: -2px 0 0;
+  color: var(--primary-color-strong);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .message-feed {

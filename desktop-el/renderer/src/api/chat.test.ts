@@ -459,6 +459,61 @@ describe("chat api", () => {
     });
   });
 
+  test("sends typing state through go-core rpc", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                success: true,
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const sendTyping = (
+      ChatApi as unknown as {
+        sendTyping?: (params: {
+          roomId: string;
+          isTyping: boolean;
+        }) => Promise<unknown>;
+      }
+    ).sendTyping;
+
+    expect(typeof sendTyping).toBe("function");
+    if (!sendTyping) {
+      return;
+    }
+
+    const response = (await sendTyping({
+      roomId: "room-2",
+      isTyping: true,
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.typing.send",
+        params: {
+          room_id: "room-2",
+          is_typing: true,
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: null,
+    });
+  });
+
   test("adds reaction through go-core rpc and maps summaries", async () => {
     globalThis.window = {
       desktopEl: {
@@ -2503,6 +2558,24 @@ describe("chat api message mapping", () => {
       reactionKey: "🎉",
       userId: "u-3",
       action: "add",
+    });
+  });
+
+  test("maps typing_update payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "typing_update",
+      room_id: "room-1",
+      user_id: "u-3",
+      is_typing: true,
+      expires_in_ms: 6000,
+    });
+
+    expect(mapped).toEqual({
+      type: "typing_update",
+      roomId: "room-1",
+      userId: "u-3",
+      isTyping: true,
+      expiresInMs: 6000,
     });
   });
 });

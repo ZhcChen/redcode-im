@@ -675,6 +675,14 @@ interface BackendPushReactionUpdate {
   action: string;
 }
 
+interface BackendPushTypingUpdate {
+  type: "typing_update";
+  room_id: string;
+  user_id: string;
+  is_typing: boolean;
+  expires_in_ms?: number | null;
+}
+
 interface BackendPushRoomCreated {
   type: "room_created";
   room_id: string;
@@ -724,6 +732,7 @@ export type ChatWebSocketPush =
   | BackendPushMessageUpdate
   | BackendPushPinUpdate
   | BackendPushReactionUpdate
+  | BackendPushTypingUpdate
   | BackendPushRoomCreated
   | BackendPushRoomUpdated
   | BackendPushGroupSettingsUpdated
@@ -767,6 +776,13 @@ export type ChatRealtimeEvent =
       reactionKey: string;
       userId: string;
       action: string;
+    }
+  | {
+      type: "typing_update";
+      roomId: string;
+      userId: string;
+      isTyping: boolean;
+      expiresInMs: number;
     }
   | {
       type: "room_created";
@@ -890,6 +906,15 @@ const isBackendPushReactionUpdate = (
   typeof value.reaction_key === "string" &&
   typeof value.user_id === "string" &&
   typeof value.action === "string";
+
+const isBackendPushTypingUpdate = (
+  value: unknown,
+): value is BackendPushTypingUpdate =>
+  isRecord(value) &&
+  value.type === "typing_update" &&
+  typeof value.room_id === "string" &&
+  typeof value.user_id === "string" &&
+  typeof value.is_typing === "boolean";
 
 const isBackendPushRoomCreated = (
   value: unknown,
@@ -1591,6 +1616,21 @@ export const mapChatRealtimeEvent = (
         reactionKey: payload.reaction_key,
         userId: payload.user_id,
         action: payload.action,
+      };
+    case "typing_update":
+      if (!isBackendPushTypingUpdate(payload)) {
+        return null;
+      }
+      return {
+        type: "typing_update",
+        roomId: payload.room_id,
+        userId: payload.user_id,
+        isTyping: payload.is_typing,
+        expiresInMs:
+          typeof payload.expires_in_ms === "number" &&
+          Number.isFinite(payload.expires_in_ms)
+            ? payload.expires_in_ms
+            : 6000,
       };
     case "room_created":
       if (!isBackendPushRoomCreated(payload)) {
@@ -2463,6 +2503,22 @@ export class ChatApi {
     return {
       ...response,
       data: response.data ? response.data.map(mapMessageReader) : null,
+    };
+  }
+
+  static async sendTyping(params: {
+    roomId: string;
+    isTyping: boolean;
+  }): Promise<ApiResponse<null>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<unknown>
+    >("chat.typing.send", {
+      room_id: params.roomId,
+      is_typing: params.isTyping,
+    });
+    return {
+      ...response,
+      data: null,
     };
   }
 

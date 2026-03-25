@@ -4132,6 +4132,183 @@ func TestAppWSConnectEmitsPushEvent(t *testing.T) {
 	}
 }
 
+func TestAppWSJoinAndLeaveWriteWebSocketEvents(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	received := make(chan map[string]any, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade failed: %v", err)
+		}
+		defer conn.Close()
+
+		for range 2 {
+			_, payload, err := conn.ReadMessage()
+			if err != nil {
+				t.Fatalf("read websocket payload failed: %v", err)
+			}
+
+			var data map[string]any
+			if err := json.Unmarshal(payload, &data); err != nil {
+				t.Fatalf("decode websocket payload failed: %v", err)
+			}
+			received <- data
+		}
+	}))
+	defer server.Close()
+
+	application := newTestApp("http://127.0.0.1:8010")
+	rpcServer := application.RegisterRPC()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	connectResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-connect-for-join-leave",
+		Method: "ws.connect",
+		Params: mustJSONRaw(map[string]any{
+			"url":   wsURL,
+			"token": "access-token",
+		}),
+	})
+	if connectResponse.Error != nil {
+		t.Fatalf("expected ws.connect to succeed, got: %+v", connectResponse.Error)
+	}
+	defer func() {
+		if err := application.wsClient.Disconnect(); err != nil {
+			t.Fatalf("disconnect websocket failed: %v", err)
+		}
+	}()
+
+	joinResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-join",
+		Method: "ws.join",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-2",
+		}),
+	})
+	if joinResponse.Error != nil {
+		t.Fatalf("expected ws.join to succeed, got: %+v", joinResponse.Error)
+	}
+
+	leaveResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-leave",
+		Method: "ws.leave",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-2",
+		}),
+	})
+	if leaveResponse.Error != nil {
+		t.Fatalf("expected ws.leave to succeed, got: %+v", leaveResponse.Error)
+	}
+
+	joinPayload := <-received
+	if joinPayload["type"] != "join" || joinPayload["room_id"] != "room-2" {
+		t.Fatalf("unexpected join payload: %+v", joinPayload)
+	}
+
+	leavePayload := <-received
+	if leavePayload["type"] != "leave" || leavePayload["room_id"] != "room-2" {
+		t.Fatalf("unexpected leave payload: %+v", leavePayload)
+	}
+}
+
+func TestAppChatTypingSendWritesWebSocketEvent(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	received := make(chan map[string]any, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("token"); got != "access-token" {
+			t.Fatalf("unexpected token query: %s", got)
+		}
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade failed: %v", err)
+		}
+		defer conn.Close()
+
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read websocket payload failed: %v", err)
+		}
+
+		var data map[string]any
+		if err := json.Unmarshal(payload, &data); err != nil {
+			t.Fatalf("decode websocket payload failed: %v", err)
+		}
+		received <- data
+
+		_, payload, err = conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read websocket payload failed: %v", err)
+		}
+		data = map[string]any{}
+		if err := json.Unmarshal(payload, &data); err != nil {
+			t.Fatalf("decode websocket payload failed: %v", err)
+		}
+		received <- data
+	}))
+	defer server.Close()
+
+	application := newTestApp("http://127.0.0.1:8010")
+	rpcServer := application.RegisterRPC()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	connectResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-connect-for-typing",
+		Method: "ws.connect",
+		Params: mustJSONRaw(map[string]any{
+			"url":   wsURL,
+			"token": "access-token",
+		}),
+	})
+	if connectResponse.Error != nil {
+		t.Fatalf("expected ws.connect to succeed, got: %+v", connectResponse.Error)
+	}
+	defer func() {
+		if err := application.wsClient.Disconnect(); err != nil {
+			t.Fatalf("disconnect websocket failed: %v", err)
+		}
+	}()
+
+	joinResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-join-for-typing",
+		Method: "ws.join",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-2",
+		}),
+	})
+	if joinResponse.Error != nil {
+		t.Fatalf("expected ws.join to succeed, got: %+v", joinResponse.Error)
+	}
+
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-typing-send",
+		Method: "chat.typing.send",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":   "room-2",
+			"is_typing": true,
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.typing.send to succeed, got: %+v", response.Error)
+	}
+
+	joinPayload := <-received
+	if joinPayload["type"] != "join" || joinPayload["room_id"] != "room-2" {
+		t.Fatalf("unexpected join payload: %+v", joinPayload)
+	}
+
+	payload := <-received
+	if payload["type"] != "typing" || payload["room_id"] != "room-2" || payload["is_typing"] != true {
+		t.Fatalf("unexpected typing payload: %+v", payload)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

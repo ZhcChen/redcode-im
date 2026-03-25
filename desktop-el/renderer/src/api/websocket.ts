@@ -25,6 +25,18 @@ export const WebSocketApi = {
     await requireDesktopRuntime().rpc.invoke("ws.disconnect");
   },
 
+  async joinRoom(roomId: string): Promise<void> {
+    await requireDesktopRuntime().rpc.invoke("ws.join", {
+      room_id: roomId,
+    });
+  },
+
+  async leaveRoom(roomId: string): Promise<void> {
+    await requireDesktopRuntime().rpc.invoke("ws.leave", {
+      room_id: roomId,
+    });
+  },
+
   async getStatus(): Promise<ConnectionStatus> {
     const result = await requireDesktopRuntime().rpc.invoke<{ status: ConnectionStatus }>("ws.status.get");
     return result.status;

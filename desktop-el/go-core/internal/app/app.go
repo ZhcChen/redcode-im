@@ -56,6 +56,15 @@ type wsConnectParams struct {
 	Token string `json:"token"`
 }
 
+type wsRoomParams struct {
+	RoomID string `json:"room_id"`
+}
+
+type chatTypingParams struct {
+	RoomID   string `json:"room_id"`
+	IsTyping bool   `json:"is_typing"`
+}
+
 func New(cfg config.Config, bus *eventbus.Bus, bootstrapService *bootstrap.Service, encoder *rpc.Encoder) *App {
 	sessionService := session.New()
 	httpTransport := httpclient.New(httpclient.Config{
@@ -888,6 +897,49 @@ func (a *App) RegisterRPC() *rpc.Server {
 		a.startWSPump()
 		_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
 		return map[string]any{"status": string(a.wsClient.Status())}, nil
+	})
+
+	server.Register("ws.join", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload wsRoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		if err := a.wsClient.WriteJSON(ctx, map[string]any{
+			"type":    "join",
+			"room_id": payload.RoomID,
+		}); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return map[string]any{"success": true}, nil
+	})
+
+	server.Register("ws.leave", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload wsRoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		if err := a.wsClient.WriteJSON(ctx, map[string]any{
+			"type":    "leave",
+			"room_id": payload.RoomID,
+		}); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return map[string]any{"success": true}, nil
+	})
+
+	server.Register("chat.typing.send", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chatTypingParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		if err := a.wsClient.WriteJSON(ctx, map[string]any{
+			"type":      "typing",
+			"room_id":   payload.RoomID,
+			"is_typing": payload.IsTyping,
+		}); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return map[string]any{"success": true}, nil
 	})
 
 	server.Register("ws.disconnect", func(ctx context.Context, _ json.RawMessage) (any, *rpc.RPCError) {

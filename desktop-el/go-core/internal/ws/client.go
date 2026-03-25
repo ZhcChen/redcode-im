@@ -27,9 +27,10 @@ type ConnectParams struct {
 }
 
 type Client struct {
-	mu     sync.RWMutex
-	conn   *websocket.Conn
-	status Status
+	mu      sync.RWMutex
+	writeMu sync.Mutex
+	conn    *websocket.Conn
+	status  Status
 }
 
 func NewClient() *Client {
@@ -117,6 +118,31 @@ func (c *Client) ReadMessage(_ context.Context) ([]byte, error) {
 	}
 
 	return payload, nil
+}
+
+func (c *Client) WriteJSON(_ context.Context, payload any) error {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+
+	if conn == nil {
+		return ErrNotConnected
+	}
+
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	if err := conn.WriteJSON(payload); err != nil {
+		c.mu.Lock()
+		if c.conn == conn {
+			c.conn = nil
+			c.status = StatusDisconnected
+		}
+		c.mu.Unlock()
+		return err
+	}
+
+	return nil
 }
 
 func withToken(rawURL, token string) (string, error) {
