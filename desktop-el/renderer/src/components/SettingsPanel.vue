@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import type { LegacyUserInfo } from "@/api/system";
 import { FeedbackApi } from "@/api/feedback";
 import { SettingsApi, type AppNameResponse, type DocumentContent, type GeneralSettingsResponse } from "@/api/settings";
+import type { SessionSettingsPageState } from "@/store/session";
 import { UserApi } from "@/api/user";
 import { VersionApi, type AppVersionInfo } from "@/api/version";
 import { AVATAR_INPUT_ACCEPT, validateAvatarFile } from "@/utils/user-avatar-upload";
@@ -17,11 +18,13 @@ const props = defineProps<{
   hostVersion: string | null;
   wsStatus: string;
   lastEvent: string;
+  restoredPageState: SessionSettingsPageState;
 }>();
 
 const emit = defineEmits<{
   (event: "logout"): void;
   (event: "profile-updated", user: LegacyUserInfo): void;
+  (event: "page-state-change", state: SessionSettingsPageState): void;
 }>();
 
 const generalSettings = ref<GeneralSettingsResponse | null>(null);
@@ -38,19 +41,28 @@ const noticeMessage = ref("设置页核心流程已接入，当前支持资料�
 const agreementVisible = ref(false);
 const agreementTitle = ref("文档");
 const agreementContent = ref("");
-const isEditingNickname = ref(false);
+const isEditingNickname = ref(props.restoredPageState.isEditingNickname);
 const isSavingNickname = ref(false);
 const isEditingPassword = ref(false);
 const isSavingPassword = ref(false);
 const isUploadingAvatar = ref(false);
 const isSubmittingFeedback = ref(false);
-const nicknameDraft = ref("");
+const nicknameDraft = ref(props.restoredPageState.nicknameDraft);
 const oldPasswordDraft = ref("");
 const newPasswordDraft = ref("");
 const confirmPasswordDraft = ref("");
-const feedbackContentDraft = ref("");
-const feedbackContactDraft = ref("");
+const feedbackContentDraft = ref(props.restoredPageState.feedbackContentDraft);
+const feedbackContactDraft = ref(props.restoredPageState.feedbackContactDraft);
 const avatarInputRef = ref<HTMLInputElement | null>(null);
+
+const emitPageState = () => {
+  emit("page-state-change", {
+    isEditingNickname: isEditingNickname.value,
+    nicknameDraft: nicknameDraft.value,
+    feedbackContentDraft: feedbackContentDraft.value,
+    feedbackContactDraft: feedbackContactDraft.value,
+  });
+};
 
 const userDisplayName = computed(() => props.currentUser.nickname || props.currentUser.username || "用户");
 const userInitial = computed(() => userDisplayName.value.slice(0, 1).toUpperCase());
@@ -479,6 +491,14 @@ const handleDownloadUpdate = async () => {
 onMounted(() => {
   void loadGeneralSettings();
 });
+
+watch(
+  [isEditingNickname, nicknameDraft, feedbackContentDraft, feedbackContactDraft],
+  () => {
+    emitPageState();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

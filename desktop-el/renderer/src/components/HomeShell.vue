@@ -3,7 +3,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type { DesktopElAPI } from "../../../electron/preload/types.js";
 import type { ChatWebSocketPush } from "@/api/chat";
 import type { LegacyUserInfo } from "@/api/system";
-import type { HomeView, SessionAccount } from "@/store/session";
+import type {
+  HomeView,
+  SessionAccount,
+  SessionContactPageState,
+  SessionSettingsPageState,
+} from "@/store/session";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 import { getChatNotificationPlan } from "@/utils/chat-notification";
 import ChatPanel from "./ChatPanel.vue";
@@ -21,6 +26,8 @@ const props = defineProps<{
   accounts: SessionAccount[];
   currentAccountId: string | null;
   currentChatGroupId: string | null;
+  currentContactPageState: SessionContactPageState;
+  currentSettingsPageState: SessionSettingsPageState;
   hostVersion: string | null;
   lastEvent: string;
   wsStatus: string;
@@ -35,6 +42,8 @@ const emit = defineEmits<{
   (event: "profile-updated", user: LegacyUserInfo): void;
   (event: "switch-account", accountId: string): void;
   (event: "selected-chat-change", roomId: string | null): void;
+  (event: "contact-page-state-change", state: SessionContactPageState): void;
+  (event: "settings-page-state-change", state: SessionSettingsPageState): void;
 }>();
 
 interface OpenChatRequest {
@@ -278,7 +287,9 @@ watch(
         v-else-if="props.activeView === 'contact'"
         :key="`${props.currentUser.id}-contact`"
         :last-ws-push="props.lastWsPush"
+        :restored-page-state="props.currentContactPageState"
         @open-chat="handleOpenChat"
+        @page-state-change="emit('contact-page-state-change', $event)"
       />
 
       <SettingsPanel
@@ -289,6 +300,8 @@ watch(
         :host-version="props.hostVersion"
         :ws-status="props.wsStatus"
         :last-event="props.lastEvent"
+        :restored-page-state="props.currentSettingsPageState"
+        @page-state-change="emit('settings-page-state-change', $event)"
         @profile-updated="emit('profile-updated', $event)"
         @logout="emit('logout')"
       />

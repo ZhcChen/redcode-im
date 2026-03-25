@@ -4,6 +4,7 @@ import type { ChatWebSocketPush } from "@/api/chat";
 import { FriendApi, type FriendInfo, type FriendRequestInfo } from "@/api/friend";
 import { SystemApi, type LegacyUserInfo } from "@/api/system";
 import { UserApi, type SearchUserInfo } from "@/api/user";
+import type { SessionContactMode, SessionContactPageState } from "@/store/session";
 import {
   buildDefaultFriendRequestMessage,
   resolveRelationshipState,
@@ -11,37 +12,51 @@ import {
 } from "@/utils/contact-discovery";
 import { mapContactRealtimeEvent } from "@/utils/contact-realtime";
 
-type ContactMode = "contacts" | "requests" | "discover";
-
 const props = defineProps<{
   lastWsPush?: ChatWebSocketPush | null;
+  restoredPageState: SessionContactPageState;
 }>();
 
 const emit = defineEmits<{
   (event: "open-chat", payload: { friendUserId: string; displayName: string }): void;
+  (event: "page-state-change", state: SessionContactPageState): void;
 }>();
 
-const searchQuery = ref("");
-const discoverKeyword = ref("");
-const mode = ref<ContactMode>("contacts");
+const searchQuery = ref(props.restoredPageState.searchQuery);
+const discoverKeyword = ref(props.restoredPageState.discoverKeyword);
+const mode = ref<SessionContactMode>(props.restoredPageState.mode);
 const contacts = ref<FriendInfo[]>([]);
 const requests = ref<FriendRequestInfo[]>([]);
 const outgoingRequests = ref<FriendRequestInfo[]>([]);
 const discoverResults = ref<SearchUserInfo[]>([]);
 const currentUser = ref<LegacyUserInfo | null>(null);
 const selectedContactId = ref<string | null>(null);
-const selectedRequestId = ref<string | null>(null);
-const selectedSearchUserId = ref<string | null>(null);
+const selectedContactUserId = ref<string | null>(props.restoredPageState.selectedContactUserId);
+const selectedRequestId = ref<string | null>(props.restoredPageState.selectedRequestId);
+const selectedSearchUserId = ref<string | null>(props.restoredPageState.selectedSearchUserId);
 const isLoading = ref(true);
 const isHandlingRequest = ref(false);
 const isSearchingUsers = ref(false);
 const isSendingFriendRequest = ref(false);
 const isSavingRemark = ref(false);
 const isDeletingFriend = ref(false);
-const hasSearchedUsers = ref(false);
-const friendRequestMessage = ref("");
+const hasSearchedUsers = ref(props.restoredPageState.hasSearchedUsers);
+const friendRequestMessage = ref(props.restoredPageState.friendRequestMessage);
 const remarkDraft = ref("");
 const notice = ref("联系人页已接到 Go core，当前已恢复好友列表、好友申请与搜人入口。");
+
+const emitPageState = () => {
+  emit("page-state-change", {
+    mode: mode.value,
+    searchQuery: searchQuery.value,
+    discoverKeyword: discoverKeyword.value,
+    selectedContactUserId: selectedContactUserId.value,
+    selectedRequestId: selectedRequestId.value,
+    selectedSearchUserId: selectedSearchUserId.value,
+    hasSearchedUsers: hasSearchedUsers.value,
+    friendRequestMessage: friendRequestMessage.value,
+  });
+};
 
 const displayName = (user: { nickname?: string | null; username: string }) =>
   user.nickname || user.username || "未知用户";
@@ -179,6 +194,10 @@ const loadData = async (options: {
         friendsResponse.data.find((friend) => friend.user.id === options.preferredFriendUserId)?.id ||
         friendsResponse.data[0]?.id ||
         null;
+      selectedContactUserId.value =
+        friendsResponse.data.find((friend) => friend.user.id === options.preferredFriendUserId)?.user.id ||
+        friendsResponse.data.find((friend) => friend.id === selectedContactId.value)?.user.id ||
+        null;
     }
 
     if (incomingResponse.success && incomingResponse.data) {
@@ -217,7 +236,7 @@ const loadData = async (options: {
   }
 };
 
-const switchMode = (nextMode: ContactMode) => {
+const switchMode = (nextMode: SessionContactMode) => {
   mode.value = nextMode;
   if (nextMode === "contacts" && !selectedContactId.value) {
     selectedContactId.value = filteredContacts.value[0]?.id ?? null;
@@ -340,7 +359,7 @@ const handleDeleteFriend = async () => {
   }
 };
 
-const handleSearchUsers = async () => {
+const searchUsersWithOptions = async (options: { preferredSearchUserId?: string } = {}) => {
   const keyword = discoverKeyword.value.trim();
   mode.value = "discover";
 
@@ -368,7 +387,10 @@ const handleSearchUsers = async () => {
     }
 
     discoverResults.value = response.data ?? [];
-    selectedSearchUserId.value = discoverResults.value[0]?.id ?? null;
+    selectedSearchUserId.value =
+      discoverResults.value.find((user) => user.id === options.preferredSearchUserId)?.id ||
+      discoverResults.value[0]?.id ||
+      null;
     if (!discoverResults.value.length) {
       notice.value = "未找到匹配用户";
       return;
@@ -382,6 +404,10 @@ const handleSearchUsers = async () => {
   } finally {
     isSearchingUsers.value = false;
   }
+};
+
+const handleSearchUsers = async () => {
+  await searchUsersWithOptions();
 };
 
 const handleSendFriendRequest = async () => {
@@ -432,15 +458,45 @@ const handleRealtimeEvent = async () => {
 };
 
 onMounted(() => {
-  void loadData();
+  void (async () => {
+    await loadData({
+      preferredFriendUserId: props.restoredPageState.selectedContactUserId ?? undefined,
+      preferredRequestId: props.restoredPageState.selectedRequestId ?? undefined,
+      preferredSearchUserId: props.restoredPageState.selectedSearchUserId ?? undefined,
+    });
+
+    if (props.restoredPageState.mode === "discover" && props.restoredPageState.hasSearchedUsers) {
+      await searchUsersWithOptions({
+        preferredSearchUserId: props.restoredPageState.selectedSearchUserId ?? undefined,
+      });
+    }
+  })();
 });
 
 watch(
   selectedContact,
   (contact) => {
+    selectedContactUserId.value = contact?.user.id ?? null;
     remarkDraft.value = contact?.friendRemark ?? "";
   },
   { immediate: true }
+);
+
+watch(
+  [
+    mode,
+    searchQuery,
+    discoverKeyword,
+    selectedContactUserId,
+    selectedRequestId,
+    selectedSearchUserId,
+    hasSearchedUsers,
+    friendRequestMessage,
+  ],
+  () => {
+    emitPageState();
+  },
+  { immediate: true },
 );
 
 watch(

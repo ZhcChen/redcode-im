@@ -5,6 +5,7 @@ import { mapBootstrapUserToLegacy } from "@/types/bootstrap";
 
 export type HomeView = "chat" | "contact" | "settings";
 export type SessionRouteName = "Chat" | "Contact" | "Settings";
+export type SessionContactMode = "contacts" | "requests" | "discover";
 
 export interface SessionRouteState {
   path: string;
@@ -13,8 +14,28 @@ export interface SessionRouteState {
   query: Record<string, string>;
 }
 
+export interface SessionContactPageState {
+  mode: SessionContactMode;
+  searchQuery: string;
+  discoverKeyword: string;
+  selectedContactUserId: string | null;
+  selectedRequestId: string | null;
+  selectedSearchUserId: string | null;
+  hasSearchedUsers: boolean;
+  friendRequestMessage: string;
+}
+
+export interface SessionSettingsPageState {
+  isEditingNickname: boolean;
+  nicknameDraft: string;
+  feedbackContentDraft: string;
+  feedbackContactDraft: string;
+}
+
 export interface SessionPageState {
   currentChatGroupId: string | null;
+  contact: SessionContactPageState;
+  settings: SessionSettingsPageState;
 }
 
 export interface SessionAccount {
@@ -41,6 +62,8 @@ interface SessionState {
   accessToken: string | null;
   refreshToken: string | null;
   currentChatGroupId: string | null;
+  currentContactPageState: SessionContactPageState;
+  currentSettingsPageState: SessionSettingsPageState;
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -97,6 +120,51 @@ const buildRouteState = (view: HomeView): SessionRouteState => {
 
 const buildPageState = (currentChatGroupId: string | null = null): SessionPageState => ({
   currentChatGroupId,
+  contact: {
+    mode: "contacts",
+    searchQuery: "",
+    discoverKeyword: "",
+    selectedContactUserId: null,
+    selectedRequestId: null,
+    selectedSearchUserId: null,
+    hasSearchedUsers: false,
+    friendRequestMessage: "",
+  },
+  settings: {
+    isEditingNickname: false,
+    nicknameDraft: "",
+    feedbackContentDraft: "",
+    feedbackContactDraft: "",
+  },
+});
+
+const normalizeContactMode = (value: string | null | undefined): SessionContactMode => {
+  if (value === "requests" || value === "discover") {
+    return value;
+  }
+  return "contacts";
+};
+
+const normalizeContactPageState = (
+  pageState: Partial<SessionContactPageState> | undefined,
+): SessionContactPageState => ({
+  mode: normalizeContactMode(pageState?.mode),
+  searchQuery: pageState?.searchQuery ?? "",
+  discoverKeyword: pageState?.discoverKeyword ?? "",
+  selectedContactUserId: pageState?.selectedContactUserId ?? null,
+  selectedRequestId: pageState?.selectedRequestId ?? null,
+  selectedSearchUserId: pageState?.selectedSearchUserId ?? null,
+  hasSearchedUsers: pageState?.hasSearchedUsers ?? false,
+  friendRequestMessage: pageState?.friendRequestMessage ?? "",
+});
+
+const normalizeSettingsPageState = (
+  pageState: Partial<SessionSettingsPageState> | undefined,
+): SessionSettingsPageState => ({
+  isEditingNickname: pageState?.isEditingNickname ?? false,
+  nicknameDraft: pageState?.nicknameDraft ?? "",
+  feedbackContentDraft: pageState?.feedbackContentDraft ?? "",
+  feedbackContactDraft: pageState?.feedbackContactDraft ?? "",
 });
 
 const cloneRouteState = (routeState: SessionRouteState): SessionRouteState => ({
@@ -108,6 +176,8 @@ const cloneRouteState = (routeState: SessionRouteState): SessionRouteState => ({
 
 const clonePageState = (pageState: SessionPageState): SessionPageState => ({
   currentChatGroupId: pageState.currentChatGroupId ?? null,
+  contact: normalizeContactPageState(pageState.contact),
+  settings: normalizeSettingsPageState(pageState.settings),
 });
 
 const cloneAccount = (account: SessionAccount): SessionAccount => ({
@@ -133,8 +203,11 @@ const normalizeRouteState = (
   };
 };
 
-const normalizePageState = (pageState: SessionPageState | undefined): SessionPageState =>
-  buildPageState(pageState?.currentChatGroupId ?? null);
+const normalizePageState = (pageState: SessionPageState | undefined): SessionPageState => ({
+  currentChatGroupId: pageState?.currentChatGroupId ?? null,
+  contact: normalizeContactPageState(pageState?.contact),
+  settings: normalizeSettingsPageState(pageState?.settings),
+});
 
 const normalizeAccount = (account: SessionAccount): SessionAccount => {
   const activeView = isHomeView(account.activeView) ? account.activeView : DEFAULT_HOME_VIEW;
@@ -188,6 +261,8 @@ const state = reactive<SessionState>({
   accessToken: null,
   refreshToken: null,
   currentChatGroupId: null,
+  currentContactPageState: normalizeContactPageState(undefined),
+  currentSettingsPageState: normalizeSettingsPageState(undefined),
 });
 
 const applyCurrentAccount = (account: SessionAccount | null) => {
@@ -197,6 +272,8 @@ const applyCurrentAccount = (account: SessionAccount | null) => {
   state.accessToken = account?.accessToken ?? null;
   state.refreshToken = account?.refreshToken ?? null;
   state.currentChatGroupId = account?.pageState.currentChatGroupId ?? null;
+  state.currentContactPageState = normalizeContactPageState(account?.pageState.contact);
+  state.currentSettingsPageState = normalizeSettingsPageState(account?.pageState.settings);
 };
 
 const getCurrentAccount = (): SessionAccount | null => {
@@ -288,6 +365,46 @@ const sessionStore = {
     }
 
     currentAccount.pageState = buildPageState(roomId ?? null);
+    applyCurrentAccount(currentAccount);
+    persistState();
+  },
+  setCurrentContactPageState(pageState: Partial<SessionContactPageState>) {
+    const currentAccount = getCurrentAccount();
+    if (!currentAccount) {
+      state.currentContactPageState = normalizeContactPageState({
+        ...state.currentContactPageState,
+        ...pageState,
+      });
+      return;
+    }
+
+    currentAccount.pageState = {
+      ...currentAccount.pageState,
+      contact: normalizeContactPageState({
+        ...currentAccount.pageState.contact,
+        ...pageState,
+      }),
+    };
+    applyCurrentAccount(currentAccount);
+    persistState();
+  },
+  setCurrentSettingsPageState(pageState: Partial<SessionSettingsPageState>) {
+    const currentAccount = getCurrentAccount();
+    if (!currentAccount) {
+      state.currentSettingsPageState = normalizeSettingsPageState({
+        ...state.currentSettingsPageState,
+        ...pageState,
+      });
+      return;
+    }
+
+    currentAccount.pageState = {
+      ...currentAccount.pageState,
+      settings: normalizeSettingsPageState({
+        ...currentAccount.pageState.settings,
+        ...pageState,
+      }),
+    };
     applyCurrentAccount(currentAccount);
     persistState();
   },
