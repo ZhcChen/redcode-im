@@ -6,6 +6,10 @@ import {
   resolvePreferredVoiceRecordingMimeType,
   type VoiceRecordingFile,
 } from "@/utils/chat-voice-recording";
+import {
+  buildPlaceholderVoiceWaveform,
+  createWaveformFromBlob,
+} from "@/utils/chat-voice-waveform";
 
 const props = defineProps<{
   visible: boolean;
@@ -20,6 +24,7 @@ const emit = defineEmits<{
 const previewUrl = ref<string | null>(null);
 const previewFile = ref<VoiceRecordingFile | null>(null);
 const previewDurationMs = ref(0);
+const previewWaveformBars = ref<number[]>([]);
 const recordingDurationMs = ref(0);
 const isRecording = ref(false);
 const isPreparing = ref(false);
@@ -34,6 +39,9 @@ let recordingTimerId: number | null = null;
 let recordedChunks: BlobPart[] = [];
 let discardRecordingOnStop = false;
 let recordingSessionToken = 0;
+let previewWaveformToken = 0;
+
+const PREVIEW_WAVEFORM_SAMPLES = 24;
 
 const recorderTitle = computed(() => {
   if (isRecording.value) {
@@ -79,7 +87,16 @@ const resetPreview = () => {
   previewUrl.value = null;
   previewFile.value = null;
   previewDurationMs.value = 0;
+  previewWaveformBars.value = [];
+  previewWaveformToken += 1;
 };
+
+const createPreviewWaveformPlaceholder = () =>
+  buildPlaceholderVoiceWaveform(PREVIEW_WAVEFORM_SAMPLES);
+
+const getPreviewWaveformBarStyle = (bar: number) => ({
+  height: `${Math.max(12, Math.round(bar * 48))}px`,
+});
 
 const stopRecordingTimer = () => {
   if (recordingTimerId !== null) {
@@ -108,6 +125,25 @@ const resetRecorderState = () => {
 
 const buildRecordingId = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const updatePreviewWaveform = async (file: VoiceRecordingFile) => {
+  const currentToken = ++previewWaveformToken;
+  previewWaveformBars.value = createPreviewWaveformPlaceholder();
+
+  try {
+    const waveform = await createWaveformFromBlob(file, PREVIEW_WAVEFORM_SAMPLES);
+    if (currentToken !== previewWaveformToken) {
+      return;
+    }
+    previewWaveformBars.value = waveform;
+  } catch (error) {
+    if (currentToken !== previewWaveformToken) {
+      return;
+    }
+    previewWaveformBars.value = createPreviewWaveformPlaceholder();
+    console.warn("[desktop-el-renderer] voice preview waveform failed", error);
+  }
+};
 
 const finalizeRecordedBlob = () => {
   const mimeType =
@@ -145,6 +181,7 @@ const finalizeRecordedBlob = () => {
   previewDurationMs.value = file.durationMs;
   previewUrl.value = URL.createObjectURL(file);
   errorMessage.value = null;
+  void updatePreviewWaveform(file);
 };
 
 const waitForRecorderStop = () =>
@@ -369,6 +406,18 @@ onBeforeUnmount(() => {
           </p>
 
           <div v-if="previewUrl" class="voice-recorder-modal__preview">
+            <div
+              v-if="previewWaveformBars.length"
+              class="voice-recorder-modal__waveform"
+              aria-hidden="true"
+            >
+              <span
+                v-for="(bar, index) in previewWaveformBars"
+                :key="`preview-wave-${index}`"
+                class="voice-recorder-modal__wave-bar"
+                :style="getPreviewWaveformBarStyle(bar)"
+              />
+            </div>
             <audio
               class="voice-recorder-modal__audio"
               controls
@@ -528,7 +577,27 @@ onBeforeUnmount(() => {
 
 .voice-recorder-modal__preview {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.voice-recorder-modal__waveform {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 56px;
+}
+
+.voice-recorder-modal__wave-bar {
+  flex: 1 1 0;
+  min-width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(0, 194, 179, 0.9), rgba(15, 118, 110, 0.55));
+  box-shadow: 0 10px 24px rgba(0, 194, 179, 0.14);
 }
 
 .voice-recorder-modal__audio {
