@@ -31,6 +31,11 @@ type RemoveRoomMemberParams struct {
 	UserID string `json:"user_id"`
 }
 
+type TransferRoomOwnerParams struct {
+	RoomID     string `json:"room_id"`
+	NewOwnerID string `json:"new_owner_id"`
+}
+
 type AppointGroupAdminParams struct {
 	RoomID string `json:"room_id"`
 	UserID string `json:"user_id"`
@@ -264,6 +269,16 @@ func (s *Service) RemoveRoomMember(ctx context.Context, params RemoveRoomMemberP
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/members/" + params.UserID,
+	})
+}
+
+func (s *Service) TransferRoomOwner(ctx context.Context, params TransferRoomOwnerParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/transfer",
+		Body: map[string]any{
+			"new_owner_id": params.NewOwnerID,
+		},
 	})
 }
 

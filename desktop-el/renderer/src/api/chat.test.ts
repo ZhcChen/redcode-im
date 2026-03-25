@@ -741,6 +741,51 @@ describe("chat api", () => {
     });
   });
 
+  test("transfers group owner through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                room_id: "room-group-1",
+                owner_id: "u-2",
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.transferGroupOwner({
+      roomId: "room-group-1",
+      newOwnerId: "u-2",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.owner.transfer",
+        params: {
+          room_id: "room-group-1",
+          new_owner_id: "u-2",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        roomId: "room-group-1",
+        ownerId: "u-2",
+      },
+    });
+  });
+
   test("loads group admins through go-core rpc and maps admin payload", async () => {
     globalThis.window = {
       desktopEl: {

@@ -16,6 +16,16 @@ describe("chat group permission helpers", () => {
       isOwner: true,
       isAdmin: false,
       canManage: true,
+      canManageMembers: true,
+      canManageAdmins: true,
+      canManageJoinRequests: true,
+      canManageMutes: true,
+      canManageOperationLogs: true,
+      canTransferOwner: true,
+      canUpdateSettings: true,
+      canUploadAvatar: true,
+      canEditRules: true,
+      canViewRules: true,
     });
 
     expect(
@@ -31,6 +41,44 @@ describe("chat group permission helpers", () => {
       isOwner: false,
       isAdmin: true,
       canManage: true,
+      canManageMembers: true,
+      canManageAdmins: false,
+      canManageJoinRequests: true,
+      canManageMutes: true,
+      canManageOperationLogs: false,
+      canTransferOwner: false,
+      canUpdateSettings: true,
+      canUploadAvatar: true,
+      canEditRules: true,
+      canViewRules: true,
+    });
+  });
+
+  test("keeps normal members in readonly group mode except rules view", () => {
+    expect(
+      resolveGroupManageState({
+        currentUserId: "u-3",
+        ownerId: "u-1",
+        members: [
+          { userId: "u-1", role: "owner" },
+          { userId: "u-2", role: "admin" },
+          { userId: "u-3", role: "member" },
+        ],
+      }),
+    ).toEqual({
+      isOwner: false,
+      isAdmin: false,
+      canManage: false,
+      canManageMembers: false,
+      canManageAdmins: false,
+      canManageJoinRequests: false,
+      canManageMutes: false,
+      canManageOperationLogs: false,
+      canTransferOwner: false,
+      canUpdateSettings: false,
+      canUploadAvatar: false,
+      canEditRules: false,
+      canViewRules: true,
     });
   });
 

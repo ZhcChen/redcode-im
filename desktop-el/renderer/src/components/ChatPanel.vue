@@ -54,6 +54,7 @@ import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
 import ManageGroupOperationLogsModal from "./ManageGroupOperationLogsModal.vue";
 import ManageGroupRulesModal from "./ManageGroupRulesModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
+import TransferGroupOwnerModal from "./TransferGroupOwnerModal.vue";
 
 interface OpenChatRequest {
   requestId: number;
@@ -124,6 +125,7 @@ const isManageGroupMutesModalVisible = ref(false);
 const isManageGroupOperationLogsModalVisible = ref(false);
 const isManageGroupRulesModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
+const isTransferGroupOwnerModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
@@ -150,6 +152,7 @@ const isUpdatingGroupMutes = ref(false);
 const isLoadingMoreGroupOperationLogs = ref(false);
 const isUpdatingGroupRules = ref(false);
 const isRemovingGroupMembers = ref(false);
+const isTransferringGroupOwner = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
@@ -256,6 +259,21 @@ const addableGroupFriends = computed(() => {
   return createGroupFriends.value.filter((friend) => !excludedUserIds.has(friend.id));
 });
 const removableGroupMembers = computed(() =>
+  sortedGroupMembers.value
+    .filter(
+      (member) =>
+        member.userId !== props.currentUser.id &&
+        member.role !== "owner" &&
+        member.userId !== (groupDetail.value?.ownerId ?? null),
+    )
+    .map((member) => ({
+      id: member.userId,
+      displayName: getRoomMemberDisplayName(member),
+      subtitle: `${formatRoomMemberRole(member.role)} / ${member.username}`,
+      avatarUrl: member.avatarUrl,
+    })),
+);
+const transferableGroupOwnerMembers = computed(() =>
   sortedGroupMembers.value
     .filter(
       (member) =>
@@ -455,6 +473,16 @@ const groupManageState = computed(() => {
       isOwner: false,
       isAdmin: false,
       canManage: false,
+      canManageMembers: false,
+      canManageAdmins: false,
+      canManageJoinRequests: false,
+      canManageMutes: false,
+      canManageOperationLogs: false,
+      canTransferOwner: false,
+      canUpdateSettings: false,
+      canUploadAvatar: false,
+      canEditRules: false,
+      canViewRules: false,
     };
   }
 
@@ -465,14 +493,32 @@ const groupManageState = computed(() => {
   });
 });
 const canManageSelectedGroup = computed(() => groupManageState.value.canManage);
+const canManageSelectedGroupMembers = computed(
+  () => groupManageState.value.canManageMembers,
+);
 const canManageSelectedGroupAdmins = computed(
-  () => groupManageState.value.isOwner,
+  () => groupManageState.value.canManageAdmins,
 );
 const canManageSelectedGroupJoinRequests = computed(
-  () => groupManageState.value.canManage,
+  () => groupManageState.value.canManageJoinRequests,
 );
 const canManageSelectedGroupMutes = computed(
-  () => groupManageState.value.canManage,
+  () => groupManageState.value.canManageMutes,
+);
+const canManageSelectedGroupOperationLogs = computed(
+  () => groupManageState.value.canManageOperationLogs,
+);
+const canTransferSelectedGroupOwner = computed(
+  () => groupManageState.value.canTransferOwner,
+);
+const canUpdateSelectedGroupSettings = computed(
+  () => groupManageState.value.canUpdateSettings,
+);
+const canUploadSelectedGroupAvatar = computed(
+  () => groupManageState.value.canUploadAvatar,
+);
+const canEditSelectedGroupRules = computed(
+  () => groupManageState.value.canEditRules,
 );
 const groupComposerState = computed(() =>
   resolveGroupComposerState({
@@ -1605,7 +1651,7 @@ const handleOpenAddGroupMembersModal = async () => {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canManageSelectedGroupMembers.value) {
     notice.value = "当前账号没有添加群成员的权限。";
     return;
   }
@@ -1686,7 +1732,7 @@ const handleOpenManageGroupOperationLogsModal = async () => {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canManageSelectedGroupOperationLogs.value) {
     notice.value = "当前账号没有查看群操作日志的权限。";
     return;
   }
@@ -1695,6 +1741,29 @@ const handleOpenManageGroupOperationLogsModal = async () => {
   await loadGroupOperationLogs({
     roomId: selectedChatId.value,
   });
+};
+
+const handleOpenTransferGroupOwnerModal = async () => {
+  if (isTransferringGroupOwner.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canTransferSelectedGroupOwner.value) {
+    notice.value = "只有群主可以转让群主身份。";
+    return;
+  }
+  if (!groupMembers.value.length) {
+    await loadGroupContext(selectedChatId.value);
+  }
+  if (!transferableGroupOwnerMembers.value.length) {
+    notice.value = "当前群暂无可转让的成员。";
+    return;
+  }
+
+  isTransferGroupOwnerModalVisible.value = true;
 };
 
 const closeAddGroupMembersModal = () => {
@@ -1739,6 +1808,13 @@ const closeManageGroupOperationLogsModal = () => {
   isManageGroupOperationLogsModalVisible.value = false;
 };
 
+const closeTransferGroupOwnerModal = () => {
+  if (isTransferringGroupOwner.value) {
+    return;
+  }
+  isTransferGroupOwnerModalVisible.value = false;
+};
+
 const handleOpenRemoveGroupMembersModal = () => {
   if (isRemovingGroupMembers.value) {
     return;
@@ -1747,7 +1823,7 @@ const handleOpenRemoveGroupMembersModal = () => {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canManageSelectedGroupMembers.value) {
     notice.value = "当前账号没有删除群成员的权限。";
     return;
   }
@@ -1808,6 +1884,14 @@ const handleManageGroupOperationLogsModalVisibleChange = (visible: boolean) => {
     return;
   }
   closeManageGroupOperationLogsModal();
+};
+
+const handleTransferGroupOwnerModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenTransferGroupOwnerModal();
+    return;
+  }
+  closeTransferGroupOwnerModal();
 };
 
 const handleLoadMoreGroupOperationLogs = async () => {
@@ -1965,7 +2049,7 @@ const handleAddGroupMembers = async (payload: {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canManageSelectedGroupMembers.value) {
     notice.value = "当前账号没有添加群成员的权限。";
     return;
   }
@@ -2315,7 +2399,7 @@ const handleCreateGroupRule = async (payload: {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canEditSelectedGroupRules.value) {
     notice.value = "当前账号没有管理群规的权限。";
     return;
   }
@@ -2354,7 +2438,7 @@ const handleUpdateGroupRule = async (payload: {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canEditSelectedGroupRules.value) {
     notice.value = "当前账号没有管理群规的权限。";
     return;
   }
@@ -2391,7 +2475,7 @@ const handleDeleteGroupRule = async (payload: {
   if (!roomId || !isSelectedGroupChat.value || isUpdatingGroupRules.value) {
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canEditSelectedGroupRules.value) {
     notice.value = "当前账号没有管理群规的权限。";
     return;
   }
@@ -2431,7 +2515,7 @@ const handleRemoveGroupMembers = async (payload: {
     notice.value = "请先选择一个群聊。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canManageSelectedGroupMembers.value) {
     notice.value = "当前账号没有删除群成员的权限。";
     return;
   }
@@ -2485,12 +2569,58 @@ const handleRemoveGroupMembers = async (payload: {
   }
 };
 
+const handleTransferGroupOwner = async (payload: {
+  newOwnerId: string;
+  displayName: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canTransferSelectedGroupOwner.value) {
+    notice.value = "只有群主可以转让群主身份。";
+    return;
+  }
+
+  isTransferringGroupOwner.value = true;
+  notice.value = `正在将群主转让给 ${payload.displayName}...`;
+  try {
+    const response = await ChatApi.transferGroupOwner({
+      roomId,
+      newOwnerId: payload.newOwnerId,
+    });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "转让群主失败";
+      return;
+    }
+
+    isTransferGroupOwnerModalVisible.value = false;
+    isManageGroupAdminsModalVisible.value = false;
+    isManageGroupOperationLogsModalVisible.value = false;
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+    notice.value = `已将群主转让给 ${payload.displayName}。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "转让群主失败";
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isTransferringGroupOwner.value = false;
+  }
+};
+
 const handleToggleGroupGlobalMute = async () => {
   const roomId = selectedChatId.value;
   if (!roomId || !isSelectedGroupChat.value || isUpdatingGlobalMute.value) {
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canUpdateSelectedGroupSettings.value) {
     notice.value = "当前账号没有修改全员禁言的权限。";
     return;
   }
@@ -2554,7 +2684,7 @@ const handleUpdateGroupSettings = async (
   if (!roomId || !isSelectedGroupChat.value || updatingGroupSettingKey.value) {
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canUpdateSelectedGroupSettings.value) {
     notice.value = "当前账号没有修改群设置的权限。";
     return;
   }
@@ -2659,7 +2789,7 @@ const handleToggleRequireAdminToAddFriends = async () => {
 const handleOpenGroupAvatarPicker = () => {
   if (
     !isSelectedGroupChat.value ||
-    !canManageSelectedGroup.value ||
+    !canUploadSelectedGroupAvatar.value ||
     isUpdatingGroupAvatar.value
   ) {
     return;
@@ -2682,7 +2812,7 @@ const handleGroupAvatarSelected = async (event: Event) => {
     notice.value = "当前未选中群聊，无法上传群头像。";
     return;
   }
-  if (!canManageSelectedGroup.value) {
+  if (!canUploadSelectedGroupAvatar.value) {
     notice.value = "当前账号没有修改群头像的权限。";
     return;
   }
@@ -3369,7 +3499,6 @@ onMounted(() => {
                         : "群规"
                   }}
                 </button>
-                <template v-if="canManageSelectedGroup">
                 <button
                   v-if="canManageSelectedGroupAdmins"
                   type="button"
@@ -3391,6 +3520,20 @@ onMounted(() => {
                     isLoadingGroupOperationLogs || isLoadingMoreGroupOperationLogs
                       ? "同步中..."
                       : "操作日志"
+                  }}
+                </button>
+                <button
+                  v-if="canTransferSelectedGroupOwner"
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="
+                    isTransferringGroupOwner ||
+                    !transferableGroupOwnerMembers.length
+                  "
+                  @click="void handleOpenTransferGroupOwnerModal()"
+                >
+                  {{
+                    isTransferringGroupOwner ? "转让中..." : "转让群主"
                   }}
                 </button>
                 <button
@@ -3424,6 +3567,7 @@ onMounted(() => {
                   }}
                 </button>
                 <button
+                  v-if="canManageSelectedGroupMembers"
                   type="button"
                   class="group-panel__action"
                   :disabled="isAddingGroupMembers"
@@ -3432,6 +3576,7 @@ onMounted(() => {
                   {{ isAddingGroupMembers ? "添加中..." : "添加成员" }}
                 </button>
                 <button
+                  v-if="canManageSelectedGroupMembers"
                   type="button"
                   class="group-panel__action"
                   :disabled="
@@ -3447,6 +3592,7 @@ onMounted(() => {
                   }}
                 </button>
                 <button
+                  v-if="canUploadSelectedGroupAvatar"
                   type="button"
                   class="group-panel__action"
                   :disabled="isUpdatingGroupAvatar"
@@ -3454,7 +3600,6 @@ onMounted(() => {
                 >
                   {{ isUpdatingGroupAvatar ? "上传中..." : "上传群头像" }}
                 </button>
-                </template>
               </div>
             </div>
             <input
@@ -3522,12 +3667,12 @@ onMounted(() => {
                     <small>{{
                       isLoadingGroupSettings
                         ? "同步中..."
-                        : canManageSelectedGroup
+                        : canUpdateSelectedGroupSettings
                           ? "可管理"
                           : "只读视图"
                     }}</small>
                     <button
-                      v-if="canManageSelectedGroup"
+                      v-if="canUpdateSelectedGroupSettings"
                       type="button"
                       class="group-panel__action"
                       :disabled="
@@ -3648,7 +3793,7 @@ onMounted(() => {
                 </dl>
 
                 <div
-                  v-if="canManageSelectedGroup"
+                  v-if="canUpdateSelectedGroupSettings"
                   class="group-panel__action-row"
                 >
                   <button
@@ -3727,7 +3872,7 @@ onMounted(() => {
                 </div>
 
                 <div
-                  v-if="canManageSelectedGroup"
+                  v-if="canUpdateSelectedGroupSettings"
                   class="group-panel__inline-form"
                 >
                   <label class="group-panel__input-field">
@@ -4275,7 +4420,7 @@ onMounted(() => {
     <ManageGroupRulesModal
       :visible="isManageGroupRulesModalVisible"
       :rules="groupRuleEntries"
-      :can-manage="canManageSelectedGroup"
+      :can-manage="canEditSelectedGroupRules"
       :is-loading="isLoadingGroupRules"
       :is-submitting="isUpdatingGroupRules"
       @update:visible="handleManageGroupRulesModalVisibleChange"
@@ -4298,6 +4443,14 @@ onMounted(() => {
       :is-submitting="isRemovingGroupMembers"
       @update:visible="handleRemoveGroupMembersModalVisibleChange"
       @submit="void handleRemoveGroupMembers($event)"
+    />
+    <TransferGroupOwnerModal
+      :visible="isTransferGroupOwnerModalVisible"
+      :members="transferableGroupOwnerMembers"
+      :is-loading="isLoadingGroupContext"
+      :is-submitting="isTransferringGroupOwner"
+      @update:visible="handleTransferGroupOwnerModalVisibleChange"
+      @submit="void handleTransferGroupOwner($event)"
     />
   </section>
 </template>

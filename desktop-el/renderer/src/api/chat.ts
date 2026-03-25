@@ -494,6 +494,11 @@ export interface RemoveGroupMemberData {
   success: boolean;
 }
 
+export interface TransferGroupOwnerData {
+  roomId: string;
+  ownerId: string;
+}
+
 export interface AttachmentMultipartInitiateData {
   key: string;
   sessionId: string | null;
@@ -1558,6 +1563,32 @@ export class ChatApi {
                 : response.success,
           }
         : null,
+    };
+  }
+
+  static async transferGroupOwner(params: {
+    roomId: string;
+    newOwnerId: string;
+  }): Promise<ApiResponse<TransferGroupOwnerData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        room_id?: string | null;
+        owner_id?: string | null;
+      }>
+    >("chat.group.owner.transfer", {
+      room_id: params.roomId,
+      new_owner_id: params.newOwnerId,
+    });
+
+    return {
+      ...response,
+      data:
+        response.data?.room_id && response.data.owner_id
+          ? {
+              roomId: response.data.room_id,
+              ownerId: response.data.owner_id,
+            }
+          : null,
     };
   }
 

@@ -5,6 +5,16 @@ type GroupManageState = {
   isOwner: boolean;
   isAdmin: boolean;
   canManage: boolean;
+  canManageMembers: boolean;
+  canManageAdmins: boolean;
+  canManageJoinRequests: boolean;
+  canManageMutes: boolean;
+  canManageOperationLogs: boolean;
+  canTransferOwner: boolean;
+  canUpdateSettings: boolean;
+  canUploadAvatar: boolean;
+  canEditRules: boolean;
+  canViewRules: boolean;
 };
 type GroupComposerState = {
   disabled: boolean;
@@ -33,6 +43,16 @@ export const resolveGroupManageState = (payload: {
     isOwner,
     isAdmin,
     canManage: isOwner || isAdmin,
+    canManageMembers: isOwner || isAdmin,
+    canManageAdmins: isOwner,
+    canManageJoinRequests: isOwner || isAdmin,
+    canManageMutes: isOwner || isAdmin,
+    canManageOperationLogs: isOwner,
+    canTransferOwner: isOwner,
+    canUpdateSettings: isOwner || isAdmin,
+    canUploadAvatar: isOwner || isAdmin,
+    canEditRules: isOwner || isAdmin,
+    canViewRules: true,
   };
 };
 
