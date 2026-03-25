@@ -8,7 +8,8 @@ DESKTOP_EL_SCREEN := desktop-el-$(shell printf '%s' "$(ROOT_DIR)" | cksum | awk 
 	desktop-up desktop-down desktop-logs \
 	website-up website-down website-logs \
 	tests-up tests-down tests-logs \
-	desktop-el-up desktop-el-down desktop-el-logs
+	desktop-el-up desktop-el-down desktop-el-logs \
+	desktop-el-test desktop-el-core-test desktop-el-build desktop-el-verify
 
 help: ## 显示所有可用命令
 	@echo "RedCode IM 统一命令入口"
@@ -81,3 +82,15 @@ desktop-el-down: ## 停止当前 worktree 的 desktop-el 开发进程
 
 desktop-el-logs: ## 连接到当前 worktree 的 desktop-el 日志
 	screen -r $(DESKTOP_EL_SCREEN)
+
+desktop-el-test: ## 运行 desktop-el Bun 自动化测试
+	cd desktop-el && bun run test
+
+desktop-el-core-test: ## 运行 desktop-el Go core 测试
+	cd desktop-el && bun run test:core
+
+desktop-el-build: ## 构建 desktop-el
+	cd desktop-el && bun run build
+
+desktop-el-verify: ## 运行 desktop-el 固定验收脚本（Go core + Bun test + build）
+	cd desktop-el && bun run verify

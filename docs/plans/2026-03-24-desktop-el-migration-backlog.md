@@ -303,12 +303,13 @@
 **当前进度:**
 - [x] 已统一 Electron `main/preload` 测试使用的 `electron` superset mock，`desktop-el` 根目录 `bun test` 已恢复全绿。
 - [x] 已补齐 Electron main 的 `dialog` / `notification` service 自动化测试，并扩展 `electron` superset mock 覆盖 `dialog` 与 `Notification` 行为。
+- [x] 已固化 `desktop-el` 模块验收入口：根 `Makefile` 新增 `desktop-el-test` / `desktop-el-core-test` / `desktop-el-build` / `desktop-el-verify`，模块内新增 `bun run verify` 固定串联 Go core 测试、Bun 测试与构建。
 
 **范围:**
 - [ ] Go core 集成测试继续扩充
 - [x] Electron main / preload 测试扩充（已覆盖 `go-core` / `rpc` / `shell` / `file` / `dialog` / `notification` 与 preload API bridge）
 - [ ] renderer 级 smoke / e2e 方案
-- [ ] 关键迁移闭环形成固定验收脚本
+- [x] 关键迁移闭环形成固定验收脚本
 
 ### P2-4: 文档收口
 

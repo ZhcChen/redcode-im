@@ -25,9 +25,17 @@ bun run dev:electron
 ## 构建与校验
 
 ```bash
-bun run type-check
+bun run test
+bun run test:core
 bun run build
+bun run verify
+```
 
-cd go-core
-go test ./...
+在仓库根目录也可以直接通过 `Makefile` 调用：
+
+```bash
+make desktop-el-test
+make desktop-el-core-test
+make desktop-el-build
+make desktop-el-verify
 ```
