@@ -400,6 +400,42 @@ func (a *App) RegisterRPC() *rpc.Server {
 		return result, nil
 	})
 
+	server.Register("chat.group.mutes.list", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RoomParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.ListGroupMutes(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.mute.create", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.MuteGroupMemberParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.CreateGroupMute(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
+	server.Register("chat.group.mute.remove", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
+		var payload chat.RemoveGroupMuteParams
+		if err := unmarshalParams(params, &payload); err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInvalidParams, err.Error())
+		}
+		result, err := a.chat.RemoveGroupMute(ctx, payload)
+		if err != nil {
+			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
+		}
+		return result, nil
+	})
+
 	server.Register("chat.group.settings.get", func(ctx context.Context, params json.RawMessage) (any, *rpc.RPCError) {
 		var payload chat.RoomParams
 		if err := unmarshalParams(params, &payload); err != nil {

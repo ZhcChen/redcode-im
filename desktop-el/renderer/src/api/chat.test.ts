@@ -1049,6 +1049,201 @@ describe("chat api", () => {
       },
     });
   });
+
+  test("loads group mutes through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                mutes: [
+                  {
+                    id: "group-mute-1",
+                    room_id: "room-group-1",
+                    user_id: "u-9",
+                    muted_by: "u-1",
+                    reason: "刷屏",
+                    mute_duration_hours: 24,
+                    muted_at: "2026-03-25T14:00:00Z",
+                    unmuted_at: null,
+                    is_active: true,
+                  },
+                  {
+                    id: "group-mute-2",
+                    room_id: "room-group-1",
+                    user_id: "u-8",
+                    muted_by: "u-1",
+                    reason: null,
+                    mute_duration_hours: 0,
+                    muted_at: "2026-03-25T13:00:00Z",
+                    unmuted_at: null,
+                    is_active: true,
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.listGroupMutes({
+      roomId: "room-group-1",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.mutes.list",
+        params: {
+          room_id: "room-group-1",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: [
+        {
+          id: "group-mute-1",
+          roomId: "room-group-1",
+          userId: "u-9",
+          mutedBy: "u-1",
+          reason: "刷屏",
+          muteDurationHours: 24,
+          mutedAt: new Date("2026-03-25T14:00:00Z"),
+          unmutedAt: null,
+          isActive: true,
+          muteUntil: new Date("2026-03-26T14:00:00Z"),
+        },
+        {
+          id: "group-mute-2",
+          roomId: "room-group-1",
+          userId: "u-8",
+          mutedBy: "u-1",
+          reason: null,
+          muteDurationHours: 0,
+          mutedAt: new Date("2026-03-25T13:00:00Z"),
+          unmutedAt: null,
+          isActive: true,
+          muteUntil: null,
+        },
+      ],
+    });
+  });
+
+  test("creates group mute through go-core rpc and maps payload", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "ok",
+              data: {
+                mute: {
+                  id: "group-mute-1",
+                  room_id: "room-group-1",
+                  user_id: "u-9",
+                  muted_by: "u-1",
+                  reason: "刷屏",
+                  mute_duration_hours: 24,
+                  muted_at: "2026-03-25T14:00:00Z",
+                  unmuted_at: null,
+                  is_active: true,
+                },
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.muteGroupMember({
+      roomId: "room-group-1",
+      userId: "u-9",
+      durationHours: 24,
+      reason: "刷屏",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.mute.create",
+        params: {
+          room_id: "room-group-1",
+          user_id: "u-9",
+          duration_hours: 24,
+          reason: "刷屏",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "ok",
+      data: {
+        id: "group-mute-1",
+        roomId: "room-group-1",
+        userId: "u-9",
+        mutedBy: "u-1",
+        reason: "刷屏",
+        muteDurationHours: 24,
+        mutedAt: new Date("2026-03-25T14:00:00Z"),
+        unmutedAt: null,
+        isActive: true,
+        muteUntil: new Date("2026-03-26T14:00:00Z"),
+      },
+    });
+  });
+
+  test("removes group mute through go-core rpc and maps success result", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 204,
+              success: true,
+              message: "No Content",
+              data: null,
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const response = await ChatApi.unmuteGroupMember({
+      roomId: "room-group-1",
+      userId: "u-9",
+    });
+
+    expect(calls).toEqual([
+      {
+        method: "chat.group.mute.remove",
+        params: {
+          room_id: "room-group-1",
+          user_id: "u-9",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 204,
+      success: true,
+      message: "No Content",
+      data: {
+        success: true,
+        message: "No Content",
+      },
+    });
+  });
 });
 
 describe("chat api message mapping", () => {

@@ -5,6 +5,7 @@ import {
   ChatApi,
   type ChatGroupAdmin,
   type ChatGroupJoinRequest,
+  type ChatGroupMute,
   type ChatGroupSettings,
   mapChatRealtimeEvent,
   type ChatMessage,
@@ -47,6 +48,7 @@ import AddGroupMembersModal from "./AddGroupMembersModal.vue";
 import CreateGroupModal from "./CreateGroupModal.vue";
 import ManageGroupAdminsModal from "./ManageGroupAdminsModal.vue";
 import ManageGroupJoinRequestsModal from "./ManageGroupJoinRequestsModal.vue";
+import ManageGroupMutesModal from "./ManageGroupMutesModal.vue";
 import RemoveGroupMembersModal from "./RemoveGroupMembersModal.vue";
 
 interface OpenChatRequest {
@@ -106,11 +108,13 @@ const groupDetail = ref<ChatRoomDetail | null>(null);
 const groupMembers = ref<ChatRoomMember[]>([]);
 const groupAdmins = ref<ChatGroupAdmin[]>([]);
 const groupJoinRequests = ref<ChatGroupJoinRequest[]>([]);
+const groupMutes = ref<ChatGroupMute[]>([]);
 const groupSettings = ref<ChatGroupSettings | null>(null);
 const isCreateGroupModalVisible = ref(false);
 const isAddGroupMembersModalVisible = ref(false);
 const isManageGroupAdminsModalVisible = ref(false);
 const isManageGroupJoinRequestsModalVisible = ref(false);
+const isManageGroupMutesModalVisible = ref(false);
 const isRemoveGroupMembersModalVisible = ref(false);
 const createGroupFriends = ref<GroupCreateFriendOption[]>([]);
 const draftMessage = ref("");
@@ -124,6 +128,7 @@ const isLoadingMessages = ref(false);
 const isLoadingGroupContext = ref(false);
 const isLoadingGroupAdmins = ref(false);
 const isLoadingGroupJoinRequests = ref(false);
+const isLoadingGroupMutes = ref(false);
 const isLoadingGroupSettings = ref(false);
 const isLoadingCreateGroupFriends = ref(false);
 const isOpeningPrivateChat = ref(false);
@@ -131,6 +136,7 @@ const isCreatingGroup = ref(false);
 const isAddingGroupMembers = ref(false);
 const isUpdatingGroupAdmins = ref(false);
 const isReviewingGroupJoinRequests = ref(false);
+const isUpdatingGroupMutes = ref(false);
 const isRemovingGroupMembers = ref(false);
 const isSending = ref(false);
 const isUpdatingGlobalMute = ref(false);
@@ -157,6 +163,7 @@ const highlightedQuotedMessageId = ref<string | null>(null);
 let groupContextLoadSequence = 0;
 let groupAdminsLoadSequence = 0;
 let groupJoinRequestsLoadSequence = 0;
+let groupMutesLoadSequence = 0;
 let groupSettingsLoadSequence = 0;
 const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
@@ -316,6 +323,69 @@ const groupJoinRequestEntries = computed(() =>
     reviewMessage: request.reviewMessage,
   })),
 );
+const sortedGroupMutes = computed(() =>
+  [...groupMutes.value]
+    .filter((mute) => mute.isActive)
+    .sort(
+      (left, right) =>
+        (right.mutedAt?.getTime() ?? 0) - (left.mutedAt?.getTime() ?? 0),
+    ),
+);
+const activeGroupMuteCount = computed(() => sortedGroupMutes.value.length);
+const groupMuteEntries = computed(() =>
+  sortedGroupMutes.value.map((mute) => {
+    const member = groupMembers.value.find(
+      (groupMember) => groupMember.userId === mute.userId,
+    );
+    const mutedByMember = groupMembers.value.find(
+      (groupMember) => groupMember.userId === mute.mutedBy,
+    );
+    const displayName = member ? getRoomMemberDisplayName(member) : mute.userId;
+    const subtitleSegments = [];
+    if (member?.username && member.username !== displayName) {
+      subtitleSegments.push(member.username);
+    }
+    subtitleSegments.push(member ? formatRoomMemberRole(member.role) : "成员");
+    const mutedByLabel =
+      mutedByMember
+        ? getRoomMemberDisplayName(mutedByMember)
+        : mute.mutedBy === props.currentUser.id
+          ? props.currentUser.nickname || props.currentUser.username
+          : mute.mutedBy;
+
+    return {
+      id: mute.id,
+      userId: mute.userId,
+      displayName,
+      subtitle: subtitleSegments.join(" / ") || null,
+      avatarUrl: member?.avatarUrl ?? null,
+      reason: mute.reason,
+      mutedAtLabel: formatDetailTime(mute.mutedAt),
+      muteUntilLabel: formatDetailTime(mute.muteUntil),
+      mutedByLabel,
+      isPermanent: mute.muteDurationHours === 0,
+    };
+  }),
+);
+const muteableGroupMembers = computed(() => {
+  const mutedUserIds = new Set(
+    sortedGroupMutes.value.map((mute) => mute.userId),
+  );
+
+  return sortedGroupMembers.value
+    .filter(
+      (member) =>
+        member.role === "member" &&
+        member.userId !== props.currentUser.id &&
+        !mutedUserIds.has(member.userId),
+    )
+    .map((member) => ({
+      id: member.userId,
+      displayName: getRoomMemberDisplayName(member),
+      subtitle: member.username ? `成员 / ${member.username}` : "成员",
+      avatarUrl: member.avatarUrl,
+    }));
+});
 const groupOwnerMember = computed(
   () =>
     sortedGroupMembers.value.find(
@@ -346,6 +416,9 @@ const canManageSelectedGroupAdmins = computed(
   () => groupManageState.value.isOwner,
 );
 const canManageSelectedGroupJoinRequests = computed(
+  () => groupManageState.value.canManage,
+);
+const canManageSelectedGroupMutes = computed(
   () => groupManageState.value.canManage,
 );
 const groupComposerState = computed(() =>
@@ -719,6 +792,12 @@ const resetGroupJoinRequests = () => {
   isLoadingGroupJoinRequests.value = false;
 };
 
+const resetGroupMutes = () => {
+  groupMutesLoadSequence += 1;
+  groupMutes.value = [];
+  isLoadingGroupMutes.value = false;
+};
+
 const patchRoomAvatar = (roomId: string, avatarUrl: string) => {
   chats.value = chats.value.map((chat) =>
     chat.roomId === roomId
@@ -935,6 +1014,7 @@ const resetGroupContext = () => {
   groupMembers.value = [];
   resetGroupAdmins();
   resetGroupJoinRequests();
+  resetGroupMutes();
   isLoadingGroupContext.value = false;
 };
 
@@ -1089,6 +1169,49 @@ const loadGroupJoinRequests = async (roomId: string | null) => {
   } finally {
     if (currentSequence === groupJoinRequestsLoadSequence) {
       isLoadingGroupJoinRequests.value = false;
+    }
+  }
+};
+
+const loadGroupMutes = async (roomId: string | null) => {
+  const currentChat = chats.value.find((chat) => chat.roomId === roomId);
+  if (!roomId || currentChat?.roomType !== "group") {
+    resetGroupMutes();
+    return;
+  }
+
+  const currentSequence = groupMutesLoadSequence + 1;
+  groupMutesLoadSequence = currentSequence;
+  isLoadingGroupMutes.value = true;
+  try {
+    const response = await ChatApi.listGroupMutes({ roomId });
+    if (
+      currentSequence !== groupMutesLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    if (!response.success || !response.data) {
+      groupMutes.value = [];
+      notice.value = response.message || "群禁言列表加载失败";
+      return;
+    }
+
+    groupMutes.value = response.data;
+  } catch (error) {
+    if (
+      currentSequence !== groupMutesLoadSequence ||
+      selectedChatId.value !== roomId
+    ) {
+      return;
+    }
+
+    groupMutes.value = [];
+    notice.value = error instanceof Error ? error.message : "群禁言列表加载失败";
+  } finally {
+    if (currentSequence === groupMutesLoadSequence) {
+      isLoadingGroupMutes.value = false;
     }
   }
 };
@@ -1282,6 +1405,23 @@ const handleOpenManageGroupJoinRequestsModal = async () => {
   await loadGroupJoinRequests(selectedChatId.value);
 };
 
+const handleOpenManageGroupMutesModal = async () => {
+  if (isUpdatingGroupMutes.value) {
+    return;
+  }
+  if (!isSelectedGroupChat.value || !selectedChatId.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroupMutes.value) {
+    notice.value = "当前账号没有管理群禁言的权限。";
+    return;
+  }
+
+  isManageGroupMutesModalVisible.value = true;
+  await loadGroupMutes(selectedChatId.value);
+};
+
 const closeAddGroupMembersModal = () => {
   if (isAddingGroupMembers.value) {
     return;
@@ -1301,6 +1441,13 @@ const closeManageGroupJoinRequestsModal = () => {
     return;
   }
   isManageGroupJoinRequestsModalVisible.value = false;
+};
+
+const closeManageGroupMutesModal = () => {
+  if (isUpdatingGroupMutes.value) {
+    return;
+  }
+  isManageGroupMutesModalVisible.value = false;
 };
 
 const handleOpenRemoveGroupMembersModal = () => {
@@ -1348,6 +1495,14 @@ const handleManageGroupJoinRequestsModalVisibleChange = (visible: boolean) => {
     return;
   }
   closeManageGroupJoinRequestsModal();
+};
+
+const handleManageGroupMutesModalVisibleChange = (visible: boolean) => {
+  if (visible) {
+    void handleOpenManageGroupMutesModal();
+    return;
+  }
+  closeManageGroupMutesModal();
 };
 
 const handleRemoveGroupMembersModalVisibleChange = (visible: boolean) => {
@@ -1698,6 +1853,124 @@ const handleReviewGroupJoinRequest = async (payload: {
     await loadGroupSettings(roomId);
   } finally {
     isReviewingGroupJoinRequests.value = false;
+  }
+};
+
+const handleMuteGroupMembers = async (payload: {
+  memberUserIds: string[];
+  durationHours: number;
+  reason?: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value) {
+    notice.value = "请先选择一个群聊。";
+    return;
+  }
+  if (!canManageSelectedGroupMutes.value) {
+    notice.value = "当前账号没有管理群禁言的权限。";
+    return;
+  }
+  if (!payload.memberUserIds.length) {
+    notice.value = "请至少选择 1 位成员。";
+    return;
+  }
+
+  isUpdatingGroupMutes.value = true;
+  notice.value = `正在禁言 ${payload.memberUserIds.length} 位成员...`;
+  try {
+    const results = await Promise.allSettled(
+      payload.memberUserIds.map((userId) =>
+        ChatApi.muteGroupMember({
+          roomId,
+          userId,
+          durationHours: payload.durationHours,
+          reason: payload.reason,
+        }),
+      ),
+    );
+    const successCount = results.filter(
+      (result) =>
+        result.status === "fulfilled" &&
+        result.value.success &&
+        result.value.data,
+    ).length;
+    const failedCount = results.length - successCount;
+
+    if (successCount > 0) {
+      await loadGroupMutes(roomId);
+      await loadChats({
+        preferredRoomId: roomId,
+        preserveNotice: true,
+        reloadMessages: false,
+      });
+      await loadGroupContext(roomId);
+      await loadGroupSettings(roomId);
+      notice.value =
+        failedCount > 0
+          ? `已禁言 ${successCount} 位成员，${failedCount} 位禁言失败。`
+          : `已禁言 ${successCount} 位成员。`;
+      return;
+    }
+
+    notice.value = "禁言成员失败。";
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "禁言成员失败";
+    await loadGroupMutes(roomId);
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isUpdatingGroupMutes.value = false;
+  }
+};
+
+const handleUnmuteGroupMember = async (payload: {
+  userId: string;
+  displayName: string;
+}) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || !isSelectedGroupChat.value || isUpdatingGroupMutes.value) {
+    return;
+  }
+  if (!canManageSelectedGroupMutes.value) {
+    notice.value = "当前账号没有管理群禁言的权限。";
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `确定要解除 ${payload.displayName} 的禁言吗？`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  isUpdatingGroupMutes.value = true;
+  notice.value = `正在解除 ${payload.displayName} 的禁言...`;
+  try {
+    const response = await ChatApi.unmuteGroupMember({
+      roomId,
+      userId: payload.userId,
+    });
+    if (!response.success || !response.data?.success) {
+      notice.value = response.message || "解除禁言失败";
+      return;
+    }
+
+    await loadGroupMutes(roomId);
+    await loadChats({
+      preferredRoomId: roomId,
+      preserveNotice: true,
+      reloadMessages: false,
+    });
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+    notice.value = `已解除 ${payload.displayName} 的禁言。`;
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "解除禁言失败";
+    await loadGroupMutes(roomId);
+    await loadGroupContext(roomId);
+    await loadGroupSettings(roomId);
+  } finally {
+    isUpdatingGroupMutes.value = false;
   }
 };
 
@@ -2398,6 +2671,9 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
         if (isManageGroupJoinRequestsModalVisible.value) {
           await loadGroupJoinRequests(event.roomId);
         }
+        if (isManageGroupMutesModalVisible.value) {
+          await loadGroupMutes(event.roomId);
+        }
       }
       if (groupRealtimePlan.shouldReloadGroupSettings) {
         await loadGroupSettings(event.roomId);
@@ -2655,6 +2931,21 @@ onMounted(() => {
                       : pendingGroupJoinRequestCount > 0
                         ? `入群审核(${pendingGroupJoinRequestCount})`
                         : "入群审核"
+                  }}
+                </button>
+                <button
+                  v-if="canManageSelectedGroupMutes"
+                  type="button"
+                  class="group-panel__action"
+                  :disabled="isUpdatingGroupMutes"
+                  @click="void handleOpenManageGroupMutesModal()"
+                >
+                  {{
+                    isUpdatingGroupMutes
+                      ? "处理中..."
+                      : activeGroupMuteCount > 0
+                        ? `禁言管理(${activeGroupMuteCount})`
+                        : "禁言管理"
                   }}
                 </button>
                 <button
@@ -3494,6 +3785,16 @@ onMounted(() => {
       :is-submitting="isReviewingGroupJoinRequests"
       @update:visible="handleManageGroupJoinRequestsModalVisibleChange"
       @review="void handleReviewGroupJoinRequest($event)"
+    />
+    <ManageGroupMutesModal
+      :visible="isManageGroupMutesModalVisible"
+      :mutes="groupMuteEntries"
+      :candidates="muteableGroupMembers"
+      :is-loading="isLoadingGroupMutes || isLoadingGroupContext"
+      :is-submitting="isUpdatingGroupMutes"
+      @update:visible="handleManageGroupMutesModalVisibleChange"
+      @mute="void handleMuteGroupMembers($event)"
+      @unmute="void handleUnmuteGroupMember($event)"
     />
     <RemoveGroupMembersModal
       :visible="isRemoveGroupMembersModalVisible"

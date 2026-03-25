@@ -49,6 +49,18 @@ type ReviewGroupJoinRequestParams struct {
 	ReviewMessage string `json:"review_message,omitempty"`
 }
 
+type MuteGroupMemberParams struct {
+	RoomID        string `json:"room_id"`
+	UserID        string `json:"user_id"`
+	DurationHours int    `json:"duration_hours"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+type RemoveGroupMuteParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+}
+
 type UpdateGlobalMuteParams struct {
 	RoomID          string `json:"room_id"`
 	Enabled         bool   `json:"enabled"`
@@ -277,6 +289,36 @@ func (s *Service) ReviewGroupJoinRequest(ctx context.Context, params ReviewGroup
 		Method: http.MethodPatch,
 		Path:   "/rooms/" + params.RoomID + "/join-requests/" + params.RequestID + "/review",
 		Body:   body,
+	})
+}
+
+func (s *Service) ListGroupMutes(ctx context.Context, params RoomParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/mutes",
+	})
+}
+
+func (s *Service) CreateGroupMute(ctx context.Context, params MuteGroupMemberParams) (httpclient.Response, error) {
+	body := map[string]any{
+		"user_id":        params.UserID,
+		"duration_hours": params.DurationHours,
+	}
+	if params.Reason != "" {
+		body["reason"] = params.Reason
+	}
+
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/mutes",
+		Body:   body,
+	})
+}
+
+func (s *Service) RemoveGroupMute(ctx context.Context, params RemoveGroupMuteParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/mutes/" + params.UserID,
 	})
 }
 

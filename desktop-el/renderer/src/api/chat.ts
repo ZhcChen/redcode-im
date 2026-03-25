@@ -116,6 +116,18 @@ interface BackendJoinRequest {
   reviewed_at?: string | null;
 }
 
+interface BackendGroupMute {
+  id: string;
+  room_id: string;
+  user_id: string;
+  muted_by: string;
+  reason?: string | null;
+  mute_duration_hours: number;
+  muted_at: string;
+  unmuted_at?: string | null;
+  is_active: boolean;
+}
+
 interface BackendGroupSettings {
   id: string;
   room_id: string;
@@ -316,6 +328,19 @@ export interface ChatGroupJoinRequest {
   reviewMessage: string | null;
   createdAt: Date | null;
   reviewedAt: Date | null;
+}
+
+export interface ChatGroupMute {
+  id: string;
+  roomId: string;
+  userId: string;
+  mutedBy: string;
+  reason: string | null;
+  muteDurationHours: number;
+  mutedAt: Date | null;
+  unmutedAt: Date | null;
+  isActive: boolean;
+  muteUntil: Date | null;
 }
 
 export interface ChatGroupMyMute {
@@ -921,6 +946,27 @@ const mapChatGroupJoinRequest = (
   createdAt: parseTimestamp(request.created_at),
   reviewedAt: parseTimestamp(request.reviewed_at),
 });
+
+const mapChatGroupMute = (mute: BackendGroupMute): ChatGroupMute => {
+  const mutedAt = parseTimestamp(mute.muted_at);
+  const muteUntil =
+    mutedAt && mute.mute_duration_hours > 0
+      ? new Date(mutedAt.getTime() + mute.mute_duration_hours * 60 * 60 * 1000)
+      : null;
+
+  return {
+    id: mute.id,
+    roomId: mute.room_id,
+    userId: mute.user_id,
+    mutedBy: mute.muted_by,
+    reason: mute.reason ?? null,
+    muteDurationHours: mute.mute_duration_hours,
+    mutedAt,
+    unmutedAt: parseTimestamp(mute.unmuted_at),
+    isActive: Boolean(mute.is_active),
+    muteUntil,
+  };
+};
 
 const mapChatGroupSettings = (
   response: BackendGroupSettingsResponse,
@@ -1547,6 +1593,66 @@ export class ChatApi {
         ? mapChatGroupJoinRequest(response.data.request)
         : null,
     };
+  }
+
+  static async listGroupMutes(params: {
+    roomId: string;
+  }): Promise<ApiResponse<ChatGroupMute[]>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        mutes?: BackendGroupMute[] | null;
+      }>
+    >("chat.group.mutes.list", {
+      room_id: params.roomId,
+    });
+
+    return {
+      ...response,
+      data: response.data?.mutes
+        ? response.data.mutes.map(mapChatGroupMute)
+        : null,
+    };
+  }
+
+  static async muteGroupMember(params: {
+    roomId: string;
+    userId: string;
+    durationHours: number;
+    reason?: string;
+  }): Promise<ApiResponse<ChatGroupMute>> {
+    const payload: Record<string, unknown> = {
+      room_id: params.roomId,
+      user_id: params.userId,
+      duration_hours: params.durationHours,
+    };
+    if (params.reason?.trim()) {
+      payload.reason = params.reason.trim();
+    }
+
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<{
+        mute?: BackendGroupMute | null;
+      }>
+    >("chat.group.mute.create", payload);
+
+    return {
+      ...response,
+      data: response.data?.mute ? mapChatGroupMute(response.data.mute) : null,
+    };
+  }
+
+  static async unmuteGroupMember(params: {
+    roomId: string;
+    userId: string;
+  }): Promise<ApiResponse<SimpleSuccessData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendMultipartSimplePayload>
+    >("chat.group.mute.remove", {
+      room_id: params.roomId,
+      user_id: params.userId,
+    });
+
+    return mapSimpleSuccessData(response);
   }
 
   static async getRoom(params: {

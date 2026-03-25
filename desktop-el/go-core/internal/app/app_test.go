@@ -2232,6 +2232,205 @@ func TestAppChatGroupJoinRequestReviewReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatGroupMutesListReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/mutes" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"mutes": []map[string]any{
+				{
+					"id":                  "group-mute-1",
+					"room_id":             "room-group-1",
+					"user_id":             "u-9",
+					"muted_by":            "u-1",
+					"reason":              "刷屏",
+					"mute_duration_hours": 24,
+					"muted_at":            "2026-03-25T14:00:00Z",
+					"unmuted_at":          nil,
+					"is_active":           true,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-mutes-list",
+		Method: "chat.group.mutes.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.mutes.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.mutes.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.mutes.list envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.mutes.list data failed: %v", err)
+	}
+	mutes, ok := result["mutes"].([]any)
+	if !ok || len(mutes) != 1 {
+		t.Fatalf("unexpected group mute list payload: %+v", result)
+	}
+
+	firstMute, ok := mutes[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected group mute payload: %+v", mutes[0])
+	}
+	if firstMute["user_id"] != "u-9" || firstMute["mute_duration_hours"] != float64(24) {
+		t.Fatalf("unexpected group mute data: %+v", firstMute)
+	}
+}
+
+func TestAppChatGroupMuteCreateReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/mutes" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["user_id"] != "u-9" || payload["duration_hours"] != float64(24) {
+			t.Fatalf("unexpected mute create payload: %+v", payload)
+		}
+		if payload["reason"] != "刷屏" {
+			t.Fatalf("unexpected mute create reason: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"mute": map[string]any{
+				"id":                  "group-mute-1",
+				"room_id":             "room-group-1",
+				"user_id":             "u-9",
+				"muted_by":            "u-1",
+				"reason":              "刷屏",
+				"mute_duration_hours": 24,
+				"muted_at":            "2026-03-25T14:00:00Z",
+				"unmuted_at":          nil,
+				"is_active":           true,
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-mute-create",
+		Method: "chat.group.mute.create",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":        "room-group-1",
+			"user_id":        "u-9",
+			"duration_hours": 24,
+			"reason":         "刷屏",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.mute.create to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.mute.create response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.group.mute.create envelope: %+v", envelope)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		t.Fatalf("decode chat.group.mute.create data failed: %v", err)
+	}
+	mute, ok := result["mute"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected mute payload: %+v", result)
+	}
+	if mute["user_id"] != "u-9" || mute["muted_by"] != "u-1" {
+		t.Fatalf("unexpected created mute data: %+v", mute)
+	}
+}
+
+func TestAppChatGroupMuteRemoveReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-group-1/mutes/u-9" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-group-mute-remove",
+		Method: "chat.group.mute.remove",
+		Params: mustJSONRaw(map[string]any{
+			"room_id": "room-group-1",
+			"user_id": "u-9",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.group.mute.remove to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.group.mute.remove response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != http.StatusNoContent {
+		t.Fatalf("unexpected chat.group.mute.remove envelope: %+v", envelope)
+	}
+	if string(envelope.Data) != "null" {
+		t.Fatalf("expected chat.group.mute.remove data to be null, got: %s", string(envelope.Data))
+	}
+}
+
 func TestAppChatMessagesListUsesQueryParams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages" {
