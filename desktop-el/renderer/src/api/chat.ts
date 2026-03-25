@@ -269,6 +269,19 @@ interface BackendPinResponse {
   pinned_by?: string | null;
 }
 
+interface BackendReactionSummary {
+  reaction_key: string;
+  count: number;
+  user_ids: string[];
+  has_self: boolean;
+}
+
+interface BackendReactionResponse {
+  success?: boolean;
+  message?: string;
+  summaries?: BackendReactionSummary[] | null;
+}
+
 interface BackendMultipartSimplePayload {
   success?: boolean;
   message?: string;
@@ -451,6 +464,7 @@ export interface ChatMessage {
   isSelf: boolean;
   pinnedAt: Date | null;
   pinnedBy: string | null;
+  reactions?: ChatMessageReactionSummary[];
   forwardInfo: ChatForwardInfo | null;
   quotedMessage: ChatQuotedMessage | null;
   parts: ChatMessagePart[];
@@ -479,6 +493,13 @@ export interface ChatForwardInfo {
   originRoomId: string | null;
   originSenderId: string | null;
   originSenderName: string | null;
+}
+
+export interface ChatMessageReactionSummary {
+  reactionKey: string;
+  count: number;
+  userIds: string[];
+  hasSelf: boolean;
 }
 
 export interface ChatMessageAttachment {
@@ -562,6 +583,10 @@ export interface PinMessageData {
   pinnedBy: string | null;
 }
 
+export interface ReactionData {
+  summaries: ChatMessageReactionSummary[];
+}
+
 export type ChatMessagePartInput =
   | {
       type: "text";
@@ -625,6 +650,15 @@ interface BackendPushPinUpdate {
   pinned_by?: string | null;
 }
 
+interface BackendPushReactionUpdate {
+  type: "reaction_update";
+  room_id: string;
+  message_id: string;
+  reaction_key: string;
+  user_id: string;
+  action: string;
+}
+
 interface BackendPushRoomCreated {
   type: "room_created";
   room_id: string;
@@ -673,6 +707,7 @@ export type ChatWebSocketPush =
   | BackendPushMessageRead
   | BackendPushMessageUpdate
   | BackendPushPinUpdate
+  | BackendPushReactionUpdate
   | BackendPushRoomCreated
   | BackendPushRoomUpdated
   | BackendPushGroupSettingsUpdated
@@ -708,6 +743,14 @@ export type ChatRealtimeEvent =
       isPinned: boolean;
       pinnedAt: Date | null;
       pinnedBy: string | null;
+    }
+  | {
+      type: "reaction_update";
+      roomId: string;
+      messageId: string;
+      reactionKey: string;
+      userId: string;
+      action: string;
     }
   | {
       type: "room_created";
@@ -820,6 +863,17 @@ const isBackendPushPinUpdate = (value: unknown): value is BackendPushPinUpdate =
   value.type === "pin_update" &&
   typeof value.room_id === "string" &&
   typeof value.is_pinned === "boolean";
+
+const isBackendPushReactionUpdate = (
+  value: unknown,
+): value is BackendPushReactionUpdate =>
+  isRecord(value) &&
+  value.type === "reaction_update" &&
+  typeof value.room_id === "string" &&
+  typeof value.message_id === "string" &&
+  typeof value.reaction_key === "string" &&
+  typeof value.user_id === "string" &&
+  typeof value.action === "string";
 
 const isBackendPushRoomCreated = (
   value: unknown,
@@ -1351,6 +1405,39 @@ const mapPinMessageData = (
   };
 };
 
+const mapReactionSummary = (
+  summary: BackendReactionSummary,
+): ChatMessageReactionSummary => ({
+  reactionKey: summary.reaction_key,
+  count: summary.count,
+  userIds: summary.user_ids ?? [],
+  hasSelf: Boolean(summary.has_self),
+});
+
+const mapReactionData = (
+  response: ApiResponse<BackendReactionResponse>,
+): ApiResponse<ReactionData> => {
+  if (!response.data) {
+    return {
+      ...response,
+      data: null,
+    };
+  }
+
+  const message =
+    typeof response.data.message === "string"
+      ? response.data.message
+      : response.message;
+
+  return {
+    ...response,
+    message,
+    data: {
+      summaries: (response.data.summaries ?? []).map(mapReactionSummary),
+    },
+  };
+};
+
 export const mapChatMessagePayload = (
   message: BackendMessageInfo,
   currentUserId?: string,
@@ -1466,6 +1553,18 @@ export const mapChatRealtimeEvent = (
         isPinned: payload.is_pinned,
         pinnedAt: parseTimestamp(payload.pinned_at),
         pinnedBy: payload.pinned_by ?? null,
+      };
+    case "reaction_update":
+      if (!isBackendPushReactionUpdate(payload)) {
+        return null;
+      }
+      return {
+        type: "reaction_update",
+        roomId: payload.room_id,
+        messageId: payload.message_id,
+        reactionKey: payload.reaction_key,
+        userId: payload.user_id,
+        action: payload.action,
       };
     case "room_created":
       if (!isBackendPushRoomCreated(payload)) {
@@ -2280,6 +2379,49 @@ export class ChatApi {
       message_id: params.messageId,
     });
     return mapPinMessageData(response, params.currentUserId);
+  }
+
+  static async addReaction(params: {
+    roomId: string;
+    messageId: string;
+    reactionKey: string;
+  }): Promise<ApiResponse<ReactionData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendReactionResponse>
+    >("chat.reactions.add", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+      reaction_key: params.reactionKey,
+    });
+    return mapReactionData(response);
+  }
+
+  static async removeReaction(params: {
+    roomId: string;
+    messageId: string;
+    reactionKey: string;
+  }): Promise<ApiResponse<ReactionData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendReactionResponse>
+    >("chat.reactions.remove", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+      reaction_key: params.reactionKey,
+    });
+    return mapReactionData(response);
+  }
+
+  static async getReactions(params: {
+    roomId: string;
+    messageId: string;
+  }): Promise<ApiResponse<ReactionData>> {
+    const response = await requireDesktopRuntime().rpc.invoke<
+      ApiResponse<BackendReactionResponse>
+    >("chat.reactions.list", {
+      room_id: params.roomId,
+      message_id: params.messageId,
+    });
+    return mapReactionData(response);
   }
 
   static async readUntil(params: {

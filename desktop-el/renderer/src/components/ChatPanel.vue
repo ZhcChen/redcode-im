@@ -165,6 +165,9 @@ const isTransferringGroupOwner = ref(false);
 const isForwardingMessage = ref(false);
 const isSending = ref(false);
 const pinningMessageId = ref<string | null>(null);
+const reactingMessageId = ref<string | null>(null);
+const reactingReactionKey = ref<string | null>(null);
+const activeReactionPickerMessageId = ref<string | null>(null);
 const isUpdatingGlobalMute = ref(false);
 const isUpdatingGroupAvatar = ref(false);
 const updatingGroupSettingKey = ref<GroupSettingActionKey | null>(null);
@@ -200,6 +203,7 @@ const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
 const attachmentPreviewUrlStore = createAttachmentPreviewUrlStore();
+const MESSAGE_REACTION_OPTIONS = ["👍", "❤️", "😂", "🎉", "😮", "😢"] as const;
 
 const filteredChats = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -839,6 +843,21 @@ const patchMessagePinState = (payload: {
       };
 
   messages.value.splice(targetIndex, 1, nextMessage);
+};
+
+const patchMessageReactions = (
+  messageId: string,
+  reactions: ChatMessage["reactions"],
+) => {
+  const targetIndex = messages.value.findIndex((message) => message.id === messageId);
+  if (targetIndex === -1) {
+    return;
+  }
+
+  messages.value.splice(targetIndex, 1, {
+    ...messages.value[targetIndex],
+    reactions,
+  });
 };
 
 const formatAttachmentSize = (size: number | null) => {
@@ -3297,6 +3316,80 @@ const handleTogglePinMessage = async (message: ChatMessage) => {
   }
 };
 
+const handleToggleReactionPicker = (message: ChatMessage) => {
+  if (message.isDeleted || message.messageType === "system") {
+    return;
+  }
+  activeReactionPickerMessageId.value =
+    activeReactionPickerMessageId.value === message.id ? null : message.id;
+};
+
+const toggleMessageReaction = async (
+  message: ChatMessage,
+  reactionKey: string,
+  options: {
+    closePicker?: boolean;
+  } = {},
+) => {
+  const roomId = selectedChatId.value;
+  if (!roomId || reactingMessageId.value) {
+    return;
+  }
+
+  reactingMessageId.value = message.id;
+  reactingReactionKey.value = reactionKey;
+  try {
+    const existingReaction = message.reactions?.find(
+      (reaction) => reaction.reactionKey === reactionKey,
+    );
+    const hasSelf = existingReaction?.hasSelf === true;
+
+    const response = hasSelf
+      ? await ChatApi.removeReaction({
+          roomId,
+          messageId: message.id,
+          reactionKey,
+        })
+      : await ChatApi.addReaction({
+          roomId,
+          messageId: message.id,
+          reactionKey,
+        });
+    if (!response.success || !response.data) {
+      notice.value = response.message || "更新消息反应失败";
+      return;
+    }
+
+    patchMessageReactions(message.id, response.data.summaries);
+    if (options.closePicker !== false) {
+      activeReactionPickerMessageId.value = null;
+    }
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "更新消息反应失败";
+  } finally {
+    reactingMessageId.value = null;
+    reactingReactionKey.value = null;
+  }
+};
+
+const handleReactionOptionClick = async (
+  message: ChatMessage,
+  reactionKey: string,
+) => {
+  await toggleMessageReaction(message, reactionKey, {
+    closePicker: true,
+  });
+};
+
+const handleReactionTagClick = async (
+  message: ChatMessage,
+  reactionKey: string,
+) => {
+  await toggleMessageReaction(message, reactionKey, {
+    closePicker: false,
+  });
+};
+
 const handleDeleteMessage = async (message: ChatMessage) => {
   const roomId = selectedChatId.value;
   if (!roomId || !message.isSelf || deletingMessageId.value) {
@@ -3534,6 +3627,23 @@ const handleRealtimeEvent = async (event: ChatRealtimeEvent) => {
     }
     return;
   }
+
+  if (event.type === "reaction_update") {
+    if (event.roomId === activeRoomId) {
+      try {
+        const response = await ChatApi.getReactions({
+          roomId: event.roomId,
+          messageId: event.messageId,
+        });
+        if (response.success && response.data) {
+          patchMessageReactions(event.messageId, response.data.summaries);
+        }
+      } catch {
+        // reaction 局部刷新失败不影响主消息流
+      }
+    }
+    return;
+  }
 };
 
 watch(
@@ -3573,6 +3683,7 @@ watch(
       replyingMessage.value = null;
       forwardingMessage.value = null;
       isForwardMessageModalVisible.value = false;
+      activeReactionPickerMessageId.value = null;
     }
   },
 );
@@ -4418,6 +4529,20 @@ onMounted(() => {
                   <button
                     type="button"
                     class="message-card__action message-card__action--secondary"
+                    :disabled="message.isDeleted || reactingMessageId === message.id"
+                    @click="handleToggleReactionPicker(message)"
+                  >
+                    {{
+                      reactingMessageId === message.id
+                        ? "处理中..."
+                        : activeReactionPickerMessageId === message.id
+                          ? "收起反应"
+                          : "反应"
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="message-card__action message-card__action--secondary"
                     :disabled="
                       message.isDeleted ||
                       pinningMessageId === message.id
@@ -4460,6 +4585,49 @@ onMounted(() => {
                     {{
                       deletingMessageId === message.id ? "删除中..." : "删除"
                     }}
+                  </button>
+                </div>
+                <div
+                  v-if="activeReactionPickerMessageId === message.id"
+                  class="message-reaction-picker"
+                >
+                  <button
+                    v-for="reactionKey in MESSAGE_REACTION_OPTIONS"
+                    :key="`${message.id}-${reactionKey}`"
+                    type="button"
+                    class="message-reaction-picker__option"
+                    :disabled="
+                      reactingMessageId === message.id &&
+                      reactingReactionKey === reactionKey
+                    "
+                    @click="void handleReactionOptionClick(message, reactionKey)"
+                  >
+                    {{ reactionKey }}
+                  </button>
+                </div>
+                <div
+                  v-if="message.reactions && message.reactions.length > 0"
+                  class="message-reactions"
+                >
+                  <button
+                    v-for="reaction in message.reactions"
+                    :key="`${message.id}-${reaction.reactionKey}`"
+                    type="button"
+                    class="message-reactions__tag"
+                    :class="{
+                      'message-reactions__tag--self': reaction.hasSelf,
+                    }"
+                    :disabled="reactingMessageId === message.id"
+                    @click="
+                      void handleReactionTagClick(message, reaction.reactionKey)
+                    "
+                  >
+                    <span class="message-reactions__emoji">{{
+                      reaction.reactionKey
+                    }}</span>
+                    <span class="message-reactions__count">{{
+                      reaction.count
+                    }}</span>
                   </button>
                 </div>
                 <small class="message-card__footer">
@@ -5528,6 +5696,54 @@ onMounted(() => {
 
 .message-card__footer {
   color: var(--text-secondary);
+}
+
+.message-reaction-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.message-reaction-picker__option,
+.message-reactions__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.message-reaction-picker__option:disabled,
+.message-reactions__tag:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.message-reactions__tag--self {
+  border-color: rgba(0, 155, 143, 0.24);
+  background: rgba(0, 194, 179, 0.12);
+  color: var(--primary-color-strong);
+}
+
+.message-reactions__emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.message-reactions__count {
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .message-card--quoted-highlight {

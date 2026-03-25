@@ -376,6 +376,231 @@ describe("chat api", () => {
     });
   });
 
+  test("adds reaction through go-core rpc and maps summaries", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "反应已添加",
+              data: {
+                success: true,
+                message: "反应已添加",
+                summaries: [
+                  {
+                    reaction_key: "👍",
+                    count: 2,
+                    user_ids: ["u-1", "u-2"],
+                    has_self: true,
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const addReaction = (
+      ChatApi as unknown as {
+        addReaction?: (params: {
+          roomId: string;
+          messageId: string;
+          reactionKey: string;
+        }) => Promise<unknown>;
+      }
+    ).addReaction;
+
+    expect(typeof addReaction).toBe("function");
+    if (!addReaction) {
+      return;
+    }
+
+    const response = (await addReaction({
+      roomId: "room-1",
+      messageId: "msg-15",
+      reactionKey: "👍",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.reactions.add",
+        params: {
+          room_id: "room-1",
+          message_id: "msg-15",
+          reaction_key: "👍",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "反应已添加",
+      data: {
+        summaries: [
+          {
+            reactionKey: "👍",
+            count: 2,
+            userIds: ["u-1", "u-2"],
+            hasSelf: true,
+          },
+        ],
+      },
+    });
+  });
+
+  test("removes reaction through go-core rpc and maps summaries", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "反应已删除",
+              data: {
+                success: true,
+                message: "反应已删除",
+                summaries: [
+                  {
+                    reaction_key: "👍",
+                    count: 1,
+                    user_ids: ["u-2"],
+                    has_self: false,
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const removeReaction = (
+      ChatApi as unknown as {
+        removeReaction?: (params: {
+          roomId: string;
+          messageId: string;
+          reactionKey: string;
+        }) => Promise<unknown>;
+      }
+    ).removeReaction;
+
+    expect(typeof removeReaction).toBe("function");
+    if (!removeReaction) {
+      return;
+    }
+
+    const response = (await removeReaction({
+      roomId: "room-1",
+      messageId: "msg-15",
+      reactionKey: "👍",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.reactions.remove",
+        params: {
+          room_id: "room-1",
+          message_id: "msg-15",
+          reaction_key: "👍",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "反应已删除",
+      data: {
+        summaries: [
+          {
+            reactionKey: "👍",
+            count: 1,
+            userIds: ["u-2"],
+            hasSelf: false,
+          },
+        ],
+      },
+    });
+  });
+
+  test("loads reactions through go-core rpc and maps summaries", async () => {
+    globalThis.window = {
+      desktopEl: {
+        rpc: {
+          invoke: async (method: string, params?: Record<string, unknown>) => {
+            calls.push({ method, params });
+            return {
+              code: 200,
+              success: true,
+              message: "获取成功",
+              data: {
+                success: true,
+                message: "获取成功",
+                summaries: [
+                  {
+                    reaction_key: "🎉",
+                    count: 3,
+                    user_ids: ["u-1", "u-2", "u-3"],
+                    has_self: true,
+                  },
+                ],
+              },
+            };
+          },
+        },
+      },
+    } as Window;
+
+    const getReactions = (
+      ChatApi as unknown as {
+        getReactions?: (params: {
+          roomId: string;
+          messageId: string;
+        }) => Promise<unknown>;
+      }
+    ).getReactions;
+
+    expect(typeof getReactions).toBe("function");
+    if (!getReactions) {
+      return;
+    }
+
+    const response = (await getReactions({
+      roomId: "room-1",
+      messageId: "msg-15",
+    })) as Record<string, unknown>;
+
+    expect(calls).toEqual([
+      {
+        method: "chat.reactions.list",
+        params: {
+          room_id: "room-1",
+          message_id: "msg-15",
+        },
+      },
+    ]);
+    expect(response).toEqual({
+      code: 200,
+      success: true,
+      message: "获取成功",
+      data: {
+        summaries: [
+          {
+            reactionKey: "🎉",
+            count: 3,
+            userIds: ["u-1", "u-2", "u-3"],
+            hasSelf: true,
+          },
+        ],
+      },
+    });
+  });
+
   test("loads room detail through go-core rpc and maps room payload", async () => {
     globalThis.window = {
       desktopEl: {
@@ -2175,6 +2400,26 @@ describe("chat api message mapping", () => {
       isPinned: true,
       pinnedAt: new Date("2026-03-25T19:05:00Z"),
       pinnedBy: "u-9",
+    });
+  });
+
+  test("maps reaction_update payload into realtime event", () => {
+    const mapped = mapChatRealtimeEvent({
+      type: "reaction_update",
+      room_id: "room-1",
+      message_id: "msg-15",
+      reaction_key: "🎉",
+      user_id: "u-3",
+      action: "add",
+    });
+
+    expect(mapped).toEqual({
+      type: "reaction_update",
+      roomId: "room-1",
+      messageId: "msg-15",
+      reactionKey: "🎉",
+      userId: "u-3",
+      action: "add",
     });
   });
 });

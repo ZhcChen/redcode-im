@@ -3287,6 +3287,181 @@ func TestAppChatUnpinMessageReturnsEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppChatAddReactionReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-15/reactions" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload failed: %v", err)
+		}
+		if payload["reaction_key"] != "👍" {
+			t.Fatalf("unexpected reaction payload: %+v", payload)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "反应已添加",
+			"summaries": []map[string]any{
+				{
+					"reaction_key": "👍",
+					"count":        2,
+					"user_ids":     []string{"u-1", "u-2"},
+					"has_self":     true,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-reaction-add",
+		Method: "chat.reactions.add",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":      "room-2",
+			"message_id":   "msg-15",
+			"reaction_key": "👍",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.reactions.add to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.reactions.add response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.reactions.add envelope: %+v", envelope)
+	}
+}
+
+func TestAppChatRemoveReactionReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-15/reactions" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		if got := r.URL.Query().Get("reaction_key"); got != "👍" {
+			t.Fatalf("unexpected reaction query: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "反应已删除",
+			"summaries": []map[string]any{
+				{
+					"reaction_key": "👍",
+					"count":        1,
+					"user_ids":     []string{"u-2"},
+					"has_self":     false,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-reaction-remove",
+		Method: "chat.reactions.remove",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":      "room-2",
+			"message_id":   "msg-15",
+			"reaction_key": "👍",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.reactions.remove to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.reactions.remove response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.reactions.remove envelope: %+v", envelope)
+	}
+}
+
+func TestAppChatListReactionsReturnsEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rooms/room-2/messages/msg-15/reactions" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "获取成功",
+			"summaries": []map[string]any{
+				{
+					"reaction_key": "🎉",
+					"count":        3,
+					"user_ids":     []string{"u-1", "u-2", "u-3"},
+					"has_self":     true,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	application := newTestApp(server.URL)
+	application.session.Set("access-token", "refresh-token")
+	application.httpClient.SetToken("access-token")
+
+	rpcServer := application.RegisterRPC()
+	response := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-chat-reaction-list",
+		Method: "chat.reactions.list",
+		Params: mustJSONRaw(map[string]any{
+			"room_id":    "room-2",
+			"message_id": "msg-15",
+		}),
+	})
+	if response.Error != nil {
+		t.Fatalf("expected chat.reactions.list to succeed, got: %+v", response.Error)
+	}
+
+	var envelope httpclient.Response
+	if err := json.Unmarshal(response.Result, &envelope); err != nil {
+		t.Fatalf("decode chat.reactions.list response failed: %v", err)
+	}
+	if !envelope.Success || envelope.Code != 200 {
+		t.Fatalf("unexpected chat.reactions.list envelope: %+v", envelope)
+	}
+}
+
 func TestAppChatReadUntilPostsMessageID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rooms/room-2/messages/read_until" {

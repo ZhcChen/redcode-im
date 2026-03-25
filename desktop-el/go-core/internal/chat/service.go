@@ -133,6 +133,12 @@ type PinMessageParams struct {
 	MessageID string `json:"message_id"`
 }
 
+type MessageReactionParams struct {
+	RoomID      string `json:"room_id"`
+	MessageID   string `json:"message_id"`
+	ReactionKey string `json:"reaction_key,omitempty"`
+}
+
 type MarkReadUntilParams struct {
 	RoomID    string `json:"room_id"`
 	MessageID string `json:"message_id"`
@@ -551,6 +557,33 @@ func (s *Service) UnpinMessage(ctx context.Context, params PinMessageParams) (ht
 	return s.client.Do(ctx, httpclient.Request{
 		Method: http.MethodDelete,
 		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/pin",
+	})
+}
+
+func (s *Service) AddReaction(ctx context.Context, params MessageReactionParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodPost,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/reactions",
+		Body: map[string]any{
+			"reaction_key": params.ReactionKey,
+		},
+	})
+}
+
+func (s *Service) RemoveReaction(ctx context.Context, params MessageReactionParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodDelete,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/reactions",
+		Query: map[string]string{
+			"reaction_key": params.ReactionKey,
+		},
+	})
+}
+
+func (s *Service) ListReactions(ctx context.Context, params MessageReactionParams) (httpclient.Response, error) {
+	return s.client.Do(ctx, httpclient.Request{
+		Method: http.MethodGet,
+		Path:   "/rooms/" + params.RoomID + "/messages/" + params.MessageID + "/reactions",
 	})
 }
 
