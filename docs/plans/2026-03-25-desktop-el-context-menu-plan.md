@@ -18,7 +18,7 @@
 - Create: `desktop-el/renderer/src/utils/chat-context-menu.ts`
 - Create: `desktop-el/renderer/src/utils/chat-context-menu.test.ts`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 覆盖：
 - `ChatApi.pinChat`
@@ -27,18 +27,18 @@
 - `ChatApi.deleteChat`
 - 会话菜单项根据 `isPinned` / `isMuted` 输出正确 label
 
-- [ ] **Step 2: 跑测试确认红灯**
+- [x] **Step 2: 跑测试确认红灯**
 
 Run: `cd desktop-el && bun test renderer/src/api/chat.test.ts renderer/src/utils/chat-context-menu.test.ts`
 Expected: FAIL
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 补齐：
 - `chat.room.pin` / `chat.room.unpin` / `chat.room.notification.update` / `chat.room.delete`
 - 会话菜单 helper（会话菜单 label、消息菜单可见项、菜单位置裁剪）
 
-- [ ] **Step 4: 跑测试确认转绿**
+- [x] **Step 4: 跑测试确认转绿**
 
 Run: `cd desktop-el && bun test renderer/src/api/chat.test.ts renderer/src/utils/chat-context-menu.test.ts`
 Expected: PASS
@@ -50,7 +50,7 @@ Expected: PASS
 - Create: `desktop-el/renderer/src/components/MessageContextMenu.vue`
 - Modify: `desktop-el/renderer/src/components/ChatPanel.vue`
 
-- [ ] **Step 1: 写最小实现**
+- [x] **Step 1: 写最小实现**
 
 接入：
 - 会话列表项右键弹出 `置顶 / 消息免打扰 / 删除对话`
@@ -58,7 +58,7 @@ Expected: PASS
 - 保持现有 message action handler 作为唯一业务实现
 - 当前会话被删除后自动清空当前上下文
 
-- [ ] **Step 2: 完整验证**
+- [x] **Step 2: 完整验证**
 
 Run: `cd desktop-el && bun test`
 Expected: PASS
@@ -66,7 +66,7 @@ Expected: PASS
 Run: `cd desktop-el && bun run build`
 Expected: PASS
 
-- [ ] **Step 3: 回填 backlog + 提交**
+- [x] **Step 3: 回填 backlog + 提交**
 
 ```bash
 git add desktop-el/renderer/src/api/chat.ts desktop-el/renderer/src/api/chat.test.ts desktop-el/renderer/src/utils/chat-context-menu.ts desktop-el/renderer/src/utils/chat-context-menu.test.ts desktop-el/renderer/src/components/ChatListContextMenu.vue desktop-el/renderer/src/components/MessageContextMenu.vue desktop-el/renderer/src/components/ChatPanel.vue docs/plans/2026-03-25-desktop-el-context-menu-plan.md docs/plans/2026-03-24-desktop-el-migration-backlog.md

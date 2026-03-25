@@ -88,7 +88,7 @@ Expected:
   - 前台启动正常
   - 收尾后无 `desktop-el` 残留进程
 
-- [ ] **Step 5: 提交并推送**
+- [x] **Step 5: 提交并推送**
 Run:
 ```bash
 git add desktop-el/go-core/internal/app/app.go desktop-el/go-core/internal/app/app_test.go desktop-el/go-core/internal/chat/service.go desktop-el/renderer/src/api/chat.ts desktop-el/renderer/src/components/ChatPanel.vue docs/plans/2026-03-24-desktop-el-chat-send-plan.md

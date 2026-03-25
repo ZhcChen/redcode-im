@@ -140,7 +140,7 @@ Expected:
 
 将 `P0-1` 中 `reaction_update` 从当前缺口里移除，并记录“消息 reaction 最小闭环”完成。
 
-- [ ] **Step 4: 提交并推送**
+- [x] **Step 4: 提交并推送**
 
 ```bash
 git add docs/plans/2026-03-25-desktop-el-message-reaction-plan.md \
@@ -155,7 +155,7 @@ git commit -m "feat(desktop-el): support message reactions"
 git push origin codex/desktop-el
 ```
 
-- [ ] **Step 5: 收尾清理桌面进程**
+- [x] **Step 5: 收尾清理桌面进程**
 
 Run:
 - `make desktop-el-down`

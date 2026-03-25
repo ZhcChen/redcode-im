@@ -90,7 +90,7 @@ Expected:
 
 将 `P0-1` 中“自动重试、本地持久化失败箱”标记为已完成；若附件跨重启失败箱仍受 `File` 持久化限制，需要在说明里明确该限制归属于更深消息管理体验，而不是主链路阻塞。
 
-- [ ] **Step 3: 提交并推送**
+- [x] **Step 3: 提交并推送**
 
 ```bash
 git add docs/plans/2026-03-25-desktop-el-auto-retry-storage-plan.md \
@@ -105,7 +105,7 @@ git commit -m "feat(desktop-el): persist retryable local messages"
 git push origin codex/desktop-el
 ```
 
-- [ ] **Step 4: 收尾清理桌面进程**
+- [x] **Step 4: 收尾清理桌面进程**
 
 Run:
 - `make desktop-el-down`

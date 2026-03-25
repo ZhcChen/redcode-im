@@ -85,7 +85,7 @@ Expected:
 
 将 `P0-1` 中“拖拽框选等更深消息管理体验仍未迁移”更新为只剩更深增强项，明确拖拽框选也已落地。
 
-- [ ] **Step 3: 提交并推送**
+- [x] **Step 3: 提交并推送**
 
 ```bash
 git add docs/plans/2026-03-25-desktop-el-message-drag-select-plan.md \
@@ -97,7 +97,7 @@ git commit -m "feat(desktop-el): support message drag select"
 git push origin codex/desktop-el
 ```
 
-- [ ] **Step 4: 收尾清理桌面进程**
+- [x] **Step 4: 收尾清理桌面进程**
 
 Run:
 - `make desktop-el-down`

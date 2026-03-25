@@ -86,7 +86,7 @@ Expected:
 
 将 `P0-1` 中“更深消息管理体验仍未迁移”更新为“拖拽框选等更深消息管理体验仍未迁移”，明确消息多选 / 批量转发 / 批量删除已完成最小闭环。
 
-- [ ] **Step 3: 提交并推送**
+- [x] **Step 3: 提交并推送**
 
 ```bash
 git add docs/plans/2026-03-25-desktop-el-message-multi-select-plan.md \
@@ -99,7 +99,7 @@ git commit -m "feat(desktop-el): support message multi select"
 git push origin codex/desktop-el
 ```
 
-- [ ] **Step 4: 收尾清理桌面进程**
+- [x] **Step 4: 收尾清理桌面进程**
 
 Run:
 - `make desktop-el-down`
