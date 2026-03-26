@@ -26,6 +26,7 @@ use crate::database::{
     storage_provider_store::StorageProviderStore,
 };
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use crate::models::{
     convert::db_message_to_api_message_info, MessageDeliveryStatus, MessageInfo,
     MessagePartPayload, MessagePartType as ApiMessagePartType,
@@ -79,6 +80,68 @@ struct PreparedMessagePart {
     duration_ms: Option<i32>,
     thumbnail_key: Option<String>,
     extra: Option<Value>,
+}
+
+#[derive(Debug)]
+enum DefaultStorageProviderLoadError {
+    App(AppError),
+    NotFound,
+    Disabled,
+    Unsupported(StorageProviderType),
+}
+
+fn message_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn message_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn message_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn message_forbidden_error(message_key: &'static str) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key(message_key)
+}
+
+fn message_rate_limit_error(message_key: &'static str) -> AppError {
+    AppError::RateLimitExceeded(String::new()).with_message_key(message_key)
+}
+
+pub(crate) fn message_cache_error(message_key: &'static str, cause: impl ToString) -> AppError {
+    let cause = cause.to_string();
+    error!(message_key, cause = %cause, "消息处理缓存错误");
+    AppError::CacheError(String::new()).with_message_key(message_key)
+}
+
+fn message_internal_error(message_key: &'static str, cause: impl ToString) -> AppError {
+    AppError::InternalError(cause.to_string()).with_message_key(message_key)
+}
+
+fn parse_message_sender_id(subject: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(subject).map_err(|_| message_invalid_token_error("auth.token_subject_invalid"))
+}
+
+fn map_message_storage_provider_load_error(error: DefaultStorageProviderLoadError) -> AppError {
+    match error {
+        DefaultStorageProviderLoadError::App(error) => error,
+        DefaultStorageProviderLoadError::NotFound => AppError::NotFound(String::new())
+            .with_message_key("message.default_storage_provider_not_found"),
+        DefaultStorageProviderLoadError::Disabled => {
+            message_validation_error("message.default_storage_provider_disabled")
+        }
+        DefaultStorageProviderLoadError::Unsupported(provider_type) => {
+            message_validation_error_with_params(
+                "message.default_storage_provider_unsupported",
+                MessageParams::from([("provider_type".to_string(), provider_type.to_string())]),
+            )
+        }
+    }
 }
 
 async fn ensure_group_message_permissions(
@@ -156,7 +219,7 @@ fn normalize_message_parts(
     }
 
     if normalized_payloads.is_empty() {
-        return Err(AppError::ValidationError("消息内容不能为空".to_string()));
+        return Err(message_validation_error("message.content_required"));
     }
 
     let mut prepared_parts: Vec<PreparedMessagePart> = Vec::new();
@@ -199,9 +262,7 @@ fn normalize_message_parts(
             } => {
                 let trimmed_key = key.trim();
                 if trimmed_key.is_empty() {
-                    return Err(AppError::ValidationError(
-                        "图片附件的 key 不能为空".to_string(),
-                    ));
+                    return Err(message_validation_error("message.attachment_key_required"));
                 }
                 attachment_types.push(MessagePartType::Image);
                 prepared_parts.push(PreparedMessagePart {
@@ -231,9 +292,7 @@ fn normalize_message_parts(
             } => {
                 let trimmed_key = key.trim();
                 if trimmed_key.is_empty() {
-                    return Err(AppError::ValidationError(
-                        "视频附件的 key 不能为空".to_string(),
-                    ));
+                    return Err(message_validation_error("message.attachment_key_required"));
                 }
                 attachment_types.push(MessagePartType::Video);
                 prepared_parts.push(PreparedMessagePart {
@@ -260,9 +319,7 @@ fn normalize_message_parts(
             } => {
                 let trimmed_key = key.trim();
                 if trimmed_key.is_empty() {
-                    return Err(AppError::ValidationError(
-                        "语音附件的 key 不能为空".to_string(),
-                    ));
+                    return Err(message_validation_error("message.attachment_key_required"));
                 }
                 audio_count += 1;
                 attachment_types.push(MessagePartType::Audio);
@@ -289,9 +346,7 @@ fn normalize_message_parts(
             } => {
                 let trimmed_key = key.trim();
                 if trimmed_key.is_empty() {
-                    return Err(AppError::ValidationError(
-                        "文件附件的 key 不能为空".to_string(),
-                    ));
+                    return Err(message_validation_error("message.attachment_key_required"));
                 }
                 attachment_types.push(MessagePartType::File);
                 prepared_parts.push(PreparedMessagePart {
@@ -314,12 +369,12 @@ fn normalize_message_parts(
     }
 
     if prepared_parts.is_empty() {
-        return Err(AppError::ValidationError("消息内容不能为空".to_string()));
+        return Err(message_validation_error("message.content_required"));
     }
 
     if audio_count > 0 && prepared_parts.len() > 1 {
-        return Err(AppError::ValidationError(
-            "语音消息暂不支持混合其他内容".to_string(),
+        return Err(message_validation_error(
+            "message.audio_mixed_content_unsupported",
         ));
     }
 
@@ -400,23 +455,90 @@ async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvid
     let store = StorageProviderStore::new(state.database.clone());
     let provider = store
         .get_default_provider()
-        .await?
-        .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?;
+        .await
+        .map_err(|error| {
+            map_message_storage_provider_load_error(DefaultStorageProviderLoadError::App(
+                error.into(),
+            ))
+        })?
+        .ok_or(DefaultStorageProviderLoadError::NotFound)
+        .map_err(map_message_storage_provider_load_error)?;
 
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "默认文件上传提供商未启用".to_string(),
+        return Err(map_message_storage_provider_load_error(
+            DefaultStorageProviderLoadError::Disabled,
         ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(AppError::ValidationError(format!(
-            "不支持的存储提供商类型: {:?}",
-            provider.provider_type
-        )));
+        return Err(map_message_storage_provider_load_error(
+            DefaultStorageProviderLoadError::Unsupported(provider.provider_type),
+        ));
     }
 
     Ok(provider)
+}
+
+async fn enforce_message_send_rate_limit(
+    state: &AppState,
+    sender_id: Uuid,
+    room_id: Uuid,
+) -> Result<(), AppError> {
+    let mut conn = state
+        .redis
+        .get_session_client()
+        .get_multiplexed_async_connection()
+        .await
+        .map_err(|error| message_cache_error("message.send_rate_limit_cache_failed", error))?;
+
+    let key = format!("rl:send:{}:{}", sender_id, room_id);
+    let count: i64 = redis::cmd("INCR")
+        .arg(&key)
+        .query_async(&mut conn)
+        .await
+        .map_err(|error| message_cache_error("message.send_rate_limit_cache_failed", error))?;
+
+    if count == 1 {
+        let _: () = redis::cmd("EXPIRE")
+            .arg(&key)
+            .arg(10)
+            .query_async(&mut conn)
+            .await
+            .map_err(|error| message_cache_error("message.send_rate_limit_cache_failed", error))?;
+    }
+
+    if count > 30 {
+        return Err(message_rate_limit_error("message.send_rate_limit_exceeded"));
+    }
+
+    Ok(())
+}
+
+async fn validate_quoted_message(
+    store: &MessageStore<'_>,
+    room_id: Uuid,
+    quoted_message_id: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    let Some(quoted_id) = quoted_message_id else {
+        return Ok(None);
+    };
+
+    let quoted = store
+        .get_message(quoted_id)
+        .await?
+        .ok_or_else(|| message_validation_error("message.quoted_message_not_found"))?;
+
+    if quoted.room_id != room_id {
+        return Err(message_validation_error(
+            "message.quoted_message_room_mismatch",
+        ));
+    }
+
+    if quoted.deleted_at.is_some() {
+        return Err(message_validation_error("message.quoted_message_deleted"));
+    }
+
+    Ok(Some(quoted_id))
 }
 
 fn build_message_attachment_key(
@@ -514,6 +636,119 @@ mod message_attachment_key_tests {
     }
 }
 
+#[cfg(test)]
+mod message_i18n_tests {
+    use super::{
+        message_cache_error, message_internal_error, normalize_message_parts,
+        parse_message_sender_id,
+    };
+    use crate::models::MessagePartPayload;
+    use axum::{body::Body, response::IntoResponse};
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+
+    #[test]
+    fn normalize_message_parts_empty_content_returns_stable_message_key() {
+        let error = match normalize_message_parts(Some("   ".to_string()), vec![]) {
+            Ok(_) => panic!("empty message should fail"),
+            Err(error) => error,
+        };
+
+        assert_eq!(error.response_message_key(), "message.content_required");
+        assert_eq!(error.localized_message(), "消息内容不能为空");
+    }
+
+    #[test]
+    fn normalize_message_parts_image_without_key_returns_stable_message_key() {
+        let error = match normalize_message_parts(
+            None,
+            vec![MessagePartPayload::Image {
+                key: "   ".to_string(),
+                name: None,
+                mime: None,
+                size: None,
+                width: None,
+                height: None,
+                thumbnail_key: None,
+            }],
+        ) {
+            Ok(_) => panic!("image key should be required"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.attachment_key_required"
+        );
+        assert_eq!(error.localized_message(), "附件 key 不能为空");
+    }
+
+    #[test]
+    fn normalize_message_parts_audio_cannot_mix_other_parts() {
+        let error = match normalize_message_parts(
+            Some("hello".to_string()),
+            vec![MessagePartPayload::Audio {
+                key: "messages/room/audios_20251213/abcdef01.m4a".to_string(),
+                name: None,
+                mime: None,
+                size: None,
+                duration_ms: Some(1000),
+            }],
+        ) {
+            Ok(_) => panic!("audio mixed with text should fail"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.audio_mixed_content_unsupported"
+        );
+        assert_eq!(error.localized_message(), "语音消息暂不支持混合其他内容");
+    }
+
+    #[test]
+    fn message_cache_error_preserves_cause_for_observability() {
+        let error =
+            message_cache_error("message.send_rate_limit_cache_failed", "redis incr failed");
+
+        assert_eq!(error.message_key(), "common.cache_error");
+        assert_eq!(
+            error.response_message_key(),
+            "message.send_rate_limit_cache_failed"
+        );
+        assert_eq!(error.details(), None);
+    }
+
+    #[test]
+    fn parse_message_sender_id_reuses_auth_token_subject_invalid_key() {
+        let error = parse_message_sender_id("not-a-uuid").expect_err("should fail");
+
+        assert_eq!(error.message_key(), "auth.invalid_token");
+        assert_eq!(error.response_message_key(), "auth.token_subject_invalid");
+        assert_eq!(error.localized_message(), "令牌中的用户信息无效，请重新登录");
+    }
+
+    #[tokio::test]
+    async fn message_internal_error_masks_details_and_keeps_stable_protocol_key() {
+        let error = message_internal_error("message.new_message_load_failed", "db timeout");
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 50301);
+        assert_eq!(body["message_key"], "message.new_message_load_failed");
+        assert_eq!(body["message"], "新消息加载失败，请稍后重试");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    async fn read_body_json(body: Body) -> Value {
+        let bytes = body
+            .collect()
+            .await
+            .expect("collect response body")
+            .to_bytes();
+        serde_json::from_slice(&bytes).expect("parse json body")
+    }
+}
+
 fn infer_attachment_extension(
     filename: Option<&str>,
     content_type: Option<&str>,
@@ -580,53 +815,22 @@ pub async fn send_message(
     Extension(claims): Extension<crate::models::Claims>,
     Json(payload): Json<SendMessagePayload>,
 ) -> Result<Json<SendMessageResponse>, AppError> {
-    let sender_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let sender_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
 
     // 确认成员资格
     let in_room = store.user_in_room(room_id, sender_id).await?;
     if !in_room {
-        return Err(AppError::Forbidden(format!(
-            "User {} is not a member of room {}",
-            sender_id, room_id
-        )));
+        return Err(message_forbidden_error(
+            "message.send_room_membership_required",
+        ));
     }
 
     ensure_group_message_permissions(&state, room_id, sender_id).await?;
 
     // 简单速率限制：用户在房间内每10秒最多发送30条
-    {
-        let mut conn = state
-            .redis
-            .get_session_client()
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
-
-        let key = format!("rl:send:{}:{}", sender_id, room_id);
-        let count: i64 = redis::cmd("INCR")
-            .arg(&key)
-            .query_async(&mut conn)
-            .await
-            .map_err(|_| AppError::CacheError("Redis 自增失败".to_string()))?;
-
-        if count == 1 {
-            let _: () = redis::cmd("EXPIRE")
-                .arg(&key)
-                .arg(10)
-                .query_async(&mut conn)
-                .await
-                .map_err(|_| AppError::CacheError("Redis 设置过期时间失败".to_string()))?;
-        }
-
-        if count > 30 {
-            return Err(AppError::RateLimitExceeded(
-                "消息发送过于频繁：每10秒最多发送30条消息".to_string(),
-            ));
-        }
-    }
+    enforce_message_send_rate_limit(&state, sender_id, room_id).await?;
 
     let SendMessagePayload {
         content,
@@ -649,10 +853,13 @@ pub async fn send_message(
         if policy.max_attachments_per_message >= 0
             && attachment_count > policy.max_attachments_per_message
         {
-            return Err(AppError::ValidationError(format!(
-                "单条消息最多可发送 {} 个附件",
-                policy.max_attachments_per_message
-            )));
+            return Err(message_validation_error_with_params(
+                "message.attachments_limit_exceeded",
+                MessageParams::from([(
+                    "max".to_string(),
+                    policy.max_attachments_per_message.to_string(),
+                )]),
+            ));
         }
 
         let mut total_size: i64 = 0;
@@ -675,17 +882,17 @@ pub async fn send_message(
                         .iter()
                         .any(|v| v.eq_ignore_ascii_case(mime))
                     {
-                        return Err(AppError::ValidationError(format!(
-                            "不支持的文件类型: {}",
-                            mime
-                        )));
+                        return Err(message_validation_error_with_params(
+                            "message.attachment_mime_unsupported",
+                            MessageParams::from([("mime".to_string(), mime.to_string())]),
+                        ));
                     }
 
                     if !policy.is_mime_allowed_for_part_type(part_type_key, mime) {
-                        return Err(AppError::ValidationError(format!(
-                            "不支持的文件类型: {}",
-                            mime
-                        )));
+                        return Err(message_validation_error_with_params(
+                            "message.attachment_mime_unsupported",
+                            MessageParams::from([("mime".to_string(), mime.to_string())]),
+                        ));
                     }
                 }
             }
@@ -695,10 +902,13 @@ pub async fn send_message(
                     total_size = total_size.saturating_add(size);
                     if let Some(max_bytes) = policy.max_size_bytes_for_part_type(part_type_key) {
                         if size as u64 > max_bytes as u64 {
-                            return Err(AppError::ValidationError(format!(
-                                "文件大小超出限制，最大允许{}MB",
-                                max_bytes / 1024 / 1024
-                            )));
+                            return Err(message_validation_error_with_params(
+                                "message.attachment_size_exceeded",
+                                MessageParams::from([(
+                                    "max_mb".to_string(),
+                                    (max_bytes / 1024 / 1024).to_string(),
+                                )]),
+                            ));
                         }
                     }
                 }
@@ -708,10 +918,13 @@ pub async fn send_message(
         if policy.max_total_size_mb > 0 {
             let max_total_bytes = (policy.max_total_size_mb as i64) * 1024 * 1024;
             if total_size > max_total_bytes {
-                return Err(AppError::ValidationError(format!(
-                    "附件总大小超出限制，最大允许{}MB",
-                    policy.max_total_size_mb
-                )));
+                return Err(message_validation_error_with_params(
+                    "message.attachments_total_size_exceeded",
+                    MessageParams::from([(
+                        "max_mb".to_string(),
+                        policy.max_total_size_mb.to_string(),
+                    )]),
+                ));
             }
         }
     }
@@ -740,16 +953,12 @@ pub async fn send_message(
         }
         if let Some(key) = &part.attachment_key {
             if !is_valid_message_attachment_object_key(key) {
-                return Err(AppError::ValidationError(
-                    "附件 key 不合法，请重新获取上传签名".to_string(),
-                ));
+                return Err(message_validation_error("message.attachment_key_invalid"));
             }
         }
         if let Some(key) = &part.thumbnail_key {
             if !is_valid_message_attachment_object_key(key) {
-                return Err(AppError::ValidationError(
-                    "缩略图 key 不合法，请重新获取上传签名".to_string(),
-                ));
+                return Err(message_validation_error("message.thumbnail_key_invalid"));
             }
         }
     }
@@ -806,26 +1015,7 @@ pub async fn send_message(
         }
     }
 
-    let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
-        let quoted = store
-            .get_message(quoted_id)
-            .await?
-            .ok_or_else(|| AppError::ValidationError("引用的消息不存在".to_string()))?;
-
-        if quoted.room_id != room_id {
-            return Err(AppError::ValidationError(
-                "引用消息不属于当前房间".to_string(),
-            ));
-        }
-
-        if quoted.deleted_at.is_some() {
-            return Err(AppError::ValidationError("引用的消息已被删除".to_string()));
-        }
-
-        Some(quoted_id)
-    } else {
-        None
-    };
+    let quoted_message_id = validate_quoted_message(&store, room_id, quoted_message_id).await?;
 
     let created = store
         .create_message_with_parts(
@@ -841,7 +1031,22 @@ pub async fn send_message(
     let enriched = store
         .get_message_with_sender(created.id)
         .await?
-        .ok_or_else(|| AppError::InternalError("新消息加载失败".to_string()))?;
+        .ok_or_else(|| {
+            error!(
+                message_key = "message.new_message_load_failed",
+                room_id = %room_id,
+                sender_id = %sender_id,
+                message_id = %created.id,
+                "发送消息后重新加载消息失败"
+            );
+            message_internal_error(
+                "message.new_message_load_failed",
+                format!(
+                    "created message reload failed: room_id={}, sender_id={}, message_id={}",
+                    room_id, sender_id, created.id
+                ),
+            )
+        })?;
 
     let mut part_query_ids = vec![created.id];
     if let Some(qid) = enriched.quoted_message_id {
@@ -873,53 +1078,22 @@ pub async fn send_encrypted_message(
     Extension(claims): Extension<crate::models::Claims>,
     Json(payload): Json<SendEncryptedMessagePayload>,
 ) -> Result<Json<SendMessageResponse>, AppError> {
-    let sender_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let sender_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
 
     // 确认成员资格
     let in_room = store.user_in_room(room_id, sender_id).await?;
     if !in_room {
-        return Err(AppError::Forbidden(format!(
-            "User {} is not a member of room {}",
-            sender_id, room_id
-        )));
+        return Err(message_forbidden_error(
+            "message.send_room_membership_required",
+        ));
     }
 
     ensure_group_message_permissions(&state, room_id, sender_id).await?;
 
     // 简单速率限制：用户在房间内每10秒最多发送30条
-    {
-        let mut conn = state
-            .redis
-            .get_session_client()
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
-
-        let key = format!("rl:send:{}:{}", sender_id, room_id);
-        let count: i64 = redis::cmd("INCR")
-            .arg(&key)
-            .query_async(&mut conn)
-            .await
-            .map_err(|_| AppError::CacheError("Redis 自增失败".to_string()))?;
-
-        if count == 1 {
-            let _: () = redis::cmd("EXPIRE")
-                .arg(&key)
-                .arg(10)
-                .query_async(&mut conn)
-                .await
-                .map_err(|_| AppError::CacheError("Redis 设置过期时间失败".to_string()))?;
-        }
-
-        if count > 30 {
-            return Err(AppError::RateLimitExceeded(
-                "消息发送过于频繁：每10秒最多发送30条消息".to_string(),
-            ));
-        }
-    }
+    enforce_message_send_rate_limit(&state, sender_id, room_id).await?;
 
     let SendEncryptedMessagePayload {
         content_summary,
@@ -940,33 +1114,14 @@ pub async fn send_encrypted_message(
 
     let encrypted_content = BASE64_STANDARD
         .decode(encrypted_content.trim())
-        .map_err(|_| AppError::ValidationError("encrypted_content 不是有效的 Base64".to_string()))?;
+        .map_err(|_| message_validation_error("message.encrypted_content_base64_invalid"))?;
     if encrypted_content.is_empty() {
-        return Err(AppError::ValidationError(
-            "encrypted_content 不能为空".to_string(),
+        return Err(message_validation_error(
+            "message.encrypted_content_required",
         ));
     }
 
-    let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
-        let quoted = store
-            .get_message(quoted_id)
-            .await?
-            .ok_or_else(|| AppError::ValidationError("引用的消息不存在".to_string()))?;
-
-        if quoted.room_id != room_id {
-            return Err(AppError::ValidationError(
-                "引用消息不属于当前房间".to_string(),
-            ));
-        }
-
-        if quoted.deleted_at.is_some() {
-            return Err(AppError::ValidationError("引用的消息已被删除".to_string()));
-        }
-
-        Some(quoted_id)
-    } else {
-        None
-    };
+    let quoted_message_id = validate_quoted_message(&store, room_id, quoted_message_id).await?;
 
     // 为兼容旧客户端/统一渲染逻辑，这里仍保存一个占位文本 part
     let db_parts = [NewMessagePart {
@@ -1000,7 +1155,22 @@ pub async fn send_encrypted_message(
     let enriched = store
         .get_message_with_sender(created.id)
         .await?
-        .ok_or_else(|| AppError::InternalError("新消息加载失败".to_string()))?;
+        .ok_or_else(|| {
+            error!(
+                message_key = "message.new_message_load_failed",
+                room_id = %room_id,
+                sender_id = %sender_id,
+                message_id = %created.id,
+                "发送加密消息后重新加载消息失败"
+            );
+            message_internal_error(
+                "message.new_message_load_failed",
+                format!(
+                    "created encrypted message reload failed: room_id={}, sender_id={}, message_id={}",
+                    room_id, sender_id, created.id
+                ),
+            )
+        })?;
 
     let mut part_query_ids = vec![created.id];
     if let Some(qid) = enriched.quoted_message_id {
@@ -1032,14 +1202,13 @@ pub async fn forward_message(
     Extension(claims): Extension<crate::models::Claims>,
     Json(payload): Json<ForwardMessageRequest>,
 ) -> Result<Json<SendMessageResponse>, AppError> {
-    let sender_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let sender_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, sender_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在目标房间，无法转发消息".to_string(),
+        return Err(message_forbidden_error(
+            "message.forward_target_room_forbidden",
         ));
     }
 
@@ -1048,21 +1217,23 @@ pub async fn forward_message(
     let original = store
         .get_message_with_sender(payload.original_message_id)
         .await?
-        .ok_or_else(|| AppError::ValidationError("原消息不存在或已被删除".to_string()))?;
+        .ok_or_else(|| message_validation_error("message.original_message_not_found_or_deleted"))?;
 
     if original.deleted_at.is_some() {
-        return Err(AppError::ValidationError(
-            "原消息已删除，无法转发".to_string(),
-        ));
+        return Err(message_validation_error("message.original_message_deleted"));
     }
 
     if !store.user_in_room(original.room_id, sender_id).await? {
-        return Err(AppError::Forbidden("用户无权转发该消息".to_string()));
+        return Err(message_forbidden_error(
+            "message.original_message_forward_forbidden",
+        ));
     }
 
     // 禁止转发系统消息
     if original.message_type == MessageType::System {
-        return Err(AppError::ValidationError("系统消息不支持转发".to_string()));
+        return Err(message_validation_error(
+            "message.system_message_forward_unsupported",
+        ));
     }
 
     // 获取原消息的 parts
@@ -1130,7 +1301,23 @@ pub async fn forward_message(
     let enriched = store
         .get_message_with_sender(created.id)
         .await?
-        .ok_or_else(|| AppError::InternalError("转发消息加载失败".to_string()))?;
+        .ok_or_else(|| {
+            error!(
+                message_key = "message.forward_message_load_failed",
+                room_id = %room_id,
+                sender_id = %sender_id,
+                message_id = %created.id,
+                original_message_id = %original.id,
+                "转发消息后重新加载消息失败"
+            );
+            message_internal_error(
+                "message.forward_message_load_failed",
+                format!(
+                    "forwarded message reload failed: room_id={}, sender_id={}, message_id={}, original_message_id={}",
+                    room_id, sender_id, created.id, original.id
+                ),
+            )
+        })?;
 
     let mut part_ids = vec![enriched.id];
     if let Some(qid) = enriched.quoted_message_id {

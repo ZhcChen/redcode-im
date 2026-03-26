@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 use crate::error::AppError;
+use crate::handlers::message::message_cache_error;
 use crate::i18n::{
     catalog::Catalog,
     locale::{negotiate_locale, DEFAULT_LOCALE},
@@ -155,6 +156,24 @@ fn i18n_message_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "message.search_query_required", None),
         "Search query cannot be empty."
     );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "message.content_required", None),
+        "消息内容不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.content_required", None),
+        "Message content cannot be empty."
+    );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "message.send_rate_limit_cache_failed", None),
+        "消息发送限流暂时不可用，请稍后重试"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.send_rate_limit_cache_failed", None),
+        "Message send rate limiting is temporarily unavailable. Please try again later."
+    );
 }
 
 #[test]
@@ -176,6 +195,24 @@ fn i18n_message_catalog_interpolates_params() {
     assert_eq!(
         localizer.localize("en-US", "message.search_query_too_long", Some(&params)),
         "Search query is too long. Maximum allowed is 200 characters."
+    );
+
+    let provider_params = BTreeMap::from([("provider_type".to_string(), "minio".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.default_storage_provider_unsupported",
+            Some(&provider_params)
+        ),
+        "不支持的默认存储提供商类型：minio"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "message.default_storage_provider_unsupported",
+            Some(&provider_params)
+        ),
+        "Unsupported default storage provider type: minio."
     );
 }
 
@@ -248,6 +285,18 @@ async fn i18n_error_response_rate_limit_keys_are_merged() {
     .await;
     assert_eq!(too_many["message_key"], "common.too_many_requests");
     assert_eq!(rate_limit["message_key"], "common.too_many_requests");
+}
+
+#[tokio::test]
+async fn i18n_error_response_message_cache_override_keeps_protocol_and_masks_details() {
+    let error = message_cache_error("message.send_rate_limit_cache_failed", "redis incr failed");
+    let body = read_body_json(error.into_response().into_body()).await;
+
+    assert_eq!(body["code"], 50201);
+    assert_eq!(body["message_key"], "message.send_rate_limit_cache_failed");
+    assert_eq!(body["message"], "消息发送限流暂时不可用，请稍后重试");
+    assert_eq!(body["message_params"], Value::Null);
+    assert_eq!(body["details"], Value::Null);
 }
 
 #[tokio::test]
