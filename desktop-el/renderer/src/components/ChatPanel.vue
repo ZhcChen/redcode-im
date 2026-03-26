@@ -33,6 +33,7 @@ import {
 } from "@/utils/chat-attachment-preview";
 import {
   clampImagePreviewScale,
+  getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
   IMAGE_PREVIEW_SCALE_STEP,
 } from "@/utils/chat-media-preview";
@@ -275,6 +276,7 @@ const mediaPreview = ref<{
   meta: string;
 } | null>(null);
 const mediaPreviewImageScale = ref(1);
+const mediaPreviewImageRotation = ref(0);
 const chatContextMenuTarget = ref<ChatSummary | null>(null);
 const chatContextMenuPosition = ref({ x: 0, y: 0 });
 const messageContextMenuTarget = ref<ChatMessage | null>(null);
@@ -358,7 +360,7 @@ const mediaPreviewImageScaleLabel = computed(
   () => `${Math.round(mediaPreviewImageScale.value * 100)}%`,
 );
 const mediaPreviewImageStyle = computed(() => ({
-  transform: `scale(${mediaPreviewImageScale.value})`,
+  transform: `scale(${mediaPreviewImageScale.value}) rotate(${mediaPreviewImageRotation.value}deg)`,
 }));
 const isSelectedGroupChat = computed(
   () => selectedChat.value?.roomType === "group",
@@ -5502,6 +5504,7 @@ const handleOpenAttachmentPreview = async (
     return;
   }
 
+  mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
   mediaPreview.value = {
     type: part.partType,
@@ -5512,8 +5515,23 @@ const handleOpenAttachmentPreview = async (
 };
 
 const closeMediaPreview = () => {
+  mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
   mediaPreview.value = null;
+};
+
+const rotateMediaPreviewImageClockwise = () => {
+  mediaPreviewImageRotation.value = getNextImagePreviewRotation(
+    mediaPreviewImageRotation.value,
+    "clockwise",
+  );
+};
+
+const rotateMediaPreviewImageCounterclockwise = () => {
+  mediaPreviewImageRotation.value = getNextImagePreviewRotation(
+    mediaPreviewImageRotation.value,
+    "counterclockwise",
+  );
 };
 
 const zoomInMediaPreviewImage = () => {
@@ -5528,8 +5546,9 @@ const zoomOutMediaPreviewImage = () => {
   );
 };
 
-const resetMediaPreviewImageScale = () => {
+const resetMediaPreviewImageTransform = () => {
   mediaPreviewImageScale.value = 1;
+  mediaPreviewImageRotation.value = 0;
 };
 
 const handleMediaPreviewImageWheel = (event: WheelEvent) => {
@@ -7345,6 +7364,20 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="media-preview__action"
+                @click="rotateMediaPreviewImageCounterclockwise"
+              >
+                左转
+              </button>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="rotateMediaPreviewImageClockwise"
+              >
+                右转
+              </button>
+              <button
+                type="button"
+                class="media-preview__action"
                 @click="zoomOutMediaPreviewImage"
               >
                 缩小
@@ -7353,7 +7386,7 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="media-preview__action"
-                @click="resetMediaPreviewImageScale"
+                @click="resetMediaPreviewImageTransform"
               >
                 重置
               </button>
