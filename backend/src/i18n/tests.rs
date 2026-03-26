@@ -97,7 +97,16 @@ async fn i18n_error_response_suppresses_details_for_internal_error() {
     let response = AppError::InternalError("sensitive stack".to_string()).into_response();
     let body = read_body_json(response.into_body()).await;
     assert_eq!(body["message_key"], "common.internal_error");
-    assert_eq!(body["message"], "sensitive stack");
+    assert_eq!(body["message"], "服务器内部错误");
+    assert_eq!(body["details"], Value::Null);
+}
+
+#[tokio::test]
+async fn i18n_error_response_suppresses_sensitive_payload_for_service_unavailable() {
+    let response = AppError::ServiceUnavailable("upstream raw body".to_string()).into_response();
+    let body = read_body_json(response.into_body()).await;
+    assert_eq!(body["message_key"], "common.service_unavailable");
+    assert_eq!(body["message"], "服务不可用");
     assert_eq!(body["details"], Value::Null);
 }
 

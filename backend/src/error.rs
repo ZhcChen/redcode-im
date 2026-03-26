@@ -262,12 +262,15 @@ impl AppError {
     }
 
     /// 获取用于响应的最终 message：
-    /// - 有 payload 且非空时保留 payload
-    /// - 否则使用默认 locale (zh-CN) 进行本地化
-    /// - 如果 key 缺失则回退为 message_key
+    /// - 敏感错误（InternalError/ServiceUnavailable）不透传 payload
+    /// - 非敏感错误有 payload 且非空时保留 payload
+    /// - 其他情况使用默认 locale (zh-CN) 本地化
+    /// - 若 key 缺失则回退为 message_key
     pub fn localized_message(&self) -> String {
-        if let Some(payload) = self.payload_message() {
-            return payload.to_string();
+        if !self.should_mask_payload_for_client_message() {
+            if let Some(payload) = self.payload_message() {
+                return payload.to_string();
+            }
         }
 
         let localizer = default_localizer();
@@ -276,6 +279,13 @@ impl AppError {
             localizer.fallback_locale(),
             self.message_key(),
             params.as_ref(),
+        )
+    }
+
+    fn should_mask_payload_for_client_message(&self) -> bool {
+        matches!(
+            self,
+            AppError::InternalError(_) | AppError::ServiceUnavailable(_)
         )
     }
 
@@ -314,6 +324,8 @@ impl AppError {
             AppError::DatabaseError(_) => None,
             // 内部错误不暴露细节
             AppError::InternalError(_) => None,
+            // 服务不可用不暴露底层上下文
+            AppError::ServiceUnavailable(_) => None,
             // 其他错误仅在 payload 非空时暴露细节
             _ => self.payload_message().map(str::to_string),
         }
