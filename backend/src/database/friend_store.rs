@@ -201,7 +201,7 @@ impl FriendStore {
         }
 
         if request.status != FriendRequestStatus::Pending {
-            return Err(friend_validation_error("friend.request_already_processed"));
+            return Err(friend_request_already_processed_error());
         }
 
         let updated = query_as::<_, FriendRequest>(
@@ -422,6 +422,10 @@ fn friend_forbidden_error(message_key: &'static str) -> AppError {
     AppError::Forbidden(String::new()).with_message_key(message_key)
 }
 
+fn friend_request_already_processed_error() -> AppError {
+    friend_already_exists_error("friend.request_already_processed")
+}
+
 /// 好友请求方向
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FriendRequestDirection {
@@ -434,5 +438,22 @@ fn sort_user_pair(a: Uuid, b: Uuid) -> (Uuid, Uuid) {
         (a, b)
     } else {
         (b, a)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_request_already_processed_error_uses_conflict_semantics() {
+        let error = friend_request_already_processed_error();
+        assert_eq!(error.error_code(), 40901);
+        assert_eq!(error.message_key(), "common.already_exists");
+        assert_eq!(
+            error.response_message_key(),
+            "friend.request_already_processed"
+        );
+        assert_eq!(error.message_params(), None);
     }
 }

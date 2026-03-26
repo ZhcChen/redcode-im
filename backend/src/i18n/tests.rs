@@ -185,6 +185,27 @@ async fn i18n_error_response_rate_limit_keys_are_merged() {
     assert_eq!(rate_limit["message_key"], "common.too_many_requests");
 }
 
+#[tokio::test]
+async fn i18n_error_response_friend_request_not_found_uses_params_and_localized_message() {
+    let params = BTreeMap::from([(
+        "request_id".to_string(),
+        "550e8400-e29b-41d4-a716-446655440000".to_string(),
+    )]);
+    let response = AppError::NotFound(String::new())
+        .with_message_key_and_params("friend.request_not_found", Some(params.clone()))
+        .into_response();
+    let body = read_body_json(response.into_body()).await;
+
+    assert_eq!(body["code"], 40401);
+    assert_eq!(body["message_key"], "friend.request_not_found");
+    assert_eq!(
+        body["message"],
+        "好友请求 550e8400-e29b-41d4-a716-446655440000 不存在"
+    );
+    assert_eq!(body["message_params"]["request_id"], params["request_id"]);
+    assert_eq!(body["details"], Value::Null);
+}
+
 async fn read_body_json(body: Body) -> Value {
     let bytes = body
         .collect()
