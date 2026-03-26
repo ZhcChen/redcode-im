@@ -246,10 +246,10 @@ impl AppError {
         }
     }
 
-    /// 获取稳定消息 key
-    pub fn message_key(&self) -> &str {
+    /// 获取稳定消息 key（兼容旧接口）
+    pub fn message_key(&self) -> &'static str {
         match self {
-            AppError::Localized { message_key, .. } => message_key.as_str(),
+            AppError::Localized { source, .. } => source.message_key(),
             AppError::DatabaseError(_) => "common.database_error",
             AppError::Unauthorized(_) => "auth.unauthorized",
             AppError::InvalidToken(_) => "auth.invalid_token",
@@ -268,6 +268,14 @@ impl AppError {
             AppError::CacheError(_) => "common.cache_error",
             AppError::InternalError(_) => "common.internal_error",
             AppError::ServiceUnavailable(_) => "common.service_unavailable",
+        }
+    }
+
+    /// 获取响应层使用的实际消息 key
+    pub fn response_message_key(&self) -> &str {
+        match self {
+            AppError::Localized { message_key, .. } => message_key.as_str(),
+            _ => self.message_key(),
         }
     }
 
@@ -316,7 +324,7 @@ impl AppError {
         let params = self.message_params();
         let locale =
             current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
-        localizer.localize(&locale, self.message_key(), params.as_ref())
+        localizer.localize(&locale, self.response_message_key(), params.as_ref())
     }
 
     fn should_mask_payload_for_client_message(&self) -> bool {
@@ -412,7 +420,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status_code = self.status_code();
         let error_code = self.error_code();
-        let message_key = self.message_key().to_string();
+        let message_key = self.response_message_key().to_string();
         let message = self.localized_message();
         let message_params = self.message_params();
         let details = self.details();
@@ -524,7 +532,8 @@ mod tests {
             .with_message_key("auth.refresh_token_required");
         assert_eq!(error.status_code(), StatusCode::BAD_REQUEST);
         assert_eq!(error.error_code(), 42201);
-        assert_eq!(error.message_key(), "auth.refresh_token_required");
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "auth.refresh_token_required");
     }
 
     #[tokio::test]

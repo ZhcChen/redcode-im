@@ -72,6 +72,19 @@ fn i18n_auth_catalog_interpolates_params() {
     assert_eq!(message, "用户名长度必须在 3 到 20 个字符之间");
 }
 
+#[test]
+fn i18n_auth_catalog_loads_new_auth_keys() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "auth.username_already_exists", None),
+        "用户名已被使用"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "auth.admin_password_update_failed", None),
+        "Failed to update admin password. Please try again later."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();

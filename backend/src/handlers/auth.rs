@@ -123,6 +123,18 @@ fn auth_forbidden_error(message_key: &'static str) -> AppError {
     AppError::Forbidden(String::new()).with_message_key(message_key)
 }
 
+fn auth_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn auth_already_exists_error(message_key: &'static str) -> AppError {
+    AppError::AlreadyExists(String::new()).with_message_key(message_key)
+}
+
+fn auth_cache_error(message_key: &'static str) -> AppError {
+    AppError::CacheError(String::new()).with_message_key(message_key)
+}
+
 fn auth_internal_error(message_key: &'static str) -> AppError {
     AppError::InternalError(String::new()).with_message_key(message_key)
 }
@@ -294,19 +306,19 @@ async fn generate_and_store_refresh_token(
         is_admin,
     };
     let value = serde_json::to_string(&payload)
-        .map_err(|_| AppError::InternalError("刷新令牌序列化失败".to_string()))?;
+        .map_err(|_| auth_internal_error("auth.generate_refresh_token_failed"))?;
 
     let mut conn = state
         .redis
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     // 设置 30 天 TTL，实现“30 天未使用自动过期”
     conn.set_ex::<_, _, ()>(&key, value, REFRESH_TOKEN_TTL_SECONDS as u64)
         .await
-        .map_err(|_| AppError::CacheError("刷新令牌写入失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     Ok(refresh_token)
 }
@@ -380,17 +392,14 @@ pub async fn register(
 
     // 唯一性检查：用户名必须唯一
     if store.username_exists(&payload.username).await? {
-        return Err(AppError::AlreadyExists(format!(
-            "用户名 {} 已被使用",
-            payload.username
-        )));
+        return Err(auth_already_exists_error("auth.username_already_exists"));
     }
 
     // 检查邮箱是否已存在（虽然自动生成，但需要检查）
     if store.email_exists(&email).await? {
-        return Err(AppError::AlreadyExists(format!(
-            "该用户名对应的邮箱已被使用",
-        )));
+        return Err(auth_already_exists_error(
+            "auth.registration_email_already_exists",
+        ));
     }
 
     // 创建请求，使用自动生成的邮箱
@@ -605,12 +614,12 @@ pub async fn refresh_token(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     let stored: Option<String> = conn
         .get(&key)
         .await
-        .map_err(|_| AppError::CacheError("获取刷新令牌失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     let stored = match stored {
         Some(v) => v,
@@ -656,7 +665,7 @@ pub async fn refresh_token(
     // 续期刷新令牌 TTL，实现滑动过期
     conn.expire::<_, ()>(&key, REFRESH_TOKEN_TTL_SECONDS as i64)
         .await
-        .map_err(|_| AppError::CacheError("刷新令牌续期失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     let response = LoginResponse {
         token: new_token,
@@ -718,11 +727,11 @@ pub async fn send_login_sms(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     conn.set_ex::<_, _, ()>(&key, code.to_string(), 300)
         .await
-        .map_err(|_| AppError::CacheError("Redis 设置失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     info!("发送登录验证码 {} -> {}", phone, code);
 
@@ -759,12 +768,12 @@ pub async fn login_with_sms(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     let stored: Option<String> = conn
         .get(&key)
         .await
-        .map_err(|_| AppError::CacheError("Redis 获取失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     let redis_matched = stored
         .as_ref()
@@ -833,7 +842,7 @@ pub async fn login_with_sms(
         let _: () = conn
             .del(&key)
             .await
-            .map_err(|_| AppError::CacheError("Redis 删除失败".to_string()))?;
+            .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
     }
 
     let claims = Claims {
@@ -894,12 +903,12 @@ pub async fn reset_password_with_sms(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     let stored: Option<String> = conn
         .get(&key)
         .await
-        .map_err(|_| AppError::CacheError("Redis 获取失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     let redis_matched = stored
         .as_ref()
@@ -919,16 +928,16 @@ pub async fn reset_password_with_sms(
     let _: () = conn
         .del(&key)
         .await
-        .map_err(|_| AppError::CacheError("Redis 删除失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.sms_service_unavailable"))?;
 
     let user_store = UserStore::new(state.database.clone());
     let db_user = user_store
         .find_by_username(phone)
         .await?
-        .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?;
+        .ok_or_else(|| auth_not_found_error("auth.user_not_found"))?;
 
     let password_hash = hash_password(new_password)
-        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+        .map_err(|_| auth_internal_error("auth.password_hash_failed"))?;
 
     user_store
         .update_password(&db_user.id, &password_hash)
@@ -991,14 +1000,14 @@ pub async fn get_current_user(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<UserInfo>, AppError> {
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| auth_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
 
     let db_user = store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
+        .ok_or_else(|| auth_not_found_error("auth.user_not_found"))?;
 
     Ok(Json(db_user_to_api_user_info(&db_user)))
 }
@@ -1134,14 +1143,14 @@ pub async fn get_current_admin_user(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<admin::AdminUserInfo>, AppError> {
     let admin_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+        .map_err(|_| auth_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = admin::AdminUserStore::new(state.database.clone());
 
     let db_admin_user = store
         .find_by_id(&admin_user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+        .ok_or_else(|| auth_not_found_error("auth.admin_user_not_found"))?;
 
     // 转换为 API 层响应
     let admin_user_info = admin::AdminUserInfo {
@@ -1180,12 +1189,12 @@ pub async fn admin_refresh_token(
         .get_cache_client()
         .get_multiplexed_async_connection()
         .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     let stored: Option<String> = conn
         .get(&key)
         .await
-        .map_err(|_| AppError::CacheError("获取刷新令牌失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     let stored = match stored {
         Some(v) => v,
@@ -1232,7 +1241,7 @@ pub async fn admin_refresh_token(
     // 续期刷新令牌 TTL
     conn.expire::<_, ()>(&key, REFRESH_TOKEN_TTL_SECONDS as i64)
         .await
-        .map_err(|_| AppError::CacheError("刷新令牌续期失败".to_string()))?;
+        .map_err(|_| auth_cache_error("auth.refresh_token_service_unavailable"))?;
 
     let response = LoginResponse {
         token: new_token,
@@ -1277,7 +1286,7 @@ pub async fn update_current_admin_user(
     Json(payload): Json<UpdateAdminUserRequest>,
 ) -> Result<Json<UpdateAdminUserResponse>, AppError> {
     let admin_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+        .map_err(|_| auth_invalid_token_error("auth.token_subject_invalid"))?;
 
     tracing::info!(
         "更新管理员用户信息: id={}, nickname={:?}, avatar_url={:?}",
@@ -1291,7 +1300,7 @@ pub async fn update_current_admin_user(
     let updated_user = store
         .update_admin_user(&admin_user_id, payload.nickname, payload.avatar_url)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
+        .ok_or_else(|| auth_not_found_error("auth.admin_user_not_found"))?;
 
     tracing::info!("更新成功: avatar_url={:?}", updated_user.avatar_url);
 
@@ -1338,15 +1347,13 @@ pub async fn change_current_admin_password(
     Json(payload): Json<ChangeAdminPasswordRequest>,
 ) -> Result<Json<ChangeAdminPasswordResponse>, AppError> {
     let admin_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
+        .map_err(|_| auth_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = admin::AdminUserStore::new(state.database.clone());
 
     // 验证新密码强度
     if payload.new_password.len() < 8 {
-        return Err(AppError::ValidationError(
-            "新密码长度至少为 8 个字符".to_string(),
-        ));
+        return Err(auth_validation_error("auth.admin_new_password_too_short"));
     }
 
     if !payload
@@ -1355,14 +1362,14 @@ pub async fn change_current_admin_password(
         .any(|c| c.is_ascii_alphabetic())
         || !payload.new_password.chars().any(|c| c.is_ascii_digit())
     {
-        return Err(AppError::ValidationError(
-            "新密码必须包含字母和数字".to_string(),
+        return Err(auth_validation_error(
+            "auth.admin_new_password_format_invalid",
         ));
     }
 
     // 加密新密码
     let new_password_hash = hash_password(&payload.new_password)
-        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+        .map_err(|_| auth_internal_error("auth.admin_password_hash_failed"))?;
 
     // 更新密码
     let updated = store
@@ -1370,7 +1377,7 @@ pub async fn change_current_admin_password(
         .await?;
 
     if !updated {
-        return Err(AppError::InternalError("更新密码失败".to_string()));
+        return Err(auth_internal_error("auth.admin_password_update_failed"));
     }
 
     Ok(Json(ChangeAdminPasswordResponse {
@@ -1642,7 +1649,8 @@ mod tests {
     #[test]
     fn test_auth_validation_error_uses_auth_domain_message_key() {
         let error = auth_validation_error("auth.refresh_token_required");
-        assert_eq!(error.message_key(), "auth.refresh_token_required");
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "auth.refresh_token_required");
         assert_eq!(error.localized_message(), "刷新令牌不能为空");
         assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
     }
@@ -1654,7 +1662,8 @@ mod tests {
         params.insert("max".to_string(), "20".to_string());
 
         let error = auth_validation_error_with_params("auth.username_length_invalid", params);
-        assert_eq!(error.message_key(), "auth.username_length_invalid");
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "auth.username_length_invalid");
         assert_eq!(
             error.localized_message(),
             "用户名长度必须在 3 到 20 个字符之间"
@@ -1664,8 +1673,39 @@ mod tests {
     #[test]
     fn test_auth_invalid_token_error_uses_auth_domain_message_key() {
         let error = auth_invalid_token_error("auth.refresh_token_invalid");
-        assert_eq!(error.message_key(), "auth.refresh_token_invalid");
+        assert_eq!(error.message_key(), "auth.invalid_token");
+        assert_eq!(error.response_message_key(), "auth.refresh_token_invalid");
         assert_eq!(error.localized_message(), "刷新令牌无效，请重新登录");
         assert_eq!(error.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn test_auth_conflict_error_uses_auth_domain_message_key() {
+        let error = auth_already_exists_error("auth.username_already_exists");
+        assert_eq!(error.message_key(), "common.already_exists");
+        assert_eq!(error.response_message_key(), "auth.username_already_exists");
+        assert_eq!(error.localized_message(), "用户名已被使用");
+        assert_eq!(error.status_code(), axum::http::StatusCode::CONFLICT);
+    }
+
+    #[test]
+    fn test_auth_cache_error_uses_auth_domain_message_key() {
+        let error = auth_cache_error("auth.sms_service_unavailable");
+        assert_eq!(error.message_key(), "common.cache_error");
+        assert_eq!(error.response_message_key(), "auth.sms_service_unavailable");
+        assert_eq!(error.localized_message(), "验证码服务暂不可用，请稍后重试");
+        assert_eq!(
+            error.status_code(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+
+    #[test]
+    fn test_auth_not_found_error_uses_auth_domain_message_key() {
+        let error = auth_not_found_error("auth.admin_user_not_found");
+        assert_eq!(error.message_key(), "common.not_found");
+        assert_eq!(error.response_message_key(), "auth.admin_user_not_found");
+        assert_eq!(error.localized_message(), "管理员用户不存在");
+        assert_eq!(error.status_code(), axum::http::StatusCode::NOT_FOUND);
     }
 }
