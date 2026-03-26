@@ -16,6 +16,8 @@
   "message.attachment_signature_text_unsupported": "Text content does not require an upload signature.",
   "message.attachment_multipart_text_unsupported": "Multipart upload is not supported for text content.",
   "message.attachment_multipart_session_create_failed": "Failed to initialize attachment multipart upload session. Please try again later.",
+  "message.attachment_multipart_direct_upload_required": "File size must exceed {threshold_size} bytes to use multipart upload.",
+  "message.attachment_multipart_plan_failed": "Failed to plan multipart upload. Please try again later.",
   "message.attachment_upload_room_membership_required": "You are not in this room and cannot upload attachments.",
   "message.attachment_download_room_membership_required": "You are not in this room and cannot download attachments.",
   "message.attachment_commit_room_membership_required": "You are not in this room and cannot commit attachment uploads.",

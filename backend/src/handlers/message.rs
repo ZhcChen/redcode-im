@@ -43,6 +43,7 @@ use crate::storage::DirectUploadSignature;
 use crate::AppState;
 use ::redis::AsyncCommands;
 use chrono::{Duration, Utc};
+use std::convert::TryFrom;
 
 #[derive(Deserialize)]
 pub struct SendMessagePayload {
@@ -153,6 +154,26 @@ fn map_message_storage_provider_load_error(error: DefaultStorageProviderLoadErro
             )
         }
     }
+}
+
+fn ensure_multipart_upload_size(file_size: usize) -> Result<(), AppError> {
+    let threshold = multipart_upload::MULTIPART_THRESHOLD_BYTES;
+    let size_i64 = i64::try_from(file_size).unwrap_or(i64::MAX);
+    if size_i64 <= threshold {
+        return Err(message_validation_error_with_params(
+            "message.attachment_multipart_direct_upload_required",
+            MessageParams::from([("threshold_size".to_string(), threshold.to_string())]),
+        ));
+    }
+
+    Ok(())
+}
+
+fn plan_message_attachment_multipart_upload(file_size: i64) -> Result<(i32, i32), AppError> {
+    multipart_upload::plan_multipart_upload(file_size).map_err(|err| {
+        error!(error = ?err, "附件分片计划失败");
+        message_validation_error("message.attachment_multipart_plan_failed")
+    })
 }
 
 async fn ensure_group_message_permissions(
@@ -650,10 +671,13 @@ mod message_attachment_key_tests {
 #[cfg(test)]
 mod message_i18n_tests {
     use super::{
-        message_cache_error, message_internal_error, message_validation_error_with_params,
-        normalize_message_parts, parse_message_sender_id, validate_list_cursor_params,
-        validate_reaction_key, validate_reaction_target_message, ALLOWED_REACTION_KEYS,
+        ensure_multipart_upload_size, message_cache_error, message_internal_error,
+        message_validation_error, message_validation_error_with_params, normalize_message_parts,
+        parse_message_sender_id, plan_message_attachment_multipart_upload,
+        validate_list_cursor_params, validate_reaction_key, validate_reaction_target_message,
+        ALLOWED_REACTION_KEYS,
     };
+    use crate::services::multipart_upload;
     use crate::database::models::{MessageType, MessageWithSender};
     use crate::models::MessagePartPayload;
     use axum::{body::Body, response::IntoResponse};
@@ -840,6 +864,44 @@ mod message_i18n_tests {
             "初始化附件分片上传会话失败，请稍后重试"
         );
         assert_eq!(body["details"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn attachment_commit_object_not_found_stays_validation_error() {
+        let error = message_validation_error("message.attachment_object_not_found");
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 42201);
+        assert_eq!(body["message_key"], "message.attachment_object_not_found");
+    }
+
+    #[test]
+    fn multipart_direct_upload_threshold_returns_localized_key_and_params() {
+        let threshold = multipart_upload::MULTIPART_THRESHOLD_BYTES;
+        let error = ensure_multipart_upload_size(threshold as usize)
+            .expect_err("threshold should reject multipart upload");
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.attachment_multipart_direct_upload_required"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["threshold_size"], threshold.to_string());
+    }
+
+    #[test]
+    fn multipart_plan_failure_maps_to_localized_validation_error() {
+        let error = plan_message_attachment_multipart_upload(i64::MAX / 2)
+            .expect_err("oversized file should fail planning");
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.attachment_multipart_plan_failed"
+        );
+        assert_eq!(
+            error.localized_message(),
+            "无法生成分片上传计划，请稍后重试"
+        );
     }
 
     #[test]
@@ -2445,6 +2507,8 @@ pub async fn initiate_message_attachment_multipart_upload(
         return Err(message_validation_error("message.attachment_file_size_required"));
     }
 
+    ensure_multipart_upload_size(req.file_size)?;
+
     let policy = crate::services::upload_policy::get_upload_policy(&state).await;
     let part_type_key = match req.part_type {
         ApiMessagePartType::Image => "image",
@@ -2490,7 +2554,8 @@ pub async fn initiate_message_attachment_multipart_upload(
         }
     }
 
-    let (part_size, total_parts) = multipart_upload::plan_multipart_upload(req.file_size as i64)?;
+    let (part_size, total_parts) =
+        plan_message_attachment_multipart_upload(req.file_size as i64)?;
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
@@ -2754,18 +2819,12 @@ pub async fn commit_message_attachment_upload(
             }
         }
         Err(AppError::NotFound(_)) => {
-            return Err(
-                AppError::NotFound(String::new())
-                    .with_message_key("message.attachment_object_not_found"),
-            );
+            return Err(message_validation_error("message.attachment_object_not_found"));
         }
         Err(AppError::ValidationError(_)) => {
             // 不支持 head_object 的提供商：退化为存在性检查
             if !storage_service.file_exists(key).await? {
-                return Err(
-                    AppError::NotFound(String::new())
-                        .with_message_key("message.attachment_object_not_found"),
-                );
+                return Err(message_validation_error("message.attachment_object_not_found"));
             }
         }
         Err(e) => return Err(e),

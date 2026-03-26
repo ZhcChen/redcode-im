@@ -16,6 +16,8 @@
   "message.attachment_signature_text_unsupported": "纯文本内容无需生成上传签名",
   "message.attachment_multipart_text_unsupported": "纯文本内容无需分片上传",
   "message.attachment_multipart_session_create_failed": "初始化附件分片上传会话失败，请稍后重试",
+  "message.attachment_multipart_direct_upload_required": "文件大小必须超过 {threshold_size} 字节才能使用分片上传",
+  "message.attachment_multipart_plan_failed": "无法生成分片上传计划，请稍后重试",
   "message.attachment_upload_room_membership_required": "您不在当前房间，无法上传附件",
   "message.attachment_download_room_membership_required": "您不在当前房间，无法获取附件",
   "message.attachment_commit_room_membership_required": "您不在当前房间，无法提交附件上传结果",

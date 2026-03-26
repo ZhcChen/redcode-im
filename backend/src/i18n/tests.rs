@@ -284,30 +284,60 @@ fn i18n_message_catalog_interpolates_task_4c_params() {
 }
 
 #[test]
-fn i18n_message_catalog_loads_task_4d_error_keys_for_both_locales() {
+fn i18n_message_catalog_loads_task_4d_complete_keyset_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
-    assert_eq!(
-        localizer.localize("zh-CN", "message.clear_room_membership_required", None),
-        "您不在当前房间，无法清除聊天记录"
-    );
-    assert_eq!(
-        localizer.localize("en-US", "message.clear_group_owner_only", None),
-        "Only the group owner can clear group chat history."
-    );
+    let zh_expectations = vec![
+        ("message.clear_room_membership_required", "您不在当前房间，无法清除聊天记录"),
+        ("message.clear_room_not_found", "房间不存在，无法清除聊天记录"),
+        ("message.clear_group_owner_only", "仅群主可以清除群聊聊天记录"),
+        ("message.attachment_upload_room_membership_required", "您不在当前房间，无法上传附件"),
+        ("message.attachment_download_room_membership_required", "您不在当前房间，无法获取附件"),
+        ("message.attachment_commit_room_membership_required", "您不在当前房间，无法提交附件上传结果"),
+        ("message.attachment_signature_text_unsupported", "纯文本内容无需生成上传签名"),
+        ("message.attachment_multipart_text_unsupported", "纯文本内容无需分片上传"),
+        ("message.attachment_file_size_required", "file_size 必填且必须大于 0"),
+        ("message.attachment_file_size_exceeded_bytes", "文件大小超出限制：实际 {actual_size} 字节，最大允许 {max_size} 字节"),
+        ("message.attachment_multipart_session_create_failed", "初始化附件分片上传会话失败，请稍后重试"),
+        ("message.attachment_not_found", "附件不存在"),
+        ("message.attachment_size_mismatch", "附件大小校验失败：期望 {expected_size} 字节，实际 {actual_size} 字节"),
+        ("message.attachment_hash_mismatch", "附件哈希校验失败，请重新上传"),
+        ("message.attachment_object_not_found", "对象存储中找不到该附件，请稍后重试"),
+        ("message.attachment_multipart_direct_upload_required", "文件大小必须超过 {threshold_size} 字节才能使用分片上传"),
+        ("message.attachment_multipart_plan_failed", "无法生成分片上传计划，请稍后重试"),
+    ];
 
-    assert_eq!(
-        localizer.localize("zh-CN", "message.attachment_download_room_membership_required", None),
-        "您不在当前房间，无法获取附件"
-    );
-    assert_eq!(
-        localizer.localize("en-US", "message.attachment_not_found", None),
-        "Attachment not found."
-    );
+    for (key, value) in zh_expectations {
+        assert_eq!(localizer.localize("zh-CN", key, None), value);
+    }
+
+    let en_expectations = vec![
+        ("message.clear_room_membership_required", "You are not in this room and cannot clear chat history."),
+        ("message.clear_room_not_found", "Room not found. Unable to clear history."),
+        ("message.clear_group_owner_only", "Only the group owner can clear group chat history."),
+        ("message.attachment_upload_room_membership_required", "You are not in this room and cannot upload attachments."),
+        ("message.attachment_download_room_membership_required", "You are not in this room and cannot download attachments."),
+        ("message.attachment_commit_room_membership_required", "You are not in this room and cannot commit attachment uploads."),
+        ("message.attachment_signature_text_unsupported", "Text content does not require an upload signature."),
+        ("message.attachment_multipart_text_unsupported", "Multipart upload is not supported for text content."),
+        ("message.attachment_file_size_required", "file_size is required and must be greater than 0."),
+        ("message.attachment_file_size_exceeded_bytes", "Attachment size exceeds the limit: actual {actual_size} bytes, maximum allowed {max_size} bytes."),
+        ("message.attachment_multipart_session_create_failed", "Failed to initialize attachment multipart upload session. Please try again later."),
+        ("message.attachment_not_found", "Attachment not found."),
+        ("message.attachment_size_mismatch", "Attachment size mismatch: expected {expected_size} bytes, got {actual_size} bytes."),
+        ("message.attachment_hash_mismatch", "Attachment hash mismatch. Please re-upload."),
+        ("message.attachment_object_not_found", "Attachment object was not found in storage. Please try again later."),
+        ("message.attachment_multipart_direct_upload_required", "File size must exceed {threshold_size} bytes to use multipart upload."),
+        ("message.attachment_multipart_plan_failed", "Failed to plan multipart upload. Please try again later."),
+    ];
+
+    for (key, value) in en_expectations {
+        assert_eq!(localizer.localize("en-US", key, None), value);
+    }
 }
 
 #[test]
-fn i18n_message_catalog_interpolates_task_4d_params() {
+fn i18n_message_catalog_interpolates_task_4d_params_extended() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     let exceeded_params = BTreeMap::from([
         ("actual_size".to_string(), "5000".to_string()),
@@ -341,6 +371,24 @@ fn i18n_message_catalog_interpolates_task_4d_params() {
     assert_eq!(
         localizer.localize("en-US", "message.attachment_size_mismatch", Some(&mismatch_params)),
         "Attachment size mismatch: expected 4096 bytes, got 5000 bytes."
+    );
+
+    let threshold_params = BTreeMap::from([("threshold_size".to_string(), "5242880".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.attachment_multipart_direct_upload_required",
+            Some(&threshold_params),
+        ),
+        "文件大小必须超过 5242880 字节才能使用分片上传"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "message.attachment_multipart_direct_upload_required",
+            Some(&threshold_params),
+        ),
+        "File size must exceed 5242880 bytes to use multipart upload."
     );
 }
 
