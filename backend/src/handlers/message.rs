@@ -650,9 +650,9 @@ mod message_attachment_key_tests {
 #[cfg(test)]
 mod message_i18n_tests {
     use super::{
-        message_cache_error, message_internal_error, normalize_message_parts,
-        parse_message_sender_id, validate_list_cursor_params, validate_reaction_key,
-        validate_reaction_target_message, ALLOWED_REACTION_KEYS,
+        message_cache_error, message_internal_error, message_validation_error_with_params,
+        normalize_message_parts, parse_message_sender_id, validate_list_cursor_params,
+        validate_reaction_key, validate_reaction_target_message, ALLOWED_REACTION_KEYS,
     };
     use crate::database::models::{MessageType, MessageWithSender};
     use crate::models::MessagePartPayload;
@@ -661,6 +661,7 @@ mod message_i18n_tests {
     use http_body_util::BodyExt;
     use serde_json::Value;
     use uuid::Uuid;
+    use crate::i18n::message::MessageParams;
 
     #[test]
     fn normalize_message_parts_empty_content_returns_stable_message_key() {
@@ -768,6 +769,26 @@ mod message_i18n_tests {
         assert_eq!(params["supported"], ALLOWED_REACTION_KEYS.join(", "));
     }
 
+    #[test]
+    fn attachment_file_size_exceeded_bytes_preserves_params_and_localized_message() {
+        let mut params = MessageParams::new();
+        params.insert("actual_size".to_string(), "5000".to_string());
+        params.insert("max_size".to_string(), "4096".to_string());
+
+        let error = message_validation_error_with_params(
+            "message.attachment_file_size_exceeded_bytes",
+            params.clone(),
+        );
+
+        assert_eq!(error.response_message_key(), "message.attachment_file_size_exceeded_bytes");
+        let stored_params = error.message_params().expect("parameters present");
+        assert_eq!(stored_params, params);
+        assert_eq!(
+            error.localized_message(),
+            "文件大小超出限制：实际 5000 字节，最大允许 4096 字节"
+        );
+    }
+
     #[tokio::test]
     async fn message_internal_error_masks_details_and_keeps_stable_protocol_key() {
         let error = message_internal_error("message.new_message_load_failed", "db timeout");
@@ -798,6 +819,26 @@ mod message_i18n_tests {
         assert_eq!(body["code"], 50301);
         assert_eq!(body["message_key"], "message.edit_message_failed");
         assert_eq!(body["message"], "编辑消息失败，请稍后重试");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn attachment_multipart_session_internal_error_masks_details_and_keeps_stable_protocol_key() {
+        let error = message_internal_error(
+            "message.attachment_multipart_session_create_failed",
+            "storage failure",
+        );
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 50301);
+        assert_eq!(
+            body["message_key"],
+            "message.attachment_multipart_session_create_failed"
+        );
+        assert_eq!(
+            body["message"],
+            "初始化附件分片上传会话失败，请稍后重试"
+        );
         assert_eq!(body["details"], Value::Null);
     }
 
@@ -2165,27 +2206,22 @@ pub async fn clear_room_messages(
     Path(room_id): Path<Uuid>,
     Extension(claims): Extension<crate::models::Claims>,
 ) -> Result<Json<ClearRoomMessagesResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
     let room_store = RoomStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法清除聊天记录".to_string(),
-        ));
+        return Err(message_forbidden_error("message.clear_room_membership_required"));
     }
 
     let room = room_store
         .get_room(room_id)
         .await
-        .map_err(|_| AppError::NotFound("房间不存在".to_string()))?;
+        .map_err(|_| AppError::NotFound(String::new()).with_message_key("message.clear_room_not_found"))?;
 
     if room.room_type != RoomType::Private && room.owner_id != user_id {
-        return Err(AppError::Forbidden(
-            "只有房主可以清除群聊聊天记录".to_string(),
-        ));
+        return Err(message_forbidden_error("message.clear_group_owner_only"));
     }
 
     let deleted_count = store.mark_room_messages_deleted(room_id).await?;
@@ -2235,19 +2271,18 @@ pub async fn generate_message_attachment_signature(
     Extension(claims): Extension<crate::models::Claims>,
     Json(req): Json<MessageAttachmentSignatureRequest>,
 ) -> Result<Json<MessageAttachmentSignatureResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法上传附件".to_string(),
+        return Err(message_forbidden_error(
+            "message.attachment_upload_room_membership_required",
         ));
     }
 
     if matches!(req.part_type, ApiMessagePartType::Text) {
-        return Err(AppError::ValidationError(
-            "纯文本内容无需生成上传签名".to_string(),
+        return Err(message_validation_error(
+            "message.attachment_signature_text_unsupported",
         ));
     }
 
@@ -2268,17 +2303,17 @@ pub async fn generate_message_attachment_signature(
                 .iter()
                 .any(|v| v.eq_ignore_ascii_case(content_type))
             {
-                return Err(AppError::ValidationError(format!(
-                    "不支持的文件类型: {}",
-                    content_type
-                )));
+                return Err(message_validation_error_with_params(
+                    "message.attachment_mime_unsupported",
+                    MessageParams::from([("mime".to_string(), content_type.to_string())]),
+                ));
             }
 
             if !policy.is_mime_allowed_for_part_type(part_type_key, content_type) {
-                return Err(AppError::ValidationError(format!(
-                    "不支持的文件类型: {}",
-                    content_type
-                )));
+                return Err(message_validation_error_with_params(
+                    "message.attachment_mime_unsupported",
+                    MessageParams::from([("mime".to_string(), content_type.to_string())]),
+                ));
             }
         }
     }
@@ -2287,10 +2322,13 @@ pub async fn generate_message_attachment_signature(
     if let Some(file_size) = req.file_size {
         if let Some(max_size) = policy.max_size_bytes_for_part_type(part_type_key) {
             if file_size > max_size {
-                return Err(AppError::ValidationError(format!(
-                    "文件大小超出限制，最大允许{}MB",
-                    max_size / 1024 / 1024
-                )));
+                return Err(message_validation_error_with_params(
+                    "message.attachment_size_exceeded",
+                    MessageParams::from([(
+                        "max_mb".to_string(),
+                        (max_size / 1024 / 1024).to_string(),
+                    )]),
+                ));
             }
         }
     }
@@ -2388,26 +2426,23 @@ pub async fn initiate_message_attachment_multipart_upload(
     Extension(claims): Extension<crate::models::Claims>,
     Json(req): Json<MessageAttachmentMultipartInitiateRequest>,
 ) -> Result<Json<MessageAttachmentMultipartInitiateResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法上传附件".to_string(),
+        return Err(message_forbidden_error(
+            "message.attachment_upload_room_membership_required",
         ));
     }
 
     if matches!(req.part_type, ApiMessagePartType::Text) {
-        return Err(AppError::ValidationError(
-            "纯文本内容无需分片上传".to_string(),
+        return Err(message_validation_error(
+            "message.attachment_multipart_text_unsupported",
         ));
     }
 
     if req.file_size == 0 {
-        return Err(AppError::ValidationError(
-            "file_size 必填且必须大于 0".to_string(),
-        ));
+        return Err(message_validation_error("message.attachment_file_size_required"));
     }
 
     let policy = crate::services::upload_policy::get_upload_policy(&state).await;
@@ -2427,17 +2462,17 @@ pub async fn initiate_message_attachment_multipart_upload(
                 .iter()
                 .any(|v| v.eq_ignore_ascii_case(content_type))
             {
-                return Err(AppError::ValidationError(format!(
-                    "不支持的文件类型: {}",
-                    content_type
-                )));
+                return Err(message_validation_error_with_params(
+                    "message.attachment_mime_unsupported",
+                    MessageParams::from([("mime".to_string(), content_type.to_string())]),
+                ));
             }
 
             if !policy.is_mime_allowed_for_part_type(part_type_key, content_type) {
-                return Err(AppError::ValidationError(format!(
-                    "不支持的文件类型: {}",
-                    content_type
-                )));
+                return Err(message_validation_error_with_params(
+                    "message.attachment_mime_unsupported",
+                    MessageParams::from([("mime".to_string(), content_type.to_string())]),
+                ));
             }
         }
     }
@@ -2445,10 +2480,13 @@ pub async fn initiate_message_attachment_multipart_upload(
     // 验证文件大小：按 Upload Policy 的分类型上限
     if let Some(max_size) = policy.max_size_bytes_for_part_type(part_type_key) {
         if req.file_size > max_size {
-            return Err(AppError::ValidationError(format!(
-                "文件大小超过限制: {} bytes（最大允许 {} bytes）",
-                req.file_size, max_size
-            )));
+            return Err(message_validation_error_with_params(
+                "message.attachment_file_size_exceeded_bytes",
+                MessageParams::from([
+                    ("actual_size".to_string(), req.file_size.to_string()),
+                    ("max_size".to_string(), max_size.to_string()),
+                ]),
+            ));
         }
     }
 
@@ -2558,7 +2596,11 @@ pub async fn initiate_message_attachment_multipart_upload(
             let _ = storage_service
                 .abort_multipart_upload(&key, &upload_id)
                 .await;
-            return Err(AppError::InternalError(format!("创建分片会话失败: {}", e)));
+            error!(error = %e, "创建附件分片上传会话失败");
+            return Err(message_internal_error(
+                "message.attachment_multipart_session_create_failed",
+                format!("创建分片会话失败: {}", e),
+            ));
         }
     };
 
@@ -2578,23 +2620,22 @@ pub async fn generate_message_attachment_download_url(
     Extension(claims): Extension<crate::models::Claims>,
     Query(query): Query<MessageAttachmentDownloadQuery>,
 ) -> Result<Json<MessageAttachmentDownloadResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法获取附件".to_string(),
+        return Err(message_forbidden_error(
+            "message.attachment_download_room_membership_required",
         ));
     }
 
     let key = query.key.trim();
     if key.is_empty() {
-        return Err(AppError::ValidationError("附件 key 不能为空".to_string()));
+        return Err(message_validation_error("message.attachment_key_required"));
     }
 
     if !is_valid_message_attachment_object_key(key) {
-        return Err(AppError::ValidationError("附件 key 不合法".to_string()));
+        return Err(message_validation_error("message.attachment_key_invalid"));
     }
 
     // 访问控制：必须是当前房间的消息已引用过的 object_key（附件或缩略图）
@@ -2603,7 +2644,9 @@ pub async fn generate_message_attachment_download_url(
         .await
         .map_err(AppError::from)?
     {
-        return Err(AppError::NotFound("附件不存在".to_string()));
+        return Err(
+            AppError::NotFound(String::new()).with_message_key("message.attachment_not_found")
+        );
     }
 
     let expires = query.expires_in_seconds.unwrap_or(600).clamp(60, 86_400);
@@ -2656,23 +2699,22 @@ pub async fn commit_message_attachment_upload(
     Extension(claims): Extension<crate::models::Claims>,
     Json(req): Json<MessageAttachmentUploadCommitRequest>,
 ) -> Result<Json<MessageAttachmentUploadCommitResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法提交附件上传结果".to_string(),
+        return Err(message_forbidden_error(
+            "message.attachment_commit_room_membership_required",
         ));
     }
 
     let key = req.key.trim();
     if key.is_empty() {
-        return Err(AppError::ValidationError("附件 key 不能为空".to_string()));
+        return Err(message_validation_error("message.attachment_key_required"));
     }
 
     if !is_valid_message_attachment_object_key(key) {
-        return Err(AppError::ValidationError("附件 key 不合法".to_string()));
+        return Err(message_validation_error("message.attachment_key_invalid"));
     }
 
     let provider = load_default_storage_provider(&state).await?;
@@ -2684,10 +2726,13 @@ pub async fn commit_message_attachment_upload(
             if let Some(expected_size) = req.file_size {
                 if let Some(actual_size) = head.content_length {
                     if actual_size != expected_size as u64 {
-                        return Err(AppError::ValidationError(format!(
-                            "附件大小校验失败：期望 {} 字节，实际 {} 字节",
-                            expected_size, actual_size
-                        )));
+                        return Err(message_validation_error_with_params(
+                            "message.attachment_size_mismatch",
+                            MessageParams::from([
+                                ("expected_size".to_string(), expected_size.to_string()),
+                                ("actual_size".to_string(), actual_size.to_string()),
+                            ]),
+                        ));
                     }
                 }
             }
@@ -2699,8 +2744,8 @@ pub async fn commit_message_attachment_upload(
                         // COS 的 ETag 对于非分块上传通常等价于 MD5；分块上传会带 '-'，不做严格校验
                         if !etag.contains('-') && is_hex_32(etag) && is_hex_32(hash_value) {
                             if normalize_hash_hex(etag) != normalize_hash_hex(hash_value) {
-                                return Err(AppError::ValidationError(
-                                    "附件哈希校验失败，请重新上传".to_string(),
+                                return Err(message_validation_error(
+                                    "message.attachment_hash_mismatch",
                                 ));
                             }
                         }
@@ -2709,16 +2754,18 @@ pub async fn commit_message_attachment_upload(
             }
         }
         Err(AppError::NotFound(_)) => {
-            return Err(AppError::ValidationError(
-                "COS 中尚未找到该附件，请稍后重试".to_string(),
-            ));
+            return Err(
+                AppError::NotFound(String::new())
+                    .with_message_key("message.attachment_object_not_found"),
+            );
         }
         Err(AppError::ValidationError(_)) => {
             // 不支持 head_object 的提供商：退化为存在性检查
             if !storage_service.file_exists(key).await? {
-                return Err(AppError::ValidationError(
-                    "COS 中尚未找到该附件，请稍后重试".to_string(),
-                ));
+                return Err(
+                    AppError::NotFound(String::new())
+                        .with_message_key("message.attachment_object_not_found"),
+                );
             }
         }
         Err(e) => return Err(e),

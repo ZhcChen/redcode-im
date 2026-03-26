@@ -283,6 +283,67 @@ fn i18n_message_catalog_interpolates_task_4c_params() {
     );
 }
 
+#[test]
+fn i18n_message_catalog_loads_task_4d_error_keys_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "message.clear_room_membership_required", None),
+        "您不在当前房间，无法清除聊天记录"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.clear_group_owner_only", None),
+        "Only the group owner can clear group chat history."
+    );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "message.attachment_download_room_membership_required", None),
+        "您不在当前房间，无法获取附件"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.attachment_not_found", None),
+        "Attachment not found."
+    );
+}
+
+#[test]
+fn i18n_message_catalog_interpolates_task_4d_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let exceeded_params = BTreeMap::from([
+        ("actual_size".to_string(), "5000".to_string()),
+        ("max_size".to_string(), "4096".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.attachment_file_size_exceeded_bytes",
+            Some(&exceeded_params),
+        ),
+        "文件大小超出限制：实际 5000 字节，最大允许 4096 字节"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "message.attachment_file_size_exceeded_bytes",
+            Some(&exceeded_params),
+        ),
+        "Attachment size exceeds the limit: actual 5000 bytes, maximum allowed 4096 bytes."
+    );
+
+    let mismatch_params = BTreeMap::from([
+        ("expected_size".to_string(), "4096".to_string()),
+        ("actual_size".to_string(), "5000".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize("zh-CN", "message.attachment_size_mismatch", Some(&mismatch_params)),
+        "附件大小校验失败：期望 4096 字节，实际 5000 字节"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.attachment_size_mismatch", Some(&mismatch_params)),
+        "Attachment size mismatch: expected 4096 bytes, got 5000 bytes."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();
