@@ -114,6 +114,36 @@ fn i18n_friend_catalog_interpolates_direction_and_status_params() {
     );
 }
 
+#[test]
+fn i18n_user_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "user.current_user_not_found", None),
+        "当前用户不存在"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "user.current_user_not_found", None),
+        "Current user was not found."
+    );
+}
+
+#[test]
+fn i18n_user_catalog_interpolates_avatar_size_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([
+        ("expected_size".to_string(), "1024".to_string()),
+        ("actual_size".to_string(), "2048".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize("zh-CN", "user.avatar_size_mismatch", Some(&params)),
+        "头像大小校验失败：期望 1024 字节，实际 2048 字节"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "user.avatar_size_mismatch", Some(&params)),
+        "Avatar size mismatch: expected 1024 bytes, got 2048 bytes."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();

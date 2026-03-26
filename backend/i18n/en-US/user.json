@@ -1,0 +1,18 @@
+{
+  "user.current_user_not_found": "Current user was not found.",
+  "user.user_id_invalid": "User ID is invalid.",
+  "user.user_not_found": "User {user_id} was not found.",
+  "user.avatar_size_mismatch": "Avatar size mismatch: expected {expected_size} bytes, got {actual_size} bytes.",
+  "user.avatar_hash_mismatch": "Avatar hash mismatch. Please upload the file again.",
+  "user.avatar_not_ready": "Avatar is not available in COS yet. Please try again shortly.",
+  "user.avatar_update_failed": "Failed to update user avatar.",
+  "user.user_profile_load_failed": "Failed to load user profile.",
+  "user.new_password_too_short": "New password must be at least {min_length} characters.",
+  "user.password_verify_failed": "Failed to verify password.",
+  "user.old_password_incorrect": "Current password is incorrect.",
+  "user.password_hash_failed": "Failed to hash password.",
+  "user.search_keyword_required": "Search keyword is required.",
+  "user.default_storage_provider_not_found": "Default file upload provider configuration was not found.",
+  "user.default_storage_provider_disabled": "Default file upload provider is disabled.",
+  "user.default_storage_provider_unsupported": "Unsupported provider type: {provider_type}."
+}

@@ -8,6 +8,7 @@ use crate::database::room_store::RoomStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo};
 use crate::redis::cache::CacheManager;
@@ -26,6 +27,30 @@ use serde_json::json;
 use std::collections::HashSet;
 use tracing::{info, warn};
 use uuid::Uuid;
+
+fn user_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn user_validation_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn user_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn user_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn user_not_found_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+    AppError::NotFound(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn user_internal_error(message_key: &'static str) -> AppError {
+    AppError::InternalError(String::new()).with_message_key(message_key)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct AvatarDirectUploadRequest {
@@ -82,7 +107,7 @@ pub async fn update_me(
     Json(payload): Json<UpdateUserRequest>,
 ) -> Result<Json<UserInfo>, AppError> {
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
 
@@ -151,7 +176,7 @@ pub async fn update_me(
             let user_info = db_user_to_api_user_info(&u);
             Ok(Json(user_info))
         }
-        None => Err(AppError::NotFound(format!("用户 {} 不存在", user_id))),
+        None => Err(user_not_found_error("user.current_user_not_found")),
     }
 }
 
@@ -161,7 +186,7 @@ pub async fn generate_avatar_direct_upload(
     Json(req): Json<AvatarDirectUploadRequest>,
 ) -> Result<Json<AvatarDirectUploadResponse>, AppError> {
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     // 验证文件类型
     if let Some(content_type) = &req.content_type {
@@ -288,7 +313,7 @@ pub async fn commit_avatar_upload(
     }
 
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     if !is_valid_avatar_key(&user_id, key) {
         return Ok(Json(AvatarDownloadUrlResponse {
@@ -313,10 +338,14 @@ pub async fn commit_avatar_upload(
             if let Some(expected_size) = record.as_ref().and_then(|r| r.file_size) {
                 if let Some(actual_size) = head.content_length {
                     if actual_size != expected_size as u64 {
-                        return Err(AppError::ValidationError(format!(
-                            "头像大小校验失败：期望 {} 字节，实际 {} 字节",
-                            expected_size, actual_size
-                        )));
+                        let params = MessageParams::from([
+                            ("expected_size".to_string(), expected_size.to_string()),
+                            ("actual_size".to_string(), actual_size.to_string()),
+                        ]);
+                        return Err(user_validation_error_with_params(
+                            "user.avatar_size_mismatch",
+                            params,
+                        ));
                     }
                 }
             }
@@ -331,24 +360,18 @@ pub async fn commit_avatar_upload(
                             && r.hash_value.chars().all(|c| c.is_ascii_hexdigit())
                             && etag.to_ascii_lowercase() != r.hash_value.trim().to_ascii_lowercase()
                         {
-                            return Err(AppError::ValidationError(
-                                "头像哈希校验失败，请重新上传".to_string(),
-                            ));
+                            return Err(user_validation_error("user.avatar_hash_mismatch"));
                         }
                     }
                 }
             }
         }
         Err(AppError::NotFound(_)) => {
-            return Err(AppError::ValidationError(
-                "COS 中尚未找到该头像，请稍后重试".to_string(),
-            ));
+            return Err(user_validation_error("user.avatar_not_ready"));
         }
         Err(AppError::ValidationError(_)) => {
             if !storage_service.file_exists(key).await? {
-                return Err(AppError::ValidationError(
-                    "COS 中尚未找到该头像，请稍后重试".to_string(),
-                ));
+                return Err(user_validation_error("user.avatar_not_ready"));
             }
         }
         Err(e) => return Err(e),
@@ -358,7 +381,7 @@ pub async fn commit_avatar_upload(
     let existing_user = user_store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
+        .ok_or_else(|| user_not_found_error("user.current_user_not_found"))?;
     let previous_key = existing_user.avatar_object_key.clone();
 
     let file_url = storage_service.get_file_url(key);
@@ -371,7 +394,7 @@ pub async fn commit_avatar_upload(
 
     let updated = user_store.update_user(&user_id, update_req).await?;
     if updated.is_none() {
-        return Err(AppError::InternalError("更新用户头像失败".to_string()));
+        return Err(user_internal_error("user.avatar_update_failed"));
     }
 
     if req.delete_previous {
@@ -399,7 +422,7 @@ pub async fn commit_avatar_upload(
     let updated_user = user_store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::InternalError("用户信息加载失败".to_string()))?;
+        .ok_or_else(|| user_internal_error("user.user_profile_load_failed"))?;
 
     let payload = ServerPush::FriendProfileUpdated {
         user_id: user_id.to_string(),
@@ -486,13 +509,13 @@ pub async fn get_avatar_download_url(
     Query(params): Query<AvatarDownloadUrlRequest>,
 ) -> Result<Json<AvatarDownloadUrlResponse>, AppError> {
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     let user_store = UserStore::new(state.database.clone());
     let user = user_store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
+        .ok_or_else(|| user_not_found_error("user.current_user_not_found"))?;
 
     let key = match user.avatar_object_key {
         Some(ref key) => key.clone(),
@@ -557,13 +580,15 @@ pub async fn get_user_avatar_download_url(
     Query(params): Query<AvatarDownloadUrlRequest>,
 ) -> Result<Json<AvatarDownloadUrlResponse>, AppError> {
     let user_id = string_to_uuid(&target_user_id)
-        .map_err(|e| AppError::ValidationError(format!("Invalid user ID: {}", e)))?;
+        .map_err(|_| user_validation_error("user.user_id_invalid"))?;
 
     let user_store = UserStore::new(state.database.clone());
-    let user = user_store
-        .find_by_id(&user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
+    let user = user_store.find_by_id(&user_id).await?.ok_or_else(|| {
+        user_not_found_error_with_params(
+            "user.user_not_found",
+            MessageParams::from([("user_id".to_string(), user_id.to_string())]),
+        )
+    })?;
 
     let key = match user.avatar_object_key {
         Some(ref key) => key.clone(),
@@ -597,13 +622,14 @@ pub async fn change_password(
 ) -> Result<Json<serde_json::Value>, AppError> {
     // 验证新密码长度
     if payload.new_password.len() < 6 {
-        return Err(AppError::ValidationError(
-            "New password must be at least 6 characters".to_string(),
+        return Err(user_validation_error_with_params(
+            "user.new_password_too_short",
+            MessageParams::from([("min_length".to_string(), "6".to_string())]),
         ));
     }
 
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
 
@@ -611,19 +637,19 @@ pub async fn change_password(
     let user = store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
+        .ok_or_else(|| user_not_found_error("user.current_user_not_found"))?;
 
     // 验证旧密码
     let is_valid = verify_password(&payload.old_password, &user.password_hash)
-        .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
+        .map_err(|_| user_internal_error("user.password_verify_failed"))?;
 
     if !is_valid {
-        return Err(AppError::ValidationError("旧密码错误".to_string()));
+        return Err(user_validation_error("user.old_password_incorrect"));
     }
 
     // 生成新密码哈希
     let new_password_hash = hash_password(&payload.new_password)
-        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+        .map_err(|_| user_internal_error("user.password_hash_failed"))?;
 
     // 更新密码
     store.update_password(&user_id, &new_password_hash).await?;
@@ -639,13 +665,13 @@ pub async fn deactivate_me(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
     let deleted = store.delete_user(&user_id).await?;
 
     if !deleted {
-        return Err(AppError::NotFound(format!("用户 {} 不存在", user_id)));
+        return Err(user_not_found_error("user.current_user_not_found"));
     }
 
     let session_manager = crate::redis::session::SessionManager::new(
@@ -668,15 +694,17 @@ pub async fn get_user_by_id(
     State(state): State<AppState>,
     Path(user_id_str): Path<String>,
 ) -> Result<Json<UserInfo>, AppError> {
-    let user_id = string_to_uuid(&user_id_str)
-        .map_err(|e| AppError::ValidationError(format!("Invalid user ID: {}", e)))?;
+    let user_id =
+        string_to_uuid(&user_id_str).map_err(|_| user_validation_error("user.user_id_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
 
-    let user = store
-        .find_by_id(&user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("用户 {} 不存在", user_id)))?;
+    let user = store.find_by_id(&user_id).await?.ok_or_else(|| {
+        user_not_found_error_with_params(
+            "user.user_not_found",
+            MessageParams::from([("user_id".to_string(), user_id.to_string())]),
+        )
+    })?;
 
     Ok(Json(db_user_to_api_user_info(&user)))
 }
@@ -695,13 +723,13 @@ pub async fn search_users(
 ) -> Result<Json<Vec<UserInfo>>, AppError> {
     let keyword = params.keyword.trim();
     if keyword.is_empty() {
-        return Err(AppError::ValidationError("搜索关键字不能为空".to_string()));
+        return Err(user_validation_error("user.search_keyword_required"));
     }
 
     let limit = params.limit.unwrap_or(20).clamp(1, 50);
 
     let current_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| user_invalid_token_error("auth.token_subject_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
 
@@ -717,19 +745,22 @@ pub async fn load_default_storage_provider(state: &AppState) -> Result<StoragePr
     let provider = store
         .get_default_provider()
         .await?
-        .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?;
+        .ok_or_else(|| user_not_found_error("user.default_storage_provider_not_found"))?;
 
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "默认文件上传提供商未启用".to_string(),
+        return Err(user_validation_error(
+            "user.default_storage_provider_disabled",
         ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(AppError::ValidationError(format!(
-            "不支持的提供商类型: {:?}",
-            provider.provider_type
-        )));
+        return Err(user_validation_error_with_params(
+            "user.default_storage_provider_unsupported",
+            MessageParams::from([(
+                "provider_type".to_string(),
+                provider.provider_type.to_string(),
+            )]),
+        ));
     }
 
     Ok(provider)
@@ -830,7 +861,10 @@ mod tests {
 
     #[test]
     fn test_infer_avatar_extension_unknown() {
-        assert_eq!(infer_avatar_extension(Some("application/octet-stream")), ".bin");
+        assert_eq!(
+            infer_avatar_extension(Some("application/octet-stream")),
+            ".bin"
+        );
         assert_eq!(infer_avatar_extension(Some("video/mp4")), ".bin");
         assert_eq!(infer_avatar_extension(None), ".bin");
     }
@@ -973,5 +1007,27 @@ mod tests {
         assert!(build_avatar_object_key(&user_id, Some("image/webp")).ends_with(".webp"));
         assert!(build_avatar_object_key(&user_id, Some("image/gif")).ends_with(".gif"));
         assert!(build_avatar_object_key(&user_id, None).ends_with(".bin"));
+    }
+
+    #[test]
+    fn test_user_invalid_token_error_reuses_auth_token_subject_invalid_key() {
+        let error = user_invalid_token_error("auth.token_subject_invalid");
+        assert_eq!(error.response_message_key(), "auth.token_subject_invalid");
+    }
+
+    #[test]
+    fn test_user_validation_error_with_params_uses_user_key_and_params() {
+        let params =
+            std::collections::BTreeMap::from([("provider_type".to_string(), "Minio".to_string())]);
+        let error = user_validation_error_with_params(
+            "user.default_storage_provider_unsupported",
+            params.clone(),
+        );
+
+        assert_eq!(
+            error.response_message_key(),
+            "user.default_storage_provider_unsupported"
+        );
+        assert_eq!(error.message_params().as_ref(), Some(&params));
     }
 }
