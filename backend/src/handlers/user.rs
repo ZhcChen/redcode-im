@@ -52,6 +52,93 @@ fn user_internal_error(message_key: &'static str) -> AppError {
     AppError::InternalError(String::new()).with_message_key(message_key)
 }
 
+fn user_avatar_size_mismatch_error(expected_size: i64, actual_size: u64) -> AppError {
+    user_validation_error_with_params(
+        "user.avatar_size_mismatch",
+        MessageParams::from([
+            ("expected_size".to_string(), expected_size.to_string()),
+            ("actual_size".to_string(), actual_size.to_string()),
+        ]),
+    )
+}
+
+fn user_not_found_by_id_error(user_id: Uuid) -> AppError {
+    user_not_found_error_with_params(
+        "user.user_not_found",
+        MessageParams::from([("user_id".to_string(), user_id.to_string())]),
+    )
+}
+
+#[derive(Debug)]
+enum DefaultStorageProviderLoadError {
+    App(AppError),
+    NotFound,
+    Disabled,
+    Unsupported(StorageProviderType),
+}
+
+fn map_shared_storage_provider_load_error(error: DefaultStorageProviderLoadError) -> AppError {
+    match error {
+        DefaultStorageProviderLoadError::App(error) => error,
+        DefaultStorageProviderLoadError::NotFound => {
+            AppError::NotFound("未找到默认文件上传提供商配置".to_string())
+        }
+        DefaultStorageProviderLoadError::Disabled => {
+            AppError::ValidationError("默认文件上传提供商未启用".to_string())
+        }
+        DefaultStorageProviderLoadError::Unsupported(provider_type) => {
+            AppError::ValidationError(format!("不支持的提供商类型: {}", provider_type))
+        }
+    }
+}
+
+fn map_user_storage_provider_load_error(error: DefaultStorageProviderLoadError) -> AppError {
+    match error {
+        DefaultStorageProviderLoadError::App(error) => error,
+        DefaultStorageProviderLoadError::NotFound => {
+            user_not_found_error("user.default_storage_provider_not_found")
+        }
+        DefaultStorageProviderLoadError::Disabled => {
+            user_validation_error("user.default_storage_provider_disabled")
+        }
+        DefaultStorageProviderLoadError::Unsupported(provider_type) => {
+            user_validation_error_with_params(
+                "user.default_storage_provider_unsupported",
+                MessageParams::from([("provider_type".to_string(), provider_type.to_string())]),
+            )
+        }
+    }
+}
+
+async fn load_default_storage_provider_inner(
+    state: &AppState,
+) -> Result<StorageProvider, DefaultStorageProviderLoadError> {
+    let store = StorageProviderStore::new(state.database.clone());
+    let provider = store
+        .get_default_provider()
+        .await
+        .map_err(|error| DefaultStorageProviderLoadError::App(error.into()))?
+        .ok_or(DefaultStorageProviderLoadError::NotFound)?;
+
+    if !provider.is_active {
+        return Err(DefaultStorageProviderLoadError::Disabled);
+    }
+
+    if provider.provider_type != StorageProviderType::TencentCos {
+        return Err(DefaultStorageProviderLoadError::Unsupported(
+            provider.provider_type,
+        ));
+    }
+
+    Ok(provider)
+}
+
+async fn load_user_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
+    load_default_storage_provider_inner(state)
+        .await
+        .map_err(map_user_storage_provider_load_error)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AvatarDirectUploadRequest {
     pub content_type: Option<String>,
@@ -215,7 +302,7 @@ pub async fn generate_avatar_direct_upload(
         }
     }
 
-    let provider = load_default_storage_provider(&state).await?;
+    let provider = load_user_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
 
     // 头像直传目前主要针对单用户头像，考虑到 object_key 校验依赖用户前缀，
@@ -323,7 +410,7 @@ pub async fn commit_avatar_upload(
         }));
     }
 
-    let provider = load_default_storage_provider(&state).await?;
+    let provider = load_user_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
     let upload_store =
         crate::database::file_upload_store::FileUploadStore::new(state.database.clone());
@@ -338,14 +425,7 @@ pub async fn commit_avatar_upload(
             if let Some(expected_size) = record.as_ref().and_then(|r| r.file_size) {
                 if let Some(actual_size) = head.content_length {
                     if actual_size != expected_size as u64 {
-                        let params = MessageParams::from([
-                            ("expected_size".to_string(), expected_size.to_string()),
-                            ("actual_size".to_string(), actual_size.to_string()),
-                        ]);
-                        return Err(user_validation_error_with_params(
-                            "user.avatar_size_mismatch",
-                            params,
-                        ));
+                        return Err(user_avatar_size_mismatch_error(expected_size, actual_size));
                     }
                 }
             }
@@ -528,7 +608,7 @@ pub async fn get_avatar_download_url(
         }
     };
 
-    let provider = load_default_storage_provider(&state).await?;
+    let provider = load_user_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
 
     // 生成缓存键
@@ -583,12 +663,10 @@ pub async fn get_user_avatar_download_url(
         .map_err(|_| user_validation_error("user.user_id_invalid"))?;
 
     let user_store = UserStore::new(state.database.clone());
-    let user = user_store.find_by_id(&user_id).await?.ok_or_else(|| {
-        user_not_found_error_with_params(
-            "user.user_not_found",
-            MessageParams::from([("user_id".to_string(), user_id.to_string())]),
-        )
-    })?;
+    let user = user_store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| user_not_found_by_id_error(user_id))?;
 
     let key = match user.avatar_object_key {
         Some(ref key) => key.clone(),
@@ -601,7 +679,7 @@ pub async fn get_user_avatar_download_url(
         }
     };
 
-    let provider = load_default_storage_provider(&state).await?;
+    let provider = load_user_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
     let download_url = storage_service
         .generate_download_url(&key, params.expires_in_seconds)
@@ -699,12 +777,10 @@ pub async fn get_user_by_id(
 
     let store = UserStore::new(state.database.clone());
 
-    let user = store.find_by_id(&user_id).await?.ok_or_else(|| {
-        user_not_found_error_with_params(
-            "user.user_not_found",
-            MessageParams::from([("user_id".to_string(), user_id.to_string())]),
-        )
-    })?;
+    let user = store
+        .find_by_id(&user_id)
+        .await?
+        .ok_or_else(|| user_not_found_by_id_error(user_id))?;
 
     Ok(Json(db_user_to_api_user_info(&user)))
 }
@@ -741,29 +817,9 @@ pub async fn search_users(
 }
 
 pub async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvider, AppError> {
-    let store = StorageProviderStore::new(state.database.clone());
-    let provider = store
-        .get_default_provider()
-        .await?
-        .ok_or_else(|| user_not_found_error("user.default_storage_provider_not_found"))?;
-
-    if !provider.is_active {
-        return Err(user_validation_error(
-            "user.default_storage_provider_disabled",
-        ));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(user_validation_error_with_params(
-            "user.default_storage_provider_unsupported",
-            MessageParams::from([(
-                "provider_type".to_string(),
-                provider.provider_type.to_string(),
-            )]),
-        ));
-    }
-
-    Ok(provider)
+    load_default_storage_provider_inner(state)
+        .await
+        .map_err(map_shared_storage_provider_load_error)
 }
 
 fn build_avatar_object_key(user_id: &Uuid, content_type: Option<&str>) -> String {
@@ -821,6 +877,9 @@ pub fn normalize_search_limit(limit: Option<i64>) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{body::Body, response::IntoResponse};
+    use http_body_util::BodyExt;
+    use serde_json::Value;
 
     // ========================================================================
     // 头像文件扩展名推断测试
@@ -1029,5 +1088,58 @@ mod tests {
             "user.default_storage_provider_unsupported"
         );
         assert_eq!(error.message_params().as_ref(), Some(&params));
+    }
+
+    #[test]
+    fn test_shared_storage_provider_unsupported_error_does_not_leak_user_domain_key() {
+        let error = map_shared_storage_provider_load_error(
+            DefaultStorageProviderLoadError::Unsupported(StorageProviderType::Minio),
+        );
+
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "common.validation_error");
+        assert_eq!(error.localized_message(), "不支持的提供商类型: minio");
+    }
+
+    #[tokio::test]
+    async fn test_user_storage_provider_unsupported_branch_uses_user_domain_response() {
+        let error = map_user_storage_provider_load_error(
+            DefaultStorageProviderLoadError::Unsupported(StorageProviderType::Minio),
+        );
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 42201);
+        assert_eq!(
+            body["message_key"],
+            "user.default_storage_provider_unsupported"
+        );
+        assert_eq!(body["message"], "不支持的提供商类型：minio");
+        assert_eq!(body["message_params"]["provider_type"], "minio");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn test_user_avatar_size_mismatch_branch_uses_localized_params_in_response() {
+        let error = user_avatar_size_mismatch_error(1024, 2048);
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 42201);
+        assert_eq!(body["message_key"], "user.avatar_size_mismatch");
+        assert_eq!(
+            body["message"],
+            "头像大小校验失败：期望 1024 字节，实际 2048 字节"
+        );
+        assert_eq!(body["message_params"]["expected_size"], "1024");
+        assert_eq!(body["message_params"]["actual_size"], "2048");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    async fn read_body_json(body: Body) -> Value {
+        let bytes = body
+            .collect()
+            .await
+            .expect("collect response body")
+            .to_bytes();
+        serde_json::from_slice(&bytes).expect("parse json body")
     }
 }
