@@ -24,6 +24,11 @@ export interface MediaPreviewKeyboardActionInput {
   key: string;
 }
 
+export interface MediaPreviewSource {
+  messageId: string;
+  partPosition: number;
+}
+
 const roundImagePreviewScale = (value: number) =>
   Math.round(value * 100) / 100;
 
@@ -108,4 +113,31 @@ export const getMediaPreviewKeyboardAction = (
     return "next";
   }
   return null;
+};
+
+export const findMediaPreviewSource = <
+  TPart extends { position: number },
+  TMessage extends { id: string; parts: TPart[] },
+>(
+  messages: TMessage[],
+  source: MediaPreviewSource | null,
+): { message: TMessage; part: TPart } | null => {
+  if (!source) {
+    return null;
+  }
+
+  const message = messages.find((item) => item.id === source.messageId);
+  if (!message) {
+    return null;
+  }
+
+  const part = message.parts.find((item) => item.position === source.partPosition);
+  if (!part) {
+    return null;
+  }
+
+  return {
+    message,
+    part,
+  };
 };

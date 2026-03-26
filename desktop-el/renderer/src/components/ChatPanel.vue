@@ -34,6 +34,7 @@ import {
 import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  findMediaPreviewSource,
   getImagePreviewGalleryNeighbor,
   getMediaPreviewKeyboardAction,
   getNextImagePreviewRotation,
@@ -277,6 +278,10 @@ const mediaPreview = ref<{
   url: string;
   name: string;
   meta: string;
+} | null>(null);
+const mediaPreviewSource = ref<{
+  messageId: string;
+  partPosition: number;
 } | null>(null);
 const mediaPreviewImageGalleryItemId = ref<string | null>(null);
 const mediaPreviewImageScale = ref(1);
@@ -5561,6 +5566,10 @@ const handleOpenAttachmentPreview = async (
     return;
   }
 
+  mediaPreviewSource.value = {
+    messageId: message.id,
+    partPosition: part.position,
+  };
   mediaPreviewImageGalleryItemId.value =
     part.partType === "image" ? `${message.id}:${part.position}` : null;
   mediaPreviewImageRotation.value = 0;
@@ -5574,10 +5583,24 @@ const handleOpenAttachmentPreview = async (
 };
 
 const closeMediaPreview = () => {
+  mediaPreviewSource.value = null;
   mediaPreviewImageGalleryItemId.value = null;
   mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
   mediaPreview.value = null;
+};
+
+const handleSaveCurrentMediaPreview = async () => {
+  const resolved = findMediaPreviewSource(messages.value, mediaPreviewSource.value);
+  if (!resolved) {
+    notice.value = "当前预览附件已失效，无法保存。";
+    return;
+  }
+
+  await handleDownloadAttachment(
+    resolved.message as ChatMessage,
+    resolved.part as ChatMessagePart,
+  );
 };
 
 const openImagePreviewGalleryEntry = async (
@@ -7506,6 +7529,13 @@ onBeforeUnmount(() => {
                 放大
               </button>
             </template>
+            <button
+              type="button"
+              class="media-preview__close"
+              @click="void handleSaveCurrentMediaPreview()"
+            >
+              保存
+            </button>
             <button
               type="button"
               class="media-preview__close"

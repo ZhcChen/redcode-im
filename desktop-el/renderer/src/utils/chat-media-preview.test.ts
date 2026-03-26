@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  findMediaPreviewSource,
   getMediaPreviewKeyboardAction,
   getImagePreviewGalleryNeighbor,
   getNextImagePreviewRotation,
@@ -128,5 +129,58 @@ describe("chat media preview helpers", () => {
     expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowLeft" })).toBeNull();
     expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowRight" })).toBeNull();
     expect(getMediaPreviewKeyboardAction({ previewType: null, key: "Escape" })).toBeNull();
+  });
+
+  test("finds media preview source message and part by source coordinates", () => {
+    expect(
+      findMediaPreviewSource(
+        [
+          {
+            id: "message-1",
+            parts: [
+              { position: 0, partType: "text" },
+              { position: 1, partType: "image" },
+            ],
+          },
+          {
+            id: "message-2",
+            parts: [{ position: 0, partType: "video" }],
+          },
+        ],
+        {
+          messageId: "message-1",
+          partPosition: 1,
+        },
+      ),
+    ).toEqual({
+      message: {
+        id: "message-1",
+        parts: [
+          { position: 0, partType: "text" },
+          { position: 1, partType: "image" },
+        ],
+      },
+      part: {
+        position: 1,
+        partType: "image",
+      },
+    });
+  });
+
+  test("returns null when media preview source no longer exists", () => {
+    expect(
+      findMediaPreviewSource(
+        [
+          {
+            id: "message-1",
+            parts: [{ position: 0, partType: "image" }],
+          },
+        ],
+        {
+          messageId: "message-2",
+          partPosition: 0,
+        },
+      ),
+    ).toBeNull();
   });
 });
