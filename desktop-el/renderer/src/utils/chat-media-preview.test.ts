@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  clampMediaPreviewProgressRatio,
   findMediaPreviewSource,
   formatMediaPreviewPlaybackTime,
   getMediaPreviewPlaybackProgress,
@@ -10,6 +11,7 @@ import {
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
   getNextVideoPreviewCurrentTime,
+  getVideoPreviewCurrentTimeFromProgressRatio,
   IMAGE_PREVIEW_MAX_SCALE,
   IMAGE_PREVIEW_MIN_SCALE,
   normalizeImagePreviewRotation,
@@ -166,6 +168,19 @@ describe("chat media preview helpers", () => {
     expect(getNextVideoPreviewCurrentTime(10, 60, "forward")).toBe(15);
     expect(getNextVideoPreviewCurrentTime(2, 60, "backward")).toBe(0);
     expect(getNextVideoPreviewCurrentTime(58, 60, "forward")).toBe(60);
+  });
+
+  test("clamps media preview progress ratio into 0-1 range", () => {
+    expect(clampMediaPreviewProgressRatio(-0.2)).toBe(0);
+    expect(clampMediaPreviewProgressRatio(0.4)).toBe(0.4);
+    expect(clampMediaPreviewProgressRatio(1.6)).toBe(1);
+  });
+
+  test("maps progress ratio to video preview current time", () => {
+    expect(getVideoPreviewCurrentTimeFromProgressRatio(0, 0.4)).toBe(0);
+    expect(getVideoPreviewCurrentTimeFromProgressRatio(120, 0.25)).toBe(30);
+    expect(getVideoPreviewCurrentTimeFromProgressRatio(120, -0.1)).toBe(0);
+    expect(getVideoPreviewCurrentTimeFromProgressRatio(120, 1.2)).toBe(120);
   });
 
   test("finds media preview source message and part by source coordinates", () => {

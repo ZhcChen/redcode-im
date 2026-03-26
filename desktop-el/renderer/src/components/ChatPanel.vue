@@ -34,6 +34,7 @@ import {
 import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  clampMediaPreviewProgressRatio,
   findMediaPreviewSource,
   formatMediaPreviewPlaybackTime,
   getMediaPreviewPlaybackProgress,
@@ -42,6 +43,7 @@ import {
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
   getNextVideoPreviewCurrentTime,
+  getVideoPreviewCurrentTimeFromProgressRatio,
   IMAGE_PREVIEW_SCALE_STEP,
   VIDEO_PREVIEW_SEEK_STEP_SECONDS,
 } from "@/utils/chat-media-preview";
@@ -5816,6 +5818,28 @@ const toggleMediaPreviewVideoMuted = () => {
   syncMediaPreviewVideoState();
 };
 
+const handleMediaPreviewVideoProgressClick = (event: MouseEvent) => {
+  const video = mediaPreviewVideoElement.value;
+  const currentTarget = event.currentTarget;
+  if (!video || !(currentTarget instanceof HTMLElement)) {
+    return;
+  }
+
+  const rect = currentTarget.getBoundingClientRect();
+  if (rect.width <= 0) {
+    return;
+  }
+
+  const ratio = clampMediaPreviewProgressRatio(
+    (event.clientX - rect.left) / rect.width,
+  );
+  video.currentTime = getVideoPreviewCurrentTimeFromProgressRatio(
+    video.duration,
+    ratio,
+  );
+  syncMediaPreviewVideoState();
+};
+
 const handleDownloadAttachment = async (
   message: ChatMessage,
   part: ChatMessagePart,
@@ -7740,7 +7764,11 @@ onBeforeUnmount(() => {
             <span class="media-preview__video-time">
               {{ mediaPreviewVideoPlaybackLabel }}
             </span>
-            <div class="media-preview__video-progress" aria-hidden="true">
+            <div
+              class="media-preview__video-progress"
+              title="点击跳转到对应播放位置"
+              @click="handleMediaPreviewVideoProgressClick"
+            >
               <span
                 class="media-preview__video-progress-bar"
                 :style="{ width: `${mediaPreviewVideoProgress}%` }"
@@ -9240,6 +9268,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.08);
+  cursor: pointer;
 }
 
 .media-preview__video-progress-bar {

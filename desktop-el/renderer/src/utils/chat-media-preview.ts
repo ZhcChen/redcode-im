@@ -36,6 +36,9 @@ const roundImagePreviewScale = (value: number) =>
 const roundMediaPreviewProgress = (value: number) =>
   Math.round(value * 100) / 100;
 
+export const clampMediaPreviewProgressRatio = (value: number) =>
+  Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+
 export const clampImagePreviewScale = (value: number) =>
   roundImagePreviewScale(
     Math.min(
@@ -127,6 +130,17 @@ export const getMediaPreviewPlaybackProgress = (
   const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : 0;
   const clampedCurrentTime = Math.min(duration, Math.max(0, safeCurrentTime));
   return roundMediaPreviewProgress((clampedCurrentTime / duration) * 100);
+};
+
+export const getVideoPreviewCurrentTimeFromProgressRatio = (
+  duration: number,
+  ratio: number,
+) => {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return 0;
+  }
+
+  return duration * clampMediaPreviewProgressRatio(ratio);
 };
 
 export const getNextVideoPreviewCurrentTime = (
