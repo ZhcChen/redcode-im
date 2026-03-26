@@ -68,14 +68,14 @@ impl fmt::Display for AppError {
         match self {
             AppError::DatabaseError(_) => write!(f, "数据库错误"),
             AppError::Unauthorized(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "未授权，请先登录")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::InvalidToken(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "无效的令牌")
                 } else {
                     write!(f, "{}", msg)
@@ -84,35 +84,35 @@ impl fmt::Display for AppError {
             AppError::TokenExpired => write!(f, "令牌已过期，请重新登录"),
             AppError::InvalidCredentials => write!(f, "用户名或密码错误"),
             AppError::NotFound(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "资源不存在")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::AlreadyExists(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "资源已存在")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::ValidationError(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "验证失败")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::InvalidInput(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "输入无效")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::Forbidden(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "禁止访问")
                 } else {
                     write!(f, "{}", msg)
@@ -120,14 +120,14 @@ impl fmt::Display for AppError {
             }
             AppError::InsufficientPermission => write!(f, "权限不足"),
             AppError::BusinessError(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "业务逻辑错误")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::RateLimitExceeded(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "请求过于频繁，请稍后再试")
                 } else {
                     write!(f, "{}", msg)
@@ -135,21 +135,21 @@ impl fmt::Display for AppError {
             }
             AppError::TooManyRequests => write!(f, "请求过于频繁，请稍后再试"),
             AppError::CacheError(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "缓存错误")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::InternalError(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "服务器内部错误")
                 } else {
                     write!(f, "{}", msg)
                 }
             }
             AppError::ServiceUnavailable(msg) => {
-                if msg.is_empty() {
+                if msg.trim().is_empty() {
                     write!(f, "服务不可用")
                 } else {
                     write!(f, "{}", msg)
@@ -314,8 +314,8 @@ impl AppError {
             AppError::DatabaseError(_) => None,
             // 内部错误不暴露细节
             AppError::InternalError(_) => None,
-            // 其他错误可以暴露细节
-            _ => Some(self.to_string()),
+            // 其他错误仅在 payload 非空时暴露细节
+            _ => self.payload_message().map(str::to_string),
         }
     }
 }

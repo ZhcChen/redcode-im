@@ -18,12 +18,7 @@ pub fn negotiate_locale(accept_language: Option<&str>) -> String {
                 return None;
             }
 
-            let q = parts
-                .find_map(|part| {
-                    let part = part.trim();
-                    part.strip_prefix("q=").and_then(|value| value.parse::<f32>().ok())
-                })
-                .unwrap_or(1.0);
+            let q = parse_quality(parts)?;
 
             Some((normalize_tag(raw_tag), q, index))
         })
@@ -50,6 +45,33 @@ pub fn negotiate_locale(accept_language: Option<&str>) -> String {
     }
 
     DEFAULT_LOCALE.to_string()
+}
+
+fn parse_quality<'a>(params: impl Iterator<Item = &'a str>) -> Option<f32> {
+    let mut has_q = false;
+    let mut quality = 1.0f32;
+
+    for param in params {
+        let param = param.trim();
+        if let Some(raw_q) = param.strip_prefix("q=") {
+            has_q = true;
+            let parsed = raw_q.parse::<f32>().ok()?;
+            if !(0.0..=1.0).contains(&parsed) {
+                return None;
+            }
+            quality = parsed;
+        }
+    }
+
+    if has_q && quality == 0.0 {
+        return None;
+    }
+
+    if !has_q || quality > 0.0 {
+        Some(quality)
+    } else {
+        None
+    }
 }
 
 fn normalize_tag(tag: &str) -> String {
