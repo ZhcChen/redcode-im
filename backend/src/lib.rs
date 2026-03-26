@@ -9,6 +9,7 @@ pub mod database;
 pub mod error;
 pub mod handlers;
 pub mod id;
+pub mod i18n;
 pub mod logging;
 pub mod middleware;
 pub mod models;

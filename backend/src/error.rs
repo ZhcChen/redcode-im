@@ -6,15 +6,20 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+
 /// 统一的错误响应格式
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     /// 错误码
     pub code: u32,
+    /// 稳定错误键
+    pub message_key: String,
     /// 错误消息
     pub message: String,
+    /// 错误参数（可选）
+    pub message_params: Option<MessageParams>,
     /// 详细信息（可选）
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
 }
 
@@ -229,6 +234,79 @@ impl AppError {
         }
     }
 
+    /// 获取稳定消息 key
+    pub fn message_key(&self) -> &'static str {
+        match self {
+            AppError::DatabaseError(_) => "common.database_error",
+            AppError::Unauthorized(_) => "auth.unauthorized",
+            AppError::InvalidToken(_) => "auth.invalid_token",
+            AppError::TokenExpired => "auth.token_expired",
+            AppError::InvalidCredentials => "auth.invalid_credentials",
+            AppError::NotFound(_) => "common.not_found",
+            AppError::AlreadyExists(_) => "common.already_exists",
+            AppError::ValidationError(_) => "common.validation_error",
+            AppError::InvalidInput(_) => "common.invalid_input",
+            AppError::Forbidden(_) => "auth.forbidden",
+            AppError::InsufficientPermission => "auth.insufficient_permission",
+            AppError::BusinessError(_) => "common.business_error",
+            AppError::RateLimitExceeded(_) | AppError::TooManyRequests => "common.too_many_requests",
+            AppError::CacheError(_) => "common.cache_error",
+            AppError::InternalError(_) => "common.internal_error",
+            AppError::ServiceUnavailable(_) => "common.service_unavailable",
+        }
+    }
+
+    /// 获取消息参数（Task 1 仅打通协议字段）
+    pub fn message_params(&self) -> Option<MessageParams> {
+        None
+    }
+
+    /// 获取用于响应的最终 message：
+    /// - 有 payload 且非空时保留 payload
+    /// - 否则使用默认 locale (zh-CN) 进行本地化
+    /// - 如果 key 缺失则回退为 message_key
+    pub fn localized_message(&self) -> String {
+        if let Some(payload) = self.payload_message() {
+            return payload.to_string();
+        }
+
+        let localizer = default_localizer();
+        let params = self.message_params();
+        localizer.localize(
+            localizer.fallback_locale(),
+            self.message_key(),
+            params.as_ref(),
+        )
+    }
+
+    fn payload_message(&self) -> Option<&str> {
+        let message = match self {
+            AppError::Unauthorized(msg)
+            | AppError::InvalidToken(msg)
+            | AppError::NotFound(msg)
+            | AppError::AlreadyExists(msg)
+            | AppError::ValidationError(msg)
+            | AppError::InvalidInput(msg)
+            | AppError::Forbidden(msg)
+            | AppError::BusinessError(msg)
+            | AppError::RateLimitExceeded(msg)
+            | AppError::CacheError(msg)
+            | AppError::InternalError(msg)
+            | AppError::ServiceUnavailable(msg) => msg.as_str(),
+            AppError::DatabaseError(_)
+            | AppError::TokenExpired
+            | AppError::InvalidCredentials
+            | AppError::InsufficientPermission
+            | AppError::TooManyRequests => "",
+        };
+
+        if message.trim().is_empty() {
+            None
+        } else {
+            Some(message)
+        }
+    }
+
     /// 获取详细信息（敏感信息不会暴露给客户端）
     pub fn details(&self) -> Option<String> {
         match self {
@@ -263,19 +341,24 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status_code = self.status_code();
         let error_code = self.error_code();
-        let message = self.to_string();
+        let message_key = self.message_key().to_string();
+        let message = self.localized_message();
+        let message_params = self.message_params();
         let details = self.details();
 
         let error_response = ErrorResponse {
             code: error_code,
+            message_key,
             message,
+            message_params,
             details,
         };
 
         tracing::warn!(
-            "API error response: status={}, code={}, error={:?}",
+            "API error response: status={}, code={}, key={}, error={:?}",
             status_code.as_u16(),
             error_code,
+            error_response.message_key,
             error_response.message
         );
 

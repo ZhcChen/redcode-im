@@ -1,0 +1,18 @@
+{
+  "auth.unauthorized": "Unauthorized. Please sign in first.",
+  "auth.invalid_token": "Invalid token.",
+  "auth.token_expired": "Token expired. Please sign in again.",
+  "auth.invalid_credentials": "Invalid username or password.",
+  "auth.forbidden": "Access forbidden.",
+  "auth.insufficient_permission": "Insufficient permission.",
+  "common.not_found": "Resource not found.",
+  "common.already_exists": "Resource already exists.",
+  "common.validation_error": "Validation failed.",
+  "common.invalid_input": "Invalid input.",
+  "common.business_error": "Business logic error.",
+  "common.too_many_requests": "Too many requests. Please try again later.",
+  "common.database_error": "Database error.",
+  "common.cache_error": "Cache error.",
+  "common.internal_error": "Internal server error.",
+  "common.service_unavailable": "Service unavailable."
+}
