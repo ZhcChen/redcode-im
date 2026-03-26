@@ -31,6 +31,11 @@ import {
   shouldPreloadAttachmentPreviewImage,
   shouldInlinePreviewAttachment,
 } from "@/utils/chat-attachment-preview";
+import {
+  clampImagePreviewScale,
+  getNextImagePreviewScaleFromWheel,
+  IMAGE_PREVIEW_SCALE_STEP,
+} from "@/utils/chat-media-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
 import type { LocalChatMessageSearchResult } from "@/utils/chat-message-search";
 import {
@@ -269,6 +274,7 @@ const mediaPreview = ref<{
   name: string;
   meta: string;
 } | null>(null);
+const mediaPreviewImageScale = ref(1);
 const chatContextMenuTarget = ref<ChatSummary | null>(null);
 const chatContextMenuPosition = ref({ x: 0, y: 0 });
 const messageContextMenuTarget = ref<ChatMessage | null>(null);
@@ -348,6 +354,12 @@ const selectedChat = computed(
     chats.value[0] ||
     null,
 );
+const mediaPreviewImageScaleLabel = computed(
+  () => `${Math.round(mediaPreviewImageScale.value * 100)}%`,
+);
+const mediaPreviewImageStyle = computed(() => ({
+  transform: `scale(${mediaPreviewImageScale.value})`,
+}));
 const isSelectedGroupChat = computed(
   () => selectedChat.value?.roomType === "group",
 );
@@ -5490,6 +5502,7 @@ const handleOpenAttachmentPreview = async (
     return;
   }
 
+  mediaPreviewImageScale.value = 1;
   mediaPreview.value = {
     type: part.partType,
     url: mediaUrl,
@@ -5499,7 +5512,35 @@ const handleOpenAttachmentPreview = async (
 };
 
 const closeMediaPreview = () => {
+  mediaPreviewImageScale.value = 1;
   mediaPreview.value = null;
+};
+
+const zoomInMediaPreviewImage = () => {
+  mediaPreviewImageScale.value = clampImagePreviewScale(
+    mediaPreviewImageScale.value + IMAGE_PREVIEW_SCALE_STEP,
+  );
+};
+
+const zoomOutMediaPreviewImage = () => {
+  mediaPreviewImageScale.value = clampImagePreviewScale(
+    mediaPreviewImageScale.value - IMAGE_PREVIEW_SCALE_STEP,
+  );
+};
+
+const resetMediaPreviewImageScale = () => {
+  mediaPreviewImageScale.value = 1;
+};
+
+const handleMediaPreviewImageWheel = (event: WheelEvent) => {
+  if (mediaPreview.value?.type !== "image") {
+    return;
+  }
+
+  mediaPreviewImageScale.value = getNextImagePreviewScaleFromWheel(
+    mediaPreviewImageScale.value,
+    event.deltaY,
+  );
 };
 
 const handleDownloadAttachment = async (
@@ -7299,20 +7340,52 @@ onBeforeUnmount(() => {
             <strong>{{ mediaPreview.name }}</strong>
             <small>{{ mediaPreview.meta }}</small>
           </div>
-          <button
-            type="button"
-            class="media-preview__close"
-            @click="closeMediaPreview"
-          >
-            关闭
-          </button>
+          <div class="media-preview__actions">
+            <template v-if="mediaPreview.type === 'image'">
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="zoomOutMediaPreviewImage"
+              >
+                缩小
+              </button>
+              <span class="media-preview__scale">{{ mediaPreviewImageScaleLabel }}</span>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="resetMediaPreviewImageScale"
+              >
+                重置
+              </button>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="zoomInMediaPreviewImage"
+              >
+                放大
+              </button>
+            </template>
+            <button
+              type="button"
+              class="media-preview__close"
+              @click="closeMediaPreview"
+            >
+              关闭
+            </button>
+          </div>
         </div>
-        <img
+        <div
           v-if="mediaPreview.type === 'image'"
-          :src="mediaPreview.url"
-          :alt="mediaPreview.name"
-          class="media-preview__image"
-        />
+          class="media-preview__image-shell"
+          @wheel.prevent="handleMediaPreviewImageWheel"
+        >
+          <img
+            :src="mediaPreview.url"
+            :alt="mediaPreview.name"
+            class="media-preview__image"
+            :style="mediaPreviewImageStyle"
+          />
+        </div>
         <video
           v-else
           class="media-preview__video"
@@ -8701,6 +8774,14 @@ onBeforeUnmount(() => {
   align-items: flex-start;
 }
 
+.media-preview__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .media-preview__header div {
   display: grid;
   gap: 4px;
@@ -8732,6 +8813,33 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.media-preview__action {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.media-preview__scale {
+  min-width: 56px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.media-preview__image-shell {
+  display: grid;
+  place-items: center;
+  min-height: min(72vh, 720px);
+  overflow: auto;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
 .media-preview__image,
 .media-preview__video {
   width: 100%;
@@ -8739,6 +8847,13 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   object-fit: contain;
   background: rgba(15, 23, 42, 0.06);
+}
+
+.media-preview__image {
+  width: auto;
+  max-width: 100%;
+  transition: transform 0.16s ease;
+  transform-origin: center center;
 }
 
 .message-edit-dialog {
