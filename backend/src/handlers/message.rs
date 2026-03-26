@@ -176,6 +176,25 @@ fn plan_message_attachment_multipart_upload(file_size: i64) -> Result<(i32, i32)
     })
 }
 
+fn validate_multipart_upload_candidate(
+    file_size: usize,
+    max_size: Option<usize>,
+) -> Result<(), AppError> {
+    if let Some(max_size) = max_size {
+        if file_size > max_size {
+            return Err(message_validation_error_with_params(
+                "message.attachment_file_size_exceeded_bytes",
+                MessageParams::from([
+                    ("actual_size".to_string(), file_size.to_string()),
+                    ("max_size".to_string(), max_size.to_string()),
+                ]),
+            ));
+        }
+    }
+
+    ensure_multipart_upload_size(file_size)
+}
+
 async fn ensure_group_message_permissions(
     state: &AppState,
     room_id: Uuid,
@@ -674,13 +693,13 @@ mod message_i18n_tests {
         ensure_multipart_upload_size, message_cache_error, message_internal_error,
         message_validation_error, message_validation_error_with_params, normalize_message_parts,
         parse_message_sender_id, plan_message_attachment_multipart_upload,
-        validate_list_cursor_params, validate_reaction_key, validate_reaction_target_message,
-        ALLOWED_REACTION_KEYS,
+        validate_list_cursor_params, validate_multipart_upload_candidate,
+        validate_reaction_key, validate_reaction_target_message, ALLOWED_REACTION_KEYS,
     };
     use crate::services::multipart_upload;
     use crate::database::models::{MessageType, MessageWithSender};
     use crate::models::MessagePartPayload;
-    use axum::{body::Body, response::IntoResponse};
+    use axum::{body::Body, http::StatusCode, response::IntoResponse};
     use chrono::Utc;
     use http_body_util::BodyExt;
     use serde_json::Value;
@@ -869,10 +888,14 @@ mod message_i18n_tests {
     #[tokio::test]
     async fn attachment_commit_object_not_found_stays_validation_error() {
         let error = message_validation_error("message.attachment_object_not_found");
-        let body = read_body_json(error.into_response().into_body()).await;
+        let response = error.into_response();
+        let status = response.status();
+        let body = read_body_json(response.into_body()).await;
 
+        assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(body["code"], 42201);
         assert_eq!(body["message_key"], "message.attachment_object_not_found");
+        assert_eq!(body["details"], Value::Null);
     }
 
     #[test]
@@ -902,6 +925,20 @@ mod message_i18n_tests {
             error.localized_message(),
             "无法生成分片上传计划，请稍后重试"
         );
+    }
+
+    #[test]
+    fn multipart_size_limit_takes_precedence_over_threshold_check() {
+        let error = validate_multipart_upload_candidate(2 * 1024 * 1024, Some(1024 * 1024))
+            .expect_err("size limit should win before multipart threshold");
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.attachment_file_size_exceeded_bytes"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["actual_size"], (2 * 1024 * 1024).to_string());
+        assert_eq!(params["max_size"], (1024 * 1024).to_string());
     }
 
     #[test]
@@ -2507,7 +2544,6 @@ pub async fn initiate_message_attachment_multipart_upload(
         return Err(message_validation_error("message.attachment_file_size_required"));
     }
 
-    ensure_multipart_upload_size(req.file_size)?;
 
     let policy = crate::services::upload_policy::get_upload_policy(&state).await;
     let part_type_key = match req.part_type {
@@ -2541,18 +2577,8 @@ pub async fn initiate_message_attachment_multipart_upload(
         }
     }
 
-    // 验证文件大小：按 Upload Policy 的分类型上限
-    if let Some(max_size) = policy.max_size_bytes_for_part_type(part_type_key) {
-        if req.file_size > max_size {
-            return Err(message_validation_error_with_params(
-                "message.attachment_file_size_exceeded_bytes",
-                MessageParams::from([
-                    ("actual_size".to_string(), req.file_size.to_string()),
-                    ("max_size".to_string(), max_size.to_string()),
-                ]),
-            ));
-        }
-    }
+    let max_size = policy.max_size_bytes_for_part_type(part_type_key);
+    validate_multipart_upload_candidate(req.file_size, max_size)?;
 
     let (part_size, total_parts) =
         plan_message_attachment_multipart_upload(req.file_size as i64)?;
