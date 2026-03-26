@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
   createAttachmentPreviewUrlStore,
+  createAttachmentPreviewImagePreloadStore,
   getInlinePreviewAssetKey,
-  shouldInlinePreviewAttachment
+  shouldInlinePreviewAttachment,
+  shouldPreloadAttachmentPreviewImage,
 } from "./chat-attachment-preview";
 
 describe("chat attachment preview helpers", () => {
@@ -11,6 +13,13 @@ describe("chat attachment preview helpers", () => {
     expect(shouldInlinePreviewAttachment("video")).toBe(true);
     expect(shouldInlinePreviewAttachment("audio")).toBe(true);
     expect(shouldInlinePreviewAttachment("file")).toBe(false);
+  });
+
+  test("only browser-preloads image and video preview assets", () => {
+    expect(shouldPreloadAttachmentPreviewImage("image")).toBe(true);
+    expect(shouldPreloadAttachmentPreviewImage("video")).toBe(true);
+    expect(shouldPreloadAttachmentPreviewImage("audio")).toBe(false);
+    expect(shouldPreloadAttachmentPreviewImage("file")).toBe(false);
   });
 
   test("prefers video thumbnail key for inline preview asset when available", () => {
@@ -140,5 +149,73 @@ describe("chat attachment preview helpers", () => {
 
     expect(retried).toBe("https://example.com/audio.m4a?sign=2");
     expect(callCount).toBe(2);
+  });
+
+  test("deduplicates concurrent image preload requests and caches successful results", async () => {
+    type MockImage = {
+      src: string;
+      onload: (() => void) | null;
+      onerror: (() => void) | null;
+    };
+
+    const createdImages: MockImage[] = [];
+    const store = createAttachmentPreviewImagePreloadStore({
+      createImage: () => {
+        const nextImage: MockImage = {
+          src: "",
+          onload: null,
+          onerror: null,
+        };
+        createdImages.push(nextImage);
+        return nextImage;
+      },
+    });
+
+    const first = store.preload("https://example.com/preview.png");
+    const second = store.preload("https://example.com/preview.png");
+
+    expect(createdImages).toHaveLength(1);
+    expect(createdImages[0]?.src).toBe("https://example.com/preview.png");
+
+    createdImages[0]?.onload?.();
+
+    await Promise.all([first, second]);
+    expect(store.has("https://example.com/preview.png")).toBe(true);
+
+    await store.preload("https://example.com/preview.png");
+    expect(createdImages).toHaveLength(1);
+  });
+
+  test("clears failed image preload inflight state so later requests can retry", async () => {
+    type MockImage = {
+      src: string;
+      onload: (() => void) | null;
+      onerror: (() => void) | null;
+    };
+
+    const createdImages: MockImage[] = [];
+    const store = createAttachmentPreviewImagePreloadStore({
+      createImage: () => {
+        const nextImage: MockImage = {
+          src: "",
+          onload: null,
+          onerror: null,
+        };
+        createdImages.push(nextImage);
+        return nextImage;
+      },
+    });
+
+    const firstAttempt = store.preload("https://example.com/video-thumb.jpg");
+    createdImages[0]?.onerror?.();
+
+    await expect(firstAttempt).rejects.toThrow("图片预加载失败");
+    expect(store.has("https://example.com/video-thumb.jpg")).toBe(false);
+
+    const retryAttempt = store.preload("https://example.com/video-thumb.jpg");
+    expect(createdImages).toHaveLength(2);
+    createdImages[1]?.onload?.();
+    await retryAttempt;
+    expect(store.has("https://example.com/video-thumb.jpg")).toBe(true);
   });
 });

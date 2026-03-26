@@ -25,8 +25,10 @@ import { FriendApi, type FriendInfo } from "@/api/friend";
 import { WebSocketApi } from "@/api/websocket";
 import type { BootstrapSnapshot } from "@/types/bootstrap";
 import {
+  createAttachmentPreviewImagePreloadStore,
   createAttachmentPreviewUrlStore,
   getInlinePreviewAssetKey,
+  shouldPreloadAttachmentPreviewImage,
   shouldInlinePreviewAttachment,
 } from "@/utils/chat-attachment-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
@@ -317,6 +319,7 @@ const notice = ref(
   "聊天主区已接到 Go core，当前继续恢复附件消息上传、下载与预览闭环。",
 );
 const attachmentPreviewUrlStore = createAttachmentPreviewUrlStore();
+const attachmentPreviewImagePreloadStore = createAttachmentPreviewImagePreloadStore();
 const MESSAGE_REACTION_OPTIONS = ["👍", "❤️", "😂", "🎉", "😮", "😢"] as const;
 
 const filteredChats = computed(() => {
@@ -1949,6 +1952,11 @@ const ensureAttachmentPreviewUrl = async (
   const previewKey = getAttachmentPreviewKey(message, part);
   const existing = attachmentPreviewUrls.value[previewKey];
   if (existing) {
+    if (shouldPreloadAttachmentPreviewImage(part.partType)) {
+      void attachmentPreviewImagePreloadStore.preload(existing).catch((error) => {
+        console.warn("[desktop-el-renderer] attachment preview image precache failed", error);
+      });
+    }
     return existing;
   }
   if (loadingAttachmentPreviewKeys.value[previewKey]) {
@@ -1972,6 +1980,11 @@ const ensureAttachmentPreviewUrl = async (
         fileUrl: cachedAsset.fileUrl,
         preview: true,
       });
+      if (shouldPreloadAttachmentPreviewImage(part.partType)) {
+        void attachmentPreviewImagePreloadStore.preload(cachedAsset.fileUrl).catch((error) => {
+          console.warn("[desktop-el-renderer] attachment preview image precache failed", error);
+        });
+      }
       return cachedAsset.fileUrl;
     }
 
@@ -1990,6 +2003,11 @@ const ensureAttachmentPreviewUrl = async (
         fileUrl: cached.fileUrl,
         preview: true,
       });
+      if (shouldPreloadAttachmentPreviewImage(part.partType)) {
+        void attachmentPreviewImagePreloadStore.preload(cached.fileUrl).catch((error) => {
+          console.warn("[desktop-el-renderer] attachment preview image precache failed", error);
+        });
+      }
       return cached.fileUrl;
     } catch (cacheError) {
       console.warn(
@@ -2000,6 +2018,11 @@ const ensureAttachmentPreviewUrl = async (
         ...attachmentPreviewUrls.value,
         [previewKey]: previewUrl,
       };
+      if (shouldPreloadAttachmentPreviewImage(part.partType)) {
+        void attachmentPreviewImagePreloadStore.preload(previewUrl).catch((error) => {
+          console.warn("[desktop-el-renderer] attachment preview image precache failed", error);
+        });
+      }
       return previewUrl;
     }
   } catch (error) {
@@ -5839,6 +5862,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleGlobalKeydown);
   window.removeEventListener("dragend", resetFileDragState);
   window.removeEventListener("drop", resetFileDragState);
+  attachmentPreviewImagePreloadStore.clear();
   persistRetryableLocalMessages();
   clearAllLocalMessageRetryTimers();
   const roomId = subscribedRoomId.value;
