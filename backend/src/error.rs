@@ -309,11 +309,20 @@ impl AppError {
     }
 
     /// 获取用于响应的最终 message：
+    /// - Localized override 存在时，始终使用 override key 本地化，避免 message 与 message_key 漂移
     /// - 敏感错误（InternalError/ServiceUnavailable）不透传 payload
     /// - 非敏感错误有 payload 且非空时保留 payload
     /// - 其他情况使用默认 locale (zh-CN) 本地化
     /// - 若 key 缺失则回退为 message_key
     pub fn localized_message(&self) -> String {
+        if matches!(self, AppError::Localized { .. }) {
+            let localizer = default_localizer();
+            let params = self.message_params();
+            let locale =
+                current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+            return localizer.localize(&locale, self.response_message_key(), params.as_ref());
+        }
+
         if !self.should_mask_payload_for_client_message() {
             if let Some(payload) = self.payload_message() {
                 return payload.to_string();
@@ -550,6 +559,21 @@ mod tests {
         assert_eq!(body["message_key"], "auth.generate_token_failed");
         assert_eq!(body["message"], "生成令牌失败，请稍后重试");
         assert_eq!(body["details"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn test_message_key_override_ignores_non_sensitive_source_payload_for_client_message() {
+        let body = read_body_json(
+            AppError::ValidationError("旧自由字符串".to_string())
+                .with_message_key("auth.refresh_token_required")
+                .into_response()
+                .into_body(),
+        )
+        .await;
+
+        assert_eq!(body["message_key"], "auth.refresh_token_required");
+        assert_eq!(body["message"], "刷新令牌不能为空");
+        assert_eq!(body["details"], "旧自由字符串");
     }
 
     #[tokio::test]
