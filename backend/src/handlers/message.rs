@@ -127,6 +127,17 @@ fn parse_message_sender_id(subject: &str) -> Result<Uuid, AppError> {
     Uuid::parse_str(subject).map_err(|_| message_invalid_token_error("auth.token_subject_invalid"))
 }
 
+fn validate_list_cursor_params(
+    before_id: Option<Uuid>,
+    since_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    if before_id.is_some() && since_id.is_some() {
+        return Err(message_validation_error("message.list_cursor_conflict"));
+    }
+
+    Ok(())
+}
+
 fn map_message_storage_provider_load_error(error: DefaultStorageProviderLoadError) -> AppError {
     match error {
         DefaultStorageProviderLoadError::App(error) => error,
@@ -640,12 +651,16 @@ mod message_attachment_key_tests {
 mod message_i18n_tests {
     use super::{
         message_cache_error, message_internal_error, normalize_message_parts,
-        parse_message_sender_id,
+        parse_message_sender_id, validate_list_cursor_params, validate_reaction_key,
+        validate_reaction_target_message, ALLOWED_REACTION_KEYS,
     };
+    use crate::database::models::{MessageType, MessageWithSender};
     use crate::models::MessagePartPayload;
     use axum::{body::Body, response::IntoResponse};
+    use chrono::Utc;
     use http_body_util::BodyExt;
     use serde_json::Value;
+    use uuid::Uuid;
 
     #[test]
     fn normalize_message_parts_empty_content_returns_stable_message_key() {
@@ -728,6 +743,31 @@ mod message_i18n_tests {
         assert_eq!(error.localized_message(), "令牌中的用户信息无效，请重新登录");
     }
 
+    #[test]
+    fn validate_list_cursor_params_rejects_mutually_exclusive_cursor_ids() {
+        let error = validate_list_cursor_params(Some(Uuid::new_v4()), Some(Uuid::new_v4()))
+            .expect_err("before_id and since_id should conflict");
+
+        assert_eq!(error.response_message_key(), "message.list_cursor_conflict");
+        assert_eq!(error.localized_message(), "before_id 和 since_id 不能同时传入");
+        assert_eq!(error.details(), None);
+    }
+
+    #[test]
+    fn validate_reaction_key_invalid_returns_stable_key_and_params() {
+        let error = validate_reaction_key("🔥").expect_err("unsupported reaction should fail");
+
+        assert_eq!(error.response_message_key(), "message.reaction_key_unsupported");
+        assert_eq!(
+            error.localized_message(),
+            "不支持的反应类型：🔥。支持的类型：👍, ❤️, 😂, 🎉, 😮, 😢"
+        );
+
+        let params = error.message_params().expect("reaction params");
+        assert_eq!(params["reaction_key"], "🔥");
+        assert_eq!(params["supported"], ALLOWED_REACTION_KEYS.join(", "));
+    }
+
     #[tokio::test]
     async fn message_internal_error_masks_details_and_keeps_stable_protocol_key() {
         let error = message_internal_error("message.new_message_load_failed", "db timeout");
@@ -739,6 +779,39 @@ mod message_i18n_tests {
         assert_eq!(body["details"], Value::Null);
     }
 
+    #[tokio::test]
+    async fn delete_message_reload_internal_error_masks_details_and_keeps_stable_protocol_key() {
+        let error = message_internal_error("message.delete_message_reload_failed", "db timeout");
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 50301);
+        assert_eq!(body["message_key"], "message.delete_message_reload_failed");
+        assert_eq!(body["message"], "删除消息后重新加载失败，请稍后重试");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn edit_message_failed_internal_error_masks_details_and_keeps_stable_protocol_key() {
+        let error = message_internal_error("message.edit_message_failed", "db timeout");
+        let body = read_body_json(error.into_response().into_body()).await;
+
+        assert_eq!(body["code"], 50301);
+        assert_eq!(body["message_key"], "message.edit_message_failed");
+        assert_eq!(body["message"], "编辑消息失败，请稍后重试");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    #[test]
+    fn validate_reaction_target_message_rejects_deleted_message() {
+        let room_id = Uuid::new_v4();
+        let error = validate_reaction_target_message(&test_message_with_sender(room_id, true), room_id)
+            .expect_err("deleted message should reject reactions");
+
+        assert_eq!(error.response_message_key(), "message.reaction_message_deleted");
+        assert_eq!(error.localized_message(), "消息已删除，无法操作反应");
+        assert_eq!(error.details(), None);
+    }
+
     async fn read_body_json(body: Body) -> Value {
         let bytes = body
             .collect()
@@ -746,6 +819,41 @@ mod message_i18n_tests {
             .expect("collect response body")
             .to_bytes();
         serde_json::from_slice(&bytes).expect("parse json body")
+    }
+
+    fn test_message_with_sender(room_id: Uuid, deleted: bool) -> MessageWithSender {
+        let now = Utc::now();
+        MessageWithSender {
+            id: Uuid::new_v4(),
+            room_id,
+            sender_id: Uuid::new_v4(),
+            content: "hello".to_string(),
+            encrypted_content: None,
+            encryption_metadata: None,
+            message_type: MessageType::Text,
+            created_at: now,
+            updated_at: now,
+            deleted_at: deleted.then_some(now),
+            edited_at: None,
+            sender_username: "tester".to_string(),
+            sender_nickname: None,
+            sender_avatar_url: None,
+            quoted_message_id: None,
+            quoted_message_room_id: None,
+            quoted_message_sender_id: None,
+            quoted_message_sender_username: None,
+            quoted_message_sender_nickname: None,
+            quoted_message_sender_avatar_url: None,
+            quoted_message_content: None,
+            quoted_message_type: None,
+            quoted_message_created_at: None,
+            quoted_message_deleted_at: None,
+            forward_from_message_id: None,
+            forward_from_room_id: None,
+            forward_from_sender_id: None,
+            forward_from_sender_username: None,
+            forward_from_sender_nickname: None,
+        }
     }
 }
 
@@ -1348,27 +1456,21 @@ pub async fn list_messages(
     Query(params): Query<ListParams>,
     Extension(claims): Extension<crate::models::Claims>,
 ) -> Result<Json<Vec<MessageInfo>>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
     let read_store = MessageReadStore::new(state.database.pool());
 
     let in_room = store.user_in_room(room_id, user_id).await?;
     if !in_room {
-        return Err(AppError::Forbidden(format!(
-            "User {} is not a member of room {}",
-            user_id, room_id
-        )));
+        return Err(message_forbidden_error(
+            "message.list_room_membership_required",
+        ));
     }
 
     let limit = params.limit.unwrap_or(50).clamp(1, 200);
 
-    if params.before_id.is_some() && params.since_id.is_some() {
-        return Err(AppError::ValidationError(
-            "before_id and since_id are mutually exclusive".to_string(),
-        ));
-    }
+    validate_list_cursor_params(params.before_id, params.since_id)?;
 
     let items = store
         .get_room_messages_paged(room_id, limit, params.before_id, params.since_id)
@@ -1427,29 +1529,24 @@ pub async fn pin_message(
     Path((room_id, message_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<crate::models::Claims>,
 ) -> Result<Json<PinMessageResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法置顶消息".to_string(),
-        ));
+        return Err(message_forbidden_error("message.pin_room_membership_required"));
     }
 
     let message = store
         .get_message_with_sender(message_id)
         .await?
-        .ok_or_else(|| AppError::ValidationError("消息不存在".to_string()))?;
+        .ok_or_else(|| message_validation_error("message.pin_message_not_found"))?;
 
     if message.room_id != room_id {
-        return Err(AppError::ValidationError("消息不属于当前房间".to_string()));
+        return Err(message_validation_error("message.pin_message_room_mismatch"));
     }
     if message.deleted_at.is_some() {
-        return Err(AppError::ValidationError(
-            "消息已删除，无法置顶".to_string(),
-        ));
+        return Err(message_validation_error("message.pin_message_deleted"));
     }
 
     let part_map = store.get_message_parts_map(&[message.id]).await?;
@@ -1496,14 +1593,13 @@ pub async fn unpin_message(
     Path((room_id, message_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<crate::models::Claims>,
 ) -> Result<Json<PinMessageResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法取消置顶".to_string(),
+        return Err(message_forbidden_error(
+            "message.unpin_room_membership_required",
         ));
     }
 
@@ -1566,33 +1662,38 @@ pub async fn delete_message(
     Path((room_id, message_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<crate::models::Claims>,
 ) -> Result<Json<MessageInfo>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let store = MessageStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法删除消息".to_string(),
+        return Err(message_forbidden_error(
+            "message.delete_room_membership_required",
         ));
     }
 
     let existing = store
         .get_message_with_sender(message_id)
         .await?
-        .ok_or_else(|| AppError::ValidationError("消息不存在".to_string()))?;
+        .ok_or_else(|| message_validation_error("message.delete_message_not_found"))?;
 
     if existing.room_id != room_id {
-        return Err(AppError::ValidationError("消息不属于当前房间".to_string()));
+        return Err(message_validation_error(
+            "message.delete_message_room_mismatch",
+        ));
     }
 
     if existing.sender_id != user_id {
-        return Err(AppError::Forbidden("仅支持删除自己发送的消息".to_string()));
+        return Err(message_forbidden_error("message.delete_own_message_only"));
+    }
+
+    if existing.deleted_at.is_some() {
+        return Err(message_validation_error("message.delete_message_deleted"));
     }
 
     let marked = store.mark_message_deleted(message_id).await?;
     if marked.is_none() {
-        return Err(AppError::ValidationError("消息已删除".to_string()));
+        return Err(message_validation_error("message.delete_message_deleted"));
     }
 
     // 删除消息时，如果该消息有置顶记录，则一并移除并广播取消置顶事件
@@ -1617,7 +1718,18 @@ pub async fn delete_message(
     let updated = store
         .get_message_with_sender(message_id)
         .await?
-        .ok_or_else(|| AppError::InternalError("消息删除后加载失败".to_string()))?;
+        .ok_or_else(|| {
+            error!(
+                message_key = "message.delete_message_reload_failed",
+                room_id = %room_id,
+                message_id = %message_id,
+                "删除消息后重新加载失败"
+            );
+            message_internal_error(
+                "message.delete_message_reload_failed",
+                "message deleted but reload returned none",
+            )
+        })?;
 
     if let Err(e) = broadcast_message_update(
         &state,
@@ -1663,60 +1775,80 @@ pub async fn edit_message(
     Extension(claims): Extension<crate::models::Claims>,
     Json(payload): Json<EditMessagePayload>,
 ) -> Result<Json<MessageInfo>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let new_content = payload.content.trim();
     if new_content.is_empty() {
-        return Err(AppError::ValidationError("消息内容不能为空".to_string()));
+        return Err(message_validation_error("message.content_required"));
     }
     if new_content.len() > 10000 {
-        return Err(AppError::ValidationError(
-            "消息内容不能超过 10000 字符".to_string(),
+        return Err(message_validation_error_with_params(
+            "message.edit_content_too_long",
+            MessageParams::from([("max".to_string(), "10000".to_string())]),
         ));
     }
 
     let store = MessageStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法编辑消息".to_string(),
+        return Err(message_forbidden_error(
+            "message.edit_room_membership_required",
         ));
     }
 
     let existing = store
         .get_message_with_sender(message_id)
         .await?
-        .ok_or_else(|| AppError::ValidationError("消息不存在".to_string()))?;
+        .ok_or_else(|| message_validation_error("message.edit_message_not_found"))?;
 
     if existing.room_id != room_id {
-        return Err(AppError::ValidationError("消息不属于当前房间".to_string()));
+        return Err(message_validation_error("message.edit_message_room_mismatch"));
     }
 
     if existing.sender_id != user_id {
-        return Err(AppError::Forbidden("仅支持编辑自己发送的消息".to_string()));
+        return Err(message_forbidden_error("message.edit_own_message_only"));
     }
 
     if existing.deleted_at.is_some() {
-        return Err(AppError::ValidationError(
-            "消息已删除，无法编辑".to_string(),
-        ));
+        return Err(message_validation_error("message.edit_message_deleted"));
     }
 
     // 仅允许编辑文本消息
     if existing.message_type != crate::database::models::MessageType::Text {
-        return Err(AppError::ValidationError("仅支持编辑文本消息".to_string()));
+        return Err(message_validation_error("message.edit_text_only"));
     }
 
     let _updated_msg = store
         .update_message_content(message_id, new_content)
         .await?
-        .ok_or_else(|| AppError::InternalError("编辑消息失败".to_string()))?;
+        .ok_or_else(|| {
+            error!(
+                message_key = "message.edit_message_failed",
+                room_id = %room_id,
+                message_id = %message_id,
+                "编辑消息失败"
+            );
+            message_internal_error(
+                "message.edit_message_failed",
+                "message content update returned none",
+            )
+        })?;
 
     let updated = store
         .get_message_with_sender(message_id)
         .await?
-        .ok_or_else(|| AppError::InternalError("消息编辑后加载失败".to_string()))?;
+        .ok_or_else(|| {
+            error!(
+                message_key = "message.edit_message_reload_failed",
+                room_id = %room_id,
+                message_id = %message_id,
+                "消息编辑后重新加载失败"
+            );
+            message_internal_error(
+                "message.edit_message_reload_failed",
+                "message edited but reload returned none",
+            )
+        })?;
 
     // 广播编辑事件
     if let Err(e) = broadcast_message_update(
@@ -1768,12 +1900,31 @@ const ALLOWED_REACTION_KEYS: &[&str] = &["👍", "❤️", "😂", "🎉", "😮
 
 fn validate_reaction_key(reaction_key: &str) -> Result<(), AppError> {
     if !ALLOWED_REACTION_KEYS.contains(&reaction_key) {
-        return Err(AppError::ValidationError(format!(
-            "不支持的反应类型: {}。支持的类型: {}",
-            reaction_key,
-            ALLOWED_REACTION_KEYS.join(", ")
-        )));
+        return Err(message_validation_error_with_params(
+            "message.reaction_key_unsupported",
+            MessageParams::from([
+                ("reaction_key".to_string(), reaction_key.to_string()),
+                ("supported".to_string(), ALLOWED_REACTION_KEYS.join(", ")),
+            ]),
+        ));
     }
+    Ok(())
+}
+
+fn validate_reaction_target_message(
+    message: &MessageWithSender,
+    room_id: Uuid,
+) -> Result<(), AppError> {
+    if message.room_id != room_id {
+        return Err(message_validation_error(
+            "message.reaction_message_room_mismatch",
+        ));
+    }
+
+    if message.deleted_at.is_some() {
+        return Err(message_validation_error("message.reaction_message_deleted"));
+    }
+
     Ok(())
 }
 
@@ -1784,8 +1935,7 @@ pub async fn add_message_reaction(
     Extension(claims): Extension<crate::models::Claims>,
     Json(payload): Json<AddReactionPayload>,
 ) -> Result<Json<ReactionResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     // 验证反应类型
     validate_reaction_key(&payload.reaction_key)?;
@@ -1795,8 +1945,8 @@ pub async fn add_message_reaction(
 
     // 验证用户是房间成员
     if !message_store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法添加反应".to_string(),
+        return Err(message_forbidden_error(
+            "message.reaction_add_room_membership_required",
         ));
     }
 
@@ -1804,17 +1954,8 @@ pub async fn add_message_reaction(
     let message = message_store
         .get_message_with_sender(message_id)
         .await?
-        .ok_or_else(|| AppError::ValidationError("消息不存在".to_string()))?;
-
-    if message.room_id != room_id {
-        return Err(AppError::ValidationError("消息不属于当前房间".to_string()));
-    }
-
-    if message.deleted_at.is_some() {
-        return Err(AppError::ValidationError(
-            "消息已删除，无法添加反应".to_string(),
-        ));
-    }
+        .ok_or_else(|| message_validation_error("message.reaction_message_not_found"))?;
+    validate_reaction_target_message(&message, room_id)?;
 
     // 添加反应（toggle：如果已存在则恢复，不存在则创建）
     let _reaction = reaction_store
@@ -1862,8 +2003,7 @@ pub async fn remove_message_reaction(
     Extension(claims): Extension<crate::models::Claims>,
     Query(payload): Query<RemoveReactionPayload>,
 ) -> Result<Json<ReactionResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     // 验证反应类型
     validate_reaction_key(&payload.reaction_key)?;
@@ -1873,10 +2013,16 @@ pub async fn remove_message_reaction(
 
     // 验证用户是房间成员
     if !message_store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法删除反应".to_string(),
+        return Err(message_forbidden_error(
+            "message.reaction_remove_room_membership_required",
         ));
     }
+
+    let message = message_store
+        .get_message_with_sender(message_id)
+        .await?
+        .ok_or_else(|| message_validation_error("message.reaction_message_not_found"))?;
+    validate_reaction_target_message(&message, room_id)?;
 
     // 删除反应
     let removed = reaction_store
@@ -1884,7 +2030,9 @@ pub async fn remove_message_reaction(
         .await?;
 
     if !removed {
-        return Err(AppError::ValidationError("反应不存在或已删除".to_string()));
+        return Err(message_validation_error(
+            "message.reaction_not_found_or_deleted",
+        ));
     }
 
     // 获取聚合结果
@@ -1921,18 +2069,23 @@ pub async fn get_message_reactions(
     Path((room_id, message_id)): Path<(Uuid, Uuid)>,
     Extension(claims): Extension<crate::models::Claims>,
 ) -> Result<Json<ReactionResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_message_sender_id(&claims.sub)?;
 
     let message_store = MessageStore::new(state.database.pool());
     let reaction_store = MessageReactionStore::new(state.database.pool());
 
     // 验证用户是房间成员
     if !message_store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法查看反应".to_string(),
+        return Err(message_forbidden_error(
+            "message.reaction_list_room_membership_required",
         ));
     }
+
+    let message = message_store
+        .get_message_with_sender(message_id)
+        .await?
+        .ok_or_else(|| message_validation_error("message.reaction_message_not_found"))?;
+    validate_reaction_target_message(&message, room_id)?;
 
     // 获取聚合结果
     let summaries = reaction_store

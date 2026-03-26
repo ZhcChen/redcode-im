@@ -216,6 +216,73 @@ fn i18n_message_catalog_interpolates_params() {
     );
 }
 
+#[test]
+fn i18n_message_catalog_loads_task_4c_error_keys_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "message.list_cursor_conflict", None),
+        "before_id 和 since_id 不能同时传入"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.list_cursor_conflict", None),
+        "before_id and since_id cannot be provided together."
+    );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "message.delete_message_reload_failed", None),
+        "删除消息后重新加载失败，请稍后重试"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.delete_message_reload_failed", None),
+        "Failed to reload the message after deletion. Please try again later."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "message.reaction_message_deleted", None),
+        "消息已删除，无法操作反应"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.reaction_message_deleted", None),
+        "Message has been deleted and reactions are no longer available."
+    );
+}
+
+#[test]
+fn i18n_message_catalog_interpolates_task_4c_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    let reaction_params = BTreeMap::from([
+        ("reaction_key".to_string(), "🔥".to_string()),
+        ("supported".to_string(), "👍, ❤️, 😂".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.reaction_key_unsupported",
+            Some(&reaction_params)
+        ),
+        "不支持的反应类型：🔥。支持的类型：👍, ❤️, 😂"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "message.reaction_key_unsupported",
+            Some(&reaction_params)
+        ),
+        "Unsupported reaction type: 🔥. Supported types: 👍, ❤️, 😂."
+    );
+
+    let max_params = BTreeMap::from([("max".to_string(), "10000".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "message.edit_content_too_long", Some(&max_params)),
+        "消息内容过长，最多 10000 个字符"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.edit_content_too_long", Some(&max_params)),
+        "Message content is too long. Maximum allowed is 10000 characters."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();
