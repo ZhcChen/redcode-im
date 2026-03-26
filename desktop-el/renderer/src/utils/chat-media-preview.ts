@@ -19,6 +19,11 @@ export interface ImagePreviewGalleryEntry {
   partPosition: number;
 }
 
+export interface MediaPreviewKeyboardActionInput {
+  previewType: "image" | "video" | null;
+  key: string;
+}
+
 const roundImagePreviewScale = (value: number) =>
   Math.round(value * 100) / 100;
 
@@ -82,4 +87,25 @@ export const getImagePreviewGalleryNeighbor = (
 
   const nextIndex = direction === "previous" ? currentIndex - 1 : currentIndex + 1;
   return entries[nextIndex] ?? null;
+};
+
+export const getMediaPreviewKeyboardAction = (
+  input: MediaPreviewKeyboardActionInput,
+): "close" | "previous" | "next" | null => {
+  if (!input.previewType) {
+    return null;
+  }
+  if (input.key === "Escape") {
+    return "close";
+  }
+  if (input.previewType !== "image") {
+    return null;
+  }
+  if (input.key === "ArrowLeft") {
+    return "previous";
+  }
+  if (input.key === "ArrowRight") {
+    return "next";
+  }
+  return null;
 };

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  getMediaPreviewKeyboardAction,
   getImagePreviewGalleryNeighbor,
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
@@ -106,5 +107,26 @@ describe("chat media preview helpers", () => {
     });
     expect(getImagePreviewGalleryNeighbor(entries, "message-1:0", "previous")).toBeNull();
     expect(getImagePreviewGalleryNeighbor(entries, "message-3:0", "next")).toBeNull();
+  });
+
+  test("maps keyboard input to image preview actions", () => {
+    expect(getMediaPreviewKeyboardAction({ previewType: "image", key: "Escape" })).toBe(
+      "close",
+    );
+    expect(getMediaPreviewKeyboardAction({ previewType: "image", key: "ArrowLeft" })).toBe(
+      "previous",
+    );
+    expect(getMediaPreviewKeyboardAction({ previewType: "image", key: "ArrowRight" })).toBe(
+      "next",
+    );
+  });
+
+  test("only allows escape for non-image preview keyboard handling", () => {
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "Escape" })).toBe(
+      "close",
+    );
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowLeft" })).toBeNull();
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowRight" })).toBeNull();
+    expect(getMediaPreviewKeyboardAction({ previewType: null, key: "Escape" })).toBeNull();
   });
 });

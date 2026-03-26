@@ -35,6 +35,7 @@ import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
   getImagePreviewGalleryNeighbor,
+  getMediaPreviewKeyboardAction,
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
   IMAGE_PREVIEW_SCALE_STEP,
@@ -4691,6 +4692,26 @@ const takeMessageContextMenuTarget = () => {
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {
+  const mediaPreviewKeyboardAction = getMediaPreviewKeyboardAction({
+    previewType: mediaPreview.value?.type ?? null,
+    key: event.key,
+  });
+  if (mediaPreviewKeyboardAction) {
+    event.preventDefault();
+    if (mediaPreviewKeyboardAction === "close") {
+      closeMediaPreview();
+      return;
+    }
+    if (mediaPreviewKeyboardAction === "previous") {
+      void openPreviousImagePreview();
+      return;
+    }
+    if (mediaPreviewKeyboardAction === "next") {
+      void openNextImagePreview();
+      return;
+    }
+  }
+
   if (isOpenSearchShortcut(event)) {
     event.preventDefault();
     handleOpenMessageSearchModal();
