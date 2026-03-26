@@ -14,6 +14,7 @@ use crate::handlers::{
     health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
     push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws,
 };
+use crate::middleware::locale_middleware;
 use crate::AppState;
 
 async fn localized_auth_middleware(request: Request, next: Next) -> Result<Response, AppError> {
@@ -32,19 +33,30 @@ async fn localized_admin_only_middleware(
 }
 
 fn map_auth_error_status(status: StatusCode) -> AppError {
+    map_status_to_app_error(status, AppError::Forbidden(String::new()))
+}
+
+fn map_admin_error_status(status: StatusCode) -> AppError {
+    map_status_to_app_error(status, AppError::InsufficientPermission)
+}
+
+fn map_status_to_app_error(status: StatusCode, forbidden_error: AppError) -> AppError {
     match status {
+        StatusCode::BAD_REQUEST => AppError::InvalidInput(String::new()),
         StatusCode::UNAUTHORIZED => AppError::Unauthorized(String::new()),
-        StatusCode::FORBIDDEN => AppError::Forbidden(String::new()),
+        StatusCode::FORBIDDEN => forbidden_error,
+        StatusCode::NOT_FOUND => AppError::NotFound(String::new()),
+        StatusCode::TOO_MANY_REQUESTS => AppError::TooManyRequests,
+        StatusCode::SERVICE_UNAVAILABLE => AppError::ServiceUnavailable(String::new()),
         _ => AppError::InternalError(String::new()),
     }
 }
 
-fn map_admin_error_status(status: StatusCode) -> AppError {
-    match status {
-        StatusCode::FORBIDDEN => AppError::InsufficientPermission,
-        StatusCode::UNAUTHORIZED => AppError::Unauthorized(String::new()),
-        _ => AppError::InternalError(String::new()),
-    }
+pub(crate) fn with_request_locale_layer<S>(router: Router<S>) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    router.layer(middleware::from_fn(locale_middleware))
 }
 
 pub fn create_routes() -> Router<AppState> {
@@ -756,7 +768,7 @@ pub fn create_routes() -> Router<AppState> {
         .layer(middleware::from_fn(localized_auth_middleware));
 
     // 合并所有路由
-    public_routes.merge(user_routes).merge(admin_routes)
+    with_request_locale_layer(public_routes.merge(user_routes).merge(admin_routes))
 }
 
 #[cfg(test)]
@@ -774,14 +786,14 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
     use tower::ServiceExt;
 
-    use crate::{auth::generate_token, middleware::locale_middleware, models::Claims};
+    use crate::{auth::generate_token, models::Claims};
 
     #[tokio::test]
     async fn test_error_response_localizes_wrapped_auth_middleware_errors() {
         let app = Router::new()
             .route("/protected", get(ok_handler))
-            .layer(middleware::from_fn(localized_auth_middleware))
-            .layer(middleware::from_fn(locale_middleware));
+            .layer(middleware::from_fn(localized_auth_middleware));
+        let app = with_request_locale_layer(app);
 
         let response = app
             .oneshot(
@@ -807,8 +819,8 @@ mod tests {
         let app = Router::new()
             .route("/admin", get(ok_handler))
             .layer(middleware::from_fn(localized_admin_only_middleware))
-            .layer(middleware::from_fn(localized_auth_middleware))
-            .layer(middleware::from_fn(locale_middleware));
+            .layer(middleware::from_fn(localized_auth_middleware));
+        let app = with_request_locale_layer(app);
 
         let response = app
             .oneshot(
@@ -827,6 +839,62 @@ mod tests {
         let body = read_body_json(response.into_body()).await;
         assert_eq!(body["message_key"], "auth.insufficient_permission");
         assert_eq!(body["message"], "Insufficient permission.");
+    }
+
+    #[test]
+    fn test_error_auth_status_mapping_preserves_common_http_semantics() {
+        let bad_request = map_auth_error_status(StatusCode::BAD_REQUEST);
+        assert_eq!(bad_request.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(bad_request.message_key(), "common.invalid_input");
+
+        let not_found = map_auth_error_status(StatusCode::NOT_FOUND);
+        assert_eq!(not_found.status_code(), StatusCode::NOT_FOUND);
+        assert_eq!(not_found.message_key(), "common.not_found");
+
+        let too_many_requests = map_auth_error_status(StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            too_many_requests.status_code(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(too_many_requests.message_key(), "common.too_many_requests");
+
+        let service_unavailable = map_auth_error_status(StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            service_unavailable.status_code(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            service_unavailable.message_key(),
+            "common.service_unavailable"
+        );
+    }
+
+    #[test]
+    fn test_error_admin_status_mapping_preserves_common_http_semantics() {
+        let bad_request = map_admin_error_status(StatusCode::BAD_REQUEST);
+        assert_eq!(bad_request.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(bad_request.message_key(), "common.invalid_input");
+
+        let not_found = map_admin_error_status(StatusCode::NOT_FOUND);
+        assert_eq!(not_found.status_code(), StatusCode::NOT_FOUND);
+        assert_eq!(not_found.message_key(), "common.not_found");
+
+        let too_many_requests = map_admin_error_status(StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            too_many_requests.status_code(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(too_many_requests.message_key(), "common.too_many_requests");
+
+        let service_unavailable = map_admin_error_status(StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            service_unavailable.status_code(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            service_unavailable.message_key(),
+            "common.service_unavailable"
+        );
     }
 
     async fn ok_handler() -> &'static str {

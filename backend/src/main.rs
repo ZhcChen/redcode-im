@@ -111,7 +111,6 @@ async fn main() {
         ))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .layer(axum::middleware::from_fn(middleware::locale_middleware))
         .with_state(state)
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
 

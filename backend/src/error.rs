@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use tracing::Level;
 
 use crate::i18n::{localizer::default_localizer, message::MessageParams};
 use crate::middleware::current_request_locale;
@@ -331,6 +332,18 @@ impl AppError {
             _ => self.payload_message().map(str::to_string),
         }
     }
+
+    fn response_log_level(&self) -> Level {
+        match self {
+            AppError::Unauthorized(_)
+            | AppError::InvalidToken(_)
+            | AppError::TokenExpired
+            | AppError::InvalidCredentials
+            | AppError::Forbidden(_)
+            | AppError::InsufficientPermission => Level::INFO,
+            _ => Level::WARN,
+        }
+    }
 }
 
 /// 实现从 sqlx::Error 到 AppError 的转换
@@ -358,6 +371,7 @@ impl IntoResponse for AppError {
         let message = self.localized_message();
         let message_params = self.message_params();
         let details = self.details();
+        let log_level = self.response_log_level();
 
         let error_response = ErrorResponse {
             code: error_code,
@@ -367,13 +381,22 @@ impl IntoResponse for AppError {
             details,
         };
 
-        tracing::warn!(
-            "API error response: status={}, code={}, key={}, error={:?}",
-            status_code.as_u16(),
-            error_code,
-            error_response.message_key,
-            error_response.message
-        );
+        match log_level {
+            Level::INFO => tracing::info!(
+                "API error response: status={}, code={}, key={}, error={:?}",
+                status_code.as_u16(),
+                error_code,
+                error_response.message_key,
+                error_response.message
+            ),
+            _ => tracing::warn!(
+                "API error response: status={}, code={}, key={}, error={:?}",
+                status_code.as_u16(),
+                error_code,
+                error_response.message_key,
+                error_response.message
+            ),
+        }
 
         (status_code, Json(error_response)).into_response()
     }
@@ -413,14 +436,17 @@ mod tests {
     use super::*;
     use axum::{
         body::Body,
+        extract::Extension,
         http::{header::ACCEPT_LANGUAGE, Request},
-        middleware,
         routing::get,
         Router,
     };
     use http_body_util::BodyExt;
     use serde_json::Value;
+    use std::sync::{Arc, Mutex};
     use tower::ServiceExt;
+    use tracing::Level;
+    use tracing_subscriber::{layer::SubscriberExt, Layer, Registry};
 
     #[test]
     fn test_error_codes() {
@@ -449,11 +475,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_error_response_uses_request_locale_from_accept_language() {
-        let app = Router::new()
-            .route("/error", get(locale_error_handler))
-            .layer(middleware::from_fn(
-                crate::middleware::locale::locale_middleware,
-            ));
+        let app = Router::new().route("/error", get(locale_error_handler));
+        let app = crate::routes::with_request_locale_layer(app);
 
         let response = app
             .oneshot(
@@ -473,11 +496,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_error_response_defaults_to_zh_cn_without_accept_language() {
-        let app = Router::new()
-            .route("/error", get(locale_error_handler))
-            .layer(middleware::from_fn(
-                crate::middleware::locale::locale_middleware,
-            ));
+        let app = Router::new().route("/error", get(locale_error_handler));
+        let app = crate::routes::with_request_locale_layer(app);
 
         let response = app
             .oneshot(
@@ -494,8 +514,61 @@ mod tests {
         assert_eq!(body["message"], "令牌已过期，请重新登录");
     }
 
+    #[tokio::test]
+    async fn test_error_request_locale_extension_is_injected() {
+        let app = Router::new().route("/locale", get(locale_extension_handler));
+        let app = crate::routes::with_request_locale_layer(app);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/locale")
+                    .header(ACCEPT_LANGUAGE, "en-GB,en;q=0.9")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("send request");
+
+        let body = read_body_json(response.into_body()).await;
+        assert_eq!(body["locale"], "en-US");
+    }
+
+    #[test]
+    fn test_error_expected_auth_failures_log_at_info_level() {
+        for error in [
+            AppError::Unauthorized(String::new()),
+            AppError::InvalidToken(String::new()),
+            AppError::TokenExpired,
+            AppError::InvalidCredentials,
+            AppError::Forbidden(String::new()),
+            AppError::InsufficientPermission,
+        ] {
+            let levels = capture_log_levels(|| {
+                let _ = error.into_response();
+            });
+
+            assert_eq!(levels.as_slice(), &[Level::INFO]);
+        }
+    }
+
+    #[test]
+    fn test_error_internal_failures_still_log_at_warn_level() {
+        let levels = capture_log_levels(|| {
+            let _ = AppError::InternalError(String::new()).into_response();
+        });
+
+        assert_eq!(levels.as_slice(), &[Level::WARN]);
+    }
+
     async fn locale_error_handler() -> Result<(), AppError> {
         Err(AppError::TokenExpired)
+    }
+
+    async fn locale_extension_handler(
+        Extension(locale): Extension<crate::middleware::RequestLocale>,
+    ) -> axum::Json<Value> {
+        axum::Json(serde_json::json!({ "locale": locale.as_str() }))
     }
 
     async fn read_body_json(body: Body) -> Value {
@@ -505,5 +578,38 @@ mod tests {
             .expect("collect response body")
             .to_bytes();
         serde_json::from_slice(&bytes).expect("parse json body")
+    }
+
+    fn capture_log_levels(action: impl FnOnce()) -> Vec<Level> {
+        #[derive(Clone)]
+        struct LevelCollector {
+            levels: Arc<Mutex<Vec<Level>>>,
+        }
+
+        impl<S> Layer<S> for LevelCollector
+        where
+            S: tracing::Subscriber,
+        {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _ctx: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                self.levels
+                    .lock()
+                    .expect("lock levels")
+                    .push(*event.metadata().level());
+            }
+        }
+
+        let levels = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = Registry::default().with(LevelCollector {
+            levels: levels.clone(),
+        });
+
+        tracing::subscriber::with_default(subscriber, action);
+
+        let captured = levels.lock().expect("lock levels").clone();
+        captured
     }
 }
