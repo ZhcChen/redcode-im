@@ -4964,6 +4964,52 @@ func TestAppWSPumpEmitsDisconnectedStatusWhenServerClosesConnection(t *testing.T
 	}
 }
 
+func TestAppWSConnectEmitsDisconnectedStatusWhenConnectFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "upgrade required", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	application := newTestApp("http://127.0.0.1:8010")
+	application.encoder = rpc.NewEncoder(&stdout)
+
+	rpcServer := application.RegisterRPC()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	connectResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-connect-failure-status-event",
+		Method: "ws.connect",
+		Params: mustJSONRaw(map[string]any{
+			"url":   wsURL,
+			"token": "access-token",
+		}),
+	})
+	if connectResponse.Error == nil {
+		t.Fatalf("expected ws.connect to fail when upgrade is rejected")
+	}
+
+	waitForStatusEvent(t, &stdout, "disconnected")
+
+	statusResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-ws-status-after-connect-failure",
+		Method: "ws.status.get",
+	})
+	if statusResponse.Error != nil {
+		t.Fatalf("expected ws.status.get to succeed, got: %+v", statusResponse.Error)
+	}
+
+	var statusPayload map[string]any
+	if err := json.Unmarshal(statusResponse.Result, &statusPayload); err != nil {
+		t.Fatalf("decode ws.status.get response failed: %v", err)
+	}
+	if statusPayload["status"] != "disconnected" {
+		t.Fatalf("expected websocket status to stay disconnected after connect failure, got: %+v", statusPayload)
+	}
+}
+
 func newTestApp(baseURL string) *App {
 	return New(
 		config.Config{

@@ -1042,6 +1042,7 @@ func (a *App) RegisterRPC() *rpc.Server {
 			URL:   wsURL,
 			Token: payload.Token,
 		}); err != nil {
+			_ = a.emitEvent(ctx, "ws.status.updated", map[string]any{"status": string(a.wsClient.Status())})
 			return nil, rpc.NewRPCError(rpc.ErrCodeInternal, err.Error())
 		}
 		a.startWSPump()
