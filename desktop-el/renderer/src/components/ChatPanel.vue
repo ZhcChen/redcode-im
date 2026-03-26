@@ -32,7 +32,9 @@ import {
   shouldInlinePreviewAttachment,
 } from "@/utils/chat-attachment-preview";
 import {
+  buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  getImagePreviewGalleryNeighbor,
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
   IMAGE_PREVIEW_SCALE_STEP,
@@ -275,6 +277,7 @@ const mediaPreview = ref<{
   name: string;
   meta: string;
 } | null>(null);
+const mediaPreviewImageGalleryItemId = ref<string | null>(null);
 const mediaPreviewImageScale = ref(1);
 const mediaPreviewImageRotation = ref(0);
 const chatContextMenuTarget = ref<ChatSummary | null>(null);
@@ -358,6 +361,39 @@ const selectedChat = computed(
 );
 const mediaPreviewImageScaleLabel = computed(
   () => `${Math.round(mediaPreviewImageScale.value * 100)}%`,
+);
+const imagePreviewGalleryEntries = computed(() =>
+  buildImagePreviewGalleryEntries(messages.value),
+);
+const currentImagePreviewGalleryIndex = computed(() =>
+  mediaPreviewImageGalleryItemId.value
+    ? imagePreviewGalleryEntries.value.findIndex(
+        (entry) => entry.id === mediaPreviewImageGalleryItemId.value,
+      )
+    : -1,
+);
+const mediaPreviewImageGalleryLabel = computed(() =>
+  currentImagePreviewGalleryIndex.value >= 0
+    ? `${currentImagePreviewGalleryIndex.value + 1} / ${imagePreviewGalleryEntries.value.length}`
+    : null,
+);
+const previousImagePreviewGalleryEntry = computed(() =>
+  mediaPreviewImageGalleryItemId.value
+    ? getImagePreviewGalleryNeighbor(
+        imagePreviewGalleryEntries.value,
+        mediaPreviewImageGalleryItemId.value,
+        "previous",
+      )
+    : null,
+);
+const nextImagePreviewGalleryEntry = computed(() =>
+  mediaPreviewImageGalleryItemId.value
+    ? getImagePreviewGalleryNeighbor(
+        imagePreviewGalleryEntries.value,
+        mediaPreviewImageGalleryItemId.value,
+        "next",
+      )
+    : null,
 );
 const mediaPreviewImageStyle = computed(() => ({
   transform: `scale(${mediaPreviewImageScale.value}) rotate(${mediaPreviewImageRotation.value}deg)`,
@@ -5504,6 +5540,8 @@ const handleOpenAttachmentPreview = async (
     return;
   }
 
+  mediaPreviewImageGalleryItemId.value =
+    part.partType === "image" ? `${message.id}:${part.position}` : null;
   mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
   mediaPreview.value = {
@@ -5515,9 +5553,36 @@ const handleOpenAttachmentPreview = async (
 };
 
 const closeMediaPreview = () => {
+  mediaPreviewImageGalleryItemId.value = null;
   mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
   mediaPreview.value = null;
+};
+
+const openImagePreviewGalleryEntry = async (
+  entry: { messageId: string; partPosition: number } | null,
+) => {
+  if (!entry) {
+    return;
+  }
+
+  const message = messages.value.find((item) => item.id === entry.messageId);
+  const part = message?.parts.find(
+    (item) => item.position === entry.partPosition && item.partType === "image",
+  );
+  if (!message || !part) {
+    return;
+  }
+
+  await handleOpenAttachmentPreview(message, part);
+};
+
+const openPreviousImagePreview = async () => {
+  await openImagePreviewGalleryEntry(previousImagePreviewGalleryEntry.value);
+};
+
+const openNextImagePreview = async () => {
+  await openImagePreviewGalleryEntry(nextImagePreviewGalleryEntry.value);
 };
 
 const rotateMediaPreviewImageClockwise = () => {
@@ -7364,6 +7429,28 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="media-preview__action"
+                :disabled="!previousImagePreviewGalleryEntry"
+                @click="void openPreviousImagePreview()"
+              >
+                上一张
+              </button>
+              <button
+                type="button"
+                class="media-preview__action"
+                :disabled="!nextImagePreviewGalleryEntry"
+                @click="void openNextImagePreview()"
+              >
+                下一张
+              </button>
+              <span
+                v-if="mediaPreviewImageGalleryLabel"
+                class="media-preview__gallery"
+              >
+                {{ mediaPreviewImageGalleryLabel }}
+              </span>
+              <button
+                type="button"
+                class="media-preview__action"
                 @click="rotateMediaPreviewImageCounterclockwise"
               >
                 左转
@@ -8858,6 +8945,14 @@ onBeforeUnmount(() => {
 
 .media-preview__scale {
   min-width: 56px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.media-preview__gallery {
+  min-width: 64px;
   text-align: center;
   font-size: 13px;
   font-weight: 600;

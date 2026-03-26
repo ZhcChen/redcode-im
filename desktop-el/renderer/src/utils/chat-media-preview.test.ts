@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
+  getImagePreviewGalleryNeighbor,
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
   IMAGE_PREVIEW_MAX_SCALE,
@@ -41,5 +43,68 @@ describe("chat media preview helpers", () => {
     expect(getNextImagePreviewRotation(90, "clockwise")).toBe(180);
     expect(getNextImagePreviewRotation(0, "counterclockwise")).toBe(270);
     expect(getNextImagePreviewRotation(270, "counterclockwise")).toBe(180);
+  });
+
+  test("builds image preview gallery entries from image parts only", () => {
+    expect(
+      buildImagePreviewGalleryEntries([
+        {
+          id: "message-1",
+          parts: [
+            { partType: "text", position: 0 },
+            { partType: "image", position: 1 },
+            { partType: "video", position: 2 },
+          ],
+        },
+        {
+          id: "message-2",
+          parts: [
+            { partType: "image", position: 0 },
+            { partType: "audio", position: 1 },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "message-1:1",
+        messageId: "message-1",
+        partPosition: 1,
+      },
+      {
+        id: "message-2:0",
+        messageId: "message-2",
+        partPosition: 0,
+      },
+    ]);
+  });
+
+  test("finds previous and next image preview gallery neighbors", () => {
+    const entries = buildImagePreviewGalleryEntries([
+      {
+        id: "message-1",
+        parts: [{ partType: "image", position: 0 }],
+      },
+      {
+        id: "message-2",
+        parts: [{ partType: "image", position: 0 }],
+      },
+      {
+        id: "message-3",
+        parts: [{ partType: "image", position: 0 }],
+      },
+    ]);
+
+    expect(getImagePreviewGalleryNeighbor(entries, "message-2:0", "previous")).toEqual({
+      id: "message-1:0",
+      messageId: "message-1",
+      partPosition: 0,
+    });
+    expect(getImagePreviewGalleryNeighbor(entries, "message-2:0", "next")).toEqual({
+      id: "message-3:0",
+      messageId: "message-3",
+      partPosition: 0,
+    });
+    expect(getImagePreviewGalleryNeighbor(entries, "message-1:0", "previous")).toBeNull();
+    expect(getImagePreviewGalleryNeighbor(entries, "message-3:0", "next")).toBeNull();
   });
 });
