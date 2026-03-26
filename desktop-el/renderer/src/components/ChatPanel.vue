@@ -35,11 +35,15 @@ import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
   findMediaPreviewSource,
+  formatMediaPreviewPlaybackTime,
+  getMediaPreviewPlaybackProgress,
   getImagePreviewGalleryNeighbor,
   getMediaPreviewKeyboardAction,
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
+  getNextVideoPreviewCurrentTime,
   IMAGE_PREVIEW_SCALE_STEP,
+  VIDEO_PREVIEW_SEEK_STEP_SECONDS,
 } from "@/utils/chat-media-preview";
 import { inferAttachmentPartType } from "@/utils/chat-attachment-upload";
 import type { LocalChatMessageSearchResult } from "@/utils/chat-message-search";
@@ -286,6 +290,11 @@ const mediaPreviewSource = ref<{
 const mediaPreviewImageGalleryItemId = ref<string | null>(null);
 const mediaPreviewImageScale = ref(1);
 const mediaPreviewImageRotation = ref(0);
+const mediaPreviewVideoElement = ref<HTMLVideoElement | null>(null);
+const mediaPreviewVideoCurrentTime = ref(0);
+const mediaPreviewVideoDuration = ref(0);
+const mediaPreviewVideoIsPlaying = ref(false);
+const mediaPreviewVideoIsMuted = ref(false);
 const chatContextMenuTarget = ref<ChatSummary | null>(null);
 const chatContextMenuPosition = ref({ x: 0, y: 0 });
 const messageContextMenuTarget = ref<ChatMessage | null>(null);
@@ -404,6 +413,15 @@ const nextImagePreviewGalleryEntry = computed(() =>
 const mediaPreviewImageStyle = computed(() => ({
   transform: `scale(${mediaPreviewImageScale.value}) rotate(${mediaPreviewImageRotation.value}deg)`,
 }));
+const mediaPreviewVideoPlaybackLabel = computed(() =>
+  `${formatMediaPreviewPlaybackTime(mediaPreviewVideoCurrentTime.value)} / ${formatMediaPreviewPlaybackTime(mediaPreviewVideoDuration.value)}`,
+);
+const mediaPreviewVideoProgress = computed(() =>
+  getMediaPreviewPlaybackProgress(
+    mediaPreviewVideoCurrentTime.value,
+    mediaPreviewVideoDuration.value,
+  ),
+);
 const isSelectedGroupChat = computed(
   () => selectedChat.value?.roomType === "group",
 );
@@ -1181,6 +1199,12 @@ const getAttachmentMeta = (part: ChatMessagePart) => {
     part.attachment?.height
   ) {
     segments.push(`${part.attachment.width} x ${part.attachment.height}`);
+  }
+  if (part.partType === "video") {
+    const duration = formatDuration(part.attachment?.durationMs ?? null);
+    if (duration) {
+      segments.push(duration);
+    }
   }
   if (part.partType === "audio") {
     const duration = formatDuration(part.attachment?.durationMs ?? null);
@@ -4697,11 +4721,18 @@ const takeMessageContextMenuTarget = () => {
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {
+  const target = event.target;
+  const isInteractiveTarget =
+    target instanceof HTMLElement &&
+    Boolean(target.closest("button, input, textarea, select, a"));
   const mediaPreviewKeyboardAction = getMediaPreviewKeyboardAction({
     previewType: mediaPreview.value?.type ?? null,
     key: event.key,
   });
   if (mediaPreviewKeyboardAction) {
+    if (mediaPreviewKeyboardAction === "toggle-play" && isInteractiveTarget) {
+      return;
+    }
     event.preventDefault();
     if (mediaPreviewKeyboardAction === "close") {
       closeMediaPreview();
@@ -4713,6 +4744,18 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
     }
     if (mediaPreviewKeyboardAction === "next") {
       void openNextImagePreview();
+      return;
+    }
+    if (mediaPreviewKeyboardAction === "toggle-play") {
+      void toggleMediaPreviewVideoPlayback();
+      return;
+    }
+    if (mediaPreviewKeyboardAction === "seek-backward") {
+      seekMediaPreviewVideo("backward");
+      return;
+    }
+    if (mediaPreviewKeyboardAction === "seek-forward") {
+      seekMediaPreviewVideo("forward");
       return;
     }
   }
@@ -5566,6 +5609,7 @@ const handleOpenAttachmentPreview = async (
     return;
   }
 
+  pauseMediaPreviewVideo();
   mediaPreviewSource.value = {
     messageId: message.id,
     partPosition: part.position,
@@ -5574,6 +5618,7 @@ const handleOpenAttachmentPreview = async (
     part.partType === "image" ? `${message.id}:${part.position}` : null;
   mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
+  resetMediaPreviewVideoState();
   mediaPreview.value = {
     type: part.partType,
     url: mediaUrl,
@@ -5582,11 +5627,41 @@ const handleOpenAttachmentPreview = async (
   };
 };
 
+const resetMediaPreviewVideoState = () => {
+  mediaPreviewVideoCurrentTime.value = 0;
+  mediaPreviewVideoDuration.value = 0;
+  mediaPreviewVideoIsPlaying.value = false;
+  mediaPreviewVideoIsMuted.value = false;
+};
+
+const syncMediaPreviewVideoState = () => {
+  const video = mediaPreviewVideoElement.value;
+  if (!video) {
+    resetMediaPreviewVideoState();
+    return;
+  }
+
+  mediaPreviewVideoDuration.value =
+    Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+  mediaPreviewVideoCurrentTime.value =
+    Number.isFinite(video.currentTime) && video.currentTime > 0
+      ? video.currentTime
+      : 0;
+  mediaPreviewVideoIsPlaying.value = !video.paused && !video.ended;
+  mediaPreviewVideoIsMuted.value = video.muted || video.volume === 0;
+};
+
+const pauseMediaPreviewVideo = () => {
+  mediaPreviewVideoElement.value?.pause();
+};
+
 const closeMediaPreview = () => {
+  pauseMediaPreviewVideo();
   mediaPreviewSource.value = null;
   mediaPreviewImageGalleryItemId.value = null;
   mediaPreviewImageRotation.value = 0;
   mediaPreviewImageScale.value = 1;
+  resetMediaPreviewVideoState();
   mediaPreview.value = null;
 };
 
@@ -5669,6 +5744,76 @@ const handleMediaPreviewImageWheel = (event: WheelEvent) => {
     mediaPreviewImageScale.value,
     event.deltaY,
   );
+};
+
+const handleMediaPreviewVideoLoadedMetadata = () => {
+  syncMediaPreviewVideoState();
+};
+
+const handleMediaPreviewVideoTimeUpdate = () => {
+  syncMediaPreviewVideoState();
+};
+
+const handleMediaPreviewVideoPlay = () => {
+  syncMediaPreviewVideoState();
+};
+
+const handleMediaPreviewVideoPause = () => {
+  syncMediaPreviewVideoState();
+};
+
+const handleMediaPreviewVideoEnded = () => {
+  syncMediaPreviewVideoState();
+};
+
+const handleMediaPreviewVideoVolumeChange = () => {
+  syncMediaPreviewVideoState();
+};
+
+const toggleMediaPreviewVideoPlayback = async () => {
+  const video = mediaPreviewVideoElement.value;
+  if (!video) {
+    return;
+  }
+
+  try {
+    if (video.paused || video.ended) {
+      if (video.ended) {
+        video.currentTime = 0;
+      }
+      await video.play();
+    } else {
+      video.pause();
+    }
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : "视频播放失败";
+  } finally {
+    syncMediaPreviewVideoState();
+  }
+};
+
+const seekMediaPreviewVideo = (direction: "backward" | "forward") => {
+  const video = mediaPreviewVideoElement.value;
+  if (!video) {
+    return;
+  }
+
+  video.currentTime = getNextVideoPreviewCurrentTime(
+    video.currentTime,
+    video.duration,
+    direction,
+  );
+  syncMediaPreviewVideoState();
+};
+
+const toggleMediaPreviewVideoMuted = () => {
+  const video = mediaPreviewVideoElement.value;
+  if (!video) {
+    return;
+  }
+
+  video.muted = !video.muted;
+  syncMediaPreviewVideoState();
 };
 
 const handleDownloadAttachment = async (
@@ -7464,7 +7609,7 @@ onBeforeUnmount(() => {
     >
       <div class="media-preview__dialog">
         <div class="media-preview__header">
-          <div>
+          <div class="media-preview__title">
             <strong>{{ mediaPreview.name }}</strong>
             <small>{{ mediaPreview.meta }}</small>
           </div>
@@ -7529,6 +7674,39 @@ onBeforeUnmount(() => {
                 放大
               </button>
             </template>
+            <template v-else>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="seekMediaPreviewVideo('backward')"
+              >
+                后退 {{ VIDEO_PREVIEW_SEEK_STEP_SECONDS }} 秒
+              </button>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="void toggleMediaPreviewVideoPlayback()"
+              >
+                {{ mediaPreviewVideoIsPlaying ? '暂停' : '播放' }}
+              </button>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="seekMediaPreviewVideo('forward')"
+              >
+                前进 {{ VIDEO_PREVIEW_SEEK_STEP_SECONDS }} 秒
+              </button>
+              <span class="media-preview__video-time">
+                {{ mediaPreviewVideoPlaybackLabel }}
+              </span>
+              <button
+                type="button"
+                class="media-preview__action"
+                @click="toggleMediaPreviewVideoMuted"
+              >
+                {{ mediaPreviewVideoIsMuted ? '取消静音' : '静音' }}
+              </button>
+            </template>
             <button
               type="button"
               class="media-preview__close"
@@ -7557,13 +7735,33 @@ onBeforeUnmount(() => {
             :style="mediaPreviewImageStyle"
           />
         </div>
-        <video
-          v-else
-          class="media-preview__video"
-          :src="mediaPreview.url"
-          controls
-          autoplay
-        />
+        <div v-else class="media-preview__video-shell">
+          <div class="media-preview__video-status">
+            <span class="media-preview__video-time">
+              {{ mediaPreviewVideoPlaybackLabel }}
+            </span>
+            <div class="media-preview__video-progress" aria-hidden="true">
+              <span
+                class="media-preview__video-progress-bar"
+                :style="{ width: `${mediaPreviewVideoProgress}%` }"
+              />
+            </div>
+          </div>
+          <video
+            ref="mediaPreviewVideoElement"
+            class="media-preview__video"
+            :src="mediaPreview.url"
+            controls
+            autoplay
+            playsinline
+            @loadedmetadata="handleMediaPreviewVideoLoadedMetadata"
+            @timeupdate="handleMediaPreviewVideoTimeUpdate"
+            @play="handleMediaPreviewVideoPlay"
+            @pause="handleMediaPreviewVideoPause"
+            @ended="handleMediaPreviewVideoEnded"
+            @volumechange="handleMediaPreviewVideoVolumeChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -8953,7 +9151,7 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
 }
 
-.media-preview__header div {
+.media-preview__title {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -9010,6 +9208,14 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
+.media-preview__video-time {
+  min-width: 96px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .media-preview__image-shell {
   display: grid;
   place-items: center;
@@ -9017,6 +9223,31 @@ onBeforeUnmount(() => {
   overflow: auto;
   border-radius: 18px;
   background: rgba(15, 23, 42, 0.06);
+}
+
+.media-preview__video-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.media-preview__video-status {
+  display: grid;
+  gap: 8px;
+}
+
+.media-preview__video-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.media-preview__video-progress-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.92), rgba(59, 130, 246, 0.96));
+  transition: width 0.12s ease;
 }
 
 .media-preview__image,

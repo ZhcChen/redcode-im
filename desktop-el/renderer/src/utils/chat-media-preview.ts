@@ -2,6 +2,7 @@ export const IMAGE_PREVIEW_MIN_SCALE = 1;
 export const IMAGE_PREVIEW_MAX_SCALE = 4;
 export const IMAGE_PREVIEW_SCALE_STEP = 0.2;
 export const IMAGE_PREVIEW_ROTATION_STEP = 90;
+export const VIDEO_PREVIEW_SEEK_STEP_SECONDS = 5;
 
 export interface ImagePreviewGalleryPart {
   partType: string;
@@ -30,6 +31,9 @@ export interface MediaPreviewSource {
 }
 
 const roundImagePreviewScale = (value: number) =>
+  Math.round(value * 100) / 100;
+
+const roundMediaPreviewProgress = (value: number) =>
   Math.round(value * 100) / 100;
 
 export const clampImagePreviewScale = (value: number) =>
@@ -94,23 +98,92 @@ export const getImagePreviewGalleryNeighbor = (
   return entries[nextIndex] ?? null;
 };
 
+export const formatMediaPreviewPlaybackTime = (
+  value: number | null | undefined,
+) => {
+  const totalSeconds =
+    typeof value === "number" && Number.isFinite(value) && value > 0
+      ? Math.floor(value)
+      : 0;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
+
+export const getMediaPreviewPlaybackProgress = (
+  currentTime: number,
+  duration: number,
+) => {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return 0;
+  }
+
+  const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : 0;
+  const clampedCurrentTime = Math.min(duration, Math.max(0, safeCurrentTime));
+  return roundMediaPreviewProgress((clampedCurrentTime / duration) * 100);
+};
+
+export const getNextVideoPreviewCurrentTime = (
+  currentTime: number,
+  duration: number,
+  direction: "backward" | "forward",
+  stepSeconds = VIDEO_PREVIEW_SEEK_STEP_SECONDS,
+) => {
+  const safeDuration =
+    Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : 0;
+  const clampedCurrentTime = Math.min(
+    safeDuration,
+    Math.max(0, safeCurrentTime),
+  );
+  const safeStepSeconds =
+    Number.isFinite(stepSeconds) && stepSeconds > 0
+      ? stepSeconds
+      : VIDEO_PREVIEW_SEEK_STEP_SECONDS;
+  const delta = direction === "forward" ? safeStepSeconds : -safeStepSeconds;
+
+  return Math.min(safeDuration, Math.max(0, clampedCurrentTime + delta));
+};
+
 export const getMediaPreviewKeyboardAction = (
   input: MediaPreviewKeyboardActionInput,
-): "close" | "previous" | "next" | null => {
+):
+  | "close"
+  | "previous"
+  | "next"
+  | "toggle-play"
+  | "seek-backward"
+  | "seek-forward"
+  | null => {
   if (!input.previewType) {
     return null;
   }
   if (input.key === "Escape") {
     return "close";
   }
-  if (input.previewType !== "image") {
+  if (input.previewType === "image") {
+    if (input.key === "ArrowLeft") {
+      return "previous";
+    }
+    if (input.key === "ArrowRight") {
+      return "next";
+    }
     return null;
   }
+  if (input.key === " " || input.key === "Spacebar") {
+    return "toggle-play";
+  }
   if (input.key === "ArrowLeft") {
-    return "previous";
+    return "seek-backward";
   }
   if (input.key === "ArrowRight") {
-    return "next";
+    return "seek-forward";
   }
   return null;
 };

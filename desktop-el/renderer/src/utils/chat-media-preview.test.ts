@@ -3,10 +3,13 @@ import {
   buildImagePreviewGalleryEntries,
   clampImagePreviewScale,
   findMediaPreviewSource,
+  formatMediaPreviewPlaybackTime,
+  getMediaPreviewPlaybackProgress,
   getMediaPreviewKeyboardAction,
   getImagePreviewGalleryNeighbor,
   getNextImagePreviewRotation,
   getNextImagePreviewScaleFromWheel,
+  getNextVideoPreviewCurrentTime,
   IMAGE_PREVIEW_MAX_SCALE,
   IMAGE_PREVIEW_MIN_SCALE,
   normalizeImagePreviewRotation,
@@ -126,9 +129,43 @@ describe("chat media preview helpers", () => {
     expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "Escape" })).toBe(
       "close",
     );
-    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowLeft" })).toBeNull();
-    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowRight" })).toBeNull();
     expect(getMediaPreviewKeyboardAction({ previewType: null, key: "Escape" })).toBeNull();
+  });
+
+  test("maps keyboard input to video preview actions", () => {
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: " " })).toBe(
+      "toggle-play",
+    );
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "Spacebar" })).toBe(
+      "toggle-play",
+    );
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowLeft" })).toBe(
+      "seek-backward",
+    );
+    expect(getMediaPreviewKeyboardAction({ previewType: "video", key: "ArrowRight" })).toBe(
+      "seek-forward",
+    );
+  });
+
+  test("formats video playback time labels", () => {
+    expect(formatMediaPreviewPlaybackTime(null)).toBe("00:00");
+    expect(formatMediaPreviewPlaybackTime(9.9)).toBe("00:09");
+    expect(formatMediaPreviewPlaybackTime(65)).toBe("01:05");
+    expect(formatMediaPreviewPlaybackTime(3661)).toBe("1:01:01");
+  });
+
+  test("computes video playback progress within 0-100 percent", () => {
+    expect(getMediaPreviewPlaybackProgress(0, 0)).toBe(0);
+    expect(getMediaPreviewPlaybackProgress(15, 60)).toBe(25);
+    expect(getMediaPreviewPlaybackProgress(-5, 60)).toBe(0);
+    expect(getMediaPreviewPlaybackProgress(90, 60)).toBe(100);
+  });
+
+  test("seeks video preview time and clamps within duration bounds", () => {
+    expect(getNextVideoPreviewCurrentTime(10, 60, "backward")).toBe(5);
+    expect(getNextVideoPreviewCurrentTime(10, 60, "forward")).toBe(15);
+    expect(getNextVideoPreviewCurrentTime(2, 60, "backward")).toBe(0);
+    expect(getNextVideoPreviewCurrentTime(58, 60, "forward")).toBe(60);
   });
 
   test("finds media preview source message and part by source coordinates", () => {
