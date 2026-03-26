@@ -15,12 +15,11 @@
 | `P1-4` 更完整的 websocket 事件面 | 已完成当前主范围 | `2026-03-25-desktop-el-typing-update-plan.md`、`2026-03-25-desktop-el-group-deep-events-plan.md`、`2026-03-25-desktop-el-group-owner-transferred-realtime-plan.md` | `49c715fd`、`21200ec0`、`76cd5afa` | 可继续补更细事件收敛 |
 | `P2-1` 多账号状态保持 | 已完成 | `2026-03-25-desktop-el-multi-account-plan.md`、`2026-03-25-desktop-el-account-route-state-plan.md`、`2026-03-26-desktop-el-account-panel-state-plan.md` | `7d2e30ca`、`8e9fc284`、`b966094b` | 无 |
 | `P2-2` 媒体与输入体验收尾 | 部分完成 | `2026-03-26-desktop-el-voice-waveform-plan.md`、`2026-03-26-desktop-el-voice-post-edit-plan.md`、`2026-03-26-desktop-el-media-precache-plan.md`、`2026-03-26-desktop-el-image-preview-zoom-plan.md` | `5533c672`、`615389de`、`c45f8e45` | 语音录制增强、连续浏览 / 视频预览增强 / 更细缓存治理 |
-| `P2-3` 专属测试体系 | 部分完成 | `2026-03-26-desktop-el-electron-main-test-plan.md`、`2026-03-26-desktop-el-verification-entrypoint-plan.md` | `5e568d1c`、`e4c90eee` | Go core 集成测试继续扩充、renderer smoke / e2e |
+| `P2-3` 专属测试体系 | 部分完成 | `2026-03-26-desktop-el-electron-main-test-plan.md`、`2026-03-26-desktop-el-verification-entrypoint-plan.md`、`2026-03-26-desktop-el-app-ws-status-events-plan.md` | `5e568d1c`、`e4c90eee`、`02228a85` | 更深 Go core 集成测试继续扩充、renderer smoke / e2e |
 | `P2-4` 文档收口 | 已完成 | `2026-03-26-desktop-el-docs-closeout-plan.md` | `docs(desktop-el): close out migration planning docs` | 无 |
 
 ## 当前剩余优先项
 
 1. `P2-2` 语音录制增强与更完整媒体预览体验。
-2. `P2-3` Go core 集成测试继续扩充。
-3. `P2-3` renderer 级 smoke / e2e 方案。
-4. `P0-1` 更细粒度消息管理增强项。
+2. `P2-3` 更深 Go core 集成测试与 renderer 级 smoke / e2e。
+3. `P0-1` 更细粒度消息管理增强项。

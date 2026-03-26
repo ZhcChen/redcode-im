@@ -389,40 +389,7 @@ func TestAppAuthSwitchAccountActivatesStoredSession(t *testing.T) {
 	application := newTestApp("http://127.0.0.1:8010")
 	rpcServer := application.RegisterRPC()
 
-	restoreResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
-		Type:   rpc.TypeRequest,
-		ID:     "req-auth-restore-for-switch",
-		Method: "auth.accounts.restore",
-		Params: mustJSONRaw(map[string]any{
-			"accounts": []map[string]any{
-				{
-					"id":            "u-1",
-					"token":         "token-alice",
-					"refresh_token": "refresh-alice",
-					"user": map[string]any{
-						"id":       "u-1",
-						"username": "alice",
-						"email":    "alice@example.com",
-						"nickname": "Alice",
-						"status":   "active",
-					},
-				},
-				{
-					"id":            "u-2",
-					"token":         "token-bob",
-					"refresh_token": "refresh-bob",
-					"user": map[string]any{
-						"id":       "u-2",
-						"username": "bob",
-						"email":    "bob@example.com",
-						"nickname": "Bob",
-						"status":   "active",
-					},
-				},
-			},
-			"current_account_id": "u-2",
-		}),
-	})
+	restoreResponse := restoreTestAccounts(t, rpcServer, "req-auth-restore-for-switch")
 	if restoreResponse.Error != nil {
 		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
 	}
@@ -454,40 +421,7 @@ func TestAppAuthLogoutFallsBackToRemainingAccount(t *testing.T) {
 	application := newTestApp("http://127.0.0.1:8010")
 	rpcServer := application.RegisterRPC()
 
-	restoreResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
-		Type:   rpc.TypeRequest,
-		ID:     "req-auth-restore-for-logout",
-		Method: "auth.accounts.restore",
-		Params: mustJSONRaw(map[string]any{
-			"accounts": []map[string]any{
-				{
-					"id":            "u-1",
-					"token":         "token-alice",
-					"refresh_token": "refresh-alice",
-					"user": map[string]any{
-						"id":       "u-1",
-						"username": "alice",
-						"email":    "alice@example.com",
-						"nickname": "Alice",
-						"status":   "active",
-					},
-				},
-				{
-					"id":            "u-2",
-					"token":         "token-bob",
-					"refresh_token": "refresh-bob",
-					"user": map[string]any{
-						"id":       "u-2",
-						"username": "bob",
-						"email":    "bob@example.com",
-						"nickname": "Bob",
-						"status":   "active",
-					},
-				},
-			},
-			"current_account_id": "u-2",
-		}),
-	})
+	restoreResponse := restoreTestAccounts(t, rpcServer, "req-auth-restore-for-logout")
 	if restoreResponse.Error != nil {
 		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
 	}
@@ -567,6 +501,71 @@ func TestAppAuthLogoutClearsSessionAndBootstrapAuthSnapshot(t *testing.T) {
 	if authSnapshot["current_user"] != nil {
 		t.Fatalf("expected current_user to be nil after logout, got: %+v", authSnapshot)
 	}
+}
+
+func TestAppAuthRestoreEmitsWSStatusUpdatedOnDisconnect(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newTestApp("http://127.0.0.1:8010")
+	application.encoder = rpc.NewEncoder(&stdout)
+	rpcServer := application.RegisterRPC()
+
+	response := restoreTestAccounts(t, rpcServer, "req-auth-restore-status-event")
+	if response.Error != nil {
+		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", response.Error)
+	}
+
+	waitForStatusEvent(t, &stdout, "disconnected")
+}
+
+func TestAppAuthSwitchAccountEmitsWSStatusUpdatedOnDisconnect(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newTestApp("http://127.0.0.1:8010")
+	application.encoder = rpc.NewEncoder(&stdout)
+	rpcServer := application.RegisterRPC()
+
+	restoreResponse := restoreTestAccounts(t, rpcServer, "req-auth-restore-before-switch-status")
+	if restoreResponse.Error != nil {
+		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
+	}
+	stdout.Reset()
+
+	switchResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-switch-status-event",
+		Method: "auth.account.switch",
+		Params: mustJSONRaw(map[string]any{
+			"account_id": "u-1",
+		}),
+	})
+	if switchResponse.Error != nil {
+		t.Fatalf("expected auth.account.switch to succeed, got: %+v", switchResponse.Error)
+	}
+
+	waitForStatusEvent(t, &stdout, "disconnected")
+}
+
+func TestAppAuthLogoutEmitsWSStatusUpdatedOnDisconnect(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newTestApp("http://127.0.0.1:8010")
+	application.encoder = rpc.NewEncoder(&stdout)
+	rpcServer := application.RegisterRPC()
+
+	restoreResponse := restoreTestAccounts(t, rpcServer, "req-auth-restore-before-logout-status")
+	if restoreResponse.Error != nil {
+		t.Fatalf("expected auth.accounts.restore to succeed, got: %+v", restoreResponse.Error)
+	}
+	stdout.Reset()
+
+	logoutResponse := rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     "req-auth-logout-status-event",
+		Method: "auth.logout",
+	})
+	if logoutResponse.Error != nil {
+		t.Fatalf("expected auth.logout to succeed, got: %+v", logoutResponse.Error)
+	}
+
+	waitForStatusEvent(t, &stdout, "disconnected")
 }
 
 func TestAppVersionLatestUsesProvidedPlatform(t *testing.T) {
@@ -4996,6 +4995,45 @@ func newTestApp(baseURL string) *App {
 		}),
 		rpc.NewEncoder(&bytes.Buffer{}),
 	)
+}
+
+func restoreTestAccounts(t *testing.T, rpcServer *rpc.Server, requestID string) rpc.Response {
+	t.Helper()
+
+	return rpcServer.HandleRequest(context.Background(), rpc.Request{
+		Type:   rpc.TypeRequest,
+		ID:     requestID,
+		Method: "auth.accounts.restore",
+		Params: mustJSONRaw(map[string]any{
+			"accounts": []map[string]any{
+				{
+					"id":            "u-1",
+					"token":         "token-alice",
+					"refresh_token": "refresh-alice",
+					"user": map[string]any{
+						"id":       "u-1",
+						"username": "alice",
+						"email":    "alice@example.com",
+						"nickname": "Alice",
+						"status":   "active",
+					},
+				},
+				{
+					"id":            "u-2",
+					"token":         "token-bob",
+					"refresh_token": "refresh-bob",
+					"user": map[string]any{
+						"id":       "u-2",
+						"username": "bob",
+						"email":    "bob@example.com",
+						"nickname": "Bob",
+						"status":   "active",
+					},
+				},
+			},
+			"current_account_id": "u-2",
+		}),
+	})
 }
 
 func waitForEmittedEvent(t *testing.T, stdout *bytes.Buffer, eventName string) rpc.Event {

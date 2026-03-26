@@ -311,6 +311,7 @@
 - [x] 已补齐 Go core `chat` service 的群设置与附件上传/下载契约测试，覆盖路径、query、multipart session 与可选字段裁剪行为。
 - [x] 已补齐 renderer 级 smoke 最小闭环：新增 Playwright + `vite preview` 独立 smoke 入口，在页面加载前注入 `window.desktopEl` mock，覆盖“登录页启动 -> 登录成功 -> 进入 HomeShell”浏览器级主链路，不并入默认 `desktop-el-verify`。
 - [x] 已补齐 Go core websocket 掉线状态透传的 app-level 集成测试，并修复 `startWSPump()` 在远端主动断连时未向 renderer 发出 `ws.status.updated(disconnected)` 的缺口。
+- [x] 已补齐账号恢复 / 切换 / 登出三条主链路的 websocket 断开态 app-level 集成测试，锁定 `auth.accounts.restore` / `auth.account.switch` / `auth.logout` 都会向 renderer 发出 `ws.status.updated(disconnected)`。
 
 **范围:**
 - [ ] Go core 集成测试继续扩充
