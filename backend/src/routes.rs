@@ -1,16 +1,51 @@
 use axum::{
-    middleware,
+    extract::Request,
+    http::StatusCode,
+    middleware::{self, Next},
+    response::Response,
     routing::{delete, get, patch, post, put},
     Router,
 };
 
 use crate::auth::{admin_only_middleware, auth_middleware};
+use crate::error::AppError;
 use crate::handlers::{
-    activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
+    activity_logs, admin, auth, chat_history, e2ee, emoji_pack, feedback, friend, group_management,
     health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
-    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws, e2ee,
+    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws,
 };
 use crate::AppState;
+
+async fn localized_auth_middleware(request: Request, next: Next) -> Result<Response, AppError> {
+    auth_middleware(request, next)
+        .await
+        .map_err(map_auth_error_status)
+}
+
+async fn localized_admin_only_middleware(
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    admin_only_middleware(request, next)
+        .await
+        .map_err(map_admin_error_status)
+}
+
+fn map_auth_error_status(status: StatusCode) -> AppError {
+    match status {
+        StatusCode::UNAUTHORIZED => AppError::Unauthorized(String::new()),
+        StatusCode::FORBIDDEN => AppError::Forbidden(String::new()),
+        _ => AppError::InternalError(String::new()),
+    }
+}
+
+fn map_admin_error_status(status: StatusCode) -> AppError {
+    match status {
+        StatusCode::FORBIDDEN => AppError::InsufficientPermission,
+        StatusCode::UNAUTHORIZED => AppError::Unauthorized(String::new()),
+        _ => AppError::InternalError(String::new()),
+    }
+}
 
 pub fn create_routes() -> Router<AppState> {
     // 公开路由
@@ -403,8 +438,8 @@ pub fn create_routes() -> Router<AppState> {
                 .patch(emoji_pack::update_item)
                 .delete(emoji_pack::delete_item),
         )
-        .layer(middleware::from_fn(admin_only_middleware))
-        .layer(middleware::from_fn(auth_middleware));
+        .layer(middleware::from_fn(localized_admin_only_middleware))
+        .layer(middleware::from_fn(localized_auth_middleware));
 
     // 需要认证的路由（普通用户）
     let user_routes = Router::new()
@@ -652,7 +687,8 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/join-requests/{request_id}/review",
-            patch(group_management::review_join_request).post(group_management::review_join_request),
+            patch(group_management::review_join_request)
+                .post(group_management::review_join_request),
         )
         .route(
             "/rooms/{room_id}/invitations",
@@ -717,8 +753,108 @@ pub fn create_routes() -> Router<AppState> {
             "/emoji-packs/suites/{suite_id}/packs",
             get(emoji_pack::list_user_suite_packs),
         )
-        .layer(middleware::from_fn(auth_middleware));
+        .layer(middleware::from_fn(localized_auth_middleware));
 
     // 合并所有路由
     public_routes.merge(user_routes).merge(admin_routes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{
+            header::{ACCEPT_LANGUAGE, AUTHORIZATION},
+            Request, StatusCode,
+        },
+    };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tower::ServiceExt;
+
+    use crate::{auth::generate_token, middleware::locale_middleware, models::Claims};
+
+    #[tokio::test]
+    async fn test_error_response_localizes_wrapped_auth_middleware_errors() {
+        let app = Router::new()
+            .route("/protected", get(ok_handler))
+            .layer(middleware::from_fn(localized_auth_middleware))
+            .layer(middleware::from_fn(locale_middleware));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/protected")
+                    .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("send request");
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let body = read_body_json(response.into_body()).await;
+        assert_eq!(body["message_key"], "auth.unauthorized");
+        assert_eq!(body["message"], "Unauthorized. Please sign in first.");
+    }
+
+    #[tokio::test]
+    async fn test_error_response_localizes_wrapped_admin_middleware_errors() {
+        let token = generate_test_token(false);
+        let app = Router::new()
+            .route("/admin", get(ok_handler))
+            .layer(middleware::from_fn(localized_admin_only_middleware))
+            .layer(middleware::from_fn(localized_auth_middleware))
+            .layer(middleware::from_fn(locale_middleware));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/admin")
+                    .header(AUTHORIZATION, format!("Bearer {}", token))
+                    .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("send request");
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let body = read_body_json(response.into_body()).await;
+        assert_eq!(body["message_key"], "auth.insufficient_permission");
+        assert_eq!(body["message"], "Insufficient permission.");
+    }
+
+    async fn ok_handler() -> &'static str {
+        "ok"
+    }
+
+    fn generate_test_token(is_admin: bool) -> String {
+        let issued_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_secs() as usize;
+
+        generate_token(&Claims {
+            sub: "user-1".to_string(),
+            username: "tester".to_string(),
+            is_admin,
+            exp: issued_at + 3600,
+            iat: issued_at,
+        })
+        .expect("generate token")
+    }
+
+    async fn read_body_json(body: Body) -> Value {
+        let bytes = body
+            .collect()
+            .await
+            .expect("collect response body")
+            .to_bytes();
+        serde_json::from_slice(&bytes).expect("parse json body")
+    }
 }

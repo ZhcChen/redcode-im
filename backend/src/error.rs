@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
 
 /// 统一的错误响应格式
 #[derive(Debug, Serialize, Deserialize)]
@@ -249,7 +250,9 @@ impl AppError {
             AppError::Forbidden(_) => "auth.forbidden",
             AppError::InsufficientPermission => "auth.insufficient_permission",
             AppError::BusinessError(_) => "common.business_error",
-            AppError::RateLimitExceeded(_) | AppError::TooManyRequests => "common.too_many_requests",
+            AppError::RateLimitExceeded(_) | AppError::TooManyRequests => {
+                "common.too_many_requests"
+            }
             AppError::CacheError(_) => "common.cache_error",
             AppError::InternalError(_) => "common.internal_error",
             AppError::ServiceUnavailable(_) => "common.service_unavailable",
@@ -275,11 +278,9 @@ impl AppError {
 
         let localizer = default_localizer();
         let params = self.message_params();
-        localizer.localize(
-            localizer.fallback_locale(),
-            self.message_key(),
-            params.as_ref(),
-        )
+        let locale =
+            current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+        localizer.localize(&locale, self.message_key(), params.as_ref())
     }
 
     fn should_mask_payload_for_client_message(&self) -> bool {
@@ -410,6 +411,16 @@ macro_rules! app_error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{
+        body::Body,
+        http::{header::ACCEPT_LANGUAGE, Request},
+        middleware,
+        routing::get,
+        Router,
+    };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use tower::ServiceExt;
 
     #[test]
     fn test_error_codes() {
@@ -434,5 +445,65 @@ mod tests {
             AppError::NotFound("test".to_string()).status_code(),
             StatusCode::NOT_FOUND
         );
+    }
+
+    #[tokio::test]
+    async fn test_error_response_uses_request_locale_from_accept_language() {
+        let app = Router::new()
+            .route("/error", get(locale_error_handler))
+            .layer(middleware::from_fn(
+                crate::middleware::locale::locale_middleware,
+            ));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/error")
+                    .header(ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("send request");
+
+        let body = read_body_json(response.into_body()).await;
+        assert_eq!(body["message_key"], "auth.token_expired");
+        assert_eq!(body["message"], "Token expired. Please sign in again.");
+    }
+
+    #[tokio::test]
+    async fn test_error_response_defaults_to_zh_cn_without_accept_language() {
+        let app = Router::new()
+            .route("/error", get(locale_error_handler))
+            .layer(middleware::from_fn(
+                crate::middleware::locale::locale_middleware,
+            ));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/error")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("send request");
+
+        let body = read_body_json(response.into_body()).await;
+        assert_eq!(body["message_key"], "auth.token_expired");
+        assert_eq!(body["message"], "令牌已过期，请重新登录");
+    }
+
+    async fn locale_error_handler() -> Result<(), AppError> {
+        Err(AppError::TokenExpired)
+    }
+
+    async fn read_body_json(body: Body) -> Value {
+        let bytes = body
+            .collect()
+            .await
+            .expect("collect response body")
+            .to_bytes();
+        serde_json::from_slice(&bytes).expect("parse json body")
     }
 }
