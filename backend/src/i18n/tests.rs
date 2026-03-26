@@ -1,11 +1,12 @@
 use axum::{body::Body, response::IntoResponse};
 use http_body_util::BodyExt;
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 use crate::error::AppError;
 use crate::i18n::{
     catalog::Catalog,
-    locale::{DEFAULT_LOCALE, negotiate_locale},
+    locale::{negotiate_locale, DEFAULT_LOCALE},
     localizer::Localizer,
 };
 
@@ -53,6 +54,24 @@ fn i18n_english_message_localization() {
     assert_eq!(message, "Token expired. Please sign in again.");
 }
 
+#[test]
+fn i18n_auth_catalog_is_loaded_for_english_locale() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let message = localizer.localize("en-US", "auth.refresh_token_required", None);
+    assert_eq!(message, "Refresh token is required.");
+}
+
+#[test]
+fn i18n_auth_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([
+        ("min".to_string(), "3".to_string()),
+        ("max".to_string(), "20".to_string()),
+    ]);
+    let message = localizer.localize("zh-CN", "auth.username_length_invalid", Some(&params));
+    assert_eq!(message, "用户名长度必须在 3 到 20 个字符之间");
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();
@@ -85,7 +104,8 @@ async fn i18n_error_response_uses_fallback_locale_message_for_empty_payload() {
 
 #[tokio::test]
 async fn i18n_error_response_suppresses_details_for_database_error() {
-    let response = AppError::DatabaseError(sqlx::Error::Protocol("db err".to_string())).into_response();
+    let response =
+        AppError::DatabaseError(sqlx::Error::Protocol("db err".to_string())).into_response();
     let body = read_body_json(response.into_body()).await;
     assert_eq!(body["message_key"], "common.database_error");
     assert_eq!(body["message"], "数据库错误");
@@ -113,9 +133,12 @@ async fn i18n_error_response_suppresses_sensitive_payload_for_service_unavailabl
 #[tokio::test]
 async fn i18n_error_response_rate_limit_keys_are_merged() {
     let too_many = read_body_json(AppError::TooManyRequests.into_response().into_body()).await;
-    let rate_limit =
-        read_body_json(AppError::RateLimitExceeded(String::new()).into_response().into_body())
-            .await;
+    let rate_limit = read_body_json(
+        AppError::RateLimitExceeded(String::new())
+            .into_response()
+            .into_body(),
+    )
+    .await;
     assert_eq!(too_many["message_key"], "common.too_many_requests");
     assert_eq!(rate_limit["message_key"], "common.too_many_requests");
 }

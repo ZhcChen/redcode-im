@@ -5,11 +5,14 @@ use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::handlers::admin;
+use crate::i18n::message::MessageParams;
 use crate::models::convert::{
     api_create_user_to_db, api_login_to_db, db_user_to_api_user_info, string_to_uuid,
 };
 use crate::models::UserStatus;
-use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, OAuthLoginRequest, UserInfo};
+use crate::models::{
+    Claims, CreateUserRequest, LoginRequest, LoginResponse, OAuthLoginRequest, UserInfo,
+};
 use crate::AppState;
 use axum::{
     extract::{Extension, State},
@@ -18,9 +21,9 @@ use axum::{
 };
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use once_cell::sync::Lazy;
-use reqwest::Client;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use redis::AsyncCommands;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -104,24 +107,47 @@ fn apple_jwks_url() -> String {
     env::var("APPLE_OIDC_JWKS_URL").unwrap_or_else(|_| DEFAULT_APPLE_JWKS_URL.to_string())
 }
 
+fn auth_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn auth_validation_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn auth_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn auth_forbidden_error(message_key: &'static str) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key(message_key)
+}
+
+fn auth_internal_error(message_key: &'static str) -> AppError {
+    AppError::InternalError(String::new()).with_message_key(message_key)
+}
+
+fn auth_service_unavailable_error(message_key: &'static str) -> AppError {
+    AppError::ServiceUnavailable(String::new()).with_message_key(message_key)
+}
+
 async fn fetch_jwks(jwks_url: &str) -> Result<CachedJwks, AppError> {
     let resp = OIDC_HTTP_CLIENT
         .get(jwks_url)
         .send()
         .await
-        .map_err(|e| AppError::ServiceUnavailable(format!("获取第三方公钥失败: {}", e)))?;
+        .map_err(|_| auth_service_unavailable_error("auth.oauth_public_key_fetch_failed"))?;
 
     if !resp.status().is_success() {
-        return Err(AppError::ServiceUnavailable(format!(
-            "获取第三方公钥失败: HTTP {}",
-            resp.status().as_u16()
-        )));
+        return Err(auth_service_unavailable_error(
+            "auth.oauth_public_key_fetch_failed",
+        ));
     }
 
     let parsed: JwksResponse = resp
         .json()
         .await
-        .map_err(|e| AppError::ServiceUnavailable(format!("解析第三方公钥失败: {}", e)))?;
+        .map_err(|_| auth_service_unavailable_error("auth.oauth_public_key_fetch_failed"))?;
 
     let mut keys = HashMap::new();
     for key in parsed.keys {
@@ -162,7 +188,7 @@ async fn get_rsa_components(jwks_url: &str, kid: &str) -> Result<(String, String
         .keys
         .get(kid)
         .cloned()
-        .ok_or_else(|| AppError::InvalidToken("第三方令牌无效或已过期".to_string()))
+        .ok_or_else(|| auth_invalid_token_error("auth.oauth_token_invalid"))
 }
 
 fn build_oauth_username(provider: &str, provider_user_id: &str) -> String {
@@ -184,27 +210,26 @@ fn build_random_password(len: usize) -> String {
 }
 
 async fn verify_google_id_token(id_token: &str) -> Result<ExternalIdentity, AppError> {
-    let client_id = env::var("GOOGLE_OAUTH_CLIENT_ID").map_err(|_| {
-        AppError::ServiceUnavailable("GOOGLE_OAUTH_CLIENT_ID 未配置，无法使用 Google 登录".to_string())
-    })?;
+    let client_id = env::var("GOOGLE_OAUTH_CLIENT_ID")
+        .map_err(|_| auth_service_unavailable_error("auth.oauth_client_not_configured"))?;
 
     let header = decode_header(id_token)
-        .map_err(|_| AppError::InvalidToken("第三方令牌格式无效".to_string()))?;
+        .map_err(|_| auth_invalid_token_error("auth.oauth_token_invalid"))?;
     let kid = header
         .kid
-        .ok_or_else(|| AppError::InvalidToken("第三方令牌缺少 kid".to_string()))?;
+        .ok_or_else(|| auth_invalid_token_error("auth.oauth_token_missing_kid"))?;
 
     let jwks_url = google_jwks_url();
     let (n, e) = get_rsa_components(&jwks_url, &kid).await?;
     let key = DecodingKey::from_rsa_components(&n, &e)
-        .map_err(|_| AppError::InvalidToken("第三方公钥无效".to_string()))?;
+        .map_err(|_| auth_invalid_token_error("auth.oauth_public_key_invalid"))?;
 
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_audience(&[client_id.as_str()]);
     validation.set_issuer(&["accounts.google.com", "https://accounts.google.com"]);
 
     let claims = decode::<GoogleIdTokenClaims>(id_token, &key, &validation)
-        .map_err(|_| AppError::InvalidToken("第三方令牌校验失败".to_string()))?
+        .map_err(|_| auth_invalid_token_error("auth.oauth_token_verification_failed"))?
         .claims;
 
     Ok(ExternalIdentity {
@@ -217,27 +242,26 @@ async fn verify_google_id_token(id_token: &str) -> Result<ExternalIdentity, AppE
 }
 
 async fn verify_apple_id_token(id_token: &str) -> Result<ExternalIdentity, AppError> {
-    let client_id = env::var("APPLE_OAUTH_CLIENT_ID").map_err(|_| {
-        AppError::ServiceUnavailable("APPLE_OAUTH_CLIENT_ID 未配置，无法使用 Apple 登录".to_string())
-    })?;
+    let client_id = env::var("APPLE_OAUTH_CLIENT_ID")
+        .map_err(|_| auth_service_unavailable_error("auth.oauth_client_not_configured"))?;
 
     let header = decode_header(id_token)
-        .map_err(|_| AppError::InvalidToken("第三方令牌格式无效".to_string()))?;
+        .map_err(|_| auth_invalid_token_error("auth.oauth_token_invalid"))?;
     let kid = header
         .kid
-        .ok_or_else(|| AppError::InvalidToken("第三方令牌缺少 kid".to_string()))?;
+        .ok_or_else(|| auth_invalid_token_error("auth.oauth_token_missing_kid"))?;
 
     let jwks_url = apple_jwks_url();
     let (n, e) = get_rsa_components(&jwks_url, &kid).await?;
     let key = DecodingKey::from_rsa_components(&n, &e)
-        .map_err(|_| AppError::InvalidToken("第三方公钥无效".to_string()))?;
+        .map_err(|_| auth_invalid_token_error("auth.oauth_public_key_invalid"))?;
 
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_audience(&[client_id.as_str()]);
     validation.set_issuer(&["https://appleid.apple.com"]);
 
     let claims = decode::<AppleIdTokenClaims>(id_token, &key, &validation)
-        .map_err(|_| AppError::InvalidToken("第三方令牌校验失败".to_string()))?
+        .map_err(|_| auth_invalid_token_error("auth.oauth_token_verification_failed"))?
         .claims;
 
     Ok(ExternalIdentity {
@@ -303,9 +327,7 @@ pub async fn register(
 
     // 基础验证：密码长度
     if payload.password.len() < 6 {
-        return Err(AppError::ValidationError(
-            "密码长度至少为 6 个字符".to_string(),
-        ));
+        return Err(auth_validation_error("auth.password_too_short"));
     }
 
     // 根据设置校验用户名格式
@@ -315,9 +337,7 @@ pub async fn register(
     if account_limit.enable_phone_validation {
         let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
         if !phone_regex.is_match(username) {
-            return Err(AppError::ValidationError(
-                "用户名必须符合手机号格式（以1开头的11位数字）".to_string(),
-            ));
+            return Err(auth_validation_error("auth.username_phone_format_invalid"));
         }
     }
 
@@ -326,9 +346,7 @@ pub async fn register(
         let email_regex =
             regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
         if !email_regex.is_match(username) {
-            return Err(AppError::ValidationError(
-                "用户名必须符合邮箱格式".to_string(),
-            ));
+            return Err(auth_validation_error("auth.username_email_format_invalid"));
         }
     }
 
@@ -336,10 +354,13 @@ pub async fn register(
     if account_limit.enable_length_validation {
         let len = username.len() as i32;
         if len < account_limit.min_length || len > account_limit.max_length {
-            return Err(AppError::ValidationError(format!(
-                "用户名长度必须在 {} 到 {} 个字符之间",
-                account_limit.min_length, account_limit.max_length
-            )));
+            let mut params = MessageParams::new();
+            params.insert("min".to_string(), account_limit.min_length.to_string());
+            params.insert("max".to_string(), account_limit.max_length.to_string());
+            return Err(auth_validation_error_with_params(
+                "auth.username_length_invalid",
+                params,
+            ));
         }
     }
 
@@ -348,9 +369,7 @@ pub async fn register(
         let has_letter = username.chars().any(|c| c.is_ascii_alphabetic());
         let has_digit = username.chars().any(|c| c.is_ascii_digit());
         if !has_letter || !has_digit {
-            return Err(AppError::ValidationError(
-                "用户名必须同时包含字母和数字".to_string(),
-            ));
+            return Err(auth_validation_error("auth.username_alphanumeric_required"));
         }
     }
 
@@ -415,7 +434,7 @@ pub async fn login(
 
     // 检查用户封禁状态
     if db_user.status == crate::database::models::UserStatus::Banned {
-        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+        return Err(auth_forbidden_error("auth.account_disabled"));
     }
 
     info!("User logged in successfully: {}", db_user.username);
@@ -430,14 +449,14 @@ pub async fn login(
     };
 
     let token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+        generate_token(&claims).map_err(|_| auth_internal_error("auth.generate_token_failed"))?;
 
     // 生成刷新令牌并存入 Redis（30 天滑动过期）
     let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
         .await
         .map_err(|e| {
             tracing::warn!("生成刷新令牌失败: {:?}", e);
-            AppError::InternalError("生成刷新令牌失败".to_string())
+            auth_internal_error("auth.generate_refresh_token_failed")
         })?;
 
     let response = LoginResponse {
@@ -456,19 +475,17 @@ pub async fn login_with_oauth(
     let provider = payload.provider.trim().to_lowercase();
     let id_token = payload.id_token.trim();
     if provider.is_empty() {
-        return Err(AppError::ValidationError("provider 不能为空".to_string()));
+        return Err(auth_validation_error("auth.oauth_provider_required"));
     }
     if id_token.is_empty() {
-        return Err(AppError::ValidationError("id_token 不能为空".to_string()));
+        return Err(auth_validation_error("auth.oauth_id_token_required"));
     }
 
     let identity = match provider.as_str() {
         "google" => verify_google_id_token(id_token).await?,
         "apple" => verify_apple_id_token(id_token).await?,
         _ => {
-            return Err(AppError::ValidationError(
-                "不支持的第三方登录提供方".to_string(),
-            ));
+            return Err(auth_validation_error("auth.oauth_provider_unsupported"));
         }
     };
 
@@ -484,9 +501,10 @@ pub async fn login_with_oauth(
             username = format!("{}_{}", username, suffix);
         }
 
-        let mut email = identity.email.clone().unwrap_or_else(|| {
-            format!("{}@{}.oauth", username, identity.provider)
-        });
+        let mut email = identity
+            .email
+            .clone()
+            .unwrap_or_else(|| format!("{}@{}.oauth", username, identity.provider));
         if store.email_exists(&email).await? {
             let suffix = build_random_password(6).to_lowercase();
             email = format!("{}+{}@{}.oauth", username, suffix, identity.provider);
@@ -539,10 +557,10 @@ pub async fn login_with_oauth(
         }
     }
 
-    let db_user = db_user.ok_or_else(|| AppError::InternalError("第三方登录失败".to_string()))?;
+    let db_user = db_user.ok_or_else(|| auth_internal_error("auth.oauth_login_failed"))?;
 
     if db_user.status == crate::database::models::UserStatus::Banned {
-        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+        return Err(auth_forbidden_error("auth.account_disabled"));
     }
 
     let claims = Claims {
@@ -554,13 +572,13 @@ pub async fn login_with_oauth(
     };
 
     let token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+        generate_token(&claims).map_err(|_| auth_internal_error("auth.generate_token_failed"))?;
 
     let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
         .await
         .map_err(|e| {
             tracing::warn!("生成刷新令牌失败: {:?}", e);
-            AppError::InternalError("生成刷新令牌失败".to_string())
+            auth_internal_error("auth.generate_refresh_token_failed")
         })?;
 
     Ok(Json(LoginResponse {
@@ -577,9 +595,7 @@ pub async fn refresh_token(
 ) -> Result<Json<LoginResponse>, AppError> {
     let token = payload.refresh_token.trim();
     if token.is_empty() {
-        return Err(AppError::ValidationError(
-            "refresh_token 不能为空".to_string(),
-        ));
+        return Err(auth_validation_error("auth.refresh_token_required"));
     }
 
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, token);
@@ -600,33 +616,29 @@ pub async fn refresh_token(
         Some(v) => v,
         None => {
             // 超过 30 天未使用或无效
-            return Err(AppError::InvalidToken(
-                "刷新令牌已过期，请重新登录".to_string(),
-            ));
+            return Err(auth_invalid_token_error("auth.refresh_token_expired"));
         }
     };
 
     let payload: RefreshTokenPayload = serde_json::from_str(&stored)
-        .map_err(|_| AppError::InvalidToken("刷新令牌无效，请重新登录".to_string()))?;
+        .map_err(|_| auth_invalid_token_error("auth.refresh_token_invalid"))?;
 
     if payload.is_admin {
-        return Err(AppError::InvalidToken(
-            "刷新令牌类型不匹配，请使用管理员刷新接口".to_string(),
-        ));
+        return Err(auth_invalid_token_error("auth.refresh_token_type_mismatch"));
     }
 
     // 查找用户并校验状态
     let user_id = string_to_uuid(&payload.user_id)
-        .map_err(|e| AppError::InvalidToken(format!("无效的用户ID: {}", e)))?;
+        .map_err(|_| auth_invalid_token_error("auth.refresh_token_subject_invalid"))?;
 
     let store = UserStore::new(state.database.clone());
     let db_user = store
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("用户不存在或已被删除".to_string()))?;
+        .ok_or_else(|| auth_invalid_token_error("auth.refresh_token_invalid"))?;
 
     if db_user.status == crate::database::models::UserStatus::Banned {
-        return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+        return Err(auth_forbidden_error("auth.account_disabled"));
     }
 
     // 生成新的访问令牌
@@ -639,7 +651,7 @@ pub async fn refresh_token(
     };
 
     let new_token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+        generate_token(&claims).map_err(|_| auth_internal_error("auth.generate_token_failed"))?;
 
     // 续期刷新令牌 TTL，实现滑动过期
     conn.expire::<_, ()>(&key, REFRESH_TOKEN_TTL_SECONDS as i64)
@@ -685,7 +697,7 @@ pub async fn send_login_sms(
 ) -> Result<Json<SmsResponse<'static>>, AppError> {
     let phone = payload.phone.trim();
     if phone.is_empty() {
-        return Err(AppError::ValidationError("手机号不能为空".to_string()));
+        return Err(auth_validation_error("auth.phone_required"));
     }
 
     // 检查是否开启登录/注册验证码
@@ -695,9 +707,7 @@ pub async fn send_login_sms(
         .await
         .unwrap_or(false);
     if !require_captcha {
-        return Err(AppError::ValidationError(
-            "验证码登录功能已关闭，请使用密码登录".to_string(),
-        ));
+        return Err(auth_validation_error("auth.sms_login_disabled"));
     }
 
     let code: u32 = thread_rng().gen_range(100000..=999999);
@@ -730,9 +740,7 @@ pub async fn login_with_sms(
     let code = payload.code.trim();
 
     if phone.is_empty() || code.is_empty() {
-        return Err(AppError::ValidationError(
-            "手机号和验证码不能为空".to_string(),
-        ));
+        return Err(auth_validation_error("auth.phone_and_code_required"));
     }
 
     // 检查是否开启登录/注册验证码
@@ -742,9 +750,7 @@ pub async fn login_with_sms(
         .await
         .unwrap_or(false);
     if !require_captcha {
-        return Err(AppError::ValidationError(
-            "验证码登录功能已关闭，请使用密码登录".to_string(),
-        ));
+        return Err(auth_validation_error("auth.sms_login_disabled"));
     }
 
     let key = format!("auth:sms:{}", phone);
@@ -767,7 +773,7 @@ pub async fn login_with_sms(
     let universal_matched = admin::is_universal_captcha_code(&state, code).await;
 
     if !redis_matched && !universal_matched {
-        return Err(AppError::ValidationError("验证码错误或已过期".to_string()));
+        return Err(auth_validation_error("auth.sms_code_invalid"));
     }
 
     if universal_matched {
@@ -779,7 +785,7 @@ pub async fn login_with_sms(
         Some(user) => {
             // 检查用户封禁状态
             if user.status == crate::database::models::UserStatus::Banned {
-                return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
+                return Err(auth_forbidden_error("auth.account_disabled"));
             }
             user
         }
@@ -801,16 +807,12 @@ pub async fn login_with_sms(
                         Some(existing) => {
                             // 检查用户封禁状态
                             if existing.status == crate::database::models::UserStatus::Banned {
-                                return Err(AppError::Forbidden(
-                                    "账户已被封禁，无法登录".to_string(),
-                                ));
+                                return Err(auth_forbidden_error("auth.account_disabled"));
                             }
                             existing
                         }
                         None => {
-                            return Err(AppError::ValidationError(
-                                "该账号已存在但当前不可登录，请联系管理员".to_string(),
-                            ));
+                            return Err(auth_validation_error("auth.account_login_unavailable"));
                         }
                     }
                 }
@@ -820,9 +822,7 @@ pub async fn login_with_sms(
                         "通过验证码登录自动注册账号 {} 失败",
                         phone
                     );
-                    return Err(AppError::InternalError(
-                        "自动注册失败，请稍后重试".to_string(),
-                    ));
+                    return Err(auth_internal_error("auth.auto_registration_failed"));
                 }
             }
         }
@@ -845,14 +845,14 @@ pub async fn login_with_sms(
     };
 
     let token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+        generate_token(&claims).map_err(|_| auth_internal_error("auth.generate_token_failed"))?;
 
     // 生成刷新令牌并存入 Redis（30 天滑动过期）
     let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
         .await
         .map_err(|e| {
             tracing::warn!("生成刷新令牌失败: {:?}", e);
-            AppError::InternalError("生成刷新令牌失败".to_string())
+            auth_internal_error("auth.generate_refresh_token_failed")
         })?;
 
     let response = LoginResponse {
@@ -874,20 +874,18 @@ pub async fn reset_password_with_sms(
     let new_password = payload.new_password.trim();
 
     if phone.is_empty() || code.is_empty() || new_password.is_empty() {
-        return Err(AppError::ValidationError(
-            "手机号、验证码和新密码均不能为空".to_string(),
+        return Err(auth_validation_error(
+            "auth.phone_code_and_password_required",
         ));
     }
 
     if new_password.len() < 6 {
-        return Err(AppError::ValidationError(
-            "新密码长度至少为 6 个字符".to_string(),
-        ));
+        return Err(auth_validation_error("auth.new_password_too_short"));
     }
 
     // 仅允许重置当前登录用户的密码
     if claims.username != phone {
-        return Err(AppError::Forbidden("仅可重置当前账号的密码".to_string()));
+        return Err(auth_forbidden_error("auth.password_reset_forbidden"));
     }
 
     let key = format!("auth:sms:{}", phone);
@@ -910,7 +908,7 @@ pub async fn reset_password_with_sms(
     let universal_matched = admin::is_universal_captcha_code(&state, code).await;
 
     if !redis_matched && !universal_matched {
-        return Err(AppError::ValidationError("验证码错误或已过期".to_string()));
+        return Err(auth_validation_error("auth.sms_code_invalid"));
     }
 
     if universal_matched {
@@ -1013,9 +1011,7 @@ pub async fn admin_login(
 ) -> Result<Json<LoginResponse>, AppError> {
     // 基础验证
     if payload.username.trim().is_empty() || payload.password.trim().is_empty() {
-        return Err(AppError::ValidationError(
-            "用户名和密码不能为空".to_string(),
-        ));
+        return Err(auth_validation_error("auth.username_or_password_required"));
     }
 
     let store = admin::AdminUserStore::new(state.database.clone());
@@ -1035,13 +1031,13 @@ pub async fn admin_login(
 
     // 检查账户状态
     if db_admin_user.status != AdminUserStatus::Active {
-        return Err(AppError::Forbidden("账户已被禁用或锁定".to_string()));
+        return Err(auth_forbidden_error("auth.admin_account_disabled"));
     }
 
     // 检查账户是否被锁定
     if let Some(locked_until) = db_admin_user.locked_until {
         if locked_until > chrono::Utc::now() {
-            return Err(AppError::Forbidden("账户已被临时锁定".to_string()));
+            return Err(auth_forbidden_error("auth.admin_account_locked"));
         }
     }
 
@@ -1099,7 +1095,7 @@ pub async fn admin_login(
     };
 
     let token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+        generate_token(&claims).map_err(|_| auth_internal_error("auth.generate_token_failed"))?;
 
     // 生成管理员刷新令牌
     let refresh_token =
@@ -1107,7 +1103,7 @@ pub async fn admin_login(
             .await
             .map_err(|e| {
                 tracing::warn!("生成管理员刷新令牌失败: {:?}", e);
-                AppError::InternalError("生成刷新令牌失败".to_string())
+                auth_internal_error("auth.generate_refresh_token_failed")
             })?;
 
     let response = LoginResponse {
@@ -1174,9 +1170,7 @@ pub async fn admin_refresh_token(
 ) -> Result<Json<LoginResponse>, AppError> {
     let token = payload.refresh_token.trim();
     if token.is_empty() {
-        return Err(AppError::ValidationError(
-            "refresh_token 不能为空".to_string(),
-        ));
+        return Err(auth_validation_error("auth.refresh_token_required"));
     }
 
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, token);
@@ -1196,37 +1190,31 @@ pub async fn admin_refresh_token(
     let stored = match stored {
         Some(v) => v,
         None => {
-            return Err(AppError::InvalidToken(
-                "刷新令牌已过期，请重新登录".to_string(),
-            ));
+            return Err(auth_invalid_token_error("auth.refresh_token_expired"));
         }
     };
 
     let payload: RefreshTokenPayload = serde_json::from_str(&stored)
-        .map_err(|_| AppError::InvalidToken("刷新令牌无效，请重新登录".to_string()))?;
+        .map_err(|_| auth_invalid_token_error("auth.refresh_token_invalid"))?;
 
     if !payload.is_admin {
-        return Err(AppError::InvalidToken(
-            "刷新令牌类型不匹配，请使用用户刷新接口".to_string(),
-        ));
+        return Err(auth_invalid_token_error("auth.refresh_token_type_mismatch"));
     }
 
     let admin_user_id = string_to_uuid(&payload.user_id)
-        .map_err(|e| AppError::InvalidToken(format!("无效的管理员用户ID: {}", e)))?;
+        .map_err(|_| auth_invalid_token_error("auth.refresh_token_subject_invalid"))?;
 
     let store = admin::AdminUserStore::new(state.database.clone());
 
     let db_admin_user = store
         .find_by_id(&admin_user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("管理员用户不存在或已被删除".to_string()))?;
+        .ok_or_else(|| auth_invalid_token_error("auth.refresh_token_invalid"))?;
 
     if db_admin_user.status == AdminUserStatus::Banned
         || db_admin_user.status == AdminUserStatus::Locked
     {
-        return Err(AppError::Forbidden(
-            "管理员账户已被封禁，无法登录".to_string(),
-        ));
+        return Err(auth_forbidden_error("auth.admin_account_disabled"));
     }
 
     // 生成新的管理员访问令牌（8 小时有效）
@@ -1239,7 +1227,7 @@ pub async fn admin_refresh_token(
     };
 
     let new_token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+        generate_token(&claims).map_err(|_| auth_internal_error("auth.generate_token_failed"))?;
 
     // 续期刷新令牌 TTL
     conn.expire::<_, ()>(&key, REFRESH_TOKEN_TTL_SECONDS as i64)
@@ -1439,6 +1427,7 @@ pub fn validate_alphanumeric(username: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::message::MessageParams;
 
     // ========================================================================
     // 密码验证测试
@@ -1648,5 +1637,35 @@ mod tests {
         assert_eq!(request.nickname, Some("13812345678".to_string()));
         // 密码应满足强度要求
         assert!(request.password.len() >= 12);
+    }
+
+    #[test]
+    fn test_auth_validation_error_uses_auth_domain_message_key() {
+        let error = auth_validation_error("auth.refresh_token_required");
+        assert_eq!(error.message_key(), "auth.refresh_token_required");
+        assert_eq!(error.localized_message(), "刷新令牌不能为空");
+        assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_auth_validation_error_with_params_interpolates_message() {
+        let mut params = MessageParams::new();
+        params.insert("min".to_string(), "3".to_string());
+        params.insert("max".to_string(), "20".to_string());
+
+        let error = auth_validation_error_with_params("auth.username_length_invalid", params);
+        assert_eq!(error.message_key(), "auth.username_length_invalid");
+        assert_eq!(
+            error.localized_message(),
+            "用户名长度必须在 3 到 20 个字符之间"
+        );
+    }
+
+    #[test]
+    fn test_auth_invalid_token_error_uses_auth_domain_message_key() {
+        let error = auth_invalid_token_error("auth.refresh_token_invalid");
+        assert_eq!(error.message_key(), "auth.refresh_token_invalid");
+        assert_eq!(error.localized_message(), "刷新令牌无效，请重新登录");
+        assert_eq!(error.status_code(), axum::http::StatusCode::UNAUTHORIZED);
     }
 }

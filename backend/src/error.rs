@@ -63,6 +63,13 @@ pub enum AppError {
     // 系统错误
     InternalError(String),
     ServiceUnavailable(String),
+
+    // 轻量本地化覆盖层：保留原始错误语义，仅覆盖 message_key / message_params
+    Localized {
+        source: Box<AppError>,
+        message_key: String,
+        message_params: Option<MessageParams>,
+    },
 }
 
 impl fmt::Display for AppError {
@@ -157,6 +164,7 @@ impl fmt::Display for AppError {
                     write!(f, "{}", msg)
                 }
             }
+            AppError::Localized { source, .. } => write!(f, "{}", source),
         }
     }
 }
@@ -167,6 +175,7 @@ impl AppError {
     /// 获取错误码
     pub fn error_code(&self) -> u32 {
         match self {
+            AppError::Localized { source, .. } => source.error_code(),
             // 认证相关 (40001-40099)
             AppError::Unauthorized(_) => 40001,
             AppError::InvalidToken(_) => 40002,
@@ -209,6 +218,7 @@ impl AppError {
     /// 获取 HTTP 状态码
     pub fn status_code(&self) -> StatusCode {
         match self {
+            AppError::Localized { source, .. } => source.status_code(),
             AppError::Unauthorized(_)
             | AppError::InvalidToken(_)
             | AppError::TokenExpired
@@ -237,8 +247,9 @@ impl AppError {
     }
 
     /// 获取稳定消息 key
-    pub fn message_key(&self) -> &'static str {
+    pub fn message_key(&self) -> &str {
         match self {
+            AppError::Localized { message_key, .. } => message_key.as_str(),
             AppError::DatabaseError(_) => "common.database_error",
             AppError::Unauthorized(_) => "auth.unauthorized",
             AppError::InvalidToken(_) => "auth.invalid_token",
@@ -262,7 +273,31 @@ impl AppError {
 
     /// 获取消息参数（Task 1 仅打通协议字段）
     pub fn message_params(&self) -> Option<MessageParams> {
-        None
+        match self {
+            AppError::Localized { message_params, .. } => message_params.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn with_message_key(self, message_key: impl Into<String>) -> Self {
+        self.with_message_key_and_params(message_key, None)
+    }
+
+    pub fn with_message_key_and_params(
+        self,
+        message_key: impl Into<String>,
+        message_params: impl Into<Option<MessageParams>>,
+    ) -> Self {
+        let source = match self {
+            AppError::Localized { source, .. } => source,
+            other => Box::new(other),
+        };
+
+        AppError::Localized {
+            source,
+            message_key: message_key.into(),
+            message_params: message_params.into(),
+        }
     }
 
     /// 获取用于响应的最终 message：
@@ -285,6 +320,9 @@ impl AppError {
     }
 
     fn should_mask_payload_for_client_message(&self) -> bool {
+        if let AppError::Localized { source, .. } = self {
+            return source.should_mask_payload_for_client_message();
+        }
         matches!(
             self,
             AppError::InternalError(_) | AppError::ServiceUnavailable(_)
@@ -292,6 +330,10 @@ impl AppError {
     }
 
     fn payload_message(&self) -> Option<&str> {
+        if let AppError::Localized { source, .. } = self {
+            return source.payload_message();
+        }
+
         let message = match self {
             AppError::Unauthorized(msg)
             | AppError::InvalidToken(msg)
@@ -310,6 +352,7 @@ impl AppError {
             | AppError::InvalidCredentials
             | AppError::InsufficientPermission
             | AppError::TooManyRequests => "",
+            AppError::Localized { .. } => unreachable!("localized payload handled above"),
         };
 
         if message.trim().is_empty() {
@@ -322,6 +365,7 @@ impl AppError {
     /// 获取详细信息（敏感信息不会暴露给客户端）
     pub fn details(&self) -> Option<String> {
         match self {
+            AppError::Localized { source, .. } => source.details(),
             // 数据库错误不暴露细节
             AppError::DatabaseError(_) => None,
             // 内部错误不暴露细节
@@ -335,6 +379,7 @@ impl AppError {
 
     fn response_log_level(&self) -> Level {
         match self {
+            AppError::Localized { source, .. } => source.response_log_level(),
             AppError::Unauthorized(_)
             | AppError::InvalidToken(_)
             | AppError::TokenExpired
@@ -471,6 +516,31 @@ mod tests {
             AppError::NotFound("test".to_string()).status_code(),
             StatusCode::NOT_FOUND
         );
+    }
+
+    #[test]
+    fn test_message_key_override_preserves_source_status_and_code() {
+        let error = AppError::ValidationError(String::new())
+            .with_message_key("auth.refresh_token_required");
+        assert_eq!(error.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(error.error_code(), 42201);
+        assert_eq!(error.message_key(), "auth.refresh_token_required");
+    }
+
+    #[tokio::test]
+    async fn test_message_key_override_uses_localized_message_and_masks_sensitive_details() {
+        let body = read_body_json(
+            AppError::InternalError("sensitive raw cause".to_string())
+                .with_message_key("auth.generate_token_failed")
+                .into_response()
+                .into_body(),
+        )
+        .await;
+
+        assert_eq!(body["code"], 50301);
+        assert_eq!(body["message_key"], "auth.generate_token_failed");
+        assert_eq!(body["message"], "生成令牌失败，请稍后重试");
+        assert_eq!(body["details"], Value::Null);
     }
 
     #[tokio::test]
