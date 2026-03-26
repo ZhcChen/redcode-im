@@ -1,0 +1,11 @@
+{
+  "message.search_message_type_invalid": "Unsupported message type: {message_type}.",
+  "message.search_query_required": "Search query cannot be empty.",
+  "message.search_query_too_long": "Search query is too long. Maximum allowed is {max} characters.",
+  "message.search_date_from_invalid": "Invalid start time.",
+  "message.search_date_to_invalid": "Invalid end time.",
+  "message.search_failed": "Message search failed. Please try again later.",
+  "message.search_count_failed": "Failed to load total search result count. Please try again later.",
+  "message.search_suggestions_failed": "Failed to load search suggestions. Please try again later.",
+  "message.search_trending_failed": "Failed to load trending keywords. Please try again later."
+}

@@ -144,6 +144,41 @@ fn i18n_user_catalog_interpolates_avatar_size_params() {
     );
 }
 
+#[test]
+fn i18n_message_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "message.search_query_required", None),
+        "搜索内容不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.search_query_required", None),
+        "Search query cannot be empty."
+    );
+}
+
+#[test]
+fn i18n_message_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([
+        ("message_type".to_string(), "unknown".to_string()),
+        ("max".to_string(), "200".to_string()),
+    ]);
+
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.search_message_type_invalid",
+            Some(&params)
+        ),
+        "无效的消息类型：unknown"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.search_query_too_long", Some(&params)),
+        "Search query is too long. Maximum allowed is 200 characters."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();

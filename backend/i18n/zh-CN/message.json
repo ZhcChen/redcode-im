@@ -1,0 +1,11 @@
+{
+  "message.search_message_type_invalid": "无效的消息类型：{message_type}",
+  "message.search_query_required": "搜索内容不能为空",
+  "message.search_query_too_long": "搜索内容过长，最多 {max} 个字符",
+  "message.search_date_from_invalid": "无效的开始时间",
+  "message.search_date_to_invalid": "无效的结束时间",
+  "message.search_failed": "搜索失败，请稍后重试",
+  "message.search_count_failed": "获取搜索结果总数失败，请稍后重试",
+  "message.search_suggestions_failed": "获取搜索建议失败，请稍后重试",
+  "message.search_trending_failed": "获取热门关键词失败，请稍后重试"
+}

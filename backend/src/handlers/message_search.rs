@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::database::models::MessageType as DbMessageType;
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use crate::models::convert::db_message_type_to_api;
 use crate::models::{Claims, MessageType as ApiMessageType};
 use crate::AppState;
@@ -56,6 +57,37 @@ pub struct MessageSearchResponse {
     pub has_more: bool,
 }
 
+fn message_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn message_validation_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn message_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn message_internal_error(message_key: &'static str, cause: impl ToString) -> AppError {
+    AppError::InternalError(cause.to_string()).with_message_key(message_key)
+}
+
+fn validate_search_query(query: &str) -> Result<(), AppError> {
+    if query.trim().is_empty() {
+        return Err(message_validation_error("message.search_query_required"));
+    }
+
+    if query.len() > 200 {
+        return Err(message_validation_error_with_params(
+            "message.search_query_too_long",
+            MessageParams::from([("max".to_string(), "200".to_string())]),
+        ));
+    }
+
+    Ok(())
+}
+
 fn parse_message_type_filter(raw: &str) -> Result<DbMessageType, AppError> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "text" => Ok(DbMessageType::Text),
@@ -65,10 +97,10 @@ fn parse_message_type_filter(raw: &str) -> Result<DbMessageType, AppError> {
         "video" => Ok(DbMessageType::Video),
         "audio" => Ok(DbMessageType::Audio),
         "mixed" => Ok(DbMessageType::Mixed),
-        _ => Err(AppError::ValidationError(format!(
-            "无效的 message_type: {}",
-            raw
-        ))),
+        _ => Err(message_validation_error_with_params(
+            "message.search_message_type_invalid",
+            MessageParams::from([("message_type".to_string(), raw.to_string())]),
+        )),
     }
 }
 
@@ -80,18 +112,10 @@ pub async fn search_messages(
     let start_time = std::time::Instant::now();
 
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+        .map_err(|_| message_invalid_token_error("auth.token_subject_invalid"))?;
 
     // 验证搜索查询
-    if params.query.trim().is_empty() {
-        return Err(AppError::ValidationError("搜索内容不能为空".to_string()));
-    }
-
-    if params.query.len() > 200 {
-        return Err(AppError::ValidationError(
-            "搜索内容过长，最多200个字符".to_string(),
-        ));
-    }
+    validate_search_query(&params.query)?;
 
     // 设置分页
     let limit = params.limit.unwrap_or(50).min(100); // 最大100条
@@ -145,14 +169,14 @@ pub async fn search_messages(
 
     if let Some(date_from) = params.date_from {
         let from_date = chrono::DateTime::from_timestamp(date_from, 0)
-            .ok_or_else(|| AppError::ValidationError("无效的开始时间".to_string()))?;
+            .ok_or_else(|| message_validation_error("message.search_date_from_invalid"))?;
         builder.push(" AND m.created_at >= ");
         builder.push_bind(from_date);
     }
 
     if let Some(date_to) = params.date_to {
         let to_date = chrono::DateTime::from_timestamp(date_to, 0)
-            .ok_or_else(|| AppError::ValidationError("无效的结束时间".to_string()))?;
+            .ok_or_else(|| message_validation_error("message.search_date_to_invalid"))?;
         builder.push(" AND m.created_at <= ");
         builder.push_bind(to_date);
     }
@@ -168,7 +192,7 @@ pub async fn search_messages(
         .build_query_as()
         .fetch_all(pool)
         .await
-        .map_err(|e| AppError::InternalError(format!("搜索失败: {}", e)))?;
+        .map_err(|error| message_internal_error("message.search_failed", error))?;
 
     // 获取总数（与搜索条件保持一致）
     let mut count_builder = QueryBuilder::<Postgres>::new(
@@ -206,14 +230,14 @@ pub async fn search_messages(
 
     if let Some(date_from) = params.date_from {
         let from_date = chrono::DateTime::from_timestamp(date_from, 0)
-            .ok_or_else(|| AppError::ValidationError("无效的开始时间".to_string()))?;
+            .ok_or_else(|| message_validation_error("message.search_date_from_invalid"))?;
         count_builder.push(" AND m.created_at >= ");
         count_builder.push_bind(from_date);
     }
 
     if let Some(date_to) = params.date_to {
         let to_date = chrono::DateTime::from_timestamp(date_to, 0)
-            .ok_or_else(|| AppError::ValidationError("无效的结束时间".to_string()))?;
+            .ok_or_else(|| message_validation_error("message.search_date_to_invalid"))?;
         count_builder.push(" AND m.created_at <= ");
         count_builder.push_bind(to_date);
     }
@@ -222,7 +246,7 @@ pub async fn search_messages(
         .build_query_scalar()
         .fetch_one(pool)
         .await
-        .map_err(|e| AppError::InternalError(format!("获取总数失败: {}", e)))?;
+        .map_err(|error| message_internal_error("message.search_count_failed", error))?;
 
     // 转换结果
     let results: Vec<MessageSearchResult> = search_results
@@ -286,7 +310,7 @@ pub async fn get_search_suggestions(
     Query(params): Query<SearchSuggestionsParams>,
 ) -> Result<Json<Vec<String>>, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+        .map_err(|_| message_invalid_token_error("auth.token_subject_invalid"))?;
 
     if params.prefix.trim().is_empty() || params.prefix.trim().len() < 2 {
         return Ok(Json(Vec::new()));
@@ -318,7 +342,7 @@ pub async fn get_search_suggestions(
         .bind(limit)
         .fetch_all(&state.database.pool)
         .await
-        .map_err(|e| AppError::InternalError(format!("获取建议失败: {}", e)))?;
+        .map_err(|error| message_internal_error("message.search_suggestions_failed", error))?;
 
     Ok(Json(suggestions))
 }
@@ -336,7 +360,7 @@ pub async fn get_trending_keywords(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TrendingKeyword>>, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+        .map_err(|_| message_invalid_token_error("auth.token_subject_invalid"))?;
 
     let sql = r#"
         SELECT
@@ -364,7 +388,7 @@ pub async fn get_trending_keywords(
         .bind(user_id)
         .fetch_all(&state.database.pool)
         .await
-        .map_err(|e| AppError::InternalError(format!("获取热门关键词失败: {}", e)))?;
+        .map_err(|error| message_internal_error("message.search_trending_failed", error))?;
 
     let results: Vec<TrendingKeyword> = keywords
         .into_iter()
@@ -388,4 +412,49 @@ struct TrendingKeywordRow {
 pub struct TrendingKeyword {
     pub keyword: String,
     pub frequency: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{message_internal_error, parse_message_type_filter, validate_search_query};
+
+    #[test]
+    fn test_parse_message_type_filter_invalid_value_returns_localized_override() {
+        let error = parse_message_type_filter("unsupported").expect_err("should fail");
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.search_message_type_invalid"
+        );
+        assert_eq!(error.localized_message(), "无效的消息类型：unsupported");
+        let params = error.message_params().expect("message params should exist");
+        assert_eq!(
+            params.get("message_type").map(String::as_str),
+            Some("unsupported")
+        );
+    }
+
+    #[test]
+    fn test_validate_search_query_empty_returns_required_key() {
+        let error = validate_search_query("   ").expect_err("should fail");
+        assert_eq!(error.response_message_key(), "message.search_query_required");
+        assert_eq!(error.localized_message(), "搜索内容不能为空");
+    }
+
+    #[test]
+    fn test_validate_search_query_too_long_returns_key_and_max_param() {
+        let query = "x".repeat(201);
+        let error = validate_search_query(&query).expect_err("should fail");
+
+        assert_eq!(error.response_message_key(), "message.search_query_too_long");
+        let params = error.message_params().expect("message params should exist");
+        assert_eq!(params.get("max").map(String::as_str), Some("200"));
+    }
+
+    #[test]
+    fn test_message_internal_error_preserves_cause_message_for_observability() {
+        let error = message_internal_error("message.search_failed", "db timeout");
+        assert_eq!(error.response_message_key(), "message.search_failed");
+        assert_eq!(error.to_string(), "db timeout");
+    }
 }
