@@ -85,6 +85,35 @@ fn i18n_auth_catalog_loads_new_auth_keys() {
     );
 }
 
+#[test]
+fn i18n_friend_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "friend.cannot_add_self", None),
+        "不能添加自己为好友"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "friend.cannot_add_self", None),
+        "You cannot add yourself as a friend."
+    );
+}
+
+#[test]
+fn i18n_friend_catalog_interpolates_direction_and_status_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let direction_params = BTreeMap::from([("direction".to_string(), "sideways".to_string())]);
+    assert_eq!(
+        localizer.localize("en-US", "friend.direction_invalid", Some(&direction_params),),
+        "Unsupported direction parameter: sideways."
+    );
+
+    let status_params = BTreeMap::from([("status".to_string(), "paused".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "friend.status_invalid", Some(&status_params)),
+        "不支持的 status 参数：paused"
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();

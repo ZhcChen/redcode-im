@@ -1,6 +1,7 @@
 use crate::database::models::{FriendRequest, FriendRequestStatus, Friendship};
 use crate::database::Database;
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use sqlx::{query_as, query_scalar, PgPool, Postgres, QueryBuilder, Row};
 use uuid::Uuid;
 
@@ -34,15 +35,13 @@ impl FriendStore {
         message: Option<String>,
     ) -> Result<FriendRequest, AppError> {
         if requester_id == addressee_id {
-            return Err(AppError::ValidationError(
-                "不能向自己发送好友请求".to_string(),
+            return Err(friend_validation_error(
+                "friend.cannot_send_request_to_self",
             ));
         }
 
         if self.are_already_friends(requester_id, addressee_id).await? {
-            return Err(AppError::AlreadyExists(
-                "双方已经是好友，无法重复添加".to_string(),
-            ));
+            return Err(friend_already_exists_error("friend.already_friends"));
         }
 
         let pool = self.pool();
@@ -64,10 +63,10 @@ impl FriendStore {
         {
             match existing.status {
                 FriendRequestStatus::Pending => {
-                    return Err(AppError::AlreadyExists("好友请求正在处理中".to_string()));
+                    return Err(friend_already_exists_error("friend.request_pending"));
                 }
                 FriendRequestStatus::Accepted => {
-                    return Err(AppError::AlreadyExists("双方已经是好友".to_string()));
+                    return Err(friend_already_exists_error("friend.already_friends"));
                 }
                 FriendRequestStatus::Declined => {
                     // 已拒绝的请求，如果由同一请求人再次发起，更新为新的 Pending
@@ -171,9 +170,7 @@ impl FriendStore {
         new_status: FriendRequestStatus,
     ) -> Result<FriendRequest, AppError> {
         if new_status == FriendRequestStatus::Pending {
-            return Err(AppError::ValidationError(
-                "响应请求时状态必须为同意或拒绝".to_string(),
-            ));
+            return Err(friend_validation_error("friend.response_status_invalid"));
         }
 
         let pool = self.pool();
@@ -192,19 +189,19 @@ impl FriendStore {
         let request = match request {
             Some(req) => req,
             None => {
-                return Err(AppError::NotFound(format!(
-                    "好友请求 {} 不存在",
-                    request_id
-                )));
+                return Err(friend_not_found_error_with_params(
+                    "friend.request_not_found",
+                    MessageParams::from([("request_id".to_string(), request_id.to_string())]),
+                ));
             }
         };
 
         if request.addressee_id != responder_id {
-            return Err(AppError::Forbidden("没有权限处理该好友请求".to_string()));
+            return Err(friend_forbidden_error("friend.request_permission_denied"));
         }
 
         if request.status != FriendRequestStatus::Pending {
-            return Err(AppError::ValidationError("该好友请求已处理".to_string()));
+            return Err(friend_validation_error("friend.request_already_processed"));
         }
 
         let updated = query_as::<_, FriendRequest>(
@@ -316,7 +313,7 @@ impl FriendStore {
         friend_user_id: Uuid,
     ) -> Result<bool, AppError> {
         if user_id == friend_user_id {
-            return Err(AppError::ValidationError("不能删除自己为好友".to_string()));
+            return Err(friend_validation_error("friend.cannot_delete_self"));
         }
 
         let (first, second) = sort_user_pair(user_id, friend_user_id);
@@ -364,7 +361,7 @@ impl FriendStore {
     ) -> Result<Option<String>, AppError> {
         // 验证好友关系
         if !self.are_already_friends(user_id, friend_user_id).await? {
-            return Err(AppError::ValidationError("不是好友关系".to_string()));
+            return Err(friend_validation_error("friend.not_friends"));
         }
 
         let pool = self.pool();
@@ -404,6 +401,25 @@ impl FriendStore {
 
         Ok(result)
     }
+}
+
+fn friend_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn friend_already_exists_error(message_key: &'static str) -> AppError {
+    AppError::AlreadyExists(String::new()).with_message_key(message_key)
+}
+
+fn friend_not_found_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::NotFound(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn friend_forbidden_error(message_key: &'static str) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key(message_key)
 }
 
 /// 好友请求方向

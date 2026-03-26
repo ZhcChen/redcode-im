@@ -18,6 +18,7 @@ use crate::database::room_store::RoomStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
 use crate::handlers::message::broadcast_message_to_room;
+use crate::i18n::message::MessageParams;
 use crate::models::convert::{
     db_friend_request_to_api, db_friendship_to_api, db_room_type_to_api, string_to_uuid,
 };
@@ -34,6 +35,29 @@ pub struct FriendRequestQuery {
     pub status: Option<String>,
 }
 
+fn friend_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn friend_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn friend_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn friend_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn friend_internal_error(message_key: &'static str) -> AppError {
+    AppError::InternalError(String::new()).with_message_key(message_key)
+}
+
 /// 创建好友请求
 pub async fn create_friend_request(
     State(state): State<AppState>,
@@ -41,24 +65,24 @@ pub async fn create_friend_request(
     Json(payload): Json<CreateFriendRequest>,
 ) -> Result<Json<FriendRequestInfo>, AppError> {
     let requester_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
     let target_user_id = string_to_uuid(&payload.target_user_id)
-        .map_err(|e| AppError::ValidationError(format!("无效的用户ID: {}", e)))?;
+        .map_err(|_| friend_validation_error("friend.target_user_id_invalid"))?;
 
     if requester_id == target_user_id {
-        return Err(AppError::ValidationError("不能添加自己为好友".to_string()));
+        return Err(friend_validation_error("friend.cannot_add_self"));
     }
 
     let user_store = UserStore::new(state.database.clone());
     let target_user = user_store
         .find_by_id(&target_user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("目标用户不存在或已被停用".to_string()))?;
+        .ok_or_else(|| friend_not_found_error("friend.target_user_not_found"))?;
 
     let current_user = user_store
         .find_by_id(&requester_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("当前用户不存在".to_string()))?;
+        .ok_or_else(|| friend_not_found_error("friend.current_user_not_found"))?;
 
     let friend_store = FriendStore::new(state.database.clone());
     let request = friend_store
@@ -98,32 +122,10 @@ pub async fn list_friend_requests(
     Query(params): Query<FriendRequestQuery>,
 ) -> Result<Json<Vec<FriendRequestInfo>>, AppError> {
     let current_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
 
-    let direction = match params.direction.as_deref() {
-        None | Some("") => None,
-        Some("incoming") => Some(FriendRequestDirection::Incoming),
-        Some("outgoing") => Some(FriendRequestDirection::Outgoing),
-        Some(other) => {
-            return Err(AppError::ValidationError(format!(
-                "不支持的 direction 参数: {}",
-                other
-            )));
-        }
-    };
-
-    let status = match params.status.as_deref() {
-        None | Some("") => None,
-        Some("pending") => Some(DbFriendRequestStatus::Pending),
-        Some("accepted") => Some(DbFriendRequestStatus::Accepted),
-        Some("declined") => Some(DbFriendRequestStatus::Declined),
-        Some(other) => {
-            return Err(AppError::ValidationError(format!(
-                "不支持的 status 参数: {}",
-                other
-            )));
-        }
-    };
+    let direction = parse_direction(params.direction.as_deref())?;
+    let status = parse_status(params.status.as_deref())?;
 
     let friend_store = FriendStore::new(state.database.clone());
     let requests = friend_store
@@ -173,9 +175,9 @@ pub async fn respond_friend_request(
     Json(payload): Json<RespondFriendRequest>,
 ) -> Result<Json<FriendRequestInfo>, AppError> {
     let request_id = string_to_uuid(&request_id_str)
-        .map_err(|e| AppError::ValidationError(format!("无效的请求ID: {}", e)))?;
+        .map_err(|_| friend_validation_error("friend.request_id_invalid"))?;
     let responder_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
 
     let new_status = match payload.action {
         FriendRequestAction::Accept => DbFriendRequestStatus::Accepted,
@@ -197,10 +199,10 @@ pub async fn respond_friend_request(
 
     let requester = user_map
         .remove(&request.requester_id)
-        .ok_or_else(|| AppError::InternalError("请求人信息缺失".to_string()))?;
+        .ok_or_else(|| friend_internal_error("friend.requester_profile_missing"))?;
     let addressee = user_map
         .remove(&request.addressee_id)
-        .ok_or_else(|| AppError::InternalError("接收人信息缺失".to_string()))?;
+        .ok_or_else(|| friend_internal_error("friend.addressee_profile_missing"))?;
 
     if new_status == DbFriendRequestStatus::Accepted {
         let room_store = RoomStore::new(state.database.pool());
@@ -309,23 +311,23 @@ pub async fn ensure_private_chat(
     Path(friend_user_id_str): Path<String>,
 ) -> Result<Json<EnsureChatResponse>, AppError> {
     let current_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
     let friend_user_id = string_to_uuid(&friend_user_id_str)
-        .map_err(|e| AppError::ValidationError(format!("无效的好友ID: {}", e)))?;
+        .map_err(|_| friend_validation_error("friend.friend_user_id_invalid"))?;
 
     if current_user_id == friend_user_id {
-        return Err(AppError::ValidationError("不能与自己创建聊天".to_string()));
+        return Err(friend_validation_error("friend.cannot_chat_with_self"));
     }
 
     let user_store = UserStore::new(state.database.clone());
     let _current_user = user_store
         .find_by_id(&current_user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("当前用户不存在".to_string()))?;
+        .ok_or_else(|| friend_not_found_error("friend.current_user_not_found"))?;
     let friend_user = user_store
         .find_by_id(&friend_user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("好友不存在或已被停用".to_string()))?;
+        .ok_or_else(|| friend_not_found_error("friend.friend_user_not_found"))?;
 
     // 使用好友的显示名称作为房间名称（昵称优先，否则使用用户名）
     let friend_display = friend_user
@@ -360,7 +362,7 @@ pub async fn list_friends(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<FriendInfo>>, AppError> {
     let current_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
 
     let friend_store = FriendStore::new(state.database.clone());
     let friendships = friend_store.list_friendships(current_user_id).await?;
@@ -417,12 +419,12 @@ pub async fn update_friend_remark(
     Json(payload): Json<UpdateRemarkRequest>,
 ) -> Result<Json<UpdateRemarkResponse>, AppError> {
     let current_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
     let friend_user_id = string_to_uuid(&friend_user_id_str)
-        .map_err(|e| AppError::ValidationError(format!("无效的好友ID: {}", e)))?;
+        .map_err(|_| friend_validation_error("friend.friend_user_id_invalid"))?;
 
     if current_user_id == friend_user_id {
-        return Err(AppError::ValidationError("不能给自己设置备注".to_string()));
+        return Err(friend_validation_error("friend.cannot_set_self_remark"));
     }
 
     let friend_store = FriendStore::new(state.database.clone());
@@ -440,12 +442,12 @@ pub async fn delete_friend(
     Path(friend_user_id_str): Path<String>,
 ) -> Result<Json<DeleteFriendResponse>, AppError> {
     let current_user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+        .map_err(|_| friend_invalid_token_error("auth.token_subject_invalid"))?;
     let friend_user_id = string_to_uuid(&friend_user_id_str)
-        .map_err(|e| AppError::ValidationError(format!("无效的好友ID: {}", e)))?;
+        .map_err(|_| friend_validation_error("friend.friend_user_id_invalid"))?;
 
     if current_user_id == friend_user_id {
-        return Err(AppError::ValidationError("不能删除自己为好友".to_string()));
+        return Err(friend_validation_error("friend.cannot_delete_self"));
     }
 
     let friend_store = FriendStore::new(state.database.clone());
@@ -454,7 +456,7 @@ pub async fn delete_friend(
         .await?;
 
     if !deleted {
-        return Err(AppError::NotFound("好友关系不存在".to_string()));
+        return Err(friend_not_found_error("friend.friendship_not_found"));
     }
 
     // 向双方推送好友删除事件
@@ -489,23 +491,31 @@ pub async fn delete_friend(
 // ============================================================================
 
 /// 解析好友请求方向参数
-pub fn parse_direction(direction: Option<&str>) -> Result<Option<FriendRequestDirection>, String> {
+pub fn parse_direction(
+    direction: Option<&str>,
+) -> Result<Option<FriendRequestDirection>, AppError> {
     match direction {
         None | Some("") => Ok(None),
         Some("incoming") => Ok(Some(FriendRequestDirection::Incoming)),
         Some("outgoing") => Ok(Some(FriendRequestDirection::Outgoing)),
-        Some(other) => Err(format!("不支持的 direction 参数: {}", other)),
+        Some(other) => Err(friend_validation_error_with_params(
+            "friend.direction_invalid",
+            MessageParams::from([("direction".to_string(), other.to_string())]),
+        )),
     }
 }
 
 /// 解析好友请求状态参数
-pub fn parse_status(status: Option<&str>) -> Result<Option<DbFriendRequestStatus>, String> {
+pub fn parse_status(status: Option<&str>) -> Result<Option<DbFriendRequestStatus>, AppError> {
     match status {
         None | Some("") => Ok(None),
         Some("pending") => Ok(Some(DbFriendRequestStatus::Pending)),
         Some("accepted") => Ok(Some(DbFriendRequestStatus::Accepted)),
         Some("declined") => Ok(Some(DbFriendRequestStatus::Declined)),
-        Some(other) => Err(format!("不支持的 status 参数: {}", other)),
+        Some(other) => Err(friend_validation_error_with_params(
+            "friend.status_invalid",
+            MessageParams::from([("status".to_string(), other.to_string())]),
+        )),
     }
 }
 
@@ -517,6 +527,7 @@ pub fn validate_not_self_operation(current_user_id: &Uuid, target_user_id: &Uuid
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::message::MessageParams;
 
     // ========================================================================
     // 方向参数解析测试
@@ -560,7 +571,34 @@ mod tests {
     fn test_parse_direction_invalid() {
         let result = parse_direction(Some("invalid"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("不支持的 direction 参数"));
+        let error = result.unwrap_err();
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "friend.direction_invalid");
+        let params = error
+            .message_params()
+            .expect("direction invalid should include params");
+        assert_eq!(
+            params
+                .get("direction")
+                .expect("direction param should be present"),
+            "invalid"
+        );
+    }
+
+    #[test]
+    fn test_friend_validation_error_uses_friend_domain_message_key() {
+        let error = friend_validation_error("friend.cannot_add_self");
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "friend.cannot_add_self");
+        assert_eq!(error.message_params(), None);
+    }
+
+    #[test]
+    fn test_friend_invalid_token_error_can_reuse_auth_domain_message_key() {
+        let error = friend_invalid_token_error("auth.token_subject_invalid");
+        assert_eq!(error.message_key(), "auth.invalid_token");
+        assert_eq!(error.response_message_key(), "auth.token_subject_invalid");
+        assert_eq!(error.message_params(), None);
     }
 
     // ========================================================================
@@ -615,7 +653,27 @@ mod tests {
     fn test_parse_status_invalid() {
         let result = parse_status(Some("unknown"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("不支持的 status 参数"));
+        let error = result.unwrap_err();
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "friend.status_invalid");
+        let params = error
+            .message_params()
+            .expect("status invalid should include params");
+        assert_eq!(
+            params
+                .get("status")
+                .expect("status param should be present"),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn test_friend_validation_error_with_params_preserves_message_params() {
+        let params = MessageParams::from([("status".to_string(), "archived".to_string())]);
+        let error = friend_validation_error_with_params("friend.status_invalid", params.clone());
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "friend.status_invalid");
+        assert_eq!(error.message_params(), Some(params));
     }
 
     // ========================================================================
