@@ -294,6 +294,18 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.ip_geolocation_description", None),
         "Controls whether user IP geolocation resolution is enabled for admin analytics."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.admin_user_status_invalid", None),
+        "无效的状态参数"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.admin_user_required_fields_missing", None),
+        "Username, email, and password are required."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.admin_user_status_update_success", None),
+        "Admin user status updated successfully."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
@@ -371,6 +383,10 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
             Some(&geolocation_params)
         ),
         "Failed to update IP geolocation setting: upstream timeout"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.admin_user_not_found", None),
+        "管理员用户不存在"
     );
 }
 

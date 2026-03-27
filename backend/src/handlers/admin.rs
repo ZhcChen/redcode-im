@@ -881,7 +881,7 @@ pub async fn get_admin_user_list(
         Some("banned") => Some(AdminUserStatus::Banned),
         Some("locked") => Some(AdminUserStatus::Locked),
         None => None,
-        Some(_) => return Err(AppError::ValidationError("无效的状态参数".to_string())),
+        Some(_) => return Err(admin_validation_error("admin.admin_user_status_invalid")),
     };
 
     let username = params
@@ -1034,20 +1034,20 @@ pub async fn create_admin_user(
         || request.email.trim().is_empty()
         || request.password.trim().is_empty()
     {
-        return Err(AppError::ValidationError(
-            "用户名、邮箱和密码不能为空".to_string(),
+        return Err(admin_validation_error(
+            "admin.admin_user_required_fields_missing",
         ));
     }
 
     if request.username.len() < 3 {
-        return Err(AppError::ValidationError(
-            "用户名长度至少为3个字符".to_string(),
+        return Err(admin_validation_error(
+            "admin.admin_user_username_too_short",
         ));
     }
 
     if request.password.len() < 6 {
-        return Err(AppError::ValidationError(
-            "密码长度至少为6个字符".to_string(),
+        return Err(admin_validation_error(
+            "admin.admin_user_password_too_short",
         ));
     }
 
@@ -1055,7 +1055,9 @@ pub async fn create_admin_user(
 
     // 检查用户名是否已存在
     if store.find_by_username(&request.username).await?.is_some() {
-        return Err(AppError::ValidationError("用户名已存在".to_string()));
+        return Err(admin_validation_error(
+            "admin.admin_user_username_already_exists",
+        ));
     }
 
     let admin_user = store.create_admin_user(request).await?;
@@ -1088,14 +1090,18 @@ pub async fn update_admin_user_status(
     Json(request): Json<UpdateAdminUserStatusRequest>,
 ) -> Result<Json<AdminOperationResponse>, AppError> {
     let admin_user_uuid = Uuid::parse_str(&admin_user_id)
-        .map_err(|_| AppError::ValidationError("无效的管理员用户ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.admin_user_id_invalid"))?;
 
     let status = match request.status.as_str() {
         "active" => AdminUserStatus::Active,
         "inactive" => AdminUserStatus::Inactive,
         "banned" => AdminUserStatus::Banned,
         "locked" => AdminUserStatus::Locked,
-        _ => return Err(AppError::ValidationError("无效的状态值".to_string())),
+        _ => {
+            return Err(admin_validation_error(
+                "admin.admin_user_status_value_invalid",
+            ))
+        }
     };
 
     let store = AdminUserStore::new(state.database.clone());
@@ -1104,7 +1110,7 @@ pub async fn update_admin_user_status(
     let admin_user = store
         .find_by_id(&admin_user_uuid)
         .await?
-        .ok_or_else(|| AppError::NotFound("管理员用户不存在".to_string()))?;
+        .ok_or_else(|| admin_not_found_error("admin.admin_user_not_found"))?;
 
     // 更新状态
     sqlx::query!(
@@ -1140,7 +1146,7 @@ pub async fn update_admin_user_status(
 
     Ok(Json(AdminOperationResponse {
         success: true,
-        message: "管理员用户状态更新成功".to_string(),
+        message: admin_localized_message("admin.admin_user_status_update_success", None),
     }))
 }
 
