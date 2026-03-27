@@ -1,0 +1,8 @@
+{
+  "admin.ipinfo_token_name_required": "Token name is required.",
+  "admin.ipinfo_token_value_required": "Token value is required.",
+  "admin.ipinfo_token_name_already_exists": "Token name already exists.",
+  "admin.ipinfo_token_id_invalid": "Token ID is invalid.",
+  "admin.ipinfo_token_not_found": "Token was not found.",
+  "admin.ipinfo_token_update_fields_required": "No fields were provided to update."
+}

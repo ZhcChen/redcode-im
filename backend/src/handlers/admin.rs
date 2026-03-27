@@ -29,6 +29,18 @@ use ipnetwork::IpNetwork;
 use sqlx::{FromRow, Postgres, QueryBuilder, Row};
 use tracing::{error, info};
 
+fn admin_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn admin_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn admin_already_exists_error(message_key: &'static str) -> AppError {
+    AppError::AlreadyExists(String::new()).with_message_key(message_key)
+}
+
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1522,7 +1534,7 @@ pub async fn get_user_detail(
     .bind(user_id)
     .fetch_one(pool)
     .await
-        .map_err(|e| AppError::DatabaseError(e))?;
+    .map_err(|e| AppError::DatabaseError(e))?;
 
     let room_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM room_members WHERE user_id = $1 AND deleted_at IS NULL",
@@ -4342,10 +4354,10 @@ pub async fn create_token(
 ) -> Result<Json<IpInfoTokenInfo>, AppError> {
     // 验证输入
     if request.name.trim().is_empty() {
-        return Err(AppError::ValidationError("Token名称不能为空".to_string()));
+        return Err(admin_validation_error("admin.ipinfo_token_name_required"));
     }
     if request.token.trim().is_empty() {
-        return Err(AppError::ValidationError("Token值不能为空".to_string()));
+        return Err(admin_validation_error("admin.ipinfo_token_value_required"));
     }
 
     // 检查名称是否已存在
@@ -4357,7 +4369,9 @@ pub async fn create_token(
             .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing > 0 {
-        return Err(AppError::AlreadyExists("Token名称已存在".to_string()));
+        return Err(admin_already_exists_error(
+            "admin.ipinfo_token_name_already_exists",
+        ));
     }
 
     let monthly_limit = request.monthly_limit.unwrap_or(50000);
@@ -4402,7 +4416,7 @@ pub async fn update_token(
     Json(request): Json<UpdateTokenRequest>,
 ) -> Result<Json<IpInfoTokenInfo>, AppError> {
     let token_uuid = Uuid::parse_str(&token_id)
-        .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.ipinfo_token_id_invalid"))?;
 
     // 检查Token是否存在
     let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1")
@@ -4412,7 +4426,7 @@ pub async fn update_token(
         .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing == 0 {
-        return Err(AppError::NotFound("Token不存在".to_string()));
+        return Err(admin_not_found_error("admin.ipinfo_token_not_found"));
     }
 
     // 检查名称是否与其他Token冲突
@@ -4428,7 +4442,9 @@ pub async fn update_token(
             .map_err(|e| AppError::DatabaseError(e))?;
 
             if name_conflict > 0 {
-                return Err(AppError::AlreadyExists("Token名称已存在".to_string()));
+                return Err(admin_already_exists_error(
+                    "admin.ipinfo_token_name_already_exists",
+                ));
             }
         }
     }
@@ -4463,7 +4479,9 @@ pub async fn update_token(
         if has_updates {
             query_builder.push(", ");
         }
-        query_builder.push("monthly_limit = ").push_bind(monthly_limit);
+        query_builder
+            .push("monthly_limit = ")
+            .push_bind(monthly_limit);
         has_updates = true;
     }
 
@@ -4479,7 +4497,9 @@ pub async fn update_token(
     }
 
     if !has_updates {
-        return Err(AppError::ValidationError("没有需要更新的字段".to_string()));
+        return Err(admin_validation_error(
+            "admin.ipinfo_token_update_fields_required",
+        ));
     }
 
     query_builder.push(", updated_at = NOW()");
@@ -4527,7 +4547,7 @@ pub async fn delete_token(
     Path(token_id): Path<String>,
 ) -> Result<StatusCode, AppError> {
     let token_uuid = Uuid::parse_str(&token_id)
-        .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.ipinfo_token_id_invalid"))?;
 
     // 检查Token是否存在
     let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1")
@@ -4537,7 +4557,7 @@ pub async fn delete_token(
         .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing == 0 {
-        return Err(AppError::NotFound("Token不存在".to_string()));
+        return Err(admin_not_found_error("admin.ipinfo_token_not_found"));
     }
 
     // 删除Token（级联删除使用记录）
@@ -4556,7 +4576,7 @@ pub async fn reset_token_usage(
     Path(token_id): Path<String>,
 ) -> Result<Json<IpInfoTokenInfo>, AppError> {
     let token_uuid = Uuid::parse_str(&token_id)
-        .map_err(|_| AppError::ValidationError("无效的Token ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.ipinfo_token_id_invalid"))?;
 
     // 检查Token是否存在
     let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM ipinfo_tokens WHERE id = $1")
@@ -4566,7 +4586,7 @@ pub async fn reset_token_usage(
         .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing == 0 {
-        return Err(AppError::NotFound("Token不存在".to_string()));
+        return Err(admin_not_found_error("admin.ipinfo_token_not_found"));
     }
 
     // 重置使用量

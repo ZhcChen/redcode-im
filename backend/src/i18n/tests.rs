@@ -264,6 +264,27 @@ fn i18n_message_catalog_loads_task_4c_error_keys_for_both_locales() {
 }
 
 #[test]
+fn i18n_admin_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.ipinfo_token_name_required", None),
+        "Token名称不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.ipinfo_token_name_required", None),
+        "Token name is required."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.ipinfo_token_not_found", None),
+        "Token不存在"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.ipinfo_token_not_found", None),
+        "Token was not found."
+    );
+}
+
+#[test]
 fn i18n_message_catalog_interpolates_task_4c_params() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
