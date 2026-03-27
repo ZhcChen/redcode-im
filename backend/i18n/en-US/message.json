@@ -4,6 +4,7 @@
   "message.audio_mixed_content_unsupported": "Voice messages cannot be mixed with other content yet.",
   "message.default_storage_provider_not_found": "Default storage provider configuration was not found.",
   "message.default_storage_provider_disabled": "Default storage provider is disabled.",
+  "message.default_storage_provider_invalid_config": "Default storage provider configuration is invalid. Please contact an administrator.",
   "message.default_storage_provider_unsupported": "Unsupported default storage provider type: {provider_type}.",
   "message.send_room_membership_required": "You are not in this room and cannot send messages.",
   "message.send_rate_limit_exceeded": "You are sending messages too frequently. Please try again later.",

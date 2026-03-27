@@ -4,6 +4,7 @@
   "message.audio_mixed_content_unsupported": "语音消息暂不支持混合其他内容",
   "message.default_storage_provider_not_found": "未找到默认存储提供商配置",
   "message.default_storage_provider_disabled": "默认存储提供商未启用",
+  "message.default_storage_provider_invalid_config": "默认存储提供商配置无效，请联系管理员",
   "message.default_storage_provider_unsupported": "不支持的默认存储提供商类型：{provider_type}",
   "message.send_room_membership_required": "您不在当前房间，无法发送消息",
   "message.send_rate_limit_exceeded": "消息发送过于频繁，请稍后重试",

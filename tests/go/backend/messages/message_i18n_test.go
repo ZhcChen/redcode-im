@@ -10,10 +10,11 @@ import (
 )
 
 type messageAPIErrorResponse struct {
-	Code       int     `json:"code"`
-	MessageKey string  `json:"message_key"`
-	Message    string  `json:"message"`
-	Details    *string `json:"details"`
+	Code          int               `json:"code"`
+	MessageKey    string            `json:"message_key"`
+	Message       string            `json:"message"`
+	MessageParams map[string]string `json:"message_params"`
+	Details       *string           `json:"details"`
 }
 
 func TestMessageClearRoomOwnerOnly_Localized(t *testing.T) {
@@ -54,6 +55,9 @@ func TestMessageClearRoomOwnerOnly_Localized(t *testing.T) {
 	}
 	if payload.Message != "Only the group owner can clear group chat history." {
 		t.Fatalf("unexpected message: %s", payload.Message)
+	}
+	if payload.MessageParams != nil {
+		t.Fatalf("expected null message_params, got %+v", payload.MessageParams)
 	}
 	if payload.Details != nil {
 		t.Fatalf("expected null details, got %q", *payload.Details)

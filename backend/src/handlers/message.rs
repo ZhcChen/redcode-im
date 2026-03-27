@@ -156,6 +156,21 @@ fn map_message_storage_provider_load_error(error: DefaultStorageProviderLoadErro
     }
 }
 
+fn create_message_storage_service(
+    provider: &StorageProvider,
+) -> Result<Box<dyn storage::StorageService>, AppError> {
+    storage::create_storage_service(provider).map_err(map_message_storage_error)
+}
+
+fn map_message_storage_error(error: AppError) -> AppError {
+    match error {
+        AppError::ValidationError(_) => {
+            message_validation_error("message.default_storage_provider_invalid_config")
+        }
+        other => other,
+    }
+}
+
 fn ensure_multipart_upload_size(file_size: usize) -> Result<(), AppError> {
     let threshold = multipart_upload::MULTIPART_THRESHOLD_BYTES;
     let size_i64 = i64::try_from(file_size).unwrap_or(i64::MAX);
@@ -694,10 +709,13 @@ mod message_i18n_tests {
         message_validation_error, message_validation_error_with_params, normalize_message_parts,
         parse_message_sender_id, plan_message_attachment_multipart_upload,
         validate_list_cursor_params, validate_multipart_upload_candidate,
-        validate_reaction_key, validate_reaction_target_message, ALLOWED_REACTION_KEYS,
+        validate_reaction_key, validate_reaction_target_message, create_message_storage_service,
+        ALLOWED_REACTION_KEYS,
+    };
+    use crate::database::models::{
+        MessageType, MessageWithSender, StorageProvider, StorageProviderType,
     };
     use crate::services::multipart_upload;
-    use crate::database::models::{MessageType, MessageWithSender};
     use crate::models::MessagePartPayload;
     use axum::{body::Body, http::StatusCode, response::IntoResponse};
     use chrono::Utc;
@@ -939,6 +957,39 @@ mod message_i18n_tests {
         let params = error.message_params().expect("params present");
         assert_eq!(params["actual_size"], (2 * 1024 * 1024).to_string());
         assert_eq!(params["max_size"], (1024 * 1024).to_string());
+    }
+
+    #[test]
+    fn create_message_storage_service_maps_invalid_provider_config() {
+        let now = Utc::now();
+        let provider = StorageProvider {
+            id: Uuid::new_v4(),
+            provider_type: StorageProviderType::TencentCos,
+            name: "broken-default".to_string(),
+            secret_id: "secret-id".to_string(),
+            secret_key: "secret-key".to_string(),
+            region: "ap-shanghai".to_string(),
+            endpoint: "cos.example.com".to_string(),
+            bucket_name: None,
+            is_active: true,
+            is_default: true,
+            description: None,
+            created_at: now,
+            updated_at: now,
+            updated_by: None,
+        };
+
+        let error = match create_message_storage_service(&provider) {
+            Ok(_) => panic!("missing bucket should return localized validation error"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.default_storage_provider_invalid_config"
+        );
+        assert_eq!(error.localized_message(), "默认存储提供商配置无效，请联系管理员");
+        assert_eq!(error.details(), None);
     }
 
     #[test]
@@ -2433,7 +2484,7 @@ pub async fn generate_message_attachment_signature(
     }
 
     let provider = load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
+    let storage_service = create_message_storage_service(&provider)?;
 
     // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的 object_key
     if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
@@ -2452,7 +2503,11 @@ pub async fn generate_message_attachment_signature(
                 .map_err(AppError::from)?
             {
                 // 防御：记录为 completed 但对象已不存在时，避免返回“秒传 key”导致后续发送失败
-                if !storage_service.file_exists(&existing.object_key).await? {
+                if !storage_service
+                    .file_exists(&existing.object_key)
+                    .await
+                    .map_err(map_message_storage_error)?
+                {
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
@@ -2506,7 +2561,8 @@ pub async fn generate_message_attachment_signature(
 
     let signature = storage_service
         .generate_direct_upload_signature(&key, req.content_type.as_deref())
-        .await?;
+        .await
+        .map_err(map_message_storage_error)?;
 
     info!("前端获取直传参数 key: {}", key);
 
@@ -2584,7 +2640,7 @@ pub async fn initiate_message_attachment_multipart_upload(
         plan_message_attachment_multipart_upload(req.file_size as i64)?;
 
     let provider = load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
+    let storage_service = create_message_storage_service(&provider)?;
 
     // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的附件
     if let Some(ref hash_value) = req.hash_value {
@@ -2603,7 +2659,11 @@ pub async fn initiate_message_attachment_multipart_upload(
                 .await
                 .map_err(AppError::from)?
             {
-                if !storage_service.file_exists(&existing.object_key).await? {
+                if !storage_service
+                    .file_exists(&existing.object_key)
+                    .await
+                    .map_err(map_message_storage_error)?
+                {
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
@@ -2665,7 +2725,8 @@ pub async fn initiate_message_attachment_multipart_upload(
 
     let upload_id = storage_service
         .initiate_multipart_upload(&key, content_type)
-        .await?;
+        .await
+        .map_err(map_message_storage_error)?;
 
     let multipart_store = FileUploadMultipartStore::new(state.database.clone());
     let session = match multipart_store
@@ -2743,7 +2804,7 @@ pub async fn generate_message_attachment_download_url(
     let expires = query.expires_in_seconds.unwrap_or(600).clamp(60, 86_400);
 
     let provider = load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
+    let storage_service = create_message_storage_service(&provider)?;
 
     // 生成缓存键
     let cache_key = CacheKeys::download_url_cache(key, &provider.id.to_string(), expires);
@@ -2759,7 +2820,8 @@ pub async fn generate_message_attachment_download_url(
             // 缓存未命中，生成新的URL
             let url = storage_service
                 .generate_download_url(key, Some(expires))
-                .await?;
+                .await
+                .map_err(map_message_storage_error)?;
 
             // 缓存URL，过期时间为URL有效期的90%
             let cache_ttl = (expires as f64 * 0.9) as u64;
@@ -2809,7 +2871,7 @@ pub async fn commit_message_attachment_upload(
     }
 
     let provider = load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
+    let storage_service = create_message_storage_service(&provider)?;
 
     // 上传完成校验：确认对象存在，并尽量校验 size/hash，避免误报完成或引用错误文件
     match storage_service.head_object(key).await {
@@ -2849,7 +2911,11 @@ pub async fn commit_message_attachment_upload(
         }
         Err(AppError::ValidationError(_)) => {
             // 不支持 head_object 的提供商：退化为存在性检查
-            if !storage_service.file_exists(key).await? {
+            if !storage_service
+                .file_exists(key)
+                .await
+                .map_err(map_message_storage_error)?
+            {
                 return Err(message_validation_error("message.attachment_object_not_found"));
             }
         }

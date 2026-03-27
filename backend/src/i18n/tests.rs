@@ -153,8 +153,16 @@ fn i18n_message_catalog_is_loaded_for_both_locales() {
         "搜索内容不能为空"
     );
     assert_eq!(
+        localizer.localize("zh-CN", "message.default_storage_provider_invalid_config", None),
+        "默认存储提供商配置无效，请联系管理员"
+    );
+    assert_eq!(
         localizer.localize("en-US", "message.search_query_required", None),
         "Search query cannot be empty."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.default_storage_provider_invalid_config", None),
+        "Default storage provider configuration is invalid. Please contact an administrator."
     );
 
     assert_eq!(
