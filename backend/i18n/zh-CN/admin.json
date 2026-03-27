@@ -16,5 +16,8 @@
   "admin.storage_provider_type_unsupported": "不支持的提供商类型: {provider_type}",
   "admin.storage_provider_id_invalid": "无效的提供商ID",
   "admin.storage_provider_not_found": "提供商配置不存在",
-  "admin.default_storage_provider_not_found": "未找到默认文件上传提供商配置"
+  "admin.default_storage_provider_not_found": "未找到默认文件上传提供商配置",
+  "admin.file_upload_audit_provider_id_invalid": "无效的 provider_id",
+  "admin.file_upload_audit_task_id_invalid": "无效的 task_id",
+  "admin.file_upload_audit_task_not_found": "审核任务不存在"
 }

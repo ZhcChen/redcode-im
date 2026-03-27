@@ -328,6 +328,19 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.default_storage_provider_not_found", None),
         "Default file upload storage provider configuration was not found."
     );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.file_upload_audit_task_id_invalid", None),
+        "无效的 task_id"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.file_upload_audit_provider_id_invalid", None),
+        "provider_id is invalid."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.file_upload_audit_task_not_found", None),
+        "Audit task was not found."
+    );
 }
 
 #[test]

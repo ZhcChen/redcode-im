@@ -16,5 +16,8 @@
   "admin.storage_provider_type_unsupported": "Unsupported storage provider type: {provider_type}.",
   "admin.storage_provider_id_invalid": "Storage provider ID is invalid.",
   "admin.storage_provider_not_found": "Storage provider configuration was not found.",
-  "admin.default_storage_provider_not_found": "Default file upload storage provider configuration was not found."
+  "admin.default_storage_provider_not_found": "Default file upload storage provider configuration was not found.",
+  "admin.file_upload_audit_provider_id_invalid": "provider_id is invalid.",
+  "admin.file_upload_audit_task_id_invalid": "task_id is invalid.",
+  "admin.file_upload_audit_task_not_found": "Audit task was not found."
 }

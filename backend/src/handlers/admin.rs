@@ -5243,7 +5243,7 @@ pub async fn list_file_upload_audit_tasks(
         .filter(|v| !v.is_empty())
         .map(|v| {
             Uuid::parse_str(v)
-                .map_err(|_| AppError::ValidationError("无效的 provider_id".to_string()))
+                .map_err(|_| admin_validation_error("admin.file_upload_audit_provider_id_invalid"))
         })
         .transpose()?;
 
@@ -5317,7 +5317,7 @@ pub async fn get_file_upload_audit_task(
     Path(task_id): Path<String>,
 ) -> Result<Json<FileUploadAuditTaskDetailResponse>, AppError> {
     let task_uuid = Uuid::parse_str(task_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 task_id".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.file_upload_audit_task_id_invalid"))?;
 
     let store =
         crate::database::file_upload_audit_store::FileUploadAuditStore::new(state.database.clone());
@@ -5326,7 +5326,7 @@ pub async fn get_file_upload_audit_task(
         .get_task_by_id(&task_uuid)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| AppError::NotFound("审核任务不存在".to_string()))?;
+        .ok_or_else(|| admin_not_found_error("admin.file_upload_audit_task_not_found"))?;
 
     Ok(Json(FileUploadAuditTaskDetailResponse {
         task: FileUploadAuditTaskDetailEntry {
@@ -5357,7 +5357,7 @@ pub async fn requeue_file_upload_audit_task(
     Path(task_id): Path<String>,
 ) -> Result<Json<FileUploadAuditTaskRequeueResponse>, AppError> {
     let task_uuid = Uuid::parse_str(task_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 task_id".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.file_upload_audit_task_id_invalid"))?;
 
     let store =
         crate::database::file_upload_audit_store::FileUploadAuditStore::new(state.database.clone());
@@ -5368,7 +5368,9 @@ pub async fn requeue_file_upload_audit_task(
         .map_err(AppError::from)?;
 
     if !updated {
-        return Err(AppError::NotFound("审核任务不存在".to_string()));
+        return Err(admin_not_found_error(
+            "admin.file_upload_audit_task_not_found",
+        ));
     }
 
     Ok(Json(FileUploadAuditTaskRequeueResponse {
