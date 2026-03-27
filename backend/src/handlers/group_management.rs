@@ -5,7 +5,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use uuid::Uuid;
 
 use tracing::{error, info};
@@ -21,6 +21,7 @@ use crate::database::{
     room_store::RoomStore,
 };
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use crate::models::Claims;
 use crate::redis::models::{
     CacheKeys, GroupMemberChangeType, GroupMemberChangedPayload, GroupSettingsUpdatePayload,
@@ -53,13 +54,39 @@ pub struct UpdateGlobalMuteRequest {
     pub duration_minutes: Option<i64>,
 }
 
+fn group_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn group_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn group_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn group_forbidden_error(message_key: &'static str) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key(message_key)
+}
+
+fn group_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn parse_group_claim_user_id(subject: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(subject).map_err(|_| group_invalid_token_error("auth.token_subject_invalid"))
+}
+
 pub async fn get_group_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<GroupSettingsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
@@ -71,7 +98,7 @@ pub async fn get_group_settings(
             store
                 .get_group_settings(room_id)
                 .await?
-                .ok_or_else(|| AppError::NotFound("Group settings not found".to_string()))?
+                .ok_or_else(|| group_not_found_error("group.settings_not_found"))?
         }
     };
 
@@ -101,15 +128,12 @@ pub async fn update_global_mute(
     Path(room_id): Path<Uuid>,
     Json(request): Json<UpdateGlobalMuteRequest>,
 ) -> Result<Json<GroupSettingsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can update mute status".to_string(),
-        ));
+        return Err(group_forbidden_error("group.global_mute_update_forbidden"));
     }
 
     let settings = store
@@ -173,17 +197,14 @@ pub async fn update_group_settings(
     Path(room_id): Path<Uuid>,
     Json(request): Json<UpdateGroupSettingsRequest>,
 ) -> Result<Json<GroupSettingsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以修改设置
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can update settings".to_string(),
-        ));
+        return Err(group_forbidden_error("group.settings_update_forbidden"));
     }
 
     let settings = store.update_group_settings(room_id, request).await?;
@@ -224,17 +245,14 @@ pub async fn create_rule(
     Path(room_id): Path<Uuid>,
     Json(request): Json<CreateRuleRequest>,
 ) -> Result<Json<CreateRuleResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以创建群规
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can create rules".to_string(),
-        ));
+        return Err(group_forbidden_error("group.rule_create_forbidden"));
     }
 
     let rule = store.create_rule(room_id, user_id, request).await?;
@@ -277,23 +295,20 @@ pub async fn update_rule(
     Path((room_id, rule_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<UpdateRuleRequest>,
 ) -> Result<Json<CreateRuleResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以修改群规
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can update rules".to_string(),
-        ));
+        return Err(group_forbidden_error("group.rule_update_forbidden"));
     }
 
     let rule = store
         .update_rule(rule_id, request)
         .await?
-        .ok_or_else(|| AppError::NotFound("Rule not found".to_string()))?;
+        .ok_or_else(|| group_not_found_error("group.rule_not_found"))?;
 
     // 记录操作日志
     let _ = store
@@ -317,22 +332,19 @@ pub async fn delete_rule(
     Extension(claims): Extension<Claims>,
     Path((room_id, rule_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以删除群规
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can delete rules".to_string(),
-        ));
+        return Err(group_forbidden_error("group.rule_delete_forbidden"));
     }
 
     let deleted = store.delete_rule(rule_id).await?;
     if !deleted {
-        return Err(AppError::NotFound("Rule not found".to_string()));
+        return Err(group_not_found_error("group.rule_not_found"));
     }
 
     // 记录操作日志
@@ -364,8 +376,7 @@ pub async fn create_join_request(
     Path(room_id): Path<Uuid>,
     Json(request): Json<JoinGroupRequest>,
 ) -> Result<Json<CreateJoinRequestResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
     let join_request = store.create_join_request(room_id, user_id, request).await?;
@@ -385,17 +396,14 @@ pub async fn list_join_requests(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<ListJoinRequestsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以查看入群申请
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can view join requests".to_string(),
-        ));
+        return Err(group_forbidden_error("group.join_request_list_forbidden"));
     }
 
     let requests = store.list_join_requests(room_id).await?;
@@ -409,26 +417,21 @@ pub async fn review_join_request(
     Path((room_id, request_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<ReviewJoinRequestRequest>,
 ) -> Result<Json<CreateJoinRequestResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以审批入群申请
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can review join requests".to_string(),
-        ));
+        return Err(group_forbidden_error("group.join_request_review_forbidden"));
     }
 
     let status_copy = request.status;
     let join_request = store
         .review_join_request(request_id, user_id, request)
         .await?
-        .ok_or_else(|| {
-            AppError::NotFound("Join request not found or already reviewed".to_string())
-        })?;
+        .ok_or_else(|| group_not_found_error("group.join_request_not_found_or_reviewed"))?;
 
     // 记录操作日志
     let _ = store
@@ -463,17 +466,14 @@ pub async fn create_invitations(
     Path(room_id): Path<Uuid>,
     Json(request): Json<InviteToGroupRequest>,
 ) -> Result<Json<CreateInvitationsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 必须是群成员才能邀请（否则会导致非成员借助 member_can_invite 越权邀请）
     let room_store = RoomStore::new(state.database.pool());
     if !room_store.is_user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "Only group members can invite users".to_string(),
-        ));
+        return Err(group_forbidden_error("group.invite_membership_required"));
     }
 
     // 权限检查：只有群主、管理员或有邀请权限的成员可以邀请
@@ -483,13 +483,11 @@ pub async fn create_invitations(
     if !can_manage {
         if let Some(settings) = settings {
             if !settings.member_can_invite {
-                return Err(AppError::Forbidden(
-                    "Group members cannot invite users".to_string(),
-                ));
+                return Err(group_forbidden_error("group.member_invite_disabled"));
             }
         } else {
-            return Err(AppError::Forbidden(
-                "Only group owner or admin can invite users".to_string(),
+            return Err(group_forbidden_error(
+                "group.invite_owner_or_admin_required",
             ));
         }
     }
@@ -519,18 +517,17 @@ pub async fn respond_to_invitation(
     Path((room_id, invitation_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<serde_json::Value>, // { "status": "accepted" | "declined" }
 ) -> Result<StatusCode, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let status_str = payload
         .get("status")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::ValidationError("Status is required".to_string()))?;
+        .ok_or_else(|| group_validation_error("group.invitation_status_required"))?;
 
     let status = match status_str {
         "accepted" => crate::database::models::InvitationStatus::Accepted,
         "declined" => crate::database::models::InvitationStatus::Declined,
-        _ => return Err(AppError::ValidationError("Invalid status".to_string())),
+        _ => return Err(group_validation_error("group.invitation_status_invalid")),
     };
 
     let store = GroupManagementStore::new(state.database.pool());
@@ -539,30 +536,26 @@ pub async fn respond_to_invitation(
     let existing = store
         .get_invitation_by_id(invitation_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
+        .ok_or_else(|| group_not_found_error("group.invitation_not_found"))?;
 
     if existing.room_id != room_id {
-        return Err(AppError::NotFound("Invitation not found".to_string()));
+        return Err(group_not_found_error("group.invitation_not_found"));
     }
 
     if existing.invitee_id != user_id {
-        return Err(AppError::Forbidden(
-            "Only invitation invitee can respond".to_string(),
-        ));
+        return Err(group_forbidden_error("group.invitation_respond_forbidden"));
     }
 
     if existing.status != crate::database::models::InvitationStatus::Pending {
-        return Err(AppError::NotFound(
-            "Invitation not found or already responded".to_string(),
+        return Err(group_not_found_error(
+            "group.invitation_not_found_or_responded",
         ));
     }
 
     let invitation = store
         .respond_to_invitation(invitation_id, status)
         .await?
-        .ok_or_else(|| {
-            AppError::NotFound("Invitation not found or already responded".to_string())
-        })?;
+        .ok_or_else(|| group_not_found_error("group.invitation_not_found_or_responded"))?;
 
     // 如果接受了邀请，将用户添加到群组中
     if status == crate::database::models::InvitationStatus::Accepted {
@@ -610,13 +603,10 @@ pub async fn add_group_members(
     Path(room_id): Path<Uuid>,
     Json(request): Json<AddGroupMembersRequest>,
 ) -> Result<Json<AddGroupMembersResponse>, AppError> {
-    let operator_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let operator_id = parse_group_claim_user_id(&claims.sub)?;
 
     if request.user_ids.is_empty() {
-        return Err(AppError::ValidationError(
-            "待添加成员列表不能为空".to_string(),
-        ));
+        return Err(group_validation_error("group.member_list_empty"));
     }
 
     let mut unique_ids = HashSet::new();
@@ -626,8 +616,12 @@ pub async fn add_group_members(
         if trimmed.is_empty() {
             continue;
         }
-        let user_id = Uuid::parse_str(trimmed)
-            .map_err(|_| AppError::ValidationError(format!("无效的用户ID: {}", trimmed)))?;
+        let user_id = Uuid::parse_str(trimmed).map_err(|_| {
+            group_validation_error_with_params(
+                "group.member_id_invalid",
+                BTreeMap::from([("user_id".to_string(), trimmed.to_string())]),
+            )
+        })?;
         if user_id == operator_id {
             continue;
         }
@@ -637,17 +631,13 @@ pub async fn add_group_members(
     }
 
     if target_user_ids.is_empty() {
-        return Err(AppError::ValidationError(
-            "没有有效的待添加成员".to_string(),
-        ));
+        return Err(group_validation_error("group.member_list_no_valid_targets"));
     }
 
     let store = GroupManagementStore::new(state.database.pool());
     let can_manage = store.can_manage_group(room_id, operator_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can add members".to_string(),
-        ));
+        return Err(group_forbidden_error("group.member_add_forbidden"));
     }
 
     let settings = store
@@ -655,19 +645,19 @@ pub async fn add_group_members(
         .await
         .map_err(|e| {
             error!("获取或创建群设置失败: {:?}", e);
-            AppError::NotFound("Group settings not found".to_string())
+            group_not_found_error("group.settings_not_found")
         })?;
 
     let current_count = store.count_active_members(room_id).await?;
     let remaining = settings.max_members as i64 - current_count;
     if remaining <= 0 {
-        return Err(AppError::ValidationError("群成员已达到上限".to_string()));
+        return Err(group_validation_error("group.member_limit_reached"));
     }
     if target_user_ids.len() as i64 > remaining {
-        return Err(AppError::ValidationError(format!(
-            "可添加成员数量超出上限，仅剩 {} 个名额",
-            remaining
-        )));
+        return Err(group_validation_error_with_params(
+            "group.member_add_limit_exceeded",
+            BTreeMap::from([("remaining_slots".to_string(), remaining.to_string())]),
+        ));
     }
 
     let room_store = RoomStore::new(state.database.pool());
@@ -731,27 +721,22 @@ pub async fn remove_group_member(
     Extension(claims): Extension<Claims>,
     Path((room_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<RemoveGroupMemberResponse>, AppError> {
-    let operator_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let operator_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
     let can_manage = store.can_manage_group(room_id, operator_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can remove members".to_string(),
-        ));
+        return Err(group_forbidden_error("group.member_remove_forbidden"));
     }
 
     if store.is_group_owner(room_id, member_id).await? {
-        return Err(AppError::Forbidden("无法移除群主".to_string()));
+        return Err(group_forbidden_error("group.owner_cannot_be_removed"));
     }
 
     let room_store = RoomStore::new(state.database.pool());
     let removed = room_store.remove_member(room_id, member_id).await?;
     if !removed {
-        return Err(AppError::NotFound(
-            "User is not a member of this room".to_string(),
-        ));
+        return Err(group_not_found_error("group.member_not_in_room"));
     }
 
     let room_name = room_store
@@ -807,17 +792,14 @@ pub async fn appoint_admin(
     Path(room_id): Path<Uuid>,
     Json(request): Json<AppointAdminRequest>,
 ) -> Result<Json<AppointAdminResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主可以任命管理员
     let is_owner = store.is_group_owner(room_id, user_id).await?;
     if !is_owner {
-        return Err(AppError::Forbidden(
-            "Only group owner can appoint admins".to_string(),
-        ));
+        return Err(group_forbidden_error("group.admin_appoint_forbidden"));
     }
 
     let admin = store.appoint_admin(room_id, user_id, request).await?;
@@ -860,22 +842,19 @@ pub async fn remove_admin(
     Extension(claims): Extension<Claims>,
     Path((room_id, admin_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主可以移除管理员
     let is_owner = store.is_group_owner(room_id, user_id).await?;
     if !is_owner {
-        return Err(AppError::Forbidden(
-            "Only group owner can remove admins".to_string(),
-        ));
+        return Err(group_forbidden_error("group.admin_remove_forbidden"));
     }
 
     let removed = store.remove_admin(room_id, admin_id).await?;
     if !removed {
-        return Err(AppError::NotFound("Admin not found".to_string()));
+        return Err(group_not_found_error("group.admin_not_found"));
     }
 
     // 记录操作日志
@@ -938,17 +917,14 @@ pub async fn mute_user(
     Path(room_id): Path<Uuid>,
     Json(request): Json<MuteUserRequest>,
 ) -> Result<Json<MuteUserResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以禁言用户
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can mute users".to_string(),
-        ));
+        return Err(group_forbidden_error("group.user_mute_forbidden"));
     }
 
     let mute = store.mute_user(room_id, user_id, request).await?;
@@ -997,22 +973,19 @@ pub async fn unmute_user(
     Extension(claims): Extension<Claims>,
     Path((room_id, muted_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以解除禁言
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can unmute users".to_string(),
-        ));
+        return Err(group_forbidden_error("group.user_unmute_forbidden"));
     }
 
     let unmuted = store.unmute_user(room_id, muted_user_id).await?;
     if !unmuted {
-        return Err(AppError::NotFound("User is not muted".to_string()));
+        return Err(group_not_found_error("group.muted_user_not_found"));
     }
 
     // 记录操作日志
@@ -1057,17 +1030,14 @@ pub async fn list_muted_users(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<ListMutedUsersResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以查看禁言列表
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can view muted users".to_string(),
-        ));
+        return Err(group_forbidden_error("group.muted_user_list_forbidden"));
     }
 
     let mutes = store.list_muted_users(room_id).await?;
@@ -1089,17 +1059,14 @@ pub async fn list_operation_logs(
     Path(room_id): Path<Uuid>,
     axum::extract::Query(params): axum::extract::Query<ListOperationLogsParams>,
 ) -> Result<Json<ListOperationLogsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_group_claim_user_id(&claims.sub)?;
 
     let store = GroupManagementStore::new(state.database.pool());
 
     // 权限检查：只有群主或管理员可以查看操作日志
     let can_manage = store.can_manage_group(room_id, user_id).await?;
     if !can_manage {
-        return Err(AppError::Forbidden(
-            "Only group owner or admin can view operation logs".to_string(),
-        ));
+        return Err(group_forbidden_error("group.operation_logs_list_forbidden"));
     }
 
     let logs = store
@@ -1135,7 +1102,7 @@ pub async fn get_group_detail(
     let info = store
         .get_group_detail_info(room_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Group not found".to_string()))?;
+        .ok_or_else(|| group_not_found_error("group.not_found"))?;
 
     Ok(Json(GroupDetailResponse { info }))
 }

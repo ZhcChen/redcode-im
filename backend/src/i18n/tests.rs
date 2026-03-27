@@ -153,7 +153,11 @@ fn i18n_message_catalog_is_loaded_for_both_locales() {
         "搜索内容不能为空"
     );
     assert_eq!(
-        localizer.localize("zh-CN", "message.default_storage_provider_invalid_config", None),
+        localizer.localize(
+            "zh-CN",
+            "message.default_storage_provider_invalid_config",
+            None
+        ),
         "默认存储提供商配置无效，请联系管理员"
     );
     assert_eq!(
@@ -161,7 +165,11 @@ fn i18n_message_catalog_is_loaded_for_both_locales() {
         "Search query cannot be empty."
     );
     assert_eq!(
-        localizer.localize("en-US", "message.default_storage_provider_invalid_config", None),
+        localizer.localize(
+            "en-US",
+            "message.default_storage_provider_invalid_config",
+            None
+        ),
         "Default storage provider configuration is invalid. Please contact an administrator."
     );
 
@@ -296,23 +304,71 @@ fn i18n_message_catalog_loads_task_4d_complete_keyset_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
     let zh_expectations = vec![
-        ("message.clear_room_membership_required", "您不在当前房间，无法清除聊天记录"),
-        ("message.clear_room_not_found", "房间不存在，无法清除聊天记录"),
-        ("message.clear_group_owner_only", "仅群主可以清除群聊聊天记录"),
-        ("message.attachment_upload_room_membership_required", "您不在当前房间，无法上传附件"),
-        ("message.attachment_download_room_membership_required", "您不在当前房间，无法获取附件"),
-        ("message.attachment_commit_room_membership_required", "您不在当前房间，无法提交附件上传结果"),
-        ("message.attachment_signature_text_unsupported", "纯文本内容无需生成上传签名"),
-        ("message.attachment_multipart_text_unsupported", "纯文本内容无需分片上传"),
-        ("message.attachment_file_size_required", "file_size 必填且必须大于 0"),
-        ("message.attachment_file_size_exceeded_bytes", "文件大小超出限制：实际 {actual_size} 字节，最大允许 {max_size} 字节"),
-        ("message.attachment_multipart_session_create_failed", "初始化附件分片上传会话失败，请稍后重试"),
+        (
+            "message.clear_room_membership_required",
+            "您不在当前房间，无法清除聊天记录",
+        ),
+        (
+            "message.clear_room_not_found",
+            "房间不存在，无法清除聊天记录",
+        ),
+        (
+            "message.clear_group_owner_only",
+            "仅群主可以清除群聊聊天记录",
+        ),
+        (
+            "message.attachment_upload_room_membership_required",
+            "您不在当前房间，无法上传附件",
+        ),
+        (
+            "message.attachment_download_room_membership_required",
+            "您不在当前房间，无法获取附件",
+        ),
+        (
+            "message.attachment_commit_room_membership_required",
+            "您不在当前房间，无法提交附件上传结果",
+        ),
+        (
+            "message.attachment_signature_text_unsupported",
+            "纯文本内容无需生成上传签名",
+        ),
+        (
+            "message.attachment_multipart_text_unsupported",
+            "纯文本内容无需分片上传",
+        ),
+        (
+            "message.attachment_file_size_required",
+            "file_size 必填且必须大于 0",
+        ),
+        (
+            "message.attachment_file_size_exceeded_bytes",
+            "文件大小超出限制：实际 {actual_size} 字节，最大允许 {max_size} 字节",
+        ),
+        (
+            "message.attachment_multipart_session_create_failed",
+            "初始化附件分片上传会话失败，请稍后重试",
+        ),
         ("message.attachment_not_found", "附件不存在"),
-        ("message.attachment_size_mismatch", "附件大小校验失败：期望 {expected_size} 字节，实际 {actual_size} 字节"),
-        ("message.attachment_hash_mismatch", "附件哈希校验失败，请重新上传"),
-        ("message.attachment_object_not_found", "对象存储中找不到该附件，请稍后重试"),
-        ("message.attachment_multipart_direct_upload_required", "文件大小必须超过 {threshold_size} 字节才能使用分片上传"),
-        ("message.attachment_multipart_plan_failed", "无法生成分片上传计划，请稍后重试"),
+        (
+            "message.attachment_size_mismatch",
+            "附件大小校验失败：期望 {expected_size} 字节，实际 {actual_size} 字节",
+        ),
+        (
+            "message.attachment_hash_mismatch",
+            "附件哈希校验失败，请重新上传",
+        ),
+        (
+            "message.attachment_object_not_found",
+            "对象存储中找不到该附件，请稍后重试",
+        ),
+        (
+            "message.attachment_multipart_direct_upload_required",
+            "文件大小必须超过 {threshold_size} 字节才能使用分片上传",
+        ),
+        (
+            "message.attachment_multipart_plan_failed",
+            "无法生成分片上传计划，请稍后重试",
+        ),
     ];
 
     for (key, value) in zh_expectations {
@@ -373,11 +429,19 @@ fn i18n_message_catalog_interpolates_task_4d_params_extended() {
         ("actual_size".to_string(), "5000".to_string()),
     ]);
     assert_eq!(
-        localizer.localize("zh-CN", "message.attachment_size_mismatch", Some(&mismatch_params)),
+        localizer.localize(
+            "zh-CN",
+            "message.attachment_size_mismatch",
+            Some(&mismatch_params)
+        ),
         "附件大小校验失败：期望 4096 字节，实际 5000 字节"
     );
     assert_eq!(
-        localizer.localize("en-US", "message.attachment_size_mismatch", Some(&mismatch_params)),
+        localizer.localize(
+            "en-US",
+            "message.attachment_size_mismatch",
+            Some(&mismatch_params)
+        ),
         "Attachment size mismatch: expected 4096 bytes, got 5000 bytes."
     );
 
@@ -397,6 +461,69 @@ fn i18n_message_catalog_interpolates_task_4d_params_extended() {
             Some(&threshold_params),
         ),
         "File size must exceed 5242880 bytes to use multipart upload."
+    );
+}
+
+#[test]
+fn i18n_group_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "group.owner_cannot_be_removed", None),
+        "无法移除群主"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "group.owner_cannot_be_removed", None),
+        "The group owner cannot be removed."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "group.not_found", None),
+        "群组不存在"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "group.not_found", None),
+        "Group not found."
+    );
+}
+
+#[test]
+fn i18n_group_catalog_interpolates_member_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    let invalid_user_params = BTreeMap::from([("user_id".to_string(), "not-a-uuid".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "group.member_id_invalid",
+            Some(&invalid_user_params)
+        ),
+        "无效的用户ID: not-a-uuid"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "group.member_id_invalid",
+            Some(&invalid_user_params)
+        ),
+        "User ID is invalid: not-a-uuid."
+    );
+
+    let remaining_params = BTreeMap::from([("remaining_slots".to_string(), "3".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "group.member_add_limit_exceeded",
+            Some(&remaining_params),
+        ),
+        "可添加成员数量超出上限，仅剩 3 个名额"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "group.member_add_limit_exceeded",
+            Some(&remaining_params),
+        ),
+        "Adding members exceeds the group limit. Only 3 slots remain."
     );
 }
 
@@ -501,6 +628,21 @@ async fn i18n_error_response_friend_request_not_found_uses_params_and_localized_
         "好友请求 550e8400-e29b-41d4-a716-446655440000 不存在"
     );
     assert_eq!(body["message_params"]["request_id"], params["request_id"]);
+    assert_eq!(body["details"], Value::Null);
+}
+
+#[tokio::test]
+async fn i18n_error_response_group_member_id_invalid_uses_params_and_localized_message() {
+    let params = BTreeMap::from([("user_id".to_string(), "not-a-uuid".to_string())]);
+    let response = AppError::ValidationError(String::new())
+        .with_message_key_and_params("group.member_id_invalid", Some(params.clone()))
+        .into_response();
+    let body = read_body_json(response.into_body()).await;
+
+    assert_eq!(body["code"], 42201);
+    assert_eq!(body["message_key"], "group.member_id_invalid");
+    assert_eq!(body["message"], "无效的用户ID: not-a-uuid");
+    assert_eq!(body["message_params"]["user_id"], params["user_id"]);
     assert_eq!(body["details"], Value::Null);
 }
 
