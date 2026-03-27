@@ -923,7 +923,7 @@ pub async fn list_feedbacks(
     {
         Some(
             Uuid::parse_str(user_id)
-                .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?,
+                .map_err(|_| admin_validation_error("admin.user_id_invalid"))?,
         )
     } else {
         None
@@ -1540,8 +1540,8 @@ pub async fn get_user_detail(
     State(state): State<AppState>,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserDetail>, AppError> {
-    let user_id = Uuid::parse_str(&user_id)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let user_id =
+        Uuid::parse_str(&user_id).map_err(|_| admin_validation_error("admin.user_id_invalid"))?;
 
     let pool = &state.database.pool;
 
@@ -1559,7 +1559,7 @@ pub async fn get_user_detail(
     .fetch_optional(pool)
     .await
     .map_err(|e| AppError::DatabaseError(e))?
-    .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?;
+    .ok_or_else(|| admin_not_found_error("admin.user_not_found"))?;
 
     // 获取用户统计信息
     let message_count: i64 = sqlx::query_scalar(
@@ -1709,8 +1709,8 @@ pub async fn update_user(
     Path(user_id): Path<String>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserOperationResponse>, AppError> {
-    let user_id = Uuid::parse_str(&user_id)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let user_id =
+        Uuid::parse_str(&user_id).map_err(|_| admin_validation_error("admin.user_id_invalid"))?;
 
     let pool = &state.database.pool;
 
@@ -1824,8 +1824,8 @@ pub async fn reset_user_password(
     Path(user_id): Path<String>,
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<Json<UserOperationResponse>, AppError> {
-    let user_id = Uuid::parse_str(&user_id)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let user_id =
+        Uuid::parse_str(&user_id).map_err(|_| admin_validation_error("admin.user_id_invalid"))?;
 
     if req.new_password.len() < 6 {
         return Ok(Json(UserOperationResponse {
@@ -1885,8 +1885,8 @@ pub async fn delete_user(
     State(state): State<AppState>,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserOperationResponse>, AppError> {
-    let user_id = Uuid::parse_str(&user_id)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let user_id =
+        Uuid::parse_str(&user_id).map_err(|_| admin_validation_error("admin.user_id_invalid"))?;
 
     let pool = &state.database.pool;
 
@@ -2063,7 +2063,7 @@ pub async fn check_user_permission(
     Json(req): Json<CheckPermissionRequest>,
 ) -> Result<Json<CheckPermissionResponse>, AppError> {
     let _user_id = Uuid::parse_str(&req.user_id)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.user_id_invalid"))?;
 
     // 检查用户是否有指定权限（简化版本，使用枚举）
     let has_permission = true; // 简化处理，实际应该查询数据库

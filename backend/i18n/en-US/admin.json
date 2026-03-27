@@ -21,6 +21,8 @@
   "admin.admin_user_status_value_invalid": "Admin user status value is invalid.",
   "admin.admin_user_not_found": "Admin user was not found.",
   "admin.admin_user_status_update_success": "Admin user status updated successfully.",
+  "admin.user_id_invalid": "User ID is invalid.",
+  "admin.user_not_found": "User was not found.",
   "admin.log_cleanup_retention_days_invalid": "Retention days must be greater than 0.",
   "admin.system_log_cleanup_success": "Deleted {deleted_count} logs successfully. Retained logs from the last {retention_days} days.",
   "admin.push_log_cleanup_success": "Deleted {deleted_count} push logs successfully. Retained logs from the last {retention_days} days.",

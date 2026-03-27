@@ -306,6 +306,14 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.admin_user_status_update_success", None),
         "Admin user status updated successfully."
     );
+    assert_eq!(
+        localizer.localize("en-US", "admin.user_id_invalid", None),
+        "User ID is invalid."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.user_not_found", None),
+        "用户不存在"
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),

@@ -21,6 +21,8 @@
   "admin.admin_user_status_value_invalid": "无效的状态值",
   "admin.admin_user_not_found": "管理员用户不存在",
   "admin.admin_user_status_update_success": "管理员用户状态更新成功",
+  "admin.user_id_invalid": "无效的用户ID",
+  "admin.user_not_found": "用户不存在",
   "admin.log_cleanup_retention_days_invalid": "保留天数必须大于 0",
   "admin.system_log_cleanup_success": "成功删除 {deleted_count} 条日志，保留最近 {retention_days} 天的日志",
   "admin.push_log_cleanup_success": "成功删除 {deleted_count} 条 push 日志，保留最近 {retention_days} 天的日志",
