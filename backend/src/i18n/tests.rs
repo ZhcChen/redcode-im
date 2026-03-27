@@ -314,6 +314,18 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("zh-CN", "admin.user_not_found", None),
         "用户不存在"
     );
+    assert_eq!(
+        localizer.localize("en-US", "admin.user_username_too_short", None),
+        "Username must be at least 3 characters long."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.user_status_invalid", None),
+        "无效的用户状态"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.user_delete_success", None),
+        "User deleted successfully."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
@@ -335,6 +347,27 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
     assert_eq!(
         localizer.localize("en-US", "admin.push_log_cleanup_success", Some(&params)),
         "Deleted 3 push logs successfully. Retained logs from the last 2 days."
+    );
+
+    let user_create_params = BTreeMap::from([(
+        "user_id".to_string(),
+        "00000000-0000-0000-0000-000000000001".to_string(),
+    )]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.user_create_success",
+            Some(&user_create_params)
+        ),
+        "用户创建成功，ID: 00000000-0000-0000-0000-000000000001"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.user_create_success",
+            Some(&user_create_params)
+        ),
+        "User created successfully. ID: 00000000-0000-0000-0000-000000000001"
     );
 
     assert_eq!(

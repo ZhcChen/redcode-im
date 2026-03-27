@@ -69,6 +69,17 @@ fn admin_ip_geolocation_description() -> String {
     admin_localized_message("admin.ip_geolocation_description", None)
 }
 
+fn user_operation_response(
+    success: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<UserOperationResponse> {
+    Json(UserOperationResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1620,26 +1631,29 @@ pub async fn create_user(
 ) -> Result<Json<UserOperationResponse>, AppError> {
     // 验证用户名
     if req.username.len() < 3 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "用户名长度至少3位".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_username_too_short",
+            None,
+        ));
     }
 
     // 验证密码
     if req.password.len() < 6 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "密码长度至少6位".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_password_too_short",
+            None,
+        ));
     }
 
     // 验证邮箱格式
     if !req.email.contains('@') {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "邮箱格式不正确".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_email_invalid",
+            None,
+        ));
     }
 
     let pool = &state.database.pool;
@@ -1653,10 +1667,11 @@ pub async fn create_user(
             .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing_username > 0 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "用户名已存在".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_username_already_exists",
+            None,
+        ));
     }
 
     // 检查邮箱是否已存在
@@ -1668,15 +1683,16 @@ pub async fn create_user(
             .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing_email > 0 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "邮箱已被注册".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_email_already_registered",
+            None,
+        ));
     }
 
     // 密码加密
     let password_hash = hash_password(&req.password)
-        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+        .map_err(|_| admin_internal_error("admin.user_password_hash_failed"))?;
 
     // 创建用户
     let user_id = Uuid::new_v4();
@@ -1697,10 +1713,12 @@ pub async fn create_user(
 
     info!("Admin created user: {} ({})", req.username, user_id);
 
-    Ok(Json(UserOperationResponse {
-        success: true,
-        message: format!("用户创建成功，ID: {}", user_id),
-    }))
+    let message_params = MessageParams::from([("user_id".to_string(), user_id.to_string())]);
+    Ok(user_operation_response(
+        true,
+        "admin.user_create_success",
+        Some(&message_params),
+    ))
 }
 
 /// 更新用户信息
@@ -1723,10 +1741,7 @@ pub async fn update_user(
             .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing_user == 0 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "用户不存在".to_string(),
-        }));
+        return Ok(user_operation_response(false, "admin.user_not_found", None));
     }
 
     // 如果更新邮箱，检查邮箱是否已存在
@@ -1742,10 +1757,11 @@ pub async fn update_user(
             .map_err(|e| AppError::DatabaseError(e))?;
 
             if existing_email > 0 {
-                return Ok(Json(UserOperationResponse {
-                    success: false,
-                    message: "邮箱已被其他用户使用".to_string(),
-                }));
+                return Ok(user_operation_response(
+                    false,
+                    "admin.user_email_used_by_other",
+                    None,
+                ));
             }
         }
     }
@@ -1782,10 +1798,11 @@ pub async fn update_user(
             "inactive" => DbUserStatus::Inactive as i16,
             "banned" => DbUserStatus::Banned as i16,
             _ => {
-                return Ok(Json(UserOperationResponse {
-                    success: false,
-                    message: "无效的用户状态".to_string(),
-                }));
+                return Ok(user_operation_response(
+                    false,
+                    "admin.user_status_invalid",
+                    None,
+                ));
             }
         };
 
@@ -1797,10 +1814,11 @@ pub async fn update_user(
     }
 
     if !has_updates {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "没有提供要更新的字段".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_update_fields_required",
+            None,
+        ));
     }
 
     query_builder.push(", updated_at = NOW()");
@@ -1812,10 +1830,11 @@ pub async fn update_user(
         .await
         .map_err(|e| AppError::DatabaseError(e))?;
 
-    Ok(Json(UserOperationResponse {
-        success: true,
-        message: "用户信息更新成功".to_string(),
-    }))
+    Ok(user_operation_response(
+        true,
+        "admin.user_update_success",
+        None,
+    ))
 }
 
 /// 重置用户密码
@@ -1828,10 +1847,11 @@ pub async fn reset_user_password(
         Uuid::parse_str(&user_id).map_err(|_| admin_validation_error("admin.user_id_invalid"))?;
 
     if req.new_password.len() < 6 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "密码长度至少6位".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_password_too_short",
+            None,
+        ));
     }
 
     let pool = &state.database.pool;
@@ -1845,15 +1865,12 @@ pub async fn reset_user_password(
             .map_err(|e| AppError::DatabaseError(e))?;
 
     if existing_user == 0 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "用户不存在".to_string(),
-        }));
+        return Ok(user_operation_response(false, "admin.user_not_found", None));
     }
 
     // 密码加密
     let password_hash = hash_password(&req.new_password)
-        .map_err(|_| AppError::InternalError("密码加密失败".to_string()))?;
+        .map_err(|_| admin_internal_error("admin.user_password_hash_failed"))?;
 
     // 更新密码
     let result = sqlx::query(
@@ -1866,18 +1883,20 @@ pub async fn reset_user_password(
     .map_err(|e| AppError::DatabaseError(e))?;
 
     if result.rows_affected() == 0 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "密码更新失败".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_password_reset_failed",
+            None,
+        ));
     }
 
     info!("Admin reset password for user: {}", user_id);
 
-    Ok(Json(UserOperationResponse {
-        success: true,
-        message: "密码重置成功".to_string(),
-    }))
+    Ok(user_operation_response(
+        true,
+        "admin.user_password_reset_success",
+        None,
+    ))
 }
 
 /// 删除用户
@@ -1900,16 +1919,18 @@ pub async fn delete_user(
             .map_err(|e| AppError::DatabaseError(e))?;
 
     if result.rows_affected() == 0 {
-        return Ok(Json(UserOperationResponse {
-            success: false,
-            message: "用户不存在或已被删除".to_string(),
-        }));
+        return Ok(user_operation_response(
+            false,
+            "admin.user_not_found_or_deleted",
+            None,
+        ));
     }
 
-    Ok(Json(UserOperationResponse {
-        success: true,
-        message: "用户删除成功".to_string(),
-    }))
+    Ok(user_operation_response(
+        true,
+        "admin.user_delete_success",
+        None,
+    ))
 }
 
 // ========== 权限管理 API ==========
@@ -2307,7 +2328,7 @@ pub async fn update_user_status(
     State(state): State<AppState>,
     Path(user_id): Path<String>,
     Json(req): Json<UpdateUserStatusRequest>,
-) -> Result<(), StatusCode> {
+) -> Result<Json<UserOperationResponse>, AppError> {
     info!(
         "收到更新用户状态请求: user_id={}, status={}",
         user_id, req.status
@@ -2315,7 +2336,7 @@ pub async fn update_user_status(
 
     let user_id = Uuid::parse_str(&user_id).map_err(|e| {
         error!("无效的用户ID格式: {}, 错误: {}", user_id, e);
-        StatusCode::BAD_REQUEST
+        admin_validation_error("admin.user_id_invalid")
     })?;
 
     let status = match req.status.as_str() {
@@ -2333,7 +2354,7 @@ pub async fn update_user_status(
         }
         _ => {
             error!("无效的用户状态: {}", req.status);
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(admin_validation_error("admin.user_status_invalid"));
         }
     };
 
@@ -2346,11 +2367,11 @@ pub async fn update_user_status(
         .await
         .map_err(|e| {
             error!("查询用户失败: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::DatabaseError(e)
         })?
         .ok_or_else(|| {
             error!("用户不存在: {}", user_id);
-            StatusCode::NOT_FOUND
+            admin_not_found_error("admin.user_not_found")
         })?;
 
     info!("用户当前状态: {:?}", old_user.status);
@@ -2361,12 +2382,12 @@ pub async fn update_user_status(
         .await
         .map_err(|e| {
             error!("更新用户状态失败: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::DatabaseError(e)
         })?;
 
     if !updated {
         error!("用户状态更新失败，可能用户不存在: {}", user_id);
-        return Err(StatusCode::NOT_FOUND);
+        return Err(admin_not_found_error("admin.user_not_found"));
     }
 
     info!("用户状态更新成功: {} -> {:?}", user_id, status);
@@ -2386,7 +2407,11 @@ pub async fn update_user_status(
         tracing::info!("用户 {} 已被封禁，已向其所有客户端发送通知", user_id);
     }
 
-    Ok(())
+    Ok(user_operation_response(
+        true,
+        "admin.user_status_update_success",
+        None,
+    ))
 }
 
 pub async fn get_captcha_setting(
