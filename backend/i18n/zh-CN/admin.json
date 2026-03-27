@@ -7,5 +7,14 @@
   "admin.ipinfo_token_update_fields_required": "没有需要更新的字段",
   "admin.log_cleanup_retention_days_invalid": "保留天数必须大于 0",
   "admin.system_log_cleanup_success": "成功删除 {deleted_count} 条日志，保留最近 {retention_days} 天的日志",
-  "admin.push_log_cleanup_success": "成功删除 {deleted_count} 条 push 日志，保留最近 {retention_days} 天的日志"
+  "admin.push_log_cleanup_success": "成功删除 {deleted_count} 条 push 日志，保留最近 {retention_days} 天的日志",
+  "admin.storage_provider_name_required": "提供商名称不能为空",
+  "admin.storage_provider_secret_id_required": "密钥ID不能为空",
+  "admin.storage_provider_secret_key_required": "密钥Key不能为空",
+  "admin.storage_provider_region_required": "地域不能为空",
+  "admin.storage_provider_endpoint_required": "端点域名不能为空",
+  "admin.storage_provider_type_unsupported": "不支持的提供商类型: {provider_type}",
+  "admin.storage_provider_id_invalid": "无效的提供商ID",
+  "admin.storage_provider_not_found": "提供商配置不存在",
+  "admin.default_storage_provider_not_found": "未找到默认文件上传提供商配置"
 }

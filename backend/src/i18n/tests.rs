@@ -304,6 +304,30 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.push_log_cleanup_success", Some(&params)),
         "Deleted 3 push logs successfully. Retained logs from the last 2 days."
     );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.storage_provider_name_required", None),
+        "提供商名称不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_provider_id_invalid", None),
+        "Storage provider ID is invalid."
+    );
+
+    let provider_params =
+        BTreeMap::from([("provider_type".to_string(), "foo-storage".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.storage_provider_type_unsupported",
+            Some(&provider_params)
+        ),
+        "不支持的提供商类型: foo-storage"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.default_storage_provider_not_found", None),
+        "Default file upload storage provider configuration was not found."
+    );
 }
 
 #[test]

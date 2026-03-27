@@ -35,6 +35,13 @@ fn admin_validation_error(message_key: &'static str) -> AppError {
     AppError::ValidationError(String::new()).with_message_key(message_key)
 }
 
+fn admin_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
 fn admin_not_found_error(message_key: &'static str) -> AppError {
     AppError::NotFound(String::new()).with_message_key(message_key)
 }
@@ -2506,19 +2513,29 @@ pub async fn create_storage_provider(
 ) -> Result<Json<StorageProviderResponse>, AppError> {
     // 验证必填字段
     if req.name.trim().is_empty() {
-        return Err(AppError::ValidationError("提供商名称不能为空".to_string()));
+        return Err(admin_validation_error(
+            "admin.storage_provider_name_required",
+        ));
     }
     if req.secret_id.trim().is_empty() {
-        return Err(AppError::ValidationError("密钥ID不能为空".to_string()));
+        return Err(admin_validation_error(
+            "admin.storage_provider_secret_id_required",
+        ));
     }
     if req.secret_key.trim().is_empty() {
-        return Err(AppError::ValidationError("密钥Key不能为空".to_string()));
+        return Err(admin_validation_error(
+            "admin.storage_provider_secret_key_required",
+        ));
     }
     if req.region.trim().is_empty() {
-        return Err(AppError::ValidationError("地域不能为空".to_string()));
+        return Err(admin_validation_error(
+            "admin.storage_provider_region_required",
+        ));
     }
     if req.endpoint.trim().is_empty() {
-        return Err(AppError::ValidationError("端点域名不能为空".to_string()));
+        return Err(admin_validation_error(
+            "admin.storage_provider_endpoint_required",
+        ));
     }
 
     // 解析提供商类型
@@ -2529,10 +2546,10 @@ pub async fn create_storage_provider(
         "minio" => StorageProviderType::Minio,
         "unknown" => StorageProviderType::Unknown,
         _ => {
-            return Err(AppError::ValidationError(format!(
-                "不支持的提供商类型: {}",
-                req.provider_type
-            )));
+            return Err(admin_validation_error_with_params(
+                "admin.storage_provider_type_unsupported",
+                MessageParams::from([("provider_type".to_string(), req.provider_type.clone())]),
+            ));
         }
     };
 
@@ -2625,7 +2642,7 @@ pub async fn update_storage_provider(
     Json(req): Json<UpdateStorageProviderRequest>,
 ) -> Result<Json<StorageProviderResponse>, AppError> {
     let provider_id = Uuid::parse_str(&provider_id)
-        .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
 
     let updated_by = Uuid::parse_str(&claims.sub).ok();
 
@@ -2638,10 +2655,10 @@ pub async fn update_storage_provider(
             "minio" => Some(StorageProviderType::Minio),
             "unknown" => Some(StorageProviderType::Unknown),
             _ => {
-                return Err(AppError::ValidationError(format!(
-                    "不支持的提供商类型: {}",
-                    pt
-                )));
+                return Err(admin_validation_error_with_params(
+                    "admin.storage_provider_type_unsupported",
+                    MessageParams::from([("provider_type".to_string(), pt.clone())]),
+                ));
             }
         }
     } else {
@@ -2668,7 +2685,7 @@ pub async fn update_storage_provider(
 
     match provider {
         Some(p) => Ok(Json(p.into())),
-        None => Err(AppError::NotFound("提供商配置不存在".to_string())),
+        None => Err(admin_not_found_error("admin.storage_provider_not_found")),
     }
 }
 
@@ -2678,7 +2695,7 @@ pub async fn delete_storage_provider(
     Path(provider_id): Path<String>,
 ) -> Result<StatusCode, AppError> {
     let provider_id = Uuid::parse_str(&provider_id)
-        .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+        .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
 
     let store = StorageProviderStore::new(state.database.clone());
     let deleted = store.delete_provider(&provider_id).await?;
@@ -2686,7 +2703,7 @@ pub async fn delete_storage_provider(
     if deleted {
         Ok(StatusCode::NO_CONTENT)
     } else {
-        Err(AppError::NotFound("提供商配置不存在".to_string()))
+        Err(admin_not_found_error("admin.storage_provider_not_found"))
     }
 }
 
@@ -2699,8 +2716,8 @@ pub async fn get_default_storage_provider(
 
     match provider {
         Some(p) => Ok(Json(p.into())),
-        None => Err(AppError::NotFound(
-            "未找到默认文件上传提供商配置".to_string(),
+        None => Err(admin_not_found_error(
+            "admin.default_storage_provider_not_found",
         )),
     }
 }
@@ -2836,16 +2853,16 @@ pub async fn test_cos_upload(
     // 获取提供商配置
     let provider = if let Some(provider_id) = provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     // 检查提供商是否启用
@@ -2966,16 +2983,16 @@ pub async fn test_cos_upload_signature(
     // 获取提供商配置
     let provider = if let Some(provider_id) = req.provider_id.clone() {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3107,16 +3124,16 @@ pub async fn test_cos_upload_multipart_initiate(
     let store = StorageProviderStore::new(state.database.clone());
     let provider = if let Some(provider_id) = req.provider_id.clone() {
         let provider_uuid = Uuid::parse_str(provider_id.trim())
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3296,16 +3313,16 @@ pub async fn test_cos_download_url(
 
     let provider = if let Some(provider_id) = req.provider_id.clone() {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3389,16 +3406,16 @@ pub async fn test_cos_get_cors(
 
     let provider = if let Some(provider_id) = req.provider_id.clone() {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3471,16 +3488,16 @@ pub async fn test_cos_set_cors(
 
     let provider = if let Some(provider_id) = req.provider_id.clone() {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3595,16 +3612,16 @@ pub async fn test_cos_delete(
     // 获取提供商配置
     let provider = if let Some(provider_id) = req.provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3658,16 +3675,16 @@ pub async fn test_cos_exists(
     // 获取提供商配置
     let provider = if let Some(provider_id) = req.provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3730,16 +3747,16 @@ pub async fn test_cos_list_buckets(
     // 获取提供商配置
     let provider = if let Some(provider_id) = req.provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
@@ -3796,16 +3813,16 @@ pub async fn test_cos_create_bucket(
     // 获取提供商配置
     let provider = if let Some(provider_id) = req.provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
+            .map_err(|_| admin_validation_error("admin.storage_provider_id_invalid"))?;
         store
             .get_provider_by_id(&provider_uuid)
             .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.storage_provider_not_found"))?
     } else {
         store
             .get_default_provider()
             .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
+            .ok_or_else(|| admin_not_found_error("admin.default_storage_provider_not_found"))?
     };
 
     if !provider.is_active {
