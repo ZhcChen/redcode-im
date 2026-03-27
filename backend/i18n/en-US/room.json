@@ -1,0 +1,22 @@
+{
+  "room.name_required": "Room name cannot be empty.",
+  "room.type_creation_unsupported": "This room type cannot be created through this endpoint.",
+  "room.member_id_invalid": "Member ID is invalid: {user_id}.",
+  "room.group_additional_member_required": "Group rooms must contain at least one additional member.",
+  "room.not_found": "Room not found.",
+  "room.join_request_not_approved": "Join request has not been approved.",
+  "room.not_joinable": "This room is not joinable.",
+  "room.membership_required": "You are not a member of this room.",
+  "room.leave_not_member": "You are not a member of this room and cannot leave.",
+  "room.delete_not_found_or_forbidden": "Chat not found or you do not have permission to delete it.",
+  "room.dissolve_group_only": "Only group rooms can be dissolved.",
+  "room.no_members": "Room has no members.",
+  "room.dissolve_owner_only": "Only the group owner can dissolve the room.",
+  "room.new_owner_id_invalid": "new_owner_id is invalid.",
+  "room.new_owner_same_as_current": "New owner must be different from the current owner.",
+  "room.transfer_group_only": "Only group rooms support ownership transfer.",
+  "room.transfer_target_not_member": "Target user is not in this group.",
+  "room.transfer_owner_only": "Only the room owner can transfer ownership.",
+  "room.notification_setting_invalid": "Invalid notification setting. Must be 0 (all), 1 (mentions only), or 2 (muted).",
+  "room.update_owner_or_admin_only": "Only the room owner or an admin can update the room."
+}

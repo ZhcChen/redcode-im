@@ -596,6 +596,39 @@ fn i18n_version_catalog_interpolates_params() {
     );
 }
 
+#[test]
+fn i18n_room_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "room.name_required", None),
+        "房间名称不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.membership_required", None),
+        "You are not a member of this room."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "room.new_owner_same_as_current", None),
+        "新群主必须与当前群主不同"
+    );
+}
+
+#[test]
+fn i18n_room_catalog_interpolates_member_id_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("user_id".to_string(), "not-a-uuid".to_string())]);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "room.member_id_invalid", Some(&params)),
+        "无效的成员 ID: not-a-uuid"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.member_id_invalid", Some(&params)),
+        "Member ID is invalid: not-a-uuid."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();
@@ -740,6 +773,21 @@ async fn i18n_error_response_version_platform_unsupported_uses_params_and_locali
         body["message_params"]["supported_platforms"],
         params["supported_platforms"]
     );
+    assert_eq!(body["details"], Value::Null);
+}
+
+#[tokio::test]
+async fn i18n_error_response_room_member_id_invalid_uses_params_and_localized_message() {
+    let params = BTreeMap::from([("user_id".to_string(), "not-a-uuid".to_string())]);
+    let response = AppError::ValidationError(String::new())
+        .with_message_key_and_params("room.member_id_invalid", Some(params.clone()))
+        .into_response();
+    let body = read_body_json(response.into_body()).await;
+
+    assert_eq!(body["code"], 42201);
+    assert_eq!(body["message_key"], "room.member_id_invalid");
+    assert_eq!(body["message"], "无效的成员 ID: not-a-uuid");
+    assert_eq!(body["message_params"]["user_id"], params["user_id"]);
     assert_eq!(body["details"], Value::Null);
 }
 

@@ -1,0 +1,22 @@
+{
+  "room.name_required": "房间名称不能为空",
+  "room.type_creation_unsupported": "该类型房间不能通过当前接口创建",
+  "room.member_id_invalid": "无效的成员 ID: {user_id}",
+  "room.group_additional_member_required": "群聊至少需要一个额外成员",
+  "room.not_found": "房间不存在",
+  "room.join_request_not_approved": "入群申请尚未审批通过",
+  "room.not_joinable": "该房间不支持主动加入",
+  "room.membership_required": "您不是当前房间成员",
+  "room.leave_not_member": "您不在该房间中，无法退出",
+  "room.delete_not_found_or_forbidden": "会话不存在或您无权删除",
+  "room.dissolve_group_only": "仅群聊可以解散",
+  "room.no_members": "房间没有成员",
+  "room.dissolve_owner_only": "仅群主可以解散群聊",
+  "room.new_owner_id_invalid": "new_owner_id 无效",
+  "room.new_owner_same_as_current": "新群主必须与当前群主不同",
+  "room.transfer_group_only": "仅群聊支持转让群主",
+  "room.transfer_target_not_member": "目标用户不在当前群聊中",
+  "room.transfer_owner_only": "仅房主可以转让群主",
+  "room.notification_setting_invalid": "无效的通知设置值，必须是 0（全部）、1（仅提醒）、2（静音）",
+  "room.update_owner_or_admin_only": "仅房主或管理员可以更新房间"
+}

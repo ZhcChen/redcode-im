@@ -15,6 +15,7 @@ impl Catalog {
         catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/message.json"));
         catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/group.json"));
         catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/version.json"));
+        catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/room.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/common.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/auth.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/friend.json"));
@@ -22,6 +23,7 @@ impl Catalog {
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/message.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/group.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/version.json"));
+        catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/room.json"));
         catalog
     }
 

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use axum::{
     extract::{Extension, Path, Query, State},
@@ -17,6 +17,7 @@ use crate::database::{
     room_store::RoomStore,
 };
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use crate::models::convert::{db_chat_summary_to_api, string_to_uuid};
 use crate::models::{ChatSummary, Claims};
 use crate::redis::models::{CacheKeys, PubSubPayload, RoomUpdatePayload};
@@ -37,6 +38,30 @@ pub struct CreateRoomResponse {
     pub room: Room,
 }
 
+fn room_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn room_validation_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn room_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
+fn room_forbidden_error(message_key: &'static str) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key(message_key)
+}
+
+fn room_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn parse_room_claim_user_id(subject: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(subject).map_err(|_| room_invalid_token_error("auth.token_subject_invalid"))
+}
+
 pub async fn create_room(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -50,20 +75,15 @@ pub async fn create_room(
     } = payload;
 
     if name.trim().is_empty() {
-        return Err(AppError::ValidationError(
-            "Room name cannot be empty".to_string(),
-        ));
+        return Err(room_validation_error("room.name_required"));
     }
 
     let requested_type = room_type.unwrap_or(RoomType::Group);
     if matches!(requested_type, RoomType::Private | RoomType::Favorite) {
-        return Err(AppError::ValidationError(
-            "Cannot create room of this type via this endpoint".to_string(),
-        ));
+        return Err(room_validation_error("room.type_creation_unsupported"));
     }
 
-    let owner = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let owner = parse_room_claim_user_id(&claims.sub)?;
 
     let mut unique_members = HashSet::new();
     let mut member_uuid_list = Vec::new();
@@ -72,8 +92,12 @@ pub async fn create_room(
         if trimmed.is_empty() {
             continue;
         }
-        let member_uuid = Uuid::parse_str(trimmed)
-            .map_err(|_| AppError::ValidationError(format!("Invalid member ID: {}", trimmed)))?;
+        let member_uuid = Uuid::parse_str(trimmed).map_err(|_| {
+            room_validation_error_with_params(
+                "room.member_id_invalid",
+                BTreeMap::from([("user_id".to_string(), trimmed.to_string())]),
+            )
+        })?;
         if member_uuid == owner {
             continue;
         }
@@ -83,8 +107,8 @@ pub async fn create_room(
     }
 
     if requested_type == RoomType::Group && member_uuid_list.is_empty() {
-        return Err(AppError::ValidationError(
-            "Group room must contain at least one additional member".to_string(),
+        return Err(room_validation_error(
+            "room.group_additional_member_required",
         ));
     }
 
@@ -140,8 +164,7 @@ pub async fn join_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<JoinRoomResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
 
@@ -153,7 +176,7 @@ pub async fn join_room(
     let room = store
         .get_room(room_id)
         .await
-        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+        .map_err(|_| room_not_found_error("room.not_found"))?;
 
     match room.room_type {
         RoomType::Public => {}
@@ -163,15 +186,15 @@ pub async fn join_room(
 
             // 开启入群审批：必须先审批通过 join request 才能 join
             if settings.join_approval_required
-                && !group_store.has_approved_join_request(room_id, user_id).await?
+                && !group_store
+                    .has_approved_join_request(room_id, user_id)
+                    .await?
             {
-                return Err(AppError::Forbidden(
-                    "Join request not approved".to_string(),
-                ));
+                return Err(room_forbidden_error("room.join_request_not_approved"));
             }
         }
         RoomType::Private | RoomType::Favorite => {
-            return Err(AppError::Forbidden("Room is not joinable".to_string()))
+            return Err(room_forbidden_error("room.not_joinable"))
         }
     }
 
@@ -199,17 +222,13 @@ pub async fn leave_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<LeaveRoomResponse>, AppError> {
-    let user = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
     let ok = store.remove_member(room_id, user).await?;
 
     if !ok {
-        return Err(AppError::NotFound(format!(
-            "User {} is not a member of room {}",
-            user, room_id
-        )));
+        return Err(room_not_found_error("room.leave_not_member"));
     }
 
     Ok(Json(LeaveRoomResponse { ok }))
@@ -235,17 +254,14 @@ pub async fn list_members(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoomMemberDto>>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
 
     // 仅允许房间成员查看成员列表
     let is_member = store.is_user_in_room(room_id, user_id).await?;
     if !is_member {
-        return Err(AppError::Forbidden(
-            "You are not a member of this room".to_string(),
-        ));
+        return Err(room_forbidden_error("room.membership_required"));
     }
 
     let rows = store.list_members_with_user_info(room_id).await?;
@@ -277,8 +293,7 @@ pub async fn list_my_rooms(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MyRoomDto>>, AppError> {
-    let user = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
     let rooms = store.list_user_rooms(user).await?;
@@ -357,17 +372,13 @@ pub async fn delete_chat(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<DeleteChatResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
     let success = store.delete_chat(room_id, user_id).await?;
 
     if !success {
-        return Err(AppError::NotFound(format!(
-            "Chat {} not found or you don't have permission to delete it",
-            room_id
-        )));
+        return Err(room_not_found_error("room.delete_not_found_or_forbidden"));
     }
 
     Ok(Json(DeleteChatResponse { success }))
@@ -379,17 +390,14 @@ pub async fn get_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<RoomDetailResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
 
     // 仅允许房间成员查看
     let is_member = store.is_user_in_room(room_id, user_id).await?;
     if !is_member {
-        return Err(AppError::Forbidden(
-            "You are not a member of this room".to_string(),
-        ));
+        return Err(room_forbidden_error("room.membership_required"));
     }
 
     let room = store.get_room(room_id).await?;
@@ -405,31 +413,26 @@ pub async fn dissolve_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<DissolveRoomResponse>, AppError> {
-    let operator_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let operator_id = parse_room_claim_user_id(&claims.sub)?;
 
     let room_store = RoomStore::new(state.database.pool());
     let room = room_store
         .get_room(room_id)
         .await
-        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+        .map_err(|_| room_not_found_error("room.not_found"))?;
 
     if room.room_type != RoomType::Group {
-        return Err(AppError::ValidationError(
-            "Only group rooms can be dissolved".to_string(),
-        ));
+        return Err(room_validation_error("room.dissolve_group_only"));
     }
 
     let member_ids = room_store.list_member_ids(room_id).await?;
     if member_ids.is_empty() {
-        return Err(AppError::NotFound("Room has no members".to_string()));
+        return Err(room_not_found_error("room.no_members"));
     }
 
     let success = room_store.dissolve_room(room_id, operator_id).await?;
     if !success {
-        return Err(AppError::Forbidden(
-            "Only group owner can dissolve the room".to_string(),
-        ));
+        return Err(room_forbidden_error("room.dissolve_owner_only"));
     }
 
     let group_store = GroupManagementStore::new(state.database.pool());
@@ -474,28 +477,23 @@ pub async fn transfer_room_owner(
     Path(room_id): Path<Uuid>,
     Json(payload): Json<TransferRoomOwnerPayload>,
 ) -> Result<Json<TransferRoomOwnerResponse>, AppError> {
-    let operator_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let operator_id = parse_room_claim_user_id(&claims.sub)?;
 
     let new_owner_id = Uuid::parse_str(payload.new_owner_id.trim())
-        .map_err(|_| AppError::ValidationError("Invalid new owner user id".to_string()))?;
+        .map_err(|_| room_validation_error("room.new_owner_id_invalid"))?;
 
     if new_owner_id == operator_id {
-        return Err(AppError::ValidationError(
-            "New owner must be different from current owner".to_string(),
-        ));
+        return Err(room_validation_error("room.new_owner_same_as_current"));
     }
 
     let room_store = RoomStore::new(state.database.pool());
     let room = room_store
         .get_room(room_id)
         .await
-        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+        .map_err(|_| room_not_found_error("room.not_found"))?;
 
     if room.room_type != RoomType::Group {
-        return Err(AppError::ValidationError(
-            "Only group rooms support ownership transfer".to_string(),
-        ));
+        return Err(room_validation_error("room.transfer_group_only"));
     }
 
     let updated_room = match room_store
@@ -504,12 +502,10 @@ pub async fn transfer_room_owner(
     {
         Ok(room) => room,
         Err(sqlx::Error::RowNotFound) => {
-            return Err(AppError::NotFound(
-                "Target user is not in this group".to_string(),
-            ))
+            return Err(room_not_found_error("room.transfer_target_not_member"))
         }
-        Err(sqlx::Error::Protocol(msg)) => {
-            return Err(AppError::Forbidden(msg));
+        Err(sqlx::Error::Protocol(_)) => {
+            return Err(room_forbidden_error("room.transfer_owner_only"));
         }
         Err(err) => return Err(AppError::InternalError(err.to_string())),
     };
@@ -567,18 +563,14 @@ pub async fn update_notification_settings(
     Path(room_id): Path<Uuid>,
     Json(payload): Json<UpdateNotificationSettingsPayload>,
 ) -> Result<Json<UpdateNotificationSettingsResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     // 验证通知设置值
     let notification_setting = match payload.notification_settings {
         0 => crate::database::models::NotificationSetting::All,
         1 => crate::database::models::NotificationSetting::MentionsOnly,
         2 => crate::database::models::NotificationSetting::Muted,
-        _ => return Err(AppError::ValidationError(
-            "Invalid notification settings value. Must be 0 (all), 1 (mentions only), or 2 (muted)"
-                .to_string(),
-        )),
+        _ => return Err(room_validation_error("room.notification_setting_invalid")),
     };
 
     let store = RoomStore::new(state.database.pool());
@@ -596,14 +588,11 @@ pub async fn pin_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<PinRoomResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
     if !store.is_user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "You are not a member of this room".to_string(),
-        ));
+        return Err(room_forbidden_error("room.membership_required"));
     }
 
     let record = store.pin_room_for_user(user_id, room_id).await?;
@@ -619,14 +608,11 @@ pub async fn unpin_room(
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
 ) -> Result<Json<PinRoomResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
     if !store.is_user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "You are not a member of this room".to_string(),
-        ));
+        return Err(room_forbidden_error("room.membership_required"));
     }
 
     let _ = store.unpin_room_for_user(user_id, room_id).await?;
@@ -657,8 +643,7 @@ pub async fn update_room(
     Extension(claims): Extension<Claims>,
     Json(request): Json<UpdateRoomRequest>,
 ) -> Result<Json<UpdateRoomResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
 
@@ -666,13 +651,11 @@ pub async fn update_room(
     let member = store
         .get_member(room_id, user_id)
         .await?
-        .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
+        .ok_or_else(|| room_forbidden_error("room.membership_required"))?;
 
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
-        return Err(AppError::Forbidden(
-            "Only room owner or admin can update room".to_string(),
-        ));
+        return Err(room_forbidden_error("room.update_owner_or_admin_only"));
     }
 
     let room = store
