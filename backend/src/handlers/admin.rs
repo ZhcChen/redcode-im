@@ -46,6 +46,10 @@ fn admin_not_found_error(message_key: &'static str) -> AppError {
     AppError::NotFound(String::new()).with_message_key(message_key)
 }
 
+fn admin_forbidden_error(message_key: &'static str) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key(message_key)
+}
+
 fn admin_already_exists_error(message_key: &'static str) -> AppError {
     AppError::AlreadyExists(String::new()).with_message_key(message_key)
 }
@@ -86,6 +90,17 @@ fn role_operation_response(
     params: Option<&MessageParams>,
 ) -> Json<RoleOperationResponse> {
     Json(RoleOperationResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn admin_operation_response(
+    success: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<AdminOperationResponse> {
+    Json(AdminOperationResponse {
         success,
         message: admin_localized_message(message_key, params),
     })
@@ -1195,10 +1210,7 @@ fn ensure_insecure_admin_bootstrap_enabled() -> Result<(), AppError> {
         return Ok(());
     }
 
-    Err(AppError::Forbidden(
-        "该接口仅用于初始化/调试，默认已禁用。如需启用，请设置环境变量 ALLOW_INSECURE_ADMIN_BOOTSTRAP=true。"
-            .to_string(),
-    ))
+    Err(admin_forbidden_error("admin.insecure_bootstrap_disabled"))
 }
 
 /// 创建默认管理员用户（临时API，仅用于初始化）
@@ -1216,10 +1228,11 @@ pub async fn create_default_admin_user(
         Ok(existing_users) => {
             if existing_users.1 > 0 {
                 tracing::info!("管理员用户已存在，跳过创建");
-                return Ok(Json(AdminOperationResponse {
-                    success: false,
-                    message: "管理员用户已存在，无需重复创建".to_string(),
-                }));
+                return Ok(admin_operation_response(
+                    false,
+                    "admin.default_admin_already_exists",
+                    None,
+                ));
             }
         }
         Err(e) => {
@@ -1240,10 +1253,15 @@ pub async fn create_default_admin_user(
     match store.create_admin_user(request).await {
         Ok(_) => {
             tracing::info!("默认管理员用户创建成功");
-            Ok(Json(AdminOperationResponse {
-                success: true,
-                message: "默认管理员用户创建成功，用户名: admin，密码: admin123".to_string(),
-            }))
+            let message_params = MessageParams::from([
+                ("username".to_string(), "admin".to_string()),
+                ("password".to_string(), "admin123".to_string()),
+            ]);
+            Ok(admin_operation_response(
+                true,
+                "admin.default_admin_create_success",
+                Some(&message_params),
+            ))
         }
         Err(e) => {
             tracing::error!("创建管理员用户失败: {:?}", e);
@@ -1296,7 +1314,7 @@ pub async fn reset_admin_password(
 
     let new_password = "admin123";
     let hashed_password = hash_password(new_password)
-        .map_err(|_| AppError::InternalError("密码哈希失败".to_string()))?;
+        .map_err(|_| admin_internal_error("admin.admin_password_hash_failed"))?;
 
     let result = sqlx::query!(
         "UPDATE admin_users SET password_hash = $1, password_changed_at = CURRENT_TIMESTAMP WHERE username = $2",
@@ -1308,15 +1326,19 @@ pub async fn reset_admin_password(
     .map_err(|e| AppError::DatabaseError(e))?;
 
     if result.rows_affected() > 0 {
-        Ok(Json(AdminOperationResponse {
-            success: true,
-            message: format!("管理员密码已重置为: {}", new_password),
-        }))
+        let message_params =
+            MessageParams::from([("password".to_string(), new_password.to_string())]);
+        Ok(admin_operation_response(
+            true,
+            "admin.admin_password_reset_success",
+            Some(&message_params),
+        ))
     } else {
-        Ok(Json(AdminOperationResponse {
-            success: false,
-            message: "未找到管理员用户".to_string(),
-        }))
+        Ok(admin_operation_response(
+            false,
+            "admin.default_admin_not_found",
+            None,
+        ))
     }
 }
 

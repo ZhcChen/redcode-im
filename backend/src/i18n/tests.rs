@@ -307,6 +307,14 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         "Admin user status updated successfully."
     );
     assert_eq!(
+        localizer.localize("en-US", "admin.insecure_bootstrap_disabled", None),
+        "This endpoint is only for initialization/debugging and is disabled by default. Set ALLOW_INSECURE_ADMIN_BOOTSTRAP=true to enable it."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.default_admin_already_exists", None),
+        "管理员用户已存在，无需重复创建"
+    );
+    assert_eq!(
         localizer.localize("en-US", "admin.user_id_invalid", None),
         "User ID is invalid."
     );
@@ -394,6 +402,30 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
             Some(&file_delete_params)
         ),
         "Deleted 2 files successfully."
+    );
+
+    let admin_bootstrap_params = BTreeMap::from([
+        ("username".to_string(), "admin".to_string()),
+        ("password".to_string(), "admin123".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.default_admin_create_success",
+            Some(&admin_bootstrap_params)
+        ),
+        "默认管理员用户创建成功，用户名: admin，密码: admin123"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.admin_password_reset_success",
+            Some(&BTreeMap::from([(
+                "password".to_string(),
+                "admin123".to_string(),
+            )]))
+        ),
+        "Admin password reset successfully. Password: admin123"
     );
 
     assert_eq!(
