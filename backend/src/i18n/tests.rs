@@ -326,6 +326,14 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.user_delete_success", None),
         "User deleted successfully."
     );
+    assert_eq!(
+        localizer.localize("en-US", "admin.role_name_required", None),
+        "Role name is required."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.file_batch_delete_ids_required", None),
+        "请提供要删除的文件ID列表"
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
@@ -368,6 +376,24 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
             Some(&user_create_params)
         ),
         "User created successfully. ID: 00000000-0000-0000-0000-000000000001"
+    );
+
+    let file_delete_params = BTreeMap::from([("deleted_count".to_string(), "2".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.file_batch_delete_success",
+            Some(&file_delete_params)
+        ),
+        "成功删除 2 个文件"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.file_batch_delete_success",
+            Some(&file_delete_params)
+        ),
+        "Deleted 2 files successfully."
     );
 
     assert_eq!(

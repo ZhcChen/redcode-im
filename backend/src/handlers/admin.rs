@@ -80,6 +80,30 @@ fn user_operation_response(
     })
 }
 
+fn role_operation_response(
+    success: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<RoleOperationResponse> {
+    Json(RoleOperationResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn file_operation_response(
+    success: bool,
+    deleted_count: Option<usize>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<FileOperationResponse> {
+    Json(FileOperationResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+        deleted_count,
+    })
+}
+
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2019,24 +2043,27 @@ pub async fn create_role(
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 验证输入
     if req.name.trim().is_empty() {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "角色名称不能为空".to_string(),
-        }));
+        return Ok(role_operation_response(
+            false,
+            "admin.role_name_required",
+            None,
+        ));
     }
 
     if req.code.trim().is_empty() {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "角色代码不能为空".to_string(),
-        }));
+        return Ok(role_operation_response(
+            false,
+            "admin.role_code_required",
+            None,
+        ));
     }
 
     // 简化版本，仅返回成功消息
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色创建成功（简化版本）".to_string(),
-    }))
+    Ok(role_operation_response(
+        true,
+        "admin.role_create_success",
+        None,
+    ))
 }
 
 /// 更新角色（简化版本）
@@ -2047,16 +2074,18 @@ pub async fn update_role(
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 简化版本，仅验证输入
     if role_id == "1" {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "系统角色不允许修改".to_string(),
-        }));
+        return Ok(role_operation_response(
+            false,
+            "admin.role_system_update_forbidden",
+            None,
+        ));
     }
 
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色更新成功（简化版本）".to_string(),
-    }))
+    Ok(role_operation_response(
+        true,
+        "admin.role_update_success",
+        None,
+    ))
 }
 
 /// 删除角色（简化版本）
@@ -2066,16 +2095,18 @@ pub async fn delete_role(
 ) -> Result<Json<RoleOperationResponse>, AppError> {
     // 简化版本，仅验证输入
     if role_id == "1" {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "系统角色不允许删除".to_string(),
-        }));
+        return Ok(role_operation_response(
+            false,
+            "admin.role_system_delete_forbidden",
+            None,
+        ));
     }
 
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色删除成功（简化版本）".to_string(),
-    }))
+    Ok(role_operation_response(
+        true,
+        "admin.role_delete_success",
+        None,
+    ))
 }
 
 /// 检查用户权限
@@ -2289,18 +2320,20 @@ pub async fn delete_file(
 ) -> Result<Json<FileOperationResponse>, AppError> {
     // 简化版本，仅返回成功消息
     if file_id.is_empty() {
-        return Ok(Json(FileOperationResponse {
-            success: false,
-            message: "文件ID不能为空".to_string(),
-            deleted_count: None,
-        }));
+        return Ok(file_operation_response(
+            false,
+            None,
+            "admin.file_id_required",
+            None,
+        ));
     }
 
-    Ok(Json(FileOperationResponse {
-        success: true,
-        message: "文件删除成功（简化版本）".to_string(),
-        deleted_count: Some(1),
-    }))
+    Ok(file_operation_response(
+        true,
+        Some(1),
+        "admin.file_delete_success",
+        None,
+    ))
 }
 
 /// 批量删除文件（简化版本）
@@ -2309,18 +2342,22 @@ pub async fn delete_files_batch(
     Json(file_ids): Json<Vec<String>>,
 ) -> Result<Json<FileOperationResponse>, AppError> {
     if file_ids.is_empty() {
-        return Ok(Json(FileOperationResponse {
-            success: false,
-            message: "请提供要删除的文件ID列表".to_string(),
-            deleted_count: Some(0),
-        }));
+        return Ok(file_operation_response(
+            false,
+            Some(0),
+            "admin.file_batch_delete_ids_required",
+            None,
+        ));
     }
 
-    Ok(Json(FileOperationResponse {
-        success: true,
-        message: format!("成功删除 {} 个文件（简化版本）", file_ids.len()),
-        deleted_count: Some(file_ids.len()),
-    }))
+    let message_params =
+        MessageParams::from([("deleted_count".to_string(), file_ids.len().to_string())]);
+    Ok(file_operation_response(
+        true,
+        Some(file_ids.len()),
+        "admin.file_batch_delete_success",
+        Some(&message_params),
+    ))
 }
 
 /// 更新用户状态
