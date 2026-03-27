@@ -29,7 +29,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::{hash_map::DefaultHasher, BTreeMap};
 use std::hash::Hasher;
 use tracing::info;
 use uuid::Uuid;
@@ -96,6 +96,47 @@ pub struct AppVersionListResponse {
 
 fn default_channel() -> String {
     "stable".to_string()
+}
+
+const SUPPORTED_VERSION_PLATFORMS: &str = "windows, macos, ios, android, linux";
+
+fn version_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn version_validation_error_with_params(
+    message_key: &'static str,
+    params: crate::i18n::message::MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
+fn version_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn version_platform_params(platform: impl Into<String>) -> crate::i18n::message::MessageParams {
+    BTreeMap::from([
+        ("platform".to_string(), platform.into()),
+        (
+            "supported_platforms".to_string(),
+            SUPPORTED_VERSION_PLATFORMS.to_string(),
+        ),
+    ])
+}
+
+fn parse_required_version_platform(platform: &str) -> Result<Platform, AppError> {
+    let trimmed = platform.trim();
+    if trimmed.is_empty() {
+        return Err(version_validation_error("version.platform_required"));
+    }
+
+    Platform::from_str(trimmed).ok_or_else(|| {
+        version_validation_error_with_params(
+            "version.platform_unsupported",
+            version_platform_params(trimmed.to_string()),
+        )
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -499,16 +540,7 @@ pub async fn list_app_versions(
 ) -> Result<Json<AppVersionListResponse>, AppError> {
     let store = VersionStore::new(state.database.clone());
     let platform_str = query.platform.trim();
-    if platform_str.is_empty() {
-        return Err(AppError::ValidationError("platform 必填".to_string()));
-    }
-
-    let platform = Platform::from_str(platform_str).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            platform_str
-        ))
-    })?;
+    let platform = parse_required_version_platform(platform_str)?;
 
     let channel = query
         .channel
@@ -541,7 +573,7 @@ pub async fn get_app_version(
     let version = store
         .get_version(version_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("版本不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.not_found"))?;
 
     Ok(Json(db_app_version_to_api(&version)))
 }
@@ -575,7 +607,7 @@ pub async fn delete_app_version(
     let deleted = store.delete_version(version_id).await?;
 
     if !deleted {
-        return Err(AppError::NotFound("版本不存在".to_string()));
+        return Err(version_not_found_error("version.not_found"));
     }
 
     Ok(Json(serde_json::json!({
@@ -587,21 +619,11 @@ pub async fn latest_version(
     State(state): State<AppState>,
     Query(query): Query<LatestVersionQuery>,
 ) -> Result<Json<LatestVersionResponse>, AppError> {
-    let platform_str = query.platform.trim();
-    if platform_str.is_empty() {
-        return Err(AppError::ValidationError("platform 必填".to_string()));
-    }
-
-    let platform = Platform::from_str(platform_str).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            platform_str
-        ))
-    })?;
+    let platform = parse_required_version_platform(&query.platform)?;
 
     let channel = query.channel.trim();
     if channel.is_empty() {
-        return Err(AppError::ValidationError("channel 必填".to_string()));
+        return Err(version_validation_error("version.channel_required"));
     }
 
     let store = VersionStore::new(state.database.clone());
@@ -655,7 +677,7 @@ pub async fn download_version(
     let version = store
         .get_version(params.id)
         .await?
-        .ok_or_else(|| AppError::NotFound("版本不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.not_found"))?;
 
     let download_url = resolve_download_url(
         &state,
@@ -680,7 +702,7 @@ pub async fn download_hot_update(
     let patch = store
         .get_hot_update(params.id)
         .await?
-        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.patch_not_found"))?;
 
     let signed_url = resolve_download_url(
         &state,
@@ -997,20 +1019,13 @@ pub async fn latest_hot_update(
     State(state): State<AppState>,
     Query(query): Query<HotUpdateQuery>,
 ) -> Result<Json<HotUpdateResponse>, AppError> {
-    let platform = Platform::from_str(query.platform.trim()).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            query.platform
-        ))
-    })?;
+    let platform = parse_required_version_platform(&query.platform)?;
     let channel = query.channel.trim();
     if channel.is_empty() {
-        return Err(AppError::ValidationError("channel 不能为空".to_string()));
+        return Err(version_validation_error("version.channel_required"));
     }
     if query.current_version.trim().is_empty() {
-        return Err(AppError::ValidationError(
-            "current_version 不能为空".to_string(),
-        ));
+        return Err(version_validation_error("version.current_version_required"));
     }
 
     let store = VersionStore::new(state.database.clone());
@@ -1040,28 +1055,19 @@ pub async fn report_hot_update_event(
     State(state): State<AppState>,
     Json(req): Json<HotUpdateEventReport>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let platform = Platform::from_str(req.platform.trim()).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            req.platform
-        ))
-    })?;
+    let platform = parse_required_version_platform(&req.platform)?;
 
     let base_version = req.base_version.trim();
     if base_version.is_empty() {
-        return Err(AppError::ValidationError(
-            "base_version 不能为空".to_string(),
-        ));
+        return Err(version_validation_error("version.base_version_required"));
     }
     let patch_version = req.patch_version.trim();
     if patch_version.is_empty() {
-        return Err(AppError::ValidationError(
-            "patch_version 不能为空".to_string(),
-        ));
+        return Err(version_validation_error("version.patch_version_required"));
     }
     let event_type = req.event_type.trim();
     if event_type.is_empty() {
-        return Err(AppError::ValidationError("event_type 不能为空".to_string()));
+        return Err(version_validation_error("version.event_type_required"));
     }
     const ALLOWED_EVENTS: &[&str] = &[
         "download_success",
@@ -1071,10 +1077,10 @@ pub async fn report_hot_update_event(
         "rollback",
     ];
     if !ALLOWED_EVENTS.contains(&event_type) {
-        return Err(AppError::ValidationError(format!(
-            "不支持的事件类型: {}",
-            event_type
-        )));
+        return Err(version_validation_error_with_params(
+            "version.event_type_unsupported",
+            BTreeMap::from([("event_type".to_string(), event_type.to_string())]),
+        ));
     }
 
     let store = VersionStore::new(state.database.clone());
@@ -1146,12 +1152,7 @@ pub async fn list_hot_update_events(
     Query(query): Query<HotUpdateEventListQuery>,
 ) -> Result<Json<HotUpdateEventListResponse>, AppError> {
     let platform = if let Some(value) = query.platform.as_deref() {
-        Some(Platform::from_str(value).ok_or_else(|| {
-            AppError::ValidationError(format!(
-                "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-                value
-            ))
-        })?)
+        Some(parse_required_version_platform(value)?)
     } else {
         None
     };
@@ -1195,7 +1196,7 @@ fn parse_optional_timestamp(value: Option<&str>) -> Result<Option<DateTime<Utc>>
             return Ok(None);
         }
         let parsed = DateTime::parse_from_rfc3339(text.trim())
-            .map_err(|_| AppError::ValidationError("时间格式必须为 RFC3339".to_string()))?;
+            .map_err(|_| version_validation_error("version.timestamp_rfc3339_invalid"))?;
         Ok(Some(parsed.with_timezone(&Utc)))
     } else {
         Ok(None)
@@ -1204,10 +1205,10 @@ fn parse_optional_timestamp(value: Option<&str>) -> Result<Option<DateTime<Utc>>
 
 fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppError> {
     if req.platform.trim().is_empty() {
-        return Err(AppError::ValidationError("platform 不能为空".to_string()));
+        return Err(version_validation_error("version.platform_required"));
     }
     if req.version.trim().is_empty() {
-        return Err(AppError::ValidationError("version 不能为空".to_string()));
+        return Err(version_validation_error("version.version_required"));
     }
     let has_download_key = !req.download_key.trim().is_empty();
     let has_download_url = req
@@ -1220,9 +1221,7 @@ fn validate_version_payload(req: &CreateAppVersionRequest) -> Result<(), AppErro
         .is_some_and(|v| !v.trim().is_empty());
 
     if !has_download_key && !has_download_url && !has_app_store_url {
-        return Err(AppError::ValidationError(
-            "download_key、download_url、app_store_url 至少填写一个".to_string(),
-        ));
+        return Err(version_validation_error("version.download_source_required"));
     }
     Ok(())
 }
@@ -1231,23 +1230,18 @@ pub async fn download_latest_version(
     State(state): State<AppState>,
     Query(params): Query<LatestVersionDownloadParams>,
 ) -> Result<Json<LatestVersionDownloadResponse>, AppError> {
-    let platform = Platform::from_str(params.platform.trim()).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            params.platform
-        ))
-    })?;
+    let platform = parse_required_version_platform(&params.platform)?;
 
     let channel = params.channel.trim();
     if channel.is_empty() {
-        return Err(AppError::ValidationError("channel 不能为空".to_string()));
+        return Err(version_validation_error("version.channel_required"));
     }
 
     let store = VersionStore::new(state.database.clone());
     let latest = store
         .find_latest_active(platform, channel)
         .await?
-        .ok_or_else(|| AppError::NotFound("暂无可用版本".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.no_available_release"))?;
 
     let download_url = resolve_download_url(
         &state,
@@ -1271,14 +1265,13 @@ async fn resolve_download_url(
     explicit_download_url: Option<&String>,
     expires_in_seconds: Option<u32>,
 ) -> Result<String, AppError> {
-    if let Some(url) = explicit_download_url {
+    if let Some(url) = explicit_download_url.and_then(|url| (!url.trim().is_empty()).then_some(url))
+    {
         return Ok(url.clone());
     }
 
     if download_key.trim().is_empty() {
-        return Err(AppError::ValidationError(
-            "该版本未配置安装包下载信息（download_key/download_url）".to_string(),
-        ));
+        return Err(version_validation_error("version.download_info_missing"));
     }
 
     let provider = load_default_storage_provider(state).await?;
@@ -1296,19 +1289,22 @@ async fn load_default_storage_provider(
     let provider = store
         .get_default_provider()
         .await?
-        .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.default_storage_provider_not_found"))?;
 
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "默认文件上传提供商未启用".to_string(),
+        return Err(version_validation_error(
+            "version.default_storage_provider_inactive",
         ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(AppError::ValidationError(format!(
-            "不支持的提供商类型: {:?}",
-            provider.provider_type
-        )));
+        return Err(version_validation_error_with_params(
+            "version.default_storage_provider_unsupported",
+            BTreeMap::from([(
+                "provider_type".to_string(),
+                format!("{:?}", provider.provider_type),
+            )]),
+        ));
     }
 
     Ok(provider)

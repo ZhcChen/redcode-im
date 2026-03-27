@@ -527,6 +527,75 @@ fn i18n_group_catalog_interpolates_member_params() {
     );
 }
 
+#[test]
+fn i18n_version_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "version.channel_required", None),
+        "channel 不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.channel_required", None),
+        "channel is required."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "version.no_available_release", None),
+        "暂无可用版本"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.no_available_release", None),
+        "No available version right now."
+    );
+}
+
+#[test]
+fn i18n_version_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    let platform_params = BTreeMap::from([
+        ("platform".to_string(), "symbian".to_string()),
+        (
+            "supported_platforms".to_string(),
+            "windows, macos, ios, android, linux".to_string(),
+        ),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "version.platform_unsupported",
+            Some(&platform_params)
+        ),
+        "不支持的平台: symbian。支持的平台: windows, macos, ios, android, linux"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "version.platform_unsupported",
+            Some(&platform_params)
+        ),
+        "Unsupported platform: symbian. Supported platforms: windows, macos, ios, android, linux."
+    );
+
+    let provider_params = BTreeMap::from([("provider_type".to_string(), "minio".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "version.default_storage_provider_unsupported",
+            Some(&provider_params),
+        ),
+        "不支持的默认存储提供商类型: minio"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "version.default_storage_provider_unsupported",
+            Some(&provider_params),
+        ),
+        "Unsupported default storage provider type: minio."
+    );
+}
+
 #[tokio::test]
 async fn i18n_error_response_contains_expected_protocol_values() {
     let response = AppError::TokenExpired.into_response();
@@ -643,6 +712,34 @@ async fn i18n_error_response_group_member_id_invalid_uses_params_and_localized_m
     assert_eq!(body["message_key"], "group.member_id_invalid");
     assert_eq!(body["message"], "无效的用户ID: not-a-uuid");
     assert_eq!(body["message_params"]["user_id"], params["user_id"]);
+    assert_eq!(body["details"], Value::Null);
+}
+
+#[tokio::test]
+async fn i18n_error_response_version_platform_unsupported_uses_params_and_localized_message() {
+    let params = BTreeMap::from([
+        ("platform".to_string(), "symbian".to_string()),
+        (
+            "supported_platforms".to_string(),
+            "windows, macos, ios, android, linux".to_string(),
+        ),
+    ]);
+    let response = AppError::ValidationError(String::new())
+        .with_message_key_and_params("version.platform_unsupported", Some(params.clone()))
+        .into_response();
+    let body = read_body_json(response.into_body()).await;
+
+    assert_eq!(body["code"], 42201);
+    assert_eq!(body["message_key"], "version.platform_unsupported");
+    assert_eq!(
+        body["message"],
+        "不支持的平台: symbian。支持的平台: windows, macos, ios, android, linux"
+    );
+    assert_eq!(body["message_params"]["platform"], params["platform"]);
+    assert_eq!(
+        body["message_params"]["supported_platforms"],
+        params["supported_platforms"]
+    );
     assert_eq!(body["details"], Value::Null);
 }
 

@@ -1,0 +1,20 @@
+{
+  "version.platform_required": "platform is required.",
+  "version.platform_unsupported": "Unsupported platform: {platform}. Supported platforms: {supported_platforms}.",
+  "version.channel_required": "channel is required.",
+  "version.version_required": "version is required.",
+  "version.download_source_required": "At least one of download_key, download_url, or app_store_url must be provided.",
+  "version.timestamp_rfc3339_invalid": "Timestamp must be in RFC3339 format.",
+  "version.current_version_required": "current_version is required.",
+  "version.base_version_required": "base_version is required.",
+  "version.patch_version_required": "patch_version is required.",
+  "version.event_type_required": "event_type is required.",
+  "version.event_type_unsupported": "Unsupported event_type: {event_type}.",
+  "version.not_found": "Version not found.",
+  "version.patch_not_found": "Hot update patch not found.",
+  "version.no_available_release": "No available version right now.",
+  "version.download_info_missing": "This version does not have a package download configured (download_key/download_url).",
+  "version.default_storage_provider_not_found": "Default file upload provider configuration was not found.",
+  "version.default_storage_provider_inactive": "Default file upload provider is not enabled.",
+  "version.default_storage_provider_unsupported": "Unsupported default storage provider type: {provider_type}."
+}

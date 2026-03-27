@@ -1,0 +1,20 @@
+{
+  "version.platform_required": "platform 不能为空",
+  "version.platform_unsupported": "不支持的平台: {platform}。支持的平台: {supported_platforms}",
+  "version.channel_required": "channel 不能为空",
+  "version.version_required": "version 不能为空",
+  "version.download_source_required": "download_key、download_url、app_store_url 至少填写一个",
+  "version.timestamp_rfc3339_invalid": "时间格式必须为 RFC3339",
+  "version.current_version_required": "current_version 不能为空",
+  "version.base_version_required": "base_version 不能为空",
+  "version.patch_version_required": "patch_version 不能为空",
+  "version.event_type_required": "event_type 不能为空",
+  "version.event_type_unsupported": "不支持的事件类型: {event_type}",
+  "version.not_found": "版本不存在",
+  "version.patch_not_found": "补丁不存在",
+  "version.no_available_release": "暂无可用版本",
+  "version.download_info_missing": "该版本未配置安装包下载信息（download_key/download_url）",
+  "version.default_storage_provider_not_found": "未找到默认文件上传提供商配置",
+  "version.default_storage_provider_inactive": "默认文件上传提供商未启用",
+  "version.default_storage_provider_unsupported": "不支持的默认存储提供商类型: {provider_type}"
+}
