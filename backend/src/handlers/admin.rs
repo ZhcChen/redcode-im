@@ -16,7 +16,9 @@ use crate::database::settings_store::SettingsStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
 use crate::logging::LogQueryParams;
+use crate::middleware::current_request_locale;
 use crate::models::Claims;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
@@ -39,6 +41,13 @@ fn admin_not_found_error(message_key: &'static str) -> AppError {
 
 fn admin_already_exists_error(message_key: &'static str) -> AppError {
     AppError::AlreadyExists(String::new()).with_message_key(message_key)
+}
+
+fn admin_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, params)
 }
 
 /// 管理员用户信息（API响应）
@@ -5090,7 +5099,9 @@ pub async fn cleanup_system_logs(
     Json(req): Json<LogCleanupRequest>,
 ) -> Result<Json<LogCleanupResponse>, AppError> {
     if req.retention_days < 1 {
-        return Err(AppError::ValidationError("保留天数必须大于 0".to_string()));
+        return Err(admin_validation_error(
+            "admin.log_cleanup_retention_days_invalid",
+        ));
     }
 
     info!(
@@ -5105,13 +5116,15 @@ pub async fn cleanup_system_logs(
         deleted_count, req.retention_days
     );
 
+    let message_params = MessageParams::from([
+        ("deleted_count".to_string(), deleted_count.to_string()),
+        ("retention_days".to_string(), req.retention_days.to_string()),
+    ]);
+
     Ok(Json(LogCleanupResponse {
         success: true,
         deleted_count,
-        message: format!(
-            "成功删除 {} 条日志，保留最近 {} 天的日志",
-            deleted_count, req.retention_days
-        ),
+        message: admin_localized_message("admin.system_log_cleanup_success", Some(&message_params)),
     }))
 }
 

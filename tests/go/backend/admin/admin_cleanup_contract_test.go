@@ -2,9 +2,9 @@ package admin_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"redcode-im-tests/internal/testutil"
@@ -17,9 +17,11 @@ type cleanupSuccessResponse struct {
 }
 
 type apiErrorResponse struct {
-	Code    int     `json:"code"`
-	Message string  `json:"message"`
-	Details *string `json:"details"`
+	Code          int               `json:"code"`
+	MessageKey    string            `json:"message_key"`
+	Message       string            `json:"message"`
+	MessageParams map[string]string `json:"message_params"`
+	Details       *string           `json:"details"`
 }
 
 func TestAdminLogCleanupContract_OKAndValidationError(t *testing.T) {
@@ -27,11 +29,39 @@ func TestAdminLogCleanupContract_OKAndValidationError(t *testing.T) {
 	admin := testutil.AdminLogin(t, c)
 
 	testCases := []struct {
-		name string
-		path string
+		name           string
+		path           string
+		successLocale  string
+		successMessage func(uint64) string
+		errorLocale    string
+		errorMessage   string
 	}{
-		{name: "system logs cleanup", path: "/api/admin/logs/cleanup"},
-		{name: "push logs cleanup", path: "/api/admin/push/logs/cleanup"},
+		{
+			name:          "system logs cleanup",
+			path:          "/api/admin/logs/cleanup",
+			successLocale: "en-US",
+			successMessage: func(deletedCount uint64) string {
+				return fmt.Sprintf(
+					"Deleted %d logs successfully. Retained logs from the last 2 days.",
+					deletedCount,
+				)
+			},
+			errorLocale:  "en-US",
+			errorMessage: "Retention days must be greater than 0.",
+		},
+		{
+			name:          "push logs cleanup",
+			path:          "/api/admin/push/logs/cleanup",
+			successLocale: "zh-CN",
+			successMessage: func(deletedCount uint64) string {
+				return fmt.Sprintf(
+					"成功删除 %d 条 push 日志，保留最近 2 天的日志",
+					deletedCount,
+				)
+			},
+			errorLocale:  "zh-CN",
+			errorMessage: "保留天数必须大于 0",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -44,6 +74,7 @@ func TestAdminLogCleanupContract_OKAndValidationError(t *testing.T) {
 				admin.Token,
 				map[string]any{"retentionDays": 2},
 			)
+			req.Header.Set("Accept-Language", tc.successLocale)
 			resp, err := c.HTTP.Do(req)
 			if err != nil {
 				t.Fatalf("cleanup request failed: %v", err)
@@ -62,7 +93,7 @@ func TestAdminLogCleanupContract_OKAndValidationError(t *testing.T) {
 			if !payload.Success {
 				t.Fatalf("expect success=true, got false: %+v", payload)
 			}
-			if payload.Message == "" || !strings.Contains(payload.Message, "最近 2 天") {
+			if payload.Message != tc.successMessage(payload.DeletedCount) {
 				t.Fatalf("cleanup response message invalid: %q", payload.Message)
 			}
 		})
@@ -75,6 +106,7 @@ func TestAdminLogCleanupContract_OKAndValidationError(t *testing.T) {
 				admin.Token,
 				map[string]any{"retentionDays": 0},
 			)
+			req.Header.Set("Accept-Language", tc.errorLocale)
 			resp, err := c.HTTP.Do(req)
 			if err != nil {
 				t.Fatalf("cleanup request failed: %v", err)
@@ -93,8 +125,17 @@ func TestAdminLogCleanupContract_OKAndValidationError(t *testing.T) {
 			if payload.Code != 42201 {
 				t.Fatalf("cleanup error code mismatch: expect 42201, got %d", payload.Code)
 			}
-			if !strings.Contains(payload.Message, "保留天数必须大于 0") {
+			if payload.MessageKey != "admin.log_cleanup_retention_days_invalid" {
+				t.Fatalf("cleanup error message_key mismatch: %q", payload.MessageKey)
+			}
+			if payload.Message != tc.errorMessage {
 				t.Fatalf("cleanup error message mismatch: %q", payload.Message)
+			}
+			if payload.MessageParams != nil {
+				t.Fatalf("cleanup error message_params mismatch: %+v", payload.MessageParams)
+			}
+			if payload.Details != nil {
+				t.Fatalf("cleanup error details mismatch: %q", *payload.Details)
 			}
 		})
 	}

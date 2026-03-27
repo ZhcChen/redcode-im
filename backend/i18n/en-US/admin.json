@@ -4,5 +4,8 @@
   "admin.ipinfo_token_name_already_exists": "Token name already exists.",
   "admin.ipinfo_token_id_invalid": "Token ID is invalid.",
   "admin.ipinfo_token_not_found": "Token was not found.",
-  "admin.ipinfo_token_update_fields_required": "No fields were provided to update."
+  "admin.ipinfo_token_update_fields_required": "No fields were provided to update.",
+  "admin.log_cleanup_retention_days_invalid": "Retention days must be greater than 0.",
+  "admin.system_log_cleanup_success": "Deleted {deleted_count} logs successfully. Retained logs from the last {retention_days} days.",
+  "admin.push_log_cleanup_success": "Deleted {deleted_count} push logs successfully. Retained logs from the last {retention_days} days."
 }

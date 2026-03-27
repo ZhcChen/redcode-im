@@ -4,5 +4,8 @@
   "admin.ipinfo_token_name_already_exists": "Token名称已存在",
   "admin.ipinfo_token_id_invalid": "无效的Token ID",
   "admin.ipinfo_token_not_found": "Token不存在",
-  "admin.ipinfo_token_update_fields_required": "没有需要更新的字段"
+  "admin.ipinfo_token_update_fields_required": "没有需要更新的字段",
+  "admin.log_cleanup_retention_days_invalid": "保留天数必须大于 0",
+  "admin.system_log_cleanup_success": "成功删除 {deleted_count} 条日志，保留最近 {retention_days} 天的日志",
+  "admin.push_log_cleanup_success": "成功删除 {deleted_count} 条 push 日志，保留最近 {retention_days} 天的日志"
 }

@@ -11,6 +11,8 @@ use crate::database::push_log_store::{
     PushLogQueryParams as StorePushLogQueryParams, PushLogStore,
 };
 use crate::error::AppError;
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
 use crate::models::Claims;
 use crate::AppState;
 
@@ -81,6 +83,20 @@ pub struct PushLogCleanupResponse {
     pub success: bool,
     pub deleted_count: u64,
     pub message: String,
+}
+
+fn push_logs_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn push_logs_localized_message(
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, params)
 }
 
 /// 查询 push 发送日志（需要管理员权限）
@@ -157,7 +173,9 @@ pub async fn cleanup_push_logs(
     Json(req): Json<PushLogCleanupRequest>,
 ) -> Result<Json<PushLogCleanupResponse>, AppError> {
     if req.retention_days < 1 {
-        return Err(AppError::ValidationError("保留天数必须大于 0".to_string()));
+        return Err(push_logs_validation_error(
+            "admin.log_cleanup_retention_days_invalid",
+        ));
     }
 
     info!(
@@ -171,12 +189,17 @@ pub async fn cleanup_push_logs(
         .await
         .map_err(AppError::DatabaseError)?;
 
+    let message_params = MessageParams::from([
+        ("deleted_count".to_string(), deleted_count.to_string()),
+        ("retention_days".to_string(), req.retention_days.to_string()),
+    ]);
+
     Ok(Json(PushLogCleanupResponse {
         success: true,
         deleted_count,
-        message: format!(
-            "成功删除 {} 条 push 日志，保留最近 {} 天的日志",
-            deleted_count, req.retention_days
+        message: push_logs_localized_message(
+            "admin.push_log_cleanup_success",
+            Some(&message_params),
         ),
     }))
 }

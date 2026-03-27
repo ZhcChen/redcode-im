@@ -282,6 +282,28 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.ipinfo_token_not_found", None),
         "Token was not found."
     );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
+        "保留天数必须大于 0"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.log_cleanup_retention_days_invalid", None),
+        "Retention days must be greater than 0."
+    );
+
+    let params = BTreeMap::from([
+        ("deleted_count".to_string(), "3".to_string()),
+        ("retention_days".to_string(), "2".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.system_log_cleanup_success", Some(&params)),
+        "成功删除 3 条日志，保留最近 2 天的日志"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.push_log_cleanup_success", Some(&params)),
+        "Deleted 3 push logs successfully. Retained logs from the last 2 days."
+    );
 }
 
 #[test]
