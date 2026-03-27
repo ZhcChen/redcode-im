@@ -282,6 +282,18 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.ipinfo_token_not_found", None),
         "Token was not found."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.geolocation_ip_invalid", None),
+        "IP地址格式无效"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.geolocation_ip_required", None),
+        "IP address is required."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.ip_geolocation_description", None),
+        "Controls whether user IP geolocation resolution is enabled for admin analytics."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
@@ -340,6 +352,25 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
     assert_eq!(
         localizer.localize("en-US", "admin.file_upload_audit_task_not_found", None),
         "Audit task was not found."
+    );
+
+    let geolocation_params =
+        BTreeMap::from([("reason".to_string(), "upstream timeout".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.geolocation_api_test_failed",
+            Some(&geolocation_params)
+        ),
+        "API测试失败: upstream timeout"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.ip_geolocation_update_failed",
+            Some(&geolocation_params)
+        ),
+        "Failed to update IP geolocation setting: upstream timeout"
     );
 }
 

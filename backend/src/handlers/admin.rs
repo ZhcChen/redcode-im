@@ -50,11 +50,23 @@ fn admin_already_exists_error(message_key: &'static str) -> AppError {
     AppError::AlreadyExists(String::new()).with_message_key(message_key)
 }
 
+fn admin_internal_error(message_key: &'static str) -> AppError {
+    AppError::InternalError(String::new()).with_message_key(message_key)
+}
+
+fn admin_internal_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+    AppError::InternalError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
 fn admin_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
     let localizer = default_localizer();
     let locale =
         current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
     localizer.localize(&locale, message_key, params)
+}
+
+fn admin_ip_geolocation_description() -> String {
+    admin_localized_message("admin.ip_geolocation_description", None)
 }
 
 /// 管理员用户信息（API响应）
@@ -4689,14 +4701,14 @@ pub async fn test_geolocation_api(
     let ip_address = request.ip_address.trim();
     if ip_address.is_empty() {
         error!("IP地址为空");
-        return Err(AppError::ValidationError("IP地址不能为空".to_string()));
+        return Err(admin_validation_error("admin.geolocation_ip_required"));
     }
 
     // 简单的IP地址格式验证
     let ip_parts: Vec<&str> = ip_address.split('.').collect();
     if ip_parts.len() != 4 {
         error!("IP地址格式无效，分段数量: {}", ip_parts.len());
-        return Err(AppError::ValidationError("IP地址格式无效".to_string()));
+        return Err(admin_validation_error("admin.geolocation_ip_invalid"));
     }
 
     for (i, part) in ip_parts.iter().enumerate() {
@@ -4704,7 +4716,7 @@ pub async fn test_geolocation_api(
             info!("IP段 {} 验证通过: {}", i, part);
         } else {
             error!("IP段 {} 验证失败: {}", i, part);
-            return Err(AppError::ValidationError("IP地址格式无效".to_string()));
+            return Err(admin_validation_error("admin.geolocation_ip_invalid"));
         }
     }
 
@@ -4716,7 +4728,9 @@ pub async fn test_geolocation_api(
 
     if geolocation_service.is_none() {
         error!("地理位置服务未初始化");
-        return Err(AppError::InternalError("地理位置服务未初始化".to_string()));
+        return Err(admin_internal_error(
+            "admin.geolocation_service_not_initialized",
+        ));
     }
 
     let geolocation_service = geolocation_service.unwrap();
@@ -4749,11 +4763,15 @@ pub async fn test_geolocation_api(
         }
         Ok(None) => {
             error!("地理位置查询返回None结果");
-            Err(AppError::InternalError("无法获取地理位置信息".to_string()))
+            Err(admin_internal_error("admin.geolocation_lookup_failed"))
         }
         Err(e) => {
             error!("地理位置API测试失败: {}", e);
-            Err(AppError::InternalError(format!("API测试失败: {}", e)))
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Err(admin_internal_error_with_params(
+                "admin.geolocation_api_test_failed",
+                message_params,
+            ))
         }
     }
 }
@@ -4930,7 +4948,7 @@ pub async fn get_ip_geolocation_enabled(
 
     Ok(Json(IpGeolocationStatusResponse {
         enabled,
-        description: "控制是否启用用户IP地理位置解析功能，用于管理员数据统计".to_string(),
+        description: admin_ip_geolocation_description(),
     }))
 }
 
@@ -4960,7 +4978,8 @@ pub async fn set_ip_geolocation_enabled(
         .await
         .map_err(|e| {
             error!("设置IP地理位置解析开关失败: {}", e);
-            AppError::InternalError(format!("设置失败: {}", e))
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            admin_internal_error_with_params("admin.ip_geolocation_update_failed", message_params)
         })?;
 
     info!(
@@ -4970,7 +4989,7 @@ pub async fn set_ip_geolocation_enabled(
 
     Ok(Json(IpGeolocationStatusResponse {
         enabled: req.enabled,
-        description: "控制是否启用用户IP地理位置解析功能，用于管理员数据统计".to_string(),
+        description: admin_ip_geolocation_description(),
     }))
 }
 
