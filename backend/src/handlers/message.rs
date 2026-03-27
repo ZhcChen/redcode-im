@@ -886,7 +886,7 @@ mod message_i18n_tests {
     }
 
     #[tokio::test]
-    async fn attachment_commit_object_not_found_stays_validation_error() {
+    async fn attachment_object_not_found_error_response_uses_validation_protocol() {
         let error = message_validation_error("message.attachment_object_not_found");
         let response = error.into_response();
         let status = response.status();
