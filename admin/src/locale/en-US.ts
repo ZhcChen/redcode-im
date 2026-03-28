@@ -8,6 +8,10 @@ import localeMonitor from '@/views/dashboard/monitor/locale/en-US';
 import localeUserManagement from '@/views/user-management/list/locale/en-US';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/en-US';
 import localeFeedback from '@/views/feedback/list/locale/en-US';
+import localeStorageProvider from '@/views/settings/storage-provider/locale/en-US';
+import localeCosTest from '@/views/settings/cos-test/locale/en-US';
+import localeFileUploadAudit from '@/views/operations/file-upload-audit/locale/en-US';
+import localeSystemLog from '@/views/dashboard/system-log/locale/en-US';
 /** simple end */
 import localeSettings from './en-US/settings';
 
@@ -60,5 +64,9 @@ export default {
   ...localeUserManagement,
   ...localeCaptchaSettings,
   ...localeFeedback,
+  ...localeStorageProvider,
+  ...localeCosTest,
+  ...localeFileUploadAudit,
+  ...localeSystemLog,
   /** simple end */
 };

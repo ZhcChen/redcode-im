@@ -10,6 +10,10 @@ import localeCaptchaSettings from '@/views/settings/captcha/locale/zh-CN';
 import localeChatHistory from '@/views/chat-history/locale/zh-CN';
 import localeFeedback from '@/views/feedback/list/locale/zh-CN';
 import localeReport from '@/views/report/list/locale/zh-CN';
+import localeStorageProvider from '@/views/settings/storage-provider/locale/zh-CN';
+import localeCosTest from '@/views/settings/cos-test/locale/zh-CN';
+import localeFileUploadAudit from '@/views/operations/file-upload-audit/locale/zh-CN';
+import localeSystemLog from '@/views/dashboard/system-log/locale/zh-CN';
 /** simple end */
 import localeSettings from './zh-CN/settings';
 
@@ -64,5 +68,9 @@ export default {
   ...localeChatHistory,
   ...localeFeedback,
   ...localeReport,
+  ...localeStorageProvider,
+  ...localeCosTest,
+  ...localeFileUploadAudit,
+  ...localeSystemLog,
   /** simple end */
 };

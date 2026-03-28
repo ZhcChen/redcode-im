@@ -12,48 +12,70 @@
         <a-space wrap>
           <a-select
             v-model="queryParams.status"
-            placeholder="状态"
+            :placeholder="t('fileUploadAudit.filters.status.placeholder')"
             style="width: 140px"
             allow-clear
             @change="handleSearch"
           >
-            <a-option :value="0">待处理</a-option>
-            <a-option :value="1">通过</a-option>
-            <a-option :value="2">拒绝</a-option>
-            <a-option :value="3">重试中</a-option>
-            <a-option :value="4">失败</a-option>
+            <a-option :value="0">
+              {{ t('fileUploadAudit.filters.status.pending') }}
+            </a-option>
+            <a-option :value="1">
+              {{ t('fileUploadAudit.filters.status.approved') }}
+            </a-option>
+            <a-option :value="2">
+              {{ t('fileUploadAudit.filters.status.rejected') }}
+            </a-option>
+            <a-option :value="3">
+              {{ t('fileUploadAudit.filters.status.retrying') }}
+            </a-option>
+            <a-option :value="4">
+              {{ t('fileUploadAudit.filters.status.failed') }}
+            </a-option>
           </a-select>
           <a-select
             v-model="queryParams.mediaKind"
-            placeholder="媒体类型"
+            :placeholder="t('fileUploadAudit.filters.mediaKind.placeholder')"
             style="width: 140px"
             allow-clear
             @change="handleSearch"
           >
-            <a-option value="image">image</a-option>
-            <a-option value="video">video</a-option>
-            <a-option value="audio">audio</a-option>
-            <a-option value="text">text</a-option>
-            <a-option value="document">document</a-option>
-            <a-option value="unknown">unknown</a-option>
+            <a-option value="image">
+              {{ t('fileUploadAudit.filters.mediaKind.image') }}
+            </a-option>
+            <a-option value="video">
+              {{ t('fileUploadAudit.filters.mediaKind.video') }}
+            </a-option>
+            <a-option value="audio">
+              {{ t('fileUploadAudit.filters.mediaKind.audio') }}
+            </a-option>
+            <a-option value="text">
+              {{ t('fileUploadAudit.filters.mediaKind.text') }}
+            </a-option>
+            <a-option value="document">
+              {{ t('fileUploadAudit.filters.mediaKind.document') }}
+            </a-option>
+            <a-option value="unknown">
+              {{ t('fileUploadAudit.filters.mediaKind.unknown') }}
+            </a-option>
           </a-select>
           <a-input
             v-model="queryParams.scene"
-            placeholder="场景（scene）"
+            :placeholder="t('fileUploadAudit.filters.scene.placeholder')"
             style="width: 160px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.providerId"
-            placeholder="Provider ID"
+            :placeholder="t('fileUploadAudit.filters.providerId.placeholder')"
             style="width: 220px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.keyword"
-            placeholder="Object Key 关键词"
+            :placeholder="t('fileUploadAudit.filters.keyword.placeholder')"
             style="width: 220px"
             allow-clear
             @press-enter="handleSearch"
@@ -66,12 +88,14 @@
           />
           <a-button type="primary" @click="handleSearch">
             <template #icon><icon-search /></template>
-            查询
+            {{ t('fileUploadAudit.actions.search') }}
           </a-button>
-          <a-button @click="handleReset">重置</a-button>
+          <a-button @click="handleReset">
+            {{ t('fileUploadAudit.actions.reset') }}
+          </a-button>
           <a-button @click="handleRefresh">
             <template #icon><icon-refresh /></template>
-            刷新
+            {{ t('fileUploadAudit.actions.refresh') }}
           </a-button>
         </a-space>
       </div>
@@ -89,6 +113,9 @@
           <a-tag :color="getStatusColor(record.status)">
             {{ getStatusText(record.status) }}
           </a-tag>
+        </template>
+        <template #mediaKind="{ record }">
+          {{ getMediaKindText(record.mediaKind) }}
         </template>
         <template #objectKey="{ record }">
           <div class="ellipsis-cell" :title="record.objectKey">
@@ -110,7 +137,7 @@
               size="small"
               @click="handleViewDetail(record)"
             >
-              详情
+              {{ t('fileUploadAudit.actions.viewDetail') }}
             </a-button>
             <a-button
               type="text"
@@ -118,7 +145,7 @@
               status="warning"
               @click="handleRequeue(record)"
             >
-              重新入队
+              {{ t('fileUploadAudit.actions.requeue') }}
             </a-button>
           </a-space>
         </template>
@@ -127,63 +154,75 @@
 
     <a-drawer
       v-model:visible="drawerVisible"
-      title="审核任务详情"
+      :title="t('fileUploadAudit.drawer.title')"
       width="720px"
       unmount-on-close
     >
       <div v-if="selectedTask" class="task-detail">
         <a-descriptions :column="1" bordered>
-          <a-descriptions-item label="ID">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.id')">{{
             selectedTask.id
           }}</a-descriptions-item>
-          <a-descriptions-item label="Provider ID">{{
+          <a-descriptions-item
+            :label="t('fileUploadAudit.detail.providerId')"
+          >{{
             selectedTask.storageProviderId
           }}</a-descriptions-item>
-          <a-descriptions-item label="Object Key">{{
+          <a-descriptions-item
+            :label="t('fileUploadAudit.detail.objectKey')"
+          >{{
             selectedTask.objectKey
           }}</a-descriptions-item>
-          <a-descriptions-item label="场景">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.scene')">{{
             selectedTask.scene
           }}</a-descriptions-item>
-          <a-descriptions-item label="媒体类型">{{
-            selectedTask.mediaKind
+          <a-descriptions-item
+            :label="t('fileUploadAudit.detail.mediaKind')"
+          >{{
+            getMediaKindText(selectedTask.mediaKind)
           }}</a-descriptions-item>
-          <a-descriptions-item label="状态">
+          <a-descriptions-item :label="t('fileUploadAudit.detail.status')">
             <a-tag :color="getStatusColor(selectedTask.status)">{{
               getStatusText(selectedTask.status)
             }}</a-tag>
           </a-descriptions-item>
-          <a-descriptions-item label="Content-Type">{{
+          <a-descriptions-item
+            :label="t('fileUploadAudit.detail.contentType')"
+          >{{
             selectedTask.contentType || '-'
           }}</a-descriptions-item>
-          <a-descriptions-item label="File Size">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.fileSize')">{{
             selectedTask.fileSize ?? '-'
           }}</a-descriptions-item>
-          <a-descriptions-item label="Vendor JobId">{{
+          <a-descriptions-item
+            :label="t('fileUploadAudit.detail.vendorJobId')"
+          >{{
             selectedTask.vendorJobId || '-'
           }}</a-descriptions-item>
-          <a-descriptions-item label="Attempts">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.attempts')">{{
             selectedTask.attempts
           }}</a-descriptions-item>
-          <a-descriptions-item label="Next Run">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.nextRun')">{{
             formatDate(selectedTask.nextRunAt)
           }}</a-descriptions-item>
-          <a-descriptions-item label="Audited At">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.auditedAt')">{{
             selectedTask.auditedAt ? formatDate(selectedTask.auditedAt) : '-'
           }}</a-descriptions-item>
-          <a-descriptions-item label="Rejected Reason">{{
+          <a-descriptions-item
+            :label="t('fileUploadAudit.detail.rejectedReason')"
+          >{{
             selectedTask.rejectedReason || '-'
           }}</a-descriptions-item>
-          <a-descriptions-item label="Last Error">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.lastError')">{{
             selectedTask.lastError || '-'
           }}</a-descriptions-item>
-          <a-descriptions-item label="Created At">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.createdAt')">{{
             formatDate(selectedTask.createdAt)
           }}</a-descriptions-item>
-          <a-descriptions-item label="Updated At">{{
+          <a-descriptions-item :label="t('fileUploadAudit.detail.updatedAt')">{{
             formatDate(selectedTask.updatedAt)
           }}</a-descriptions-item>
-          <a-descriptions-item label="Result">
+          <a-descriptions-item :label="t('fileUploadAudit.detail.result')">
             <pre class="json-display">{{
               formatJson(selectedTask.result)
             }}</pre>
@@ -195,9 +234,10 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted } from 'vue';
+  import { ref, reactive, onMounted, computed } from 'vue';
   import { Message, Modal } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import {
     queryFileUploadAuditTasks,
@@ -208,6 +248,7 @@
     type FileUploadAuditTaskDetailEntry,
   } from '@/api/file-upload-audit';
 
+  const { t } = useI18n();
   const { loading, setLoading } = useLoading(true);
   const taskList = ref<FileUploadAuditTaskListEntry[]>([]);
   const drawerVisible = ref(false);
@@ -233,26 +274,53 @@
     pageSizeOptions: [20, 50, 100, 200, 500],
   });
 
-  const columns = [
-    { title: '状态', dataIndex: 'status', slotName: 'status', width: 110 },
-    { title: '场景', dataIndex: 'scene', width: 140 },
-    { title: '媒体', dataIndex: 'mediaKind', width: 110 },
-    { title: 'Object Key', dataIndex: 'objectKey', slotName: 'objectKey' },
+  const columns = computed(() => [
     {
-      title: 'Provider',
+      title: t('fileUploadAudit.table.status'),
+      dataIndex: 'status',
+      slotName: 'status',
+      width: 110,
+    },
+    { title: t('fileUploadAudit.table.scene'), dataIndex: 'scene', width: 140 },
+    {
+      title: t('fileUploadAudit.table.mediaKind'),
+      dataIndex: 'mediaKind',
+      slotName: 'mediaKind',
+      width: 110,
+    },
+    {
+      title: t('fileUploadAudit.table.objectKey'),
+      dataIndex: 'objectKey',
+      slotName: 'objectKey',
+    },
+    {
+      title: t('fileUploadAudit.table.provider'),
       dataIndex: 'storageProviderId',
       width: 230,
     },
-    { title: '重试次数', dataIndex: 'attempts', width: 90 },
-    { title: '错误', dataIndex: 'lastError', slotName: 'lastError' },
     {
-      title: '创建时间',
+      title: t('fileUploadAudit.table.attempts'),
+      dataIndex: 'attempts',
+      width: 90,
+    },
+    {
+      title: t('fileUploadAudit.table.lastError'),
+      dataIndex: 'lastError',
+      slotName: 'lastError',
+    },
+    {
+      title: t('fileUploadAudit.table.createdAt'),
       dataIndex: 'createdAt',
       slotName: 'createdAt',
       width: 180,
     },
-    { title: '操作', slotName: 'actions', width: 160, fixed: 'right' },
-  ];
+    {
+      title: t('fileUploadAudit.table.actions'),
+      slotName: 'actions',
+      width: 160,
+      fixed: 'right',
+    },
+  ]);
 
   const formatDate = (date: string) =>
     dayjs(date).format('YYYY-MM-DD HH:mm:ss');
@@ -268,18 +336,30 @@
   const getStatusText = (status: number) => {
     switch (status) {
       case 0:
-        return '待处理';
+        return t('fileUploadAudit.filters.status.pending');
       case 1:
-        return '通过';
+        return t('fileUploadAudit.filters.status.approved');
       case 2:
-        return '拒绝';
+        return t('fileUploadAudit.filters.status.rejected');
       case 3:
-        return '重试中';
+        return t('fileUploadAudit.filters.status.retrying');
       case 4:
-        return '失败';
+        return t('fileUploadAudit.filters.status.failed');
       default:
         return String(status);
     }
+  };
+
+  const getMediaKindText = (mediaKind: string) => {
+    const keyMap: Record<string, string> = {
+      image: 'fileUploadAudit.filters.mediaKind.image',
+      video: 'fileUploadAudit.filters.mediaKind.video',
+      audio: 'fileUploadAudit.filters.mediaKind.audio',
+      text: 'fileUploadAudit.filters.mediaKind.text',
+      document: 'fileUploadAudit.filters.mediaKind.document',
+      unknown: 'fileUploadAudit.filters.mediaKind.unknown',
+    };
+    return keyMap[mediaKind] ? t(keyMap[mediaKind]) : mediaKind;
   };
 
   const getStatusColor = (status: number) => {
@@ -321,7 +401,7 @@
       taskList.value = data?.tasks || [];
       pagination.total = data?.total || 0;
     } catch (e: any) {
-      Message.error(e?.message || '加载审核任务失败');
+      Message.error(e?.message || t('fileUploadAudit.messages.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -365,7 +445,7 @@
       selectedTask.value = data.task;
       drawerVisible.value = true;
     } catch (e: any) {
-      Message.error(e?.message || '加载详情失败');
+      Message.error(e?.message || t('fileUploadAudit.messages.detailError'));
     } finally {
       setLoading(false);
     }
@@ -373,19 +453,25 @@
 
   const handleRequeue = (record: FileUploadAuditTaskListEntry) => {
     Modal.confirm({
-      title: '重新入队',
-      content: `确认将任务重新入队？\n${record.objectKey}`,
+      title: t('fileUploadAudit.messages.requeueTitle'),
+      content: t('fileUploadAudit.messages.requeueConfirm', {
+        objectKey: record.objectKey,
+      }),
       async onOk() {
         try {
           const { data } = await requeueFileUploadAuditTask(record.id);
           if (data?.success) {
-            Message.success(data.message || '已重新入队');
+            Message.success(
+              data.message || t('fileUploadAudit.messages.requeueSuccess')
+            );
             fetchData();
           } else {
-            Message.error(data?.message || '操作失败');
+            Message.error(
+              data?.message || t('fileUploadAudit.messages.requeueError')
+            );
           }
         } catch (e: any) {
-          Message.error(e?.message || '操作失败');
+          Message.error(e?.message || t('fileUploadAudit.messages.requeueError'));
         }
       },
     });

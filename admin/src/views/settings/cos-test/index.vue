@@ -1,14 +1,13 @@
 <template>
   <div class="cos-test-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.cosTest']" />
-    <a-card class="general-card" title="腾讯云 COS 测试" :bordered="false">
+    <a-card class="general-card" :title="t('cosTest.title')" :bordered="false">
       <a-space direction="vertical" :size="24" style="width: 100%">
-        <!-- 提供商选择 -->
         <a-form :model="formData" layout="vertical">
-          <a-form-item label="选择提供商">
+          <a-form-item :label="t('cosTest.provider.label')">
             <a-select
               v-model="formData.provider_id"
-              placeholder="选择要测试的提供商（留空使用默认提供商）"
+              :placeholder="t('cosTest.provider.placeholder')"
               allow-clear
               :loading="providersLoading"
             >
@@ -20,7 +19,7 @@
               >
                 {{ provider.name }}
                 <span v-if="provider.is_default" style="color: #1890ff"
-                  >(默认)</span
+                  >({{ t('cosTest.provider.defaultTag') }})</span
                 >
                 <a-tag
                   v-if="!provider.is_active"
@@ -28,22 +27,21 @@
                   color="gray"
                   style="margin-left: 8px"
                 >
-                  已禁用
+                  {{ t('cosTest.provider.disabledTag') }}
                 </a-tag>
               </a-option>
             </a-select>
           </a-form-item>
         </a-form>
 
-        <!-- 测试一：Bucket 列表 -->
-        <a-card title="测试一：Bucket 列表" size="small">
+        <a-card :title="t('cosTest.bucket.section')" size="small">
           <a-space direction="vertical" :size="16" style="width: 100%">
             <a-button
               type="primary"
               :loading="bucketsLoading"
               @click="handleListBuckets"
             >
-              加载 Bucket 列表
+              {{ t('cosTest.bucket.load') }}
             </a-button>
             <a-table
               v-if="buckets.length > 0"
@@ -55,7 +53,7 @@
             />
             <a-empty
               v-else-if="bucketsLoaded && !bucketsLoading"
-              description="暂无 Bucket"
+              :description="t('cosTest.bucket.empty')"
             />
             <a-result
               v-if="bucketsResult"
@@ -65,8 +63,7 @@
           </a-space>
         </a-card>
 
-        <!-- 测试二：跨域规则配置 -->
-        <a-card title="测试二：跨域规则配置" size="small">
+        <a-card :title="t('cosTest.cors.section')" size="small">
           <a-space direction="vertical" :size="16" style="width: 100%">
             <a-space wrap>
               <a-button
@@ -74,10 +71,10 @@
                 :loading="corsLoading"
                 @click="handleLoadCorsRules"
               >
-                加载跨域规则
+                {{ t('cosTest.cors.load') }}
               </a-button>
               <a-tag v-if="corsLoaded" color="arcoblue">
-                当前 {{ corsRules.length }} 条
+                {{ t('cosTest.cors.currentCount', { count: corsRules.length }) }}
               </a-tag>
             </a-space>
             <a-table
@@ -90,7 +87,7 @@
             />
             <a-empty
               v-else-if="corsLoaded && !corsLoading"
-              description="暂无跨域规则"
+              :description="t('cosTest.cors.empty')"
             />
             <a-result
               v-if="corsResult"
@@ -99,20 +96,20 @@
             />
             <a-divider />
             <a-form :model="corsForm" layout="vertical">
-              <a-form-item label="允许的来源（Origin）">
+              <a-form-item :label="t('cosTest.cors.form.origin.label')">
                 <a-input
                   v-model="corsForm.origin"
-                  placeholder="例如：http://localhost:8011, https://admin.example.com"
+                  :placeholder="t('cosTest.cors.form.origin.placeholder')"
                 />
               </a-form-item>
               <a-form-item
-                label="允许的方法（COS 仅支持 GET/PUT/POST/DELETE/HEAD）"
+                :label="t('cosTest.cors.form.methods.label')"
               >
                 <a-select
                   v-model="corsForm.methods"
                   mode="multiple"
                   allow-clear
-                  placeholder="选择允许的方法"
+                  :placeholder="t('cosTest.cors.form.methods.placeholder')"
                 >
                   <a-option
                     v-for="method in corsMethodOptions"
@@ -123,19 +120,19 @@
                   </a-option>
                 </a-select>
               </a-form-item>
-              <a-form-item label="允许的 Header（逗号分隔，留空默认 *）">
+              <a-form-item :label="t('cosTest.cors.form.allowedHeaders.label')">
                 <a-input
                   v-model="corsForm.allowedHeaders"
-                  placeholder="例如：Content-Type,x-cos-acl"
+                  :placeholder="t('cosTest.cors.form.allowedHeaders.placeholder')"
                 />
               </a-form-item>
-              <a-form-item label="暴露的 Header（逗号分隔，可留空）">
+              <a-form-item :label="t('cosTest.cors.form.exposeHeaders.label')">
                 <a-input
                   v-model="corsForm.exposeHeaders"
-                  placeholder="例如：ETag"
+                  :placeholder="t('cosTest.cors.form.exposeHeaders.placeholder')"
                 />
               </a-form-item>
-              <a-form-item label="缓存时间（秒，可留空）">
+              <a-form-item :label="t('cosTest.cors.form.maxAge.label')">
                 <a-input-number
                   v-model="corsForm.maxAgeSeconds"
                   :min="0"
@@ -143,9 +140,11 @@
                   style="width: 100%"
                 />
               </a-form-item>
-              <a-form-item label="覆盖已存在的规则">
+              <a-form-item :label="t('cosTest.cors.form.override.label')">
                 <a-switch v-model="corsForm.overrideExisting" />
-                <span style="margin-left: 8px">开启后仅保留本次配置</span>
+                <span style="margin-left: 8px">
+                  {{ t('cosTest.cors.form.override.note') }}
+                </span>
               </a-form-item>
               <a-form-item>
                 <a-button
@@ -154,29 +153,28 @@
                   :loading="corsSaveLoading"
                   @click="handleAddCorsRule"
                 >
-                  保存跨域规则
+                  {{ t('cosTest.cors.save') }}
                 </a-button>
               </a-form-item>
             </a-form>
           </a-space>
         </a-card>
 
-        <!-- 测试三：本地文件直传 -->
-        <a-card title="测试三：本地文件直传" size="small">
+        <a-card :title="t('cosTest.upload.section')" size="small">
           <a-form :model="uploadForm" layout="vertical">
-            <a-form-item label="文件路径（Key）">
+            <a-form-item :label="t('cosTest.upload.key.label')">
               <a-input
                 v-model="uploadForm.key"
-                placeholder="例如：test/hello.txt"
+                :placeholder="t('cosTest.upload.key.placeholder')"
               />
             </a-form-item>
-            <a-form-item label="Content-Type（可选）">
+            <a-form-item :label="t('cosTest.upload.contentType.label')">
               <a-input
                 v-model="uploadForm.content_type"
-                placeholder="例如：image/png"
+                :placeholder="t('cosTest.upload.contentType.placeholder')"
               />
             </a-form-item>
-            <a-form-item label="选择本地文件">
+            <a-form-item :label="t('cosTest.upload.file.label')">
               <input
                 ref="fileInputRef"
                 type="file"
@@ -184,7 +182,9 @@
                 @change="handleFileChange"
               />
               <a-space>
-                <a-button @click="triggerFileSelect">选择文件</a-button>
+                <a-button @click="triggerFileSelect">
+                  {{ t('cosTest.upload.file.select') }}
+                </a-button>
                 <span v-if="selectedFileInfo">{{ selectedFileInfo }}</span>
               </a-space>
             </a-form-item>
@@ -193,7 +193,7 @@
                 type="warning"
                 show-icon
                 style="margin-bottom: 12px"
-                title="大于 5MB 会自动使用分片直传；请确保 COS 跨域规则的 ExposeHeaders 包含 ETag"
+                :title="t('cosTest.upload.alert')"
               />
               <a-progress
                 v-if="multipartUploadProgress !== null"
@@ -209,7 +209,7 @@
                 :disabled="!selectedFile"
                 @click="handleUploadFile"
               >
-                上传所选文件
+                {{ t('cosTest.upload.submit') }}
               </a-button>
             </a-form-item>
           </a-form>
@@ -226,16 +226,15 @@
           </a-result>
         </a-card>
 
-        <!-- 测试四：下载链接生成 -->
-        <a-card title="测试四：生成下载链接" size="small">
+        <a-card :title="t('cosTest.download.section')" size="small">
           <a-form :model="downloadForm" layout="vertical">
-            <a-form-item label="文件路径（Key）">
+            <a-form-item :label="t('cosTest.download.key.label')">
               <a-input
                 v-model="downloadForm.key"
-                placeholder="使用上传后的 key，例如：test/xxx.png"
+                :placeholder="t('cosTest.download.key.placeholder')"
               />
             </a-form-item>
-            <a-form-item label="过期时间（秒，默认 600，最大 86400）">
+            <a-form-item :label="t('cosTest.download.expires.label')">
               <a-input-number
                 v-model="downloadForm.expires_in_seconds"
                 :min="60"
@@ -251,10 +250,10 @@
                   :loading="downloadLoading"
                   @click="handleGenerateDownloadUrl"
                 >
-                  生成下载链接
+                  {{ t('cosTest.download.generate') }}
                 </a-button>
                 <a-button v-if="lastUploadedKey" @click="fillLastUploadedKey">
-                  使用最近上传的 key
+                  {{ t('cosTest.download.useLastKey') }}
                 </a-button>
               </a-space>
             </a-form-item>
@@ -282,6 +281,7 @@
 <script lang="ts" setup>
   import { reactive, ref, onMounted, computed } from 'vue';
   import { Message } from '@arco-design/web-vue';
+  import { useI18n } from 'vue-i18n';
   import {
     listStorageProviders,
     testCosListBuckets,
@@ -296,6 +296,8 @@
   } from '@/api/settings';
   import { computeFileHash } from '@/utils/fileHash';
   import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
+
+  const { t } = useI18n();
 
   type UploadTestResult = {
     success: boolean;
@@ -332,20 +334,20 @@
   const bucketsLoaded = ref(false);
   const bucketsResult = ref<SimpleResult | null>(null);
 
-  const bucketColumns = [
+  const bucketColumns = computed(() => [
     {
-      title: 'Bucket 名称',
+      title: t('cosTest.bucket.table.name'),
       dataIndex: 'name',
     },
     {
-      title: '地域',
+      title: t('cosTest.bucket.table.region'),
       dataIndex: 'region',
     },
     {
-      title: '创建时间',
+      title: t('cosTest.bucket.table.createdAt'),
       dataIndex: 'creation_date',
     },
-  ];
+  ]);
 
   const uploadForm = reactive({
     key: `test/${Date.now()}.txt`,
@@ -398,13 +400,16 @@
         typeof rule.max_age_seconds === 'number' ? rule.max_age_seconds : '-',
     }))
   );
-  const corsTableColumns = [
-    { title: '允许来源', dataIndex: 'origins' },
-    { title: '允许方法', dataIndex: 'methods' },
-    { title: '允许 Header', dataIndex: 'headers' },
-    { title: '暴露 Header', dataIndex: 'exposeHeaders' },
-    { title: '缓存时间 (秒)', dataIndex: 'maxAge' },
-  ];
+  const corsTableColumns = computed(() => [
+    { title: t('cosTest.cors.table.origins'), dataIndex: 'origins' },
+    { title: t('cosTest.cors.table.methods'), dataIndex: 'methods' },
+    { title: t('cosTest.cors.table.headers'), dataIndex: 'headers' },
+    {
+      title: t('cosTest.cors.table.exposeHeaders'),
+      dataIndex: 'exposeHeaders',
+    },
+    { title: t('cosTest.cors.table.maxAge'), dataIndex: 'maxAge' },
+  ]);
   const corsLoaded = ref(false);
   const corsLoading = ref(false);
   const corsSaveLoading = ref(false);
@@ -437,7 +442,7 @@
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '获取提供商列表失败';
+        t('cosTest.error.fetchProviders');
       Message.error(errorMsg);
     } finally {
       providersLoading.value = false;
@@ -456,7 +461,7 @@
         corsLoaded.value = true;
         corsResult.value = {
           success: true,
-          message: data.message || '获取跨域规则成功',
+          message: data.message || t('cosTest.cors.fetchSuccess'),
         };
         if (!silent) {
           Message.success(corsResult.value.message);
@@ -466,7 +471,7 @@
       corsRules.value = data.rules || [];
       corsResult.value = {
         success: false,
-        message: data.message || '获取跨域规则失败',
+        message: data.message || t('cosTest.cors.fetchError'),
       };
       if (!silent) {
         Message.error(corsResult.value.message);
@@ -477,7 +482,7 @@
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '获取跨域规则失败';
+        t('cosTest.cors.fetchError');
       corsResult.value = {
         success: false,
         message: errorMsg,
@@ -510,14 +515,14 @@
         bucketsLoaded.value = true;
         bucketsResult.value = {
           success: true,
-          message: data.message || '获取 bucket 列表成功',
+          message: data.message || t('cosTest.bucket.success'),
         };
         Message.success(bucketsResult.value.message);
       } else {
         buckets.value = [];
         bucketsResult.value = {
           success: false,
-          message: data.message || '获取 bucket 列表失败',
+          message: data.message || t('cosTest.bucket.error'),
         };
         Message.error(bucketsResult.value.message);
       }
@@ -526,7 +531,7 @@
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '获取 bucket 列表失败';
+        t('cosTest.bucket.error');
       buckets.value = [];
       bucketsResult.value = {
         success: false,
@@ -554,7 +559,7 @@
       };
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.warn('[COS Test] 计算文件哈希失败，将跳过哈希上报', error);
+      console.warn(t('cosTest.upload.hashWarn'), error);
       return {};
     }
   };
@@ -582,7 +587,7 @@
     });
     const { data } = response;
     if (!data.success) {
-      throw new Error(data.message || '生成直传签名失败');
+      throw new Error(data.message || t('cosTest.upload.signatureError'));
     }
     return {
       key,
@@ -614,17 +619,16 @@
       });
 
       if (!data.success) {
-        throw new Error(data.message || '初始化分片上传失败');
+        throw new Error(data.message || t('cosTest.upload.multipartInitError'));
       }
 
       const finalKey = data.key || key;
 
-      // 命中哈希去重：无需上传
       if (!data.session_id) {
         multipartUploadProgress.value = null;
         uploadResult.value = {
           success: true,
-          message: data.message || '复用已上传的对象，无需重新上传',
+          message: data.message || t('cosTest.upload.reused'),
           url: undefined,
         };
         lastUploadedKey.value = finalKey;
@@ -633,9 +637,7 @@
       }
 
       if (!data.part_size || !data.total_parts) {
-        throw new Error(
-          '分片上传初始化结果不完整（缺少 part_size/total_parts）'
-        );
+        throw new Error(t('cosTest.upload.multipartIncomplete'));
       }
 
       await uploadFileByMultipartAndComplete({
@@ -653,14 +655,14 @@
       multipartUploadProgress.value = 1;
       uploadResult.value = {
         success: true,
-        message: '上传成功（分片直传）',
+        message: t('cosTest.upload.multipartSuccess'),
         url: undefined,
       };
       lastUploadedKey.value = finalKey;
       Message.success(uploadResult.value.message);
       return true;
     } catch (error: any) {
-      const errorMsg = error?.message || '上传失败';
+      const errorMsg = error?.message || t('cosTest.upload.failed');
       uploadResult.value = {
         success: false,
         message: errorMsg,
@@ -689,11 +691,10 @@
         selected || undefined
       );
 
-      // 命中哈希去重：无需上传
       if (!signatureResult.signature) {
         uploadResult.value = {
           success: true,
-          message: signatureResult.message || '复用已上传的对象，无需重新上传',
+          message: signatureResult.message || t('cosTest.upload.reused'),
           url: undefined,
         };
         lastUploadedKey.value = signatureResult.key;
@@ -731,22 +732,23 @@
           errorDetails = '';
         }
         throw new Error(
-          `COS 返回 ${response.status}${
-            errorDetails ? `: ${errorDetails.slice(0, 200)}` : ''
-          }`
+          t('cosTest.upload.cosReturned', {
+            status: response.status,
+            details: errorDetails ? `: ${errorDetails.slice(0, 200)}` : '',
+          })
         );
       }
 
       uploadResult.value = {
         success: true,
-        message: '上传成功',
+        message: t('cosTest.upload.success'),
         url: signature.url,
       };
       lastUploadedKey.value = uploadForm.key.trim();
-      Message.success('上传成功');
+      Message.success(t('cosTest.upload.success'));
       return true;
     } catch (error: any) {
-      const errorMsg = error?.message || '上传失败';
+      const errorMsg = error?.message || t('cosTest.upload.failed');
       uploadResult.value = {
         success: false,
         message: errorMsg,
@@ -787,11 +789,11 @@
 
   const handleUploadFile = async () => {
     if (!selectedFile.value) {
-      Message.error('请先选择文件');
+      Message.error(t('cosTest.upload.selectFileFirst'));
       return;
     }
     if (!uploadForm.key.trim()) {
-      Message.error('请输入文件路径');
+      Message.error(t('cosTest.upload.keyRequired'));
       return;
     }
 
@@ -823,19 +825,19 @@
     if (lastUploadedKey.value) {
       downloadForm.key = lastUploadedKey.value;
     } else {
-      Message.info('暂无最近上传的 key');
+      Message.info(t('cosTest.download.noLastKey'));
     }
   };
 
   const handleGenerateDownloadUrl = async () => {
     if (!downloadForm.key.trim()) {
-      Message.error('请先填写文件路径');
+      Message.error(t('cosTest.download.keyRequired'));
       return;
     }
 
     const expiresIn = downloadForm.expires_in_seconds || 600;
     if (expiresIn < 60 || expiresIn > 86400) {
-      Message.error('过期时间需在 60-86400 秒之间');
+      Message.error(t('cosTest.download.expiresRange'));
       return;
     }
 
@@ -850,16 +852,16 @@
       const { data } = response;
       downloadResult.value = data;
       if (data.success && data.url) {
-        Message.success('生成下载链接成功');
+        Message.success(t('cosTest.download.success'));
       } else {
-        Message.error(data.message || '生成下载链接失败');
+        Message.error(data.message || t('cosTest.download.error'));
       }
     } catch (error: any) {
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '生成下载链接失败';
+        t('cosTest.download.error');
       downloadResult.value = {
         success: false,
         message: errorMsg,
@@ -877,7 +879,7 @@
       .filter((item) => item.length > 0);
 
     if (originList.length === 0) {
-      Message.error('请至少提供一个允许的来源');
+      Message.error(t('cosTest.validation.originRequired'));
       return;
     }
 
@@ -905,7 +907,7 @@
         : undefined;
 
     if (typeof maxAge === 'number' && maxAge < 0) {
-      Message.error('缓存时间必须大于或等于 0');
+      Message.error(t('cosTest.validation.maxAge'));
       return;
     }
 
@@ -943,19 +945,19 @@
       });
       const { data } = response;
       if (data.success) {
-        Message.success(data.message || '跨域规则配置成功');
+        Message.success(data.message || t('cosTest.cors.success'));
         const reloaded = await loadCorsRules(true);
         if (!reloaded) {
-          Message.warning('跨域规则已更新，但刷新列表失败，请手动重新加载');
+          Message.warning(t('cosTest.cors.reloadWarning'));
         }
         corsResult.value = {
           success: true,
-          message: data.message || '跨域规则配置成功',
+          message: data.message || t('cosTest.cors.success'),
         };
       } else {
         corsResult.value = {
           success: false,
-          message: data.message || '配置跨域规则失败',
+          message: data.message || t('cosTest.cors.error'),
         };
         Message.error(corsResult.value.message);
       }
@@ -964,7 +966,7 @@
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '配置跨域规则失败';
+        t('cosTest.cors.error');
       corsResult.value = {
         success: false,
         message: errorMsg,

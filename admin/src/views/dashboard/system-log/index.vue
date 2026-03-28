@@ -10,7 +10,7 @@
         <a-space wrap>
           <a-select
             v-model="queryParams.level"
-            placeholder="日志级别"
+            :placeholder="t('systemLog.filters.level.placeholder')"
             style="width: 120px"
             allow-clear
             @change="handleSearch"
@@ -22,14 +22,14 @@
           </a-select>
           <a-input
             v-model="queryParams.target"
-            placeholder="模块路径"
+            :placeholder="t('systemLog.filters.target.placeholder')"
             style="width: 180px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.keyword"
-            placeholder="关键词搜索"
+            :placeholder="t('systemLog.filters.keyword.placeholder')"
             style="width: 180px"
             allow-clear
             @press-enter="handleSearch"
@@ -42,16 +42,18 @@
           />
           <a-button type="primary" @click="handleSearch">
             <template #icon><icon-search /></template>
-            查询
+            {{ t('systemLog.actions.search') }}
           </a-button>
-          <a-button @click="handleReset"> 重置 </a-button>
+          <a-button @click="handleReset">
+            {{ t('systemLog.actions.reset') }}
+          </a-button>
           <a-button @click="handleRefresh">
             <template #icon><icon-refresh /></template>
-            刷新
+            {{ t('systemLog.actions.refresh') }}
           </a-button>
           <a-button type="outline" status="danger" @click="handleOpenCleanup">
             <template #icon><icon-delete /></template>
-            清理日志
+            {{ t('systemLog.actions.cleanup') }}
           </a-button>
         </a-space>
       </div>
@@ -80,56 +82,57 @@
         </template>
         <template #actions="{ record }">
           <a-button type="text" size="small" @click="handleViewDetail(record)">
-            详情
+            {{ t('systemLog.actions.viewDetail') }}
           </a-button>
         </template>
       </a-table>
     </a-card>
 
-    <!-- 详情抽屉 -->
     <a-drawer
       v-model:visible="drawerVisible"
-      title="日志详情"
+      :title="t('systemLog.drawer.title')"
       width="600px"
       unmount-on-close
     >
       <div v-if="selectedLog" class="log-detail">
         <a-descriptions :column="1" bordered>
-          <a-descriptions-item label="ID">{{
+          <a-descriptions-item :label="t('systemLog.detail.id')">{{
             selectedLog.id
           }}</a-descriptions-item>
-          <a-descriptions-item label="级别">
+          <a-descriptions-item :label="t('systemLog.detail.level')">
             <a-tag :color="getLevelColor(selectedLog.level)">{{
               selectedLog.level
             }}</a-tag>
           </a-descriptions-item>
-          <a-descriptions-item label="时间">{{
+          <a-descriptions-item :label="t('systemLog.detail.time')">{{
             formatDate(selectedLog.createdAt)
           }}</a-descriptions-item>
-          <a-descriptions-item label="模块">{{
+          <a-descriptions-item :label="t('systemLog.detail.target')">{{
             selectedLog.target
           }}</a-descriptions-item>
-          <a-descriptions-item label="节点 ID">{{
+          <a-descriptions-item :label="t('systemLog.detail.nodeId')">{{
             selectedLog.nodeId
           }}</a-descriptions-item>
-          <a-descriptions-item label="消息">{{
+          <a-descriptions-item :label="t('systemLog.detail.message')">{{
             selectedLog.message
           }}</a-descriptions-item>
-          <a-descriptions-item label="扩展字段">
+          <a-descriptions-item :label="t('systemLog.detail.fields')">
             <pre class="json-display">{{ formatJson(selectedLog.fields) }}</pre>
           </a-descriptions-item>
         </a-descriptions>
       </div>
     </a-drawer>
 
-    <!-- 清理弹窗 -->
     <a-modal
       v-model:visible="cleanupVisible"
-      title="清理系统日志"
+      :title="t('systemLog.cleanup.title')"
       @ok="handleCleanup"
     >
       <a-form :model="cleanupForm">
-        <a-form-item label="保留天数" help="将删除早于此天数的所有日志">
+        <a-form-item
+          :label="t('systemLog.cleanup.retentionDays.label')"
+          :help="t('systemLog.cleanup.retentionDays.help')"
+        >
           <a-input-number v-model="cleanupForm.retentionDays" :min="1" />
         </a-form-item>
       </a-form>
@@ -138,9 +141,10 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted } from 'vue';
+  import { ref, reactive, onMounted, computed } from 'vue';
   import { Message, Modal } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import {
     querySystemLogs,
@@ -149,6 +153,7 @@
     type SystemLogQueryParams,
   } from '@/api/system-log';
 
+  const { t } = useI18n();
   const { loading, setLoading } = useLoading(true);
   const logList = ref<SystemLogEntry[]>([]);
   const drawerVisible = ref(false);
@@ -177,43 +182,43 @@
     retentionDays: 7,
   });
 
-  const columns = [
+  const columns = computed(() => [
     {
-      title: '级别',
+      title: t('systemLog.table.level'),
       dataIndex: 'level',
       slotName: 'level',
       width: 100,
     },
     {
-      title: '时间',
+      title: t('systemLog.table.time'),
       dataIndex: 'createdAt',
       slotName: 'createdAt',
       width: 180,
     },
     {
-      title: '模块',
+      title: t('systemLog.table.target'),
       dataIndex: 'target',
       width: 200,
     },
     {
-      title: '消息',
+      title: t('systemLog.table.message'),
       dataIndex: 'message',
       slotName: 'message',
       ellipsis: true,
       tooltip: true,
     },
     {
-      title: '节点',
+      title: t('systemLog.table.nodeId'),
       dataIndex: 'nodeId',
       width: 120,
     },
     {
-      title: '操作',
+      title: t('systemLog.table.actions'),
       slotName: 'actions',
       width: 100,
       fixed: 'right',
     },
-  ];
+  ]);
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -262,7 +267,7 @@
         pagination.total = data.total;
       }
     } catch (error: any) {
-      Message.error('获取日志列表失败');
+      Message.error(t('systemLog.messages.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -317,7 +322,7 @@
         Message.error(data.message);
       }
     } catch (error) {
-      Message.error('清理日志失败');
+      Message.error(t('systemLog.messages.cleanupError'));
     }
   };
 

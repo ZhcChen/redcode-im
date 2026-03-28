@@ -1,7 +1,11 @@
 <template>
   <div class="storage-provider-settings-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.storageProvider']" />
-    <a-card class="general-card" title="文件上传提供商设置" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="t('storageProvider.title')"
+      :bordered="false"
+    >
       <div class="actions">
         <a-space>
           <a-button
@@ -12,13 +16,13 @@
             <template #icon>
               <icon-plus />
             </template>
-            新增提供商
+            {{ t('storageProvider.create') }}
           </a-button>
           <a-button :loading="listLoading" @click="handleRefresh">
             <template #icon>
               <icon-refresh />
             </template>
-            刷新
+            {{ t('storageProvider.refresh') }}
           </a-button>
         </a-space>
       </div>
@@ -38,12 +42,18 @@
 
         <template #is_active="{ record }">
           <a-tag :color="record.is_active ? 'green' : 'gray'">
-            {{ record.is_active ? '启用' : '禁用' }}
+            {{
+              record.is_active
+                ? t('storageProvider.status.active')
+                : t('storageProvider.status.inactive')
+            }}
           </a-tag>
         </template>
 
         <template #is_default="{ record }">
-          <a-tag v-if="record.is_default" color="blue">默认</a-tag>
+          <a-tag v-if="record.is_default" color="blue">
+            {{ t('storageProvider.defaultTag') }}
+          </a-tag>
         </template>
 
         <template #operations="{ record }">
@@ -54,17 +64,17 @@
               size="small"
               @click="openCorsModal(record)"
             >
-              配置跨域
+              {{ t('storageProvider.corsConfig') }}
             </a-button>
             <a-button type="text" size="small" @click="handleEdit(record)">
-              编辑
+              {{ t('storageProvider.edit') }}
             </a-button>
             <a-popconfirm
-              content="确定要删除这个提供商配置吗？"
+              :content="t('storageProvider.deleteConfirm')"
               @ok="handleDelete(record.id)"
             >
               <a-button type="text" size="small" status="danger">
-                删除
+                {{ t('storageProvider.delete') }}
               </a-button>
             </a-popconfirm>
           </a-space>
@@ -89,87 +99,131 @@
           :label-col-props="{ span: 6 }"
           :wrapper-col-props="{ span: 18 }"
         >
-          <a-form-item field="provider_type" label="提供商类型">
+          <a-form-item
+            field="provider_type"
+            :label="t('storageProvider.form.providerType.label')"
+          >
             <a-select
               v-model="formData.provider_type"
-              placeholder="请选择提供商类型"
+              :placeholder="t('storageProvider.form.providerType.placeholder')"
               :disabled="!!editingId"
             >
-              <a-option value="tencent_cos">腾讯云COS</a-option>
-              <a-option value="aliyun_oss">阿里云OSS</a-option>
-              <a-option value="aws_s3">AWS S3</a-option>
-              <a-option value="minio">MinIO</a-option>
+              <a-option value="tencent_cos">
+                {{ t('storageProvider.providerType.tencentCos') }}
+              </a-option>
+              <a-option value="aliyun_oss">
+                {{ t('storageProvider.providerType.aliyunOss') }}
+              </a-option>
+              <a-option value="aws_s3">
+                {{ t('storageProvider.providerType.awsS3') }}
+              </a-option>
+              <a-option value="minio">
+                {{ t('storageProvider.providerType.minio') }}
+              </a-option>
             </a-select>
           </a-form-item>
 
-          <a-form-item field="name" label="提供商名称">
+          <a-form-item
+            field="name"
+            :label="t('storageProvider.form.name.label')"
+          >
             <a-input
               v-model="formData.name"
-              placeholder="请输入提供商名称（用于显示）"
+              :placeholder="t('storageProvider.form.name.placeholder')"
             />
           </a-form-item>
 
-          <a-form-item field="secret_id" label="密钥ID">
+          <a-form-item
+            field="secret_id"
+            :label="t('storageProvider.form.secretId.label')"
+          >
             <a-input
               v-model="formData.secret_id"
-              placeholder="请输入密钥ID（Secret ID / Access Key ID）"
+              :placeholder="t('storageProvider.form.secretId.placeholder')"
             />
           </a-form-item>
 
-          <a-form-item field="secret_key" label="密钥Key">
+          <a-form-item
+            field="secret_key"
+            :label="t('storageProvider.form.secretKey.label')"
+          >
             <a-input-password
               v-model="formData.secret_key"
-              placeholder="请输入密钥Key（Secret Key / Secret Access Key）"
+              :placeholder="t('storageProvider.form.secretKey.placeholder')"
             />
           </a-form-item>
 
-          <a-form-item field="region" label="地域">
+          <a-form-item
+            field="region"
+            :label="t('storageProvider.form.region.label')"
+          >
             <a-input
               v-model="formData.region"
-              placeholder="请输入地域（如：ap-beijing）"
+              :placeholder="t('storageProvider.form.region.placeholder')"
             />
             <template #help>
-              地域代码，如：ap-beijing（北京）、ap-shanghai（上海）等
+              {{ t('storageProvider.form.region.help') }}
             </template>
           </a-form-item>
 
-          <a-form-item field="endpoint" label="端点域名">
+          <a-form-item
+            field="endpoint"
+            :label="t('storageProvider.form.endpoint.label')"
+          >
             <a-input
               v-model="formData.endpoint"
-              placeholder="请输入端点域名（如：cos.ap-beijing.myqcloud.com）"
+              :placeholder="t('storageProvider.form.endpoint.placeholder')"
             />
-            <template #help> API端点地址，不同提供商格式不同 </template>
+            <template #help>
+              {{ t('storageProvider.form.endpoint.help') }}
+            </template>
           </a-form-item>
 
-          <a-form-item field="bucket_name" label="存储桶名称">
+          <a-form-item
+            field="bucket_name"
+            :label="t('storageProvider.form.bucketName.label')"
+          >
             <a-input
               v-model="formData.bucket_name"
-              placeholder="请输入存储桶名称（可选）"
+              :placeholder="t('storageProvider.form.bucketName.placeholder')"
             />
-            <template #help> 某些场景下需要指定存储桶名称 </template>
+            <template #help>
+              {{ t('storageProvider.form.bucketName.help') }}
+            </template>
           </a-form-item>
 
-          <a-form-item field="is_active" label="启用状态">
+          <a-form-item
+            field="is_active"
+            :label="t('storageProvider.form.isActive.label')"
+          >
             <a-switch
               v-model="formData.is_active"
-              checked-text="启用"
-              unchecked-text="禁用"
+              :checked-text="t('storageProvider.form.isActive.checked')"
+              :unchecked-text="t('storageProvider.form.isActive.unchecked')"
             />
           </a-form-item>
 
-          <a-form-item field="is_default" label="设为默认">
+          <a-form-item
+            field="is_default"
+            :label="t('storageProvider.form.isDefault.label')"
+          >
             <a-switch
               v-model="formData.is_default"
-              checked-text="是"
-              unchecked-text="否"
+              :checked-text="t('storageProvider.form.isDefault.checked')"
+              :unchecked-text="t('storageProvider.form.isDefault.unchecked')"
             />
-            <template #help> 设为默认后，系统将优先使用此提供商 </template>
+            <template #help>
+              {{ t('storageProvider.form.isDefault.help') }}
+            </template>
           </a-form-item>
 
-          <a-form-item field="description" label="描述说明">
+          <a-form-item
+            field="description"
+            :label="t('storageProvider.form.description.label')"
+          >
             <a-textarea
               v-model="formData.description"
-              placeholder="请输入描述信息（可选）"
+              :placeholder="t('storageProvider.form.description.placeholder')"
               :rows="3"
               maxlength="200"
             />
@@ -180,7 +234,7 @@
       <!-- 跨域配置对话框 -->
       <a-modal
         :visible="corsModalVisible"
-        title="配置跨域规则"
+        :title="t('storageProvider.corsModal.title')"
         :width="600"
         :confirm-loading="corsSubmitting"
         @update:visible="corsModalVisible = $event"
@@ -193,40 +247,44 @@
           :label-col-props="{ span: 6 }"
           :wrapper-col-props="{ span: 18 }"
         >
-          <a-form-item label="允许来源">
+          <a-form-item :label="t('storageProvider.cors.allowedOrigins.label')">
             <a-textarea
               v-model="corsForm.allowed_origins"
               :rows="3"
-              placeholder="每行一个来源，例如：https://example.com"
+              :placeholder="t('storageProvider.cors.allowedOrigins.placeholder')"
             />
-            <template #help> 可使用逗号或换行分隔多个域名 </template>
+            <template #help>
+              {{ t('storageProvider.cors.allowedOrigins.help') }}
+            </template>
           </a-form-item>
-          <a-form-item label="允许方法">
+          <a-form-item :label="t('storageProvider.cors.allowedMethods.label')">
             <a-input
               v-model="corsForm.allowed_methods"
-              placeholder="例如：PUT,GET,OPTIONS"
+              :placeholder="t('storageProvider.cors.allowedMethods.placeholder')"
             />
-            <template #help> 多个方法使用逗号或换行分隔 </template>
+            <template #help>
+              {{ t('storageProvider.cors.allowedMethods.help') }}
+            </template>
           </a-form-item>
-          <a-form-item label="允许头部">
+          <a-form-item :label="t('storageProvider.cors.allowedHeaders.label')">
             <a-input
               v-model="corsForm.allowed_headers"
-              placeholder="默认为 * 表示允许所有自定义头"
+              :placeholder="t('storageProvider.cors.allowedHeaders.placeholder')"
             />
           </a-form-item>
-          <a-form-item label="暴露头部">
+          <a-form-item :label="t('storageProvider.cors.exposeHeaders.label')">
             <a-input
               v-model="corsForm.expose_headers"
-              placeholder="例如：ETag"
+              :placeholder="t('storageProvider.cors.exposeHeaders.placeholder')"
             />
           </a-form-item>
-          <a-form-item label="缓存时间 (秒)">
+          <a-form-item :label="t('storageProvider.cors.maxAge.label')">
             <a-input-number
               v-model="corsForm.max_age_seconds"
               :min="0"
               :step="60"
               style="width: 100%"
-              placeholder="例如：600"
+              :placeholder="t('storageProvider.cors.maxAge.placeholder')"
             />
           </a-form-item>
         </a-form>
@@ -238,6 +296,7 @@
 <script lang="ts" setup>
   import { reactive, ref, computed, onMounted, nextTick } from 'vue';
   import { Message, type FormInstance } from '@arco-design/web-vue';
+  import { useI18n } from 'vue-i18n';
   import {
     listStorageProviders,
     createStorageProvider,
@@ -249,6 +308,7 @@
     type SetCosCorsRequest,
   } from '@/api/settings';
 
+  const { t } = useI18n();
   const providers = ref<StorageProvider[]>([]);
   const modalVisible = ref(false);
   const corsModalVisible = ref(false);
@@ -282,64 +342,94 @@
     max_age_seconds: 600,
   });
 
-  const formRules = {
-    provider_type: [{ required: true, message: '请选择提供商类型' }],
-    name: [{ required: true, message: '请输入提供商名称' }],
-    secret_id: [{ required: true, message: '请输入密钥ID' }],
-    secret_key: [{ required: true, message: '请输入密钥Key' }],
-    region: [{ required: true, message: '请输入地域' }],
-    endpoint: [{ required: true, message: '请输入端点域名' }],
-  };
+  const formRules = computed(() => ({
+    provider_type: [
+      {
+        required: true,
+        message: t('storageProvider.validation.providerType.required'),
+      },
+    ],
+    name: [
+      { required: true, message: t('storageProvider.validation.name.required') },
+    ],
+    secret_id: [
+      {
+        required: true,
+        message: t('storageProvider.validation.secretId.required'),
+      },
+    ],
+    secret_key: [
+      {
+        required: true,
+        message: t('storageProvider.validation.secretKey.required'),
+      },
+    ],
+    region: [
+      {
+        required: true,
+        message: t('storageProvider.validation.region.required'),
+      },
+    ],
+    endpoint: [
+      {
+        required: true,
+        message: t('storageProvider.validation.endpoint.required'),
+      },
+    ],
+  }));
 
-  const columns = [
+  const columns = computed(() => [
     {
-      title: '提供商类型',
+      title: t('storageProvider.table.providerType'),
       dataIndex: 'provider_type',
       slotName: 'provider_type',
     },
     {
-      title: '名称',
+      title: t('storageProvider.table.name'),
       dataIndex: 'name',
     },
     {
-      title: '地域',
+      title: t('storageProvider.table.region'),
       dataIndex: 'region',
     },
     {
-      title: '端点',
+      title: t('storageProvider.table.endpoint'),
       dataIndex: 'endpoint',
       ellipsis: true,
     },
     {
-      title: '状态',
+      title: t('storageProvider.table.status'),
       dataIndex: 'is_active',
       slotName: 'is_active',
     },
     {
-      title: '默认',
+      title: t('storageProvider.table.default'),
       dataIndex: 'is_default',
       slotName: 'is_default',
     },
     {
-      title: '操作',
+      title: t('storageProvider.table.actions'),
       slotName: 'operations',
       width: 260,
     },
-  ];
+  ]);
 
   const modalTitle = computed(() => {
-    return editingId.value ? '编辑提供商配置' : '新增提供商配置';
+    return editingId.value
+      ? t('storageProvider.modal.edit')
+      : t('storageProvider.modal.create');
   });
 
   const getProviderTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      tencent_cos: '腾讯云COS',
-      aliyun_oss: '阿里云OSS',
-      aws_s3: 'AWS S3',
-      minio: 'MinIO',
-      unknown: '未知',
+      tencent_cos: 'storageProvider.providerType.tencentCos',
+      aliyun_oss: 'storageProvider.providerType.aliyunOss',
+      aws_s3: 'storageProvider.providerType.awsS3',
+      minio: 'storageProvider.providerType.minio',
+      unknown: 'storageProvider.providerType.unknown',
     };
-    return labels[type] || type;
+    const labelKey = labels[type];
+    return labelKey ? t(labelKey) : type;
   };
 
   const getProviderTypeColor = (type: string) => {
@@ -365,7 +455,7 @@
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '获取提供商列表失败';
+        t('storageProvider.error.fetch');
       Message.error(errorMsg);
     } finally {
       listLoading.value = false;
@@ -414,7 +504,7 @@
 
   const openCorsModal = (record: StorageProvider) => {
     if (record.provider_type !== 'tencent_cos') {
-      Message.warning('当前提供商不支持跨域配置');
+      Message.warning(t('storageProvider.error.corsUnsupported'));
       return;
     }
     currentCorsProvider.value = record;
@@ -450,13 +540,13 @@
 
     const allowedOrigins = splitInput(corsForm.allowed_origins);
     if (allowedOrigins.length === 0) {
-      Message.error('请至少配置一个允许来源');
+      Message.error(t('storageProvider.validation.allowedOrigins.required'));
       return;
     }
 
     const allowedMethods = splitInput(corsForm.allowed_methods, true);
     if (allowedMethods.length === 0) {
-      Message.error('请至少配置一个允许方法');
+      Message.error(t('storageProvider.validation.allowedMethods.required'));
       return;
     }
 
@@ -481,17 +571,17 @@
       const response = await setCosCors(payload);
       const { data } = response;
       if (data.success) {
-        Message.success(data.message || '跨域规则配置成功');
+        Message.success(data.message || t('storageProvider.success.corsSubmit'));
         corsModalVisible.value = false;
       } else {
-        Message.error(data.message || '跨域规则配置失败');
+        Message.error(data.message || t('storageProvider.error.corsSubmit'));
       }
     } catch (error: any) {
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '跨域规则配置失败';
+        t('storageProvider.error.corsSubmit');
       Message.error(errorMsg);
     } finally {
       corsSubmitting.value = false;
@@ -526,18 +616,23 @@
         await createStorageProvider(payload);
       }
 
-      Message.success(editingId.value ? '更新成功' : '创建成功');
-      // 刷新列表
+      Message.success(
+        editingId.value
+          ? t('storageProvider.success.update')
+          : t('storageProvider.success.create')
+      );
       await fetchProviders();
-      return true; // 允许 Modal 关闭
+      return true;
     } catch (error: any) {
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        (editingId.value ? '更新失败' : '创建失败');
+        (editingId.value
+          ? t('storageProvider.error.update')
+          : t('storageProvider.error.create'));
       Message.error(errorMsg);
-      return false; // 阻止 Modal 关闭
+      return false;
     } finally {
       actionLoading.value = false;
     }
@@ -545,21 +640,21 @@
 
   const handleBeforeOk = async (done: (closed: boolean) => void) => {
     const result = await handleSubmit();
-    done(result); // result 为 true 时关闭 Modal，false 时不关闭
+    done(result);
   };
 
   const handleDelete = async (id: string) => {
     try {
       actionLoading.value = true;
       await deleteStorageProvider(id);
-      Message.success('删除成功');
+      Message.success(t('storageProvider.success.delete'));
       await fetchProviders();
     } catch (error: any) {
       const errorMsg =
         error?.response?.data?.message ||
         error?.response?.data?.details ||
         error?.message ||
-        '删除失败';
+        t('storageProvider.error.delete');
       Message.error(errorMsg);
     } finally {
       actionLoading.value = false;
